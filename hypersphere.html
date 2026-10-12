@@ -70,7 +70,7 @@ button.on{background:#0e7490;border-color:#38bdf8}
     <div class="gb"><button id="bOpq">不透明</button><button id="bMat">光沢なし</button><button id="bShade" class="on">境目の影</button></div>
     <div class="gs" id="g-look"></div></details>
   <details class="grp"><summary>🖥 画面</summary>
-    <div class="gb"><button id="bFull">⛶ 超球全画面</button><button id="bPanel">スライダー隠す</button></div></details>
+    <div class="gb"><button id="bFull">⛶ 超球全画面</button><button id="bPanel">スライダー隠す</button><button id="bLsReset" title="保存した設定を消して初期状態に戻す">設定を初期化</button></div></details>
 </div>
 
 <script>
@@ -710,7 +710,74 @@ function syncPanel() {
   rL.render(sL, cL); rR.render(sR, cR);
 })();
 
+// ---------------- 設定の保存（localStorage） ----------------
+// 値が変わっていれば0.5秒ごとに自動保存。次回起動時に復元する。
+// 保存対象: 表示モード/半球/見た目/層数/各スライダー値/傾き/カメラ/目的地/パネルの開閉/右画面の視点
+// 保存しないもの: 自動回転・進める・ランダムの動作中状態、足あと
+const LS_KEY = 'hypersphere-settings-v1';
+const grpEls = [...document.querySelectorAll('details.grp')];
+let lsLast = '', noSave = false;
+function collectSettings() {
+  return {
+    nLayers, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn,
+    pitch, roll, yaw, zw, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM,
+    full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'),
+    open: grpEls.map(g => g.open),
+    cam: cR.position.toArray(), tgt: controls.target.toArray()
+  };
+}
+function saveSettings() {
+  if (noSave) return;
+  try {
+    const j = JSON.stringify(collectSettings());
+    if (j !== lsLast) { localStorage.setItem(LS_KEY, j); lsLast = j; }
+  } catch (e) { /* 保存できない環境（プライベートモード等）では黙って無視 */ }
+}
+function loadSettings() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) {}
+  if (!s || typeof s !== 'object') return;
+  const num = (k, lo, hi, d) => Number.isFinite(s[k]) ? Math.min(hi, Math.max(lo, s[k])) : d;
+  const bool = (k, d) => typeof s[k] === 'boolean' ? s[k] : d;
+  const pick = (k, list, d) => list.includes(s[k]) ? s[k] : d;
+  nLayers = Math.round(num('nLayers', 5, 101, nLayers)); if (nLayers % 2 === 0) nLayers = Math.min(101, nLayers + 1);
+  opacity = num('opacity', 0.05, 0.75, opacity); camW = num('camW', 2, 6, camW); shade = num('shade', 0, 1, shade);
+  spd = num('spd', 0.2, 3, spd); allM = Math.round(num('allM', 4, 24, allM)); if (allM % 2) allM++;
+  axis = pick('axis', ['mix', 'mix3', 'yw', 'xw', 'zw'], axis);
+  mode = pick('mode', ['hybrid', 'wire', 'solid', 'points'], mode);
+  hemi = pick('hemi', ['both', 'A', 'B'], hemi);
+  redCenter = bool('redCenter', redCenter); shadeOn = bool('shadeOn', shadeOn); opaque = bool('opaque', opaque); matte = bool('matte', matte);
+  wedgeOn = bool('wedgeOn', wedgeOn); sliceOn = bool('sliceOn', sliceOn); camOn = bool('camOn', camOn);
+  pathOn = bool('pathOn', pathOn); allOn = bool('allOn', allOn);
+  cSlice = num('cSlice', -R, R, cSlice);
+  const ang = (k, d) => norm(num(k, -1e3, 1e3, d));
+  pitch = ang('pitch', pitch); roll = ang('roll', roll); yaw = ang('yaw', yaw); zw = ang('zw', zw);
+  cx = ang('cx', cx); cy = ang('cy', cy); cz = ang('cz', cz);
+  pathPhi = num('pathPhi', -1e3, 1e3, pathPhi); pathLam = num('pathLam', -Math.PI / 2, Math.PI / 2, pathLam); pathT = num('pathT', 0, TAU, pathT);
+  // 画面・UIの見た目
+  const full = bool('full', false), min = bool('panelMin', false);
+  document.body.classList.toggle('full', full); $('bFull').classList.toggle('on', full);
+  $('panel').classList.toggle('min', min); $('bPanel').classList.toggle('on', min);
+  if (Array.isArray(s.open)) grpEls.forEach((g, i) => { if (typeof s.open[i] === 'boolean') g.open = s.open[i]; });
+  mark('[data-mode]', document.querySelector(`[data-mode="${mode}"]`));
+  mark('[data-hemi]', document.querySelector(`[data-hemi="${hemi}"]`));
+  mark('[data-ax]', document.querySelector(`[data-ax="${axis}"]`));
+  [['bSlice', sliceOn], ['bWedge', wedgeOn], ['bCam', camOn], ['bOpq', opaque], ['bMat', matte], ['bShade', shadeOn], ['bPath', pathOn], ['bAll', allOn]]
+    .forEach(([id, on]) => $(id).classList.toggle('on', on));
+  controls.enabled = !camOn;
+  const v3 = a => Array.isArray(a) && a.length === 3 && a.every(Number.isFinite);
+  if (v3(s.cam) && v3(s.tgt)) { cR.position.fromArray(s.cam); controls.target.fromArray(s.tgt); controls.update(); }
+}
+$('bLsReset').onclick = () => {
+  if (!confirm('保存した設定を消して、初期状態に戻しますか？')) return;
+  noSave = true; try { localStorage.removeItem(LS_KEY); } catch (e) {} location.reload();
+};
+
+loadSettings();
 resize(); build(); refreshTag();
+setInterval(saveSettings, 500);
+addEventListener('pagehide', saveSettings);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveSettings(); });
 </script>
 </body>
 </html>
