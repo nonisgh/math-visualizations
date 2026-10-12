@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>幾何学・高次元ビジュアルコレクション</title>
+    <style>
+        body {
+            background-color: #030712;
+            color: #f3f4f6;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: #38bdf8;
+            font-size: 28px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        p.description {
+            color: #94a3b8;
+            font-size: 14px;
+            max-width: 600px;
+            text-align: center;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .card {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .card h2 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 18px;
+            color: #e2e8f0;
+        }
+
+        .card p {
+            color: #94a3b8;
+            font-size: 13px;
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: #0284c7;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #0369a1;
+        }
+
+        footer {
+            margin-top: auto;
+            padding-top: 40px;
+            color: #64748b;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🌌 幾何学 ＆ 高次元ビジュアルコレクション</h1>
+    <p class="description">2次元の多角形から、3次元・4次元の超幾何体まで。幾何学の構造をリアルタイムで体験できるシミュレーター集です。</p>
+
+    <div class="container">
+
+        <!-- 1. 多角形 -->
+        <div class="card">
+            <h2>📐 n/m 角形 エクスプローラー (2D)</h2>
+            <p>シュレーフリ記号 {n/m} や分数・小数入力から、星型多角形・スピログラフの一筆描きを可視化します。</p>
+            <a href="polygon.html" class="btn">polygon.html を開く ➔</a>
+        </div>
+
+        <!-- 2. 超立方体 -->
+        <div class="card">
+            <h2>🧊 超立方体 / テセラック (3D / 4D)</h2>
+            <p>2D➔3Dの展開図折りたたみと、3D➔4Dの超立方体組み立て・中心回転を完全同期して立体比較します。</p>
+            <a href="hypercube.html" class="btn">hypercube.html を開く ➔</a>
+        </div>
+
+        <!-- 3. 超球 -->
+        <div class="card">
+            <h2>🔮 3D / 4D 超球 (Hypersphere)</h2>
+            <p>3次元球面の切断面、4次元球殻の透視投影、北極スタートの全方向の旅（大円軌跡）を体験する連動シミュレーターです。</p>
+            <a href="hypersphere.html" class="btn">hypersphere.html を開く ➔</a>
+        </div>
+
+    </div>
+
+    <footer>Interactive Geometry Visualization Suite</footer>
+
+</body>
+</html>
