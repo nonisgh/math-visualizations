@@ -514,7 +514,7 @@
                     const polar = controls2D.getPolarAngle();
 
                     rotAngle4DX = azimuth;
-                    rotAngle4DY = polar - Math.PI / 2;
+                    rotAngle4DY = Math.PI / 2 - polar;
 
                     updateMorphingGeometry(animationProgress);
                 }
@@ -941,7 +941,7 @@
                 enableManual4DLink = !enableManual4DLink;
                 if (enableManual4DLink) {
                     rotAngle4DX = controls2D.getAzimuthalAngle();
-                    rotAngle4DY = controls2D.getPolarAngle() - Math.PI / 2;
+                    rotAngle4DY = Math.PI / 2 - controls2D.getPolarAngle();
                 } else {
                     rotAngle4DX = 0; rotAngle4DY = 0;
                 }
