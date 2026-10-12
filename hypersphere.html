@@ -50,6 +50,9 @@ button.on{background:#0e7490;border-color:#38bdf8}
     <div class="gb"><span>モード</span><button data-mode="hybrid" class="on">ハイブリッド</button><button data-mode="wire">ワイヤー</button><button data-mode="solid">半透明</button><button data-mode="points">点群</button></div>
     <div class="gb"><span>半球</span><button data-hemi="both" class="on">全球</button><button data-hemi="A">北 A</button><button data-hemi="B">南 B</button></div>
     <div class="gb"><button id="bSlice">🔪 切断面（観察者に固定）</button><button id="bWedge">✂ 断面カット</button><button id="bColor">中心色反転</button></div>
+    <div class="gb"><span>切り欠き</span><button data-cref="screen" class="on" title="観察者（画面）から見て常に同じ側を切る">📺 画面に固定</button><button data-cref="obj" title="超球の経度に固定（回すと切り口も一緒に動く）">🧊 物体に固定</button><button data-cref="orig" title="押した瞬間に画面から見て手前側の90°ぶんのポリゴンを作らない。次に押すまで超球に固定">🧱 ポリゴンカット</button></div>
+    <div class="gb"><button id="bCutL">⟲ 90°</button><button id="bCutR">90° ⟳</button><button id="bCutSpin">🌀 ぐるっと</button></div>
+    <div class="gb"><span>開き具合</span><button data-cw="60">60°</button><button data-cw="90">90°</button><button data-cw="120">120°</button><button data-cw="180">180°</button><button data-cw="270">270°</button><span>（細かくは下の「開き具合」）</span></div>
     <div class="gs" id="g-view"></div></details>
   <details class="grp" open><summary>🧭 目的地・全方向の旅（北極スタート）</summary>
     <div class="gb"><button id="bPath">🎯 目的地を指定</button><button id="bRand">🎲 ランダムに次々</button><button id="bFootClr">足あとを消す</button></div>
@@ -87,6 +90,16 @@ let footN = 0, footI = 0, footPts = null, footLast = null, randPlay = false, ran
 const PN = 240;
 let spd = 1, axis = 'mix', shadeOn = true, shade = 0.6;
 const shU = { value: 0 }, olU = { value: 0 };
+// 断面カット（シェーダで切る）: mode 0=なし 1=画面基準(観察者から見た向き) 2=物体基準(超球の経度)
+let cutRef = 'screen', cutAng = 0, cutPhi = Math.PI * 1.75, cutW = Math.PI * 2 / 3, cutSpin = false, cutGoal = null;
+const cutU = { uCutMode: { value: 0 }, uCutC: { value: 0 }, uCutH: { value: Math.PI / 4 }, uCtr: { value: new THREE.Vector3() } };
+function addCut(sh) {
+  Object.assign(sh.uniforms, cutU);
+  sh.vertexShader = 'attribute float aPhi;\nvarying float vPhi;\nvarying vec3 vCutP;\nuniform vec3 uCtr;\n'
+    + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vPhi = aPhi; vCutP = mvPosition.xyz - uCtr;');
+  sh.fragmentShader = 'varying float vPhi;\nvarying vec3 vCutP;\nuniform float uCutMode, uCutC, uCutH;\n'
+    + sh.fragmentShader.replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n if (uCutMode > 0.5) { float a = (uCutMode < 1.5 ? atan(vCutP.x, vCutP.z) : vPhi) - uCutC; a = mod(a + PI, 2.0 * PI) - PI; if (abs(a) < uCutH) discard; }');
+}
 let zw = 0, cx = 0, cy = 0, cz = 0, camOn = false, opaque = false, matte = false;
 let pitch = 0, roll = 0, yaw = 0;          // 左(3D)の姿勢
 let a4 = 0, b4 = 0, c4 = 0;                // 右(4D)が使う回転角: XW, YW, XY
@@ -144,12 +157,13 @@ function clearGroup(g) {
 }
 function build() {
   clearGroup(gL); clearGroup(gR); clearGroup(gS); layers = [];
+  const phiLen = wedgeOn && cutRef === 'orig' ? Math.PI * 1.5 : TAU;   // ポリゴンカット: 経度方向に1/4（90°）だけポリゴンを作らない
+  const phiSt = phiLen < TAU ? cutPhi + Math.PI / 4 : 0;                // 切り欠きの中心が経度 cutPhi になる開始位置
   // 層が多いときは1層あたりの分割数・リングの太さを自動で落として軽くする
   MESH = nLayers > 61 ? 12 : nLayers > 31 ? 16 : 24;
   tube = nLayers > 31 ? 0.008 : 0.02;
   torR = nLayers > 61 ? 6 : 12; torS = nLayers > 61 ? 48 : 64;
   makePath();
-  const phiLen = wedgeOn ? Math.PI * 1.5 : TAU;          // 断面カット: 経度方向に1/4切り欠く
   for (const isB of [false, true]) {
     const sign = isB ? -1 : 1;
     for (let i = 0; i < nLayers; i++) {
@@ -165,23 +179,27 @@ function build() {
       ring.position.z = z; gL.add(ring);
 
       // 右: 球殻（半径 r, w = z）。geometryを3つで共有
-      const geo = new THREE.SphereGeometry(1, MESH, MESH, 0, phiLen);
+      const geo = new THREE.SphereGeometry(1, MESH, MESH, phiSt, phiLen);
+      { const uv = geo.attributes.uv.array, ph = new Float32Array(uv.length / 2); for (let q = 0; q < ph.length; q++) ph[q] = uv[q * 2] * phiLen; geo.setAttribute('aPhi', new THREE.BufferAttribute(ph, 1)); }   // 経度（物体基準の切り欠き用）
       const base = Float32Array.from(geo.attributes.position.array);
       const solid = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
         color: col, transparent: true, opacity, roughness: 0.2, metalness: 0.3, side: THREE.DoubleSide, depthWrite: false }));
       const wire = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
         color: col.clone().multiplyScalar(1.4), wireframe: true, transparent: true, opacity: 0.6 }));
       const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: col, size: 0.05, transparent: true, opacity: 0.85 }));
+      wire.material.onBeforeCompile = addCut; pts.material.onBeforeCompile = addCut;
       // 境目の影: ①縁ほど暗くする（リム影） ②黒い輪郭（裏面を法線方向にふくらませる）
       solid.material.onBeforeCompile = sh => {
         sh.uniforms.uShade = shU;
         sh.fragmentShader = 'uniform float uShade;\n' + sh.fragmentShader.replace('#include <dithering_fragment>',
           '#include <dithering_fragment>\n float rimK = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition)));\n gl_FragColor.rgb *= 1.0 - uShade * pow(rimK, 1.6);');
+        addCut(sh);
       };
       const out = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide }));
       out.material.onBeforeCompile = sh => {
         sh.uniforms.uOut = olU;
         sh.vertexShader = 'uniform float uOut;\n' + sh.vertexShader.replace('#include <begin_vertex>', 'vec3 transformed = position + normal * uOut;');
+        addCut(sh);
       };
       out.visible = false;
       [solid, wire, pts, out].forEach(o => { o.frustumCulled = false; gR.add(o); });
@@ -598,11 +616,35 @@ $('bSlice').onclick = e => {                   // 切断面モード: トグル
   e.currentTarget.classList.toggle('on', sliceOn);
   applyVis(); updateRight(); refreshTag(); refreshUI();
 };
-$('bWedge').onclick = e => {                   // 断面カット(くさび): トグル
-  wedgeOn = !wedgeOn;
-  e.currentTarget.classList.toggle('on', wedgeOn);
-  build();
+const ensureWedge = () => { if (!wedgeOn) { wedgeOn = true; $('bWedge').classList.add('on'); if (cutRef === 'orig') build(); } syncPanel(); };
+const setCutRef = r => {                       // 元の方式との行き来だけポリゴンを作り直す
+  const gone = (cutRef === 'orig') !== (r === 'orig'); cutRef = r; mark('[data-cref]', document.querySelector(`[data-cref="${r}"]`));
+  if (gone && wedgeOn) build(); else syncPanel();
 };
+const leaveOrig = () => { if (cutRef === 'orig') setCutRef('screen'); };   // 位置・開き具合・回転は元の方式では使えないので画面基準へ
+$('bWedge').onclick = e => {                   // 断面カット(くさび): トグル（シェーダなので再構築なし）
+  wedgeOn = !wedgeOn;
+  e.currentTarget.classList.toggle('on', wedgeOn); if (cutRef === 'orig') build(); else syncPanel();
+};
+// 画面（観察者）の方向を物体座標へ引き戻して、手前を向いている経度を求める（SphereGeometry: x=-cosφ·sinθ, z=sinφ·sinθ）
+function viewerPhi(fallback) {
+  mkSteps();
+  const o = [cR.position.x, cR.position.y, cR.position.z, 0];
+  for (let k = steps.length - 1; k >= 0; k--) { const [i, j, c, sn] = steps[k], t = o[i] * c + o[j] * sn; o[j] = -o[i] * sn + o[j] * c; o[i] = t; }
+  return Math.hypot(o[0], o[2]) < 1e-3 ? fallback : ((Math.atan2(o[2], -o[0]) % TAU) + TAU) % TAU;   // 真上/真下から見ているときは前回の位置のまま
+}
+document.querySelectorAll('[data-cref]').forEach(b => b.onclick = () => {
+  const r = b.dataset.cref;
+  if (r === 'orig') {                     // 押すたびに、今画面に向いている側を90°カット（次に押すまで固定）
+    cutPhi = viewerPhi(cutPhi); cutRef = 'orig'; mark('[data-cref]', b);
+    wedgeOn = true; $('bWedge').classList.add('on'); build();
+  } else { setCutRef(r); ensureWedge(); }
+});
+const stepCut = dir => { leaveOrig(); ensureWedge(); cutSpin = false; $('bCutSpin').classList.remove('on'); const q = Math.PI / 2; cutGoal = (Math.round((cutGoal !== null ? cutGoal : cutAng) / q) + dir) * q; };   // 90°刻み（なめらかに移動）
+document.querySelectorAll('[data-cw]').forEach(b => b.onclick = () => { leaveOrig(); cutW = +b.dataset.cw * D2R; ensureWedge(); });
+$('bCutL').onclick = () => stepCut(-1);
+$('bCutR').onclick = () => stepCut(1);
+$('bCutSpin').onclick = e => { cutSpin = !cutSpin; cutGoal = null; e.currentTarget.classList.toggle('on', cutSpin); if (cutSpin) { leaveOrig(); ensureWedge(); } };
 $('bSpin').onclick = e => { spinOn = !spinOn; controls.autoRotate = spinOn; e.currentTarget.classList.toggle('on', spinOn); };
 $('bDemo').onclick = e => { demo = !demo; e.currentTarget.classList.toggle('on', demo); };
 document.querySelectorAll('[data-hemi]').forEach(b => b.onclick = () => {
@@ -651,6 +693,8 @@ addEventListener('pointercancel', () => drag2 = false);
 const D2R = Math.PI / 180;
 const PR = [
   { g: 'view', t: '切り口の位置 c（切断面モード）', min: -1.35, max: 1.35, step: .01, dp: 2, en: () => sliceOn, get: () => cSlice, set: v => { cSlice = v; updateRight(); refreshUI(); } },
+  { g: 'view', t: '切り欠きの位置（°）画面基準:0=手前 90=右 ／ 物体基準:経度', deg: 1, lim: [0, 360], en: () => wedgeOn && cutRef !== 'orig', get: () => ((cutAng % TAU) + TAU) % TAU, set: v => { cutAng = v; cutGoal = null; } },
+  { g: 'view', t: '開き具合（°）切り欠きの大きさ', deg: 1, lim: [10, 300], en: () => wedgeOn && cutRef !== 'orig', get: () => cutW, set: v => { cutW = v; } },
   { g: 'rot', t: '前後傾き ↔ 4D Y-W（°）', deg: 1, get: () => pitch, set: v => { pitch = v; update(); } },
   { g: 'rot', t: '左右傾き ↔ 4D X-W（°）', deg: 1, get: () => roll, set: v => { roll = v; update(); } },
   { g: 'rot', t: '面内自転 ↔ 4D X-Y（°）', deg: 1, get: () => yaw, set: v => { yaw = v; update(); } },
@@ -684,6 +728,7 @@ PR.forEach(p => {
   p.n.addEventListener(p.odd ? 'change' : 'input', () => apply(p.n.value));
 });
 function syncPanel() {
+  document.querySelectorAll('[data-cw]').forEach(b => b.classList.toggle('on', Math.abs(cutW - +b.dataset.cw * D2R) < 1e-3));
   PR.forEach(p => {
     const x = p.deg ? p.get() / D2R : p.get();
     p.r.value = x;
@@ -706,7 +751,15 @@ function syncPanel() {
   }
   if (randPlay) { addFoot(4); if (++randTick % 15 === 0 && footLast) { pathPhi = footLast.ph; pathLam = footLast.lam; pathT = footLast.t; } updatePath(); refreshUI(); }
   if (pathPlay && (pathOn || allOn)) { pathT = (pathT + 0.015 * spd) % TAU; updatePath(); refreshUI(); }
-  controls.update();
+  if (cutSpin) { cutAng = (cutAng + 0.012 * spd) % TAU; syncPanel(); }
+  else if (cutGoal !== null) {
+    const d = cutGoal - cutAng;
+    if (Math.abs(d) < 0.004) { cutAng = ((cutGoal % TAU) + TAU) % TAU; cutGoal = null; } else cutAng += d * 0.18;
+    syncPanel();
+  }
+  cutU.uCutMode.value = wedgeOn && cutRef !== 'orig' ? (cutRef === 'screen' ? 1 : 2) : 0; cutU.uCutC.value = cutAng; cutU.uCutH.value = cutW / 2;
+  controls.update(); cR.updateMatrixWorld();
+  cutU.uCtr.value.set(0, 0, 0).applyMatrix4(cR.matrixWorldInverse);   // 球の中心の視点座標（画面基準の切り欠き用）
   rL.render(sL, cL); rR.render(sR, cR);
 })();
 
@@ -720,7 +773,7 @@ let lsLast = '', noSave = false;
 function collectSettings() {
   return {
     nLayers, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn,
-    pitch, roll, yaw, zw, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM,
+    cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM,
     full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'),
     open: grpEls.map(g => g.open),
     cam: cR.position.toArray(), tgt: controls.target.toArray()
@@ -750,6 +803,9 @@ function loadSettings() {
   wedgeOn = bool('wedgeOn', wedgeOn); sliceOn = bool('sliceOn', sliceOn); camOn = bool('camOn', camOn);
   pathOn = bool('pathOn', pathOn); allOn = bool('allOn', allOn);
   cSlice = num('cSlice', -R, R, cSlice);
+  cutPhi = num('cutPhi', 0, TAU, cutPhi);
+  cutRef = pick('cutRef', ['screen', 'obj', 'orig'], cutRef); cutAng = num('cutAng', 0, TAU, cutAng); cutW = num('cutW', 10 * Math.PI / 180, 300 * Math.PI / 180, cutW);
+  mark('[data-cref]', document.querySelector(`[data-cref="${cutRef}"]`));
   const ang = (k, d) => norm(num(k, -1e3, 1e3, d));
   pitch = ang('pitch', pitch); roll = ang('roll', roll); yaw = ang('yaw', yaw); zw = ang('zw', zw);
   cx = ang('cx', cx); cy = ang('cy', cy); cz = ang('cz', cz);
