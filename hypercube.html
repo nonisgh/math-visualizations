@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D➔3D vs 3D➔4D 超立方体シミュレーター（超立方体の中心まわりで回転）</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans JP', 'Inter', sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+            overflow: hidden;
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .glow-effect {
+            box-shadow: 0 0 35px rgba(56, 189, 248, 0.25);
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            box-shadow: 0 0 14px #38bdf8;
+            transition: all 0.15s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            background: #00f0ff;
+        }
+
+        .mode-split #wrapper-2d3d { width: 50%; height: 100%; display: block; position: relative; border-right: 1px solid #1e293b; }
+        .mode-split #wrapper-3d4d { width: 50%; height: 100%; display: block; position: relative; }
+
+        .mode-pip #wrapper-3d4d { width: 100%; height: 100%; display: block; position: relative; }
+        .mode-pip #wrapper-2d3d { 
+            position: absolute !important;
+            top: 1.5rem !important;
+            right: 1.5rem !important;
+            width: 320px !important;
+            height: 250px !important;
+            z-index: 30 !important;
+            display: block !important;
+            border-radius: 1.25rem !important;
+            border: 2px solid rgba(56, 189, 248, 0.7) !important;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.9), 0 0 30px rgba(56, 189, 248, 0.35) !important;
+            background: rgba(15, 23, 42, 0.95) !important;
+            overflow: hidden !important;
+        }
+
+        .mode-hypercube #wrapper-2d3d { display: none !important; }
+        .mode-hypercube #wrapper-3d4d { width: 100%; height: 100%; display: block; position: relative; }
+
+        .mode-cube #wrapper-2d3d { width: 100%; height: 100%; display: block; position: relative; }
+        .mode-cube #wrapper-3d4d { display: none !important; }
+    </style>
+</head>
+<body class="w-full h-screen relative flex flex-col select-none overflow-hidden">
+
+    <!-- Render Canvas Container -->
+    <div id="main-container" class="w-full h-full absolute inset-0 z-0 flex mode-split">
+        <div id="wrapper-2d3d">
+            <div id="canvas-2d3d" class="w-full h-full"></div>
+            <div id="badge-2d3d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-cyan-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-cyan-300 shadow-lg flex items-center gap-2 z-10">
+                <i data-lucide="square" class="w-4 h-4 text-cyan-400"></i>
+                <span>左: 2D/3Dサイコロ<br><span class="font-normal text-slate-400 text-[10px]">右3Dの回転 → 面内の回転角に割り当てた簡易対応</span></span>
+            </div>
+        </div>
+
+        <div id="wrapper-3d4d">
+            <div id="canvas-3d4d" class="w-full h-full"></div>
+            <div id="badge-3d4d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-300 shadow-lg flex items-center gap-2 z-10">
+                <i data-lucide="box" class="w-4 h-4 text-purple-400"></i>
+                <span>右: 3D超立方体（超立方体の中心まわりで回転）<br><span class="font-normal text-slate-400 text-[10px]">左の視点 → 方位=X-W・上下=Y-W の2軸だけに割り当てた簡易対応</span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- UI Overlay Layout -->
+    <div class="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none p-3 md:p-6">
+        <div></div>
+
+        <footer class="glass-panel rounded-2xl p-4 md:p-5 max-w-3xl w-full mx-auto pointer-events-auto shadow-2xl mt-auto space-y-3.5 glow-effect">
+            <div class="space-y-1.5">
+                <div class="flex justify-between items-center text-xs font-semibold">
+                    <span class="flex items-center gap-2 text-slate-300">
+                        <i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i>
+                        折りたたみ進行（完全同期）
+                    </span>
+                    <span id="progress-percent" class="text-cyan-400 font-mono font-bold text-sm md:text-base">0% (展開図)</span>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    <span class="text-[10px] font-bold text-indigo-300 bg-indigo-950/80 px-2 py-1 rounded border border-indigo-800/80">展開図</span>
+                    <input id="unfold-slider" type="range" min="0" max="1" step="0.001" value="0" 
+                           class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-slate-700">
+                    <span class="text-[10px] font-bold text-cyan-400 bg-cyan-950/80 px-2 py-1 rounded border border-cyan-800/80">組み上がり完成</span>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800">
+                <div class="flex items-center gap-2">
+                    <button id="play-fold-btn" class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-slate-950 font-black rounded-xl transition shadow-lg shadow-cyan-500/20 active:scale-95 text-xs">
+                        <i data-lucide="box" class="w-4 h-4"></i>
+                        <span>組みあげる</span>
+                    </button>
+                    <button id="play-unfold-btn" class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-black rounded-xl transition shadow-lg shadow-indigo-500/20 active:scale-95 text-xs">
+                        <i data-lucide="unfold" class="w-4 h-4"></i>
+                        <span>展開する</span>
+                    </button>
+                    <button id="loop-btn" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-xl transition active:scale-95" title="往復自動再生">
+                        <i data-lucide="repeat" class="w-4 h-4"></i>
+                    </button>
+
+                    <button id="speed-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-amber-900/40 border border-amber-500/50 text-amber-300 font-mono font-bold rounded-xl hover:bg-amber-800/50 transition text-xs" title="再生速度の切り替え">
+                        <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400"></i>
+                        <span id="speed-text" class="text-[11px]">速度: 1.0x</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <button id="display-mode-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-900/40 border border-emerald-500/50 text-emerald-200 rounded-xl hover:bg-emerald-800/50 transition text-xs" title="表示モード切替">
+                        <i data-lucide="columns" class="w-3.5 h-3.5 text-emerald-400"></i>
+                        <span id="display-mode-text" class="text-[11px]">表示: どっちも</span>
+                    </button>
+
+                    <button id="stagger-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-cyan-900/40 border border-cyan-500/50 text-cyan-200 rounded-xl hover:bg-cyan-800/50 transition text-xs" title="時間差か同時かを選択">
+                        <i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400"></i>
+                        <span id="stagger-text" class="text-[11px]">時間差: ON</span>
+                    </button>
+
+                    <button id="auto-link-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs">
+                        <i data-lucide="zap" class="w-3.5 h-3.5 text-slate-400"></i>
+                        <span id="auto-link-text" class="text-[11px]">自動切替: OFF</span>
+                    </button>
+
+                    <button id="rot-4d-btn" title="左の立方体の視点（方位角→X-W、極角→Y-W）を右の超立方体の4D回転に割り当てます。4D回転は6軸ありますが、ここでは2軸のみの簡易対応です" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-purple-500/40 text-purple-300 rounded-xl hover:bg-slate-700 transition text-xs">
+                        <i data-lucide="orbit" class="w-3.5 h-3.5"></i>
+                        <span class="text-[11px]">左3D➔右4D: OFF</span>
+                    </button>
+
+                    <button id="rot-plane-link-btn" title="右の3Dの視点（方位角・極角）を、左の展開図の面内回転角に割り当てます（簡易対応）" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-cyan-500/40 text-cyan-300 rounded-xl hover:bg-slate-700 transition text-xs">
+                        <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                        <span class="text-[11px]">右3D➔左2D: OFF</span>
+                    </button>
+
+                    <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-[11px]">
+                        <button id="view-mesh-btn" class="px-2 py-0.5 rounded-lg font-medium text-cyan-400 bg-slate-800 transition">メッシュ</button>
+                        <button id="view-wire-btn" class="px-2 py-0.5 rounded-lg font-medium text-slate-400 hover:text-white transition">ワイヤー</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-1 text-[11px] pt-1 border-t border-slate-800/80">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-400 flex items-center gap-1"><i data-lucide="camera" class="w-3.5 h-3.5"></i>視点:</span>
+                    <button data-cam="iso" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 transition font-bold">斜め正面</button>
+                    <button data-cam="front" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">真正面</button>
+                    <button data-cam="top" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">真上</button>
+                </div>
+
+                <button id="auto-rotate-btn" class="flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-cyan-400 rounded-lg hover:bg-slate-700 transition text-[11px] border-cyan-500/40">
+                    <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                    <span>3D同期カメラ回転</span>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        let scene2D, camera2D, renderer2D, controls2D;
+        let scene3D, camera3D, renderer3D, controls3D;
+
+        let animationMode = 0;
+        let loopDirection = 1;
+        let animationProgress = 0.0;
+        let animSpeedMultiplier = 1.0;
+        let autoRotateCamera = false;
+        
+        let enableAutoSwitchLink = false;
+        let enableManual4DLink = false;
+        let enablePlaneRotateLink = false;
+
+        let enableStagger = true;
+        let displayMode = 'both'; 
+        let wireframeOnly = false;
+        
+        let rotAngle4DX = 0;
+        let rotAngle4DY = 0;
+        let rotAngle2DPlane = 0;
+
+        const S = 1.8;
+        const HALF_S = S / 2;
+        const CAMERA_W = 4.5;
+
+        const cellObjects3D = [];
+        const faceObjects2D = [];
+
+        const unitCubeVertices = [
+            [-0.5, -0.5, -0.5], [ 0.5, -0.5, -0.5], [ 0.5,  0.5, -0.5], [-0.5,  0.5, -0.5],
+            [-0.5, -0.5,  0.5], [ 0.5, -0.5,  0.5], [ 0.5,  0.5,  0.5], [-0.5,  0.5,  0.5]
+        ];
+
+        const cubeIndices = [
+            0, 2, 1,   0, 3, 2,
+            4, 5, 6,   4, 6, 7,
+            0, 1, 5,   0, 5, 4,
+            2, 3, 7,   2, 7, 6,
+            0, 4, 7,   0, 7, 3,
+            1, 2, 6,   1, 6, 5
+        ];
+
+        const cubeEdges = [
+            [0,1], [1,2], [2,3], [3,0],
+            [4,5], [5,6], [6,7], [7,4],
+            [0,4], [1,5], [2,6], [3,7]
+        ];
+
+        const faceConfigs2D = [
+            { id: 0, name: "中央面", color: 0xf59e0b },
+            { id: 1, name: "上面",   color: 0x38bdf8 },
+            { id: 2, name: "下面",   color: 0x38bdf8 },
+            { id: 3, name: "右面",   color: 0x10b981 },
+            { id: 4, name: "左面",   color: 0x10b981 },
+            { id: 5, name: "最上蓋", color: 0xa855f7 }
+        ];
+
+        const cellConfigs3D = [
+            { id: 0, name: "中央固定核胞", color: 0xf59e0b },
+            { id: 1, name: "上ヒンジ胞",   color: 0x38bdf8 },
+            { id: 2, name: "下ヒンジ胞",   color: 0x38bdf8 },
+            { id: 3, name: "右ヒンジ胞",   color: 0x10b981 },
+            { id: 4, name: "左ヒンジ胞",   color: 0x10b981 },
+            { id: 5, name: "前ヒンジ胞",   color: 0xf43f5e },
+            { id: 6, name: "後ヒンジ胞",   color: 0xf43f5e },
+            { id: 7, name: "連鎖頂点胞",   color: 0xa855f7 }
+        ];
+
+        function smootherstep(t) {
+            const clamped = Math.max(0, Math.min(1, t));
+            return clamped * clamped * clamped * (clamped * (clamped * 6 - 15) + 10);
+        }
+
+        function calculateFoldedFaceVertices2D(faceId, progress, planeAngle) {
+            let a1, a2;
+            if (enableStagger) {
+                const p1 = Math.min(1.0, progress / 0.60);
+                a1 = smootherstep(p1) * (Math.PI / 2);
+
+                const p2 = Math.max(0.0, (progress - 0.45) / 0.55);
+                a2 = smootherstep(p2) * (Math.PI / 2);
+            } else {
+                const t = smootherstep(progress);
+                a1 = t * (Math.PI / 2);
+                a2 = t * (Math.PI / 2);
+            }
+
+            const baseQuad = [
+                [-HALF_S, -HALF_S, 0],
+                [ HALF_S, -HALF_S, 0],
+                [ HALF_S,  HALF_S, 0],
+                [-HALF_S,  HALF_S, 0]
+            ];
+
+            return baseQuad.map(v => {
+                let x = v[0], y = v[1], z = 0;
+
+                if (faceId === 0) {}
+                else if (faceId === 1) {
+                    const ly = y + HALF_S;
+                    y = HALF_S + ly * Math.cos(a1);
+                    z = ly * Math.sin(a1);
+                }
+                else if (faceId === 2) {
+                    const ly = y - HALF_S;
+                    y = -HALF_S + ly * Math.cos(a1);
+                    z = -ly * Math.sin(a1);
+                }
+                else if (faceId === 3) {
+                    const lx = x + HALF_S;
+                    x = HALF_S + lx * Math.cos(a1);
+                    z = lx * Math.sin(a1);
+                }
+                else if (faceId === 4) {
+                    const lx = x - HALF_S;
+                    x = -HALF_S + lx * Math.cos(a1);
+                    z = -lx * Math.sin(a1);
+                }
+                else if (faceId === 5) {
+                    const ly = y + HALF_S;
+                    const y1 = HALF_S + S * Math.cos(a1);
+                    const z1 = S * Math.sin(a1);
+
+                    const totalA = a1 + a2;
+                    y = y1 + ly * Math.cos(totalA);
+                    z = z1 + ly * Math.sin(totalA);
+                }
+
+                if (planeAngle !== 0) {
+                    const cosA = Math.cos(planeAngle);
+                    const sinA = Math.sin(planeAngle);
+                    const rx = x * cosA - y * sinA;
+                    const ry = x * sinA + y * cosA;
+                    x = rx;
+                    y = ry;
+                }
+
+                return [x, y, z];
+            });
+        }
+
+        // --- 中心核胞を中心座標 (0,0,0) へ完璧に固定・補正した計算処理 ---
+        function calculateFoldedCellVertices3D(cellId, progress, angleXW, angleYW) {
+            let foldAngle1, foldAngle2;
+
+            if (enableStagger) {
+                const p1 = Math.min(1.0, progress / 0.60);
+                foldAngle1 = smootherstep(p1) * (Math.PI / 2);
+
+                const p2 = Math.max(0.0, (progress - 0.45) / 0.55);
+                foldAngle2 = smootherstep(p2) * (Math.PI / 2);
+            } else {
+                const t = smootherstep(progress);
+                foldAngle1 = t * (Math.PI / 2);
+                foldAngle2 = t * (Math.PI / 2);
+            }
+
+            const PIV = HALF_S * (foldAngle1 / (Math.PI / 2));
+            const vertices4D = [];
+
+            for (let i = 0; i < 8; i++) {
+                const u = unitCubeVertices[i];
+                let x = u[0] * S;
+                let y = u[1] * S;
+                let z = u[2] * S;
+
+                let gx = x, gy = y, gz = z, gw = 0;
+
+                if (cellId === 0) {
+                    gx = x; gy = y; gz = z; gw = 0;
+                }
+                else if (cellId === 1) {
+                    const ly = y + HALF_S;
+                    gy = HALF_S + ly * Math.cos(foldAngle1);
+                    gw = ly * Math.sin(foldAngle1);
+                }
+                else if (cellId === 2) {
+                    const ly = y - HALF_S;
+                    gy = -HALF_S + ly * Math.cos(foldAngle1);
+                    gw = -ly * Math.sin(foldAngle1);
+                }
+                else if (cellId === 3) {
+                    const lx = x + HALF_S;
+                    gx = HALF_S + lx * Math.cos(foldAngle1);
+                    gw = lx * Math.sin(foldAngle1);
+                }
+                else if (cellId === 4) {
+                    const lx = x - HALF_S;
+                    gx = -HALF_S + lx * Math.cos(foldAngle1);
+                    gw = -lx * Math.sin(foldAngle1);
+                }
+                else if (cellId === 5) {
+                    const lz = z + HALF_S;
+                    gz = HALF_S + lz * Math.cos(foldAngle1);
+                    gw = lz * Math.sin(foldAngle1);
+                }
+                else if (cellId === 6) {
+                    const lz = z - HALF_S;
+                    gz = -HALF_S + lz * Math.cos(foldAngle1);
+                    gw = -lz * Math.sin(foldAngle1);
+                }
+                else if (cellId === 7) {
+                    const ly = y + HALF_S;
+                    const y1 = HALF_S + S * Math.cos(foldAngle1);
+                    const w1 = S * Math.sin(foldAngle1);
+
+                    const totalAngle = foldAngle1 + foldAngle2;
+                    gy = y1 + ly * Math.cos(totalAngle);
+                    gw = w1 + ly * Math.sin(totalAngle);
+                }
+
+                // 回転の中心を「超立方体の中心」へ: 折りたたみ完成で w = S/2、展開図では w = 0（核胞が原点）
+                gw -= PIV;
+                if (angleXW !== 0) {
+                    const cosA = Math.cos(angleXW);
+                    const sinA = Math.sin(angleXW);
+                    const rx = gx * cosA - gw * sinA;
+                    const rw = gx * sinA + gw * cosA;
+                    gx = rx; gw = rw;
+                }
+
+                if (angleYW !== 0) {
+                    const cosA = Math.cos(angleYW);
+                    const sinA = Math.sin(angleYW);
+                    const ry = gy * cosA - gw * sinA;
+                    const rw = gy * sinA + gw * cosA;
+                    gy = ry; gw = rw;
+                }
+
+                gw += PIV;
+                vertices4D.push([gx, gy, gz, gw]);
+            }
+
+            // 3D透視投影
+            const projected = vertices4D.map(p4 => {
+                const wVal = p4[3];
+                const safeW = Math.min(Math.max(wVal, -CAMERA_W + 0.5), CAMERA_W - 0.5);
+                const scale = CAMERA_W / (CAMERA_W - safeW);
+
+                return [
+                    p4[0] * scale,
+                    p4[1] * scale,
+                    p4[2] * scale
+                ];
+            });
+
+            return projected;
+        }
+
+        function updateLinkUI() {
+            const btn4D = document.getElementById('rot-4d-btn');
+            const btnPlane = document.getElementById('rot-plane-link-btn');
+
+            if (enableManual4DLink) {
+                btn4D.innerHTML = `<i data-lucide="orbit" class="w-3.5 h-3.5"></i><span class="text-[11px]">左3D➔右4D: ON</span>`;
+                btn4D.classList.add('bg-purple-600/40', 'border-purple-400', 'text-purple-200');
+            } else {
+                btn4D.innerHTML = `<i data-lucide="orbit" class="w-3.5 h-3.5"></i><span class="text-[11px]">左3D➔右4D: OFF</span>`;
+                btn4D.classList.remove('bg-purple-600/40', 'border-purple-400', 'text-purple-200');
+            }
+
+            if (enablePlaneRotateLink) {
+                btnPlane.innerHTML = `<i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i><span class="text-[11px]">右3D➔左2D: ON</span>`;
+                btnPlane.classList.add('bg-cyan-600/40', 'border-cyan-400', 'text-cyan-200');
+            } else {
+                btnPlane.innerHTML = `<i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i><span class="text-[11px]">右3D➔左2D: OFF</span>`;
+                btnPlane.classList.remove('bg-cyan-600/40', 'border-cyan-400', 'text-cyan-200');
+            }
+            lucide.createIcons();
+        }
+
+        function initScenes() {
+            const container2D = document.getElementById('canvas-2d3d');
+            scene2D = new THREE.Scene();
+            scene2D.fog = new THREE.FogExp2(0x030712, 0.018);
+
+            camera2D = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+            
+            renderer2D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer2D.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer2D.shadowMap.enabled = true;
+            container2D.appendChild(renderer2D.domElement);
+
+            controls2D = new THREE.OrbitControls(camera2D, renderer2D.domElement);
+            controls2D.enableDamping = true;
+            controls2D.dampingFactor = 0.05;
+
+            const container3D = document.getElementById('canvas-3d4d');
+            scene3D = new THREE.Scene();
+            scene3D.fog = new THREE.FogExp2(0x030712, 0.018);
+
+            camera3D = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+            
+            renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer3D.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer3D.shadowMap.enabled = true;
+            container3D.appendChild(renderer3D.domElement);
+
+            controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
+            controls3D.enableDamping = true;
+            controls3D.dampingFactor = 0.05;
+
+            renderer2D.domElement.addEventListener('pointerdown', () => {
+                if (enableAutoSwitchLink) {
+                    rotAngle2DPlane = 0;
+                    enableManual4DLink = true;
+                    enablePlaneRotateLink = false;
+                    updateLinkUI();
+                }
+            });
+
+            renderer3D.domElement.addEventListener('pointerdown', () => {
+                if (enableAutoSwitchLink) {
+                    rotAngle4DX = 0; rotAngle4DY = 0;
+                    enableManual4DLink = false;
+                    enablePlaneRotateLink = true;
+                    updateLinkUI();
+                }
+            });
+
+            controls2D.addEventListener('change', () => {
+                if (enableManual4DLink) {
+                    const azimuth = controls2D.getAzimuthalAngle();
+                    const polar = controls2D.getPolarAngle();
+
+                    rotAngle4DX = azimuth;
+                    rotAngle4DY = polar - Math.PI / 2;
+
+                    updateMorphingGeometry(animationProgress);
+                }
+            });
+
+            controls3D.addEventListener('change', () => {
+                if (enablePlaneRotateLink) {
+                    const azimuth = controls3D.getAzimuthalAngle();
+                    const polar = controls3D.getPolarAngle();
+                    
+                    rotAngle2DPlane = -azimuth + (polar - Math.PI / 2);
+                    updateMorphingGeometry(animationProgress);
+                }
+            });
+
+            setCameraPreset('iso');
+
+            [scene2D, scene3D].forEach(s => {
+                const ambient = new THREE.AmbientLight(0xffffff, 0.75);
+                s.add(ambient);
+                const dir1 = new THREE.DirectionalLight(0x38bdf8, 1.4);
+                dir1.position.set(15, 22, 18);
+                dir1.castShadow = true;
+                s.add(dir1);
+                const dir2 = new THREE.DirectionalLight(0xa855f7, 0.9);
+                dir2.position.set(-15, -12, -15);
+                s.add(dir2);
+
+                const grid = new THREE.GridHelper(36, 36, 0x1e293b, 0x0f172a);
+                grid.position.y = -5;
+                s.add(grid);
+            });
+
+            build2DFaces();
+            build3DCells();
+
+            updateLayout();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function build2DFaces() {
+            const root2D = new THREE.Group();
+            root2D.name = "Root2D";
+            scene2D.add(root2D);
+
+            const quadIndices = [0, 1, 2,  0, 2, 3];
+            const quadEdges = [[0,1], [1,2], [2,3], [3,0]];
+
+            for (let i = 0; i < 6; i++) {
+                const config = faceConfigs2D[i];
+
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(quadIndices.length * 3);
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+                const material = new THREE.MeshStandardMaterial({
+                    color: config.color,
+                    transparent: true,
+                    opacity: 0.65,
+                    roughness: 0.2,
+                    metalness: 0.4,
+                    side: THREE.DoubleSide
+                });
+
+                const mesh = new THREE.Mesh(geometry, material);
+
+                const wireGeo = new THREE.BufferGeometry();
+                const wirePos = new Float32Array(8 * 3);
+                wireGeo.setAttribute('position', new THREE.BufferAttribute(wirePos, 3));
+
+                const wireMat = new THREE.LineBasicMaterial({
+                    color: 0xffffff,
+                    linewidth: 2,
+                    transparent: true,
+                    opacity: 0.9
+                });
+
+                const wireframe = new THREE.LineSegments(wireGeo, wireMat);
+                mesh.add(wireframe);
+                root2D.add(mesh);
+
+                faceObjects2D.push({
+                    id: i,
+                    geometry: geometry,
+                    wireGeo: wireGeo,
+                    material: material,
+                    quadIndices: quadIndices,
+                    quadEdges: quadEdges
+                });
+            }
+        }
+
+        function build3DCells() {
+            const root3D = new THREE.Group();
+            root3D.name = "Root3D";
+            scene3D.add(root3D);
+
+            for (let i = 0; i < 8; i++) {
+                const config = cellConfigs3D[i];
+
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(cubeIndices.length * 3);
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+                const material = new THREE.MeshStandardMaterial({
+                    color: config.color,
+                    transparent: true,
+                    opacity: 0.5,
+                    roughness: 0.15,
+                    metalness: 0.5,
+                    side: THREE.DoubleSide
+                });
+
+                const mesh = new THREE.Mesh(geometry, material);
+
+                const wireGeo = new THREE.BufferGeometry();
+                const wirePos = new Float32Array(24 * 3);
+                wireGeo.setAttribute('position', new THREE.BufferAttribute(wirePos, 3));
+
+                const wireMat = new THREE.LineBasicMaterial({
+                    color: 0xffffff,
+                    linewidth: 2,
+                    transparent: true,
+                    opacity: 0.9
+                });
+
+                const wireframe = new THREE.LineSegments(wireGeo, wireMat);
+                mesh.add(wireframe);
+                root3D.add(mesh);
+
+                cellObjects3D.push({
+                    id: i,
+                    geometry: geometry,
+                    wireGeo: wireGeo,
+                    material: material
+                });
+            }
+
+            updateMorphingGeometry(0);
+        }
+
+        function updateMorphingGeometry(progress) {
+            if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'cube') {
+                faceObjects2D.forEach(face => {
+                    const currentVerts = calculateFoldedFaceVertices2D(face.id, progress, rotAngle2DPlane);
+
+                    const posAttr = face.geometry.attributes.position;
+                    const posArr = posAttr.array;
+                    let ptr = 0;
+
+                    for (let i = 0; i < face.quadIndices.length; i++) {
+                        const vIdx = face.quadIndices[i];
+                        const v = currentVerts[vIdx];
+                        posArr[ptr++] = v[0];
+                        posArr[ptr++] = v[1];
+                        posArr[ptr++] = v[2];
+                    }
+                    posAttr.needsUpdate = true;
+                    face.geometry.computeVertexNormals();
+
+                    const wireAttr = face.wireGeo.attributes.position;
+                    const wireArr = wireAttr.array;
+                    let wPtr = 0;
+
+                    for (let e = 0; e < face.quadEdges.length; e++) {
+                        const edge = face.quadEdges[e];
+                        const vA = currentVerts[edge[0]];
+                        const vB = currentVerts[edge[1]];
+
+                        wireArr[wPtr++] = vA[0]; wireArr[wPtr++] = vA[1]; wireArr[wPtr++] = vA[2];
+                        wireArr[wPtr++] = vB[0]; wireArr[wPtr++] = vB[1]; wireArr[wPtr++] = vB[2];
+                    }
+                    wireAttr.needsUpdate = true;
+                });
+            }
+
+            if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'hypercube') {
+                cellObjects3D.forEach(cell => {
+                    const currentVerts = calculateFoldedCellVertices3D(cell.id, progress, rotAngle4DX, rotAngle4DY);
+
+                    const posAttr = cell.geometry.attributes.position;
+                    const posArr = posAttr.array;
+                    let ptr = 0;
+
+                    for (let i = 0; i < cubeIndices.length; i++) {
+                        const vIdx = cubeIndices[i];
+                        const v = currentVerts[vIdx];
+                        posArr[ptr++] = v[0];
+                        posArr[ptr++] = v[1];
+                        posArr[ptr++] = v[2];
+                    }
+                    posAttr.needsUpdate = true;
+                    cell.geometry.computeVertexNormals();
+
+                    const wireAttr = cell.wireGeo.attributes.position;
+                    const wireArr = wireAttr.array;
+                    let wPtr = 0;
+
+                    for (let e = 0; e < cubeEdges.length; e++) {
+                        const edge = cubeEdges[e];
+                        const vA = currentVerts[edge[0]];
+                        const vB = currentVerts[edge[1]];
+
+                        wireArr[wPtr++] = vA[0]; wireArr[wPtr++] = vA[1]; wireArr[wPtr++] = vA[2];
+                        wireArr[wPtr++] = vB[0]; wireArr[wPtr++] = vB[1]; wireArr[wPtr++] = vB[2];
+                    }
+                    wireAttr.needsUpdate = true;
+                });
+            }
+
+            document.getElementById('unfold-slider').value = progress;
+            const percent = Math.round(progress * 100);
+            let statusText = "";
+            if (progress === 0) statusText = " (平坦な展開図)";
+            else if (progress === 1) statusText = " (組み上がり完成)";
+            else if (enableStagger) {
+                statusText = progress <= 0.5 ? " (時間差: 周囲のヒンジ折りたたみ)" : " (時間差: 最上蓋の封鎖)";
+            } else {
+                statusText = " (同時折りたたみ中)";
+            }
+
+            document.getElementById('progress-percent').innerText = `${percent}%${statusText}`;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const baseStep = 0.005 * animSpeedMultiplier;
+            const loopStep = 0.004 * animSpeedMultiplier;
+
+            if (animationMode === 1) {
+                animationProgress += baseStep;
+                if (animationProgress >= 1.0) {
+                    animationProgress = 1.0;
+                    animationMode = 0;
+                }
+                updateMorphingGeometry(animationProgress);
+            } else if (animationMode === -1) {
+                animationProgress -= baseStep;
+                if (animationProgress <= 0.0) {
+                    animationProgress = 0.0;
+                    animationMode = 0;
+                }
+                updateMorphingGeometry(animationProgress);
+            } else if (animationMode === 2) {
+                animationProgress += loopStep * loopDirection;
+                if (animationProgress >= 1.0) {
+                    animationProgress = 1.0;
+                    loopDirection = -1;
+                } else if (animationProgress <= 0.0) {
+                    animationProgress = 0.0;
+                    loopDirection = 1;
+                }
+                updateMorphingGeometry(animationProgress);
+            }
+
+            if (autoRotateCamera) {
+                const root2D = scene2D.getObjectByName("Root2D");
+                const root3D = scene3D.getObjectByName("Root3D");
+                if (root2D && root3D) {
+                    root2D.rotation.y += 0.003;
+                    root2D.rotation.x += 0.001;
+                    root3D.rotation.y += 0.003;
+                    root3D.rotation.x += 0.001;
+                }
+            }
+
+            if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'cube') {
+                controls2D.update();
+                renderer2D.render(scene2D, camera2D);
+            }
+            if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'hypercube') {
+                controls3D.update();
+                renderer3D.render(scene3D, camera3D);
+            }
+        }
+
+        // 回転角度を確実にリセットする関数
+        function reset4DRotation() {
+            rotAngle4DX = 0;
+            rotAngle4DY = 0;
+            rotAngle2DPlane = 0;
+            updateMorphingGeometry(animationProgress);
+        }
+
+        function setCameraPreset(preset) {
+            if (!camera2D || !camera3D) return;
+            
+            // 視点プリセット切り替え時に4D回転角をクリアし、中央に正対させる
+            reset4DRotation();
+
+            switch(preset) {
+                case 'front':
+                    camera2D.position.set(0, 0, 18);
+                    camera3D.position.set(0, 0, 18);
+                    break;
+                case 'top':
+                    camera2D.position.set(0, 18, 0.1);
+                    camera3D.position.set(0, 18, 0.1);
+                    break;
+                case 'iso':
+                default:
+                    camera2D.position.set(11, 10, 15);
+                    camera3D.position.set(11, 10, 15);
+                    break;
+            }
+            if (controls2D) controls2D.target.set(0, 0, 0);
+            if (controls3D) controls3D.target.set(0, 0, 0);
+        }
+
+        function updateLayout() {
+            const mainContainer = document.getElementById('main-container');
+            mainContainer.className = "w-full h-full absolute inset-0 z-0 flex";
+
+            if (displayMode === 'both') {
+                mainContainer.classList.add('mode-split');
+            } 
+            else if (displayMode === 'hypercube_pip') {
+                mainContainer.classList.add('mode-pip');
+            } 
+            else if (displayMode === 'hypercube') {
+                mainContainer.classList.add('mode-hypercube');
+            } 
+            else if (displayMode === 'cube') {
+                mainContainer.classList.add('mode-cube');
+            }
+
+            requestAnimationFrame(onWindowResize);
+        }
+
+        function setupUIEventListeners() {
+            const slider = document.getElementById('unfold-slider');
+            slider.addEventListener('input', (e) => {
+                animationMode = 0;
+                animationProgress = parseFloat(e.target.value);
+                updateMorphingGeometry(animationProgress);
+            });
+
+            document.getElementById('play-fold-btn').addEventListener('click', () => {
+                if (animationProgress >= 1) animationProgress = 0;
+                animationMode = 1;
+            });
+
+            document.getElementById('play-unfold-btn').addEventListener('click', () => {
+                if (animationProgress <= 0) animationProgress = 1;
+                animationMode = -1;
+            });
+
+            const loopBtn = document.getElementById('loop-btn');
+            loopBtn.addEventListener('click', () => {
+                if (animationMode === 2) {
+                    animationMode = 0;
+                    loopBtn.classList.remove('bg-cyan-500/30', 'border-cyan-400', 'text-cyan-300');
+                } else {
+                    animationMode = 2;
+                    loopBtn.classList.add('bg-cyan-500/30', 'border-cyan-400', 'text-cyan-300');
+                }
+            });
+
+            const speedBtn = document.getElementById('speed-btn');
+            const speedText = document.getElementById('speed-text');
+            const speeds = [0.5, 1.0, 1.5, 2.0];
+            speedBtn.addEventListener('click', () => {
+                const currentIndex = speeds.indexOf(animSpeedMultiplier);
+                const nextIndex = (currentIndex + 1) % speeds.length;
+                animSpeedMultiplier = speeds[nextIndex];
+                speedText.innerText = `速度: ${animSpeedMultiplier.toFixed(1)}x`;
+            });
+
+            const displayBtn = document.getElementById('display-mode-btn');
+            const displayText = document.getElementById('display-mode-text');
+            displayBtn.addEventListener('click', () => {
+                if (displayMode === 'both') {
+                    displayMode = 'hypercube_pip';
+                    displayText.innerText = "表示: 超立方体(右上ミニ)";
+                } else if (displayMode === 'hypercube_pip') {
+                    displayMode = 'hypercube';
+                    displayText.innerText = "表示: 超立方体のみ";
+                } else if (displayMode === 'hypercube') {
+                    displayMode = 'cube';
+                    displayText.innerText = "表示: 立方体のみ";
+                } else {
+                    displayMode = 'both';
+                    displayText.innerText = "表示: どっちも";
+                }
+                updateLayout();
+                updateMorphingGeometry(animationProgress);
+            });
+
+            const staggerBtn = document.getElementById('stagger-btn');
+            const staggerText = document.getElementById('stagger-text');
+            staggerBtn.addEventListener('click', () => {
+                enableStagger = !enableStagger;
+                if (enableStagger) {
+                    staggerText.innerText = "時間差: ON";
+                    staggerBtn.classList.add('bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200');
+                    staggerBtn.classList.remove('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                } else {
+                    staggerText.innerText = "時間差: OFF (同時)";
+                    staggerBtn.classList.remove('bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200');
+                    staggerBtn.classList.add('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                }
+                updateMorphingGeometry(animationProgress);
+            });
+
+            const autoLinkBtn = document.getElementById('auto-link-btn');
+            const autoLinkText = document.getElementById('auto-link-text');
+            autoLinkBtn.addEventListener('click', () => {
+                enableAutoSwitchLink = !enableAutoSwitchLink;
+                if (enableAutoSwitchLink) {
+                    autoLinkText.innerText = "自動切替: ON";
+                    autoLinkBtn.classList.add('bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200');
+                    autoLinkBtn.classList.remove('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                } else {
+                    autoLinkText.innerText = "自動切替: OFF";
+                    autoLinkBtn.classList.remove('bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200');
+                    autoLinkBtn.classList.add('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                }
+            });
+
+            const rot4dBtn = document.getElementById('rot-4d-btn');
+            rot4dBtn.addEventListener('click', () => {
+                enableManual4DLink = !enableManual4DLink;
+                if (enableManual4DLink) {
+                    rotAngle4DX = controls2D.getAzimuthalAngle();
+                    rotAngle4DY = controls2D.getPolarAngle() - Math.PI / 2;
+                } else {
+                    rotAngle4DX = 0; rotAngle4DY = 0;
+                }
+                updateLinkUI();
+                updateMorphingGeometry(animationProgress);
+            });
+
+            const rotPlaneBtn = document.getElementById('rot-plane-link-btn');
+            rotPlaneBtn.addEventListener('click', () => {
+                enablePlaneRotateLink = !enablePlaneRotateLink;
+                if (enablePlaneRotateLink) {
+                    rotAngle2DPlane = -controls3D.getAzimuthalAngle() + (controls3D.getPolarAngle() - Math.PI / 2);
+                } else {
+                    rotAngle2DPlane = 0;
+                }
+                updateLinkUI();
+                updateMorphingGeometry(animationProgress);
+            });
+
+            const viewMeshBtn = document.getElementById('view-mesh-btn');
+            const viewWireBtn = document.getElementById('view-wire-btn');
+
+            viewMeshBtn.addEventListener('click', () => {
+                wireframeOnly = false;
+                viewMeshBtn.classList.add('bg-slate-800', 'text-cyan-400');
+                viewMeshBtn.classList.remove('text-slate-400');
+                viewWireBtn.classList.remove('bg-slate-800', 'text-cyan-400');
+                viewWireBtn.classList.add('text-slate-400');
+                updateRenderStyles();
+            });
+
+            viewWireBtn.addEventListener('click', () => {
+                wireframeOnly = true;
+                viewWireBtn.classList.add('bg-slate-800', 'text-cyan-400');
+                viewWireBtn.classList.remove('text-slate-400');
+                viewMeshBtn.classList.remove('bg-slate-800', 'text-cyan-400');
+                viewMeshBtn.classList.add('text-slate-400');
+                updateRenderStyles();
+            });
+
+            const autoRotateBtn = document.getElementById('auto-rotate-btn');
+            autoRotateBtn.addEventListener('click', () => {
+                autoRotateCamera = !autoRotateCamera;
+                if (autoRotateCamera) {
+                    autoRotateBtn.classList.add('border-cyan-500/40', 'text-cyan-400');
+                } else {
+                    autoRotateBtn.classList.remove('border-cyan-500/40', 'text-cyan-400');
+                    autoRotateBtn.classList.add('text-slate-400');
+                }
+            });
+
+            document.querySelectorAll('.cam-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const camType = btn.getAttribute('data-cam');
+                    setCameraPreset(camType);
+                    document.querySelectorAll('.cam-btn').forEach(b => {
+                        b.classList.remove('font-bold', 'text-cyan-300');
+                        b.classList.add('text-slate-300');
+                    });
+                    btn.classList.add('font-bold', 'text-cyan-300');
+                });
+            });
+        }
+
+        function updateRenderStyles() {
+            faceObjects2D.forEach(f => f.material.visible = !wireframeOnly);
+            cellObjects3D.forEach(c => c.material.visible = !wireframeOnly);
+        }
+
+        function onWindowResize() {
+            const container2D = document.getElementById('canvas-2d3d');
+            if (container2D && renderer2D && camera2D) {
+                const w = container2D.clientWidth;
+                const h = container2D.clientHeight;
+                if (w > 0 && h > 0) {
+                    camera2D.aspect = w / h;
+                    camera2D.updateProjectionMatrix();
+                    renderer2D.setSize(w, h);
+                }
+            }
+
+            const container3D = document.getElementById('canvas-3d4d');
+            if (container3D && renderer3D && camera3D) {
+                const w = container3D.clientWidth;
+                const h = container3D.clientHeight;
+                if (w > 0 && h > 0) {
+                    camera3D.aspect = w / h;
+                    camera3D.updateProjectionMatrix();
+                    renderer3D.setSize(w, h);
+                }
+            }
+        }
+
+        window.onload = () => {
+            initScenes();
+            setupUIEventListeners();
+            animate();
+        };
+    </script>
+</body>
+</html>
