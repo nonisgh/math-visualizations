@@ -60,7 +60,7 @@ button.on{background:#0e7490;border-color:#38bdf8}
     <div class="gb"><span>ガイド: 赤=x軸 緑=y軸 青=z軸 黄=進む向き ／ 方位角=水平に向く角度（0°=x軸, 90°=y軸）、仰角=見上げる角度（0°=水平, 90°=真上=z軸）</span></div>
     <div class="gs" id="g-path"></div></details>
   <details class="grp" open><summary>🔁 回転（傾き）</summary>
-    <div class="gb"><button id="bReset">初期位置</button></div>
+    <div class="gb"><button id="bReset">初期位置</button><button id="bSync" title="今の球の傾き（前後・左右・面内・斜め）はそのまま、超球側の見る向きとZ-W・4Dカメラを0に戻して、左の球と同じ向きにそろえる">超球を球と同じ角度に</button></div>
     <div class="gs" id="g-rot"></div></details>
   <details class="grp"><summary>⚙ 自動回転</summary>
     <div class="gb"><button id="bDemo">回転/停止</button><button id="bSpin">🔄 回す</button></div>
@@ -695,6 +695,7 @@ $('bReset').onclick = () => {
 };
 
 $('bCam').onclick = e => { camOn = !camOn; controls.enabled = !camOn; e.currentTarget.classList.toggle('on', camOn); update(); refreshTag(); };
+$('bSync').onclick = () => { zw = cx = cy = cz = 0; resetRightCamera(); update(); };   // 球の傾きは残し、Z-W・4Dカメラ・右の視点だけ0に戻す
 $('bCamReset').onclick = () => { cx = cy = cz = 0; update(); };
 $('bOpq').onclick = e => { opaque = !opaque; e.currentTarget.classList.toggle('on', opaque); applyVis(); };
 $('bMat').onclick = e => { matte = !matte; e.currentTarget.classList.toggle('on', matte); applyVis(); };
