@@ -63,8 +63,9 @@ button.on{background:#0e7490;border-color:#38bdf8}
     <div class="gb"><button id="bReset">初期位置</button></div>
     <div class="gs" id="g-rot"></div></details>
   <details class="grp"><summary>⚙ 自動回転</summary>
-    <div class="gb"><button id="bDemo">左を自動回転</button><button id="bSpin">🔄 右を自動で回す</button></div>
-    <div class="gb"><span>軸</span><button data-ax="mix" class="on">複合</button><button data-ax="mix3" title="Y-W・X-W・Z-Wを違う速さで同時に回す">複合＋Z-W</button><button data-ax="yw" title="Y-Wを 0→-90→-180→90→0 と一周（X-W・Z-Wは固定のまま）">地軸 Y-W</button><button data-ax="xw">X-W</button><button data-ax="zw">Z-W</button></div>
+    <div class="gb"><button id="bDemo">回転/停止</button><button id="bSpin">🔄 回す</button></div>
+    <div class="gb"><span>軸</span><button data-ax="mix" class="on">複合</button><button data-ax="mix3" title="Y-W・X-W・Z-Wを違う速さで同時に回す">複合＋Z-W</button><button data-ax="yw" title="Y-Wを 0→-90→-180→90→0 と一周（押すと他の角度は0に戻る）">Y-W</button><button data-ax="xw">X-W</button><button data-ax="zw">Z-W</button><button data-ax="ob" title="w軸と斜め方向（向きスライダー）を含む平面で回す">斜めW</button></div>
+    <div class="gb"><span>※ Y-W / X-W / Z-W / 斜めW を押すと、他の平面の角度は0に戻ります（押したあとにスライダーで傾けるのはOK）</span></div>
     <div class="gs" id="g-auto"></div></details>
   <details class="grp"><summary>🎥 4Dカメラ</summary>
     <div class="gb"><button id="bCam">カメラ指定</button><button id="bCamReset">カメラ0</button></div>
@@ -122,6 +123,7 @@ function addCut(sh) {
 }
 let zw = 0, cx = 0, cy = 0, cz = 0, camOn = false, opaque = false, matte = false;
 let pitch = 0, roll = 0, yaw = 0;          // 左(3D)の姿勢
+let obT = 0, obP = 0;                      // 斜めW回転: 角度 obT、回転面の向き obP（xy平面内の方位。0°=X-W, 90°=Y-W）
 let a4 = 0, b4 = 0, c4 = 0;                // 右(4D)が使う回転角: XW, YW, XY
 const $ = id => document.getElementById(id);
 const norm = a => { a %= TAU; if (a > Math.PI) a -= TAU; if (a < -Math.PI) a += TAU; return a; };
@@ -287,12 +289,16 @@ function applyVis() {
 //  →（カメラ指定ON時）カメラ逆回転 X-W → Y-W → Z-W
 function mkSteps() {
   const S = [[2, 3, zw], [0, 1, c4], [1, 3, b4], [0, 3, a4]];   // Y-W（地軸回転）を先、X-W（傾け）を後
+  if (obT) S.push([-1, obP, obT]);   // 斜めW回転: w軸と u=(cos obP, sin obP, 0) を含む平面での回転（X-W・Y-Wの間を連続につなぐ）
   if (camOn) S.push([0, 3, -cx], [1, 3, -cy], [2, 3, -cz]);
-  steps = S.map(([i, j, a]) => [i, j, Math.cos(a), Math.sin(a)]);
+  steps = S.map(([i, j, a]) => i < 0 ? [-1, 0, Math.cos(a), Math.sin(a), Math.cos(j), Math.sin(j)] : [i, j, Math.cos(a), Math.sin(a)]);
 }
 let steps = [];
 function xf(v) {
-  for (const [i, j, c, s] of steps) { const t = v[i] * c - v[j] * s; v[j] = v[i] * s + v[j] * c; v[i] = t; }
+  for (const [i, j, c, s, ux, uy] of steps) {
+    if (i < 0) { const sv = v[0] * ux + v[1] * uy, t = sv * c - v[3] * s; v[3] = sv * s + v[3] * c; v[0] += (t - sv) * ux; v[1] += (t - sv) * uy; }
+    else { const t = v[i] * c - v[j] * s; v[j] = v[i] * s + v[j] * c; v[i] = t; }
+  }
   return v;
 }
 function camPos() {   // カメラの4D位置（方向）: 回転は Z-W → Y-W → X-W の順に e_w へ作用
@@ -586,8 +592,8 @@ function refreshTag() {
 }
 
 function refreshUI() {
-  $('infoL').textContent = `前後傾き(pitch): ${deg(pitch)}\n左右傾き(roll) : ${deg(roll)}\nZ-W傾き       : ${deg(zw)}`;
-  let ang = `4D X-W: ${a4.toFixed(2)} rad\n4D Y-W: ${b4.toFixed(2)} rad\n4D X-Y: ${c4.toFixed(2)} rad\n4D Z-W: ${zw.toFixed(2)} rad`;
+  $('infoL').textContent = `前後傾き(pitch): ${deg(pitch)}\n左右傾き(roll) : ${deg(roll)}\nZ-W傾き       : ${deg(zw)}` + (obT ? `\n斜めW回転     : ${deg(obT)}（向き ${deg(obP)}）` : '');
+  let ang = `4D X-W: ${a4.toFixed(2)} rad\n4D Y-W: ${b4.toFixed(2)} rad\n4D X-Y: ${c4.toFixed(2)} rad\n4D Z-W: ${zw.toFixed(2)} rad` + (obT ? `\n4D 斜めW: ${obT.toFixed(2)} rad（向き ${deg(obP)}）` : '');
   if (allOn) {
     const D = allDirs.length;
     ang += `\n全方向の旅 ${D}方向 t=${deg(pathT)}  波面: w=${(R * Math.cos(pathT)).toFixed(2)} 半径=${Math.abs(R * Math.sin(pathT)).toFixed(2)}\n北極に ${allStat.n}/${D} 人・南極に ${allStat.s}/${D} 人`
@@ -610,6 +616,7 @@ function refreshUI() {
 
 function update() {
   gL.rotation.set(pitch, roll, yaw);
+  if (obT) gL.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(Math.sin(obP), -Math.cos(obP), 0), obT));   // 斜めW回転: 左の(x,y,w)空間での軸 (sinφ,-cosφ,0) まわりの回転
   updateLeft();
   a4 = -roll; b4 = pitch; c4 = yaw;
   updateRight();
@@ -654,7 +661,11 @@ $('bWedge').onclick = e => {                   // 断面カット(くさび): �
 function viewerPhi(fallback) {
   mkSteps();
   const o = [cR.position.x, cR.position.y, cR.position.z, 0];
-  for (let k = steps.length - 1; k >= 0; k--) { const [i, j, c, sn] = steps[k], t = o[i] * c + o[j] * sn; o[j] = -o[i] * sn + o[j] * c; o[i] = t; }
+  for (let k = steps.length - 1; k >= 0; k--) {
+    const [i, j, c, sn, ux, uy] = steps[k];
+    if (i < 0) { const sv = o[0] * ux + o[1] * uy, t = sv * c + o[3] * sn; o[3] = -sv * sn + o[3] * c; o[0] += (t - sv) * ux; o[1] += (t - sv) * uy; }
+    else { const t = o[i] * c + o[j] * sn; o[j] = -o[i] * sn + o[j] * c; o[i] = t; }
+  }
   return Math.hypot(o[0], o[2]) < 1e-3 ? fallback : ((Math.atan2(o[2], -o[0]) % TAU) + TAU) % TAU;   // 真上/真下から見ているときは前回の位置のまま
 }
 document.querySelectorAll('[data-cref]').forEach(b => b.onclick = () => {
@@ -679,7 +690,7 @@ document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
 });
 $('bColor').onclick = () => { redCenter = !redCenter; build(); };
 $('bReset').onclick = () => {
-  pitch = roll = yaw = zw = cx = cy = cz = 0; demo = false; $('bDemo').classList.remove('on');
+  pitch = roll = yaw = zw = obT = obP = cx = cy = cz = 0; demo = false; $('bDemo').classList.remove('on');
   resetRightCamera(); update();
 };
 
@@ -700,7 +711,15 @@ $('bPathPlay').onclick = e => { pathPlay = !pathPlay; if (pathPlay && !pathOn &&
 $('bBack').onclick = e => { backOn = !backOn; e.currentTarget.classList.toggle('on', backOn); applyBack(); syncPanel(); };
 document.querySelectorAll('[data-bm]').forEach(b => b.onclick = () => { backMode = +b.dataset.bm; uBackMode.value = backMode; mark('[data-bm]', b); });
 $('bShade').onclick = e => { shadeOn = !shadeOn; e.currentTarget.classList.toggle('on', shadeOn); applyVis(); };
-document.querySelectorAll('[data-ax]').forEach(b => b.onclick = () => { axis = b.dataset.ax; mark('[data-ax]', b); });
+document.querySelectorAll('[data-ax]').forEach(b => b.onclick = () => {
+  axis = b.dataset.ax; mark('[data-ax]', b);
+  // 単一平面の回転を選んだら、他の平面の角度は0に戻して初期化（複合は触らない）
+  if (axis === 'yw') roll = yaw = zw = obT = 0;
+  else if (axis === 'xw') pitch = yaw = zw = obT = 0;
+  else if (axis === 'zw') pitch = roll = yaw = obT = 0;
+  else if (axis === 'ob') pitch = roll = yaw = zw = 0;
+  update();
+});
 $('bFull').onclick = e => { e.currentTarget.classList.toggle('on', document.body.classList.toggle('full')); resize(); };
 $('bPanel').onclick = e => { e.currentTarget.classList.toggle('on', $('panel').classList.toggle('min')); resize(); };
 // 4Dカメラ指定ON時: 右ドラッグで4Dカメラ回転（横=X-W, 縦=Y-W, Shift+横=Z-W）
@@ -725,6 +744,8 @@ const PR = [
   { g: 'rot', t: '左右傾き ↔ 4D X-W（°）', deg: 1, get: () => roll, set: v => { roll = v; update(); } },
   { g: 'rot', t: '面内自転 ↔ 4D X-Y（°）', deg: 1, get: () => yaw, set: v => { yaw = v; update(); } },
   { g: 'rot', t: 'Z-W傾き（°）※左の3Dには現れない軸', deg: 1, get: () => zw, set: v => { zw = v; update(); } },
+  { g: 'rot', t: '斜めW回転 角度（°）w軸と斜め方向の平面での回転', deg: 1, get: () => obT, set: v => { obT = v; update(); } },
+  { g: 'rot', t: '斜めW回転 向き（°）0=X-W方向, 90=Y-W方向', deg: 1, get: () => obP, set: v => { obP = v; update(); } },
   { g: 'cam', t: '4Dカメラ X-W（°）', deg: 1, en: () => camOn, get: () => cx, set: v => { cx = v; update(); } },
   { g: 'cam', t: '4Dカメラ Y-W（°）', deg: 1, en: () => camOn, get: () => cy, set: v => { cy = v; update(); } },
   { g: 'cam', t: '4Dカメラ Z-W（°）', deg: 1, en: () => camOn, get: () => cz, set: v => { cz = v; update(); } },
@@ -771,7 +792,8 @@ function syncPanel() {
     const d = 0.012 * spd;
     if (axis === 'mix') { pitch = norm(pitch + d); roll = norm(roll + d * 0.67); }
     else if (axis === 'xw') roll = norm(roll + d);
-    else if (axis === 'yw') pitch = norm(pitch - d);   // Y-W: 0→-90→-180(=180)→90→0 を繰り返す。X-W・Z-Wは任意の値のまま固定
+    else if (axis === 'ob') obT = norm(obT + d);
+    else if (axis === 'yw') pitch = norm(pitch - d);   // Y-W: 0→-90→-180(=180)→90→0 を繰り返す
     else if (axis === 'mix3') { pitch = norm(pitch + d); roll = norm(roll + d * 0.67); zw = norm(zw + d * 0.43); }   // 速さの比を無理数に近づけて、同じ姿勢に戻りにくくする
     else zw = norm(zw + d);
     update();
@@ -801,7 +823,7 @@ let lsLast = '', noSave = false;
 function collectSettings() {
   return {
     nLayers, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn,
-    backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM,
+    backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM,
     full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'),
     open: grpEls.map(g => g.open),
     cam: cR.position.toArray(), tgt: controls.target.toArray()
@@ -824,7 +846,7 @@ function loadSettings() {
   nLayers = Math.round(num('nLayers', 5, 101, nLayers)); if (nLayers % 2 === 0) nLayers = Math.min(101, nLayers + 1);
   opacity = num('opacity', 0.05, 0.75, opacity); camW = num('camW', 2, 6, camW); shade = num('shade', 0, 1, shade);
   spd = num('spd', 0.2, 3, spd); allM = Math.round(num('allM', 4, 24, allM)); if (allM % 2) allM++;
-  axis = pick('axis', ['mix', 'mix3', 'yw', 'xw', 'zw'], axis);
+  axis = pick('axis', ['mix', 'mix3', 'yw', 'xw', 'zw', 'ob'], axis);
   mode = pick('mode', ['hybrid', 'wire', 'solid', 'points'], mode);
   hemi = pick('hemi', ['both', 'A', 'B'], hemi);
   redCenter = bool('redCenter', redCenter); shadeOn = bool('shadeOn', shadeOn); opaque = bool('opaque', opaque); matte = bool('matte', matte);
@@ -836,7 +858,7 @@ function loadSettings() {
   cutRef = pick('cutRef', ['screen', 'obj', 'orig'], cutRef); cutAng = num('cutAng', 0, TAU, cutAng); cutW = num('cutW', 10 * Math.PI / 180, 300 * Math.PI / 180, cutW);
   mark('[data-cref]', document.querySelector(`[data-cref="${cutRef}"]`));
   const ang = (k, d) => norm(num(k, -1e3, 1e3, d));
-  pitch = ang('pitch', pitch); roll = ang('roll', roll); yaw = ang('yaw', yaw); zw = ang('zw', zw);
+  pitch = ang('pitch', pitch); roll = ang('roll', roll); yaw = ang('yaw', yaw); zw = ang('zw', zw); obT = ang('obT', obT); obP = ang('obP', obP);
   cx = ang('cx', cx); cy = ang('cy', cy); cz = ang('cz', cz);
   pathPhi = num('pathPhi', -1e3, 1e3, pathPhi); pathLam = num('pathLam', -Math.PI / 2, Math.PI / 2, pathLam); pathT = num('pathT', 0, TAU, pathT);
   // 画面・UIの見た目
