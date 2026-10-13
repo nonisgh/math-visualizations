@@ -102,9 +102,9 @@ const uBackMode = { value: 1 };
 const uBack = { value: backAmt }, ctrL = new THREE.Vector3();
 const backFrag = f => 'varying float vFace;\nuniform float uBack;\n' + f.replace('#include <fog_fragment>',
   '#include <fog_fragment>\n float bk = (1.0 - smoothstep(-0.1, 0.05, vFace)) * uBack;\n float gr = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(gr), 0.4 * bk) * (1.0 - 0.5 * bk);');
-function addBack(sh) {
-  sh.uniforms.uBack = uBack; sh.uniforms.uBackMode = uBackMode;
-  sh.vertexShader = 'varying float vFace;\nattribute float aF4;\nuniform float uBackMode;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vFace = uBackMode > 0.5 ? aF4 : dot(normalize(normalMatrix * normal), normalize(-mvPosition.xyz));');
+function addBack(sh, sg) {
+  sh.uniforms.uBack = uBack; sh.uniforms.uBackMode = uBackMode; sh.uniforms.uSg = sg || { value: 1 };
+  sh.vertexShader = 'varying float vFace;\nattribute float aF4;\nuniform float uBackMode;\nuniform float uSg;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vFace = uBackMode > 0.5 ? aF4 : uSg * dot(normalize(normalMatrix * normal), normalize(-mvPosition.xyz));');   // 3Dの内側: 北は外向きが表、南(isB)は表裏を逆にする
   sh.fragmentShader = backFrag(sh.fragmentShader);
 }
 function addBackRing(sh) {
@@ -206,16 +206,17 @@ function build() {
       const base = Float32Array.from(geo.attributes.position.array);
       const solid = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
         color: col, transparent: true, opacity, roughness: 0.2, metalness: 0.3, side: THREE.DoubleSide, depthWrite: false }));
+      const sgU = { value: isB ? -1 : 1 };   // 3Dの内側モードの表裏の向き（北 +1 / 南 -1）
       const wire = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
         color: col.clone().multiplyScalar(1.4), wireframe: true, transparent: true, opacity: 0.6 }));
       const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: col, size: 0.05, transparent: true, opacity: 0.85 }));
-      wire.material.onBeforeCompile = pts.material.onBeforeCompile = sh => { addCut(sh); addBack(sh); };
+      wire.material.onBeforeCompile = pts.material.onBeforeCompile = sh => { addCut(sh); addBack(sh, sgU); };
       // 境目の影: ①縁ほど暗くする（リム影） ②黒い輪郭（裏面を法線方向にふくらませる）
       solid.material.onBeforeCompile = sh => {
         sh.uniforms.uShade = shU;
         sh.fragmentShader = 'uniform float uShade;\n' + sh.fragmentShader.replace('#include <dithering_fragment>',
           '#include <dithering_fragment>\n float rimK = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition)));\n gl_FragColor.rgb *= 1.0 - uShade * pow(rimK, 1.6);');
-        addCut(sh); addBack(sh);
+        addCut(sh); addBack(sh, sgU);
       };
       const out = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide }));
       out.material.onBeforeCompile = sh => {
