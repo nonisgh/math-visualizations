@@ -23,6 +23,8 @@ details.grp>summary{cursor:pointer;font-weight:600;padding:3px 0}
 .gb{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:5px 0}.gb span{color:#94a3b8;font-size:12px}
 .gs{display:flex;flex-direction:column;gap:6px;margin:5px 0}
 #bPath.on,#bPathPlay.on{background:#b45309;border-color:#fb923c}
+#hud,#cmap{position:absolute!important;left:auto!important;z-index:1;pointer-events:none;border-radius:10px;background:#0f172ae6;border:1px solid #334155;display:none}
+#hud{right:8px;top:8px!important}#cmap{right:8px;bottom:8px;top:auto!important}
 .ctl{background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:6px 8px}
 .ctl label{display:flex;justify-content:space-between}
 .ctl input[type=range]{width:100%}
@@ -42,7 +44,7 @@ button.on{background:#0e7490;border-color:#38bdf8}
 <body>
 <main>
   <div class="pane" id="pL"><div class="tag">【操作側】3D球（リング積層）ドラッグで傾ける ※Z-W傾き時は z′=0 の断面</div><div class="info" id="infoL"></div></div>
-  <div class="pane" id="pR"><div class="tag" id="tagR"></div><div class="info" id="infoR"></div></div>
+  <div class="pane" id="pR"><div class="tag" id="tagR"></div><div class="info" id="infoR"></div><canvas id="hud" width="320" height="176"></canvas><canvas id="cmap" width="248" height="150"></canvas></div>
 </main>
 
 <div id="panel">
@@ -58,6 +60,7 @@ button.on{background:#0e7490;border-color:#38bdf8}
   <details class="grp" open><summary>🧭 目的地・全方向の旅（北極スタート）</summary>
     <div class="gb"><button id="bPath">🎯 目的地を指定</button><button id="bRand">🎲 ランダムに次々</button><button id="bFootClr">足あとを消す</button></div>
     <div class="gb"><button id="bAll">🌌 全方向の旅</button><button id="bPathPlay">▶ 進める</button></div>
+    <div class="gb"><button id="bStep" title="軌跡を、球殻（層）と交わる点だけ直線でつなぐ。球殻の数（「層数」スライダー）を増やすほどなめらかな曲線に近づく＝空間が少しずつ曲がっていることが見える">🪜 球殻ごとのカクカク軌跡</button><button id="bRL" title="北極から、ランダムな方向へ出発する軌跡を次々に足していく。右下の方向マップで、全方向を網羅していく様子が見える">🌠 ランダムな軌跡</button><button id="bRLClr">軌跡を消す</button><button id="bS2" title="左の3D球はS²（2次元の球面）。S²では進む向きは方位角1つだけなので、仰角を使わず球面上の経線として動かす。オフなら、右の超球と同じ点の影（仰角が入ると球の内側に入る）">左: S²（仰角を使わない）</button><button id="bHud" title="右上に方位・仰角のダイヤルを出す（画面が狭くなるので初期はオフ）">座標ダイヤル</button></div>
     <div class="gb"><span>ガイド: 赤=x軸 緑=y軸 青=z軸 黄=進む向き ／ 方位角=水平に向く角度（0°=x軸, 90°=y軸）、仰角=見上げる角度（0°=水平, 90°=真上=z軸）</span></div>
     <div class="gs" id="g-path"></div></details>
   <details class="grp" open><summary>🔁 回転（傾き）</summary>
@@ -91,6 +94,11 @@ const qv = [0, 0, 0, 0];
 const MAXF = 3000, foot4 = new Float32Array(MAXF * 4);
 let footN = 0, footI = 0, footPts = null, footLast = null, randPlay = false, randTick = 0;
 const PN = 240;
+let stepOn = false, stepTs = [], stepKey = '';   // カクカク軌跡: 球殻と交わるtの列
+const MAXRL = 800, RLS = 64, NBP = 24, NBL = 12, PTSMAX = 420;
+let hudOn = false, garrow = null, leftS2 = false;   // leftS2: 左の3D球(S²)では仰角を使わず、方位だけで球面上を進む   // hudOn: 右上の座標ダイヤル（初期はオフ）
+let rlOn = false, rlN = 0, rlHit = 0, rlObj = null, rlTick = 0, allColKey = '';
+const rlD = new Float32Array(MAXRL * 3), rlBin = new Uint8Array(NBP * NBL);
 let spd = 1, axis = 'mix', shadeOn = true, shade = 0.6;
 const shU = { value: 0 }, olU = { value: 0 };
 // 断面カット（シェーダで切る）: mode 0=なし 1=画面基準(観察者から見た向き) 2=物体基準(超球の経度)
@@ -328,9 +336,36 @@ function camPos() {   // カメラの4D位置（方向）: 回転は Z-W → Y-W
 }
 // ---- 軌跡: 北極(w=+R)→赤道→南極(w=-R)→反対側の赤道→北極 を通る超球面上の大円 ----
 // 点 p(t) = R·(sin t·d, cos t), d は xyz 空間の単位方向（経度φ・z方向への傾きλ）。左の3Dでは同じ経線になる。
+// カクカク軌跡: 北極からの角度 t のうち、球殻（緯度の層 w=±R·cosθᵢ と赤道）と交わる t の一覧
+function calcStepTs() {
+  const key = nLayers + ':' + MIN_THETA;
+  if (key === stepKey) return;
+  stepKey = key;
+  const a = [0, Math.PI / 2, Math.PI, Math.PI * 1.5, TAU];
+  for (let i = 0; i < nLayers - 1; i++) { const th = MIN_THETA + i / (nLayers - 1) * (Math.PI / 2 - MIN_THETA); a.push(th, Math.PI - th, Math.PI + th, TAU - th); }
+  a.sort((x, y) => x - y);
+  stepTs = a.filter((v, i) => i === 0 || v - a[i - 1] > 1e-9);
+}
+// 超球面上の点 R·(sin t·d, cos t)。stepOn のときは、隣り合う球殻との交点どうしを「直線（弦）」でつないだ点を返す（超球面の少し内側を通る）
+const _sp = [0, 0, 0, 0];
+function sp4(t, d, o = _sp) {
+  if (!stepOn) { const s = Math.sin(t); o[0] = R * s * d[0]; o[1] = R * s * d[1]; o[2] = R * s * d[2]; o[3] = R * Math.cos(t); return o; }
+  calcStepTs();
+  const T = stepTs; let lo = 0, hi = T.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (T[m] <= t) lo = m; else hi = m; }
+  const t0 = T[lo], t1 = T[hi], u = Math.min(1, Math.max(0, (t - t0) / ((t1 - t0) || 1)));
+  const ss = Math.sin(t0) + (Math.sin(t1) - Math.sin(t0)) * u;
+  o[0] = R * ss * d[0]; o[1] = R * ss * d[1]; o[2] = R * ss * d[2]; o[3] = R * (Math.cos(t0) + (Math.cos(t1) - Math.cos(t0)) * u);
+  return o;
+}
+// n 個の頂点の t 列: カクカクのときは球殻との交点そのもの（余りは終点を重ねる）、なめらかなときは等間隔
+function vertexTs(n) {
+  if (stepOn) { calcStepTs(); if (stepTs.length <= n) return Array.from({ length: n }, (_, i) => stepTs[Math.min(i, stepTs.length - 1)]); }
+  return Array.from({ length: n }, (_, i) => i / (n - 1) * TAU);
+}
 function pathPt(t) {
-  const cl = Math.cos(pathLam), st = Math.sin(t);
-  return [R * st * Math.cos(pathPhi) * cl, R * st * Math.sin(pathPhi) * cl, R * st * Math.sin(pathLam), R * Math.cos(t)];
+  const cl = Math.cos(pathLam);
+  return sp4(t, [Math.cos(pathPhi) * cl, Math.sin(pathPhi) * cl, Math.sin(pathLam)], [0, 0, 0, 0]);
 }
 function makePath() {
   const mk = parent => {
@@ -340,10 +375,12 @@ function makePath() {
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const line = new THREE.Line(g, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false }));
     const dot = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), new THREE.MeshBasicMaterial({ color: 0xfacc15, depthTest: false }));
-    line.frustumCulled = dot.frustumCulled = false; line.renderOrder = dot.renderOrder = 10;
-    parent.add(line, dot); return { line, dot };
+    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PTSMAX * 3), 3));
+    const pts = new THREE.Points(pg, new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, color: 0xfde68a, depthTest: false }));   // 球殻との交点
+    line.frustumCulled = dot.frustumCulled = pts.frustumCulled = false; line.renderOrder = dot.renderOrder = pts.renderOrder = 10;
+    parent.add(line, dot, pts); return { line, dot, pts };
   };
-  pathL = mk(gL); pathR = mk(gR); makeAll(); makeFoot(); makeGuide(); updatePath();
+  pathL = mk(gL); pathR = mk(gR); makeAll(); makeFoot(); makeGuide(); makeRL(); updatePath();
 }
 // ---- 全方向の旅: 北極から「宇宙のあらゆる方向」(xyz空間の全方向 d) へ同時に出発 ----
 // 方向は緯度経度の格子（赤道=左の3D球の経線に対応）。全員が同じ時刻 t に同じ波面（層 w=R·cos t）の上にいて、
@@ -361,7 +398,7 @@ function makeDirs() {
 }
 const PS = 96;
 function makeAll() {
-  makeDirs();
+  makeDirs(); allColKey = '';
   const D = allDirs.length, nl = allDirs.filter(a => a.left).length;
   const mk = (parent, nDots) => {
     const g = new THREE.BufferGeometry(), col = new Float32Array(D * PS * 6);
@@ -392,7 +429,7 @@ function updateAll() {
   const zc = Math.cos(zw), zs = Math.sin(zw), v = [0, 0, 0, 0];
   // 物体座標の点 p(t,d)=R·(sin t·d, cos t) を、右は回転＋遠近投影、左は (x,y,w′) に変換（aL が null なら左は作らない）
   const pt = (t, d, aL, aR, k) => {
-    const st = Math.sin(t), x = R * st * d[0], y = R * st * d[1], z = R * st * d[2], w = R * Math.cos(t);
+    const q = sp4(t, d), x = q[0], y = q[1], z = q[2], w = q[3];
     if (aL) { aL[k] = x; aL[k + 1] = y; aL[k + 2] = z * zs + w * zc; }
     v[0] = x; v[1] = y; v[2] = z; v[3] = w; xf(v);
     const sc = camW / Math.max(0.6, camW - v[3]) * SCALE;
@@ -403,8 +440,17 @@ function updateAll() {
   const bR = new Float32Array((PS + 1) * 3), bL = new Float32Array((PS + 1) * 3);
   const dR = allR.dots.geometry.attributes.position.array, dL = allL.dots.geometry.attributes.position.array;
   let li = 0; allStat = { n: 0, s: 0 };
+  const tvA = vertexTs(PS + 1), colKey = stepOn && stepTs.length <= PS + 1 ? stepKey : 'uni';
+  if (allColKey !== colKey) {   // 行き（t<180°）は明るい色、帰りは暗い色。カクカクのときは頂点のtで判定し直す
+    allColKey = colKey;
+    for (const o of [allL, allR]) {
+      const ca = o.lines.geometry.attributes.color.array;
+      allDirs.forEach((a, p) => { for (let s = 0; s < PS; s++) { const c = new THREE.Color().setHSL(a.hue, 0.9, tvA[s] < Math.PI - 1e-9 ? 0.62 : 0.4); for (let e = 0; e < 2; e++) ca.set([c.r, c.g, c.b], ((p * PS + s) * 2 + e) * 3); } });
+      o.lines.geometry.attributes.color.needsUpdate = true;
+    }
+  }
   allDirs.forEach((a, p) => {
-    for (let s = 0; s <= PS; s++) pt(s / PS * TAU, a.d, a.left ? bL : null, bR, s * 3);
+    for (let s = 0; s <= PS; s++) pt(tvA[s], a.d, a.left ? bL : null, bR, s * 3);
     for (let s = 0; s < PS; s++) {
       const o = (p * PS + s) * 6;
       for (let q = 0; q < 3; q++) {
@@ -461,21 +507,95 @@ function updateFoot() {
   }
   footPts.geometry.attributes.position.needsUpdate = true; footPts.geometry.setDrawRange(0, footN);
 }
+// ---- ランダムな軌跡: 北極からランダムな方向へ出発する線を次々に足す。方向マップ（方位×仰角を面積が等しい格子に区切ったもの）で網羅の様子を見る ----
+function makeRL() {
+  const n = MAXRL * RLS * 6, g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n), 3));
+  rlObj = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false }));
+  rlObj.frustumCulled = false; rlObj.renderOrder = 7; gR.add(rlObj);
+  for (let i = 0; i < rlN; i++) setRLColor(i);
+}
+function setRLColor(i) {
+  const hue = ((Math.atan2(rlD[i * 3 + 1], rlD[i * 3]) / TAU) + 1) % 1, c = new THREE.Color().setHSL(hue, 0.9, 0.5), ca = rlObj.geometry.attributes.color.array;
+  for (let k = 0; k < RLS * 2; k++) ca.set([c.r, c.g, c.b], (i * RLS * 2 + k) * 3);
+  rlObj.geometry.attributes.color.needsUpdate = true;
+}
+function addRL() {
+  if (rlN >= MAXRL) return false;
+  const ph = (Math.random() * 2 - 1) * Math.PI, sl = Math.random() * 2 - 1, cl = Math.sqrt(1 - sl * sl);   // 方向は S² 上で一様（φ一様, sinλ一様）
+  rlD[rlN * 3] = Math.cos(ph) * cl; rlD[rlN * 3 + 1] = Math.sin(ph) * cl; rlD[rlN * 3 + 2] = sl;
+  const ip = Math.min(NBP - 1, Math.floor((ph + Math.PI) / TAU * NBP)), il = Math.min(NBL - 1, Math.floor((sl + 1) / 2 * NBL));
+  if (!rlBin[il * NBP + ip]) { rlBin[il * NBP + ip] = 1; rlHit++; }
+  setRLColor(rlN); rlN++; return true;
+}
+function updateRL() {
+  if (!rlObj) return;
+  rlObj.visible = rlN > 0 && !sliceOn;
+  if (!rlObj.visible) return;
+  mkSteps();
+  const tv = vertexTs(RLS + 1), pos = rlObj.geometry.attributes.position.array, v = [0, 0, 0, 0], d = [0, 0, 0], buf = new Float32Array((RLS + 1) * 3);
+  for (let i = 0; i < rlN; i++) {
+    d[0] = rlD[i * 3]; d[1] = rlD[i * 3 + 1]; d[2] = rlD[i * 3 + 2];
+    for (let k = 0; k <= RLS; k++) {
+      const q = sp4(tv[k], d); v[0] = q[0]; v[1] = q[1]; v[2] = q[2]; v[3] = q[3]; xf(v);
+      const sc = camW / Math.max(0.6, camW - v[3]) * SCALE; buf[k * 3] = v[0] * sc; buf[k * 3 + 1] = v[1] * sc; buf[k * 3 + 2] = v[2] * sc;
+    }
+    for (let k = 0; k < RLS; k++) { const o = (i * RLS + k) * 6; for (let c = 0; c < 3; c++) { pos[o + c] = buf[k * 3 + c]; pos[o + 3 + c] = buf[k * 3 + 3 + c]; } }
+  }
+  rlObj.geometry.attributes.position.needsUpdate = true; rlObj.geometry.setDrawRange(0, rlN * RLS * 2);
+}
 // ---- 方向ガイド: 北極から見た3D空間(x,y,z)の向きを、短い線で右の超球上に描く ----
-let guide = null; const GSEG = 120;
+let guide = null; const GSEG = 300, glab = {};
+function makeLabel(color) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const tex = new THREE.CanvasTexture(c), sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sp.scale.set(0.95, 0.2375, 1); sp.renderOrder = 12; sp.frustumCulled = false; sp.visible = false;
+  return { sp, c, tex, text: '', color };
+}
+function setLabel(lb, text, pos) {
+  if (lb.text !== text) {
+    lb.text = text; const x = lb.c.getContext('2d'); x.clearRect(0, 0, 256, 64);
+    x.font = 'bold 34px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.lineWidth = 7; x.strokeStyle = 'rgba(3,7,18,.92)'; x.strokeText(text, 128, 32); x.fillStyle = lb.color; x.fillText(text, 128, 32); lb.tex.needsUpdate = true;
+  }
+  lb.sp.position.set(pos[0], pos[1], pos[2]); lb.sp.visible = true;
+}
 function makeGuide() {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(GSEG * 6), 3));
   g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(GSEG * 6), 3));
   guide = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false }));
   guide.frustumCulled = false; guide.renderOrder = 11; gR.add(guide);
+  const defs = { x: '#f87171', y: '#4ade80', z: '#60a5fa', dir: '#facc15', az: '#f5f5f4', el: '#67e8f9' };
+  for (const k in defs) { glab[k] = makeLabel(defs[k]); gR.add(glab[k].sp); }
+  // CGソフトのような3色の矢印（x=赤 y=緑 z=青）と、進む向きの矢印（黄）
+  const mkArrow = (hex, r) => {
+    const sh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 10), new THREE.MeshBasicMaterial({ color: hex, depthTest: false }));
+    const hd = new THREE.Mesh(new THREE.ConeGeometry(r * 3, 1, 18), new THREE.MeshBasicMaterial({ color: hex, depthTest: false }));
+    for (const m of [sh, hd]) { m.renderOrder = 12; m.frustumCulled = false; m.visible = false; gR.add(m); }
+    return { sh, hd };
+  };
+  garrow = { x: mkArrow(0xef4444, 0.024), y: mkArrow(0x22c55e, 0.024), z: mkArrow(0x3b82f6, 0.024), dir: mkArrow(0xfacc15, 0.032) };
+}
+const _Y = new THREE.Vector3(0, 1, 0);
+function setArrow(ar, a, b) {   // a→b の矢印（軸の棒＋円錐の矢じり）
+  const u = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), len = u.length();
+  if (len < 1e-6) { ar.sh.visible = ar.hd.visible = false; return; }
+  u.divideScalar(len);
+  const hl = Math.min(0.22, len * 0.35), q = new THREE.Quaternion().setFromUnitVectors(_Y, u);
+  ar.sh.scale.set(1, len - hl, 1); ar.sh.quaternion.copy(q);
+  ar.sh.position.set(a[0] + u.x * (len - hl) / 2, a[1] + u.y * (len - hl) / 2, a[2] + u.z * (len - hl) / 2);
+  ar.hd.scale.set(1, hl, 1); ar.hd.quaternion.copy(q);
+  ar.hd.position.set(b[0] - u.x * hl / 2, b[1] - u.y * hl / 2, b[2] - u.z * hl / 2);
+  ar.sh.visible = ar.hd.visible = true;
 }
 function updateGuide() {
   if (!guide) return;
   guide.visible = pathOn && !sliceOn;
-  if (!guide.visible) return;
+  if (!guide.visible) { for (const k in glab) glab[k].sp.visible = false; for (const k in garrow) garrow[k].sh.visible = garrow[k].hd.visible = false; return; }
   mkSteps();
-  const Lg = 0.7, pos = guide.geometry.attributes.position.array, col = guide.geometry.attributes.color.array, v = [0, 0, 0, 0];
+  const Lg = 0.9, pos = guide.geometry.attributes.position.array, col = guide.geometry.attributes.color.array, v = [0, 0, 0, 0];
   let n = 0;
   const P = vec => {   // 接空間のベクトル（長さ=進む距離）→ 超球面上の点 → 回転 → 遠近投影
     const l = Math.hypot(vec[0], vec[1], vec[2]), t = l / R, k = l ? R * Math.sin(t) / l : 0;
@@ -486,36 +606,60 @@ function updateGuide() {
     let prev = P(pts[0]);
     for (let i = 1; i < pts.length && n < GSEG; i++) { const cur = P(pts[i]); pos.set(prev, n * 6); pos.set(cur, n * 6 + 3); col.set(c, n * 6); col.set(c, n * 6 + 3); prev = cur; n++; }
   };
-  const line = (d, c, m = 12) => poly(Array.from({ length: m + 1 }, (_, i) => d.map(x => x * Lg * i / m)), c);
-  line([1, 0, 0], [1, 0.35, 0.35]); line([0, 1, 0], [0.4, 1, 0.4]); line([0, 0, 1], [0.4, 0.6, 1]);   // x=赤 y=緑 z=青
-  const cl = Math.cos(pathLam);
-  line([cl * Math.cos(pathPhi), cl * Math.sin(pathPhi), Math.sin(pathLam)], [1, 0.9, 0.2], 16);       // 進む向き=黄
-  const r = Lg * 0.6;
-  poly(Array.from({ length: 25 }, (_, i) => { const a = pathPhi * i / 24; return [r * Math.cos(a), r * Math.sin(a), 0]; }), [0.9, 0.9, 0.9]);   // 方位角の弧（xy平面上）
-  poly(Array.from({ length: 25 }, (_, i) => { const b = pathLam * i / 24; return [r * Math.cos(pathPhi) * Math.cos(b), r * Math.sin(pathPhi) * Math.cos(b), r * Math.sin(b)]; }), [0.4, 0.9, 0.9]);   // 仰角の弧
+  const seg = (a, b, c, m = 10) => poly(Array.from({ length: m + 1 }, (_, i) => a.map((x, k) => x + (b[k] - x) * i / m)), c);
+  const line = (d, c, m = 12) => seg([0, 0, 0], d.map(x => x * Lg), c, m);
+  const cl = Math.cos(pathLam), sl = Math.sin(pathLam), cp = Math.cos(pathPhi), sp = Math.sin(pathPhi), ph = ((pathPhi % TAU) + TAU) % TAU;
+  // 基準面（xy平面＝水平面）の輪
+  poly(Array.from({ length: 49 }, (_, i) => { const a = TAU * i / 48; return [Lg * Math.cos(a), Lg * Math.sin(a), 0]; }), [0.32, 0.38, 0.5]);
+  // 座標軸: x=赤 y=緑 z=青（反対側は薄く）
+  line([-1, 0, 0], [0.4, 0.2, 0.2], 6); line([0, -1, 0], [0.2, 0.4, 0.2], 6); line([0, 0, -1], [0.2, 0.25, 0.4], 6);
+  // 出発点（北極）から3色の矢印: x=赤 y=緑 z=青。進む向きは黄色の矢印
+  const o0 = P([0, 0, 0]);
+  setArrow(garrow.x, o0, P([Lg, 0, 0])); setArrow(garrow.y, o0, P([0, Lg, 0])); setArrow(garrow.z, o0, P([0, 0, Lg]));
+  setArrow(garrow.dir, o0, P([cl * cp * Lg * 1.12, cl * sp * Lg * 1.12, sl * Lg * 1.12]));
+  // 進む向きの水平成分（白）と、先端から水平面へ下ろした線（水色）
+  line([cl * cp, cl * sp, 0], [0.95, 0.95, 0.95], 12);
+  seg([cl * cp * Lg, cl * sp * Lg, sl * Lg], [cl * cp * Lg, cl * sp * Lg, 0], [0.4, 0.9, 0.9], 8);
+  // 方位角の弧（水平面上: x軸から進む向きの真下まで）と、仰角の弧（水平から進む向きまで）
+  const r = Lg * 0.55;
+  poly(Array.from({ length: 33 }, (_, i) => { const a = ph * i / 32; return [r * Math.cos(a), r * Math.sin(a), 0]; }), [0.97, 0.97, 0.97]);
+  poly(Array.from({ length: 33 }, (_, i) => { const b = pathLam * i / 32; return [r * cp * Math.cos(b), r * sp * Math.cos(b), r * Math.sin(b)]; }), [0.4, 0.95, 0.95]);
   for (let i = n * 6; i < GSEG * 6; i++) pos[i] = 0;
   guide.geometry.attributes.position.needsUpdate = guide.geometry.attributes.color.needsUpdate = true;
+  // 文字（軸の名前と角度）
+  setLabel(glab.x, 'x', P([Lg * 1.25, 0, 0])); setLabel(glab.y, 'y', P([0, Lg * 1.25, 0])); setLabel(glab.z, 'z', P([0, 0, Lg * 1.25]));
+  setLabel(glab.dir, '進む向き', P([cl * cp * Lg * 1.25, cl * sp * Lg * 1.25, sl * Lg * 1.25 + 0.1]));
+  if (ph > 0.05) setLabel(glab.az, '方位 ' + deg(ph), P([r * 1.45 * Math.cos(ph / 2), r * 1.45 * Math.sin(ph / 2), -0.08])); else glab.az.sp.visible = false;
+  if (Math.abs(pathLam) > 0.05) setLabel(glab.el, '仰角 ' + deg(pathLam), P([r * 1.5 * cp * Math.cos(pathLam / 2), r * 1.5 * sp * Math.cos(pathLam / 2), r * 1.5 * Math.sin(pathLam / 2)])); else glab.el.sp.visible = false;
 }
 function updatePath() {
   if (!pathL) return;
-  updateAll(); updateFoot(); updateGuide();
+  updateAll(); updateFoot(); updateGuide(); updateRL();
   pathL.line.visible = pathL.dot.visible = pathOn;
   pathR.line.visible = pathR.dot.visible = pathOn && !sliceOn;   // 切断面モードでは右の軌跡は出さない
+  pathL.pts.visible = pathOn && stepOn; pathR.pts.visible = pathOn && stepOn && !sliceOn;
   if (!pathOn) return;
   mkSteps();
   const zc = Math.cos(zw), zs = Math.sin(zw), v = [0, 0, 0, 0];
   const put = (t, aL, aR, k) => {
-    const p = pathPt(t);
-    aL[k] = p[0]; aL[k + 1] = p[1]; aL[k + 2] = p[2] * zs + p[3] * zc;   // 左は (x, y, w′)。Z-Wで動いた z′ は落とす
+    const p = pathPt(t), pl = leftS2 ? sp4(t, [Math.cos(pathPhi), Math.sin(pathPhi), 0], [0, 0, 0, 0]) : p;   // S²モード: 仰角0の経線（球面上）を左に出す
+    aL[k] = pl[0]; aL[k + 1] = pl[1]; aL[k + 2] = pl[2] * zs + pl[3] * zc;   // 左は (x, y, w′)。Z-Wで動いた z′ は落とす
     v[0] = p[0]; v[1] = p[1]; v[2] = p[2]; v[3] = p[3]; xf(v);
     const s = camW / Math.max(0.6, camW - v[3]) * SCALE;
     aR[k] = v[0] * s; aR[k + 1] = v[1] * s; aR[k + 2] = v[2] * s;
   };
   const aL = pathL.line.geometry.attributes.position, aR = pathR.line.geometry.attributes.position;
-  for (let i = 0; i <= PN; i++) put(i / PN * TAU, aL.array, aR.array, i * 3);
+  const tv = vertexTs(PN + 1);
+  for (let i = 0; i <= PN; i++) put(tv[i], aL.array, aR.array, i * 3);
   aL.needsUpdate = aR.needsUpdate = true;
+  if (stepOn) {   // 球殻との交点に印を付ける
+    calcStepTs();
+    const kL = pathL.pts.geometry.attributes.position, kR = pathR.pts.geometry.attributes.position, nT = Math.min(stepTs.length, PTSMAX);
+    for (let k = 0; k < nT; k++) put(stepTs[k], kL.array, kR.array, k * 3);
+    kL.needsUpdate = kR.needsUpdate = true; pathL.pts.geometry.setDrawRange(0, nT); pathR.pts.geometry.setDrawRange(0, nT);
+  }
   const cA = pathL.line.geometry.attributes.color, cB = pathR.line.geometry.attributes.color;
-  for (let i = 0; i <= PN; i++) { const c = i / PN * TAU <= pathT + 1e-9 ? [0.98, 0.45, 0.09] : [0.28, 0.30, 0.38]; cA.array.set(c, i * 3); cB.array.set(c, i * 3); }
+  for (let i = 0; i <= PN; i++) { const c = tv[i] <= pathT + 1e-9 ? [0.98, 0.45, 0.09] : [0.28, 0.30, 0.38]; cA.array.set(c, i * 3); cB.array.set(c, i * 3); }
   cA.needsUpdate = cB.needsUpdate = true;
   const tl = [0, 0, 0], tr = [0, 0, 0]; put(pathT, tl, tr, 0);
   pathL.dot.position.set(tl[0], tl[1], tl[2]); pathR.dot.position.set(tr[0], tr[1], tr[2]);
@@ -632,8 +776,52 @@ function refreshTag() {
     : '【観察側】4D超球（球殻積層）ドラッグで視点回転') + (camOn ? ' ＋4Dカメラ：ドラッグでX-W/Y-W、Shift+横ドラッグでZ-W' : '');
 }
 
+function drawHud() {
+  const hc = $('hud'), mc = $('cmap');
+  hc.style.display = pathOn && hudOn ? 'block' : 'none';
+  if (pathOn && hudOn) {
+    const x = hc.getContext('2d'), W = hc.width, H = hc.height; x.clearRect(0, 0, W, H);
+    const ph = ((pathPhi % TAU) + TAU) % TAU, lam = pathLam, rd = 56, cy = 100, c1 = 82, c2 = 238;
+    x.font = 'bold 12px system-ui, sans-serif'; x.textAlign = 'center'; x.fillStyle = '#e5e7eb';
+    x.fillText('① 方位（真上から見た図）', c1, 16); x.fillText('② 仰角（横から見た図）', c2, 16);
+    const circle = cx => { x.strokeStyle = '#475569'; x.lineWidth = 1; x.beginPath(); x.arc(cx, cy, rd, 0, TAU); x.stroke(); };
+    const ln = (cx, ax, ay, bx, by, col, w = 1.5) => { x.strokeStyle = col; x.lineWidth = w; x.beginPath(); x.moveTo(cx + ax, cy + ay); x.lineTo(cx + bx, cy + by); x.stroke(); };
+    const arrow = (cx, bx, by, col) => { ln(cx, 0, 0, bx, by, col, 3); const a = Math.atan2(by, bx); x.fillStyle = col; x.beginPath(); x.moveTo(cx + bx, cy + by); x.lineTo(cx + bx - 10 * Math.cos(a - 0.4), cy + by - 10 * Math.sin(a - 0.4)); x.lineTo(cx + bx - 10 * Math.cos(a + 0.4), cy + by - 10 * Math.sin(a + 0.4)); x.fill(); };
+    const arc = (cx, a0, a1, rr, col) => { x.strokeStyle = col; x.lineWidth = 2.5; x.beginPath(); x.arc(cx, cy, rr, -a0, -a1, a1 > a0); x.stroke(); };
+    const txt = (t, px, py, col) => { x.font = 'bold 13px system-ui, sans-serif'; x.lineWidth = 4; x.strokeStyle = '#0f172a'; x.strokeText(t, px, py); x.fillStyle = col; x.fillText(t, px, py); };
+    // ① 方位: x軸（右・赤）、y軸（上・緑）、進む向きの水平成分
+    circle(c1); ln(c1, -rd, 0, rd, 0, '#7f1d1d'); ln(c1, 0, rd, 0, -rd, '#14532d');
+    ln(c1, 0, 0, rd, 0, '#f87171', 2); ln(c1, 0, 0, 0, -rd, '#4ade80', 2);
+    txt('x', c1 + rd + 9, cy + 4, '#f87171'); txt('y', c1, cy - rd - 5, '#4ade80');
+    const hl = Math.max(0.12, Math.cos(lam)) * rd; arc(c1, 0, ph || 1e-6, rd * 0.42, '#f5f5f4');
+    arrow(c1, Math.cos(ph) * hl, -Math.sin(ph) * hl, '#facc15');
+    txt('方位 ' + deg(ph), c1, cy + rd + 16, '#f5f5f4');
+    // ② 仰角: 水平（右）、z軸（上・青）、進む向き
+    circle(c2); ln(c2, -rd, 0, rd, 0, '#475569'); ln(c2, 0, rd, 0, -rd, '#1e3a8a');
+    ln(c2, 0, 0, rd, 0, '#e5e7eb', 2); ln(c2, 0, 0, 0, -rd, '#60a5fa', 2);
+    txt('水平', c2 + rd - 6, cy + 16, '#cbd5e1'); txt('z', c2, cy - rd - 5, '#60a5fa');
+    arc(c2, 0, lam || 1e-6, rd * 0.42, '#67e8f9');
+    arrow(c2, Math.cos(lam) * rd, -Math.sin(lam) * rd, '#facc15');
+    txt('仰角 ' + deg(lam), c2, cy + rd + 16, '#67e8f9');
+  }
+  mc.style.display = (rlN > 0 || rlOn) ? 'block' : 'none';
+  if (rlN > 0 || rlOn) {
+    const x = mc.getContext('2d'), cw = 9, W = mc.width, ox = 22, oy = 22; x.clearRect(0, 0, W, mc.height);
+    x.font = 'bold 12px system-ui, sans-serif'; x.textAlign = 'left'; x.fillStyle = '#e5e7eb'; x.fillText('方向マップ（出発した方向）', 6, 14);
+    for (let il = 0; il < NBL; il++) for (let ip = 0; ip < NBP; ip++) {
+      const hit = rlBin[il * NBP + ip], px = ox + ip * cw, py = oy + (NBL - 1 - il) * cw;
+      x.fillStyle = hit ? `hsl(${Math.round(ip / NBP * 360)},85%,55%)` : '#1e293b'; x.fillRect(px, py, cw - 1, cw - 1);
+    }
+    x.font = '10px system-ui, sans-serif'; x.fillStyle = '#94a3b8'; x.textAlign = 'center';
+    x.fillText('方位 −180°', ox + 20, oy + NBL * cw + 11); x.fillText('0°', ox + NBP * cw / 2, oy + NBL * cw + 11); x.fillText('180°', ox + NBP * cw - 14, oy + NBL * cw + 11);
+    x.textAlign = 'right'; x.fillText('上', ox - 3, oy + 8); x.fillText('下', ox - 3, oy + NBL * cw);
+    x.textAlign = 'left'; x.fillStyle = rlHit === NBP * NBL ? '#86efac' : '#e5e7eb';
+    x.fillText(`${rlN}本  網羅 ${rlHit}/${NBP * NBL}（${(rlHit / (NBP * NBL) * 100).toFixed(0)}%）`, ox, oy + NBL * cw + 24);
+  }
+}
 function refreshUI() {
-  $('infoL').textContent = `前後傾き(pitch): ${deg(pitch)}\n左右傾き(roll) : ${deg(roll)}\nZ-W傾き       : ${deg(zw)}` + (obT ? `\n斜めW回転     : ${deg(obT)}（向き ${deg(obP)}）` : '');
+  drawHud();
+  $('infoL').textContent = `前後傾き(pitch): ${deg(pitch)}\n左右傾き(roll) : ${deg(roll)}\nZ-W傾き       : ${deg(zw)}` + (obT ? `\n斜めW回転     : ${deg(obT)}（向き ${deg(obP)}）` : '') + (pathOn && leftS2 ? '\nS²移動: 仰角は使わず方位だけで進む' : '');
   let ang = `4D X-W: ${a4.toFixed(2)} rad\n4D Y-W: ${b4.toFixed(2)} rad\n4D X-Y: ${c4.toFixed(2)} rad\n4D Z-W: ${zw.toFixed(2)} rad` + (obT ? `\n4D 斜めW: ${obT.toFixed(2)} rad（向き ${deg(obP)}）` : '');
   if (allOn) {
     const D = allDirs.length;
@@ -642,6 +830,8 @@ function refreshUI() {
   }
   if (pathOn) { const p = pathPt(pathT), dc = [Math.cos(pathLam) * Math.cos(pathPhi), Math.cos(pathLam) * Math.sin(pathPhi), Math.sin(pathLam)],
     ax = dc.map((c, i) => 'xyz'[i] + ' ' + (Math.acos(Math.max(-1, Math.min(1, c))) / D2R).toFixed(0) + '°').join('  '); ang += `\n目的地: 方位角 ${deg(pathPhi)} 仰角 ${deg(pathLam)} 進む角度 ${deg(pathT)}（高度z ${(R * Math.cos(pathT)).toFixed(2)}）\n  出発の向きと各軸との角: ${ax}\n  4D座標 (${p.map(v => v.toFixed(2)).join(', ')})  超球面からのずれ ${Math.abs(Math.hypot(...p) - R).toExponential(0)}`; }
+  if (stepOn) ang += `\nカクカク軌跡: 球殻 ${nLayers * 2 - 1} 枚ごとに直線でつなぐ（交点 ${(calcStepTs(), stepTs.length)} 個）。層数を増やすほどなめらか`;
+  if (rlN) ang += `\nランダムな軌跡 ${rlN}/${MAXRL} 本・方向の網羅 ${rlHit}/${NBP * NBL}（${(rlHit / (NBP * NBL) * 100).toFixed(0)}%）` + (rlHit === NBP * NBL ? '\n  ★すべての方向を通った＝超球面の全域に届いた' : '');
   if (footN) ang += `\n足あと ${footN} 点（超球面上に一様にランダムな目的地）`;
   if (camOn) ang += `\nカメラ位置(x,y,z,w): ${camPos().map(v => (v * camW).toFixed(2)).join(', ')}`;
   if (sliceOn) {
@@ -748,6 +938,11 @@ $('bAll').onclick = e => {
   e.currentTarget.classList.toggle('on', allOn); update(); refreshUI();
 };
 $('bRand').onclick = e => { randPlay = !randPlay; if (randPlay) { pathOn = true; $('bPath').classList.add('on'); } e.currentTarget.classList.toggle('on', randPlay); updatePath(); refreshUI(); };
+$('bStep').onclick = e => { stepOn = !stepOn; e.currentTarget.classList.toggle('on', stepOn); if (stepOn && !pathOn && !allOn && !rlN) $('bPath').click(); else { updatePath(); refreshUI(); } };
+$('bRL').onclick = e => { rlOn = !rlOn; if (rlOn && rlN >= MAXRL) { rlN = 0; rlHit = 0; rlBin.fill(0); } if (rlOn && !pitch && !roll) { pitch = 0.35; roll = -0.7; update(); } e.currentTarget.classList.toggle('on', rlOn); refreshUI(); };
+$('bS2').onclick = e => { leftS2 = !leftS2; e.currentTarget.classList.toggle('on', leftS2); updatePath(); refreshUI(); };
+$('bHud').onclick = e => { hudOn = !hudOn; e.currentTarget.classList.toggle('on', hudOn); refreshUI(); };
+$('bRLClr').onclick = () => { rlN = 0; rlHit = 0; rlBin.fill(0); updatePath(); refreshUI(); };
 $('bFootClr').onclick = () => { footN = 0; footI = 0; updatePath(); refreshUI(); };
 $('bPath').onclick = e => { pathOn = !pathOn; if (pathOn && pathT === 0) pathT = Math.PI / 2; if (pathOn && !pitch && !roll) { pitch = 0.35; roll = -0.7; update(); } if (!pathOn && !allOn) { pathPlay = false; $('bPathPlay').classList.remove('on'); } e.currentTarget.classList.toggle('on', pathOn); updatePath(); refreshUI(); };
 $('bPathPlay').onclick = e => { pathPlay = !pathPlay; if (pathPlay && !pathOn && !allOn) $('bPath').click(); e.currentTarget.classList.toggle('on', pathPlay); };
@@ -841,6 +1036,7 @@ function syncPanel() {
     else zw = norm(zw + d);
     update();
   }
+  if (rlOn && ++rlTick % 2 === 0) { for (let k = 0, m = Math.max(1, Math.round(spd)); k < m; k++) addRL(); if (rlN >= MAXRL) { rlOn = false; $('bRL').classList.remove('on'); } updatePath(); refreshUI(); }
   if (randPlay) { addFoot(4); if (++randTick % 15 === 0 && footLast) { pathPhi = footLast.ph; pathLam = footLast.lam; pathT = footLast.t; } updatePath(); refreshUI(); }
   if (pathPlay && (pathOn || allOn)) { pathT = (pathT + 0.015 * spd) % TAU; updatePath(); refreshUI(); }
   if (cutSpin) { cutAng = (cutAng + 0.012 * spd) % TAU; syncPanel(); }
@@ -866,7 +1062,7 @@ let lsLast = '', noSave = false;
 function collectSettings() {
   return {
     nLayers, model, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn,
-    backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM,
+    backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM, stepOn, hudOn, leftS2,
     full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'),
     open: grpEls.map(g => g.open),
     cam: cR.position.toArray(), tgt: controls.target.toArray()
@@ -895,7 +1091,7 @@ function loadSettings() {
   hemi = pick('hemi', ['both', 'A', 'B'], hemi);
   redCenter = bool('redCenter', redCenter); shadeOn = bool('shadeOn', shadeOn); opaque = bool('opaque', opaque); matte = bool('matte', matte);
   wedgeOn = bool('wedgeOn', wedgeOn); sliceOn = bool('sliceOn', sliceOn); camOn = bool('camOn', camOn);
-  pathOn = bool('pathOn', pathOn); allOn = bool('allOn', allOn);
+  pathOn = bool('pathOn', pathOn); allOn = bool('allOn', allOn); stepOn = bool('stepOn', stepOn); hudOn = bool('hudOn', hudOn); leftS2 = bool('leftS2', leftS2);
   cSlice = num('cSlice', -R, R, cSlice);
   cutPhi = num('cutPhi', 0, TAU, cutPhi);
   backOn = bool('backOn', backOn); backAmt = num('backAmt', 0, 1, backAmt); applyBack(); backMode = s.backMode === 0 ? 0 : 1; uBackMode.value = backMode; mark('[data-bm]', document.querySelector(`[data-bm="${backMode}"]`));
@@ -913,7 +1109,7 @@ function loadSettings() {
   mark('[data-mode]', document.querySelector(`[data-mode="${mode}"]`));
   mark('[data-hemi]', document.querySelector(`[data-hemi="${hemi}"]`));
   mark('[data-ax]', document.querySelector(`[data-ax="${axis}"]`));
-  [['bSlice', sliceOn], ['bWedge', wedgeOn], ['bCam', camOn], ['bOpq', opaque], ['bMat', matte], ['bShade', shadeOn], ['bBack', backOn], ['bPath', pathOn], ['bAll', allOn]]
+  [['bSlice', sliceOn], ['bWedge', wedgeOn], ['bCam', camOn], ['bOpq', opaque], ['bMat', matte], ['bShade', shadeOn], ['bBack', backOn], ['bPath', pathOn], ['bAll', allOn], ['bStep', stepOn], ['bHud', hudOn], ['bS2', leftS2]]
     .forEach(([id, on]) => $(id).classList.toggle('on', on));
   controls.enabled = !camOn;
   const v3 = a => Array.isArray(a) && a.length === 3 && a.every(Number.isFinite);
