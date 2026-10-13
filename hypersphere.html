@@ -48,6 +48,7 @@ button.on{background:#0e7490;border-color:#38bdf8}
 <div id="panel">
   <details class="grp" open><summary>🔭 表示</summary>
     <div class="gb"><span>モード</span><button data-mode="hybrid" class="on">ハイブリッド</button><button data-mode="wire">ワイヤー</button><button data-mode="solid">半透明</button><button data-mode="points">点群</button></div>
+    <div class="gb"><span>3Dモデル</span><button data-model="lat" class="on" title="リングを高さ方向に積む（緯度線）。右は球殻を積む">緯度リング</button><button data-model="mer" title="極を通る大円を等間隔に並べる（経度線）。右は大きな球殻が放射状に並ぶ。β版">経度リング（β）</button><button data-model="both" title="緯度リングと経度リングを同時に表示（地球儀の格子）。右は球殻と大球殻が重なる。β版">両方（β）</button><button data-model="cone" title="円錐（xyzでの極角θ一定の面）だけを表示。左は参考の球だけ。β版">円錐だけ（β）</button><button data-model="full" title="緯度＋経度＋円錐（xyzでの極角θ一定の面）。超球の座標3族がそろう。円錐は右だけに出る。β版">全部（β）</button><span>※経度では「層数」が大円の本数</span></div>
     <div class="gb"><span>半球</span><button data-hemi="both" class="on">全球</button><button data-hemi="A">北 A</button><button data-hemi="B">南 B</button></div>
     <div class="gb"><button id="bSlice">🔪 切断面（観察者に固定）</button><button id="bWedge">✂ 断面カット</button><button id="bColor">中心色反転</button></div>
     <div class="gb"><span>切り欠き</span><button data-cref="screen" class="on" title="観察者（画面）から見て常に同じ側を切る">📺 画面に固定</button><button data-cref="obj" title="超球の経度に固定（回すと切り口も一緒に動く）">🧊 物体に固定</button><button data-cref="orig" title="押した瞬間に画面から見て手前側の90°ぶんのポリゴンを作らない。次に押すまで超球に固定">🧱 ポリゴンカット</button></div>
@@ -122,6 +123,7 @@ function addCut(sh) {
     + sh.fragmentShader.replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n if (uCutMode > 0.5) { float a = (uCutMode < 1.5 ? atan(vCutP.x, vCutP.z) : vPhi) - uCutC; a = mod(a + PI, 2.0 * PI) - PI; if (abs(a) < uCutH) discard; }');
 }
 let zw = 0, cx = 0, cy = 0, cz = 0, camOn = false, opaque = false, matte = false;
+let model = 'lat';                         // 3Dモデル: 'lat'=緯度リング(横に積む) / 'mer'=経度リング(極を通る大円を等間隔に並べる)
 let pitch = 0, roll = 0, yaw = 0;          // 左(3D)の姿勢
 let obT = 0, obP = 0;                      // 斜めW回転: 角度 obT、回転面の向き obP（xy平面内の方位。0°=X-W, 90°=Y-W）
 let a4 = 0, b4 = 0, c4 = 0;                // 右(4D)が使う回転角: XW, YW, XY
@@ -186,20 +188,35 @@ function build() {
   tube = nLayers > 31 ? 0.008 : 0.02;
   torR = nLayers > 61 ? 6 : 12; torS = nLayers > 61 ? 48 : 64;
   makePath();
-  for (const isB of [false, true]) {
-    const sign = isB ? -1 : 1;
-    for (let i = 0; i < nLayers; i++) {
-      const th = MIN_THETA + i / (nLayers - 1) * (Math.PI / 2 - MIN_THETA);
-      const r = R * Math.sin(th), z = sign * R * Math.cos(th);   // 3D: リング半径 r, 高さ z
-      const col = layerColor(i, isB);
+  // 緯度リング: 北・南それぞれ nLayers 枚（高さ w 一定の円 ↔ 超球では w 一定の球殻）
+  // 経度リング: 極(w軸)を通る大円を nLayers 本、方位 φ を 180°/nLayers ずつずらして並べる
+  //   左: 円 {s·u(φ) + w·ẑ : s²+w²=R²}（u=(cosφ, sinφ)）
+  //   右: 超球と「w軸・z軸・u(φ)」の張る超平面との交わり = 大きな球殻 s²+z²+w²=R²（zの次元を足しただけ。リング→球殻の対応は緯度と同じ）
+  const specs = [];   // model: 'lat'=緯度のみ / 'mer'=経度のみ / 'both'=緯度+経度 / 'full'=緯度+経度+円錐（3族そろった座標格子）
+  if (model !== 'mer' && model !== 'cone') for (const isB of [false, true]) for (let i = 0; i < nLayers; i++) specs.push({ i, isB });
+  if (model === 'mer' || model === 'both' || model === 'full') for (let k = 0; k < nLayers; k++) specs.push({ k, isB: false, mer: true });
+  if (model === 'full' || model === 'cone') for (let j = 0; j < nLayers; j++) specs.push({ j, isB: false, cone: true });   // 円錐: 3D(xyz)での極角θ一定の面（右の超球だけ。左の(x,y,w)にはz成分がないので対応するものがない）
+  {
+    for (const sp of specs) {
+      const mer = !!sp.mer, cone = !!sp.cone, isB = sp.isB, i = cone ? sp.j : mer ? sp.k : sp.i;
+      let r, z, col, phi = 0, thC = 0;
+      if (cone) { r = R; z = 0; thC = (sp.j + 1) * Math.PI / (nLayers + 1); col = new THREE.Color().setHSL(0.12 + 0.6 * sp.j / nLayers, 0.7, 0.62); }   // θ=90°（z=0）の面は左の球そのもの
+      else if (mer) { r = R; z = 0; phi = sp.k * Math.PI / nLayers; col = new THREE.Color().setHSL((redCenter ? sp.k / nLayers : 1 - sp.k / nLayers) * 0.85, 0.95, 0.52); }
+      else {
+        const th = MIN_THETA + i / (nLayers - 1) * (Math.PI / 2 - MIN_THETA);
+        r = R * Math.sin(th); z = (isB ? -1 : 1) * R * Math.cos(th);   // 3D: リング半径 r, 高さ z
+        col = layerColor(i, isB);
+      }
 
       // 左: リング
       const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(r, tube, torR, torS),
+        cone ? new THREE.BufferGeometry() : new THREE.TorusGeometry(r, tube, torR, torS),
         new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.4, metalness: 0.35, roughness: 0.15 })
       );
       ring.material.onBeforeCompile = addBackRing;
-      ring.position.z = z; gL.add(ring);
+      ring.position.z = z;
+      if (mer) ring.quaternion.copy(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, phi)).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0))));   // 円を φ 方位の縦の面に立てる
+      if (cone) ring.visible = false; else gL.add(ring);   // 円錐は左に出さない
 
       // 右: 球殻（半径 r, w = z）。geometryを3つで共有
       const geo = new THREE.SphereGeometry(1, MESH, MESH, phiSt, phiLen);
@@ -236,9 +253,10 @@ function build() {
       const sPts = new THREE.Points(sg, new THREE.PointsMaterial({ color: col, size: 0.04 }));
       [sLine, sPts].forEach(o => { o.frustumCulled = false; o.visible = false; gS.add(o); });
 
-      layers.push({ geo, base, r, w: z, isB, isEquator: i === nLayers - 1, ring, solid, wire, pts, out, sg, sLine, sPts, sHas: false, rho: r, vis: true });
+      layers.push({ geo, base, r, w: z, isB, mer, cone, phi, sT: Math.sin(thC), cT: Math.cos(thC), isEquator: !mer && !cone && i === nLayers - 1, ring, solid, wire, pts, out, sg, sLine, sPts, sHas: false, rho: r, vis: true });
     }
   }
+  if (model === 'cone') gL.add(new THREE.Mesh(new THREE.SphereGeometry(R, 24, 16), new THREE.MeshBasicMaterial({ color: 0x94a3b8, wireframe: true, transparent: true, opacity: 0.18 })));   // 円錐だけのとき左が空にならないよう、θ=90°の面（左の球そのもの）を淡く出す
   // 切り口の球（超球全体の断面）を淡く表示
   refGroup = new THREE.Group();
   refGroup.add(new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24),
@@ -253,9 +271,9 @@ function build() {
 
 function applyVis() {
   layers.forEach(L => {
-    let v = hemi === 'both' || (hemi === 'A' && !L.isB) || (hemi === 'B' && L.isB);
+    let v = L.mer || L.cone || hemi === 'both' || (hemi === 'A' && !L.isB) || (hemi === 'B' && L.isB);   // 経度モデルの大円は南北にまたがるので半球フィルタは使わない
     if (hemi === 'both' && L.isB && L.isEquator) v = false;   // 赤道は北と重複するので1枚だけ
-    L.vis = v; L.ring.visible = v;
+    L.vis = v; L.ring.visible = v && !L.cone;
     if (sliceOn) {
       L.solid.visible = L.wire.visible = L.pts.visible = false;
       L.sLine.visible = L.sPts.visible = v && L.sHas;
@@ -510,7 +528,9 @@ function updateRightCore() {
   for (const L of layers) {                    // 非表示の層も更新（切替時のズレ防止）
     const p = L.geo.attributes.position, arr = p.array, base = L.base, fc = L.geo.attributes.aF4.array;
     for (let k = 0; k < arr.length; k += 3) {
-      v[0] = base[k] * L.r; v[1] = base[k + 1] * L.r; v[2] = base[k + 2] * L.r; v[3] = L.w;
+      if (L.mer) { const cp = Math.cos(L.phi), sp = Math.sin(L.phi); v[0] = R * base[k] * cp; v[1] = R * base[k] * sp; v[2] = R * base[k + 1]; v[3] = R * base[k + 2]; }   // 大球殻: (s,z,w) の単位球 → (x,y,z,w)
+      else if (L.cone) { const a = base[k], b = base[k + 1], c = base[k + 2], rho = Math.hypot(a, b); v[0] = R * a * L.sT; v[1] = R * b * L.sT; v[2] = R * rho * L.cT; v[3] = R * c; }   // 円錐面: (sinψcosφ, sinψsinφ, cosψ) → (x,y,z,w)=R(sinθ·sinψcosφ, sinθ·sinψsinφ, cosθ·sinψ, cosψ)
+      else { v[0] = base[k] * L.r; v[1] = base[k + 1] * L.r; v[2] = base[k + 2] * L.r; v[3] = L.w; }
       xf(v);
       const s = camW / Math.max(0.6, camW - v[3]) * SCALE;  // 視点は +w 側
       arr[k] = v[0] * s; arr[k + 1] = v[1] * s; arr[k + 2] = v[2] * s;
@@ -540,9 +560,28 @@ function updateSlice() {
     v0 = uy * u2 - uz * u1; v1 = uz * u0 - ux * u2; v2 = ux * u1 - uy * u0;
   }
   sliceHits = 0;
+  const sliceMer = L => {   // 経度の大球殻 s²+z²+w²=R² と超平面 w′=c の交線（円）
+    const cp = Math.cos(L.phi), sp = Math.sin(L.phi), nu = n0 * cp + n1 * sp, N = Math.hypot(nu, n2, n3);
+    if (N < 1e-6) return;
+    const d = cSlice / (R * N); if (Math.abs(d) >= 1) return;
+    const a = nu / N, b = n2 / N, c = n3 / N, rr = Math.sqrt(1 - d * d);
+    let hx = 1, hy = 0, hz = 0; if (Math.abs(a) > 0.9) { hx = 0; hy = 1; }
+    let e0 = b * hz - c * hy, e1 = c * hx - a * hz, e2 = a * hy - b * hx; const el = Math.hypot(e0, e1, e2); e0 /= el; e1 /= el; e2 /= el;
+    const f0 = b * e2 - c * e1, f1 = c * e0 - a * e2, f2 = a * e1 - b * e0;
+    const arr = L.sg.attributes.position.array;
+    for (let k = 0; k < SEG; k++) {
+      const f = k / SEG * TAU, cf = Math.cos(f), sf = Math.sin(f);
+      const q0 = d * a + rr * (e0 * cf + f0 * sf), q1 = d * b + rr * (e1 * cf + f1 * sf), q2 = d * c + rr * (e2 * cf + f2 * sf);
+      const p = rot(R * q0 * cp, R * q0 * sp, R * q1, R * q2);
+      arr[k * 3] = p[0] * SCALE; arr[k * 3 + 1] = p[1] * SCALE; arr[k * 3 + 2] = p[2] * SCALE;
+    }
+    L.sg.attributes.position.needsUpdate = true; L.sHas = true;
+  };
   for (const L of layers) {
     L.sHas = false;
-    if (nq > 1e-6) {
+    if (L.cone) { /* 円錐面の断面は円にならないので切断面モードでは出さない */ }
+    else if (L.mer) sliceMer(L);
+    else if (nq > 1e-6) {
       const m = (cSlice - n3 * L.w) / nq;               // 平面までの符号付き距離（n_q方向）
       if (Math.abs(m) < L.r) {
         const rho = Math.sqrt(L.r * L.r - m * m);
@@ -573,6 +612,8 @@ function updateSlice() {
 function updateLeft() {
   const cs = Math.cos(zw);
   for (const L of layers) {
+    if (L.cone) { L.ring.visible = false; continue; }
+    if (L.mer) { L.ring.visible = L.vis; continue; }   // 経度リングは Z-W 回転で形が変わらない（z,w を含む大球殻は不変）
     const h = L.w / cs;
     const ok = Math.abs(L.w) < 1e-9 || (Math.abs(cs) > 1e-3 && Math.abs(h) <= R + 1e-6);
     L.ring.visible = L.vis && ok;
@@ -685,6 +726,7 @@ $('bDemo').onclick = e => { demo = !demo; e.currentTarget.classList.toggle('on',
 document.querySelectorAll('[data-hemi]').forEach(b => b.onclick = () => {
   hemi = b.dataset.hemi; mark('[data-hemi]', b); applyVis();
 });
+document.querySelectorAll('[data-model]').forEach(b => b.onclick = () => { model = b.dataset.model; mark('[data-model]', b); build(); });
 document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
   mode = b.dataset.mode; mark('[data-mode]', b); applyVis();
 });
@@ -823,7 +865,7 @@ const grpEls = [...document.querySelectorAll('details.grp')];
 let lsLast = '', noSave = false;
 function collectSettings() {
   return {
-    nLayers, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn,
+    nLayers, model, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn,
     backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM,
     full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'),
     open: grpEls.map(g => g.open),
@@ -849,6 +891,7 @@ function loadSettings() {
   spd = num('spd', 0.2, 3, spd); allM = Math.round(num('allM', 4, 24, allM)); if (allM % 2) allM++;
   axis = pick('axis', ['mix', 'mix3', 'yw', 'xw', 'zw', 'ob'], axis);
   mode = pick('mode', ['hybrid', 'wire', 'solid', 'points'], mode);
+  model = pick('model', ['lat', 'mer', 'both', 'full', 'cone'], model); mark('[data-model]', document.querySelector(`[data-model="${model}"]`));
   hemi = pick('hemi', ['both', 'A', 'B'], hemi);
   redCenter = bool('redCenter', redCenter); shadeOn = bool('shadeOn', shadeOn); opaque = bool('opaque', opaque); matte = bool('matte', matte);
   wedgeOn = bool('wedgeOn', wedgeOn); sliceOn = bool('sliceOn', sliceOn); camOn = bool('camOn', camOn);
