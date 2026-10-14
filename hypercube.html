@@ -175,10 +175,16 @@
                     <button data-cam="top" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">真上</button>
                 </div>
 
-                <button id="auto-rotate-btn" class="flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-cyan-400 rounded-lg hover:bg-slate-700 transition text-[11px] border-cyan-500/40">
-                    <i data-lucide="refresh-cw" class="w-3 h-3"></i>
-                    <span>3D同期カメラ回転</span>
-                </button>
+                <div class="flex items-center gap-1.5">
+                    <button id="reset-all-btn" class="flex items-center gap-1 px-2 py-0.5 bg-rose-900/40 border border-rose-500/50 text-rose-200 rounded-lg hover:bg-rose-800/50 transition text-[11px]" title="すべて読み込み時の状態に戻す">
+                        <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                        <span>初期化</span>
+                    </button>
+                    <button id="auto-rotate-btn" class="flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-cyan-400 rounded-lg hover:bg-slate-700 transition text-[11px] border-cyan-500/40">
+                        <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                        <span>3D同期カメラ回転</span>
+                    </button>
+                </div>
             </div>
         </footer>
         <footer class="glass-panel rounded-2xl p-4 md:p-5 flex-1 min-w-0 pointer-events-auto shadow-2xl space-y-3.5 glow-effect"><div class="space-y-1.5">
@@ -1134,6 +1140,10 @@
                     autoRotateBtn.classList.add('text-slate-400');
                 }
             });
+
+            // 読み込み時の状態へ完全に戻す。ページを読み直すのが最も確実
+            // （カメラの向き・root の回転・スピン・OrbitControls の内部状態まで全部クリアされる）。
+            document.getElementById('reset-all-btn').addEventListener('click', () => location.reload());
 
             document.querySelectorAll('.cam-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
