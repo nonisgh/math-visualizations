@@ -118,7 +118,7 @@ body.keyhelp #keyHelp{display:block}
       <div id="lnRegion" class="lnnote"></div>
       <div class="gb"><span><b>回転の面（薄い膜）</b></span><button data-lnpm="off" class="on">オフ</button><button data-lnpm="all" title="6つの回転面（XY・XZ・YZ・XW・YW・ZW）を、2本の軸が張る半透明の円盤で表示">全部</button><button data-lnpm="demo" title="▶で回している面だけを表示">▶の面だけ</button><button data-lnpm="chg" title="今のカメラで「形が変わる」面だけを表示（真横から見た線になる面）">形が変わる面だけ</button></div>
       <div id="lnPlanesBox"><div class="gb"><span><b>回転の面チェック</b>　この面で回すと…（▶で実際に回します）</span></div><div id="lnPlanes"></div><div id="lnCamPos" class="lnnote"></div></div>
-      <canvas id="lnDiag" width="520" height="290"></canvas>
+      <canvas id="lnDiag" width="520" height="480"></canvas>
       <div class="gb"><span>上の図の縦軸＝写真の何番目の軸？</span><button data-lnv="0" class="on">1</button><button data-lnv="1">2</button><button data-lnv="2">3</button></div>
       <div id="lnSliders"></div>
       <pre id="lnText"></pre>
@@ -209,7 +209,7 @@ body.keyhelp #keyHelp{display:block}
     <div class="hint">ガイド: <b>赤</b>=x軸 <b>緑</b>=y軸 <b>青</b>=z軸 <b>黄</b>=進む向き</div></details>
 
   <details class="grp" id="s-curve" data-tab="path"><summary>🌀 いろいろな軌跡（曲がる・巻く・絡む）</summary>
-    <div class="gb"><button data-cv="circle" title="北極のまわりを一定の距離で回る小円">⭕ 小円</button><button data-cv="torus" title="トーラスの表面を a:b で巻く（結び目）">🍩 トーラス結び目</button><button data-cv="hopf" title="絡み合う大円の束">🔗 ホップ束</button><button data-cv="loxo" title="経線と一定の角度で交わる、北極⇄南極のらせん">🌀 らせん</button><button data-cv="walk" title="一歩ごとに向きをランダムに変える">🍺 ランダムウォーク</button><button id="bWalkNew">🎲 歩き直す</button></div>
+    <div class="gb"><button data-cv="circle" title="北極のまわりを一定の距離で回る小円">⭕ 小円</button><button data-cv="torus" title="トーラスの表面を a:b で巻く（結び目）">🍩 トーラス結び目</button><button data-cv="hopf" title="絡み合う大円の束">🔗 ホップ束</button><button data-cv="loxo" title="経線と一定の角度で交わる、北極⇄南極のらせん">🌀 らせん</button><button data-cv="walk" title="一歩ごとに向きをランダムに変える">🍺 ランダムウォーク</button><button data-cv="unknot" title="三葉結び目を4次元でほどく。3次元では不可能だが、交差を w 方向へ逃がせばすり抜けて円に戻る">🪢 結び目をほどく（β）</button><button id="bUnkCross" title="影（xyz）がいちばん自分自身に近づく瞬間＝3次元なら必ずぶつかる瞬間に飛ぶ。そこでも4次元での距離は0にならない">⚡ すり抜ける瞬間へ</button><button id="bWalkNew">🎲 歩き直す</button></div>
     <div class="gs" id="g-curve"></div>
     <div class="hint" id="cvNote"></div></details>
 
@@ -255,6 +255,7 @@ const PN = 240;
 let stepOn = false, stepTs = [], stepKey = '';   // カクカク軌跡: 球殻と交わるtの列
 const MAXRL = 800, RLS = 64, NBP = 24, NBL = 12, PTSMAX = 420;
 let pathW = 0, gaugeOn = true; const pathWArr = new Float32Array(PN + 1);
+let unkS = 0, unkMin3 = 0, unkMin4 = 0;   // 🪢 結び目をほどく: ほどき具合と、3Dの影／4Dでの最小自己距離
 let curveOn = false, curveType = 'circle', cvRho = 50 * Math.PI / 180, cvA = 2, cvB = 3, cvEta = Math.PI / 4, cvK = 2.5, cvN = 24, cvSteps = 400, cvStepLen = 6 * Math.PI / 180, cvNoise = 0.4, cvSeed = 1, cvKey = '', cvData = null, cvL = null, cvR = null;
 const CVMAX = 14000, CVDOT = 128;
 let hudOn = false, horizonOn = true, garrow = null, garrowL = null, leftS2 = false, axW = 1, axTop = true;
@@ -708,9 +709,10 @@ const CVNOTE = {
   torus: 'S³の中のドーナツ（クリフォードトーラス）の表面を、xy面でa回・zw面でb回まわりながら進む。a:bが整数比なら結び目（2:3=三葉結び目）、そうでなければ閉じず表面を埋めていく',
   hopf: 'S³を絡み合う大円の束に分けたもの。1本ずつは直進の道で、どの2本も一度だけ絡む。「進める」で全部が同時に回る',
   loxo: '経線と一定の角度で交わりながら、北極→南極→北極と巻きつく道（等角らせん）。巻き数と方位・仰角で形が決まる',
-  walk: '一歩ごとに向きをランダムに変える酔歩。曲がりやすさ0なら直進、大きいほどふらふら。歩数を増やすと超球面全体に広がる'
+  walk: '一歩ごとに向きをランダムに変える酔歩。曲がりやすさ0なら直進、大きいほどふらふら。歩数を増やすと超球面全体に広がる',
+  unknot: '三葉結び目を4次元でほどく。3次元では絶対にほどけないが、交差するところだけ w 方向へ逃がせば、すり抜けさせて円に戻せる。「ほどき具合」を動かすと、①wへ持ち上げる→②形を円へ→③wを戻す、の順に進む'
 };
-const CVNAME = { circle: '小円', torus: 'トーラス結び目', hopf: 'ホップ束', loxo: '等角らせん', walk: 'ランダムウォーク' };
+const CVNAME = { circle: '小円', torus: 'トーラス結び目', hopf: 'ホップ束', loxo: '等角らせん', walk: 'ランダムウォーク', unknot: '結び目をほどく' };
 function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function makeCurve() {
   const mk = parent => {
@@ -747,6 +749,34 @@ function genCurve() {
   } else if (curveType === 'loxo') {   // 北極→南極→北極。方位角が ψ に比例して回り続ける
     len = 401;
     for (let k = 0; k < len; k++) { const ps = k / (len - 1) * TAU, ph = pathPhi + cvK * ps, sp = Math.sin(ps); push(R * sp * cl * Math.cos(ph), R * sp * cl * Math.sin(ph), R * sp * Math.sin(pathLam), R * Math.cos(ps), k / (len - 1) * 0.85); }
+  } else if (curveType === 'unknot') {
+    // 🪢 三葉結び目 → 円。3次元のままだと、形を円へ動かす途中で必ず自分自身を貫いてしまう（＝ほどけない）。
+    // 交差しそうなところを w 方向へ持ち上げておけば、xyz の「影」では重なって見えても4次元では触れていないので、すり抜けられる。
+    //   ① s 0→1/3   w へ持ち上げる（xyz は結び目のまま）
+    //   ② s 1/3→2/3 xyz を円へ動かす（この間、影は自分と交差する）
+    //   ③ s 2/3→1   w を戻す（xyz はもう円なので安全）
+    len = 601; n = 1;
+    const cl01 = v => Math.min(1, Math.max(0, v)), s = unkS;
+    const lift = cl01(s * 3), morph = cl01(s * 3 - 1), drop = cl01(s * 3 - 2);
+    const wAmp = 0.75 * lift * (1 - drop);
+    for (let k = 0; k < len; k++) {
+      const t = k / (len - 1) * TAU;
+      const tx = (Math.sin(t) + 2 * Math.sin(2 * t)) / 3.2, ty = (Math.cos(t) - 2 * Math.cos(2 * t)) / 3.2, tz = -Math.sin(3 * t) / 3.2;
+      const X = tx + (0.82 * Math.cos(t) - tx) * morph, Y = ty + (0.82 * Math.sin(t) - ty) * morph, Z = tz * (1 - morph);
+      const Wc = wAmp * (Math.sin(3 * t) + 0.9 * Math.sin(t));   // 3回対称だけだと t と t+120° が同じ高さになり分離できないので、sin t を足して対称性を崩す
+      push(R * X, R * Y, R * Z, R * Wc, k / (len - 1) * 0.85);
+    }
+    { // 影（xyz だけ）と4次元の、離れた2点どうしの最短距離を測る。影は0に落ち、4次元は0に落ちないことが「すり抜けた」証拠
+      const q = Float32Array.from(out), M = 300, gap = Math.round(len / 14);
+      let m3 = Infinity, m4 = Infinity;
+      for (let a = 0; a < M; a++) for (let b = a + 1; b < M; b++) {
+        const ia = Math.round(a * (len - 1) / M), ib = Math.round(b * (len - 1) / M);
+        if (Math.abs(ia - ib) < gap || (len - 1) - Math.abs(ia - ib) < gap) continue;   // 隣どうしは当然近いので除く
+        const dx = q[ia * 4] - q[ib * 4], dy = q[ia * 4 + 1] - q[ib * 4 + 1], dz = q[ia * 4 + 2] - q[ib * 4 + 2], dw = q[ia * 4 + 3] - q[ib * 4 + 3];
+        m3 = Math.min(m3, Math.hypot(dx, dy, dz)); m4 = Math.min(m4, Math.hypot(dx, dy, dz, dw));
+      }
+      unkMin3 = m3; unkMin4 = m4;
+    }
   } else {   // walk: 超球面上の測地線を一歩ずつ進み、向きに雑音を足す
     len = cvSteps + 1;
     const rng = mulberry(cvSeed * 7919 + 13), gauss = () => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(TAU * rng());
@@ -773,8 +803,8 @@ function updateCurve() {
   if (!cvR) return;
   cvL.lines.visible = cvL.dots.visible = curveOn; cvR.lines.visible = cvR.dots.visible = curveOn && !sliceOn;
   if (!curveOn) return;
-  const key = [curveType, cvRho, cvA, cvB, cvEta, cvK, cvN, cvSteps, cvStepLen, cvNoise, cvSeed, pathPhi, pathLam].join('|');
-  if (key !== cvKey) { cvKey = key; genCurve(); }
+  const key = [curveType, cvRho, cvA, cvB, cvEta, cvK, cvN, cvSteps, cvStepLen, cvNoise, cvSeed, pathPhi, pathLam, unkS].join('|');
+  if (key !== cvKey) { cvKey = key; genCurve(); if (curveType === 'unknot') syncCurveUI(); }
   mkSteps();
   const { n, len, p } = cvData, zc = Math.cos(zw), zs = Math.sin(zw), v = [0, 0, 0, 0];
   const pr = cvR.lines.geometry.attributes.position.array, pl = cvL.lines.geometry.attributes.position.array;
@@ -1330,7 +1360,7 @@ function refreshUI() {
   }
   if (pathOn) { const p = pathPt(pathT), dc = [Math.cos(pathLam) * Math.cos(pathPhi), Math.cos(pathLam) * Math.sin(pathPhi), Math.sin(pathLam)],
     ax = dc.map((c, i) => 'xyz'[i] + ' ' + (Math.acos(Math.max(-1, Math.min(1, c))) / D2R).toFixed(0) + '°').join('  '); ang += `\n目的地: 方位角 ${deg(pathPhi)} 仰角 ${deg(pathLam)} 進む角度 ${deg(pathT)}（高度z ${(R * Math.cos(pathT)).toFixed(2)}）\n  出発の向きと各軸との角: ${ax}\n  4D座標 (${p.map(v => v.toFixed(2)).join(', ')})  超球面からのずれ ${Math.abs(Math.hypot(...p) - R).toExponential(0)}`; }
-  if (curveOn) ang += `\n軌跡: ${CVNAME[curveType]}` + (curveType === 'circle' ? `（半径 ${deg(cvRho)}）` : curveType === 'torus' ? `（a:b = ${cvA}:${cvB}）` : curveType === 'hopf' ? `（${cvN}本）` : curveType === 'loxo' ? `（巻き数 ${cvK}）` : `（${cvSteps}歩）`);
+  if (curveOn) ang += `\n軌跡: ${CVNAME[curveType]}` + (curveType === 'circle' ? `（半径 ${deg(cvRho)}）` : curveType === 'torus' ? `（a:b = ${cvA}:${cvB}）` : curveType === 'hopf' ? `（${cvN}本）` : curveType === 'loxo' ? `（巻き数 ${cvK}）` : curveType === 'unknot' ? `（ほどき具合 ${(unkS * 100).toFixed(0)}%／影の最短 ${unkMin3.toFixed(3)}・4次元 ${unkMin4.toFixed(3)}）` : `（${cvSteps}歩）`);
   if (stepOn) ang += `\nカクカク軌跡: 球殻 ${nLayers * 2 - 1} 枚ごとに直線でつなぐ（交点 ${(calcStepTs(), stepTs.length)} 個）。層数を増やすほどなめらか`;
   if (rlN) ang += `\nランダムな軌跡 ${rlN}/${MAXRL} 本・方向の網羅 ${rlHit}/${NBP * NBL}（${(rlHit / (NBP * NBL) * 100).toFixed(0)}%）` + (rlHit === NBP * NBL ? '\n  ★すべての方向を通った＝超球面の全域に届いた' : '');
   if (footN) ang += `\n足あと ${footN} 点（超球面上に一様にランダムな目的地）`;
@@ -1551,8 +1581,20 @@ document.querySelectorAll('[data-cv]').forEach(b => b.onclick = () => {
 });
 function syncCurveUI() {
   document.querySelectorAll('[data-cv]').forEach(b => b.classList.toggle('on', curveOn && b.dataset.cv === curveType));
-  $('cvNote').textContent = curveOn ? CVNOTE[curveType] : '種類を選ぶと、軌跡が出ます（もう一度押すと消えます）。黄色い点は「進める」で動きます';
+  if (curveOn && curveType === 'unknot') {
+    // 離れた2点どうしの最短距離。影（xyz）が0に落ちても4次元では落ちない＝本当は触れていない、が見せたいこと
+    const hit = unkMin3 < 0.06, ph = unkS < 1 / 3 ? '① w方向へ持ち上げている' : unkS < 2 / 3 ? '② 形を円へ動かしている' : '③ w方向を戻している';
+    $('cvNote').innerHTML = CVNOTE.unknot + `<br><b>${ph}</b>　離れた2点どうしの最短距離: `
+      + `<b style="color:${hit ? '#fca5a5' : '#cbd5e1'}">3Dの影 ${unkMin3.toFixed(3)}${hit ? '（交差している）' : ''}</b>`
+      + ` ／ <b style="color:#86efac">4次元 ${unkMin4.toFixed(3)}（触れていない）</b>`;
+  } else $('cvNote').textContent = curveOn ? CVNOTE[curveType] : '種類を選ぶと、軌跡が出ます（もう一度押すと消えます）。黄色い点は「進める」で動きます';
 }
+$('bUnkCross').onclick = () => {   // 影が最小になる s を探して飛ぶ。「3次元ならここでぶつかる」瞬間を確実に見せるため
+  if (!curveOn || curveType !== 'unknot') { curveOn = true; curveType = 'unknot'; syncCurveUI(); }
+  const keep = unkS; let best = keep, bm = Infinity;
+  for (let i = 0; i <= 80; i++) { const v = 0.3 + 0.4 * i / 80; unkS = v; cvKey = ''; updateCurve(); if (unkMin3 < bm) { bm = unkMin3; best = v; } }
+  unkS = best; cvKey = ''; updatePath(); syncCurveUI(); syncPanel(); refreshUI();
+};
 $('bWalkNew').onclick = () => { cvSeed++; if (!curveOn || curveType !== 'walk') { curveOn = true; curveType = 'walk'; syncCurveUI(); syncPanel(); } updatePath(); refreshUI(); };
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { $('panel').dataset.tab = b.dataset.tab; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); resize(); });
 $('bHud').onclick = e => { hudOn = !hudOn; e.currentTarget.classList.toggle('on', hudOn); refreshUI(); };
@@ -1685,12 +1727,50 @@ addEventListener('keyup', e => { if (e.code === 'Space' && e.target && e.target.
   }
   function syncVals() { for (const k of ['zw', 'roll', 'pitch', 'yaw', 'camW', 'wire']) { const v = $l('lnv-' + k), r = $l('lnr-' + k), n = $l('lnn-' + k); if (v) { r.value = st[k]; if (document.activeElement !== n) n.value = k === 'wire' ? st[k].toFixed(2) : k === 'camW' ? st[k].toFixed(1) : +st[k].toFixed(1); v.textContent = k === 'camW' ? st[k].toFixed(1) : k === 'wire' ? st[k].toFixed(2) : st[k].toFixed(1) + '°'; } } }
   function resize() { if (!built) return; const h = $l('lnView'), w = h.clientWidth || 600, ht = h.clientHeight || 400; ren.setSize(w, ht, false); ren.domElement.style.width = w + 'px'; ren.domElement.style.height = ht + 'px'; cam.aspect = w / ht; cam.updateProjectionMatrix(); }
+  // ---- 図の上段: 4Dの前に「普通の写真」で同じことを見せる ----
+  // カメラに向かう方向は写真に写らず、奥行きになる。どの向きでも 長さ² + 奥行き² = 1。
+  // 4Dカメラは、これを1次元上げただけ（できる写真が紙ではなく立体になる）。
+  function drawPhotoBasics(x, W, TH) {
+    x.save();
+    x.font = 'bold 11px system-ui, sans-serif'; x.textAlign = 'left'; x.fillStyle = '#e2e8f0';
+    x.fillText('まず普通の写真で考える（3D → 2D）', 8, 15);
+    x.font = '10px system-ui, sans-serif'; x.fillStyle = '#94a3b8';
+    x.fillText('鉛筆をどう向けるかで、写真に写る長さが変わる。カメラに向けた分は「奥行き」になって写真から消える。', 8, 30);
+    const CW = W / 3, cy = 88, L = 30;
+    [[90, '横向き'], [45, '斜め'], [6, 'カメラに向ける']].forEach(([degA, lab], i) => {
+      const cx0 = CW * i + CW / 2, th = degA * Math.PI / 180;
+      const dx = Math.cos(th) * L, dy = Math.sin(th) * L;       // dx=奥行き成分（右がカメラ） dy=写真に写る成分
+      const fx = cx0 - 46;                                       // フィルム（写真）の線
+      x.strokeStyle = '#475569'; x.lineWidth = 2; x.beginPath(); x.moveTo(fx, cy - 32); x.lineTo(fx, cy + 28); x.stroke();
+      x.fillStyle = '#c084fc'; x.beginPath(); x.moveTo(cx0 + 54, cy - 7); x.lineTo(cx0 + 54, cy + 7); x.lineTo(cx0 + 42, cy); x.fill();
+      x.strokeStyle = '#334155'; x.lineWidth = 1; x.setLineDash([2, 3]); x.beginPath(); x.moveTo(fx, cy); x.lineTo(cx0 + 42, cy); x.stroke(); x.setLineDash([]);
+      // 鉛筆
+      x.strokeStyle = '#fbbf24'; x.lineWidth = 3; x.beginPath(); x.moveTo(cx0 - dx / 2, cy + dy / 2); x.lineTo(cx0 + dx / 2, cy - dy / 2); x.stroke();
+      // 写真に写る長さ（フィルム上の太線）
+      x.strokeStyle = '#4ade80'; x.lineWidth = 4; x.beginPath(); x.moveTo(fx, cy + dy / 2); x.lineTo(fx, cy - dy / 2); x.stroke();
+      x.setLineDash([2, 2]); x.strokeStyle = '#4ade8066'; x.lineWidth = 1;
+      for (const sg of [1, -1]) { x.beginPath(); x.moveTo(cx0 + sg * dx / 2, cy - sg * dy / 2); x.lineTo(fx, cy - sg * dy / 2); x.stroke(); }
+      x.setLineDash([]);
+      x.textAlign = 'center'; x.font = 'bold 10px system-ui, sans-serif'; x.fillStyle = '#e2e8f0'; x.fillText(lab, cx0, cy - 42);
+      x.font = '10px system-ui, sans-serif';
+      x.fillStyle = '#4ade80'; x.fillText('写る長さ ' + Math.sin(th).toFixed(2), cx0, cy + 42);
+      x.fillStyle = '#94a3b8'; x.fillText('奥行き ' + Math.cos(th).toFixed(2), cx0, cy + 55);
+    });
+    x.textAlign = 'center'; x.font = 'bold 10.5px system-ui, sans-serif'; x.fillStyle = '#fcd34d';
+    x.fillText('どの向きでも  写る長さ² ＋ 奥行き² ＝ 1（鉛筆の長さ）', W / 2, TH - 26);
+    x.strokeStyle = '#334155'; x.lineWidth = 1; x.beginPath(); x.moveTo(8, TH - 16); x.lineTo(W - 8, TH - 16); x.stroke();
+    x.font = 'bold 11px system-ui, sans-serif'; x.fillStyle = '#7dd3fc';
+    x.fillText('4Dカメラも同じ。1次元ずつ上げて、できる写真が「紙」ではなく「立体」になるだけ', W / 2, TH - 4);
+    x.restore();
+  }
   function drawDiag(S) {
-    const c = $l('lnDiag'), x = c.getContext('2d'), W = c.width, H = c.height, camW = st.camW, ox = 150, oy = H / 2 + 6, k = Math.min(60, (W - ox - 24) / Math.max(camW, 2)), vi = st.vAxis;
+    const c = $l('lnDiag'), x = c.getContext('2d'), W = c.width, H = c.height, camW = st.camW, ox = 150, TOPH = 186;
+    const oy = TOPH + (H - TOPH) / 2 + 6, k = Math.min(60, (W - ox - 24) / Math.max(camW, 2)), vi = st.vAxis;
     const X = d => ox + d * k, Y = u => oy - u * k;
     x.clearRect(0, 0, W, H); x.lineWidth = 1; x.font = '11px system-ui, sans-serif';
+    drawPhotoBasics(x, W, TOPH);
     x.strokeStyle = '#94a3b8'; x.lineWidth = 2; x.beginPath(); x.moveTo(X(0), Y(-2.3)); x.lineTo(X(0), Y(2.3)); x.stroke(); x.lineWidth = 1;
-    x.fillStyle = '#cbd5e1'; x.textAlign = 'center'; x.fillText('窓ガラス＝フィルム（画面に映る3D写真）', X(0), 14);
+    x.fillStyle = '#cbd5e1'; x.textAlign = 'center'; x.fillText('窓ガラス＝フィルム（画面に映る3D写真）', X(0), TOPH + 16);
     x.strokeStyle = '#475569'; x.beginPath(); x.arc(X(0), Y(0), R * k, 0, TAU); x.stroke();
     x.fillStyle = '#64748b'; x.fillText('超球の断面（円）', X(0) - 70, Y(-R) + 16);
     // 光線とフィルム上の像
@@ -1879,6 +1959,7 @@ const PR = [
   { g: 'curve', k: 'cvN', t: 'ファイバーの本数', tip: 'ホップ束の大円の本数', min: 6, max: 120, step: 2, dp: 0, hide: 1, en: () => curveOn && curveType === 'hopf', get: () => cvN, set: v => { cvN = v; updatePath(); refreshUI(); } },
   { g: 'curve', k: 'cvSteps', t: '歩数', tip: 'ランダムウォークの歩数', min: 50, max: 2000, step: 50, dp: 0, hide: 1, en: () => curveOn && curveType === 'walk', get: () => cvSteps, set: v => { cvSteps = v; updatePath(); refreshUI(); } },
   { g: 'curve', k: 'cvStepLen', t: '歩幅', tip: '一歩で進む角度', deg: 1, lim: [1, 20], hide: 1, en: () => curveOn && curveType === 'walk', get: () => cvStepLen, set: v => { cvStepLen = v; updatePath(); refreshUI(); } },
+  { g: 'curve', k: 'unkS', t: 'ほどき具合', tip: '0=三葉結び目のまま、1=ほどけて円。①wへ持ち上げ→②形を円へ→③wを戻す、の順に進む', min: 0, max: 1, step: 0.005, dp: 3, hide: 1, en: () => curveOn && curveType === 'unknot', get: () => unkS, set: v => { unkS = v; updatePath(); refreshUI(); } },
   { g: 'curve', k: 'cvNoise', t: '曲がりやすさ', tip: '0=直進。大きいほどふらふら曲がる', min: 0, max: 3, step: 0.05, dp: 2, hide: 1, en: () => curveOn && curveType === 'walk', get: () => cvNoise, set: v => { cvNoise = v; updatePath(); refreshUI(); } },
   { g: 'axis', k: 'axW', t: '矢印の太さ', tip: '座標軸・向きの矢印の太さ（左右とも）', min: 0.4, max: 5, step: 0.1, dp: 1, get: () => axW, set: v => { axW = v; updatePath(); } },
   { g: 'scr', k: 'paAlpha', t: 'パネルの透け具合', tip: '小さいほど透明（シースルーのとき）', min: 0.1, max: 1, step: 0.05, dp: 2, get: () => paAlpha, set: v => { paAlpha = v; document.documentElement.style.setProperty('--pa', v); } },
@@ -1970,7 +2051,7 @@ let lsLast = '', noSave = false;
 function collectSettings() {
   return {
     nLayers, model, leftZW, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn, camFixed, viewLock, axW, axTop,
-    backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM, stepOn, hudOn, leftS2, curveType, cvRho, cvA, cvB, cvEta, cvK, cvN, cvSteps, cvStepLen, cvNoise, dblRate, dblPts, tab: $('panel').dataset.tab,
+    backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM, stepOn, hudOn, leftS2, curveType, cvRho, cvA, cvB, cvEta, cvK, cvN, cvSteps, cvStepLen, cvNoise, unkS, dblRate, dblPts, tab: $('panel').dataset.tab,
     full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'), noinfo: document.body.classList.contains('noinfo'), dofOn, dofFocus2: dofFocus, dofRange2: dofRange, dofFog: dofBlur, noblur: document.body.classList.contains('noblur'), gaugeOn, horizonOn, rfov: cR.fov, seethru: document.body.classList.contains('seethru'), paAlpha, favs, nopanel: document.body.classList.contains('nopanel'),
     open3: Object.fromEntries(grpEls.map(g => [g.id, g.open])),   // セクションの開閉はidで保存（並べ替えてもずれない）
     cam: cR.position.toArray(), tgt: controls.target.toArray()
@@ -2000,7 +2081,7 @@ function loadSettings() {
   hemi = pick('hemi', ['both', 'A', 'B'], hemi);
   redCenter = bool('redCenter', redCenter); shadeOn = bool('shadeOn', shadeOn); opaque = bool('opaque', opaque); matte = bool('matte', matte);
   wedgeOn = bool('wedgeOn', wedgeOn); sliceOn = bool('sliceOn', sliceOn); camOn = bool('camOn', camOn); camFixed = bool('camFixed', camFixed); viewLock = bool('viewLock', viewLock); axW = num('axW', 0.4, 5, axW); axTop = bool('axTop', axTop);
-  pathOn = bool('pathOn', pathOn); allOn = bool('allOn', allOn); stepOn = bool('stepOn', stepOn); hudOn = bool('hudOn', hudOn); curveType = pick('curveType', ['circle', 'torus', 'hopf', 'loxo', 'walk'], curveType); cvRho = num('cvRho', 0.05, 3.1, cvRho); cvA = num('cvA', 1, 9, cvA); cvB = num('cvB', 1, 9, cvB); cvEta = num('cvEta', 0.15, 1.4, cvEta); cvK = num('cvK', 0, 8, cvK); cvN = num('cvN', 6, 120, cvN); cvSteps = num('cvSteps', 50, 2000, cvSteps); cvStepLen = num('cvStepLen', 0.01, 0.4, cvStepLen); cvNoise = num('cvNoise', 0, 3, cvNoise); leftS2 = bool('leftS2', leftS2);
+  pathOn = bool('pathOn', pathOn); allOn = bool('allOn', allOn); stepOn = bool('stepOn', stepOn); hudOn = bool('hudOn', hudOn); curveType = pick('curveType', ['circle', 'torus', 'hopf', 'loxo', 'walk', 'unknot'], curveType); unkS = num('unkS', 0, 1, unkS); cvRho = num('cvRho', 0.05, 3.1, cvRho); cvA = num('cvA', 1, 9, cvA); cvB = num('cvB', 1, 9, cvB); cvEta = num('cvEta', 0.15, 1.4, cvEta); cvK = num('cvK', 0, 8, cvK); cvN = num('cvN', 6, 120, cvN); cvSteps = num('cvSteps', 50, 2000, cvSteps); cvStepLen = num('cvStepLen', 0.01, 0.4, cvStepLen); cvNoise = num('cvNoise', 0, 3, cvNoise); leftS2 = bool('leftS2', leftS2);
   cSlice = num('cSlice', -R, R, cSlice);
   cutPhi = num('cutPhi', 0, TAU, cutPhi);
   backOn = bool('backOn', backOn); backAmt = num('backAmt', 0, 1, backAmt); applyBack(); backMode = s.backMode === 0 ? 0 : 1; uBackMode.value = backMode; mark('[data-bm]', document.querySelector(`[data-bm="${backMode}"]`));
