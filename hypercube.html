@@ -98,8 +98,8 @@
     <div class="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none p-3 md:p-6">
         <div></div>
 
-        <footer class="glass-panel rounded-2xl p-3 md:p-4 max-w-6xl w-full mx-auto pointer-events-auto shadow-2xl mt-auto glow-effect grid grid-cols-1 lg:grid-cols-2 gap-x-5 gap-y-2.5 items-start">
-            <div class="space-y-2.5">   <!-- 左カラム: 折りたたみ -->
+        <div class="max-w-5xl w-full mx-auto mt-auto flex flex-col md:flex-row gap-3 items-stretch">
+        <footer class="glass-panel rounded-2xl p-4 md:p-5 flex-1 min-w-0 pointer-events-auto shadow-2xl space-y-3.5 glow-effect">
             <div class="space-y-1.5">
                 <div class="flex justify-between items-center text-xs font-semibold">
                     <span class="flex items-center gap-2 text-slate-300">
@@ -155,10 +155,33 @@
                 </div>
             </div>
 
-            </div>   <!-- /左カラム -->
+            <div class="flex items-center gap-2 text-[11px] pt-1.5 border-t border-slate-800/80 flex-wrap">
+                <span class="text-amber-300 flex items-center gap-1 font-bold"><i data-lucide="aperture" class="w-3.5 h-3.5"></i>どこから見る:</span>
+                <button data-proj="cell" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (0,0,0,1)。角度0個。おなじみの「立方体の中に立方体」。ここだけ遠近つき（平行投影だと内と外がぴったり重なって1個に見えるため）">胞から</button>
+                <button data-proj="face" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,0,0,1)/√2。X-W=45° だけ。六角柱に見える">面から</button>
+                <button data-proj="edge" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,1,0,1)/√3。X-W=45°・Y-W=35.26°">辺から</button>
+                <button data-proj="vertex" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,1,1,1)/2。X-W=45°・Y-W=35.26°・Z-W=30°。4軸が対等＝等角図。外殻は菱形十二面体（距離2に6頂点＋距離√3に8頂点）になり、対角の2頂点は中心に重なる">頂点から（等角図）</button>
+                <span id="proj-note" class="text-[10px] text-slate-400"></span>
+            </div>
+            <p class="text-[10px] text-slate-400 leading-relaxed -mt-1">
+                角度を<b class="text-amber-300">1つずつ足していくだけ</b>で順に移れます（45° → +35.26° → +30°）。足した数が、視線が使う軸の本数です。
+            </p>
 
-            <div class="space-y-2.5 lg:border-l lg:border-slate-800 lg:pl-5">   <!-- 右カラム: 回転・視点 -->
-            <div class="space-y-1.5">
+            <div class="flex items-center justify-between gap-1 text-[11px] pt-1 border-t border-slate-800/80">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-400 flex items-center gap-1"><i data-lucide="camera" class="w-3.5 h-3.5"></i>視点:</span>
+                    <button data-cam="iso" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 transition font-bold">斜め正面</button>
+                    <button data-cam="front" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">真正面</button>
+                    <button data-cam="top" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">真上</button>
+                </div>
+
+                <button id="auto-rotate-btn" class="flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-cyan-400 rounded-lg hover:bg-slate-700 transition text-[11px] border-cyan-500/40">
+                    <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                    <span>3D同期カメラ回転</span>
+                </button>
+            </div>
+        </footer>
+        <footer class="glass-panel rounded-2xl p-4 md:p-5 flex-1 min-w-0 pointer-events-auto shadow-2xl space-y-3.5 glow-effect"><div class="space-y-1.5">
                 <div class="flex items-center justify-between gap-2">
                     <span class="text-[11px] font-bold text-purple-300 flex items-center gap-1.5">
                         <i data-lucide="orbit" class="w-3.5 h-3.5 text-purple-400"></i>
@@ -199,33 +222,8 @@
                     上の2本は左の面を右へ移したものなので完全に同期しますが、<b>残り3枚は右にしか無い</b>ので左は止まったままになります。これが次元の差です。
                 </p>
             </div>
-            <div class="flex items-center gap-2 text-[11px] pt-1.5 border-t border-slate-800/60 flex-wrap">
-                <span class="text-amber-300 flex items-center gap-1 font-bold"><i data-lucide="aperture" class="w-3.5 h-3.5"></i>どこから見る:</span>
-                <button data-proj="cell" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (0,0,0,1)。角度0個。おなじみの「立方体の中に立方体」。ここだけ遠近つき（平行投影だと内と外がぴったり重なって1個に見えるため）">胞から</button>
-                <button data-proj="face" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,0,0,1)/√2。X-W=45° だけ。六角柱に見える">面から</button>
-                <button data-proj="edge" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,1,0,1)/√3。X-W=45°・Y-W=35.26°">辺から</button>
-                <button data-proj="waxis" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-200 transition" title="Z-W を 90° 回して z と w を入れ替える。w が画面に写る軸になるので、超立方体が w 方向にどう並んでいるかが直接見える（超球アプリの Z-W 90° と同じ見方）">w軸を見る</button><button data-proj="vertex" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,1,1,1)/2。X-W=45°・Y-W=35.26°・Z-W=30°。4軸が対等＝等角図。外殻は菱形十二面体（距離2に6頂点＋距離√3に8頂点）になり、対角の2頂点は中心に重なる">頂点から（等角図）</button>
-                <span id="proj-note" class="text-[10px] text-slate-400"></span>
-            </div>
-            <p class="text-[10px] text-slate-400 leading-relaxed -mt-1">
-                角度を<b class="text-amber-300">1つずつ足していくだけ</b>で順に移れます（45° → +35.26° → +30°）。足した数が、視線が使う軸の本数です。
-            </p>
-
-            <div class="flex items-center justify-between gap-1 text-[11px] pt-1 border-t border-slate-800/80">
-                <div class="flex items-center gap-2">
-                    <span class="text-slate-400 flex items-center gap-1"><i data-lucide="camera" class="w-3.5 h-3.5"></i>視点:</span>
-                    <button data-cam="iso" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 transition font-bold">斜め正面</button>
-                    <button data-cam="front" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">真正面</button>
-                    <button data-cam="top" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">真上</button>
-                </div>
-
-                <button id="auto-rotate-btn" class="flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-cyan-400 rounded-lg hover:bg-slate-700 transition text-[11px] border-cyan-500/40">
-                    <i data-lucide="refresh-cw" class="w-3 h-3"></i>
-                    <span>3D同期カメラ回転</span>
-                </button>
-            </div>
-            </div>   <!-- /右カラム -->
-        </footer>
+            </footer>
+        </div>
     </div>
 
     <script>
@@ -275,11 +273,7 @@
             cell:   { a: 0,      b: 0,      c: 0,      par: false, name: '視線 (0,0,0,1)｜内と外の立方体（遠近あり）' },
             face:   { a: EQUI_A, b: 0,      c: 0,      par: true,  name: '視線 (1,0,0,1)/√2｜12頂点' },
             edge:   { a: EQUI_A, b: EQUI_B, c: 0,      par: true,  name: '視線 (1,1,0,1)/√3｜14頂点' },
-            vertex: { a: EQUI_A, b: EQUI_B, c: EQUI_C, par: true,  name: '視線 (1,1,1,1)/2｜菱形十二面体（外殻14頂点＝6+8）' },
-            // Z-W を 90° 回すと z と w が入れ替わる。すると w が「画面に写る軸」になり、
-            // 超球アプリで Z-W 90° にしたときと同じく、w 方向に並んだ構造がそのまま見える。
-            // 正対のままだと重なって平らな四角に潰れるので、ここだけ斜めから・遠近つきで見る
-            waxis:  { a: 0,      b: 0,      c: Math.PI / 2, par: false, obliq: true, name: 'Z-W 90°｜z と w が入れ替わる。縦に並んで見えるのが w 方向' }
+            vertex: { a: EQUI_A, b: EQUI_B, c: EQUI_C, par: true,  name: '視線 (1,1,1,1)/2｜菱形十二面体（外殻14頂点＝6+8）' }
         };
         let parallel4D = false;   // 等角図のときは遠近をやめる（パースが入ると軸の長さが揃わない）
 
@@ -294,13 +288,6 @@
 
         const cellObjects3D = [];
         const faceObjects2D = [];
-        // 透明の描画順を決めるための奥行き。three.js は「オブジェクトの位置」で並べ替えるが、
-        // ここでは8つの胞が全部原点にあるので距離が同じになり、並び順が毎フレーム不定になる。
-        // → 色がちらついたり、内側の胞が外側を覆って「ただの立体」に見えたりする。
-        // 毎フレーム 4D奥行き(w) の平均を測り、奥から手前の順に renderOrder を振って安定させる。
-        // 投影後（＝実際に画面に出る3D座標）の中心。これとカメラの距離で奥から手前に並べる。
-        const cellCenter3D = Array.from({ length: 8 }, () => [0, 0, 0]);
-        const faceCenter3D = Array.from({ length: 6 }, () => [0, 0, 0]);
 
         const unitCubeVertices = [
             [-0.5, -0.5, -0.5], [ 0.5, -0.5, -0.5], [ 0.5,  0.5, -0.5], [-0.5,  0.5, -0.5],
@@ -374,7 +361,7 @@
                 [-HALF_S,  HALF_S, 0]
             ];
 
-            const outQuad = baseQuad.map(v => {
+            return baseQuad.map(v => {
                 let x = v[0], y = v[1], z = 0;
 
                 if (faceId === 0) {}
@@ -426,11 +413,6 @@
 
                 return [x, y, z];
             });
-            const fc = faceCenter3D[faceId];
-            fc[0] = fc[1] = fc[2] = 0;
-            outQuad.forEach(q => { fc[0] += q[0]; fc[1] += q[1]; fc[2] += q[2]; });
-            fc[0] /= outQuad.length; fc[1] /= outQuad.length; fc[2] /= outQuad.length;
-            return outQuad;
         }
 
         // --- 中心核胞を中心座標 (0,0,0) へ完璧に固定・補正した計算処理 ---
@@ -548,11 +530,6 @@
                 ];
             });
 
-            const c = cellCenter3D[cellId];
-            c[0] = c[1] = c[2] = 0;
-            projected.forEach(q => { c[0] += q[0]; c[1] += q[1]; c[2] += q[2]; });
-            c[0] /= projected.length; c[1] /= projected.length; c[2] /= projected.length;
-
             return projected;
         }
 
@@ -591,7 +568,6 @@
             renderer2D.domElement.addEventListener('pointerdown', e => { dragging = true; px = e.clientX; py = e.clientY; renderer2D.domElement.setPointerCapture(e.pointerId); });
             renderer2D.domElement.addEventListener('pointermove', e => {
                 if (!dragging) return;
-                leaveProjPreset();
                 linkAngleX = wrapPi(linkAngleX + (e.clientX - px) * 0.01);
                 linkAngleY = wrapPi(linkAngleY + (e.clientY - py) * 0.01);
                 px = e.clientX; py = e.clientY;
@@ -631,7 +607,6 @@
 
                 const grid = new THREE.GridHelper(36, 36, 0x1e293b, 0x0f172a);
                 grid.position.y = -5;
-                grid.name = "FloorGrid";
                 s.add(grid);
             });
 
@@ -822,10 +797,17 @@
                 };
                 // 主役は右の超立方体。左の立方体は添えものなので小さめに収める
                 const fitL = e => Math.max(0.8, Math.min(1.6, 2.9 / Math.max(e, 1e-3)));
-                const fitR = e => Math.max(1.0, Math.min(2.4, 5.2 / Math.max(e, 1e-3)));
+                const fitR = e => Math.max(1.0, Math.min(3.0, 6.2 / Math.max(e, 1e-3)));
+                // 投影プリセット(平行投影)のときだけ実際の角度で測り、従来どおりの大きさに収める。
+                // 通常の視点では角度0の素の形で測る＝回転しても倍率が変わらない（拡大縮小しない）。
+                const useAng = parallel4D;
+                const fAX = useAng ? linkAngleX : 0, fAY = useAng ? linkAngleY : 0;
+                const savedZW = soloAngleZW;
+                if (!useAng) soloAngleZW = 0;
                 let lv = [], rv = [];
-                for (let i = 0; i < 6; i++) lv = lv.concat(calculateFoldedFaceVertices2D(i, progress, linkAngleX, linkAngleY));
-                for (let i = 0; i < 8; i++) rv = rv.concat(calculateFoldedCellVertices3D(i, progress, linkAngleX, linkAngleY));
+                for (let i = 0; i < 6; i++) lv = lv.concat(calculateFoldedFaceVertices2D(i, progress, fAX, fAY));
+                for (let i = 0; i < 8; i++) rv = rv.concat(calculateFoldedCellVertices3D(i, progress, fAX, fAY));
+                soloAngleZW = savedZW;
                 const r2 = scene2D.getObjectByName("Root2D"), r3 = scene3D.getObjectByName("Root3D");
                 if (r2) r2.scale.setScalar(fitL(span(lv)));
                 if (r3) r3.scale.setScalar(fitR(span(rv)));
@@ -905,62 +887,27 @@
 
             if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'cube') {
                 controls2D.update();
-                sortByCamera(scene2D.getObjectByName("Root2D"), faceCenter3D, camera2D);
                 renderer2D.render(scene2D, camera2D);
             }
             if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'hypercube') {
                 controls3D.update();
-                sortByCamera(scene3D.getObjectByName("Root3D"), cellCenter3D, camera3D);
                 renderer3D.render(scene3D, camera3D);
             }
-        }
-
-        // 平行投影は「決め打ちの向き（等角図など）を正確に出す」ためのもの。
-        // そこから手で回すともう等角図ではないし、平行のままだと内側の胞と外側の胞が
-        // 必ず同じ大きさに写って「入れ替わり」が見えなくなる。だから回した時点で遠近へ戻す。
-        function leaveProjPreset() {
-            if (!parallel4D) return;
-            parallel4D = false;
-            document.querySelectorAll('.proj-btn').forEach(b => b.classList.remove('bg-amber-600/40'));
-            const note = document.getElementById('proj-note');
-            if (note) note.innerText = '手で回したので遠近つきに戻しました（平行投影のままだと入れ替わりが見えません）';
-        }
-
-        // 透明なものは「奥から手前」に描かないと正しく重ならない。
-        // ここでは全てのメッシュがワールド原点にあるため three.js の自動並べ替えが効かない
-        // （距離が全部同じになり順番が毎フレーム不定 → 色がちらつく／手前が奥を隠す）。
-        // 投影後の中心とカメラの距離で、自分で順番を決める。カメラが動くたびに要るので毎フレーム。
-        const _sortTmp = new THREE.Vector3();
-        function sortByCamera(root, centers, cam) {
-            if (!root) return;
-            const n = root.children.length;
-            const d = [];
-            for (let i = 0; i < n; i++) {
-                const c = centers[i];
-                _sortTmp.set(c[0], c[1], c[2]).applyMatrix4(root.matrixWorld);
-                d.push([i, _sortTmp.distanceToSquared(cam.position)]);
-            }
-            d.sort((a, b) => b[1] - a[1]);                     // 遠い順
-            d.forEach(([idx], rank) => { root.children[idx].renderOrder = rank; });
         }
 
         function resetLinkRotation() {
             linkAngleX = 0;
             linkAngleY = 0;
             soloAngleZW = 0;
-            // 平行投影のまま角度を0にすると、内側の胞と外側の胞がぴったり重なって「ただの立方体」に見えてしまう。
-            // 角度を戻すときは遠近つきに戻して、内と外が分かれて見える状態にする。
-            parallel4D = false;
             updateLinkUI();
             updateMorphingGeometry(animationProgress);
         }
 
         function setCameraPreset(preset) {
             if (!camera2D || !camera3D) return;
-
-            // 回転角はここでは触らない。視点（どこから見るか）と物体の向き（どう回っているか）は別のもので、
-            // 一緒に0へ戻すと、正面や真上から見たときに立体が平らな四角に潰れてしまう。
-            // 角度を戻したいときは「0に戻す」を使う。
+            
+            // 視点プリセット切り替え時に4D回転角をクリアし、中央に正対させる
+            resetLinkRotation();
 
             switch(preset) {
                 case 'front':
@@ -991,37 +938,23 @@
             const fogD = far ? 0.018 * 18 / 46 : 0.018;
             scene2D.fog.density = fogD; scene3D.fog.density = fogD;
 
-            // 真上からだと床グリッドを真正面に見ることになって視界を埋めるので、そのときだけ隠す
-            [scene2D, scene3D].forEach(sc => { const g = sc.getObjectByName("FloorGrid"); if (g) g.visible = (preset !== 'top'); });
-
             const fov = far ? 17 : 45;
             camera2D.fov = fov; camera3D.fov = fov;
             camera2D.updateProjectionMatrix(); camera3D.updateProjectionMatrix();
 
-            // 操作パネルが下にあるぶん、注視点をずらして図形を画面の上寄りに置く。
-            // 真上から見るときは視線が y 軸なので、y にずらしても画面上では動かない。
-            // そのときは画面の上方向にあたる z にずらし、up も z 向きにして視線と平行になるのを避ける。
-            const PAN = 2.2;
-            if (preset === 'top') {
-                camera2D.up.set(0, 0, -1); camera3D.up.set(0, 0, -1);
-                camera2D.position.z += PAN; camera3D.position.z += PAN;
-                if (controls2D) controls2D.target.set(0, 0, PAN);
-                if (controls3D) controls3D.target.set(0, 0, PAN);
-            } else {
-                camera2D.up.set(0, 1, 0); camera3D.up.set(0, 1, 0);
-                camera2D.position.y -= PAN; camera3D.position.y -= PAN;
-                if (controls2D) controls2D.target.set(0, -PAN, 0);
-                if (controls3D) controls3D.target.set(0, -PAN, 0);
-            }
-            // 慣性が残っていると、位置を入れた直後の update() で元の回転へ引き戻されてしまう。
-            // 一度 damping を切って update() を通し、たまっている回転量を捨ててから戻す。
-            [controls2D, controls3D].forEach(c => {
-                if (!c) return;
-                const d = c.enableDamping;
-                c.enableDamping = false;
-                c.update();
-                c.enableDamping = d;
-            });
+            // 真上から見るときは、視線が up(0,1,0) とほぼ平行になって視線行列が退化し、
+            // 図形が画面外へ吹き飛ぶ（さらに OrbitControls の内部状態が壊れ、以後の正面・斜めも道連れになる）。
+            // 真上のときだけ up を水平へ倒して正対させる。他のプリセットでは up を元へ戻す。
+            const topView = (preset === "top");
+            camera2D.up.set(0, topView ? 0 : 1, topView ? -1 : 0);
+            camera3D.up.set(0, topView ? 0 : 1, topView ? -1 : 0);
+
+            // 操作パネルが下にあるぶん、注視点を下げて図形を画面の上寄りに置く
+            const PAN_Y = -2.2;
+            camera2D.position.y += PAN_Y;
+            camera3D.position.y += PAN_Y;
+            if (controls2D) controls2D.target.set(0, PAN_Y, 0);
+            if (controls3D) controls3D.target.set(0, PAN_Y, 0);
         }
 
         function updateLayout() {
@@ -1123,25 +1056,21 @@
             const linkX = document.getElementById('link-x-slider');
             const linkY = document.getElementById('link-y-slider');
             linkX.addEventListener('input', e => {
-                leaveProjPreset();
                 linkAngleX = parseFloat(e.target.value) * Math.PI / 180;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
             linkY.addEventListener('input', e => {
-                leaveProjPreset();
                 linkAngleY = parseFloat(e.target.value) * Math.PI / 180;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
             const soloZW = document.getElementById('solo-zw-slider');
             soloZW.addEventListener('input', e => {
-                leaveProjPreset();
                 soloAngleZW = parseFloat(e.target.value) * Math.PI / 180;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
             const soloSpinBtn = document.getElementById('solo-spin-btn');
             soloSpinBtn.addEventListener('click', () => {
                 soloSpinZW = !soloSpinZW;
-                if (soloSpinZW) leaveProjPreset();
                 soloSpinBtn.classList.toggle('bg-rose-600/40', soloSpinZW);
                 soloSpinBtn.classList.toggle('border-rose-400', soloSpinZW);
                 soloSpinBtn.classList.toggle('text-rose-200', soloSpinZW);
@@ -1155,7 +1084,6 @@
             const spinBtn = document.getElementById('link-spin-btn');
             spinBtn.addEventListener('click', () => {
                 linkSpin = !linkSpin;
-                if (linkSpin) leaveProjPreset();
                 spinBtn.classList.toggle('bg-purple-600/40', linkSpin);
                 spinBtn.classList.toggle('border-purple-400', linkSpin);
                 spinBtn.classList.toggle('text-purple-200', linkSpin);
@@ -1186,18 +1114,9 @@
                 btn.addEventListener('click', () => {
                     const k = btn.getAttribute('data-proj'), P = PROJ_PRESETS[k];
                     linkSpin = false; soloSpinZW = false;
-                    setCameraPreset('proj');
-                    // 投影プリセットは「この向きから見る」を角度で作るので、ここで指定し直す
-                    linkAngleX = P.a; linkAngleY = P.b; soloAngleZW = P.c;
                     parallel4D = P.par;                // 胞から以外は平行投影（遠近が入ると軸の長さが揃わない）
-                    if (P.obliq) {                     // 斜めから見ないと、入れ替わった w 方向の並びが重なって見えない
-                        camera3D.fov = 45; camera3D.updateProjectionMatrix();
-                        camera3D.position.set(11, 10 - 2.2, 15);
-                        camera2D.fov = 45; camera2D.updateProjectionMatrix();
-                        camera2D.position.set(0, -2.2, 18);
-                        scene2D.fog.density = 0.018; scene3D.fog.density = 0.018;
-                        [controls2D, controls3D].forEach(c => { const d = c.enableDamping; c.enableDamping = false; c.update(); c.enableDamping = d; });
-                    }
+                    setCameraPreset('proj');           // ここで角度が 0 に戻るので、指定はこの後
+                    linkAngleX = P.a; linkAngleY = P.b; soloAngleZW = P.c;
                     updateLinkUI();
                     updateMorphingGeometry(animationProgress);
                     document.querySelectorAll('.proj-btn').forEach(b => b.classList.toggle('bg-amber-600/40', b === btn));
