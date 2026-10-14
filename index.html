@@ -2,130 +2,404 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>幾何学・高次元ビジュアルコレクション</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>高次元ビジュアルコレクション</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg: #030712;
+            --panel: #0b1222;
+            --panel-hover: #111a2e;
+            --line: #1e293b;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+            --faint: #64748b;
+
+            /* 次元の色（シミュレーター内の軸の色と揃えています） */
+            --d2: #38bdf8;
+            --d3: #10b981;
+            --d4: #a3e635;
+            --d5: #a855f7;
+        }
+
+        * { box-sizing: border-box; }
+
         body {
-            background-color: #030712;
-            color: #f3f4f6;
-            font-family: sans-serif;
             margin: 0;
-            padding: 40px 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
             min-height: 100vh;
-            box-sizing: border-box;
+            background:
+                radial-gradient(900px 500px at 15% -10%, rgba(56, 189, 248, 0.10), transparent 60%),
+                radial-gradient(800px 500px at 100% 10%, rgba(168, 85, 247, 0.10), transparent 60%),
+                var(--bg);
+            color: var(--text);
+            font-family: 'Noto Sans JP', 'Inter', system-ui, sans-serif;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
         }
 
+        .wrap {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: max(36px, env(safe-area-inset-top)) 16px max(40px, env(safe-area-inset-bottom));
+        }
+
+        /* ---- ヘッダー ---- */
+        header { margin-bottom: 36px; }
+        .eyebrow {
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--faint);
+            margin: 0 0 8px;
+        }
         h1 {
-            color: #38bdf8;
-            font-size: 28px;
-            margin-bottom: 10px;
-            text-align: center;
+            margin: 0 0 12px;
+            font-size: clamp(24px, 5vw, 34px);
+            font-weight: 900;
+            line-height: 1.3;
+            letter-spacing: 0.01em;
+        }
+        h1 .grad {
+            background: linear-gradient(90deg, var(--d2), var(--d3) 35%, var(--d4) 65%, var(--d5));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .lead {
+            margin: 0;
+            max-width: 620px;
+            color: var(--muted);
+            font-size: 14px;
         }
 
-        p.description {
-            color: #94a3b8;
-            font-size: 14px;
-            max-width: 600px;
-            text-align: center;
-            margin-bottom: 40px;
+        /* 次元の凡例 */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 16px;
+        }
+
+        /* ---- セクション ---- */
+        section { margin-bottom: 32px; }
+        .sec-head {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--line);
+        }
+        .sec-head h2 {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 800;
+        }
+        .sec-head .path {
+            font-size: 12px;
+            color: var(--faint);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        @media (min-width: 720px) {
+            .grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        /* ---- カード（全体がリンク） ---- */
+        .card {
+            --accent: var(--d2);
+            position: relative;
+            display: grid;
+            grid-template-columns: 84px 1fr;
+            gap: 14px;
+            align-items: start;
+            padding: 14px;
+            border-radius: 16px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            color: inherit;
+            text-decoration: none;
+            transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .card:hover, .card:focus-visible {
+            background: var(--panel-hover);
+            border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+            transform: translateY(-1px);
+            outline: none;
+        }
+        .card:active { transform: scale(0.99); }
+
+        .thumb {
+            width: 84px;
+            height: 84px;
+            border-radius: 12px;
+            background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), #060b17;
+            border: 1px solid var(--line);
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+        }
+        .thumb svg { width: 72px; height: 72px; display: block; }
+
+        .body { min-width: 0; }
+        .title-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+        }
+        .card h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 800;
+            line-height: 1.4;
+        }
+        .new {
+            font-family: 'Inter', sans-serif;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            padding: 1px 7px;
+            border-radius: 999px;
+            color: #1a0b2e;
+            background: var(--d5);
+        }
+        .card p {
+            margin: 0 0 10px;
+            font-size: 13px;
+            color: var(--muted);
             line-height: 1.6;
         }
-
-        .container {
+        .meta {
             display: flex;
-            flex-direction: column;
-            gap: 20px;
-            width: 100%;
-            max-width: 600px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
         }
+        .dims { display: flex; gap: 4px; flex-wrap: wrap; }
+        .dim {
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 1px 8px;
+            border-radius: 999px;
+            border: 1px solid currentColor;
+            background: color-mix(in srgb, currentColor 12%, transparent);
+        }
+        .dim.d2 { color: var(--d2); }
+        .dim.d3 { color: var(--d3); }
+        .dim.d4 { color: var(--d4); }
+        .dim.d5 { color: var(--d5); }
 
-        .card {
-            background: #0f172a;
-            border: 1px solid #1e293b;
-            border-radius: 12px;
-            padding: 20px;
-            box-sizing: border-box;
+        .file {
+            font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+            font-size: 11px;
+            color: var(--faint);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
         }
-
-        .card h2 {
-            margin-top: 0;
-            margin-bottom: 8px;
-            font-size: 18px;
-            color: #e2e8f0;
-        }
-
-        .card p {
-            color: #94a3b8;
-            font-size: 13px;
-            margin-bottom: 16px;
-            line-height: 1.5;
-        }
-
-        .btn {
-            display: inline-block;
-            background-color: #0284c7;
-            color: #ffffff;
-            text-decoration: none;
-            padding: 10px 18px;
-            border-radius: 6px;
-            font-weight: bold;
-            font-size: 14px;
-            transition: background-color 0.2s;
-        }
-
-        .btn:hover {
-            background-color: #0369a1;
-        }
+        .card:hover .file { color: var(--accent); }
+        .file .arrow { transition: transform 0.15s ease; }
+        .card:hover .file .arrow { transform: translateX(3px); }
 
         footer {
-            margin-top: auto;
-            padding-top: 40px;
-            color: #64748b;
+            margin-top: 40px;
+            padding-top: 16px;
+            border-top: 1px solid var(--line);
+            color: var(--faint);
             font-size: 12px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
+<div class="wrap">
 
-    <h1>🌌 幾何学 ＆ 高次元ビジュアルコレクション</h1>
-    <p class="description">2次元の多角形から、3次元・4次元・5次元の超幾何体まで。幾何学の構造をリアルタイムで体験できるシミュレーター集です。</p>
-
-    <div class="container">
-
-        <!-- 1. 多角形 -->
-        <div class="card">
-            <h2>📐 n/m 角形 エクスプローラー (2D)</h2>
-            <p>シュレーフリ記号 {n/m} や分数・小数入力から、星型多角形・スピログラフの一筆描きを可視化します。</p>
-            <a href="polygon.html" class="btn">polygon.html を開く ➔</a>
+    <header>
+        <p class="eyebrow">Interactive Geometry</p>
+        <h1><span class="grad">2次元から5次元まで</span><br>高次元ビジュアルコレクション</h1>
+        <p class="lead">多角形・立方体・球が、次元を上げるとどう見えるか。回して、折りたたんで、分解しながら体験できるシミュレーター集です。</p>
+        <div class="legend" aria-label="次元の色">
+            <span class="dim d2">2D</span>
+            <span class="dim d3">3D</span>
+            <span class="dim d4">4D</span>
+            <span class="dim d5">5D</span>
         </div>
+    </header>
 
-        <!-- 2. 超立方体 -->
-        <div class="card">
-            <h2>🧊 超立方体 / テセラック (3D / 4D)</h2>
-            <p>2D➔3Dの展開図折りたたみと、3D➔4Dの超立方体組み立て・中心回転を完全同期して立体比較します。</p>
-            <a href="hypercube.html" class="btn">hypercube.html を開く ➔</a>
+    <!-- 多角形 -->
+    <section>
+        <div class="sec-head">
+            <h2>多角形</h2>
+            <span class="path">平面の図形</span>
         </div>
-
-        <!-- 3. 超球 -->
-        <div class="card">
-            <h2>🔮 3D / 4D 超球 (Hypersphere)</h2>
-            <p>3次元球面の切断面、4次元球殻の透視投影、北極スタートの全方向の旅（大円軌跡）を体験する連動シミュレーターです。</p>
-            <a href="hypersphere.html" class="btn">hypersphere.html を開く ➔</a>
+        <div class="grid">
+            <a class="card" href="polygon.html" style="--accent: var(--d2);">
+                <div class="thumb"><svg data-thumb="star" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>n/m 角形エクスプローラー</h3></div>
+                    <p>シュレーフリ記号 {n/m} や分数・小数を入れると、星型多角形やスピログラフの一筆描きを描きます。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d2">2D</span></div>
+                        <span class="file">polygon.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
         </div>
+    </section>
 
-        <!-- 4. 5D超球 -->
-        <div class="card">
-            <h2>🌐 5D 超球 (5D Hypersphere / 3-Sphere)</h2>
-            <p>5次元空間に存在する球面（S⁴）の5D➔4D➔3D透視投影、および5次元固有の平面回転（X-V, Y-V, Z-V, W-V）を体験できるシミュレーターです。</p>
-            <a href="hypersphere5d.html" class="btn">hypersphere5d.html を開く ➔</a>
+    <!-- 立方体の仲間 -->
+    <section>
+        <div class="sec-head">
+            <h2>立方体の仲間</h2>
+            <span class="path">正方形 → 立方体 → 超立方体 → 5次元超立方体</span>
         </div>
+        <div class="grid">
+            <a class="card" href="hypercube.html" style="--accent: var(--d4);">
+                <div class="thumb"><svg data-thumb="cube4" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>超立方体（テセラクト）</h3></div>
+                    <p>立方体の展開図（2D→3D）と、超立方体の展開図（3D→4D）を同時に折りたたみ、並べて比べます。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d3">3D</span><span class="dim d4">4D</span></div>
+                        <span class="file">hypercube.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
 
-    </div>
+            <a class="card" href="hypercube5d.html" style="--accent: var(--d5);">
+                <div class="thumb"><svg data-thumb="cube5" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>5次元超立方体</h3><span class="new">NEW</span></div>
+                    <p>10個の4次元超立方体でできた十字架型の展開図を、5次元方向へ折りたたみます。10平面の回転、ランダム自動回転、10個への分解と数え上げつき。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d4">4D</span><span class="dim d5">5D</span></div>
+                        <span class="file">hypercube5d.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </section>
+
+    <!-- 球の仲間 -->
+    <section>
+        <div class="sec-head">
+            <h2>球の仲間</h2>
+            <span class="path">円 → 球 → 超球 → 5次元の超球</span>
+        </div>
+        <div class="grid">
+            <a class="card" href="hypersphere.html" style="--accent: var(--d3);">
+                <div class="thumb"><svg data-thumb="sphere4" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>3D / 4D 超球</h3></div>
+                    <p>球の切り口、4次元の球殻の透視投影、北極から全方向へ進む大円の旅を、連動させて見られます。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d3">3D</span><span class="dim d4">4D</span></div>
+                        <span class="file">hypersphere.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
+
+            <a class="card" href="hypersphere5d.html" style="--accent: var(--d5);">
+                <div class="thumb"><svg data-thumb="sphere5" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>5D 超球（S⁴）</h3></div>
+                    <p>5次元空間の球面 S⁴ を 5D→4D→3D と2段階で透視投影。5次元ならではの X-V・Y-V・Z-V・W-V 回転も試せます。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d5">5D</span></div>
+                        <span class="file">hypersphere5d.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </section>
 
     <footer>Interactive Geometry Visualization Suite</footer>
+</div>
 
+<script>
+    // サムネイルの図をその場で描く（外部ファイルなし）
+    (function () {
+        const NS = 'http://www.w3.org/2000/svg';
+        const el = (tag, attrs) => {
+            const e = document.createElementNS(NS, tag);
+            for (const k in attrs) e.setAttribute(k, attrs[k]);
+            return e;
+        };
+        const stroke = { fill: 'none', stroke: 'var(--accent)', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
+
+        // n次元立方体を、軸をπ/n ずつずらした向きで平面に写す（ペトリー投影）
+        function drawCube(svg, n, r, width) {
+            const dirs = [];
+            for (let k = 0; k < n; k++) dirs.push([Math.cos(Math.PI * k / n - Math.PI / 2), Math.sin(Math.PI * k / n - Math.PI / 2)]);
+            const pts = [];
+            for (let i = 0; i < (1 << n); i++) {
+                let x = 0, y = 0;
+                for (let k = 0; k < n; k++) {
+                    const s = (i >> k) & 1 ? 1 : -1;
+                    x += s * dirs[k][0]; y += s * dirs[k][1];
+                }
+                pts.push([x, y]);
+            }
+            const maxR = Math.max(...pts.map(p => Math.hypot(p[0], p[1])));
+            const sc = r / maxR;
+            let d = '';
+            for (let i = 0; i < pts.length; i++) {
+                for (let k = 0; k < n; k++) {
+                    const j = i | (1 << k);
+                    if (j === i) continue;
+                    d += `M${(pts[i][0] * sc).toFixed(2)} ${(pts[i][1] * sc).toFixed(2)}L${(pts[j][0] * sc).toFixed(2)} ${(pts[j][1] * sc).toFixed(2)}`;
+                }
+            }
+            svg.appendChild(el('path', { ...stroke, d, 'stroke-width': width, opacity: 0.85 }));
+            pts.forEach(p => svg.appendChild(el('circle', { cx: (p[0] * sc).toFixed(2), cy: (p[1] * sc).toFixed(2), r: 1.4, fill: 'var(--accent)' })));
+        }
+
+        function drawStar(svg, n, m, r) {
+            let d = '';
+            for (let i = 0; i <= n; i++) {
+                const a = (i * m * 2 * Math.PI) / n - Math.PI / 2;
+                d += `${i ? 'L' : 'M'}${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`;
+            }
+            svg.appendChild(el('path', { ...stroke, d, 'stroke-width': 2 }));
+            svg.appendChild(el('circle', { ...stroke, cx: 0, cy: 0, r, 'stroke-width': 0.8, opacity: 0.3 }));
+        }
+
+        // 球: 輪郭＋緯線・経線の楕円
+        function drawSphere(svg, r, rings) {
+            svg.appendChild(el('circle', { ...stroke, cx: 0, cy: 0, r, 'stroke-width': 1.8 }));
+            rings.forEach(([rx, ry, rot, op]) => {
+                svg.appendChild(el('ellipse', { ...stroke, cx: 0, cy: 0, rx, ry, transform: `rotate(${rot})`, 'stroke-width': 1, opacity: op }));
+            });
+        }
+
+        document.querySelectorAll('svg[data-thumb]').forEach(svg => {
+            switch (svg.dataset.thumb) {
+                case 'star':    drawStar(svg, 7, 3, 42); break;
+                case 'cube4':   drawCube(svg, 4, 43, 1.1); break;
+                case 'cube5':   drawCube(svg, 5, 44, 0.7); break;
+                case 'sphere4':
+                    drawSphere(svg, 40, [[40, 12, 0, 0.7], [12, 40, 0, 0.7], [40, 26, 0, 0.35], [26, 40, 0, 0.35]]);
+                    break;
+                case 'sphere5':
+                    drawSphere(svg, 42, [[42, 14, 0, 0.6], [42, 14, 60, 0.6], [42, 14, 120, 0.6], [22, 22, 0, 0.5], [11, 11, 0, 0.4]]);
+                    break;
+            }
+        });
+    })();
+</script>
 </body>
 </html>

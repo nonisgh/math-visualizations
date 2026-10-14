@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>5次元超立方体シミュレーター</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
+
+        body {
+            font-family: 'Noto Sans JP', 'Inter', sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+            overflow: hidden;
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .glow-effect {
+            box-shadow: 0 0 35px rgba(56, 189, 248, 0.25);
+        }
+
+        #unfold-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            box-shadow: 0 0 14px #38bdf8;
+            transition: all 0.15s ease;
+        }
+        #unfold-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            background: #00f0ff;
+        }
+
+        /* ---- 回転パネル ---- */
+        .rot-group-title {
+            font-size: 10px;
+            font-weight: 700;
+            color: #94a3b8;
+            margin: 8px 0 3px;
+            letter-spacing: 0.02em;
+        }
+        .rot-row {
+            display: grid;
+            grid-template-columns: 30px 1fr 40px 24px 24px;
+            align-items: center;
+            gap: 6px;
+            padding: 2px 0;
+        }
+        .plane-label {
+            font-family: 'Inter', monospace;
+            font-weight: 800;
+            font-size: 12px;
+            letter-spacing: 0.04em;
+        }
+        .rot-val {
+            font-family: ui-monospace, Menlo, monospace;
+            font-size: 11px;
+            color: #cbd5e1;
+            text-align: right;
+        }
+        .rot-slider, .proj-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            outline: none;
+        }
+        .rot-slider::-webkit-slider-thumb, .proj-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #a855f7;
+            box-shadow: 0 0 10px #a855f7;
+            cursor: pointer;
+        }
+        .proj-slider::-webkit-slider-thumb { background: #38bdf8; box-shadow: 0 0 10px #38bdf8; }
+        .rot-slider::-moz-range-thumb, .proj-slider::-moz-range-thumb {
+            width: 15px; height: 15px; border: none; border-radius: 50%; background: #a855f7;
+        }
+        .sel-btn {
+            height: 22px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 800;
+            color: #64748b;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid #334155;
+            transition: all 0.12s ease;
+        }
+        .sel-btn.on-h { color: #fde68a; background: rgba(180, 83, 9, 0.45); border-color: #f59e0b; }
+        .sel-btn.on-v { color: #a5f3fc; background: rgba(14, 116, 144, 0.45); border-color: #22d3ee; }
+        .rot-row.active-h .plane-label, .rot-row.active-v .plane-label { text-decoration: underline; text-underline-offset: 3px; }
+        .rot-row.plane-row { grid-template-columns: 30px 1fr 36px 22px 22px 30px; gap: 5px; }
+
+        /* ---- 自動回転の対象スイッチ ---- */
+        .auto-sw {
+            position: relative;
+            width: 30px;
+            height: 17px;
+            border-radius: 999px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+        .auto-sw::after {
+            content: '';
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #64748b;
+            transition: all 0.15s ease;
+        }
+        .auto-sw.on { background: rgba(168, 85, 247, 0.45); border-color: #a855f7; }
+        .auto-sw.on::after { left: 14px; background: #f3e8ff; box-shadow: 0 0 8px #a855f7; }
+        .rot-row.spinning .rot-val { color: #e9d5ff; }
+        .mini-btn {
+            padding: 1px 7px;
+            border-radius: 6px;
+            font-size: 10px;
+            color: #cbd5e1;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid #334155;
+        }
+        .mini-btn:hover { background: #334155; }
+        .speed-slider::-webkit-slider-thumb { background: #f59e0b !important; box-shadow: 0 0 10px #f59e0b !important; }
+
+        /* ---- 胞の表示切替チップ ---- */
+        .cell-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            border: 1px solid #334155;
+            background: rgba(30, 41, 59, 0.8);
+            color: #e2e8f0;
+            transition: all 0.12s ease;
+        }
+        .cell-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .cell-chip.off { opacity: 0.35; text-decoration: line-through; }
+
+        #rot-chevron { display: inline-flex; transition: transform 0.2s ease; }
+        #rot-panel.collapsed #rot-chevron { transform: rotate(-90deg); }
+        #rot-panel.collapsed #rot-panel-body { display: none; }
+
+        /* ---- 分解時の番号ラベル ---- */
+        #label-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
+        .cell-label {
+            position: absolute;
+            left: 0;
+            top: 0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px 2px 3px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.82);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            font-size: 11px;
+            font-weight: 700;
+            color: #f1f5f9;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+            will-change: transform;
+        }
+        .cell-label .num {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            color: #0f172a;
+            font-size: 11px;
+            font-weight: 900;
+        }
+        .cell-label.current { border-color: #fde68a; box-shadow: 0 0 16px rgba(253, 230, 138, 0.7); }
+
+        #count-badge {
+            position: absolute;
+            top: 5.2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 15;
+            pointer-events: none;
+            padding: 6px 16px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.88);
+            border: 1px solid rgba(253, 230, 138, 0.55);
+            box-shadow: 0 0 24px rgba(245, 158, 11, 0.35);
+            color: #fde68a;
+            font-weight: 900;
+            font-size: 18px;
+            white-space: nowrap;
+            display: none;
+        }
+        #count-badge small { font-size: 12px; font-weight: 600; color: #e2e8f0; margin-left: 8px; }
+
+        #canvas-5d.hyper-drag { cursor: grab; }
+        #canvas-5d.hyper-drag:active { cursor: grabbing; }
+    </style>
+</head>
+<body class="w-full h-screen relative flex flex-col select-none overflow-hidden">
+
+    <!-- Render Canvas -->
+    <div id="canvas-5d" class="w-full h-full absolute inset-0 z-0"></div>
+    <div id="label-layer"></div>
+    <div id="count-badge"></div>
+
+    <!-- タイトルバッジ -->
+    <div class="absolute top-3 left-3 md:top-5 md:left-5 pointer-events-none bg-slate-900/80 backdrop-blur border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-300 shadow-lg flex items-center gap-2 z-10 max-w-[70vw]">
+        <i data-lucide="box" class="w-4 h-4 text-purple-400 shrink-0"></i>
+        <span>5次元超立方体（展開 ⇄ 組み上げ）<br><span class="font-normal text-slate-400 text-[10px]">10個の4次元超立方体を V 方向へ折りたたみ／表示は 5D→4D→3D の透視投影</span></span>
+    </div>
+
+    <!-- 回転パネル -->
+    <div id="rot-panel" class="glass-panel absolute top-3 right-3 md:top-5 md:right-5 rounded-2xl z-20 shadow-2xl" style="width: min(340px, calc(100vw - 24px));">
+        <div id="rot-panel-head" class="flex items-center justify-between px-3 py-2 cursor-pointer">
+            <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <span id="rot-chevron"><i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i></span>
+                <i data-lucide="orbit" class="w-4 h-4 text-purple-400"></i>
+                5D回転（10平面）
+            </span>
+            <div class="flex items-center gap-1">
+                <button id="auto-hyper-btn" class="flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-lg hover:bg-slate-700 transition text-[11px]" title="スイッチONの平面を、向きと速さをランダムに変えながら回し続けます">
+                    <i data-lucide="shuffle" class="w-3 h-3"></i><span id="auto-hyper-text">自動: OFF</span>
+                </button>
+                <button id="rot-reset-btn" class="flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]">
+                    <i data-lucide="rotate-ccw" class="w-3 h-3"></i><span>0に戻す</span>
+                </button>
+            </div>
+        </div>
+        <div id="rot-panel-body" class="px-3 pb-3 overflow-y-auto" style="max-height: 46vh;">
+            <div class="text-[10px] text-slate-400 leading-snug">
+                <span class="text-amber-300 font-bold">↔</span>＝横ドラッグ、<span class="text-cyan-300 font-bold">↕</span>＝縦ドラッグに割り当てる平面。下の「ドラッグ: 5D回転」に切り替えると、マウスや指で回せます。右端の<span class="text-purple-300 font-bold">スイッチ</span>は自動回転の対象です。
+            </div>
+
+            <div class="rot-group-title">自動回転（ランダム）</div>
+            <div class="rot-row" style="grid-template-columns: 52px 1fr 40px;">
+                <span class="text-[11px] font-bold text-amber-300">スピード</span>
+                <input id="auto-speed-slider" class="proj-slider speed-slider" type="range" min="0.1" max="3" step="0.05" value="1">
+                <span id="auto-speed-val" class="rot-val">1.00x</span>
+            </div>
+            <div class="flex items-center gap-1 mt-1">
+                <span class="text-[10px] text-slate-400 mr-0.5">対象:</span>
+                <button class="mini-btn" data-auto-preset="all">全部</button>
+                <button class="mini-btn" data-auto-preset="hyper">4D・5Dのみ</button>
+                <button class="mini-btn" data-auto-preset="v">Vのみ</button>
+                <button class="mini-btn" data-auto-preset="random">おまかせ</button>
+                <button class="mini-btn" data-auto-preset="none">なし</button>
+            </div>
+
+            <div id="rot-rows"></div>
+
+            <div class="rot-group-title">投影の視点距離（小さいほど遠近が強い）</div>
+            <div class="rot-row" style="grid-template-columns: 30px 1fr 40px;">
+                <span class="plane-label" style="color:#a3e635">W</span>
+                <input id="dw-slider" class="proj-slider" type="range" min="3.5" max="15" step="0.1" value="7">
+                <span id="dw-val" class="rot-val">7.0</span>
+            </div>
+            <div class="rot-row" style="grid-template-columns: 30px 1fr 40px;">
+                <span class="plane-label" style="color:#a855f7">V</span>
+                <input id="dv-slider" class="proj-slider" type="range" min="3.5" max="15" step="0.1" value="7">
+                <span id="dv-val" class="rot-val">7.0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- UI Overlay Layout -->
+    <div class="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none p-3 md:p-6" style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));">
+        <div></div>
+
+        <footer class="glass-panel rounded-2xl p-3 md:p-5 max-w-3xl w-full mx-auto pointer-events-auto shadow-2xl mt-auto space-y-3 glow-effect">
+            <div class="space-y-1.5">
+                <div class="flex justify-between items-center text-xs font-semibold gap-2">
+                    <span class="flex items-center gap-2 text-slate-300 shrink-0">
+                        <i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i>
+                        折りたたみ進行
+                    </span>
+                    <span id="progress-percent" class="text-cyan-400 font-mono font-bold text-xs md:text-sm text-right">0%</span>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <span class="text-[10px] font-bold text-indigo-300 bg-indigo-950/80 px-2 py-1 rounded border border-indigo-800/80 shrink-0">展開図</span>
+                    <input id="unfold-slider" type="range" min="0" max="1" step="0.001" value="0"
+                           class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-slate-700">
+                    <span class="text-[10px] font-bold text-cyan-400 bg-cyan-950/80 px-2 py-1 rounded border border-cyan-800/80 shrink-0">完成</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 pt-1 border-t border-slate-800">
+                <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5 shrink-0">
+                    <i data-lucide="boxes" class="w-4 h-4 text-amber-400"></i>分解
+                </span>
+                <input id="explode-slider" class="proj-slider speed-slider flex-1 min-w-0" type="range" min="0" max="1" step="0.001" value="0">
+                <span id="explode-val" class="text-[11px] font-mono font-bold text-amber-300 w-9 text-right shrink-0">0%</span>
+                <button id="explode-btn" class="flex items-center gap-1 px-2.5 py-1 bg-amber-900/40 border border-amber-500/50 text-amber-200 font-bold rounded-xl hover:bg-amber-800/50 transition text-[11px] shrink-0 active:scale-95">
+                    <span id="explode-btn-text">バラす</span>
+                </button>
+                <button id="count-btn" class="flex items-center gap-1 px-2.5 py-1 bg-slate-800/80 border border-amber-500/40 text-amber-200 font-bold rounded-xl hover:bg-slate-700 transition text-[11px] shrink-0 active:scale-95" title="10個に分けて、1個ずつ番号を付けて数えます">
+                    <i data-lucide="list-ordered" class="w-3.5 h-3.5"></i><span id="count-btn-text">数える</span>
+                </button>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button id="play-fold-btn" class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-slate-950 font-black rounded-xl transition shadow-lg shadow-cyan-500/20 active:scale-95 text-xs">
+                        <i data-lucide="box" class="w-4 h-4"></i>
+                        <span>組みあげる</span>
+                    </button>
+                    <button id="play-unfold-btn" class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-black rounded-xl transition shadow-lg shadow-indigo-500/20 active:scale-95 text-xs">
+                        <i data-lucide="package-open" class="w-4 h-4"></i>
+                        <span>展開する</span>
+                    </button>
+                    <button id="loop-btn" class="p-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-xl transition active:scale-95" title="往復自動再生">
+                        <i data-lucide="repeat" class="w-4 h-4"></i>
+                    </button>
+                    <button id="speed-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-amber-900/40 border border-amber-500/50 text-amber-300 font-mono font-bold rounded-xl hover:bg-amber-800/50 transition text-xs" title="再生速度の切り替え">
+                        <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400"></i>
+                        <span id="speed-text" class="text-[11px]">速度: 1.0x</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <button id="stagger-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-cyan-900/40 border border-cyan-500/50 text-cyan-200 rounded-xl hover:bg-cyan-800/50 transition text-xs" title="時間差か同時かを選択">
+                        <i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400"></i>
+                        <span id="stagger-text" class="text-[11px]">時間差: ON</span>
+                    </button>
+                    <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-[11px]">
+                        <button id="view-mesh-btn" class="px-2 py-0.5 rounded-lg font-medium text-cyan-400 bg-slate-800 transition">メッシュ</button>
+                        <button id="view-wire-btn" class="px-2 py-0.5 rounded-lg font-medium text-slate-400 hover:text-white transition">ワイヤー</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-800/80">
+                <span class="text-[11px] text-slate-400 mr-0.5">表示する胞:</span>
+                <div id="cell-chips" class="flex items-center gap-1 flex-wrap"></div>
+                <button id="cell-all-btn" class="px-2 py-0.5 rounded-full text-[11px] bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700">全部</button>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 flex-wrap text-[11px] pt-1 border-t border-slate-800/80">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-400 flex items-center gap-1"><i data-lucide="camera" class="w-3.5 h-3.5"></i>視点:</span>
+                    <button data-cam="iso" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 transition font-bold">斜め正面</button>
+                    <button data-cam="front" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">真正面</button>
+                    <button data-cam="top" class="cam-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">真上</button>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button id="drag-mode-btn" class="flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="ドラッグで3Dの視点を回すか、選んだ平面で5D回転するかを切り替えます">
+                        <i data-lucide="hand" class="w-3 h-3"></i>
+                        <span id="drag-mode-text">ドラッグ: 視点</span>
+                    </button>
+                    <button id="auto-rotate-btn" class="flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-lg hover:bg-slate-700 transition text-[11px]">
+                        <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                        <span>カメラ回転</span>
+                    </button>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // ==MATH START==
+        const S = 1.8;
+        const HALF_S = S / 2;
+        const MIN_DEN = 0.5;   // 透視投影の分母の下限（視点を突き抜けないように）
+
+        // 軸ごとの色（展開で使うヒンジ胞と同じ色）
+        const AXIS_COLORS = ['#10b981', '#38bdf8', '#f43f5e', '#a3e635', '#a855f7']; // X Y Z W V
+        const AXIS_NAMES = ['X', 'Y', 'Z', 'W', 'V'];
+
+        // 5次元の回転平面（10個）
+        const PLANES = [
+            { id: 'XY', a: 0, b: 1, group: 0 },
+            { id: 'XZ', a: 0, b: 2, group: 0 },
+            { id: 'YZ', a: 1, b: 2, group: 0 },
+            { id: 'XW', a: 0, b: 3, group: 1 },
+            { id: 'YW', a: 1, b: 3, group: 1 },
+            { id: 'ZW', a: 2, b: 3, group: 1 },
+            { id: 'XV', a: 0, b: 4, group: 2 },
+            { id: 'YV', a: 1, b: 4, group: 2 },
+            { id: 'ZV', a: 2, b: 4, group: 2 },
+            { id: 'WV', a: 3, b: 4, group: 2 }
+        ];
+
+        // 5次元超立方体の10個の胞（＝4次元超立方体）
+        // hypercube.html の配色と展開を踏襲し、±W の2胞を追加。蓋は +Y 胞の先に連結
+        const CELLS = [
+            { short: '中心', name: '中央固定核胞', color: 0xf59e0b, type: 'center' },
+            { short: '+Y', name: '上ヒンジ胞', color: 0x38bdf8, type: 'hinge', axis: 1, sign: +1 },
+            { short: '−Y', name: '下ヒンジ胞', color: 0x38bdf8, type: 'hinge', axis: 1, sign: -1 },
+            { short: '+X', name: '右ヒンジ胞', color: 0x10b981, type: 'hinge', axis: 0, sign: +1 },
+            { short: '−X', name: '左ヒンジ胞', color: 0x10b981, type: 'hinge', axis: 0, sign: -1 },
+            { short: '+Z', name: '前ヒンジ胞', color: 0xf43f5e, type: 'hinge', axis: 2, sign: +1 },
+            { short: '−Z', name: '後ヒンジ胞', color: 0xf43f5e, type: 'hinge', axis: 2, sign: -1 },
+            { short: '+W', name: '外ヒンジ胞', color: 0xa3e635, type: 'hinge', axis: 3, sign: +1 },
+            { short: '−W', name: '内ヒンジ胞', color: 0xa3e635, type: 'hinge', axis: 3, sign: -1 },
+            { short: '蓋', name: '連鎖頂点胞', color: 0xa855f7, type: 'cap' }
+        ];
+
+        // 4次元超立方体の頂点（16個）、面（24枚）、辺（32本）
+        const TESS_VERTS = [];
+        for (let i = 0; i < 16; i++) {
+            TESS_VERTS.push([0, 1, 2, 3].map(d => ((i >> d) & 1) ? HALF_S : -HALF_S));
+        }
+        const TESS_TRIS = [];
+        for (let i = 0; i < 4; i++) {
+            for (let j = i + 1; j < 4; j++) {
+                const others = [0, 1, 2, 3].filter(d => d !== i && d !== j);
+                for (let bk = 0; bk < 2; bk++) {
+                    for (let bl = 0; bl < 2; bl++) {
+                        const base = (bk << others[0]) | (bl << others[1]);
+                        const v00 = base, v10 = base | (1 << i), v11 = base | (1 << i) | (1 << j), v01 = base | (1 << j);
+                        TESS_TRIS.push(v00, v10, v11, v00, v11, v01);
+                    }
+                }
+            }
+        }
+        const TESS_EDGES = [];
+        for (let v = 0; v < 16; v++) {
+            for (let d = 0; d < 4; d++) {
+                if (!(v & (1 << d))) TESS_EDGES.push([v, v | (1 << d)]);
+            }
+        }
+
+        function smootherstep(t) {
+            const c = Math.max(0, Math.min(1, t));
+            return c * c * c * (c * (c * 6 - 15) + 10);
+        }
+
+        function foldAngles(progress, stagger) {
+            if (stagger) {
+                const p1 = Math.min(1.0, progress / 0.60);
+                const p2 = Math.max(0.0, (progress - 0.45) / 0.55);
+                return [smootherstep(p1) * (Math.PI / 2), smootherstep(p2) * (Math.PI / 2)];
+            }
+            const t = smootherstep(progress);
+            return [t * (Math.PI / 2), t * (Math.PI / 2)];
+        }
+
+        // 胞の頂点を5次元座標 (x, y, z, w, v) で返す。v が折りたたみ方向（5次元目）
+        function cellVertices5D(cellIndex, a1, a2) {
+            const cell = CELLS[cellIndex];
+            const out = [];
+            for (let i = 0; i < 16; i++) {
+                const c = TESS_VERTS[i].slice();
+                let v = 0;
+                if (cell.type === 'hinge') {
+                    const k = cell.axis;
+                    if (cell.sign > 0) {
+                        const l = c[k] + HALF_S;
+                        c[k] = HALF_S + l * Math.cos(a1);
+                        v = l * Math.sin(a1);
+                    } else {
+                        const l = c[k] - HALF_S;
+                        c[k] = -HALF_S + l * Math.cos(a1);
+                        v = -l * Math.sin(a1);
+                    }
+                } else if (cell.type === 'cap') {
+                    const l = c[1] + HALF_S;
+                    const y1 = HALF_S + S * Math.cos(a1);
+                    const v1 = S * Math.sin(a1);
+                    const t = a1 + a2;
+                    c[1] = y1 + l * Math.cos(t);
+                    v = v1 + l * Math.sin(t);
+                }
+                out.push([c[0], c[1], c[2], c[3], v]);
+            }
+            return out;
+        }
+
+        // 10平面の回転を固定の順番で合成した 5×5 行列（スライダの値と常に1対1）
+        function buildRotation(angles) {
+            const R = [];
+            for (let i = 0; i < 5; i++) { R.push([0, 0, 0, 0, 0]); R[i][i] = 1; }
+            for (let k = 0; k < PLANES.length; k++) {
+                const th = angles[k];
+                if (th === 0) continue;
+                const c = Math.cos(th), s = Math.sin(th);
+                const a = PLANES[k].a, b = PLANES[k].b;
+                for (let j = 0; j < 5; j++) {
+                    const ra = R[a][j], rb = R[b][j];
+                    R[a][j] = ra * c - rb * s;
+                    R[b][j] = ra * s + rb * c;
+                }
+            }
+            return R;
+        }
+
+        // 回転の中心を5次元超立方体の中心に置き、5D→4D→3Dと2段階で透視投影
+        function transformAndProject(p, R, piv, Dw, Dv) {
+            const q0 = [p[0], p[1], p[2], p[3], p[4] - piv];
+            const q = [0, 0, 0, 0, 0];
+            for (let i = 0; i < 5; i++) {
+                let s = 0;
+                for (let j = 0; j < 5; j++) s += R[i][j] * q0[j];
+                q[i] = s;
+            }
+            q[4] += piv;
+            const sv = Dv / Math.max(Dv - q[4], MIN_DEN);
+            const x4 = q[0] * sv, y4 = q[1] * sv, z4 = q[2] * sv, w4 = q[3] * sv;
+            const sw = Dw / Math.max(Dw - w4, MIN_DEN);
+            return [x4 * sw, y4 * sw, z4 * sw];
+        }
+
+        function wrapAngle(a) {
+            const TWO_PI = Math.PI * 2;
+            a = ((a + Math.PI) % TWO_PI + TWO_PI) % TWO_PI - Math.PI;
+            return a;
+        }
+        // ==MATH END==
+
+        // ---------------- 状態 ----------------
+        let scene, camera, renderer, controls, root;
+        const cellObjects = [];
+
+        let animationMode = 0;   // 0:停止 1:組み上げ -1:展開 2:往復
+        let loopDirection = 1;
+        let animationProgress = 0.0;
+        let animSpeedMultiplier = 1.0;
+        let enableStagger = true;
+        let wireframeOnly = false;
+
+        let Dw = 7.0, Dv = 7.0;
+        const angles = new Array(PLANES.length).fill(0);
+        let hPlane = 6;   // ↔ 初期値: XV
+        let vPlane = 7;   // ↕ 初期値: YV
+        let dragMode = 'camera';
+        let autoHyper = false;
+        let autoSpeed = 1.0;
+        // 自動回転の対象（初期値: 4D・5D 方向の7平面。3D内の回転はカメラでも見られるのでOFF）
+        const autoEnabled = PLANES.map(p => p.group !== 0);
+        // 平面ごとのランダム回転の状態: 今の角速度・目標角速度・次に目標を変えるまでの時間
+        const autoVel = new Array(PLANES.length).fill(0);
+        const autoTarget = new Array(PLANES.length).fill(0);
+        const autoTimer = new Array(PLANES.length).fill(0);
+        const AUTO_BASE = 0.55;   // 1.0x のときの最大角速度 [rad/s]
+
+        // 分解: 投影後の3D空間で、各胞をこの向きに引き離す（CELLS と同じ順番）
+        // 中心・±W は投影すると同じ場所に重なる（入れ子に見える）ので、±W は斜め方向へ逃がす
+        const EXPLODE_DIRS = [
+            [0, 0, 0],                // 中心
+            [0, 1, 0], [0, -1, 0],    // ±Y
+            [1, 0, 0], [-1, 0, 0],    // ±X
+            [0, 0, 1], [0, 0, -1],    // ±Z
+            [1.1, -1.1, 1.1],         // +W
+            [-1.1, 1.1, -1.1],        // −W
+            [0, 1.6, 0]               // 蓋（+Y のさらに先）
+        ];
+        const EXPLODE_DIST = 2.6;
+        let explodeRaw = 0;          // 0: くっついた状態 / 1: 全部バラバラ
+        let explodeTarget = null;    // ボタンでアニメーション中の行き先
+        const labelEls = [];
+        const count = { active: false, phase: 'idle', idx: -1, t: 0 };
+        const COUNT_STEP = 0.85;     // 1個あたりの秒数
+        const cellVisible = new Array(CELLS.length).fill(true);
+
+        let dirty = true;
+        let lastTime = performance.now();
+
+        const rowEls = [];
+
+        // ---------------- シーン ----------------
+        function initScene() {
+            const container = document.getElementById('canvas-5d');
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x030712, 0.016);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.autoRotateSpeed = 1.2;
+
+            const ambient = new THREE.AmbientLight(0xffffff, 0.75);
+            scene.add(ambient);
+            const dir1 = new THREE.DirectionalLight(0x38bdf8, 1.4);
+            dir1.position.set(15, 22, 18);
+            scene.add(dir1);
+            const dir2 = new THREE.DirectionalLight(0xa855f7, 0.9);
+            dir2.position.set(-15, -12, -15);
+            scene.add(dir2);
+
+            const grid = new THREE.GridHelper(40, 40, 0x1e293b, 0x0f172a);
+            grid.position.y = -6;
+            scene.add(grid);
+
+            root = new THREE.Group();
+            scene.add(root);
+
+            const white = new THREE.Color(0xffffff);
+            for (let i = 0; i < CELLS.length; i++) {
+                const cfg = CELLS[i];
+                const group = new THREE.Group();
+
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TESS_TRIS.length * 3), 3));
+                const material = new THREE.MeshStandardMaterial({
+                    color: cfg.color,
+                    transparent: true,
+                    opacity: cfg.type === 'center' ? 0.2 : 0.13,
+                    roughness: 0.2,
+                    metalness: 0.4,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.frustumCulled = false;
+
+                const wireGeo = new THREE.BufferGeometry();
+                wireGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TESS_EDGES.length * 2 * 3), 3));
+                const edgeColor = new THREE.Color(cfg.color).lerp(white, 0.3);
+                const wireMat = new THREE.LineBasicMaterial({ color: edgeColor, transparent: true, opacity: 0.9 });
+                const wire = new THREE.LineSegments(wireGeo, wireMat);
+                wire.frustumCulled = false;
+                wire.renderOrder = 1;
+
+                group.add(mesh);
+                group.add(wire);
+                root.add(group);
+
+                cellObjects.push({
+                    group, mesh, geometry, wireGeo, material, wireMat,
+                    baseOpacity: material.opacity,
+                    center: new THREE.Vector3()
+                });
+            }
+
+            setCameraPreset('iso');
+            updateGeometry();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function updateGeometry() {
+            const [a1, a2] = foldAngles(animationProgress, enableStagger);
+            const piv = HALF_S * (a1 / (Math.PI / 2));
+            const R = buildRotation(angles);
+            const ex = smootherstep(explodeRaw) * EXPLODE_DIST;
+
+            for (let ci = 0; ci < CELLS.length; ci++) {
+                const obj = cellObjects[ci];
+                const raw = cellVertices5D(ci, a1, a2);
+                const P = raw.map(p => transformAndProject(p, R, piv, Dw, Dv));
+
+                // 分解: 胞ごとに丸ごと平行移動（形はそのまま）
+                const d = EXPLODE_DIRS[ci];
+                let cx = 0, cy = 0, cz = 0;
+                for (const p of P) {
+                    p[0] += d[0] * ex; p[1] += d[1] * ex; p[2] += d[2] * ex;
+                    cx += p[0]; cy += p[1]; cz += p[2];
+                }
+                obj.center.set(cx / P.length, cy / P.length, cz / P.length);
+
+                const posAttr = obj.geometry.attributes.position;
+                const arr = posAttr.array;
+                let ptr = 0;
+                for (let t = 0; t < TESS_TRIS.length; t++) {
+                    const v = P[TESS_TRIS[t]];
+                    arr[ptr++] = v[0]; arr[ptr++] = v[1]; arr[ptr++] = v[2];
+                }
+                posAttr.needsUpdate = true;
+                obj.geometry.computeVertexNormals();
+
+                const wAttr = obj.wireGeo.attributes.position;
+                const warr = wAttr.array;
+                let wp = 0;
+                for (let e = 0; e < TESS_EDGES.length; e++) {
+                    const A = P[TESS_EDGES[e][0]], B = P[TESS_EDGES[e][1]];
+                    warr[wp++] = A[0]; warr[wp++] = A[1]; warr[wp++] = A[2];
+                    warr[wp++] = B[0]; warr[wp++] = B[1]; warr[wp++] = B[2];
+                }
+                wAttr.needsUpdate = true;
+            }
+
+            updateStatus();
+        }
+
+        function updateStatus() {
+            const progress = animationProgress;
+            document.getElementById('unfold-slider').value = progress;
+            const percent = Math.round(progress * 100);
+            let statusText;
+            if (progress <= 0) statusText = '（展開図: 4D空間に並べた10胞）';
+            else if (progress >= 1) statusText = '（組み上がり完成: 5次元超立方体）';
+            else if (enableStagger) statusText = progress <= 0.5 ? '（時間差: 周囲8胞の折りたたみ）' : '（時間差: 蓋の封鎖）';
+            else statusText = '（同時折りたたみ中）';
+            document.getElementById('progress-percent').innerText = `${percent}% ${statusText}`;
+        }
+
+        // ---------------- アニメーション ----------------
+        function animate(now) {
+            requestAnimationFrame(animate);
+            const dt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
+            lastTime = now;
+
+            const baseRate = 0.3 * animSpeedMultiplier;   // 1秒あたりの進み
+            const loopRate = 0.24 * animSpeedMultiplier;
+
+            if (animationMode === 1) {
+                animationProgress = Math.min(1, animationProgress + baseRate * dt);
+                if (animationProgress >= 1) animationMode = 0;
+                dirty = true;
+            } else if (animationMode === -1) {
+                animationProgress = Math.max(0, animationProgress - baseRate * dt);
+                if (animationProgress <= 0) animationMode = 0;
+                dirty = true;
+            } else if (animationMode === 2) {
+                animationProgress += loopRate * dt * loopDirection;
+                if (animationProgress >= 1) { animationProgress = 1; loopDirection = -1; }
+                else if (animationProgress <= 0) { animationProgress = 0; loopDirection = 1; }
+                dirty = true;
+            }
+
+            if (autoHyper) stepRandomRotation(dt);
+
+            if (explodeTarget !== null) {
+                const step = 0.9 * dt;
+                const next = explodeRaw < explodeTarget
+                    ? Math.min(explodeTarget, explodeRaw + step)
+                    : Math.max(explodeTarget, explodeRaw - step);
+                setExplode(next);
+                if (explodeRaw === explodeTarget) { explodeTarget = null; syncExplodeUI(); }
+            }
+            stepCount(dt);
+
+            if (dirty) {
+                updateGeometry();
+                dirty = false;
+            }
+
+            controls.update();
+            updateLabels();
+            renderer.render(scene, camera);
+        }
+
+        // ---------------- ランダム自動回転 ----------------
+        // 平面ごとに「目標の角速度」を数秒おきにランダムに選び直し、今の角速度をそこへ滑らかに近づける。
+        // 向き・速さ・切り替わるタイミングが平面ごとにバラバラなので、毎回ちがう動きになる
+        function pickAutoTarget(i) {
+            const sign = Math.random() < 0.5 ? -1 : 1;
+            const mag = Math.random() < 0.15
+                ? 0.05 + Math.random() * 0.15    // たまに、ほぼ止まる
+                : 0.3 + Math.random() * 0.7;
+            autoTarget[i] = sign * mag;
+            autoTimer[i] = 2.5 + Math.random() * 4.0;
+        }
+
+        function stepRandomRotation(dt) {
+            const ease = 1 - Math.exp(-dt / 0.9);
+            for (let i = 0; i < PLANES.length; i++) {
+                if (autoEnabled[i]) {
+                    autoTimer[i] -= dt;
+                    if (autoTimer[i] <= 0) pickAutoTarget(i);
+                    autoVel[i] += (autoTarget[i] - autoVel[i]) * ease;
+                } else {
+                    // スイッチOFFにした平面は、急に止めずにふわっと減速
+                    autoVel[i] += (0 - autoVel[i]) * ease;
+                    if (Math.abs(autoVel[i]) < 1e-3) autoVel[i] = 0;
+                }
+                if (autoVel[i] !== 0) {
+                    angles[i] = wrapAngle(angles[i] + autoVel[i] * AUTO_BASE * autoSpeed * dt);
+                    syncRow(i);
+                    dirty = true;
+                }
+            }
+        }
+
+        function resetAutoState() {
+            autoVel.fill(0);
+            autoTimer.fill(0);
+        }
+
+        function setCameraPreset(preset) {
+            switch (preset) {
+                case 'front': camera.position.set(0, 0, 20); break;
+                case 'top':   camera.position.set(0, 20, 0.1); break;
+                case 'iso':
+                default:      camera.position.set(12, 11, 16); break;
+            }
+            // 分解中は広がった分だけ引いて全体を収める
+            camera.position.multiplyScalar(explodeZoomFactor(explodeRaw));
+            controls.target.set(0, 0, 0);
+            controls.update();
+        }
+
+        // ---------------- 分解 ----------------
+        // 分解の量に応じたカメラの引き具合（縦長の画面では横がはみ出しやすいので多めに引く）
+        function explodeZoomFactor(raw) {
+            const k = camera.aspect < 1 ? 0.75 : 0.3;
+            return 1 + k * smootherstep(raw);
+        }
+
+        function setExplode(v) {
+            v = Math.max(0, Math.min(1, v));
+            const ratio = explodeZoomFactor(v) / explodeZoomFactor(explodeRaw);
+            if (ratio !== 1) {
+                // 今のズームや向きを保ったまま、距離だけ伸び縮みさせる
+                const off = camera.position.clone().sub(controls.target).multiplyScalar(ratio);
+                camera.position.copy(controls.target).add(off);
+            }
+            explodeRaw = v;
+            dirty = true;
+            syncExplodeUI();
+        }
+
+        function syncExplodeUI() {
+            document.getElementById('explode-slider').value = explodeRaw;
+            document.getElementById('explode-val').textContent = `${Math.round(explodeRaw * 100)}%`;
+            const apartNow = explodeTarget !== null ? explodeTarget === 1 : explodeRaw >= 0.5;
+            document.getElementById('explode-btn-text').textContent = apartNow ? 'くっつける' : 'バラす';
+        }
+
+        function buildLabels() {
+            const layer = document.getElementById('label-layer');
+            CELLS.forEach((c, i) => {
+                const el = document.createElement('div');
+                el.className = 'cell-label';
+                el.innerHTML = `<span class="num" style="background:#${c.color.toString(16).padStart(6, '0')}">${i + 1}</span>${c.short}`;
+                el.title = c.name;
+                layer.appendChild(el);
+                labelEls.push(el);
+            });
+        }
+
+        const tmpVec = new THREE.Vector3();
+        function updateLabels() {
+            const w = window.innerWidth, h = window.innerHeight;
+            const e = smootherstep(explodeRaw);
+            for (let i = 0; i < cellObjects.length; i++) {
+                const el = labelEls[i];
+                let op = Math.min(1, e * 1.6);   // 分解が進むほど番号が見えてくる
+                let scale = 1;
+                let current = false;
+                if (count.active) {
+                    if (i > count.idx) op = 0;
+                    else {
+                        op = 1;
+                        if (count.phase === 'step' && i === count.idx) { scale = 1.3; current = true; }
+                    }
+                }
+                if (!cellVisible[i]) op = 0;
+
+                tmpVec.copy(cellObjects[i].center).project(camera);
+                if (tmpVec.z > 1) op = 0;   // カメラの後ろ
+                const x = (tmpVec.x * 0.5 + 0.5) * w;
+                const y = (-tmpVec.y * 0.5 + 0.5) * h;
+                el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%) scale(${scale})`;
+                el.style.opacity = op;
+                el.classList.toggle('current', current);
+            }
+        }
+
+        // ---------------- 1個ずつ数える ----------------
+        function startCount() {
+            cellVisible.fill(true);
+            applyCellVisibility();
+            count.active = true;
+            count.phase = 'explode';
+            count.idx = -1;
+            count.t = 0;
+            explodeTarget = 1;
+            setCountBadge('');
+            applyHighlight();
+            document.getElementById('count-btn-text').textContent = 'やめる';
+        }
+
+        function endCount() {
+            count.active = false;
+            count.phase = 'idle';
+            count.idx = -1;
+            setCountBadge(null);
+            applyHighlight();
+            document.getElementById('count-btn-text').textContent = '数える';
+        }
+
+        function stepCount(dt) {
+            if (!count.active) return;
+            if (count.phase === 'explode') {
+                if (explodeRaw >= 1) { count.phase = 'step'; count.t = COUNT_STEP; }
+                return;
+            }
+            count.t += dt;
+            if (count.phase === 'step' && count.t >= COUNT_STEP) {
+                count.t = 0;
+                count.idx++;
+                if (count.idx >= CELLS.length) {
+                    count.idx = CELLS.length - 1;
+                    count.phase = 'done';
+                    setCountBadge(`全部で ${CELLS.length}個<small>の4次元超立方体</small>`);
+                } else {
+                    const c = CELLS[count.idx];
+                    setCountBadge(`${count.idx + 1} / ${CELLS.length}<small>${c.short}（${c.name}）</small>`);
+                }
+                applyHighlight();
+            } else if (count.phase === 'done' && count.t > 2.5) {
+                endCount();
+            }
+        }
+
+        // 数えている最中: まだ数えていない胞はうっすら、今の胞は濃く
+        function applyHighlight() {
+            cellObjects.forEach((o, i) => {
+                let face = o.baseOpacity, edge = 0.9;
+                if (count.active && count.phase !== 'done') {
+                    if (i > count.idx) { face = 0.02; edge = 0.1; }
+                    else if (count.phase === 'step' && i === count.idx) { face = 0.34; edge = 1.0; }
+                }
+                o.material.opacity = face;
+                o.wireMat.opacity = edge;
+            });
+        }
+
+        function setCountBadge(html) {
+            const b = document.getElementById('count-badge');
+            if (html === null) { b.style.display = 'none'; return; }
+            b.innerHTML = html;
+            b.style.display = html ? 'block' : 'none';
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // ---------------- 回転パネル ----------------
+        function planeLabelHTML(p) {
+            return `<span style="color:${AXIS_COLORS[p.a]}">${AXIS_NAMES[p.a]}</span><span style="color:${AXIS_COLORS[p.b]}">${AXIS_NAMES[p.b]}</span>`;
+        }
+
+        function buildRotationRows() {
+            const wrap = document.getElementById('rot-rows');
+            const groupTitles = [
+                '3D空間内の回転（XYZ）',
+                'W（4次元目）を含む回転',
+                'V（5次元目＝折りたたみ方向）を含む回転'
+            ];
+            let lastGroup = -1;
+            PLANES.forEach((p, idx) => {
+                if (p.group !== lastGroup) {
+                    const t = document.createElement('div');
+                    t.className = 'rot-group-title';
+                    t.textContent = groupTitles[p.group];
+                    wrap.appendChild(t);
+                    lastGroup = p.group;
+                }
+                const row = document.createElement('div');
+                row.className = 'rot-row plane-row';
+                row.innerHTML = `
+                    <span class="plane-label">${planeLabelHTML(p)}</span>
+                    <input type="range" class="rot-slider" min="-180" max="180" step="0.5" value="0">
+                    <span class="rot-val">0°</span>
+                    <button class="sel-btn" data-role="h" title="横ドラッグに割り当て">↔</button>
+                    <button class="sel-btn" data-role="v" title="縦ドラッグに割り当て">↕</button>
+                    <button class="auto-sw" role="switch" title="${p.id} を自動回転の対象にする"></button>`;
+                wrap.appendChild(row);
+
+                const slider = row.querySelector('.rot-slider');
+                const val = row.querySelector('.rot-val');
+                const hBtn = row.querySelector('[data-role="h"]');
+                const vBtn = row.querySelector('[data-role="v"]');
+                const sw = row.querySelector('.auto-sw');
+
+                sw.addEventListener('click', () => {
+                    autoEnabled[idx] = !autoEnabled[idx];
+                    if (autoEnabled[idx]) autoTimer[idx] = 0;   // ONにしたら、すぐ新しい動きを選ぶ
+                    refreshAutoSwitches();
+                });
+
+                slider.addEventListener('input', () => {
+                    angles[idx] = parseFloat(slider.value) * Math.PI / 180;
+                    val.textContent = `${Math.round(parseFloat(slider.value))}°`;
+                    dirty = true;
+                });
+                hBtn.addEventListener('click', () => {
+                    hPlane = (hPlane === idx) ? -1 : idx;
+                    if (vPlane === idx) vPlane = -1;
+                    refreshSelection();
+                });
+                vBtn.addEventListener('click', () => {
+                    vPlane = (vPlane === idx) ? -1 : idx;
+                    if (hPlane === idx) hPlane = -1;
+                    refreshSelection();
+                });
+
+                rowEls.push({ row, slider, val, hBtn, vBtn, sw });
+            });
+            refreshSelection();
+            refreshAutoSwitches();
+        }
+
+        function refreshAutoSwitches() {
+            rowEls.forEach((r, i) => {
+                r.sw.classList.toggle('on', autoEnabled[i]);
+                r.sw.setAttribute('aria-checked', autoEnabled[i] ? 'true' : 'false');
+                r.row.classList.toggle('spinning', autoHyper && autoEnabled[i]);
+            });
+        }
+
+        function setAutoPreset(kind) {
+            PLANES.forEach((p, i) => {
+                if (kind === 'all') autoEnabled[i] = true;
+                else if (kind === 'none') autoEnabled[i] = false;
+                else if (kind === 'hyper') autoEnabled[i] = p.group !== 0;
+                else if (kind === 'v') autoEnabled[i] = p.group === 2;
+            });
+            if (kind === 'random') {
+                // 2〜5個の平面をランダムに選ぶ
+                const count = 2 + Math.floor(Math.random() * 4);
+                const order = PLANES.map((_, i) => i).sort(() => Math.random() - 0.5);
+                autoEnabled.fill(false);
+                order.slice(0, count).forEach(i => { autoEnabled[i] = true; });
+            }
+            autoTimer.fill(0);
+            refreshAutoSwitches();
+        }
+
+        function syncRow(idx) {
+            const deg = angles[idx] * 180 / Math.PI;
+            rowEls[idx].slider.value = deg;
+            rowEls[idx].val.textContent = `${Math.round(deg)}°`;
+        }
+
+        function refreshSelection() {
+            rowEls.forEach((r, i) => {
+                r.hBtn.classList.toggle('on-h', hPlane === i);
+                r.vBtn.classList.toggle('on-v', vPlane === i);
+                r.row.classList.toggle('active-h', hPlane === i);
+                r.row.classList.toggle('active-v', vPlane === i);
+            });
+            updateDragModeUI();
+        }
+
+        function updateDragModeUI() {
+            const btn = document.getElementById('drag-mode-btn');
+            const text = document.getElementById('drag-mode-text');
+            const canvasWrap = document.getElementById('canvas-5d');
+            if (dragMode === 'hyper') {
+                const h = hPlane >= 0 ? `↔${PLANES[hPlane].id}` : '';
+                const v = vPlane >= 0 ? `↕${PLANES[vPlane].id}` : '';
+                const sel = (h || v) ? ` ${h}${h && v ? ' ' : ''}${v}` : '（平面未選択）';
+                text.textContent = `ドラッグ: 5D回転${sel}`;
+                btn.classList.add('bg-purple-600/40', 'border-purple-400', 'text-purple-100');
+                btn.classList.remove('text-slate-300');
+                canvasWrap.classList.add('hyper-drag');
+            } else {
+                text.textContent = 'ドラッグ: 視点';
+                btn.classList.remove('bg-purple-600/40', 'border-purple-400', 'text-purple-100');
+                btn.classList.add('text-slate-300');
+                canvasWrap.classList.remove('hyper-drag');
+            }
+            controls.enableRotate = dragMode === 'camera';
+            controls.enablePan = dragMode === 'camera';
+        }
+
+        // ---------------- 5D回転のドラッグ ----------------
+        function setupHyperDrag() {
+            const el = renderer.domElement;
+            const pointers = new Map();
+            const SENS = 0.01;   // 1px あたりのラジアン
+
+            el.addEventListener('pointerdown', (e) => {
+                if (dragMode !== 'hyper') return;
+                pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                try { el.setPointerCapture(e.pointerId); } catch (_) {}
+            });
+            el.addEventListener('pointermove', (e) => {
+                if (dragMode !== 'hyper' || !pointers.has(e.pointerId)) return;
+                const prev = pointers.get(e.pointerId);
+                const dx = e.clientX - prev.x;
+                const dy = e.clientY - prev.y;
+                pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (pointers.size !== 1) return;   // 2本指はピンチ（ズーム）に任せる
+                if (hPlane >= 0 && dx !== 0) { angles[hPlane] = wrapAngle(angles[hPlane] + dx * SENS); syncRow(hPlane); dirty = true; }
+                if (vPlane >= 0 && dy !== 0) { angles[vPlane] = wrapAngle(angles[vPlane] - dy * SENS); syncRow(vPlane); dirty = true; }
+            });
+            const end = (e) => { pointers.delete(e.pointerId); };
+            el.addEventListener('pointerup', end);
+            el.addEventListener('pointercancel', end);
+            el.addEventListener('lostpointercapture', end);
+        }
+
+        // ---------------- 胞の表示切替 ----------------
+        function buildCellChips() {
+            const wrap = document.getElementById('cell-chips');
+            CELLS.forEach((c, i) => {
+                const chip = document.createElement('button');
+                chip.className = 'cell-chip';
+                chip.title = c.name;
+                chip.innerHTML = `<span class="dot" style="background:#${c.color.toString(16).padStart(6, '0')}"></span>${c.short}`;
+                chip.addEventListener('click', () => {
+                    cellVisible[i] = !cellVisible[i];
+                    applyCellVisibility();
+                });
+                wrap.appendChild(chip);
+            });
+            document.getElementById('cell-all-btn').addEventListener('click', () => {
+                cellVisible.fill(true);
+                applyCellVisibility();
+            });
+        }
+
+        function applyCellVisibility() {
+            const chips = document.querySelectorAll('#cell-chips .cell-chip');
+            cellObjects.forEach((o, i) => {
+                o.group.visible = cellVisible[i];
+                chips[i].classList.toggle('off', !cellVisible[i]);
+            });
+        }
+
+        // ---------------- UIイベント ----------------
+        function setupUIEventListeners() {
+            const slider = document.getElementById('unfold-slider');
+            slider.addEventListener('input', (e) => {
+                animationMode = 0;
+                stopLoopUI();
+                animationProgress = parseFloat(e.target.value);
+                dirty = true;
+            });
+
+            document.getElementById('play-fold-btn').addEventListener('click', () => {
+                if (animationProgress >= 1) animationProgress = 0;
+                stopLoopUI();
+                animationMode = 1;
+            });
+            document.getElementById('play-unfold-btn').addEventListener('click', () => {
+                if (animationProgress <= 0) animationProgress = 1;
+                stopLoopUI();
+                animationMode = -1;
+            });
+
+            const loopBtn = document.getElementById('loop-btn');
+            loopBtn.addEventListener('click', () => {
+                if (animationMode === 2) {
+                    animationMode = 0;
+                    stopLoopUI();
+                } else {
+                    animationMode = 2;
+                    loopBtn.classList.add('bg-cyan-500/30', 'border-cyan-400', 'text-cyan-300');
+                }
+            });
+
+            const speedBtn = document.getElementById('speed-btn');
+            const speedText = document.getElementById('speed-text');
+            const speeds = [0.5, 1.0, 1.5, 2.0];
+            speedBtn.addEventListener('click', () => {
+                const next = (speeds.indexOf(animSpeedMultiplier) + 1) % speeds.length;
+                animSpeedMultiplier = speeds[next];
+                speedText.innerText = `速度: ${animSpeedMultiplier.toFixed(1)}x`;
+            });
+
+            const staggerBtn = document.getElementById('stagger-btn');
+            const staggerText = document.getElementById('stagger-text');
+            staggerBtn.addEventListener('click', () => {
+                enableStagger = !enableStagger;
+                if (enableStagger) {
+                    staggerText.innerText = '時間差: ON';
+                    staggerBtn.classList.add('bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200');
+                    staggerBtn.classList.remove('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                } else {
+                    staggerText.innerText = '時間差: OFF (同時)';
+                    staggerBtn.classList.remove('bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200');
+                    staggerBtn.classList.add('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                }
+                dirty = true;
+            });
+
+            const viewMeshBtn = document.getElementById('view-mesh-btn');
+            const viewWireBtn = document.getElementById('view-wire-btn');
+            viewMeshBtn.addEventListener('click', () => {
+                wireframeOnly = false;
+                viewMeshBtn.classList.add('bg-slate-800', 'text-cyan-400');
+                viewMeshBtn.classList.remove('text-slate-400');
+                viewWireBtn.classList.remove('bg-slate-800', 'text-cyan-400');
+                viewWireBtn.classList.add('text-slate-400');
+                cellObjects.forEach(o => o.mesh.visible = true);
+            });
+            viewWireBtn.addEventListener('click', () => {
+                wireframeOnly = true;
+                viewWireBtn.classList.add('bg-slate-800', 'text-cyan-400');
+                viewWireBtn.classList.remove('text-slate-400');
+                viewMeshBtn.classList.remove('bg-slate-800', 'text-cyan-400');
+                viewMeshBtn.classList.add('text-slate-400');
+                cellObjects.forEach(o => o.mesh.visible = false);
+            });
+
+            const autoRotateBtn = document.getElementById('auto-rotate-btn');
+            autoRotateBtn.addEventListener('click', () => {
+                controls.autoRotate = !controls.autoRotate;
+                autoRotateBtn.classList.toggle('border-cyan-500/40', controls.autoRotate);
+                autoRotateBtn.classList.toggle('text-cyan-400', controls.autoRotate);
+                autoRotateBtn.classList.toggle('text-slate-400', !controls.autoRotate);
+            });
+
+            document.querySelectorAll('.cam-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    setCameraPreset(btn.getAttribute('data-cam'));
+                    document.querySelectorAll('.cam-btn').forEach(b => {
+                        b.classList.remove('font-bold', 'text-cyan-300');
+                        b.classList.add('text-slate-300');
+                    });
+                    btn.classList.add('font-bold', 'text-cyan-300');
+                });
+            });
+
+            document.getElementById('drag-mode-btn').addEventListener('click', () => {
+                dragMode = dragMode === 'camera' ? 'hyper' : 'camera';
+                updateDragModeUI();
+            });
+
+            // 回転パネル
+            const panel = document.getElementById('rot-panel');
+            document.getElementById('rot-panel-head').addEventListener('click', (e) => {
+                if (e.target.closest('button')) return;
+                panel.classList.toggle('collapsed');
+            });
+            if (window.innerWidth < 768) panel.classList.add('collapsed');
+
+            document.getElementById('rot-reset-btn').addEventListener('click', () => {
+                angles.fill(0);
+                rowEls.forEach((_, i) => syncRow(i));
+                dirty = true;
+            });
+
+            const autoHyperBtn = document.getElementById('auto-hyper-btn');
+            autoHyperBtn.addEventListener('click', () => {
+                autoHyper = !autoHyper;
+                resetAutoState();
+                document.getElementById('auto-hyper-text').textContent = autoHyper ? '自動: ON' : '自動: OFF';
+                autoHyperBtn.classList.toggle('bg-purple-600/40', autoHyper);
+                autoHyperBtn.classList.toggle('border-purple-400', autoHyper);
+                autoHyperBtn.classList.toggle('text-purple-100', autoHyper);
+                autoHyperBtn.classList.toggle('text-slate-400', !autoHyper);
+                refreshAutoSwitches();
+            });
+
+            const explodeSlider = document.getElementById('explode-slider');
+            explodeSlider.addEventListener('input', () => {
+                explodeTarget = null;
+                setExplode(parseFloat(explodeSlider.value));
+            });
+            document.getElementById('explode-btn').addEventListener('click', () => {
+                if (count.active) endCount();
+                // アニメーション中なら逆向きに、止まっていれば今の状態の反対へ
+                const apartNow = explodeTarget !== null ? explodeTarget === 1 : explodeRaw >= 0.5;
+                explodeTarget = apartNow ? 0 : 1;
+                syncExplodeUI();
+            });
+            document.getElementById('count-btn').addEventListener('click', () => {
+                if (count.active) endCount(); else startCount();
+            });
+
+            const speedSlider = document.getElementById('auto-speed-slider');
+            speedSlider.addEventListener('input', () => {
+                autoSpeed = parseFloat(speedSlider.value);
+                document.getElementById('auto-speed-val').textContent = `${autoSpeed.toFixed(2)}x`;
+            });
+
+            document.querySelectorAll('[data-auto-preset]').forEach(btn => {
+                btn.addEventListener('click', () => setAutoPreset(btn.getAttribute('data-auto-preset')));
+            });
+
+            const dwSlider = document.getElementById('dw-slider');
+            const dvSlider = document.getElementById('dv-slider');
+            dwSlider.addEventListener('input', () => {
+                Dw = parseFloat(dwSlider.value);
+                document.getElementById('dw-val').textContent = Dw.toFixed(1);
+                dirty = true;
+            });
+            dvSlider.addEventListener('input', () => {
+                Dv = parseFloat(dvSlider.value);
+                document.getElementById('dv-val').textContent = Dv.toFixed(1);
+                dirty = true;
+            });
+        }
+
+        function stopLoopUI() {
+            document.getElementById('loop-btn').classList.remove('bg-cyan-500/30', 'border-cyan-400', 'text-cyan-300');
+        }
+
+        window.onload = () => {
+            initScene();
+            buildRotationRows();
+            buildCellChips();
+            buildLabels();
+            setupUIEventListeners();
+            setupHyperDrag();
+            lucide.createIcons();
+            requestAnimationFrame((t) => { lastTime = t; animate(t); });
+        };
+    </script>
+</body>
+</html>
