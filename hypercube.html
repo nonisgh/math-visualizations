@@ -911,9 +911,11 @@
 
         function setCameraPreset(preset) {
             if (!camera2D || !camera3D) return;
-            
-            // 視点プリセット切り替え時に4D回転角をクリアし、中央に正対させる
-            resetLinkRotation();
+
+            // 視点（カメラ）を変えても 4D 回転角はそのまま保持する。
+            // ここで角度をクリアすると、立方体で作った回転が視点変更のたびに消えて
+            // 「超立方体が回らなくなった＝3次元回転しかしない」ように見えてしまうため。
+            // 投影プリセット(胞/面/辺/頂点)は setCameraPreset の後に角度を明示設定するので影響なし。
 
             switch(preset) {
                 case 'front':
