@@ -803,7 +803,7 @@
                 };
                 // 主役は右の超立方体。左の立方体は添えものなので小さめに収める
                 const fitL = e => Math.max(0.8, Math.min(1.6, 2.9 / Math.max(e, 1e-3)));
-                const fitR = e => Math.max(1.0, Math.min(3.0, 6.2 / Math.max(e, 1e-3)));
+                const fitR = e => Math.max(0.85, Math.min(3.0, 3.8 / Math.max(e, 1e-3)));
                 // 投影プリセット(平行投影)のときだけ実際の角度で測り、従来どおりの大きさに収める。
                 // 通常の視点では角度0の素の形で測る＝回転しても倍率が変わらない（拡大縮小しない）。
                 const useAng = parallel4D;
@@ -960,7 +960,7 @@
             camera3D.up.set(0, topView ? 0 : 1, topView ? -1 : 0);
 
             // 操作パネルが下にあるぶん、注視点を下げて図形を画面の上寄りに置く
-            const PAN_Y = -2.2;
+            const PAN_Y = -2.6;
             camera2D.position.y += PAN_Y;
             camera3D.position.y += PAN_Y;
             if (controls2D) controls2D.target.set(0, PAN_Y, 0);
