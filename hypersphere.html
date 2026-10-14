@@ -27,6 +27,9 @@ details.grp>summary{cursor:pointer;font-weight:600;padding:3px 0}
 #bPath.on,#bPathPlay.on{background:#b45309;border-color:#fb923c}
 #hud,#cmap{position:absolute!important;left:auto!important;z-index:1;pointer-events:none;border-radius:10px;background:#0f172ae6;border:1px solid #334155;display:none}
 #hud{right:8px;top:8px!important}#cmap{right:8px;bottom:8px;top:auto!important}
+#horizon{position:absolute!important;right:8px;top:8px!important;left:auto!important;z-index:1;pointer-events:none;border-radius:10px;background:#0f172ae6;border:1px solid #334155;display:none}
+body.hz #hud{top:142px!important}
+body.noinfo #horizon{display:none!important}
 .ctl{background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:6px 8px}
 .ctl label{display:flex;justify-content:space-between}
 .ctl input[type=range]{width:100%}
@@ -99,7 +102,7 @@ body.keyhelp #keyHelp{display:block}
 <body>
 <main>
   <div class="pane" id="pL"><div class="tag">【操作側】3D球（リング積層）ドラッグで傾ける／Shift+横ドラッグで Z-W 傾き ※Z-W傾きの見せ方は「回転・視点」タブの「球の傾き」で切替</div><div class="info" id="infoL"></div></div>
-  <div class="pane" id="pR"><div class="tag" id="tagR"></div><div class="info" id="infoR"></div><canvas id="hud" width="320" height="176"></canvas><canvas id="wgauge" width="62" height="216"></canvas><canvas id="cmap" width="248" height="150"></canvas></div>
+  <div class="pane" id="pR"><div class="tag" id="tagR"></div><div class="info" id="infoR"></div><canvas id="hud" width="320" height="176"></canvas><canvas id="wgauge" width="62" height="232"></canvas><canvas id="horizon" width="252" height="126"></canvas><canvas id="cmap" width="248" height="150"></canvas></div>
 </main>
 
 <div id="learn">
@@ -212,7 +215,7 @@ body.keyhelp #keyHelp{display:block}
 
   <details class="grp" id="s-show" data-tab="path"><summary>👁 軌跡の見せ方</summary>
     <div class="gb"><button id="bStep" title="軌跡を、球殻（層）と交わる点だけ直線でつなぐ。球殻の数（「層数」スライダー）を増やすほどなめらかな曲線に近づく＝空間が少しずつ曲がっていることが見える">🪜 球殻ごとのカクカク軌跡</button><button id="bS2" title="左の3D球はS²（2次元の球面）。S²では進む向きは方位角1つだけなので、仰角を使わず球面上の経線として動かす。オフなら、右の超球と同じ点の影（仰角が入ると球の内側に入る）">左: S²（仰角を使わない）</button></div>
-    <div class="gb"><button id="bGauge" class="on" title="軌跡の点が4次元で手前（カメラ側）か奥かを、右端のゲージで示す">w′ゲージ</button><button id="bHud" title="右上に方位・仰角のダイヤルを出す（画面が狭くなるので初期はオフ）">座標ダイヤル</button><button id="bAxTop" class="on" title="座標軸・向きの矢印を、球殻やワイヤーの手前に常に描く。オフにすると球殻の裏側に隠れる">🔝 座標軸を最前面に</button></div>
+    <div class="gb"><button id="bGauge" class="on" title="軌跡の点が4次元で手前（カメラ側）か奥かを、右端のゲージで示す">w′ゲージ</button><button id="bHud" title="右上に方位・仰角のダイヤルを出す（画面が狭くなるので初期はオフ）">座標ダイヤル</button><button id="bHorizon" class="on" title="今いる距離の「前方の球面」の面積をグラフにする。赤道で最大になり、そこから先は進むほど前方の世界が狭くなる＝空間が閉じていることが数値で見える">🌅 地平線グラフ</button><button id="bAxTop" class="on" title="座標軸・向きの矢印を、球殻やワイヤーの手前に常に描く。オフにすると球殻の裏側に隠れる">🔝 座標軸を最前面に</button></div>
     <div class="gs" id="g-axis"></div></details>
 
   <!-- ===== 🎨 見え方・画面 ===== -->
@@ -254,7 +257,7 @@ const MAXRL = 800, RLS = 64, NBP = 24, NBL = 12, PTSMAX = 420;
 let pathW = 0, gaugeOn = true; const pathWArr = new Float32Array(PN + 1);
 let curveOn = false, curveType = 'circle', cvRho = 50 * Math.PI / 180, cvA = 2, cvB = 3, cvEta = Math.PI / 4, cvK = 2.5, cvN = 24, cvSteps = 400, cvStepLen = 6 * Math.PI / 180, cvNoise = 0.4, cvSeed = 1, cvKey = '', cvData = null, cvL = null, cvR = null;
 const CVMAX = 14000, CVDOT = 128;
-let hudOn = false, garrow = null, garrowL = null, leftS2 = false, axW = 1, axTop = true;
+let hudOn = false, horizonOn = true, garrow = null, garrowL = null, leftS2 = false, axW = 1, axTop = true;
 const axMats = [], glabL = {};
 let paAlpha = 0.62;
 // スライダーは 'S:' + PR の k（安定キー）で指す。ラベルを書き換えても保存済みの「よく使う」が外れない
@@ -1081,10 +1084,64 @@ function travelRGB(t, w) {   // t: 北極からの角度（πを超えたら帰�
 function depthRGB(w) {   // 学習モードの「🎨 4D奥行きで色分け」用: w′ = +R（手前）→ 橙, -R（奥）→ 紫
   const t = Math.min(1, Math.max(0, (w + R) / (2 * R))), c = new THREE.Color().setHSL(0.74 - 0.64 * t, 0.92, 0.56); return [c.r, c.g, c.b];
 }
+// ---- 🌅 地平線グラフ: 「前方の球面」の面積が、赤道で最大になってから縮んでいくことを示す ----
+// 北極から測地線で角度 t 進んだ点の集まり＝球殻 w = R·cos t。これは半径 R·sin t の2次元球面なので
+// 面積は 4πR²·sin²t。t=90°(赤道) で最大、t=180°(南極) で一点に潰れる。
+// 「線がループするから戻る」ではなく「前に進み続けるだけで前方の世界が閉じていく」を見せるのが狙い。
+function drawHorizon() {
+  const gc = $('horizon'); if (!gc) return;
+  const on = horizonOn && (pathOn || allOn || curveOn) && !sliceOn;
+  gc.style.display = on ? 'block' : 'none'; document.body.classList.toggle('hz', on);
+  if (!on) return;
+  const x = gc.getContext('2d'), W = gc.width, H = gc.height, LX = 8, RX = W - 8, TY = 30, BY = H - 26;
+  const t = ((pathT % TAU) + TAU) % TAU, back = t > Math.PI;
+  const PX = u => LX + u / TAU * (RX - LX), PY = v => BY - v * (BY - TY);
+  const area = u => Math.sin(u) * Math.sin(u);                   // 最大を1に正規化した面積
+  x.clearRect(0, 0, W, H);
+  x.font = 'bold 10px system-ui, sans-serif'; x.textAlign = 'left';
+  x.fillStyle = '#e5e7eb'; x.fillText('前方の球面の面積（地平線の広さ）', LX, 13);
+  // 目盛り: 赤道・南極・北極に戻る
+  x.font = '9px system-ui, sans-serif'; x.textAlign = 'center';
+  for (const [u, lab] of [[Math.PI / 2, '赤道'], [Math.PI, '南極'], [TAU, '北極']]) {
+    x.strokeStyle = '#334155'; x.setLineDash([2, 3]); x.lineWidth = 1;
+    x.beginPath(); x.moveTo(PX(u), TY - 4); x.lineTo(PX(u), BY); x.stroke(); x.setLineDash([]);
+    x.fillStyle = '#94a3b8'; x.fillText(lab, Math.min(RX - 10, PX(u)), BY + 11);
+  }
+  // 曲線（これから進む分は暗く）
+  x.strokeStyle = '#475569'; x.lineWidth = 1.5; x.beginPath();
+  for (let i = 0; i <= 96; i++) { const u = TAU * i / 96; i ? x.lineTo(PX(u), PY(area(u))) : x.moveTo(PX(u), PY(area(u))); }
+  x.stroke();
+  // 進んだ分を塗る。色は軌跡と同じ言語（行き=橙 / 帰り=水色）
+  const c = back ? BACKC : GO, cs = `rgb(${c.r * 255 | 0},${c.g * 255 | 0},${c.b * 255 | 0})`;
+  const leg = (u0, u1, fill, line) => {   // 区間ごとに塗る。行きの分は帰りに入っても橙のまま残す
+    if (u1 <= u0) return;
+    x.beginPath(); x.moveTo(PX(u0), BY);
+    for (let i = 0; i <= 96; i++) { const u = u0 + (u1 - u0) * i / 96; x.lineTo(PX(u), PY(area(u))); }
+    x.lineTo(PX(u1), BY); x.closePath(); x.fillStyle = fill; x.fill();
+    x.strokeStyle = line; x.lineWidth = 2; x.beginPath();
+    for (let i = 0; i <= 96; i++) { const u = u0 + (u1 - u0) * i / 96; i ? x.lineTo(PX(u), PY(area(u))) : x.moveTo(PX(u), PY(area(u))); }
+    x.stroke();
+  };
+  const GOs = `rgb(${GO.r * 255 | 0},${GO.g * 255 | 0},${GO.b * 255 | 0})`, BKs = `rgb(${BACKC.r * 255 | 0},${BACKC.g * 255 | 0},${BACKC.b * 255 | 0})`;
+  leg(0, Math.min(t, Math.PI), 'rgba(251,146,60,0.22)', GOs);
+  leg(Math.PI, t, 'rgba(103,232,249,0.22)', BKs);
+  // 現在地
+  const px = PX(t), py = PY(area(t));
+  x.fillStyle = cs; x.beginPath(); x.arc(px, py, 3.5, 0, TAU); x.fill();
+  x.strokeStyle = cs; x.setLineDash([1, 2]); x.lineWidth = 1; x.beginPath(); x.moveTo(px, py); x.lineTo(px, BY); x.stroke(); x.setLineDash([]);
+  // 読み上げ: 距離と、最大に対する比。赤道を過ぎたら「狭くなっていく」ことを明示する
+  // 面積 sin²t の増減は d/dt = sin(2t) の符号で決まる。広がる: 0〜90° と 180〜270° ／ 縮む: 90〜180° と 270〜360°
+  const pct = (area(t) * 100).toFixed(0), shrink = Math.sin(2 * t) < 0;
+  x.textAlign = 'left'; x.font = 'bold 10px system-ui, sans-serif';
+  x.fillStyle = '#e5e7eb'; x.fillText(`距離 ${deg(t)}　面積 最大の ${pct}%`, LX, 25);
+  x.textAlign = 'right'; x.font = '9px system-ui, sans-serif';
+  x.fillStyle = shrink ? '#fca5a5' : '#86efac';
+  x.fillText(shrink ? '← 狭くなっていく' : '広がっていく →', RX, 25);
+}
 function drawGauge() {
   const gc = $('wgauge'); if (!gc) return;
   const on = pathOn && gaugeOn && !sliceOn; gc.style.display = on ? 'block' : 'none'; if (!on) return;
-  const x = gc.getContext('2d'), W = gc.width, H = gc.height, top = 28, bot = H - 30, bx = 10, bw = 14;
+  const x = gc.getContext('2d'), W = gc.width, H = gc.height, top = 28, bot = H - 46, bx = 10, bw = 14;   // 下に3行（奥・数値・行き/帰り）入るだけ空ける
   x.clearRect(0, 0, W, H); x.font = 'bold 10px system-ui, sans-serif'; x.textAlign = 'center'; x.fillStyle = '#e5e7eb'; x.fillText('4D奥行き', W / 2, 12); x.fillStyle = '#fdba74'; x.fillText('手前', W / 2, 24);
   const hueNow = ((pathT % TAU) + TAU) % TAU > Math.PI ? BACKC : GO;   // 今が行きか帰りか。ゲージも同じ色相で示す
   const gr = x.createLinearGradient(0, top, 0, bot);   // 明るさだけの階調（色相は行き/帰りを表すので、奥行きには使わない）
@@ -1263,7 +1320,7 @@ function drawHud() {
   }
 }
 function refreshUI() {
-  drawHud();
+  drawHud(); drawHorizon();
   $('infoL').textContent = `前後傾き(pitch): ${deg(pitch)}\n左右傾き(roll) : ${deg(roll)}\nZ-W傾き       : ${deg(zw)}` + (obT ? `\n斜めW回転     : ${deg(obT)}（向き ${deg(obP)}）` : '') + (pathOn && leftS2 ? '\nS²移動: 仰角は使わず方位だけで進む' : '');
   let ang = `4D X-W: ${a4.toFixed(2)} rad\n4D Y-W: ${b4.toFixed(2)} rad\n4D X-Y: ${c4.toFixed(2)} rad\n4D Z-W: ${zw.toFixed(2)} rad` + (obT ? `\n4D 斜めW: ${obT.toFixed(2)} rad（向き ${deg(obP)}）` : '');
   if (allOn) {
@@ -1499,6 +1556,7 @@ function syncCurveUI() {
 $('bWalkNew').onclick = () => { cvSeed++; if (!curveOn || curveType !== 'walk') { curveOn = true; curveType = 'walk'; syncCurveUI(); syncPanel(); } updatePath(); refreshUI(); };
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { $('panel').dataset.tab = b.dataset.tab; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); resize(); });
 $('bHud').onclick = e => { hudOn = !hudOn; e.currentTarget.classList.toggle('on', hudOn); refreshUI(); };
+$('bHorizon').onclick = e => { horizonOn = !horizonOn; e.currentTarget.classList.toggle('on', horizonOn); refreshUI(); };
 $('bRLClr').onclick = () => { rlN = 0; rlHit = 0; rlBin.fill(0); updatePath(); refreshUI(); };
 $('bFootClr').onclick = () => { footN = 0; footI = 0; updatePath(); refreshUI(); };
 $('bPath').onclick = e => { pathOn = !pathOn; if (pathOn && pathT === 0) pathT = Math.PI / 2; if (pathOn && !pitch && !roll) { pitch = 0.35; roll = -0.7; update(); } if (!pathOn && !allOn && !curveOn) { pathPlay = false; $('bPathPlay').classList.remove('on'); } e.currentTarget.classList.toggle('on', pathOn); updatePath(); refreshUI(); };
@@ -1913,7 +1971,7 @@ function collectSettings() {
   return {
     nLayers, model, leftZW, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn, camFixed, viewLock, axW, axTop,
     backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM, stepOn, hudOn, leftS2, curveType, cvRho, cvA, cvB, cvEta, cvK, cvN, cvSteps, cvStepLen, cvNoise, dblRate, dblPts, tab: $('panel').dataset.tab,
-    full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'), noinfo: document.body.classList.contains('noinfo'), dofOn, dofFocus2: dofFocus, dofRange2: dofRange, dofFog: dofBlur, noblur: document.body.classList.contains('noblur'), gaugeOn, rfov: cR.fov, seethru: document.body.classList.contains('seethru'), paAlpha, favs, nopanel: document.body.classList.contains('nopanel'),
+    full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'), noinfo: document.body.classList.contains('noinfo'), dofOn, dofFocus2: dofFocus, dofRange2: dofRange, dofFog: dofBlur, noblur: document.body.classList.contains('noblur'), gaugeOn, horizonOn, rfov: cR.fov, seethru: document.body.classList.contains('seethru'), paAlpha, favs, nopanel: document.body.classList.contains('nopanel'),
     open3: Object.fromEntries(grpEls.map(g => [g.id, g.open])),   // セクションの開閉はidで保存（並べ替えてもずれない）
     cam: cR.position.toArray(), tgt: controls.target.toArray()
   };
@@ -1958,7 +2016,7 @@ function loadSettings() {
   $('panel').classList.toggle('min', min); $('bPanel').classList.toggle('on', min);
   { const st = bool('seethru', true); document.body.classList.toggle('seethru', st); $('bSee').classList.toggle('on', st); paAlpha = num('paAlpha', 0.1, 1, paAlpha); document.documentElement.style.setProperty('--pa', paAlpha); if (Array.isArray(s.favs)) favs = s.favs.filter(k => typeof k === 'string'); }
   dofOn = bool('dofOn', dofOn); dofFollow = bool('dofFollow', dofFollow); dofFocus = num('dofFocus2', -1.4, 1.4, dofFocus); dofRange = num('dofRange2', 0.1, 3, dofRange); dofBlur = num('dofFog', 0.1, 1, dofBlur); $('bDof').classList.toggle('on', dofOn);
-  { const nb = bool('noblur', false); document.body.classList.toggle('noblur', nb); $('bBlur').classList.toggle('on', !nb); gaugeOn = bool('gaugeOn', gaugeOn); $('bGauge').classList.toggle('on', gaugeOn); if (typeof s.rfov === 'number' && s.rfov >= 20 && s.rfov <= 90) { cR.fov = s.rfov; cR.updateProjectionMatrix(); } }
+  { const nb = bool('noblur', false); document.body.classList.toggle('noblur', nb); $('bBlur').classList.toggle('on', !nb); gaugeOn = bool('gaugeOn', gaugeOn); $('bGauge').classList.toggle('on', gaugeOn); horizonOn = bool('horizonOn', horizonOn); $('bHorizon').classList.toggle('on', horizonOn); if (typeof s.rfov === 'number' && s.rfov >= 20 && s.rfov <= 90) { cR.fov = s.rfov; cR.updateProjectionMatrix(); } }
   { const ni = bool('noinfo', false), np = bool('nopanel', false); document.body.classList.toggle('noinfo', ni); document.body.classList.toggle('nopanel', np); $('bInfo').classList.toggle('on', !ni); }
   if (s.open3 && typeof s.open3 === 'object') grpEls.forEach(g => { if (typeof s.open3[g.id] === 'boolean') g.open = s.open3[g.id]; });
   { const tb = pick('tab', ['fav', 'geo', 'turn', 'path', 'draw'], 'fav'); $('panel').dataset.tab = tb; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === tb)); }
