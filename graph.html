@@ -63,6 +63,34 @@
         background: rgba(11, 18, 34, 0.85); color: var(--text); font-size: 18px; cursor: pointer;
     }
     .gbtns button:hover { border-color: var(--d2); }
+    .gbtns button.on { border-color: var(--d5); color: #d8b4fe; background: rgba(76, 29, 149, 0.55); }
+    .gbtns button[hidden] { display: none; }
+    .gbtns #d3Btn { font: 800 12px 'Inter', sans-serif; }
+    .hsel { position: absolute; left: 10px; top: 10px; display: flex; gap: 4px; }
+    .hsel[hidden] { display: none; }
+    .hsel button {
+        height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line);
+        background: rgba(11, 18, 34, 0.85); color: var(--muted); font-size: 12px; cursor: pointer;
+    }
+    .hsel button.on { border-color: var(--d5); color: #e9d5ff; background: rgba(76, 29, 149, 0.6); }
+    .hsel { align-items: center; flex-wrap: wrap; max-width: calc(100% - 70px); }
+    .hsel .hlab { font-size: 11px; color: var(--faint); margin-right: 2px; }
+    .hsel .hsep { width: 6px; }
+    .hsel button[data-t].on { border-color: #4ade80; color: #bbf7d0; background: rgba(20, 83, 45, 0.6); }
+    .legend {
+        position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - 20px);
+        background: rgba(5, 10, 24, 0.85); border: 1px solid var(--line); border-radius: 8px;
+        padding: 4px 8px; font-size: 11px; color: var(--muted); pointer-events: none; line-height: 1.5;
+    }
+    .legend[hidden] { display: none; }
+    .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .sol {
+        font: 500 12.5px ui-monospace, 'SF Mono', Menlo, monospace; color: #cbd5e1;
+        padding: 3px 0 2px; cursor: pointer; overflow-wrap: anywhere;
+    }
+    .sol:empty { display: none; }
+    .sol::before { content: '◎ '; color: var(--c); }
+    .sol:hover { color: var(--c); }
     .trace {
         position: absolute; left: 10px; top: 10px; max-width: 70%;
         background: rgba(5, 10, 24, 0.88); border: 1px solid var(--line); border-radius: 10px;
@@ -130,6 +158,9 @@
     .prange input[type=number] { width: 50px; font-size: 12px; color: var(--muted); }
     .pslider { width: 100%; margin: 8px 0 2px; accent-color: var(--d2); }
 
+    .setting { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); font-size: 13px; color: var(--muted); }
+    .setting input { flex: 1; accent-color: var(--d2); }
+    .setting #lineWv { font: 500 13px ui-monospace, Menlo, monospace; color: var(--text); width: 28px; text-align: right; }
     .hint { font-size: 12px; color: var(--faint); line-height: 1.7; padding: 4px 2px 8px; }
     .hint code { font-family: ui-monospace, Menlo, monospace; color: var(--muted); background: #0b1222; padding: 0 4px; border-radius: 4px; }
 
@@ -221,7 +252,15 @@
     <div class="graph">
         <canvas id="cv"></canvas>
         <div class="trace" id="trace" hidden></div>
+        <div class="legend" id="legend" hidden></div>
+        <div class="hsel" id="hsel" hidden>
+            <span class="hlab">高さ</span><button type="button" data-h="re">Re y</button><button type="button" data-h="im">Im y</button><button type="button" data-h="abs">|y|</button>
+            <span class="hsep"></span><button type="button" data-t="surf">曲面</button><button type="button" data-t="floor">床</button>
+        </div>
         <div class="gbtns">
+            <button type="button" id="modeBtn" title="複素数平面に切り替え">ℂ</button>
+            <button type="button" id="d3Btn" title="3D：床を x の複素数平面、高さを y に">3D</button>
+            <button type="button" id="colorBtn" title="色分けの表示切替" hidden>◐</button>
             <button type="button" id="zin" title="拡大">＋</button>
             <button type="button" id="zout" title="縮小">−</button>
             <button type="button" id="zhome" title="原点に戻す">⌂</button>
@@ -233,9 +272,17 @@
             <div id="exprs"></div>
             <button class="addbtn" id="addExpr" type="button">＋ 式を追加</button>
             <div class="params" id="params" hidden></div>
+            <div class="setting">
+                <span>線の太さ</span>
+                <input type="range" id="lineW" min="1" max="6" step="0.5">
+                <span id="lineWv"></span>
+            </div>
             <div class="hint">
-                x 以外の文字（n, a など）は自動でスライダーになります。<br>
-                Σ は <code>Σ(k=0,n, 式)</code>、階乗は <code>(2k+1)!</code>、掛け算の × は省略できます（<code>2x</code>, <code>3sin(x)</code>）。<br>
+                x 以外の文字（n, a など）は自動でスライダーになります。<b>y</b> は縦の座標、<b>i</b> は虚数単位です。<br>
+                <code>y+25=x^2</code> のように = を使った式や、<code>x^2+y^2=r</code> のような陰関数も描けます（先頭の <code>y=</code> は付けたままでも OK、X・Y の大文字も可）。<br>
+                各式の下に「解」を複素数まで表示します。右上の <b>ℂ</b> で複素数平面に切り替えると、解の位置と値の色分けが見られます（解の行をタップでも移動）。<br>
+                <b>3D</b> は x と y を両方複素数にした4次元を、床＝x（実軸・虚軸）、高さ＝y の実部、色＝y の虚部で表示します。<span style="color:#fde047">黄＝普通のグラフ</span>、<span style="color:#4ade80">緑＝x が複素数でも y が実数になる所</span>、<span style="color:#f43f5e">●＝解</span>。上のボタンで曲面・床をオンオフ、ドラッグで回転、ホイール／ピンチで範囲を変更。<br>
+                Σ は <code>Σ(k=0,n, 式)</code>、階乗は <code>(2k+1)!</code>、× は省略できます（<code>2x</code>, <code>3sin(x)</code>）。<br>
                 グラフはドラッグで移動、ホイール／ピンチで拡大、タップで値を表示。
             </div>
         </div>
@@ -326,12 +373,13 @@ function tokenize(s) {
         if (ch === '√') { t.push({ k: 'fn', v: 'sqrt' }); i++; continue; }
         if (ch === '∛') { t.push({ k: 'fn', v: 'cbrt' }); i++; continue; }
         if (/[a-zA-Zα-ωΑ-Ω]/.test(ch)) {
-            const m = NAMES.find(nm => s.startsWith(nm, i));
+            const low = s.slice(i, i + 8).toLowerCase();
+            const m = NAMES.find(nm => low.startsWith(nm));
             if (m) {
                 t.push(m === 'pi' ? { k: 'id', v: 'pi' } : { k: 'fn', v: m });
                 i += m.length; continue;
             }
-            t.push({ k: 'id', v: ch });
+            t.push({ k: 'id', v: ch === 'X' ? 'x' : ch === 'Y' ? 'y' : ch });
             i++; continue;
         }
         if ('+-*/^(),=!|'.includes(ch)) { t.push({ k: 'op', v: ch }); i++; continue; }
@@ -502,25 +550,25 @@ function compile(n) {
     throw ParseError('内部エラー');
 }
 
-// ---------- x 以外の自由な文字 = パラメータ ----------
-function freeVars(n, bound = new Set(), out = new Set()) {
+// ---------- 自由な文字（x, y, i 以外はパラメータ） ----------
+const RESERVED = new Set(['x', 'y', 'pi', 'e', 'i']);
+function allFree(n, bound = new Set(), out = new Set()) {
     switch (n.t) {
-        case 'var':
-            if (!['x', 'pi', 'e'].includes(n.name) && !bound.has(n.name)) out.add(n.name);
-            break;
-        case 'neg': case 'fact': freeVars(n.a, bound, out); break;
-        case 'bin': freeVars(n.l, bound, out); freeVars(n.r, bound, out); break;
-        case 'pow': freeVars(n.b, bound, out); freeVars(n.e, bound, out); break;
-        case 'call': n.args.forEach(a => freeVars(a, bound, out)); break;
+        case 'var': if (!bound.has(n.name)) out.add(n.name); break;
+        case 'neg': case 'fact': allFree(n.a, bound, out); break;
+        case 'bin': allFree(n.l, bound, out); allFree(n.r, bound, out); break;
+        case 'pow': allFree(n.b, bound, out); allFree(n.e, bound, out); break;
+        case 'call': n.args.forEach(a => allFree(a, bound, out)); break;
         case 'sum': {
-            freeVars(n.from, bound, out); freeVars(n.to, bound, out);
+            allFree(n.from, bound, out); allFree(n.to, bound, out);
             const b2 = new Set(bound); b2.add(n.v);
-            freeVars(n.body, b2, out);
+            allFree(n.body, b2, out);
             break;
         }
     }
     return out;
 }
+function freeVars(n) { return new Set([...allFree(n)].filter(v => !RESERVED.has(v))); }
 
 // ---------- 数式の見た目（MathML） ----------
 function prec(n) {
@@ -577,6 +625,213 @@ function toMathML(n) {
     }
     return '';
 }
+// ---------- 複素数 ----------
+const C = (re, im = 0) => ({ re, im });
+const CI = C(0, 1);
+const cabs = a => Math.hypot(a.re, a.im);
+const cadd = (a, b) => C(a.re + b.re, a.im + b.im);
+const csub = (a, b) => C(a.re - b.re, a.im - b.im);
+const cmul = (a, b) => C(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re);
+function cdiv(a, b) {
+    const d = b.re * b.re + b.im * b.im;
+    return C((a.re * b.re + a.im * b.im) / d, (a.im * b.re - a.re * b.im) / d);
+}
+const mulI = w => C(-w.im, w.re);
+const mulNegI = w => C(w.im, -w.re);
+const cexp = a => { const m = Math.exp(a.re); return C(m * Math.cos(a.im), m * Math.sin(a.im)); };
+const clog = a => C(Math.log(cabs(a)), Math.atan2(a.im, a.re));
+function cpowInt(a, n) {
+    let r = C(1), b = a, k = Math.abs(n);
+    while (k) { if (k & 1) r = cmul(r, b); b = cmul(b, b); k >>= 1; }
+    return n < 0 ? cdiv(C(1), r) : r;
+}
+function cpow(a, b) {
+    if (b.im === 0 && Number.isInteger(b.re) && Math.abs(b.re) <= 4096) return cpowInt(a, b.re);
+    if (a.re === 0 && a.im === 0) return b.re > 0 ? C(0) : C(NaN, NaN);
+    if (a.im === 0 && a.re > 0 && b.im === 0) return C(Math.pow(a.re, b.re));
+    return cexp(cmul(b, clog(a)));
+}
+function csqrt(a) {
+    const r = cabs(a);
+    let im = Math.sqrt(Math.max(0, (r - a.re) / 2));
+    if (a.im < 0) im = -im;
+    return C(Math.sqrt(Math.max(0, (r + a.re) / 2)), im);
+}
+const csin = z => C(Math.sin(z.re) * Math.cosh(z.im), Math.cos(z.re) * Math.sinh(z.im));
+const ccos = z => C(Math.cos(z.re) * Math.cosh(z.im), -Math.sin(z.re) * Math.sinh(z.im));
+const csinh = z => C(Math.sinh(z.re) * Math.cos(z.im), Math.cosh(z.re) * Math.sin(z.im));
+const ccosh = z => C(Math.cosh(z.re) * Math.cos(z.im), Math.sinh(z.re) * Math.sin(z.im));
+const ONE = C(1);
+const casin = z => mulNegI(clog(cadd(mulI(z), csqrt(csub(ONE, cmul(z, z))))));
+const catan = z => cmul(C(0, 0.5), clog(cdiv(cadd(CI, z), csub(CI, z))));
+const LZ = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313,
+    -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5050632385208166e-7];
+function cgamma(z) {
+    if (z.im === 0) return C(gamma(z.re));
+    if (z.re < 0.5) return cdiv(C(Math.PI), cmul(csin(C(Math.PI * z.re, Math.PI * z.im)), cgamma(csub(ONE, z))));
+    z = csub(z, ONE);
+    let x = C(LZ[0]);
+    for (let i = 1; i < 9; i++) x = cadd(x, cdiv(C(LZ[i]), cadd(z, C(i))));
+    const t = cadd(z, C(7.5));
+    return cmul(cmul(C(Math.sqrt(2 * Math.PI)), cpow(t, cadd(z, C(0.5)))), cmul(cexp(C(-t.re, -t.im)), x));
+}
+const cfact = a => (a.im === 0 ? C(factorial(a.re)) : cgamma(cadd(a, ONE)));
+const CFUNCS = {
+    sin: csin, cos: ccos, tan: z => cdiv(csin(z), ccos(z)),
+    sec: z => cdiv(ONE, ccos(z)), csc: z => cdiv(ONE, csin(z)), cot: z => cdiv(ccos(z), csin(z)),
+    asin: casin, acos: z => csub(C(Math.PI / 2), casin(z)), atan: catan,
+    sinh: csinh, cosh: ccosh, tanh: z => cdiv(csinh(z), ccosh(z)),
+    asinh: z => clog(cadd(z, csqrt(cadd(cmul(z, z), ONE)))),
+    acosh: z => clog(cadd(z, cmul(csqrt(cadd(z, ONE)), csqrt(csub(z, ONE))))),
+    atanh: z => cmul(C(0.5), clog(cdiv(cadd(ONE, z), csub(ONE, z)))),
+    exp: cexp, ln: clog, log: z => { const l = clog(z); return C(l.re / Math.LN10, l.im / Math.LN10); },
+    sqrt: csqrt, cbrt: z => (z.im === 0 ? C(Math.cbrt(z.re)) : cpow(z, C(1 / 3))),
+    abs: z => C(cabs(z)), sign: z => { const m = cabs(z); return m ? C(z.re / m, z.im / m) : C(0); },
+    floor: z => C(Math.floor(z.re), Math.floor(z.im)), ceil: z => C(Math.ceil(z.re), Math.ceil(z.im)),
+    round: z => C(Math.round(z.re), Math.round(z.im)), gamma: cgamma,
+};
+CFUNCS.arcsin = CFUNCS.asin; CFUNCS.arccos = CFUNCS.acos; CFUNCS.arctan = CFUNCS.atan;
+
+// env = { z: 複素数の x, y: 複素数の y, p: パラメータ, loop: Σ の変数 }
+function compileC(n, bound = new Set()) {
+    switch (n.t) {
+        case 'num': { const v = C(n.v); return () => v; }
+        case 'var': {
+            const nm = n.name;
+            if (bound.has(nm)) return env => C(env.loop[nm]);
+            if (nm === 'x') return env => env.z;
+            if (nm === 'y') return env => env.y;
+            if (nm === 'pi') { const v = C(Math.PI); return () => v; }
+            if (nm === 'e') { const v = C(Math.E); return () => v; }
+            if (nm === 'i') return () => CI;
+            return env => C(env.p[nm]);
+        }
+        case 'neg': { const a = compileC(n.a, bound); return env => { const v = a(env); return C(-v.re, -v.im); }; }
+        case 'bin': {
+            const l = compileC(n.l, bound), r = compileC(n.r, bound);
+            const op = { '+': cadd, '-': csub, '*': cmul, '/': cdiv }[n.op];
+            return env => op(l(env), r(env));
+        }
+        case 'pow': { const b = compileC(n.b, bound), e = compileC(n.e, bound); return env => cpow(b(env), e(env)); }
+        case 'fact': { const a = compileC(n.a, bound); return env => cfact(a(env)); }
+        case 'call': {
+            const as = n.args.map(a => compileC(a, bound));
+            if (n.name === 'max' || n.name === 'min') {
+                const f = Math[n.name];
+                return env => C(f(...as.map(g => { const v = g(env); return v.im === 0 ? v.re : NaN; })));
+            }
+            const f = CFUNCS[n.name], a = as[0];
+            return env => f(a(env));
+        }
+        case 'sum': {
+            const fr = compileC(n.from, bound), to = compileC(n.to, bound);
+            const b2 = new Set(bound); b2.add(n.v);
+            const body = compileC(n.body, b2);
+            const v = n.v, isProd = n.kind === 'prod';
+            return env => {
+                const a = Math.ceil(fr(env).re - 1e-9), b = Math.floor(to(env).re + 1e-9);
+                if (!isFinite(a) || !isFinite(b) || b - a > 100000) return C(NaN, NaN);
+                const old = env.loop[v];
+                let sr = isProd ? 1 : 0, si = 0;
+                for (let k = a; k <= b; k++) {
+                    env.loop[v] = k;
+                    const t = body(env);
+                    if (isProd) { const nr = sr * t.re - si * t.im; si = sr * t.im + si * t.re; sr = nr; }
+                    else { sr += t.re; si += t.im; }
+                }
+                env.loop[v] = old;
+                return C(sr, si);
+            };
+        }
+    }
+    throw ParseError('内部エラー');
+}
+
+// ---------- 解を探す（複素ニュートン法） ----------
+function newton(g, z) {
+    for (let it = 0; it < 100; it++) {
+        const f = g(z);
+        if (!isFinite(f.re) || !isFinite(f.im)) return null;
+        if (f.re === 0 && f.im === 0) break;
+        const h = 1e-6 * (1 + cabs(z));
+        const f1 = g(C(z.re + h, z.im));
+        const d = C((f1.re - f.re) / h, (f1.im - f.im) / h);
+        if (!(d.re * d.re + d.im * d.im > 0)) return null;
+        let st = cdiv(f, d);
+        const sm = cabs(st), lim = 2 + cabs(z);
+        if (!isFinite(sm)) return null;
+        if (sm > lim) st = C(st.re * lim / sm, st.im * lim / sm);
+        z = csub(z, st);
+        if (cabs(z) > 1e4) return null;
+        if (cabs(st) < 1e-14 * (1 + cabs(z))) break;
+    }
+    // 本当に 0 になっているか（すぐ近くの値と比べる）
+    const m = cabs(g(z)), dz = 1e-3 * (1 + cabs(z));
+    const ref = Math.max(cabs(g(C(z.re + dz, z.im))), cabs(g(C(z.re, z.im + dz))));
+    if (!(m <= 1e-6 * ref) && !(m < 1e-13)) return null;
+    const tol = 1e-9 * (1 + cabs(z));
+    return C(Math.abs(z.re) < tol ? 0 : z.re, Math.abs(z.im) < tol ? 0 : z.im);
+}
+
+function findRoots(cfn, params, rect, budgetMs = 150) {
+    const env = { z: null, y: C(0), p: params, loop: {} };
+    const g = z => { env.z = z; env.loop = {}; return cfn(env); };
+    const seeds = [C(0.013, 0.007)];
+    for (const r of [0.3, 0.8, 1.5, 2.5, 4, 6, 9, 13, 18, 25, 35, 50]) {
+        const na = r < 5 ? 12 : 24;
+        for (let k = 0; k < na; k++) {
+            const a = (k + 0.37) * 2 * Math.PI / na;
+            seeds.push(C(r * Math.cos(a), r * Math.sin(a)));
+        }
+    }
+    if (rect) {
+        for (let i = 0; i < 9; i++) for (let j = 0; j < 7; j++)
+            seeds.push(C(rect.x0 + (rect.x1 - rect.x0) * (i + 0.5) / 9, rect.y0 + (rect.y1 - rect.y0) * (j + 0.5) / 7));
+    }
+    const roots = [];
+    const tEnd = Date.now() + budgetMs;
+    const add = r => {
+        if (!r || roots.some(q => cabs(csub(q, r)) < 1e-6 * (1 + cabs(r)))) return false;
+        roots.push(r); return true;
+    };
+    // 見つかった解の共役・符号反転からも探す（実係数の式や偶奇のある式で取りこぼしを防ぐ）
+    const mirrors = r => [C(r.re, -r.im), C(-r.re, r.im), C(-r.re, -r.im)].forEach(m => {
+        if (add(newton(g, C(m.re * (1 + 1e-7) + 1e-9, m.im * (1 - 1e-7) + 1e-9)))) mirrors(roots[roots.length - 1]);
+    });
+    for (const sd of seeds) {
+        if (Date.now() > tEnd) break;
+        if (add(newton(g, sd))) mirrors(roots[roots.length - 1]);
+    }
+    roots.sort((a, b) => cabs(a) - cabs(b) || a.re - b.re || a.im - b.im);
+    return roots;
+}
+
+// ---------- 複素数の表示 ----------
+function fmtFix(v) {
+    if (Math.abs(v - Math.round(v)) < 1e-9) v = Math.round(v);
+    let s = String(+v.toFixed(6));
+    if (s === '-0') s = '0';
+    return s.replace('-', '−');
+}
+function fmtSig(v) {
+    if (!isFinite(v)) return Number.isNaN(v) ? 'NaN' : (v > 0 ? '∞' : '−∞');
+    const a = Math.abs(v);
+    if (a !== 0 && (a >= 1e7 || a < 1e-5)) return v.toExponential(4).replace('-', '−');
+    return String(+v.toPrecision(7)).replace('-', '−');
+}
+function fmtComplex(re, im, f) {
+    if (Number.isNaN(re) || Number.isNaN(im)) return '未定義';
+    const big = Math.max(Math.abs(re), Math.abs(im));
+    if (Math.abs(im) < 1e-12 * big) im = 0;   // 計算誤差の 1e-16 などは 0 として表示
+    if (Math.abs(re) < 1e-12 * big) re = 0;
+    const sr = f(re), si = f(Math.abs(im));
+    if (si === '0') return sr;
+    const ip = (si === '1' ? '' : si) + 'i';
+    if (sr === '0') return (im < 0 ? '−' : '') + ip;
+    return `${sr} ${im < 0 ? '−' : '+'} ${ip}`;
+}
+const fmtC = (re, im) => fmtComplex(re, im, fmtFix);
+const fmtCv = z => fmtComplex(z.re, z.im, fmtSig);
 // ==== PARSER END ====
 
 // ================================================================
@@ -590,9 +845,17 @@ let exprs = [];
 let params = {};
 let usedParams = [];
 let view = { cx: 0, cy: 0, scale: 40 };
-let pendingFit = null;
+let pendingFits = [];
 let activeId = null;
 let traceX = null;
+let traceZ = null;
+let mode = 'r';               // 'r' = 実数グラフ, 'c' = 複素数平面
+let viewC = { cx: 0, cy: 0, scale: 40 };
+let colorOn = true;
+let d3 = { R: 6, yaw: -0.65, pitch: 0.5, h: 're', surf: true, floor: true };   // 3D 表示：範囲・回転・高さの種類
+let d3Scale = { key: '', Yr: 1 };
+let lineW = 2.5;   // 線の太さ（全体）
+const dotR = () => Math.max(2.5, lineW * 1.25);   // 解の印の半径
 let nextId = 1;
 let kbOn = true;
 let kbTab = '123';
@@ -605,6 +868,22 @@ let W_ = 0, H_ = 0, dpr = 1;
 const PRESETS = [
     { name: 'sin のマクローリン展開', exprs: ['sin(x)', 'Σ(k=0,n,(-1)^k x^(2k+1)/(2k+1)!)'],
       params: { n: { v: 3, min: 0, max: 15, step: 1 } }, fit: { w: 26, h: 5 } },
+    { name: '4次元を3Dで：y = x² + 25（x も y も複素数）', exprs: ['y=x^2+25'],
+      params: {}, fit: { w: 16, h: 70, cy: 10 }, fitC: { w: 14, h: 14 }, mode: '3d', d3: { R: 7 } },
+    { name: '3Dで：y = sin(x)（虚軸方向へは sinh・cosh で増える）', exprs: ['y=sin(x)'],
+      params: {}, fit: { w: 26, h: 5 }, fitC: { w: 14, h: 8 }, mode: '3d', d3: { R: 3.5 } },
+    { name: '3Dで：y = x³ − 2x + 4（黄線が床に触れる3点＝解）', exprs: ['y=x^3-2x+4'],
+      params: {}, fit: { w: 10, h: 16, cy: 2 }, fitC: { w: 6, h: 5 }, mode: '3d', d3: { R: 2.6 } },
+    { name: '複素数解：x² + 25 = 0 と x² − 25 = 0', exprs: ['y=x^2+25', 'y+25=x^2'],
+      params: {}, fit: { w: 16, h: 70, cy: 10 }, fitC: { w: 14, h: 14 }, mode: 'c' },
+    { name: '3次方程式 x³ − 2x + 4 = 0（実数解1つ＋複素数解2つ）', exprs: ['y=x^3-2x+4'],
+      params: {}, fit: { w: 10, h: 16, cy: 2 }, fitC: { w: 6, h: 5 } },
+    { name: '1 の 5 乗根：x⁵ = 1', exprs: ['x^5=1'],
+      params: {}, fit: { w: 6, h: 4 }, fitC: { w: 3.4, h: 3.4 }, mode: 'c' },
+    { name: 'sin 展開の複素数解（n を動かすと解の並びが広がる）', exprs: ['Σ(k=0,n,(-1)^k x^(2k+1)/(2k+1)!)'],
+      params: { n: { v: 8, min: 1, max: 20, step: 1 } }, fit: { w: 26, h: 5 }, fitC: { w: 34, h: 26 }, mode: 'c' },
+    { name: '円 x² + y² = r（陰関数）', exprs: ['x^2+y^2=r', 'y=x/2'],
+      params: { r: { v: 4, min: 0, max: 25, step: 0.1 } }, fit: { w: 12, h: 9 }, fitC: { w: 8, h: 8 } },
     { name: 'cos のマクローリン展開', exprs: ['cos(x)', 'Σ(k=0,n,(-1)^k x^(2k)/(2k)!)'],
       params: { n: { v: 3, min: 0, max: 15, step: 1 } }, fit: { w: 26, h: 5 } },
     { name: 'eˣ のマクローリン展開', exprs: ['e^x', 'Σ(k=0,n,x^k/k!)'],
@@ -630,22 +909,107 @@ function newExpr(text = '', color, visible = true) {
     return ex;
 }
 
+function splitTop(src) {
+    let d = 0, at = -1;
+    for (let i = 0; i < src.length; i++) {
+        const c = src[i];
+        if (c === '(') d++;
+        else if (c === ')') d--;
+        else if (c === '=' && d <= 0) {
+            if (at >= 0) throw ParseError('「=」は1つまでです');
+            at = i;
+        }
+    }
+    return at;
+}
+const isBlank = t => !t.trim() || /^\s*[yY]\s*=\s*$/.test(t);
+function closeParens(s) {
+    let o = 0;
+    for (const ch of s) { if (ch === '(') o++; else if (ch === ')') o--; }
+    return o > 0 ? s + ')'.repeat(o) : s; // 閉じていない ( は自動で閉じる
+}
+
+// kind: 'fn' = y=f(x) / 'implicit' = x と y の式 = 0 / 'eqx' = x だけの方程式
 function analyze(ex) {
-    ex.fn = null; ex.err = ''; ex.free = []; ex.math = '';
-    let src = ex.text.replace(/^\s*(?:y|[a-zA-Z]\s*\(\s*x\s*\))\s*=/, '');
-    if (!src.trim()) return;
-    // 閉じていない ( は自動で閉じる
-    let open = 0;
-    for (const ch of src) { if (ch === '(') open++; else if (ch === ')') open--; }
-    if (open > 0) src += ')'.repeat(open);
+    ex.fn = null; ex.F = null; ex.cfn = null; ex.kind = ''; ex.err = ''; ex.free = []; ex.math = '';
+    ex.roots = null; ex.rootKey = null;
+    let src = ex.text.replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');
+    if (isBlank(src)) return;
+    const pre = src.match(/^\s*[yY]\s*=([\s\S]*)$/);
+    if (pre) { try { if (splitTop(pre[1]) >= 0) src = pre[1]; } catch (_) { /* = が多すぎる場合は下でエラー表示 */ } }
     try {
-        const ast = parse(src);
-        ex.fn = compile(ast);
+        const at = splitTop(src);
+        let ast, kind, math;
+        if (at < 0) {
+            ast = parse(closeParens(src));
+            math = toMathML(ast);
+            kind = 'fn';
+            if (allFree(ast).has('y')) { kind = 'implicit'; math += '<mo>=</mo><mn>0</mn>'; }
+        } else {
+            const ls = src.slice(0, at), rs = src.slice(at + 1);
+            if (!ls.trim()) throw ParseError('「=」の左側が空です');
+            if (!rs.trim()) throw ParseError('「=」の右側が空です');
+            const L = parse(closeParens(ls)), R = parse(closeParens(rs));
+            math = toMathML(L) + '<mo>=</mo>' + toMathML(R);
+            const isY = n => n.t === 'var' && n.name === 'y';
+            if (isY(L) && !allFree(R).has('y')) { ast = R; kind = 'fn'; }
+            else if (isY(R) && !allFree(L).has('y')) { ast = L; kind = 'fn'; }
+            else {
+                ast = { t: 'bin', op: '-', l: L, r: R };
+                kind = allFree(ast).has('y') ? 'implicit' : 'eqx';
+            }
+        }
+        const cf = compileC(ast);
+        ex.kind = kind;
+        ex.cfn = cf;
         ex.free = [...freeVars(ast)];
-        ex.math = toMathML(ast);
+        ex.math = math;
+        if (kind === 'implicit') ex.F = compile(ast);
+        else if (kind === 'fn') {
+            if (allFree(ast).has('i')) {
+                // i を含む式：計算結果が実数になる所だけ描く
+                ex.fn = env => {
+                    const v = cf({ z: C(env.x), y: C(0), p: env, loop: {} });
+                    return Math.abs(v.im) <= 1e-9 * (1 + Math.abs(v.re)) ? v.re : NaN;
+                };
+            } else ex.fn = compile(ast);
+        }
     } catch (e) {
+        ex.fn = ex.F = ex.cfn = null; ex.kind = ''; ex.free = []; ex.math = '';
         ex.err = e.isParse ? e.message : '式を読み取れません';
     }
+}
+
+function solText(ex) {
+    if (!ex.cfn || !ex.roots) return '';
+    const rs = ex.roots.filter(r => cabs(r) <= 60);
+    const head = ex.kind === 'implicit' ? 'y = 0 のとき x =' : ex.kind === 'eqx' ? '解 x =' : 'f(x) = 0 の解 x =';
+    if (!rs.length) return `${head} 見つかりません（|x| ≦ 40 付近）`;
+    const isReal = r => Math.abs(r.im) <= 1e-6 * (1 + Math.abs(r.re));
+    const near = (a, b) => cabs(csub(a, b)) < 1e-6 * (1 + cabs(a));
+    const used = new Array(rs.length).fill(false), items = [];
+    rs.forEach((r, i) => {
+        if (used[i]) return;
+        used[i] = true;
+        const pm = isReal(r) ? C(-r.re, 0) : C(r.re, -r.im);   // 実数なら ±、複素数なら共役を探す
+        const j = (isReal(r) && r.re === 0) ? -1 : rs.findIndex((q, k) => !used[k] && near(q, pm));
+        if (j >= 0) {
+            used[j] = true;
+            if (isReal(r)) items.push('±' + fmtFix(Math.abs(r.re)));
+            else {
+                const re = fmtFix(r.re), im = fmtFix(Math.abs(r.im));
+                const ip = (im === '1' ? '' : im) + 'i';
+                items.push(re === '0' ? `±${ip}` : `${re} ± ${ip}`);
+            }
+        } else items.push(isReal(r) ? fmtFix(r.re) : fmtC(r.re, r.im));
+    });
+    const MAX = 6;
+    const more = items.length > MAX ? `　…ほか ${items.length - MAX} 個` : '';
+    return `${head} ${items.slice(0, MAX).join(',  ')}${more}`;
+}
+
+function refreshSol(ex) {
+    if (ex.row) ex.row.querySelector('.sol').textContent = solText(ex);
 }
 
 function renderList() {
@@ -657,7 +1021,7 @@ function renderList() {
         row.innerHTML =
             `<button class="sw" type="button" title="表示／非表示">${i + 1}</button>` +
             `<div class="ebody"><input class="ein" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="式を入力（例: sin(x)）">` +
-            `<div class="preview"></div><div class="err"></div></div>` +
+            `<div class="preview"></div><div class="sol" title="複素数平面で見る"></div><div class="err"></div></div>` +
             `<button class="del" type="button" title="削除">×</button>`;
         const inp = row.querySelector('.ein');
         inp.value = ex.text;
@@ -671,6 +1035,12 @@ function renderList() {
             ex.visible = !ex.visible; refreshRow(ex); save(); requestDraw();
         });
         row.querySelector('.del').addEventListener('click', () => removeExpr(ex.id));
+        row.querySelector('.sol').addEventListener('click', () => {
+            setActive(ex.id);
+            if (mode !== 'c') setMode('c');
+            fitRootsC(ex);
+            requestDraw(); scheduleRoots(300); saveSoon();
+        });
         ex.row = row;
         exprsEl.appendChild(row);
         refreshRow(ex);
@@ -685,11 +1055,13 @@ function refreshRow(ex) {
     r.querySelector('.preview').innerHTML = ex.math
         ? `<math><mstyle displaystyle="true">${ex.math}</mstyle></math>` : '';
     r.querySelector('.err').textContent = ex.err;
+    r.querySelector('.sol').textContent = solText(ex);
 }
 
 function setActive(id) {
     activeId = id;
     exprs.forEach(e => e.row && e.row.classList.toggle('active', e.id === id));
+    if (mode === 'c') requestDraw();
 }
 
 function onExprChange(ex) {
@@ -698,6 +1070,7 @@ function onExprChange(ex) {
     syncParams();
     save();
     requestDraw();
+    scheduleRoots(150);
 }
 
 function focusExpr(id, atEnd = true) {
@@ -710,7 +1083,7 @@ function focusExpr(id, atEnd = true) {
     setActive(id);
 }
 
-function addAfter(id, text = '') {
+function addAfter(id, text = 'y=') {
     const idx = exprs.findIndex(e => e.id === id);
     const ex = newExpr(text);
     exprs.splice(idx < 0 ? exprs.length : idx + 1, 0, ex);
@@ -723,10 +1096,10 @@ function removeExpr(id) {
     const idx = exprs.findIndex(e => e.id === id);
     if (idx < 0) return;
     exprs.splice(idx, 1);
-    if (!exprs.length) exprs.push(newExpr());
+    if (!exprs.length) exprs.push(newExpr('y='));
     if (activeId === id) activeId = exprs[Math.min(idx, exprs.length - 1)].id;
     renderList();
-    syncParams(); save(); requestDraw();
+    syncParams(); save(); requestDraw(); scheduleRoots(150);
 }
 
 $('#addExpr').addEventListener('click', () => addAfter(exprs.length ? exprs[exprs.length - 1].id : null));
@@ -734,6 +1107,7 @@ $('#addExpr').addEventListener('click', () => addAfter(exprs.length ? exprs[expr
 // ---------- パラメータ（スライダー） ----------
 function defaultParam(name) {
     if ('nmkjNMK'.includes(name)) return { v: 3, min: 0, max: 20, step: 1 };
+    if (name === 'r' || name === 'R') return { v: 4, min: 0, max: 25, step: 0.1 };
     return { v: 1, min: -5, max: 5, step: 0.1 };
 }
 
@@ -745,7 +1119,7 @@ function syncParams() {
     exprs.forEach(ex => ex.free.forEach(v => used.add(v)));
     used.forEach(v => { if (!params[v]) params[v] = defaultParam(v); });
     const list = [...used].sort();
-    if (list.join() !== usedParams.join()) {
+    if (!usedParams || list.join() !== usedParams.join()) {
         usedParams = list;
         [...playing].forEach(n => { if (!used.has(n)) playing.delete(n); });
         renderParams();
@@ -786,7 +1160,7 @@ function renderParams() {
 
         refs.slider.addEventListener('input', () => {
             p.v = +refs.slider.value; refs.val.value = fmtP(p.v, p.step);
-            requestDraw(); saveSoon();
+            requestDraw(); saveSoon(); scheduleRoots(200);
         });
         refs.val.addEventListener('change', () => {
             const v = parseFloat(refs.val.value);
@@ -794,7 +1168,7 @@ function renderParams() {
             p.v = v;
             if (v < p.min) p.min = v;
             if (v > p.max) p.max = v;
-            updateParamUI(name); requestDraw(); save();
+            updateParamUI(name); requestDraw(); save(); scheduleRoots(150);
         });
         const rangeChange = () => {
             const a = parseFloat(refs.min.value), b = parseFloat(refs.max.value);
@@ -860,6 +1234,7 @@ function tick(t) {
         updateParamUI(n);
     });
     requestDraw();
+    scheduleRoots(150);
     requestAnimationFrame(tick);
 }
 
@@ -868,17 +1243,17 @@ const T = (l, i, b = 0, c = '') => ({ l, i: i ?? l, b, c });
 const FRAC = '<span class="fr"><span>a</span><span>b</span></span>';
 const KB = {
     '123': [
-        [T('x', 'x', 0, 'v'), T('n', 'n', 0, 'v'), T('k', 'k', 0, 'v'), T('x<sup>y</sup>', '^', 0, 'o'), T('x²', '^2', 0, 'o'), T('√', 'sqrt()', -1, 'f big'), T('π', 'π', 0, 'v')],
+        [T('x', 'x', 0, 'v'), T('y', 'y', 0, 'v'), T('n', 'n', 0, 'v'), T('x<sup>y</sup>', '^', 0, 'o'), T('x²', '^2', 0, 'o'), T('√', 'sqrt()', -1, 'f big'), T('π', 'π', 0, 'v')],
         [T('7'), T('8'), T('9'), T('÷', '/', 0, 'o'), T('(', '(', 0, 'o'), T(')', ')', 0, 'o'), T(FRAC, '()/()', -4, 'f')],
         [T('4'), T('5'), T('6'), T('×', '*', 0, 'o'), T('Σ', 'Σ(k=0,n,)', -1, 'f big'), T('!', '!', 0, 'o'), T('e', 'e', 0, 'v')],
-        [T('1'), T('2'), T('3'), T('−', '-', 0, 'o'), T('Π', 'Π(k=1,n,)', -1, 'f big'), T('|x|', 'abs()', -1, 'f'), T('a', 'a', 0, 'v')],
-        [T('0'), T('.'), T(',', ',', 0, 'o'), T('+', '+', 0, 'o'), T('=', '=', 0, 'o'), T('sin', 'sin()', -1, 'f'), T('cos', 'cos()', -1, 'f')],
+        [T('1'), T('2'), T('3'), T('−', '-', 0, 'o'), T('k', 'k', 0, 'v'), T('sin', 'sin()', -1, 'f'), T('cos', 'cos()', -1, 'f')],
+        [T('0'), T('.'), T(',', ',', 0, 'o'), T('+', '+', 0, 'o'), T('=', '=', 0, 'o'), T('i', 'i', 0, 'v'), T('a', 'a', 0, 'v')],
     ],
     'f(x)': [
         [T('sin', 'sin()', -1, 'f'), T('cos', 'cos()', -1, 'f'), T('tan', 'tan()', -1, 'f'), T('sec', 'sec()', -1, 'f'), T('csc', 'csc()', -1, 'f'), T('cot', 'cot()', -1, 'f'), T('√', 'sqrt()', -1, 'f big')],
         [T('asin', 'asin()', -1, 'f'), T('acos', 'acos()', -1, 'f'), T('atan', 'atan()', -1, 'f'), T('sinh', 'sinh()', -1, 'f'), T('cosh', 'cosh()', -1, 'f'), T('tanh', 'tanh()', -1, 'f'), T('∛', 'cbrt()', -1, 'f big')],
         [T('exp', 'exp()', -1, 'f'), T('ln', 'ln()', -1, 'f'), T('log', 'log()', -1, 'f'), T('e<sup>x</sup>', 'e^()', -1, 'f'), T('10<sup>x</sup>', '10^()', -1, 'f'), T('⌊x⌋', 'floor()', -1, 'f'), T('⌈x⌉', 'ceil()', -1, 'f')],
-        [T('Σ', 'Σ(k=0,n,)', -1, 'f big'), T('Π', 'Π(k=1,n,)', -1, 'f big'), T('n!', '!', 0, 'f'), T('sign', 'sign()', -1, 'f'), T('Γ', 'gamma()', -1, 'f big'), T('max', 'max(,)', -2, 'f'), T('min', 'min(,)', -2, 'f')],
+        [T('Σ', 'Σ(k=0,n,)', -1, 'f big'), T('Π', 'Π(k=1,n,)', -1, 'f big'), T('n!', '!', 0, 'f'), T('|x|', 'abs()', -1, 'f'), T('Γ', 'gamma()', -1, 'f big'), T('max', 'max(,)', -2, 'f'), T('min', 'min(,)', -2, 'f')],
         [T('(', '(', 0, 'o'), T(')', ')', 0, 'o'), T(',', ',', 0, 'o'), T('x<sup>y</sup>', '^', 0, 'o'), T('x²', '^2', 0, 'o'), T('π', 'π', 0, 'v'), T('e', 'e', 0, 'v')],
     ],
     'abc': [
@@ -892,7 +1267,7 @@ const KB = {
 
 function target() {
     let ex = exprs.find(e => e.id === activeId) || exprs[exprs.length - 1];
-    if (!ex) { ex = newExpr(); exprs.push(ex); renderList(); }
+    if (!ex) { ex = newExpr('y='); exprs.push(ex); renderList(); }
     setActive(ex.id);
     const inp = ex.row.querySelector('.ein');
     if (document.activeElement !== inp) inp.focus({ preventScroll: true });
@@ -1044,16 +1419,21 @@ function paramEnv() {
     return env;
 }
 
-function applyFit(f) {
-    if (!W_ || !H_) { pendingFit = f; return; }
-    view.cx = f.cx || 0;
-    view.cy = f.cy || 0;
-    view.scale = Math.min(W_ / f.w, H_ / f.h);
+function applyFit(f, which = 'r') {
+    if (!W_ || !H_) { pendingFits.push([f, which]); return; }
+    const v = which === 'c' ? viewC : view;
+    v.cx = f.cx || 0;
+    v.cy = f.cy || 0;
+    v.scale = Math.min(W_ / f.w, H_ / f.h);
 }
 
 function draw() {
     if (!W_ || !H_) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (mode === 'c') drawComplex(); else if (mode === '3d') draw3D(); else { legendEl.hidden = true; drawReal(); }
+}
+
+function drawReal() {
     ctx.fillStyle = '#030712';
     ctx.fillRect(0, 0, W_, H_);
 
@@ -1118,7 +1498,7 @@ function draw() {
     exprs.forEach(ex => {
         if (!ex.visible || !ex.fn) return;
         ctx.strokeStyle = ex.color;
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = lineW;
         ctx.beginPath();
         let pen = false, prev = 0;
         for (let i = 0; i <= N; i++) {
@@ -1134,6 +1514,48 @@ function draw() {
             pen = true;
         }
         ctx.stroke();
+    });
+
+    // 陰関数（x と y の式 = 0）：マーチングスクエア
+    exprs.forEach(ex => {
+        if (!ex.visible || ex.kind !== 'implicit' || !ex.F) return;
+        const st = 4, nx = Math.ceil(W_ / st) + 1, ny = Math.ceil(H_ / st) + 1;
+        const vals = new Float64Array(nx * ny);
+        for (let j = 0; j < ny; j++) {
+            env.y = y1 - j * st / sc;
+            for (let i = 0; i < nx; i++) { env.x = x0 + i * st / sc; vals[j * nx + i] = ex.F(env); }
+        }
+        const pt = (i, j, p, q, horiz) => { const t = p / (p - q); return horiz ? [(i + t) * st, j * st] : [i * st, (j + t) * st]; };
+        ctx.strokeStyle = ex.color;
+        ctx.lineWidth = lineW;
+        ctx.beginPath();
+        for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+            const a = vals[j * nx + i], b = vals[j * nx + i + 1], c = vals[(j + 1) * nx + i + 1], d = vals[(j + 1) * nx + i];
+            if (!(isFinite(a) && isFinite(b) && isFinite(c) && isFinite(d))) continue;
+            const ps = [];
+            if ((a > 0) !== (b > 0)) ps.push(pt(i, j, a, b, true));
+            if ((b > 0) !== (c > 0)) ps.push(pt(i + 1, j, b, c, false));
+            if ((d > 0) !== (c > 0)) ps.push(pt(i, j + 1, d, c, true));
+            if ((a > 0) !== (d > 0)) ps.push(pt(i, j, a, d, false));
+            if (ps.length >= 2) {
+                ctx.moveTo(ps[0][0], ps[0][1]); ctx.lineTo(ps[1][0], ps[1][1]);
+                if (ps.length === 4) { ctx.moveTo(ps[2][0], ps[2][1]); ctx.lineTo(ps[3][0], ps[3][1]); }
+            }
+        }
+        ctx.stroke();
+    });
+
+    // 実数の解（x 軸との交点）に印
+    exprs.forEach(ex => {
+        if (!ex.visible || !ex.roots) return;
+        ex.roots.forEach(r => {
+            if (Math.abs(r.im) > 1e-6 * (1 + Math.abs(r.re))) return;
+            const px = sx(r.re), py = sy(0);
+            if (px < -6 || px > W_ + 6 || py < -6 || py > H_ + 6) return;
+            ctx.beginPath(); ctx.arc(px, py, dotR(), 0, Math.PI * 2);
+            ctx.fillStyle = '#f43f5e'; ctx.fill();
+            ctx.strokeStyle = '#030712'; ctx.lineWidth = 1.5; ctx.stroke();
+        });
     });
 
     // トレース
@@ -1167,29 +1589,476 @@ function draw() {
     }
 }
 
+// ================= 複素数平面 =================
+const legendEl = $('#legend');
+function colorTarget() {
+    const ok = e => e && e.visible && e.cfn;
+    const a = exprs.find(e => e.id === activeId);
+    return ok(a) ? a : (exprs.find(ok) || null);
+}
+
+const colorCv = document.createElement('canvas');
+let colorKeyCur = '', fineTimer = null;
+function renderColor(ex, step) {
+    const cw = Math.ceil(W_ / step), ch = Math.ceil(H_ / step);
+    colorCv.width = cw; colorCv.height = ch;
+    const c2 = colorCv.getContext('2d');
+    const img = c2.createImageData(cw, ch), d = img.data;
+    const env = { z: null, y: C(0), p: paramEnv(), loop: {} };
+    const sc = viewC.scale, TAU = Math.PI * 2;
+    let k = 0;
+    for (let j = 0; j < ch; j++) {
+        const yy = viewC.cy + (H_ / 2 - (j + 0.5) * step) / sc;
+        for (let i = 0; i < cw; i++, k += 4) {
+            env.z = C(viewC.cx + ((i + 0.5) * step - W_ / 2) / sc, yy);
+            env.loop = {};
+            const v = ex.cfn(env);
+            const m = Math.hypot(v.re, v.im);
+            if (!isFinite(m)) {
+                const g = Number.isNaN(m) ? 30 : 235;
+                d[k] = d[k + 1] = d[k + 2] = g; d[k + 3] = 255; continue;
+            }
+            // 色 = 値の向き（偏角）、明るさ = 大きさ（0 に近いほど暗い）＋等高線の縞
+            const h = (Math.atan2(v.im, v.re) / TAU + 1) % 1;
+            let l = 0.07 + 0.56 * (2 / Math.PI) * Math.atan(Math.sqrt(m));
+            if (m > 0) l *= 0.8 + 0.2 * (((Math.log2(m) % 1) + 1) % 1);
+            const s = 0.85, a = s * Math.min(l, 1 - l);
+            const f = n => { const t = (n + h * 12) % 12; return 255 * (l - a * Math.max(-1, Math.min(t - 3, 9 - t, 1))); };
+            d[k] = f(0); d[k + 1] = f(8); d[k + 2] = f(4); d[k + 3] = 255;
+        }
+    }
+    c2.putImageData(img, 0, 0);
+}
+function getColorImage(ex) {
+    const key = [ex.id, ex.text, JSON.stringify(paramEnv()), viewC.cx, viewC.cy, viewC.scale, W_, H_].join('|');
+    if (key !== colorKeyCur) {
+        renderColor(ex, 6);   // まず荒く
+        colorKeyCur = key;
+        clearTimeout(fineTimer);
+        fineTimer = setTimeout(() => {   // 少し待ってから細かく
+            if (colorKeyCur === key && mode === 'c') { renderColor(ex, 2); requestDraw(); }
+        }, 140);
+    }
+    return colorCv;
+}
+
+function drawComplex() {
+    const v = viewC, sc = v.scale;
+    const sx = x => W_ / 2 + (x - v.cx) * sc, sy = y => H_ / 2 - (y - v.cy) * sc;
+    const x0 = v.cx - W_ / 2 / sc, x1 = v.cx + W_ / 2 / sc, y0 = v.cy - H_ / 2 / sc, y1 = v.cy + H_ / 2 / sc;
+    ctx.fillStyle = '#030712';
+    ctx.fillRect(0, 0, W_, H_);
+    const target = colorTarget();
+    const colored = colorOn && target;
+    if (colored) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(getColorImage(target), 0, 0, W_, H_);
+    }
+
+    // 目盛り
+    const step = niceStep(90 / sc);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = colored ? 'rgba(255,255,255,0.12)' : '#18233a';
+    ctx.beginPath();
+    for (let x = Math.ceil(x0 / step) * step; x <= x1; x += step) { const p = Math.round(sx(x)) + 0.5; ctx.moveTo(p, 0); ctx.lineTo(p, H_); }
+    for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) { const p = Math.round(sy(y)) + 0.5; ctx.moveTo(0, p); ctx.lineTo(W_, p); }
+    ctx.stroke();
+    const ax = sx(0), ay = sy(0);
+    ctx.strokeStyle = colored ? 'rgba(241,245,249,0.7)' : '#64748b';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    if (ay >= 0 && ay <= H_) { ctx.moveTo(0, Math.round(ay) + 0.5); ctx.lineTo(W_, Math.round(ay) + 0.5); }
+    if (ax >= 0 && ax <= W_) { ctx.moveTo(Math.round(ax) + 0.5, 0); ctx.lineTo(Math.round(ax) + 0.5, H_); }
+    ctx.stroke();
+
+    ctx.font = '500 11px Inter, system-ui, sans-serif';
+    ctx.fillStyle = '#e2e8f0';
+    ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 3;
+    const ly = Math.min(H_ - 15, Math.max(3, ay + 4));
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (let x = Math.ceil(x0 / step) * step; x <= x1; x += step) {
+        if (Math.abs(x) < step * 1e-6) continue;
+        ctx.fillText(fmtTick(x, step), sx(x), ly);
+    }
+    const left = ax < 40;
+    const lx = left ? 4 : Math.min(W_ - 4, ax - 5);
+    ctx.textAlign = left ? 'left' : 'right'; ctx.textBaseline = 'middle';
+    for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) {
+        if (Math.abs(y) < step * 1e-6) continue;
+        const t = fmtTick(y, step);
+        ctx.fillText(t === '1' ? 'i' : t === '−1' ? '−i' : t + 'i', lx, sy(y));
+    }
+    ctx.font = '700 12px Inter, system-ui, sans-serif';
+    if (ay >= 0 && ay <= H_) { ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText('Re', W_ - 8, ay - 4); }
+    if (ax >= 0 && ax <= W_) { ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText('Im', ax + 6, 8); }
+
+    // 解の位置
+    const pts = [];
+    exprs.forEach(ex => {
+        if (!ex.visible || !ex.roots) return;
+        ex.roots.forEach(r => {
+            const px = sx(r.re), py = sy(r.im);
+            if (px > -10 && px < W_ + 10 && py > -10 && py < H_ + 10) pts.push({ ex, r, px, py });
+        });
+    });
+    ctx.shadowBlur = 0;
+    pts.forEach(o => {
+        ctx.beginPath(); ctx.arc(o.px, o.py, dotR() + 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = o.ex.color; ctx.fill();
+        ctx.strokeStyle = '#030712'; ctx.lineWidth = 1.5; ctx.stroke();
+    });
+    if (pts.length <= 24) {
+        ctx.font = '600 12px ui-monospace, Menlo, monospace';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+        ctx.shadowColor = 'rgba(0,0,0,1)'; ctx.shadowBlur = 4;
+        ctx.fillStyle = '#fff';
+        pts.forEach(o => ctx.fillText(fmtC(o.r.re, o.r.im), o.px + dotR() + 4, o.py - 4));
+        ctx.shadowBlur = 0;
+    }
+
+    // 凡例
+    if (colored) {
+        const n = exprs.indexOf(target) + 1;
+        legendEl.innerHTML = `<i style="background:${target.color}"></i>式 ${n} で色分け：色＝値の向き、暗いほど 0。全色が集まる点＝解`;
+        legendEl.hidden = false;
+    } else legendEl.hidden = true;
+
+    // トレース
+    if (traceZ) {
+        const px = sx(traceZ.x), py = sy(traceZ.y);
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2);
+        ctx.moveTo(px - 12, py); ctx.lineTo(px - 7, py); ctx.moveTo(px + 7, py); ctx.lineTo(px + 12, py);
+        ctx.moveTo(px, py - 12); ctx.lineTo(px, py - 7); ctx.moveTo(px, py + 7); ctx.lineTo(px, py + 12);
+        ctx.stroke();
+        const z = C(traceZ.x, traceZ.y);
+        const env = { z, y: C(0), p: paramEnv(), loop: {} };
+        let html = `<div style="color:#94a3b8">x = ${fmtCv(z)}</div>`;
+        exprs.forEach((ex, i) => {
+            if (!ex.visible || !ex.cfn) return;
+            env.z = z; env.loop = {};
+            html += `<div><i style="background:${ex.color}"></i>${i + 1}: ${fmtCv(ex.cfn(env))}</div>`;
+        });
+        traceEl.innerHTML = html;
+        traceEl.hidden = false;
+    } else traceEl.hidden = true;
+}
+
+// ================= 3D（床 = x の複素数平面、高さ = y） =================
+function draw3D() {
+    ctx.fillStyle = '#030712';
+    ctx.fillRect(0, 0, W_, H_);
+    traceEl.hidden = true;
+    const ex = colorTarget();
+    const R = d3.R, N = 48, n1 = N + 1;
+    const cyw = Math.cos(d3.yaw), syw = Math.sin(d3.yaw), cp = Math.cos(d3.pitch), sp = Math.sin(d3.pitch);
+    const S = Math.min(W_, H_) * 0.33, Dd = 5;
+    // 世界座標 X = Re x / R, Z = −Im x / R（奥が +Im）, Y = 高さ
+    const proj = (X, Y, Z) => {
+        const x1 = X * cyw - Z * syw, z1 = X * syw + Z * cyw;
+        const y2 = Y * cp - z1 * sp, d = z1 * cp + Y * sp;
+        const k = Dd / (Dd - d);
+        return [W_ / 2 + x1 * S * k, H_ * 0.56 - y2 * S * k, d];
+    };
+    const line = (a, b) => { const p = proj(...a), q = proj(...b); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); };
+    const label = (txt, P, color = '#cbd5e1', align = 'center') => {
+        const p = proj(...P);
+        ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(txt, p[0], p[1]);
+    };
+
+    // 床（x の複素数平面）
+    const step = niceStep(R / 3);
+    if (d3.floor) {
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#1a2438';
+        ctx.beginPath();
+        for (let t = Math.ceil(-R / step) * step; t <= R + 1e-9; t += step) {
+            line([t / R, 0, -1], [t / R, 0, 1]);
+            line([-1, 0, -t / R], [1, 0, -t / R]);
+        }
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.18)';
+        ctx.beginPath();
+        [[-1, 0, -1], [1, 0, -1], [1, 0, 1], [-1, 0, 1]].forEach((P, i) => { const p = proj(...P); i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); });
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#334155'; ctx.stroke();
+    }
+    ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); line([-1.15, 0, 0], [1.15, 0, 0]); line([0, 0, 1.15], [0, 0, -1.15]); ctx.stroke();
+
+    ctx.font = '500 10.5px Inter, system-ui, sans-serif'; ctx.textBaseline = 'middle';
+    for (let t = Math.ceil(-R / step) * step; t <= R + 1e-9; t += step) {
+        if (Math.abs(t) < step * 1e-6) continue;
+        const s = fmtTick(t, step);
+        label(s, [t / R, 0, 0.08], '#64748b');
+        label(s === '1' ? 'i' : s === '−1' ? '−i' : s + 'i', [0.07, 0, -t / R], '#64748b', 'left');
+    }
+    ctx.font = '700 12px Inter, system-ui, sans-serif';
+    label('Re x', [1.28, 0, 0], '#e2e8f0');
+    label('Im x', [0, 0, -1.3], '#e2e8f0');
+
+    const ok = ex && ex.cfn && ex.kind !== 'implicit';
+    if (!ok) {
+        legendEl.innerHTML = ex && ex.kind === 'implicit'
+            ? '3D は y = … の形の式（または x だけの方程式）で表示します'
+            : '式を入力すると、ここに立体で表示します';
+        legendEl.hidden = false;
+        return;
+    }
+
+    // y = f(x) を格子点で計算
+    const env = { z: null, y: C(0), p: paramEnv(), loop: {} };
+    const Hv = new Float64Array(n1 * n1), Cv = new Float64Array(n1 * n1);
+    const mode3 = d3.h;
+    for (let j = 0; j < n1; j++) {
+        const b = -R + 2 * R * j / N;
+        for (let i = 0; i < n1; i++) {
+            const a = -R + 2 * R * i / N;
+            env.z = C(a, b); env.loop = {};
+            const v = ex.cfn(env), k = j * n1 + i;
+            if (mode3 === 're') { Hv[k] = v.re; Cv[k] = v.im; }
+            else if (mode3 === 'im') { Hv[k] = v.im; Cv[k] = v.re; }
+            else { Hv[k] = Math.hypot(v.re, v.im); Cv[k] = Math.atan2(v.im, v.re); }
+        }
+    }
+    // 高さの目盛り：式・範囲・種類が変わった時だけ決め直す（n を動かしても揺れないように）
+    const key = [ex.id, ex.text, R, mode3].join('|');
+    if (d3Scale.key !== key) {
+        const arr = [];
+        for (let k = 0; k < Hv.length; k++) if (isFinite(Hv[k])) arr.push(Math.abs(Hv[k]));
+        arr.sort((p, q) => p - q);
+        const p85 = arr.length ? arr[Math.floor(arr.length * 0.93)] : 1;
+        d3Scale = { key, Yr: Math.max(p85 * 1.1, 1e-9) };
+    }
+    const Yr = d3Scale.Yr, CLIP = 1.6;
+
+    // 頂点を投影
+    const PX = new Float64Array(n1 * n1), PY = new Float64Array(n1 * n1), PD = new Float64Array(n1 * n1);
+    const WX = i => -1 + 2 * i / N, WZ = j => 1 - 2 * j / N;
+    for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) {
+        const k = j * n1 + i, p = proj(WX(i), Hv[k] / Yr, WZ(j));
+        PX[k] = p[0]; PY[k] = p[1]; PD[k] = p[2];
+    }
+
+    // 色：虚部（または実部）は 青(−)・白(0)・橙(+)、|y| の時は偏角の色相
+    const colorOf = (c, shade) => {
+        let r, g, b;
+        if (mode3 === 'abs') {
+            const h = (c / (2 * Math.PI) + 1) % 1, l = 0.55, s = 0.75, a = s * Math.min(l, 1 - l);
+            const f = n => { const t = (n + h * 12) % 12; return l - a * Math.max(-1, Math.min(t - 3, 9 - t, 1)); };
+            r = f(0); g = f(8); b = f(4);
+        } else {
+            const t = Math.tanh(c / Yr * 1.6);
+            const base = [0.89, 0.91, 0.94], pos = [0.98, 0.55, 0.20], neg = [0.15, 0.55, 0.98];
+            const m = t > 0 ? pos : neg, u = Math.abs(t);
+            r = base[0] + (m[0] - base[0]) * u; g = base[1] + (m[1] - base[1]) * u; b = base[2] + (m[2] - base[2]) * u;
+        }
+        return `rgb(${(r * shade * 255) | 0},${(g * shade * 255) | 0},${(b * shade * 255) | 0})`;
+    };
+
+    const L = [-0.35, 0.85, 0.4], Ln = Math.hypot(...L);
+    const quads = [];
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const k0 = j * n1 + i, k1 = k0 + 1, k2 = k0 + n1 + 1, k3 = k0 + n1;
+        const h0 = Hv[k0] / Yr, h1 = Hv[k1] / Yr, h2 = Hv[k2] / Yr, h3 = Hv[k3] / Yr;
+        if (!(Math.abs(h0) < CLIP && Math.abs(h1) < CLIP && Math.abs(h2) < CLIP && Math.abs(h3) < CLIP)) continue;
+        // 法線で陰影
+        const dx = 2 / N;
+        const ux = dx, uy = h1 - h0, vz = -dx, vy = h3 - h0;
+        let nx = uy * vz, ny = -ux * vz, nz = -ux * vy;   // (ux,uy,0) × (0,vy,vz)
+        const nl = Math.hypot(nx, ny, nz) || 1;
+        const shade = 0.5 + 0.5 * Math.abs((nx * L[0] + ny * L[1] + nz * L[2]) / (nl * Ln));
+        let cval;
+        if (mode3 === 'abs') cval = Cv[k0];
+        else cval = (Cv[k0] + Cv[k1] + Cv[k2] + Cv[k3]) / 4;
+        quads.push([(PD[k0] + PD[k1] + PD[k2] + PD[k3]) / 4, k0, k1, k2, k3, colorOf(cval, shade)]);
+    }
+    quads.sort((p, q) => p[0] - q[0]);
+    ctx.lineWidth = 0.7;
+    ctx.lineJoin = 'round';
+    if (d3.surf) for (const q of quads) {
+        ctx.beginPath();
+        ctx.moveTo(PX[q[1]], PY[q[1]]); ctx.lineTo(PX[q[2]], PY[q[2]]); ctx.lineTo(PX[q[3]], PY[q[3]]); ctx.lineTo(PX[q[4]], PY[q[4]]);
+        ctx.closePath();
+        ctx.fillStyle = q[5]; ctx.strokeStyle = q[5];
+        ctx.fill(); ctx.stroke();
+    }
+
+    // 縦軸
+    ctx.strokeStyle = 'rgba(226,232,240,0.55)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); line([0, -1.5, 0], [0, 1.5, 0]); ctx.stroke();
+    const ys = niceStep(Yr / 2);
+    ctx.font = '500 10.5px Inter, system-ui, sans-serif';
+    ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 3;
+    for (let t = Math.ceil(-1.5 * Yr / ys) * ys; t <= 1.5 * Yr; t += ys) {
+        if (Math.abs(t) < ys * 1e-6) continue;
+        label(fmtTick(t, ys), [0.05, t / Yr, 0], '#94a3b8', 'left');
+    }
+    ctx.font = '700 12px Inter, system-ui, sans-serif';
+    label(mode3 === 're' ? 'Re y' : mode3 === 'im' ? 'Im y' : '|y|', [0, 1.65, 0], '#e2e8f0');
+
+    // 線：黄色＝実軸の上の普通のグラフ、緑＝虚数方向に隠れているグラフ（y が実数になる所）
+    const REAL_C = '#fde047', HIDDEN_C = '#4ade80';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 4;
+    if (mode3 !== 'abs') {
+        ctx.strokeStyle = HIDDEN_C; ctx.lineWidth = lineW;
+        ctx.beginPath();
+        const P = (ka, kb, ia, ja, ib, jb) => {
+            const ca = Cv[ka], cb = Cv[kb], t = ca / (ca - cb);
+            return [WX(ia + (ib - ia) * t), (Hv[ka] + (Hv[kb] - Hv[ka]) * t) / Yr, WZ(ja + (jb - ja) * t)];
+        };
+        const onAxis = q => mode3 === 're' && Math.abs(q[2]) < 0.6 / N;   // 実軸上は黄色の線で描くので除く
+        for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+            const k0 = j * n1 + i, k1 = k0 + 1, k2 = k0 + n1 + 1, k3 = k0 + n1;
+            const c0 = Cv[k0], c1 = Cv[k1], c2 = Cv[k2], c3 = Cv[k3];
+            if (!(isFinite(c0) && isFinite(c1) && isFinite(c2) && isFinite(c3))) continue;
+            const ps = [];
+            if ((c0 > 0) !== (c1 > 0)) ps.push(P(k0, k1, i, j, i + 1, j));
+            if ((c1 > 0) !== (c2 > 0)) ps.push(P(k1, k2, i + 1, j, i + 1, j + 1));
+            if ((c3 > 0) !== (c2 > 0)) ps.push(P(k3, k2, i, j + 1, i + 1, j + 1));
+            if ((c0 > 0) !== (c3 > 0)) ps.push(P(k0, k3, i, j, i, j + 1));
+            for (let m = 0; m + 1 < ps.length; m += 2) {
+                const A = ps[m], B = ps[m + 1];
+                if (onAxis(A) && onAxis(B)) continue;
+                if (Math.abs(A[1]) < CLIP && Math.abs(B[1]) < CLIP) line(A, B);
+            }
+        }
+        ctx.stroke();
+    }
+    if (mode3 === 're') {
+        // 実軸の上（x が実数）を細かく計算して、普通のグラフとして描く
+        ctx.strokeStyle = REAL_C; ctx.lineWidth = lineW;
+        ctx.beginPath();
+        let pen = false;
+        const M = 400;
+        for (let m = 0; m <= M; m++) {
+            const a = -R + 2 * R * m / M;
+            env.z = C(a, 0); env.loop = {};
+            const v = ex.cfn(env);
+            const Y = v.re / Yr;
+            const ok = isFinite(Y) && Math.abs(Y) < CLIP && Math.abs(v.im) <= 1e-9 * (1 + Math.abs(v.re));
+            if (!ok) { pen = false; continue; }
+            const p = proj(a / R, Y, 0);
+            if (pen) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]);
+            pen = true;
+        }
+        ctx.stroke();
+    }
+
+    // 解（y = 0 の点）を床に
+    ctx.shadowBlur = 4; ctx.shadowColor = 'rgba(0,0,0,1)';
+    ctx.font = '600 12px ui-monospace, Menlo, monospace';
+    (ex.roots || []).forEach(r => {
+        if (Math.abs(r.re) > R || Math.abs(r.im) > R) return;
+        const p = proj(r.re / R, 0, -r.im / R);
+        ctx.beginPath(); ctx.arc(p[0], p[1], dotR() + 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#f43f5e'; ctx.fill();
+        ctx.lineWidth = 1.5; ctx.strokeStyle = '#030712'; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+        ctx.fillText(fmtC(r.re, r.im), p[0] + dotR() + 4, p[1] - 3);
+    });
+    ctx.shadowBlur = 0;
+
+    const n = exprs.indexOf(ex) + 1;
+    legendEl.innerHTML = `<i style="background:${ex.color}"></i>式 ${n}　床＝x（実軸・虚軸）　` + (
+        mode3 === 're' ? '高さ＝y の実部　色＝y の虚部（<span style="color:#60a5fa">青−</span>・白0・<span style="color:#fb923c">橙+</span>）　<span style="color:#fde047">黄＝普通のグラフ（x が実数）</span>　<span style="color:#4ade80">緑＝x が複素数でも y が実数</span>　<span style="color:#f43f5e">●＝解</span>'
+        : mode3 === 'im' ? '高さ＝y の虚部　色＝y の実部　<span style="color:#4ade80">緑＝y が純虚数</span>　<span style="color:#f43f5e">●＝解</span>'
+        : '高さ＝|y|　色＝y の向き　<span style="color:#f43f5e">●＝解</span>（床に触れる点）');
+    legendEl.hidden = false;
+}
+
+// ---------- 解の計算（入力が落ち着いてからまとめて） ----------
+let rootTimer = null;
+function scheduleRoots(delay = 150) {
+    if (rootTimer) return;
+    rootTimer = setTimeout(() => { rootTimer = null; computeRoots(); }, delay);
+}
+function computeRoots() {
+    const rect = mode === 'c' && W_ ? {
+        x0: viewC.cx - W_ / 2 / viewC.scale, x1: viewC.cx + W_ / 2 / viewC.scale,
+        y0: viewC.cy - H_ / 2 / viewC.scale, y1: viewC.cy + H_ / 2 / viewC.scale,
+    } : null;
+    const pe = paramEnv();
+    const pk = JSON.stringify(pe) + '|' + (rect ? [rect.x0, rect.x1, rect.y0, rect.y1].map(v => v.toPrecision(3)).join() : '');
+    exprs.forEach(ex => {
+        if (!ex.cfn) return;
+        const key = ex.text + '|' + pk;
+        if (ex.rootKey === key) return;
+        ex.roots = findRoots(ex.cfn, pe, rect, playing.size ? 120 : 500);
+        ex.rootKey = key;
+        refreshSol(ex);
+    });
+    requestDraw();
+}
+
 function resize() {
     const r = canvas.getBoundingClientRect();
     dpr = window.devicePixelRatio || 1;
     W_ = r.width; H_ = r.height;
     canvas.width = Math.max(1, Math.round(W_ * dpr));
     canvas.height = Math.max(1, Math.round(H_ * dpr));
-    if (pendingFit) { const f = pendingFit; pendingFit = null; applyFit(f); }
+    if (pendingFits.length) { const p = pendingFits; pendingFits = []; p.forEach(([f, w]) => applyFit(f, w)); }
     draw();
 }
 new ResizeObserver(resize).observe(canvas);
 
 // ---------- グラフの操作 ----------
+const V = () => (mode === 'c' ? viewC : view);
+function viewChanged() { requestDraw(); saveSoon(); if (mode === 'c') scheduleRoots(300); }
 function zoomAt(f, px = W_ / 2, py = H_ / 2) {
-    const wx = view.cx + (px - W_ / 2) / view.scale;
-    const wy = view.cy - (py - H_ / 2) / view.scale;
-    view.scale = Math.min(1e7, Math.max(1e-4, view.scale * f));
-    view.cx = wx - (px - W_ / 2) / view.scale;
-    view.cy = wy + (py - H_ / 2) / view.scale;
-    requestDraw(); saveSoon();
+    if (mode === '3d') { d3.R = Math.min(1e4, Math.max(0.05, d3.R / f)); requestDraw(); saveSoon(); return; }
+    const v = V();
+    const wx = v.cx + (px - W_ / 2) / v.scale;
+    const wy = v.cy - (py - H_ / 2) / v.scale;
+    v.scale = Math.min(1e7, Math.max(1e-4, v.scale * f));
+    v.cx = wx - (px - W_ / 2) / v.scale;
+    v.cy = wy + (py - H_ / 2) / v.scale;
+    viewChanged();
 }
 $('#zin').addEventListener('click', () => zoomAt(1.5));
 $('#zout').addEventListener('click', () => zoomAt(1 / 1.5));
-$('#zhome').addEventListener('click', () => { applyFit({ w: 20, h: 12 }); requestDraw(); save(); });
+$('#zhome').addEventListener('click', () => {
+    if (mode === '3d') Object.assign(d3, { R: 6, yaw: -0.65, pitch: 0.5 });
+    else if (mode === 'c') fitRootsC(); else applyFit({ w: 20, h: 12 }, 'r');
+    viewChanged(); save();
+});
+
+// 解が全部入るように複素数平面を合わせる
+function fitRootsC(ex) {
+    ex = ex || colorTarget();
+    const rs = ((ex && ex.roots) || []).filter(r => cabs(r) <= 50);
+    if (!rs.length) { applyFit({ w: 8, h: 8 }, 'c'); return; }
+    let a = Infinity, b = -Infinity, c = Infinity, d = -Infinity;
+    rs.forEach(r => { a = Math.min(a, r.re); b = Math.max(b, r.re); c = Math.min(c, r.im); d = Math.max(d, r.im); });
+    applyFit({ w: Math.max(4, (b - a) * 1.5 + 2), h: Math.max(4, (d - c) * 1.5 + 2), cx: (a + b) / 2, cy: (c + d) / 2 }, 'c');
+}
+
+function syncModeUI() {
+    $('#modeBtn').classList.toggle('on', mode === 'c');
+    $('#d3Btn').classList.toggle('on', mode === '3d');
+    $('#hsel').hidden = mode !== '3d';
+    document.querySelectorAll('#hsel button[data-h]').forEach(b => b.classList.toggle('on', b.dataset.h === d3.h));
+    document.querySelectorAll('#hsel button[data-t]').forEach(b => b.classList.toggle('on', d3[b.dataset.t] !== false));
+    $('#colorBtn').hidden = mode !== 'c';
+    $('#colorBtn').classList.toggle('on', colorOn);
+}
+function setMode(m) {
+    mode = m;
+    traceX = null; traceZ = null;
+    syncModeUI();
+    scheduleRoots(0);
+    requestDraw(); save();
+}
+$('#modeBtn').addEventListener('click', () => setMode(mode === 'c' ? 'r' : 'c'));
+$('#d3Btn').addEventListener('click', () => setMode(mode === '3d' ? 'r' : '3d'));
+document.querySelectorAll('#hsel button[data-h]').forEach(b => b.addEventListener('click', () => {
+    d3.h = b.dataset.h; syncModeUI(); requestDraw(); save();
+}));
+document.querySelectorAll('#hsel button[data-t]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.t; d3[k] = d3[k] === false; syncModeUI(); requestDraw(); save();
+}));
+$('#colorBtn').addEventListener('click', () => { colorOn = !colorOn; syncModeUI(); requestDraw(); save(); });
 
 canvas.addEventListener('wheel', e => {
     e.preventDefault();
@@ -1200,69 +2069,107 @@ canvas.addEventListener('wheel', e => {
 const pts = new Map();
 let gesture = null;
 const pos = e => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+const toWorld = p => { const v = V(); return { x: v.cx + (p.x - W_ / 2) / v.scale, y: v.cy - (p.y - H_ / 2) / v.scale }; };
 
-function startPan(p) { gesture = { type: 'pan', sx: p.x, sy: p.y, cx: view.cx, cy: view.cy, moved: false }; }
+function startPan(p) { const v = V(); gesture = { type: 'pan', sx: p.x, sy: p.y, cx: v.cx, cy: v.cy, moved: false }; }
 
 canvas.addEventListener('pointerdown', e => {
     canvas.setPointerCapture(e.pointerId);
     pts.set(e.pointerId, pos(e));
+    if (mode === '3d') {   // 3D：ドラッグで回転、2本指で拡大縮小
+        const vs = [...pts.values()];
+        if (pts.size === 1) gesture = { type: 'rot', sx: vs[0].x, sy: vs[0].y, yaw: d3.yaw, pitch: d3.pitch };
+        else if (pts.size === 2) gesture = { type: 'pinch3', d: Math.hypot(vs[0].x - vs[1].x, vs[0].y - vs[1].y) || 1, R: d3.R };
+        return;
+    }
     if (pts.size === 1) startPan(pos(e));
     else if (pts.size === 2) {
         const [a, b] = [...pts.values()];
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        gesture = {
-            type: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) || 1, scale: view.scale,
-            wx: view.cx + (mid.x - W_ / 2) / view.scale, wy: view.cy - (mid.y - H_ / 2) / view.scale,
-        };
+        const w = toWorld(mid);
+        gesture = { type: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) || 1, scale: V().scale, wx: w.x, wy: w.y };
     }
 });
 
 canvas.addEventListener('pointermove', e => {
     const p = pos(e);
+    if (mode === '3d') {
+        if (!pts.has(e.pointerId) || !gesture) return;
+        pts.set(e.pointerId, p);
+        if (gesture.type === 'rot') {
+            d3.yaw = gesture.yaw + (p.x - gesture.sx) * 0.008;
+            d3.pitch = Math.min(1.5, Math.max(-0.2, gesture.pitch + (p.y - gesture.sy) * 0.008));
+        } else if (gesture.type === 'pinch3' && pts.size >= 2) {
+            const [a, b] = [...pts.values()];
+            d3.R = Math.min(1e4, Math.max(0.05, gesture.R * gesture.d / (Math.hypot(a.x - b.x, a.y - b.y) || 1)));
+        }
+        requestDraw();
+        return;
+    }
     if (!pts.has(e.pointerId)) {
-        if (e.pointerType === 'mouse') { traceX = view.cx + (p.x - W_ / 2) / view.scale; requestDraw(); }
+        if (e.pointerType === 'mouse') {
+            const w = toWorld(p);
+            if (mode === 'c') traceZ = w; else traceX = w.x;
+            requestDraw();
+        }
         return;
     }
     pts.set(e.pointerId, p);
     if (!gesture) return;
+    const v = V();
     if (gesture.type === 'pan') {
         const dx = p.x - gesture.sx, dy = p.y - gesture.sy;
         if (Math.hypot(dx, dy) > 4) gesture.moved = true;
         if (gesture.moved) {
-            view.cx = gesture.cx - dx / view.scale;
-            view.cy = gesture.cy + dy / view.scale;
-            if (e.pointerType === 'mouse') traceX = null;
+            v.cx = gesture.cx - dx / v.scale;
+            v.cy = gesture.cy + dy / v.scale;
+            if (e.pointerType === 'mouse') { traceX = null; traceZ = null; }
             requestDraw();
         }
     } else if (gesture.type === 'pinch' && pts.size >= 2) {
         const [a, b] = [...pts.values()];
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-        view.scale = Math.min(1e7, Math.max(1e-4, gesture.scale * d / gesture.d));
-        view.cx = gesture.wx - (mid.x - W_ / 2) / view.scale;
-        view.cy = gesture.wy + (mid.y - H_ / 2) / view.scale;
+        v.scale = Math.min(1e7, Math.max(1e-4, gesture.scale * d / gesture.d));
+        v.cx = gesture.wx - (mid.x - W_ / 2) / v.scale;
+        v.cy = gesture.wy + (mid.y - H_ / 2) / v.scale;
         requestDraw();
     }
 });
 
 function endPointer(e) {
     if (!pts.has(e.pointerId)) return;
+    if (mode === '3d') {
+        pts.delete(e.pointerId);
+        if (pts.size === 1) { const q = [...pts.values()][0]; gesture = { type: 'rot', sx: q.x, sy: q.y, yaw: d3.yaw, pitch: d3.pitch }; }
+        else if (!pts.size) { gesture = null; saveSoon(); }
+        return;
+    }
     const p = pos(e);
     if (gesture && gesture.type === 'pan' && !gesture.moved && pts.size === 1) {
         // タップ：その位置の値を表示（同じ所をもう一度タップで消す）
-        const wx = view.cx + (p.x - W_ / 2) / view.scale;
-        if (e.pointerType !== 'mouse' && traceX !== null && Math.abs((wx - traceX) * view.scale) < 16) traceX = null;
-        else traceX = wx;
+        const w = toWorld(p), sc = V().scale, touch = e.pointerType !== 'mouse';
+        if (mode === 'c') {
+            if (touch && traceZ && Math.hypot(w.x - traceZ.x, w.y - traceZ.y) * sc < 16) traceZ = null;
+            else traceZ = w;
+        } else {
+            if (touch && traceX !== null && Math.abs((w.x - traceX) * sc) < 16) traceX = null;
+            else traceX = w.x;
+        }
         requestDraw();
     }
     pts.delete(e.pointerId);
     if (pts.size === 1) { startPan([...pts.values()][0]); gesture.moved = true; }
-    else if (!pts.size) { gesture = null; saveSoon(); }
+    else if (!pts.size) {
+        const moved = gesture && (gesture.type === 'pinch' || gesture.moved);
+        gesture = null;
+        if (moved) viewChanged();
+    }
 }
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('pointerleave', e => {
-    if (e.pointerType === 'mouse' && !pts.size) { traceX = null; requestDraw(); }
+    if (e.pointerType === 'mouse' && !pts.size) { traceX = null; traceZ = null; requestDraw(); }
 });
 
 // ---------- 例の読み込み ----------
@@ -1276,7 +2183,7 @@ presetSel.addEventListener('change', () => {
     const i = presetSel.value;
     presetSel.value = '';
     if (i === '') return;
-    const hasWork = exprs.some(e => e.text.trim()) &&
+    const hasWork = exprs.some(e => !isBlank(e.text)) &&
         !PRESETS.some(p => p.exprs.join('\n') === exprs.map(e => e.text).join('\n'));
     if (hasWork && !confirm('いまの式を置き換えて例を読み込みますか？')) return;
     loadPreset(PRESETS[+i]);
@@ -1289,12 +2196,13 @@ function loadPreset(p) {
     for (const k in p.params) params[k] = { ...p.params[k] };
     activeId = exprs[exprs.length - 1].id;
     traceX = null;
-    usedParams = [];
+    usedParams = null;   // スライダー欄を必ず作り直す
     renderList();
     syncParams();
-    applyFit(p.fit);
-    requestDraw();
-    save();
+    applyFit(p.fit, 'r');
+    if (p.fitC) applyFit(p.fitC, 'c');
+    Object.assign(d3, { R: 6, yaw: -0.65, pitch: 0.5, h: 're' }, p.d3 || {});   // 曲面・床のオンオフはそのまま
+    setMode(p.mode || 'r');
 }
 
 // ---------- 保存 ----------
@@ -1304,7 +2212,7 @@ function save() {
     try {
         localStorage.setItem(STORE, JSON.stringify({
             exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible })),
-            params, view, kbOn, kbTab,
+            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW,
         }));
     } catch (_) { /* 保存できない環境では何もしない */ }
 }
@@ -1320,6 +2228,11 @@ function load() {
     exprs = data.exprs.map(e => newExpr(String(e.text || ''), e.color, e.visible !== false));
     if (data.view && isFinite(data.view.scale)) view = data.view;
     if (data.kbTab && KB[data.kbTab]) kbTab = data.kbTab;
+    if (data.viewC && isFinite(data.viewC.scale)) viewC = data.viewC;
+    if (data.mode === 'c' || data.mode === '3d') mode = data.mode;
+    if (data.d3 && isFinite(data.d3.R)) Object.assign(d3, data.d3);
+    if (isFinite(data.lineW)) lineW = Math.min(6, Math.max(1, data.lineW));
+    if (data.colorOn === false) colorOn = false;
     if (data.kbOn === false) {
         kbOn = false;
         $('#kb').hidden = true;
@@ -1351,11 +2264,12 @@ function snapshot() {
     return {
         exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible })),
         params: ps, view: { cx: view.cx, cy: view.cy, scale: view.scale },
+        mode, viewC: { cx: viewC.cx, cy: viewC.cy, scale: viewC.scale }, d3: { ...d3 },
     };
 }
 const exprKey = list => list.map(e => e.text).join('\n');
 function hasUnsavedWork() {
-    if (!exprs.some(e => e.text.trim())) return false;
+    if (!exprs.some(e => !isBlank(e.text))) return false;
     const cur = exprKey(exprs);
     return !PRESETS.some(p => p.exprs.join('\n') === cur) && !readSaves().some(s => exprKey(s.exprs) === cur);
 }
@@ -1363,16 +2277,17 @@ function restore(d) {
     playing.clear();
     exprs = [];
     (d.exprs || []).forEach(e => exprs.push(newExpr(String(e.text || ''), e.color, e.visible !== false)));
-    if (!exprs.length) exprs.push(newExpr());
+    if (!exprs.length) exprs.push(newExpr('y='));
     for (const k in (d.params || {})) params[k] = { ...d.params[k] };
     if (d.view && isFinite(d.view.scale)) view = { ...d.view };
+    if (d.viewC && isFinite(d.viewC.scale)) viewC = { ...d.viewC };
     activeId = exprs[exprs.length - 1].id;
     traceX = null;
-    usedParams = [];
+    usedParams = null;   // スライダー欄を必ず作り直す
     renderList();
     syncParams();
-    requestDraw();
-    save();
+    if (d.d3 && isFinite(d.d3.R)) Object.assign(d3, d.d3);
+    setMode(d.mode === 'c' || d.mode === '3d' ? d.mode : 'r');
 }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function fmtDate(t) {
@@ -1407,7 +2322,7 @@ function renderSaves() {
     });
 }
 function openSheet() {
-    const first = exprs.map(e => e.text.trim()).filter(Boolean);
+    const first = exprs.map(e => e.text.trim()).filter(t => !isBlank(t));
     $('#saveName').value = '';
     $('#saveName').placeholder = first.length ? `名前（空なら「${first[first.length - 1].slice(0, 24)}」）` : '名前';
     if (!storageOK()) $('#sheetNote').textContent = 'このブラウザ（プライベートモードなど）では保存できません。';
@@ -1420,7 +2335,7 @@ $('#sheetClose').addEventListener('click', closeSheet);
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
 function saveCurrent() {
-    const first = exprs.map(e => e.text.trim()).filter(Boolean);
+    const first = exprs.map(e => e.text.trim()).filter(t => !isBlank(t));
     if (!first.length) { alert('保存する式がありません'); return; }
     const name = $('#saveName').value.trim() || first[first.length - 1].slice(0, 40);
     const a = readSaves();
@@ -1442,6 +2357,11 @@ $('#saveName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.pre
 buildBar();
 if (!load()) loadPreset(PRESETS[0]);
 renderKB();
+syncModeUI();
+scheduleRoots(0);
+const lwEl = $('#lineW');
+lwEl.value = lineW; $('#lineWv').textContent = lineW;
+lwEl.addEventListener('input', () => { lineW = +lwEl.value; $('#lineWv').textContent = lineW; requestDraw(); saveSoon(); });
 requestDraw();
 })();
 </script>
