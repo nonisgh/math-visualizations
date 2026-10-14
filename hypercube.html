@@ -148,6 +148,11 @@
                         <span id="stagger-text" class="text-[11px]">時間差: ON</span>
                     </button>
 
+                    <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
+                        <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
+                        <span id="zoom-text" class="text-[11px]">自動ズーム: ON</span>
+                    </button>
+
                     <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-[11px]">
                         <button id="view-mesh-btn" class="px-2 py-0.5 rounded-lg font-medium text-cyan-400 bg-slate-800 transition">メッシュ</button>
                         <button id="view-wire-btn" class="px-2 py-0.5 rounded-lg font-medium text-slate-400 hover:text-white transition">ワイヤー</button>
@@ -284,8 +289,9 @@
         let parallel4D = false;   // 等角図のときは遠近をやめる（パースが入ると軸の長さが揃わない）
 
         let enableStagger = true;
-        let displayMode = 'both'; 
+        let displayMode = 'both';
         let wireframeOnly = false;
+        let autoFitZoom = true;   // 組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の倍率のまま固定
         
 
         const S = 1.8;
@@ -794,7 +800,8 @@
                 });
             }
 
-            {   // 組み上がるほど形が小さくなるので、実寸を測って拡大率を合わせる。
+            if (autoFitZoom) {   // 自動ズームON時のみ。OFFなら倍率を触らない＝今の大きさのまま折りたたみを確認できる。
+                // 組み上がるほど形が小さくなるので、実寸を測って拡大率を合わせる。
                 // 左右で縮み方が違う（等角図だと右の投影が大きい）ので、ペインごとに別々に合わせる。
                 const span = verts => {
                     let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
@@ -1058,6 +1065,23 @@
                     staggerText.innerText = "時間差: OFF (同時)";
                     staggerBtn.classList.remove('bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200');
                     staggerBtn.classList.add('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                }
+                updateMorphingGeometry(animationProgress);
+            });
+
+            const zoomBtn = document.getElementById('zoom-btn');
+            const zoomText = document.getElementById('zoom-text');
+            zoomBtn.addEventListener('click', () => {
+                autoFitZoom = !autoFitZoom;
+                if (autoFitZoom) {
+                    zoomText.innerText = "自動ズーム: ON";
+                    zoomBtn.classList.add('bg-violet-900/40', 'border-violet-500/50', 'text-violet-200');
+                    zoomBtn.classList.remove('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                } else {
+                    // OFF: いまの倍率で固定（折りたたんでも大きさが変わらない）
+                    zoomText.innerText = "自動ズーム: OFF";
+                    zoomBtn.classList.remove('bg-violet-900/40', 'border-violet-500/50', 'text-violet-200');
+                    zoomBtn.classList.add('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
                 }
                 updateMorphingGeometry(animationProgress);
             });
