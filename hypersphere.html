@@ -99,7 +99,7 @@ body.keyhelp #keyHelp{display:block}
 <body>
 <main>
   <div class="pane" id="pL"><div class="tag">【操作側】3D球（リング積層）ドラッグで傾ける／Shift+横ドラッグで Z-W 傾き ※Z-W傾きの見せ方は「回転・視点」タブの「球の傾き」で切替</div><div class="info" id="infoL"></div></div>
-  <div class="pane" id="pR"><div class="tag" id="tagR"></div><div class="info" id="infoR"></div><canvas id="hud" width="320" height="176"></canvas><canvas id="wgauge" width="62" height="200"></canvas><canvas id="cmap" width="248" height="150"></canvas></div>
+  <div class="pane" id="pR"><div class="tag" id="tagR"></div><div class="info" id="infoR"></div><canvas id="hud" width="320" height="176"></canvas><canvas id="wgauge" width="62" height="216"></canvas><canvas id="cmap" width="248" height="150"></canvas></div>
 </main>
 
 <div id="learn">
@@ -180,9 +180,11 @@ body.keyhelp #keyHelp{display:block}
 
   <details class="grp" id="s-auto" data-tab="turn"><summary>⚙ 自動で回す</summary>
     <div class="gb"><button id="bDemo" title="ショートカット: R">回転/停止</button><button id="bSpin" title="右の3D視点をゆっくり回す">🔄 右の視点を回す</button></div>
-    <div class="gb"><span>回す面</span><button data-ax="mix" class="on">複合</button><button data-ax="mix3" title="Y-W・X-W・Z-Wを違う速さで同時に回す">複合＋Z-W</button><button data-ax="yw" title="Y-Wを 0→-90→-180→90→0 と一周（押すと他の角度は0に戻る）">Y-W</button><button data-ax="xw">X-W</button><button data-ax="zw">Z-W</button><button data-ax="ob" title="w軸と斜め方向（向きスライダー）を含む平面で回す">斜めW</button></div>
+    <div class="gb"><span>回す面</span><button data-ax="mix" class="on">複合</button><button data-ax="mix3" title="Y-W・X-W・Z-Wを違う速さで同時に回す">複合＋Z-W</button><button data-ax="yw" title="Y-Wを 0→-90→-180→90→0 と一周（押すと他の角度は0に戻る）">Y-W</button><button data-ax="xw">X-W</button><button data-ax="zw">Z-W</button><button data-ax="ob" title="w軸と斜め方向（向きスライダー）を含む平面で回す">斜めW</button><button data-ax="dbl" title="XY面とZW面を、独立した速さで同時に回す。この2平面は原点以外を共有しないので互いに干渉しない。3次元には相当する運動が存在しない">🌀 二重回転（β）</button></div>
     <div class="gs" id="g-auto"></div>
-    <div class="hint">Y-W / X-W / Z-W / 斜めW を押すと、<b>他の面の角度は0に戻ります</b>（押したあとにスライダーで傾けるのはOK）。</div></details>
+    <div class="gb" id="dblRow"><span>速さの比</span><button data-dbl="1" title="等速。全ての点が大円を描き、どの2本も絡み合う＝ホップ束">1:1 ホップ束</button><button data-dbl="1.5" title="2:3。閉じた曲線＝三葉結び目">2:3 三葉結び目</button><button data-dbl="2" title="1:2。閉じた曲線">1:2</button><button data-dbl="1.4142135623730951" title="無理数比。軌道は決して閉じず、トーラス面を埋め尽くす">1:√2 閉じない</button><button id="bDblPts" class="on" title="超球面上の点を置いて、二重回転でどう運ばれるかを尾つきで見る。色はη（XY面とZW面への配分）: 赤=XY大円だけ 黄=クリフォードトーラス 紫=ZW大円だけ">✨ 動く点</button><button id="bDblView" title="球殻を減らして薄くし、2つの円が重ならない斜めの視点にする。点の動きが見やすくなる">👁 見やすい視点に</button></div>
+    <div class="hint">Y-W / X-W / Z-W / 斜めW を押すと、<b>他の面の角度は0に戻ります</b>（押したあとにスライダーで傾けるのはOK）。</div>
+    <div class="hint" id="dblNote"></div></details>
 
   <details class="grp" id="s-cam" data-tab="turn"><summary>🎥 4Dカメラ（4次元のどこから撮るか）</summary>
     <div class="gb"><span>モード</span><button data-cm="off" class="on" title="4Dカメラを使わない（普通の見え方）">オフ</button><button data-cm="free" title="右の超球をドラッグすると4Dカメラの数値が変わる。数値の手入力もできる。「初期位置」で0に戻る">フリー</button><button data-cm="fixed" title="今のカメラ位置・視点を固定。ドラッグしても動かず、「初期位置」でも戻らない（数値の手入力は可）">固定</button><button id="bCamReset" title="4Dカメラを0に戻す（固定中でも戻る）">カメラ0</button></div>
@@ -261,6 +263,10 @@ let favs = FAV_DEFAULT.slice(), favEdit = false;   // leftS2: 左の3D球(S²)�
 let rlOn = false, rlN = 0, rlHit = 0, rlObj = null, rlTick = 0, allColKey = '';
 const rlD = new Float32Array(MAXRL * 3), rlBin = new Uint8Array(NBP * NBL);
 let spd = 1, axis = 'mix', shadeOn = true, shade = 0.6;
+// 🌀 二重回転（β）: XY面とZW面は完全直交（原点以外を共有しない）ので、独立した速さで同時に回せる。
+// 3次元では2平面が必ず直線を共有するため、これに相当する運動は存在しない。
+// dblRate = ZW側の速さ ÷ XY側の速さ。1=ホップ束（全点が大円を描き互いに絡む）/ 整数比=トーラス結び目 / 無理数比=閉じずトーラス面を埋める
+let dblRate = 1, dblPts = true;
 const shU = { value: 0 }, olU = { value: 0 };
 // 断面カット（シェーダで切る）: mode 0=なし 1=画面基準(観察者から見た向き) 2=物体基準(超球の経度)
 let cutRef = 'screen', cutAng = 0, cutPhi = Math.PI * 1.75, cutW = Math.PI * 2 / 3, cutSpin = false, cutGoal = null;
@@ -566,7 +572,7 @@ function makePath() {
     line.frustumCulled = dot.frustumCulled = pts.frustumCulled = false; line.renderOrder = dot.renderOrder = pts.renderOrder = 10;
     parent.add(line, dot, pts, ring); return { line, dot, pts, ring };
   };
-  pathL = mk(gL); pathR = mk(gR); makeAll(); makeFoot(); makeGuide(); makeRL(); makeCurve(); updatePath();
+  pathL = mk(gL); pathR = mk(gR); makeAll(); makeFoot(); makeGuide(); makeRL(); makeCurve(); makeDbl(); updatePath();
 }
 // ---- 全方向の旅: 北極から「宇宙のあらゆる方向」(xyz空間の全方向 d) へ同時に出発 ----
 // 方向は緯度経度の格子（赤道=左の3D球の経線に対応）。全員が同じ時刻 t に同じ波面（層 w=R·cos t）の上にいて、
@@ -784,6 +790,96 @@ function updateCurve() {
   }
   for (const o of [cvL, cvR]) { o.lines.geometry.attributes.position.needsUpdate = o.dots.geometry.attributes.position.needsUpdate = true; o.lines.geometry.setDrawRange(0, n * (len - 1) * 2); o.dots.geometry.setDrawRange(0, n); }
 }
+// ---- 🌀 二重回転の動く点（β） ----
+// 超球面上の点は (R·cosη·cosφ₁, R·cosη·sinφ₁, R·sinη·cosφ₂, R·sinη·sinφ₂) と書ける。
+// XY面をα・ZW面をβ回すと φ₁→φ₁+α, φ₂→φ₂+β。η は変わらないので、軌道は η 一定のトーラス面に乗る。
+//   η=0   … ZW成分がゼロ。XY大円の上だけを、αの速さで回る
+//   η=90° … XY成分がゼロ。ZW大円の上だけを、βの速さで回る（この2つの円は一点も共有しない）
+//   η=45° … クリフォードトーラス。両方の速さが効く、一番「4次元らしい」動き
+// α・βが両方ゼロでなければ中心以外に止まる点は存在しない ＝ 3次元の回転と違い「軸」がない。
+const DBL_FAM = [
+  { eta: 0,    n: 6,  hue: 0.02 },   // XY大円（赤）
+  { eta: 22.5, n: 8,  hue: 0.11 },
+  { eta: 45,   n: 12, hue: 0.17 },   // クリフォードトーラス（黄）
+  { eta: 67.5, n: 8,  hue: 0.42 },
+  { eta: 90,   n: 6,  hue: 0.72 },   // ZW大円（紫）
+];
+const DBLT = 72;                     // 尾の長さ（フレーム数）
+let dblData = null, dblObjL = null, dblObjR = null, dblTrail = null, dblHead = 0, dblFill = 0;
+function makeDbl() {
+  const out = [], hues = [];
+  for (const f of DBL_FAM) {
+    const e = f.eta * D2R, c1 = Math.cos(e), s1 = Math.sin(e);
+    for (let k = 0; k < f.n; k++) {
+      const p1 = TAU * k / f.n, p2 = TAU * k / f.n;   // φ₂−φ₁ を散らして、1:1のとき別々のホップ・ファイバーに乗るようにする
+      out.push(R * c1 * Math.cos(p1), R * c1 * Math.sin(p1), R * s1 * Math.cos(p2), R * s1 * Math.sin(p2));
+      hues.push(f.hue);
+    }
+  }
+  dblData = { p: Float32Array.from(out), hues, n: hues.length };
+  dblTrail = new Float32Array(dblData.n * DBLT * 3); dblHead = 0; dblFill = 0;
+  const mk = (parent, withTrail) => {
+    const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(dblData.n * 3), 3));
+    const dc = new Float32Array(dblData.n * 3), c = new THREE.Color();
+    dblData.hues.forEach((h, i) => { c.setHSL(h, 0.95, 0.62); dc.set([c.r, c.g, c.b], i * 3); });
+    dg.setAttribute('color', new THREE.BufferAttribute(dc, 3));
+    const dots = new THREE.Points(dg, new THREE.PointsMaterial({ size: 9, sizeAttenuation: false, vertexColors: true, depthTest: false }));
+    let lines = null;
+    if (withTrail) {
+      const n = dblData.n * (DBLT - 1) * 6, g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n), 3));
+      g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n), 3));
+      lines = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95, depthTest: false, blending: THREE.AdditiveBlending }));   // 加算合成: 球殻のワイヤーの上でも尾が光って見える
+      lines.frustumCulled = false; lines.renderOrder = 11; parent.add(lines);
+    }
+    dots.frustumCulled = false; dots.renderOrder = 15; parent.add(dots);
+    return { dots, lines };
+  };
+  dblObjL = mk(gL, false); dblObjR = mk(gR, true);   // 尾は右だけ。左の3D球はこの運動を表現できない、が見せたいことなので
+}
+function updateDbl() {
+  if (!dblObjR) return;
+  const onR = dblPts && !sliceOn;
+  dblObjR.dots.visible = dblObjR.lines.visible = onR;
+  dblObjL.dots.visible = dblPts;
+  if (!dblPts) return;
+  mkSteps();
+  const { p, n } = dblData, zc = Math.cos(zw), zs = Math.sin(zw), v = [0, 0, 0, 0];
+  const dr = dblObjR.dots.geometry.attributes.position, dl = dblObjL.dots.geometry.attributes.position;
+  for (let i = 0; i < n; i++) {
+    const o = i * 4;
+    v[0] = p[o]; v[1] = p[o + 1]; v[2] = p[o + 2]; v[3] = p[o + 3]; xf(v);
+    const sc = camW / Math.max(0.6, camW - v[3]) * SCALE;
+    dr.array[i * 3] = v[0] * sc; dr.array[i * 3 + 1] = v[1] * sc; dr.array[i * 3 + 2] = v[2] * sc;
+    dl.array[i * 3] = p[o]; dl.array[i * 3 + 1] = p[o + 1]; dl.array[i * 3 + 2] = p[o + 2] * zs + p[o + 3] * zc;   // 左は gL 自体が yaw で回るので、物体座標のまま渡す
+  }
+  dr.needsUpdate = dl.needsUpdate = true;
+  drawDblTrail();
+}
+function pushDblTrail() {   // 右の画面座標を1フレーム分ためる（自動回転中だけ）
+  if (!dblObjR || !dblPts) return;
+  const dr = dblObjR.dots.geometry.attributes.position.array;
+  for (let i = 0; i < dblData.n; i++) for (let a = 0; a < 3; a++) dblTrail[(i * DBLT + dblHead) * 3 + a] = dr[i * 3 + a];
+  dblHead = (dblHead + 1) % DBLT; if (dblFill < DBLT) dblFill++;
+}
+function clearDblTrail() { dblHead = 0; dblFill = 0; }
+function drawDblTrail() {
+  const g = dblObjR.lines.geometry, pa = g.attributes.position.array, ca = g.attributes.color.array, c = new THREE.Color();
+  let m = 0;
+  for (let i = 0; i < dblData.n; i++) {
+    c.setHSL(dblData.hues[i], 0.95, 0.6);
+    for (let k = 0; k < dblFill - 1; k++) {
+      const a = (dblHead - dblFill + k + 2 * DBLT) % DBLT, b = (a + 1) % DBLT, fade = (k + 1) / dblFill;   // 古いほど暗い
+      for (let e = 0; e < 2; e++) {
+        const src = (i * DBLT + (e ? b : a)) * 3;
+        pa[m * 6 + e * 3] = dblTrail[src]; pa[m * 6 + e * 3 + 1] = dblTrail[src + 1]; pa[m * 6 + e * 3 + 2] = dblTrail[src + 2];
+        ca.set([c.r * fade, c.g * fade, c.b * fade], (m * 2 + e) * 3);
+      }
+      m++;
+    }
+  }
+  g.attributes.position.needsUpdate = g.attributes.color.needsUpdate = true; g.setDrawRange(0, m * 2);
+}
 // ---- ランダムな軌跡: 北極からランダムな方向へ出発する線を次々に足す。方向マップ（方位×仰角を面積が等しい格子に区切ったもの）で網羅の様子を見る ----
 function makeRL() {
   const n = MAXRL * RLS * 6, g = new THREE.BufferGeometry();
@@ -932,7 +1028,7 @@ function updateGuide() {
 }
 function updatePath() {
   if (!pathL) return;
-  updateAll(); updateFoot(); updateGuide(); updateGuideL(); updateRL(); updateCurve();
+  updateAll(); updateFoot(); updateGuide(); updateGuideL(); updateRL(); updateCurve(); updateDbl();
   pathL.line.visible = pathL.dot.visible = pathOn;
   pathR.line.visible = pathR.dot.visible = pathOn && !sliceOn;   // 切断面モードでは右の軌跡は出さない
   pathL.pts.visible = pathOn && stepOn; pathR.pts.visible = pathOn && stepOn && !sliceOn; if (!pathOn) { pathL.ring.visible = pathR.ring.visible = false; }
@@ -957,19 +1053,32 @@ function updatePath() {
     kL.needsUpdate = kR.needsUpdate = true; pathL.pts.geometry.setDrawRange(0, nT); pathR.pts.geometry.setDrawRange(0, nT);
   }
   const cA = pathL.line.geometry.attributes.color, cB = pathR.line.geometry.attributes.color;
-  for (let i = 0; i <= PN; i++) { const c = tv[i] <= pathT + 1e-9 ? depthRGB(pathWArr[i]) : [0.28, 0.30, 0.38]; cA.array.set(c, i * 3); cB.array.set(c, i * 3); }
+  for (let i = 0; i <= PN; i++) { const c = tv[i] <= pathT + 1e-9 ? travelRGB(tv[i], pathWArr[i]) : [0.28, 0.30, 0.38]; cA.array.set(c, i * 3); cB.array.set(c, i * 3); }
   cA.needsUpdate = cB.needsUpdate = true;
   const tl = [0, 0, 0], tr = [0, 0, 0]; put(pathT, tl, tr, 0);
   pathL.dot.position.set(tl[0], tl[1], tl[2]); pathR.dot.position.set(tr[0], tr[1], tr[2]);
-  // 4次元の奥行き（w′）の見せ方: 色（手前=橙 → 奥=紫）、奥側（w′<0）は点のまわりに輪、右端にゲージ
-  const dc = depthRGB(pathW), far = pathW < 0;
+  // 色相=行き/帰り、明るさ=4次元の奥行き、輪=奥半球にいる印、右端にゲージ（それぞれ別の量を担当させる）
+  const dc = travelRGB(pathT, pathW), far = pathW < 0;
   for (const sd of [pathL, pathR]) {
-    sd.dot.material.color.setRGB(dc[0], dc[1], dc[2]); sd.dot.material.transparent = true; sd.dot.material.opacity = far ? 0.7 : 1;
+    sd.dot.material.color.setRGB(dc[0], dc[1], dc[2]); sd.dot.material.transparent = false; sd.dot.material.opacity = 1;   // 霞みで奥行きを出すので、透明度は触らない（二重に薄くすると見失う）
     sd.ring.position.copy(sd.dot.position); sd.ring.material.color.setRGB(dc[0], dc[1], dc[2]); sd.ring.visible = pathOn && far && (sd === pathL || !sliceOn);
   }
   drawGauge();
 }
-function depthRGB(w) {   // w′ = +R（カメラ側・手前）→ 橙, w′ = -R（奥）→ 紫
+// ---- 軌跡の色: 役割を1チャンネル1つに分ける ----
+//   色相  = 行き(橙, 北極→南極) / 帰り(水色, 南極→北極)   ← 順序を持たない量なのでカテゴリ分けに使う
+//   明るさ = 4次元の奥行き（奥ほど背景に溶ける）           ← 球殻の「🌫 霞み」「🌗 裏側を暗く(4Dの奥)」と同じ言語
+//   輪    = 奥半球にいるかどうか（1ビット）
+//   ゲージ = 正確な数値
+const DOF_BG = [0.012, 0.027, 0.071];   // 背景色 #030712。霞ませる先をここに揃えると殻のDOFと同じ質感になる
+const depthK = w => 0.4 + 0.6 * Math.min(1, Math.max(0, (w + R) / (2 * R)));   // 手前=1.0 奥=0.4（下限を残さないと点を見失う）
+const fadeBG = (c, k) => [DOF_BG[0] + (c[0] - DOF_BG[0]) * k, DOF_BG[1] + (c[1] - DOF_BG[1]) * k, DOF_BG[2] + (c[2] - DOF_BG[2]) * k];
+const GO = new THREE.Color().setHSL(0.08, 0.95, 0.58), BACKC = new THREE.Color().setHSL(0.52, 0.95, 0.62);
+function travelRGB(t, w) {   // t: 北極からの角度（πを超えたら帰り道）
+  const c = ((t % TAU) + TAU) % TAU > Math.PI ? BACKC : GO;
+  return fadeBG([c.r, c.g, c.b], depthK(w));
+}
+function depthRGB(w) {   // 学習モードの「🎨 4D奥行きで色分け」用: w′ = +R（手前）→ 橙, -R（奥）→ 紫
   const t = Math.min(1, Math.max(0, (w + R) / (2 * R))), c = new THREE.Color().setHSL(0.74 - 0.64 * t, 0.92, 0.56); return [c.r, c.g, c.b];
 }
 function drawGauge() {
@@ -977,12 +1086,15 @@ function drawGauge() {
   const on = pathOn && gaugeOn && !sliceOn; gc.style.display = on ? 'block' : 'none'; if (!on) return;
   const x = gc.getContext('2d'), W = gc.width, H = gc.height, top = 28, bot = H - 30, bx = 10, bw = 14;
   x.clearRect(0, 0, W, H); x.font = 'bold 10px system-ui, sans-serif'; x.textAlign = 'center'; x.fillStyle = '#e5e7eb'; x.fillText('4D奥行き', W / 2, 12); x.fillStyle = '#fdba74'; x.fillText('手前', W / 2, 24);
-  const gr = x.createLinearGradient(0, top, 0, bot); for (let i = 0; i <= 8; i++) { const c = depthRGB(R - i / 8 * 2 * R); gr.addColorStop(i / 8, `rgb(${c[0] * 255 | 0},${c[1] * 255 | 0},${c[2] * 255 | 0})`); }
+  const hueNow = ((pathT % TAU) + TAU) % TAU > Math.PI ? BACKC : GO;   // 今が行きか帰りか。ゲージも同じ色相で示す
+  const gr = x.createLinearGradient(0, top, 0, bot);   // 明るさだけの階調（色相は行き/帰りを表すので、奥行きには使わない）
+  for (let i = 0; i <= 8; i++) { const c = fadeBG([hueNow.r, hueNow.g, hueNow.b], depthK(R - i / 8 * 2 * R)); gr.addColorStop(i / 8, `rgb(${c[0] * 255 | 0},${c[1] * 255 | 0},${c[2] * 255 | 0})`); }
   x.fillStyle = gr; x.fillRect(bx, top, bw, bot - top);
   x.strokeStyle = '#94a3b8'; x.lineWidth = 1; x.beginPath(); x.moveTo(bx - 3, (top + bot) / 2); x.lineTo(bx + bw + 3, (top + bot) / 2); x.stroke();
   const y = top + (1 - (pathW + R) / (2 * R)) * (bot - top), yy = Math.min(bot, Math.max(top, y));
   x.fillStyle = '#facc15'; x.beginPath(); x.moveTo(bx + bw + 3, yy); x.lineTo(bx + bw + 14, yy - 6); x.lineTo(bx + bw + 14, yy + 6); x.fill();
-  x.fillStyle = '#c4b5fd'; x.fillText('奥', W / 2, bot + 12); x.fillStyle = '#e5e7eb'; x.fillText((pathW >= 0 ? '+' : '') + pathW.toFixed(2), W / 2, bot + 24);
+  x.fillStyle = '#94a3b8'; x.fillText('奥', W / 2, bot + 12); x.fillStyle = '#e5e7eb'; x.fillText((pathW >= 0 ? '+' : '') + pathW.toFixed(2), W / 2, bot + 24);
+  x.fillStyle = hueNow === BACKC ? '#67e8f9' : '#fdba74'; x.fillText(hueNow === BACKC ? '帰り' : '行き', W / 2, bot + 36);
 }
 function updateRight() { updateRightCore(); updatePath(); }
 function updateRightCore() {
@@ -1245,6 +1357,38 @@ $('bCutL').onclick = () => stepCut(-1);
 $('bCutR').onclick = () => stepCut(1);
 $('bCutSpin').onclick = e => { cutSpin = !cutSpin; cutGoal = null; e.currentTarget.classList.toggle('on', cutSpin); if (cutSpin) { leaveOrig(); ensureWedge(); } };
 $('bSpin').onclick = e => { spinOn = !spinOn; controls.autoRotate = spinOn; e.currentTarget.classList.toggle('on', spinOn); };
+// 🌀 二重回転（β）
+function syncDblUI() {
+  const on = axis === 'dbl';
+  $('dblRow').style.display = on ? '' : 'none';
+  document.querySelectorAll('[data-dbl]').forEach(b => b.classList.toggle('on', Math.abs(dblRate - +b.dataset.dbl) < 1e-6));
+  $('bDblPts').classList.toggle('on', dblPts);
+  const rat = Math.abs(dblRate - Math.SQRT2) < 1e-6 ? '1:√2（無理数比）' : ratText(dblRate);
+  $('dblNote').innerHTML = !on ? '' :
+    `XY面の速さ : ZW面の速さ = <b>${rat}</b>。` + (
+      Math.abs(dblRate - 1) < 1e-6 ? '等速なので全ての点が大円を描き、どの2本の円も必ず絡み合います（ホップ束）。' :
+      Math.abs(dblRate - Math.SQRT2) < 1e-6 ? '比が無理数なので軌道は永久に閉じず、点はトーラス面を少しずつ埋めていきます。' :
+      dblRate === 0 ? 'ZW面が止まっているので、これは普通の（3次元的な）回転です。紫の点＝ZW大円上の点だけが静止します。' :
+      '整数比なので軌道は閉じた結び目になります。') +
+    (dblRate === 0 ? '' : ' <b>中心以外に止まっている点はありません</b>＝この回転に「軸」は存在しません。');
+}
+function ratText(r) {   // 速さ比を、分母の小さい分数として表示する（連分数）
+  let best = [1, 1], err = Infinity;
+  for (let q = 1; q <= 12; q++) { const p = Math.round(r * q); const e = Math.abs(r - p / q); if (e < err - 1e-12) { err = e; best = [q, p]; } }
+  return err < 1e-6 ? `${best[0]}:${best[1]}` : `約 ${best[0]}:${best[1]}`;
+}
+document.querySelectorAll('[data-dbl]').forEach(b => b.onclick = () => {
+  dblRate = +b.dataset.dbl; clearDblTrail();
+  if (axis !== 'dbl') document.querySelector('[data-ax="dbl"]').click();
+  syncDblUI(); syncPanel();
+});
+$('bDblPts').onclick = e => { dblPts = !dblPts; e.currentTarget.classList.toggle('on', dblPts); clearDblTrail(); updatePath(); };
+$('bDblView').onclick = () => {   // 点の動きを見るための設定: 球殻は薄い背景にして、2つの大円が重ならない斜めから見る
+  nLayers = 7; mode = 'wire'; mark('[data-mode]', document.querySelector('[data-mode="wire"]')); opacity = 0.07;
+  dblPts = true; $('bDblPts').classList.add('on');
+  if (!viewLock) { cR.position.set(0, 0, 1).setFromSphericalCoords(9.5, 1.12, 0.72); cR.up.set(0, 1, 0); controls.target.set(0, 0, 0); controls.update(); }
+  clearDblTrail(); build(); syncPanel();
+};
 $('bDemo').onclick = e => { demo = !demo; e.currentTarget.classList.toggle('on', demo); };
 document.querySelectorAll('[data-hemi]').forEach(b => b.onclick = () => {
   hemi = b.dataset.hemi; mark('[data-hemi]', b); applyVis();
@@ -1369,7 +1513,8 @@ document.querySelectorAll('[data-ax]').forEach(b => b.onclick = () => {
   else if (axis === 'xw') pitch = yaw = zw = obT = 0;
   else if (axis === 'zw') pitch = roll = yaw = obT = 0;
   else if (axis === 'ob') pitch = roll = yaw = zw = 0;
-  update();
+  else if (axis === 'dbl') { pitch = roll = obT = 0; yaw = zw = 0; clearDblTrail(); }   // XY と ZW だけを使う。他の面が混ざると「完全直交な2平面の回転」でなくなる
+  syncDblUI(); update(); syncPanel();
 });
 addEventListener('keydown', e => {   // Space: 設定パネルを隠す／出す
   if (e.code !== 'Space' || e.repeat || document.body.classList.contains('learning')) return;
@@ -1680,6 +1825,7 @@ const PR = [
   { g: 'axis', k: 'axW', t: '矢印の太さ', tip: '座標軸・向きの矢印の太さ（左右とも）', min: 0.4, max: 5, step: 0.1, dp: 1, get: () => axW, set: v => { axW = v; updatePath(); } },
   { g: 'scr', k: 'paAlpha', t: 'パネルの透け具合', tip: '小さいほど透明（シースルーのとき）', min: 0.1, max: 1, step: 0.05, dp: 2, get: () => paAlpha, set: v => { paAlpha = v; document.documentElement.style.setProperty('--pa', v); } },
   { g: 'auto', k: 'spd', t: '回す速さ', tip: '自動回転・進める・軌跡を足す速さに共通で効く', min: 0.2, max: 3, step: .1, dp: 1, get: () => spd, set: v => { spd = v; refreshUI(); } },
+  { g: 'auto', k: 'dblRate', t: 'ZW面の速さ比', tip: 'XY面を1としたときのZW面の速さ。1=ホップ束、整数比=閉じた結び目、無理数比=閉じずトーラスを埋める', min: 0, max: 4, step: 0.0001, dp: 4, en: () => axis === 'dbl', get: () => dblRate, set: v => { dblRate = v; clearDblTrail(); syncDblUI(); } },
   { g: 'look', k: 'opacity', t: '透明度', tip: '右の球殻の透明度', min: 0.05, max: 0.75, step: .05, dp: 2, get: () => opacity, set: v => { opacity = v; applyVis(); } },
   { g: 'look', k: 'shade', t: '境目の影の強さ', tip: '「不透明」のときだけ効く', min: 0, max: 1, step: .05, dp: 2, get: () => shade, set: v => { shade = v; applyVis(); } },
   { g: 'back', k: 'backAmt', t: '裏側の暗さ', tip: '内側が見えている部分をどれだけ暗くするか', min: 0, max: 1, step: .05, dp: 2, en: () => backOn, get: () => backAmt, set: v => { backAmt = v; applyBack(); } },
@@ -1729,8 +1875,10 @@ function syncPanel() {
     else if (axis === 'ob') obT = norm(obT + d);
     else if (axis === 'yw') pitch = norm(pitch - d);   // Y-W: 0→-90→-180(=180)→90→0 を繰り返す
     else if (axis === 'mix3') { pitch = norm(pitch + d); roll = norm(roll + d * 0.67); zw = norm(zw + d * 0.43); }   // 速さの比を無理数に近づけて、同じ姿勢に戻りにくくする
+    else if (axis === 'dbl') { yaw = norm(yaw + d); zw = norm(zw + d * dblRate); }   // 二重回転: XY と ZW は完全直交なので互いに干渉せず、別々の速さで回せる
     else zw = norm(zw + d);
     update();
+    if (axis === 'dbl') pushDblTrail();
   }
   if (rlOn && ++rlTick % 2 === 0) { for (let k = 0, m = Math.max(1, Math.round(spd)); k < m; k++) addRL(); if (rlN >= MAXRL) { rlOn = false; $('bRL').classList.remove('on'); } updatePath(); refreshUI(); }
   if (randPlay) { addFoot(4); if (++randTick % 15 === 0 && footLast) { pathPhi = footLast.ph; pathLam = footLast.lam; pathT = footLast.t; } updatePath(); refreshUI(); }
@@ -1764,7 +1912,7 @@ let lsLast = '', noSave = false;
 function collectSettings() {
   return {
     nLayers, model, leftZW, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn, camFixed, viewLock, axW, axTop,
-    backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM, stepOn, hudOn, leftS2, curveType, cvRho, cvA, cvB, cvEta, cvK, cvN, cvSteps, cvStepLen, cvNoise, tab: $('panel').dataset.tab,
+    backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM, stepOn, hudOn, leftS2, curveType, cvRho, cvA, cvB, cvEta, cvK, cvN, cvSteps, cvStepLen, cvNoise, dblRate, dblPts, tab: $('panel').dataset.tab,
     full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'), noinfo: document.body.classList.contains('noinfo'), dofOn, dofFocus2: dofFocus, dofRange2: dofRange, dofFog: dofBlur, noblur: document.body.classList.contains('noblur'), gaugeOn, rfov: cR.fov, seethru: document.body.classList.contains('seethru'), paAlpha, favs, nopanel: document.body.classList.contains('nopanel'),
     open3: Object.fromEntries(grpEls.map(g => [g.id, g.open])),   // セクションの開閉はidで保存（並べ替えてもずれない）
     cam: cR.position.toArray(), tgt: controls.target.toArray()
@@ -1787,7 +1935,8 @@ function loadSettings() {
   nLayers = Math.round(num('nLayers', 5, 101, nLayers)); if (nLayers % 2 === 0) nLayers = Math.min(101, nLayers + 1);
   opacity = num('opacity', 0.05, 0.75, opacity); camW = num('camW', 2, 60, camW); shade = num('shade', 0, 1, shade);
   spd = num('spd', 0.2, 3, spd); allM = Math.round(num('allM', 4, 24, allM)); if (allM % 2) allM++;
-  axis = pick('axis', ['mix', 'mix3', 'yw', 'xw', 'zw', 'ob'], axis);
+  axis = pick('axis', ['mix', 'mix3', 'yw', 'xw', 'zw', 'ob', 'dbl'], axis);
+  dblRate = num('dblRate', 0, 4, dblRate); dblPts = bool('dblPts', dblPts);
   mode = pick('mode', ['hybrid', 'wire', 'solid', 'points'], mode);
   model = pick('model', ['lat', 'mer', 'both', 'full', 'cone'], model); leftZW = pick('leftZW', ['slice', 'shadow', 'both'], leftZW); mark('[data-lzw]', document.querySelector(`[data-lzw="${leftZW}"]`)); mark('[data-model]', document.querySelector(`[data-model="${model}"]`));
   hemi = pick('hemi', ['both', 'A', 'B'], hemi);
@@ -1815,7 +1964,7 @@ function loadSettings() {
   { const tb = pick('tab', ['fav', 'geo', 'turn', 'path', 'draw'], 'fav'); $('panel').dataset.tab = tb; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === tb)); }
   mark('[data-mode]', document.querySelector(`[data-mode="${mode}"]`));
   mark('[data-hemi]', document.querySelector(`[data-hemi="${hemi}"]`));
-  mark('[data-ax]', document.querySelector(`[data-ax="${axis}"]`));
+  mark('[data-ax]', document.querySelector(`[data-ax="${axis}"]`)); syncDblUI();
   [['bSlice', sliceOn], ['bWedge', wedgeOn], ['bAxTop', axTop], ['bOpq', opaque], ['bMat', matte], ['bShade', shadeOn], ['bBack', backOn], ['bPath', pathOn], ['bAll', allOn], ['bStep', stepOn], ['bHud', hudOn], ['bS2', leftS2]]
     .forEach(([id, on]) => $(id).classList.toggle('on', on));
   syncCamUI();
@@ -1829,7 +1978,7 @@ $('bLsReset').onclick = () => {
 
 loadSettings();
 try { if (!localStorage.getItem(LS_KEY)) document.body.classList.add('seethru'); } catch (e) { document.body.classList.add('seethru'); }   // 初回はシースルー
-renderFavs();
+renderFavs(); syncDblUI();
 resize(); build(); refreshTag();
 setInterval(saveSettings, 500);
 addEventListener('pagehide', saveSettings);
