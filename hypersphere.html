@@ -17,7 +17,9 @@ main{flex:1;min-height:0;display:flex}
 .tag,.info{position:absolute;z-index:1;padding:5px 10px;border-radius:10px;background:#0f172ae6;pointer-events:none}
 .tag{top:8px;left:8px;border:1px solid #334155;font-size:12px}
 .info{bottom:8px;left:8px;font:11px monospace;white-space:pre}
-#panel{padding:8px;background:#0a0f1df0;border-top:1px solid #1e293b;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;max-height:44vh;overflow:auto;align-items:start}
+#panel{padding:8px;background:#0a0f1df0;border-top:1px solid #1e293b;display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:8px;max-height:44vh;overflow:auto;align-items:start}
+/* 開いているセクションは広く、閉じているセクションは細いまま並べる */
+@media(min-width:1020px){#panel details.grp[open]{grid-column:span 2}}
 details.grp{background:#0b1220;border:1px solid #1e293b;border-radius:10px;padding:4px 8px}
 details.grp>summary{cursor:pointer;font-weight:600;padding:3px 0}
 .gb{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:5px 0}.gb span{color:#94a3b8;font-size:12px}
@@ -32,19 +34,28 @@ details.grp>summary{cursor:pointer;font-weight:600;padding:3px 0}
 .ctl input[type=number]{width:66px;background:#030712;color:#e5e7eb;border:1px solid #334155;border-radius:6px;padding:2px 4px;font:inherit}
 #bCam.on{background:#6d28d9;border-color:#a78bfa}
 body.full #pL{display:none}
-#panel.min .ctl:not(.row){display:none!important}
+#panel.min .ctl{display:none!important}
 .ctl input:disabled{opacity:.3}
-.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;grid-column:1/-1}
 button{background:#162136;color:#e5e7eb;border:1px solid #334155;border-radius:8px;padding:5px 9px;cursor:pointer;font:inherit}
 button.on{background:#0e7490;border-color:#38bdf8}
 #bSlice.on{background:#b45309;border-color:#f59e0b}
 @media(max-width:700px){main{flex-direction:column}.pane+.pane{border-left:0;border-top:1px solid #1e293b}}
 #tabs{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;position:sticky;top:-8px;z-index:3;background:#0a0f1d;padding:6px 0 4px}
+/* タブ内でどのセクションを開いていても使える常設バー（▶ 進める など） */
+#panel .bar{grid-column:1/-1;display:none;flex-wrap:wrap;gap:6px;align-items:center;margin:-2px 0 2px}
+#panel[data-tab=path] .bar[data-tab=path]{display:flex}
+body.seethru #panel .bar{background:transparent}
 #tabs button.on{background:#0e7490;border-color:#38bdf8;color:#fff}
 #panel details[data-tab]{display:none}
-#panel[data-tab=fav] details[data-tab=fav],#panel[data-tab=view] details[data-tab=view],#panel[data-tab=path] details[data-tab=path],#panel[data-tab=rot] details[data-tab=rot],#panel[data-tab=cam] details[data-tab=cam],#panel[data-tab=look] details[data-tab=look],#panel[data-tab=scr] details[data-tab=scr]{display:block}
+#panel[data-tab=fav] details[data-tab=fav],#panel[data-tab=geo] details[data-tab=geo],#panel[data-tab=turn] details[data-tab=turn],#panel[data-tab=path] details[data-tab=path],#panel[data-tab=draw] details[data-tab=draw]{display:block}
 details.sub{margin:6px 0;border:1px solid #1e293b;border-radius:8px;padding:2px 8px}
 details.sub>summary{cursor:pointer;color:#cbd5e1;font-size:12px;padding:3px 0}
+/* 無効なスライダーは消さずに薄く（消すとレイアウトが跳ねて、ボタンがカーソルの下から動く） */
+.ctl.dis{opacity:.45}.ctl.dis input{pointer-events:none}.ctl.dis input:disabled{opacity:1}
+.hint{color:#8b9bb4;font-size:11px;line-height:1.5;margin:4px 0 2px}
+.hint b{color:#cbd5e1;font-weight:600}
+details.grp>summary::marker{color:#64748b}
+.gb+.gs{margin-top:7px}
 .info{max-height:38%;max-width:calc(100% - 16px);overflow:auto;pointer-events:auto;font-size:10.5px;line-height:1.35;background:#0f172ab8}
 body.noinfo .info,body.noinfo #cmap{display:none!important}
 body.nopanel #panel{display:none}
@@ -87,7 +98,7 @@ body.keyhelp #keyHelp{display:block}
 </head>
 <body>
 <main>
-  <div class="pane" id="pL"><div class="tag">【操作側】3D球（リング積層）ドラッグで傾ける／Shift+横ドラッグで Z-W 傾き ※Z-W傾きの見せ方は「表示」タブの「左の Z-W」で切替</div><div class="info" id="infoL"></div></div>
+  <div class="pane" id="pL"><div class="tag">【操作側】3D球（リング積層）ドラッグで傾ける／Shift+横ドラッグで Z-W 傾き ※Z-W傾きの見せ方は「回転・視点」タブの「球の傾き」で切替</div><div class="info" id="infoL"></div></div>
   <div class="pane" id="pR"><div class="tag" id="tagR"></div><div class="info" id="infoR"></div><canvas id="hud" width="320" height="176"></canvas><canvas id="wgauge" width="62" height="200"></canvas><canvas id="cmap" width="248" height="150"></canvas></div>
 </main>
 
@@ -98,6 +109,7 @@ body.keyhelp #keyHelp{display:block}
     <div id="lnSide">
       <div class="gb"><span>どこから撮る？（4Dカメラの向き）</span></div>
       <div class="gb"><button data-lnp="A" class="on" title="w方向から撮る。hypersphere.html の右画面と同じ">① w方向から</button><button data-lnp="B" title="(1,1,1,1) 方向から撮る。4本の軸が正四面体の形に均等に並ぶ">② 4軸を均等に</button><button data-lnp="C" title="xyz の対角 (1,1,1,0) から撮る。xyz が120°の平面、w が縦。元のツールの見せ方">③ xyzを平面化</button></div>
+      <div class="gb"><span>③ 3軸を平面化（縦に立てる軸）:</span><button data-lnp="C" title="x・y・z を床、w を縦">w を縦</button><button data-lnp="CZ" title="x・y・w を床、z を縦">z を縦</button><button data-lnp="CY" title="x・z・w を床、y を縦">y を縦</button><button data-lnp="CX" title="y・z・w を床、x を縦">x を縦</button></div>
       <div class="gb"><span>メインの4Dカメラと同じ位置:</span><button data-lnp="A" title="カメラの数値が全部0">0°（w方向）</button><button data-lnp="D" title="4Dカメラ X-W = 90°">X-W 90°</button><button data-lnp="E" title="4Dカメラ Y-W = 90°">Y-W 90°</button><button data-lnp="F" title="4Dカメラ Z-W = 90°。左の3D球と同じ写真">Z-W 90°</button></div>
       <div class="gb"><span><b>カメラに写る領域</b></span><button id="lnColDepth" title="超球の各点を、4Dカメラ側（手前）=橙、奥=紫で色分け。カメラから直接見えている半分が橙の側">🎨 4D奥行きで色分け</button><button id="lnFilm" title="フィルム（窓ガラス）が超球を切る断面の球＝等倍で写る3D断面（白）と、写真の輪郭の球（黄）を表示">🪟 フィルム断面と輪郭</button></div>
       <div id="lnRegion" class="lnnote"></div>
@@ -134,62 +146,93 @@ body.keyhelp #keyHelp{display:block}
 </div>
 <button id="panelShow">⚙ 設定パネルを開く（Space）</button>
 <div id="panel" data-tab="fav">
-  <div id="tabs"><button data-tab="fav" class="on">⭐ よく使う</button><button data-tab="view">🔭 表示</button><button data-tab="path">🧭 旅・軌跡</button><button data-tab="rot">🔁 回転</button><button data-tab="cam">🎥 カメラ</button><button data-tab="look">🎨 見た目</button><button data-tab="scr">🖥 画面</button><button id="bLearn" title="4次元→3次元の写真を学ぶ（x・y・z・w の関係）">📚 学習</button><button id="bKeys" title="ショートカットキーの一覧（? または K キー）">⌨ キー</button></div>
-  <details class="grp" open data-tab="fav"><summary>⭐ よく使う（基本操作）</summary>
+  <div id="tabs"><button data-tab="fav" class="on">⭐ よく使う</button><button data-tab="geo" title="どの構造を出すか・どう切るか">🧊 構造・切断</button><button data-tab="turn" title="球の傾き・4Dカメラ・右の3D視点">🔁 回転・視点</button><button data-tab="path" title="超球面上を進む点と軌跡">🧭 旅・軌跡</button><button data-tab="draw" title="描き方・画面とパネルの設定">🎨 見え方・画面</button><button id="bLearn" title="4次元→3次元の写真を学ぶ（x・y・z・w の関係）">📚 学習</button><button id="bKeys" title="ショートカットキーの一覧（? または K キー）">⌨ キー</button></div>
+
+  <div class="bar" data-tab="path"><button id="bPathPlay">▶ 進める</button><span class="hint">直進の旅・全方向・いろいろな軌跡で共通</span></div>
+
+  <!-- ===== ⭐ よく使う ===== -->
+  <details class="grp" id="s-fav" open data-tab="fav"><summary>⭐ よく使う</summary>
     <div class="gb"><button id="bFavEdit" title="オンにして他のタブの項目（ボタン・スライダーの名前）をクリックすると、ここに追加／もう一度で外せます">📌 追加・外すモード</button><button id="bFavReset" title="最初の基本セットに戻す">初期セットに戻す</button></div>
-    <div class="gb"><span id="favNote"></span></div>
-    <div class="gb"><span>⌨ キー: <b>R</b> 回転 <b>E</b> 初期位置 <b>C</b> 断面カット <b>Y/X/Z/W</b> 各回転 <b>Space</b> パネル <b>?</b> 一覧</span></div>
+    <div class="hint" id="favNote"></div>
     <div class="gb" id="favBtns"></div>
     <div class="gs" id="g-favs"></div></details>
-  <details class="grp" open data-tab="view"><summary>🔭 表示</summary>
-    <div class="gb"><span>モード</span><button data-mode="hybrid" class="on">ハイブリッド</button><button data-mode="wire">ワイヤー</button><button data-mode="solid">半透明</button><button data-mode="points">点群</button></div>
-    <div class="gb"><span>左の Z-W</span><button data-lzw="slice" class="on" title="z′=0 で切った断面。リングは断面と交わらなくなると消える">断面</button><button data-lzw="shadow" title="z方向から見た影（投影）。リングは消えず、各層が平たい楕円体（パンケーキ）としてふくらむ。4Dカメラ Z-W 90° の写真と同じ見え方">影（投影）</button><button data-lzw="both" title="断面のリング＋影の楕円体を薄く">両方</button></div>
-    <div class="gb"><span>3Dモデル</span><button data-model="lat" class="on" title="リングを高さ方向に積む（緯度線）。右は球殻を積む">緯度リング</button><button data-model="mer" title="極を通る大円を等間隔に並べる（経度線）。右は大きな球殻が放射状に並ぶ。β版">経度リング（β）</button><button data-model="both" title="緯度リングと経度リングを同時に表示（地球儀の格子）。右は球殻と大球殻が重なる。β版">両方（β）</button><button data-model="cone" title="円錐（xyzでの極角θ一定の面）だけを表示。左は参考の球だけ。β版">円錐だけ（β）</button><button data-model="full" title="緯度＋経度＋円錐（xyzでの極角θ一定の面）。超球の座標3族がそろう。円錐は右だけに出る。β版">全部（β）</button><span>※経度では「層数」が大円の本数</span></div>
-    <div class="gb"><span>半球</span><button data-hemi="both" class="on">全球</button><button data-hemi="A">北 A</button><button data-hemi="B">南 B</button><button id="bColor">中心色反転</button></div>
-    <details class="sub"><summary>✂ 断面・切り欠き（切断面／断面カット／開き具合）</summary>
-    <div class="gb"><button id="bSlice">🔪 切断面（観察者に固定）</button><button id="bWedge" title="ショートカット: C">✂ 断面カット</button></div>
-    <div class="gb"><span>切り欠き</span><button data-cref="screen" class="on" title="観察者（画面）から見て常に同じ側を切る">📺 画面に固定</button><button data-cref="obj" title="超球の経度に固定（回すと切り口も一緒に動く）">🧊 物体に固定</button><button data-cref="orig" title="押した瞬間に画面から見て手前側の90°ぶんのポリゴンを作らない。次に押すまで超球に固定">🧱 ポリゴンカット</button></div>
-    <div class="gb"><button id="bCutL">⟲ 90°</button><button id="bCutR">90° ⟳</button><button id="bCutSpin">🌀 ぐるっと</button></div>
-    <div class="gb"><span>開き具合</span><button data-cw="60">60°</button><button data-cw="90">90°</button><button data-cw="120">120°</button><button data-cw="180">180°</button><button data-cw="270">270°</button><span>（細かくは下の「開き具合」）</span></div></details>
-    <div class="gs" id="g-view"></div></details>
-  <details class="grp" open data-tab="path"><summary>▶ 再生</summary>
-    <div class="gb"><button id="bPathPlay">▶ 進める</button><span>点を進める（直進の旅・全方向・いろいろな軌跡で共通）</span></div></details>
-  <details class="grp" open data-tab="path"><summary>🧭 直進の旅（北極スタート）</summary>
-    <div class="gb"><button id="bPath">🎯 目的地を指定</button><button id="bRand">🎲 ランダムに次々</button><button id="bFootClr">足あとを消す</button></div>
-    <div class="gb"><button id="bAll">🌌 全方向の旅</button><button id="bRL" title="北極から、ランダムな方向へ出発する軌跡を次々に足していく。右下の方向マップで、全方向を網羅していく様子が見える">🌠 ランダムな軌跡</button><button id="bRLClr">軌跡を消す</button></div>
-    <div class="gb"><span>ガイド: 赤=x軸 緑=y軸 青=z軸 黄=進む向き ／ 方位角=水平に向く角度（0°=x軸, 90°=y軸）、仰角=見上げる角度（0°=水平, 90°=真上=z軸）</span></div>
-    <div class="gs" id="g-path"></div></details>
-  <details class="grp" open data-tab="path"><summary>🌀 いろいろな軌跡（曲がる・巻く・絡む）</summary>
-    <div class="gb"><button data-cv="circle" title="北極のまわりを一定の距離で回る小円">⭕ 小円</button><button data-cv="torus" title="トーラスの表面を a:b で巻く（結び目）">🍩 トーラス結び目</button><button data-cv="hopf" title="絡み合う大円の束">🔗 ホップ束</button><button data-cv="loxo" title="経線と一定の角度で交わる、北極⇄南極のらせん">🌀 らせん</button><button data-cv="walk" title="一歩ごとに向きをランダムに変える">🍺 ランダムウォーク</button><button id="bWalkNew">🎲 歩き直す</button></div>
-    <div class="gb"><span id="cvNote">種類を選ぶと、軌跡が出ます（もう一度押すと消えます）</span></div>
-    <div class="gs" id="g-curve"></div></details>
-  <details class="grp" open data-tab="path"><summary>👁 軌跡の見せ方</summary>
-    <div class="gb"><button id="bStep" title="軌跡を、球殻（層）と交わる点だけ直線でつなぐ。球殻の数（「層数」スライダー）を増やすほどなめらかな曲線に近づく＝空間が少しずつ曲がっていることが見える">🪜 球殻ごとのカクカク軌跡</button><button id="bS2" title="左の3D球はS²（2次元の球面）。S²では進む向きは方位角1つだけなので、仰角を使わず球面上の経線として動かす。オフなら、右の超球と同じ点の影（仰角が入ると球の内側に入る）">左: S²（仰角を使わない）</button><button id="bGauge" class="on" title="軌跡の点が4次元で手前（カメラ側）か奥かを、右端のゲージで示す">w′ゲージ</button><button id="bHud" title="右上に方位・仰角のダイヤルを出す（画面が狭くなるので初期はオフ）">座標ダイヤル</button></div>
-    <div class="gb"><button id="bAxTop" class="on" title="座標軸・向きの矢印を、球殻やワイヤーの手前に常に描く。オフにすると球殻の裏側に隠れる">🔝 座標軸を最前面に</button></div>
-    <div class="gs" id="g-axis"></div></details>
-  <details class="grp" open data-tab="rot"><summary>🔁 回転（傾き）</summary>
+
+  <!-- ===== 🧊 構造・切断 ===== -->
+  <details class="grp" id="s-struct" open data-tab="geo"><summary>🧊 どの構造を出す</summary>
+    <div class="gb"><span>3Dモデル</span><button data-model="lat" class="on" title="リングを高さ方向に積む（緯度線）。右は球殻を積む">緯度リング</button><button data-model="mer" title="極を通る大円を等間隔に並べる（経度線）。右は大きな球殻が放射状に並ぶ。β版">経度リング（β）</button><button data-model="both" title="緯度リングと経度リングを同時に表示（地球儀の格子）。右は球殻と大球殻が重なる。β版">両方（β）</button><button data-model="cone" title="円錐（xyzでの極角θ一定の面）だけを表示。左は参考の球だけ。β版">円錐だけ（β）</button><button data-model="full" title="緯度＋経度＋円錐（xyzでの極角θ一定の面）。超球の座標3族がそろう。円錐は右だけに出る。β版">全部（β）</button></div>
+    <div class="gb"><span>半球</span><button data-hemi="both" class="on">全球</button><button data-hemi="A">北 A</button><button data-hemi="B">南 B</button><button id="bColor" title="層の色の並びを反転する">中心色反転</button></div>
+    <div class="gs" id="g-struct"></div>
+    <div class="hint">経度リングでは「層数」が<b>大円の本数</b>になります。（β）は実験中の表示です。</div></details>
+
+  <details class="grp" id="s-cut" data-tab="geo"><summary>✂ 切る・切り欠く</summary>
+    <div class="gb"><button id="bSlice" title="超球を1枚の超平面で切って、その切り口だけを見る">🔪 切断面（観察者に固定）</button><button id="bWedge" title="くさび形に切り欠いて中をのぞく。ショートカット: C">✂ 断面カット</button></div>
+    <div class="gb"><span>切り欠きの基準</span><button data-cref="screen" class="on" title="観察者（画面）から見て常に同じ側を切る">📺 画面に固定</button><button data-cref="obj" title="超球の経度に固定（回すと切り口も一緒に動く）">🧊 物体に固定</button><button data-cref="orig" title="押した瞬間に画面から見て手前側の90°ぶんのポリゴンを作らない。次に押すまで超球に固定">🧱 ポリゴンカット</button></div>
+    <div class="gb"><span>切り口を回す</span><button id="bCutL">⟲ 90°</button><button id="bCutR">90° ⟳</button><button id="bCutSpin">🌀 ぐるっと</button></div>
+    <div class="gb"><span>開き具合プリセット</span><button data-cw="60">60°</button><button data-cw="90">90°</button><button data-cw="120">120°</button><button data-cw="180">180°</button><button data-cw="270">270°</button></div>
+    <div class="gs" id="g-cut"></div></details>
+
+  <!-- ===== 🔁 回転・視点 ===== -->
+  <details class="grp" id="s-tilt" open data-tab="turn"><summary>🔁 球の傾き（＝4Dの回転）</summary>
     <div class="gb"><button id="bReset" title="ショートカット: E">初期位置</button><button id="bSync" title="今の球の傾き（前後・左右・面内・斜め）はそのまま、超球側の見る向きとZ-W・4Dカメラを0に戻して、左の球と同じ向きにそろえる">超球を球と同じ角度に</button></div>
-    <div class="gs" id="g-rot"></div></details>
-  <details class="grp" open data-tab="rot"><summary>⚙ 自動回転</summary>
-    <div class="gb"><button id="bDemo" title="ショートカット: R">回転/停止</button><button id="bSpin">🔄 回す</button></div>
-    <div class="gb"><span>軸</span><button data-ax="mix" class="on">複合</button><button data-ax="mix3" title="Y-W・X-W・Z-Wを違う速さで同時に回す">複合＋Z-W</button><button data-ax="yw" title="Y-Wを 0→-90→-180→90→0 と一周（押すと他の角度は0に戻る）">Y-W</button><button data-ax="xw">X-W</button><button data-ax="zw">Z-W</button><button data-ax="ob" title="w軸と斜め方向（向きスライダー）を含む平面で回す">斜めW</button></div>
-    <div class="gb"><span>※ Y-W / X-W / Z-W / 斜めW を押すと、他の平面の角度は0に戻ります（押したあとにスライダーで傾けるのはOK）</span></div>
-    <div class="gs" id="g-auto"></div></details>
-  <details class="grp" open data-tab="cam"><summary>🎥 4Dカメラ</summary>
-    <div class="gb"><span>モード</span><button data-cm="off" class="on" title="4Dカメラを使わない（普通の見え方）">オフ</button><button data-cm="free" title="右の超球をドラッグすると4Dカメラの数値が変わる。数値の手入力もできる。「初期位置」で0に戻る">フリー</button><button data-cm="fixed" title="今のカメラ位置・視点を固定。ドラッグしても動かず、「初期位置」でも戻らない（数値の手入力は可）">固定</button><button id="bCamReset" title="4Dカメラを0に戻す（固定中でも戻る）">カメラ0</button><button data-vw="front" title="右の3D視点を正面（+z側）から">視点: 正面</button><button data-vw="side" title="右の3D視点を真横（+x側）から。4DカメラZ-W=90°のとき、w方向の縞が横に並んで全部見える">真横</button><button data-vw="top" title="右の3D視点を真上（+y側）から">真上</button><button id="bViewLock" title="右の超球の3D視点（見る向き・拡大）をロックして、ドラッグで動かないようにする。4Dカメラとは別の設定です。ロック中は「初期位置」でも視点は戻りません">🔒 視点ロック</button></div>
-    <div class="gb"><span id="camNote"></span></div>
-    <div class="gs" id="g-cam"></div></details>
-  <details class="grp" open data-tab="look"><summary>🎨 見た目</summary>
-    <div class="gb"><button id="bDof" title="4Dで遠い（4Dカメラから離れた、奥行き d が小さい）部分ほど、背景に溶けるように霞ませる。手前の北極側はくっきり、奥の南極側ほど霞む。断面カットと組み合わせると、どの層が4Dで奥かが分かりやすい">🌫 4Dで遠いほど霞ませる</button></div>
-    <div class="gb"><button id="bOrtho" title="4Dの遠近（パース）をほぼなくす。押すたびに 正射影に近い(camW=60) ⇄ 標準(3.8)">📐 4Dパースなし</button><button id="bFit" title="右の3D視点の距離を、超球の像が画面に完全に収まる理論値に合わせる">🔭 全体が収まる距離に合わせる</button><span id="fitNote"></span></div>
-    <div class="gb"><button id="bOpq">不透明</button><button id="bMat">光沢なし</button><button id="bShade" class="on">境目の影</button><button id="bBack" class="on" title="リングや球殻の内側が見えているところを暗く・くすませる">🌗 裏側を暗く</button></div>
-    <div class="gb"><span>裏側の判定</span><button data-bm="1" class="on" title="超球面の表裏。4Dカメラに面した側が表、奥側（透けて見える側）が裏">4Dの奥</button><button data-bm="0" title="各殻を3Dの球として見たときの内側">3Dの内側</button></div>
+    <div class="gs" id="g-tilt"></div>
+    <div class="gb"><span>Z-W傾きを左の球でどう見せる</span><button data-lzw="slice" class="on" title="z′=0 で切った断面。リングは断面と交わらなくなると消える">断面</button><button data-lzw="shadow" title="z方向から見た影（投影）。リングは消えず、各層が平たい楕円体（パンケーキ）としてふくらむ。4Dカメラ Z-W 90° の写真と同じ見え方">影（投影）</button><button data-lzw="both" title="断面のリング＋影の楕円体を薄く">両方</button></div>
+    <div class="hint">左の球をドラッグでも傾けられます（<b>Shift＋横ドラッグ</b>で Z-W）。</div></details>
+
+  <details class="grp" id="s-auto" data-tab="turn"><summary>⚙ 自動で回す</summary>
+    <div class="gb"><button id="bDemo" title="ショートカット: R">回転/停止</button><button id="bSpin" title="右の3D視点をゆっくり回す">🔄 右の視点を回す</button></div>
+    <div class="gb"><span>回す面</span><button data-ax="mix" class="on">複合</button><button data-ax="mix3" title="Y-W・X-W・Z-Wを違う速さで同時に回す">複合＋Z-W</button><button data-ax="yw" title="Y-Wを 0→-90→-180→90→0 と一周（押すと他の角度は0に戻る）">Y-W</button><button data-ax="xw">X-W</button><button data-ax="zw">Z-W</button><button data-ax="ob" title="w軸と斜め方向（向きスライダー）を含む平面で回す">斜めW</button></div>
+    <div class="gs" id="g-auto"></div>
+    <div class="hint">Y-W / X-W / Z-W / 斜めW を押すと、<b>他の面の角度は0に戻ります</b>（押したあとにスライダーで傾けるのはOK）。</div></details>
+
+  <details class="grp" id="s-cam" data-tab="turn"><summary>🎥 4Dカメラ（4次元のどこから撮るか）</summary>
+    <div class="gb"><span>モード</span><button data-cm="off" class="on" title="4Dカメラを使わない（普通の見え方）">オフ</button><button data-cm="free" title="右の超球をドラッグすると4Dカメラの数値が変わる。数値の手入力もできる。「初期位置」で0に戻る">フリー</button><button data-cm="fixed" title="今のカメラ位置・視点を固定。ドラッグしても動かず、「初期位置」でも戻らない（数値の手入力は可）">固定</button><button id="bCamReset" title="4Dカメラを0に戻す（固定中でも戻る）">カメラ0</button></div>
+    <div class="gs" id="g-cam"></div>
+    <div class="hint" id="camNote"></div></details>
+
+  <details class="grp" id="s-view3d" data-tab="turn"><summary>🔭 右の3D視点（画面上の見る向き）</summary>
+    <div class="gb"><span>視点</span><button data-vw="front" title="右の3D視点を正面（+z側）から">正面</button><button data-vw="side" title="右の3D視点を真横（+x側）から。4DカメラZ-W=90°のとき、w方向の縞が横に並んで全部見える">真横</button><button data-vw="top" title="右の3D視点を真上（+y側）から">真上</button><button id="bViewLock" title="右の超球の3D視点（見る向き・拡大）をロックして、ドラッグで動かないようにする。4Dカメラとは別の設定です。ロック中は「初期位置」でも視点は戻りません">🔒 視点ロック</button></div>
+    <div class="gb"><button id="bOrtho" title="4Dの遠近（パース）をほぼなくす。押すたびに 正射影に近い(camW=60) ⇄ 標準(3.8)">📐 4Dパースなし</button><button id="bFit" title="右の3D視点の距離を、超球の像が画面に完全に収まる理論値に合わせる">🔭 全体が収まる距離に</button></div>
+    <div class="gs" id="g-view3d"></div>
+    <div class="hint" id="fitNote"></div>
+    <div class="hint"><b>4Dカメラ</b>は4次元のどこから撮るか、<b>3D視点</b>はできた写真をどこから眺めるか。別の設定です。</div></details>
+
+  <!-- ===== 🧭 旅・軌跡 ===== -->
+  <details class="grp" id="s-trip" open data-tab="path"><summary>🧭 直進の旅（北極スタート）</summary>
+    <div class="gb"><button id="bPath">🎯 目的地を指定</button><button id="bRand" title="ランダムな目的地へ次々に進む">🎲 ランダムに次々</button><button id="bFootClr">足あとを消す</button></div>
+    <div class="gb"><button id="bAll" title="北極から全方向へ同時に出発する">🌌 全方向の旅</button><button id="bRL" title="北極から、ランダムな方向へ出発する軌跡を次々に足していく。右下の方向マップで、全方向を網羅していく様子が見える">🌠 ランダムな軌跡</button><button id="bRLClr">軌跡を消す</button></div>
+    <div class="gs" id="g-path"></div>
+    <div class="hint">ガイド: <b>赤</b>=x軸 <b>緑</b>=y軸 <b>青</b>=z軸 <b>黄</b>=進む向き</div></details>
+
+  <details class="grp" id="s-curve" data-tab="path"><summary>🌀 いろいろな軌跡（曲がる・巻く・絡む）</summary>
+    <div class="gb"><button data-cv="circle" title="北極のまわりを一定の距離で回る小円">⭕ 小円</button><button data-cv="torus" title="トーラスの表面を a:b で巻く（結び目）">🍩 トーラス結び目</button><button data-cv="hopf" title="絡み合う大円の束">🔗 ホップ束</button><button data-cv="loxo" title="経線と一定の角度で交わる、北極⇄南極のらせん">🌀 らせん</button><button data-cv="walk" title="一歩ごとに向きをランダムに変える">🍺 ランダムウォーク</button><button id="bWalkNew">🎲 歩き直す</button></div>
+    <div class="gs" id="g-curve"></div>
+    <div class="hint" id="cvNote"></div></details>
+
+  <details class="grp" id="s-show" data-tab="path"><summary>👁 軌跡の見せ方</summary>
+    <div class="gb"><button id="bStep" title="軌跡を、球殻（層）と交わる点だけ直線でつなぐ。球殻の数（「層数」スライダー）を増やすほどなめらかな曲線に近づく＝空間が少しずつ曲がっていることが見える">🪜 球殻ごとのカクカク軌跡</button><button id="bS2" title="左の3D球はS²（2次元の球面）。S²では進む向きは方位角1つだけなので、仰角を使わず球面上の経線として動かす。オフなら、右の超球と同じ点の影（仰角が入ると球の内側に入る）">左: S²（仰角を使わない）</button></div>
+    <div class="gb"><button id="bGauge" class="on" title="軌跡の点が4次元で手前（カメラ側）か奥かを、右端のゲージで示す">w′ゲージ</button><button id="bHud" title="右上に方位・仰角のダイヤルを出す（画面が狭くなるので初期はオフ）">座標ダイヤル</button><button id="bAxTop" class="on" title="座標軸・向きの矢印を、球殻やワイヤーの手前に常に描く。オフにすると球殻の裏側に隠れる">🔝 座標軸を最前面に</button></div>
+    <div class="gs" id="g-axis"></div></details>
+
+  <!-- ===== 🎨 見え方・画面 ===== -->
+  <details class="grp" id="s-mode" open data-tab="draw"><summary>🎨 描き方</summary>
+    <div class="gb"><span>モード</span><button data-mode="hybrid" class="on">ハイブリッド</button><button data-mode="wire">ワイヤー</button><button data-mode="solid">半透明</button><button data-mode="points">点群</button></div>
+    <div class="gb"><button id="bOpq" title="球殻を不透明にする">不透明</button><button id="bMat" title="金属光沢をなくす">光沢なし</button><button id="bShade" class="on" title="縁を暗くして立体の境目を出す（不透明時）">境目の影</button></div>
     <div class="gs" id="g-look"></div></details>
-  <details class="grp" open data-tab="scr"><summary>🖥 画面</summary>
-    <div class="gb"><span>⌨ ショートカット: <b>Space</b> パネル表示 ／ <b>R</b> 回転・停止 ／ <b>E</b> 初期位置 ／ <b>C</b> 断面カット ／ <b>Y</b> Y-W ／ <b>X</b> X-W ／ <b>Z</b> Z-W ／ <b>W</b> 斜めW（軸キーは止まっていれば回し始めます）</span></div>
-    <div class="gb"><button id="bBlur" class="on" title="シースルーのとき、パネルの後ろをぼかす（すりガラス）。オフにすると、くっきり透ける">🧊 すりガラス</button><button id="bSee" class="on" title="設定パネルを画面に重ねて半透明にする。後ろの球が見える。オフなら画面の下に分ける">🫧 設定パネルをシースルー</button><button id="bInfo" class="on" title="左右の画面に出ているパラメータの文字を出す／隠す">📋 パラメータ表示</button><button id="bPanelHide" title="設定パネルを隠して、画面を広く使う。Spaceキーでも切り替えられます">🙈 設定パネルを隠す（Space）</button></div>
-    <div class="gb"><button id="bFull">⛶ 超球全画面</button><button id="bPanel">スライダー隠す</button><button id="bLsReset" title="保存した設定を消して初期状態に戻す">設定を初期化</button></div>
-    <div class="gs" id="g-scr"></div></details>
+
+  <details class="grp" id="s-back" data-tab="draw"><summary>🌗 裏側の見せ方</summary>
+    <div class="gb"><button id="bBack" class="on" title="リングや球殻の内側が見えているところを暗く・くすませる">🌗 裏側を暗く</button></div>
+    <div class="gb"><span>裏側の判定</span><button data-bm="1" class="on" title="超球面の表裏。4Dカメラに面した側が表、奥側（透けて見える側）が裏">4Dの奥</button><button data-bm="0" title="各殻を3Dの球として見たときの内側">3Dの内側</button></div>
+    <div class="gs" id="g-back"></div></details>
+
+  <details class="grp" id="s-dof" data-tab="draw"><summary>🌫 4Dの奥行きで霞ませる</summary>
+    <div class="gb"><button id="bDof" title="4Dで遠い（4Dカメラから離れた、奥行き d が小さい）部分ほど、背景に溶けるように霞ませる。手前の北極側はくっきり、奥の南極側ほど霞む。断面カットと組み合わせると、どの層が4Dで奥かが分かりやすい">🌫 4Dで遠いほど霞ませる</button></div>
+    <div class="gs" id="g-dof"></div></details>
+
+  <details class="grp" id="s-scr" data-tab="draw"><summary>🖥 画面とパネル</summary>
+    <div class="gb"><button id="bInfo" class="on" title="左右の画面に出ているパラメータの文字を出す／隠す">📋 パラメータ表示</button><button id="bFull" title="左の3D球を隠して、超球だけを全画面で見る">⛶ 超球全画面</button><button id="bPanelHide" title="設定パネルを隠して、画面を広く使う。Spaceキーでも切り替えられます">🙈 パネルを隠す（Space）</button></div>
+    <div class="gb"><button id="bSee" class="on" title="設定パネルを画面に重ねて半透明にする。後ろの球が見える。オフなら画面の下に分ける">🫧 シースルー</button><button id="bBlur" class="on" title="シースルーのとき、パネルの後ろをぼかす（すりガラス）。オフにすると、くっきり透ける">🧊 すりガラス</button><button id="bPanel" title="スライダーだけ隠してボタンだけにする">スライダー隠す</button></div>
+    <div class="gs" id="g-scr"></div>
+    <div class="gb"><button id="bLsReset" title="保存した設定を消して初期状態に戻す">設定を初期化</button></div></details>
 </div>
 
 <script>
@@ -212,7 +255,8 @@ const CVMAX = 14000, CVDOT = 128;
 let hudOn = false, garrow = null, garrowL = null, leftS2 = false, axW = 1, axTop = true;
 const axMats = [], glabL = {};
 let paAlpha = 0.62;
-const FAV_DEFAULT = ['#bReset', '#bSync', '#bDemo', '#bWedge', '#bSlice', 'data-cref=orig', '#bCutSpin', 'S:前後傾き ↔ 4D Y-W（°）', 'S:左右傾き ↔ 4D X-W（°）', 'S:開き具合（°）切り欠きの大きさ', 'S:層数（奇数）', '#bPath', '#bAll'];
+// スライダーは 'S:' + PR の k（安定キー）で指す。ラベルを書き換えても保存済みの「よく使う」が外れない
+const FAV_DEFAULT = ['#bReset', '#bSync', '#bDemo', '#bWedge', '#bSlice', 'data-cref=orig', '#bCutSpin', 'S:pitch', 'S:roll', 'S:cutW', 'S:nLayers', '#bPath', '#bAll'];
 let favs = FAV_DEFAULT.slice(), favEdit = false;   // leftS2: 左の3D球(S²)では仰角を使わず、方位だけで球面上を進む   // hudOn: 右上の座標ダイヤル（初期はオフ）
 let rlOn = false, rlN = 0, rlHit = 0, rlObj = null, rlTick = 0, allColKey = '';
 const rlD = new Float32Array(MAXRL * 3), rlBin = new Uint8Array(NBP * NBL);
@@ -1252,7 +1296,7 @@ function renderFavs() {
   favs = favs.filter(k => typeof k === 'string');
   for (const key of favs) {
     if (key.startsWith('S:')) {
-      const o = PR.find(q => !q.clone && q.t === key.slice(2)); if (!o) continue;
+      const o = PR.find(q => !q.clone && q.k === key.slice(2)); if (!o) continue;
       const q = Object.assign({}, o, { g: 'favs', clone: true }); PR.push(q); buildSlider(q); o.d.classList.add('pinned');
     } else {
       const o = favFind(key); if (!o) continue;
@@ -1271,7 +1315,7 @@ $('panel').addEventListener('click', e => {
   if (b && (b.closest('#tabs') || b.id === 'bFavEdit' || b.id === 'bFavReset')) return;
   let key = null;
   if (b) key = b.dataset.favOf || favKey(b);
-  else if (lab) { const p = PR.find(q => q.d === lab.closest('.ctl')); if (p) key = 'S:' + p.t; }
+  else if (lab) { const p = PR.find(q => q.d === lab.closest('.ctl')); if (p) key = 'S:' + p.k; }
   if (key) { e.preventDefault(); e.stopPropagation(); togglePin(key); }
 }, true);
 $('bFavEdit').onclick = e => { favEdit = !favEdit; document.body.classList.toggle('favedit', favEdit); e.currentTarget.classList.toggle('on', favEdit); renderFavs(); };
@@ -1352,6 +1396,15 @@ addEventListener('keyup', e => { if (e.code === 'Space' && e.target && e.target.
     F: { n: [0, 0, -1, 0], e: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1]], name: 'メインの4Dカメラ Z-W = 90°（z方向から撮る）',
       note: 'カメラを z の方向へ90°回り込ませた位置です。z が奥行きになり、写真の3軸は (x, y, w) です。これは左の3D球と同じ座標なので、右の画面が左の球と同じ写真（遠近がつくだけ）になります。' }
   };
+  // ③ 3軸を平面化: 縦にする軸 v 以外の3軸 a,b,c の対角 (e_a+e_b+e_c)/√3 から撮る → a,b,c は120°間隔の床に、v は縦に写る
+  const FLAT = { C: 3, CZ: 2, CY: 1, CX: 0 };
+  for (const [key, v] of Object.entries(FLAT)) {
+    if (key === 'C') continue;
+    const [a, b, c] = [0, 1, 2, 3].filter(k => k !== v), U = k => [0, 1, 2, 3].map(q => q === k ? 1 : 0), add = (...vs) => [0, 1, 2, 3].map(q => vs.reduce((t, [k, f]) => t + U(k)[q] * f, 0));
+    PRESETS[key] = { n: add([a, 1 / S3], [b, 1 / S3], [c, 1 / S3]), e: [add([a, 1 / S2], [b, -1 / S2]), U(v), add([a, 1 / S6], [b, 1 / S6], [c, -2 / S6])],
+      name: `③ ${NAMES[a]}・${NAMES[b]}・${NAMES[c]} を平面化（${NAMES[v]} を縦に）`,
+      note: `${NAMES[a]}${NAMES[b]}${NAMES[c]} の対角線を視線にして撮ると、${NAMES[a]}・${NAMES[b]}・${NAMES[c]} は120°間隔で1枚の床に並び、${NAMES[v]} が縦に立ちます。奥行き d は (${[0, 1, 2, 3].map(k => k === v ? 0 : 1).join(',')}) 方向です。xyz平面化（w が縦）と同じ仕組みで、縦にする軸を入れ替えただけです。どの軸も対等なので、どれを縦にしても同じ形の写真になります。` };
+  }
   const st = { planeMode: 'off', colDepth: false, film: false, demo: null, wire: 0.14, preset: 'A', n: PRESETS.A.n.slice(), e: PRESETS.A.e.map(a => a.slice()), zw: 0, roll: 0, pitch: 0, yaw: 0, camW: 3.8, vAxis: 0 };
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3], unit = a => { const l = Math.hypot(...a) || 1; return a.map(x => x / l); };
   function orth() {
@@ -1366,7 +1419,7 @@ addEventListener('keyup', e => { if (e.code === 'Space' && e.target && e.target.
   const unrot = (v, S) => { for (let k = S.length - 1; k >= 0; k--) { const [i, j, c, s] = S[k], t = v[i] * c + v[j] * s; v[j] = -v[i] * s + v[j] * c; v[i] = t; } return v; };
   const PLANES = [[0, 1, 'XY', '面内（yaw）'], [0, 2, 'XZ', ''], [1, 2, 'YZ', ''], [0, 3, 'XW', '左右（roll）'], [1, 3, 'YW', '前後（pitch）'], [2, 3, 'ZW', 'Z-W傾き']];
   const rot = (v, S) => { for (const [i, j, c, s] of S) { const t = v[i] * c - v[j] * s; v[j] = v[i] * s + v[j] * c; v[i] = t; } return v; };
-  let ren, scn, cam, ctl, built = false, running = false, filmS, contS, triG; const planeMeshes = []; const layersLn = [], arrows = [], marks = [], labs = [], wireMats = [];
+  let ren, scn, cam, ctl, built = false, running = false, filmS, contS, triG, triTick; const planeMeshes = []; const layersLn = [], arrows = [], marks = [], labs = [], wireMats = [];
   function build() {
     if (built) return; built = true;
     const host = $l('lnView'); scn = new THREE.Scene(); scn.background = new THREE.Color(0x030712);
@@ -1391,7 +1444,7 @@ addEventListener('keyup', e => { if (e.code === 'Space' && e.target && e.target.
       for (const a of [0, Math.PI / 3, 2 * Math.PI / 3]) { const dx = Math.cos(a), dz = Math.sin(a), px = -dz, pz = dx; for (let i = -7; i <= 7; i++) { const o = i * 0.42; pts.push(new THREE.Vector3(px * o - dx * 3, 0, pz * o - dz * 3), new THREE.Vector3(px * o + dx * 3, 0, pz * o + dz * 3)); } }
       triG.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), gm));
       const tk = []; for (const h of [-2, -1, 1, 2]) { const y = h * R * 1.5 / 2; for (let a = 0; a < 48; a++) { const t0 = a / 48 * TAU, t1 = (a + 1) / 48 * TAU; tk.push(new THREE.Vector3(0.18 * Math.cos(t0), y, 0.18 * Math.sin(t0)), new THREE.Vector3(0.18 * Math.cos(t1), y, 0.18 * Math.sin(t1))); } }
-      triG.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(tk), new THREE.LineBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.6 }))); }
+      triTick = new THREE.LineBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.6 }); triG.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(tk), triTick)); }
     for (let k = 0; k < 4; k++) {
       const ar = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, COLS[k], 0.25, 0.12);
       for (const m of [ar.line.material, ar.cone.material]) { m.depthTest = false; m.depthWrite = false; m.transparent = true; } ar.line.renderOrder = ar.cone.renderOrder = 40; scn.add(ar); arrows.push(ar);   // 軸はワイヤーより後に描いて常に手前
@@ -1486,7 +1539,9 @@ addEventListener('keyup', e => { if (e.code === 'Space' && e.target && e.target.
         + `\n🎨 色分けをオンにすると、その見えている側が明るい橙、奥の半分は暗い紫になります。回転させると、見えている領域が超球の上を移動していきます。`
         + (st.planeMode !== 'off' ? `\n回転の面: 写真で円（楕円）に見える面は「写真ごと回るだけ」、真横から見た線に見える面は視線の方向を含んでいて「形が変わる」面です。` : '')
         + `\n🪟 白い球＝フィルム面がちょうど切る断面（等倍で写る）、黄の球＝写真の輪郭（ここより外には何も写らない）。`
-        + (st.preset === 'C' ? `\n③ 床の三角グリッドは x・y・z を120°間隔に並べた面、紫の目盛りが w の高さです。w が一定の層は、床と平行な円盤に写ります（Z-W 90° の縞と同じ見え方で、隠れる向きが z ではなく (1,1,1) なだけです）。` : ''); }
+        + (st.preset in FLAT ? (() => { const v = FLAT[st.preset], o = [0, 1, 2, 3].filter(k => k !== v).map(k => NAMES[k]);
+            return `\n③ 床の三角グリッドは ${o.join('・')} を120°間隔に並べた面、目盛り（${NAMES[v]} の色）が ${NAMES[v]} の高さです。`
+              + (v === 3 ? `w が一定の層（このアプリの縞）は、床と平行な円盤に写ります。` : `${NAMES[v]} が一定の切り口が床と平行な円盤になります。このアプリの縞（w が一定の層）は床に寝ていないので、斜めに傾いた形で写ります。`); })() : ''); }
     const P = PRESETS[st.preset]; let t = `【${P.name}】\n${P.note}\n\n回転後の4軸の写り方:\n`;
     for (let q = 0; q < 4; q++) {
       const v = rot([q === 0 ? 1 : 0, q === 1 ? 1 : 0, q === 2 ? 1 : 0, q === 3 ? 1 : 0], S), f = [0, 1, 2].map(i => dot(v, st.e[i])), l = Math.hypot(...f), d = dot(v, st.n);
@@ -1532,7 +1587,7 @@ addEventListener('keyup', e => { if (e.code === 'Space' && e.target && e.target.
       }); }
     { const rf = st.camW > R ? R * st.camW / Math.sqrt(st.camW * st.camW - R * R) : 0;
       filmS.visible = contS.visible = st.film; filmS.scale.setScalar(R * SC); contS.scale.setScalar(rf * SC); contS.visible = st.film && rf > 0;
-      triG.visible = st.preset === 'C'; }
+      triG.visible = st.preset in FLAT; if (triG.visible) triTick.color.setHex(COLS[FLAT[st.preset]]); }
     drawDiag(S); describe(S);
   }
   function frame() {
@@ -1593,49 +1648,52 @@ addEventListener('pointercancel', () => drag2 = false);
 
 // ---------------- スライダー＋数値入力（自動生成） ----------------
 const D2R = Math.PI / 180;
+// t=短いラベル / tip=説明（マウスを乗せると出る） / k=保存用の安定キー（ラベルを変えても「よく使う」が外れない）
+// hide:1 … 同じ場所に排他的なスライダーが何本も並ぶところだけ、無効時に消す（それ以外は薄く残してレイアウトを跳ねさせない）
 const PR = [
-  { g: 'view', t: '切り口の位置 c（切断面モード）', min: -1.35, max: 1.35, step: .01, dp: 2, en: () => sliceOn, get: () => cSlice, set: v => { cSlice = v; updateRight(); refreshUI(); } },
-  { g: 'view', t: '切り欠きの位置（°）画面基準:0=手前 90=右 ／ 物体基準:経度', deg: 1, lim: [0, 360], en: () => wedgeOn && cutRef !== 'orig', get: () => ((cutAng % TAU) + TAU) % TAU, set: v => { cutAng = v; cutGoal = null; } },
-  { g: 'view', t: '開き具合（°）切り欠きの大きさ', deg: 1, lim: [10, 300], en: () => wedgeOn && cutRef !== 'orig', get: () => cutW, set: v => { cutW = v; } },
-  { g: 'rot', t: '前後傾き ↔ 4D Y-W（°）', deg: 1, get: () => pitch, set: v => { pitch = v; update(); } },
-  { g: 'rot', t: '左右傾き ↔ 4D X-W（°）', deg: 1, get: () => roll, set: v => { roll = v; update(); } },
-  { g: 'rot', t: '面内自転 ↔ 4D X-Y（°）', deg: 1, get: () => yaw, set: v => { yaw = v; update(); } },
-  { g: 'rot', t: 'Z-W傾き（°）※左の3Dには現れない軸', deg: 1, get: () => zw, set: v => { zw = v; update(); } },
-  { g: 'rot', t: '斜めW回転 角度（°）w軸と斜め方向の平面での回転', deg: 1, get: () => obT, set: v => { obT = v; update(); } },
-  { g: 'rot', t: '斜めW回転 向き（°）0=X-W方向, 90=Y-W方向', deg: 1, get: () => obP, set: v => { obP = v; update(); } },
-  { g: 'cam', t: '4Dカメラ X-W（°）', deg: 1, en: () => camOn, get: () => cx, set: v => { cx = v; update(); } },
-  { g: 'cam', t: '4Dカメラ Y-W（°）', deg: 1, en: () => camOn, get: () => cy, set: v => { cy = v; update(); } },
-  { g: 'cam', t: '4Dカメラ Z-W（°）', deg: 1, en: () => camOn, get: () => cz, set: v => { cz = v; update(); } },
-  { g: 'path', t: '方向の密さ（赤道上の本数）', min: 4, max: 24, step: 2, dp: 0, en: () => allOn, get: () => allM, set: v => { allM = v; rebuildAll(); refreshUI(); } },
-  { g: 'path', t: '方位角（°）水平に向く角度 0=x軸 90=y軸', deg: 1, lim: [0, 360], en: () => pathOn || (curveOn && (curveType === 'circle' || curveType === 'loxo' || curveType === 'walk')), get: () => (pathPhi % TAU + TAU) % TAU, set: v => { pathPhi = v; updatePath(); refreshUI(); } },
-  { g: 'path', t: '仰角（°）見上げる角度 0=水平 90=真上(z軸)', deg: 1, lim: [-90, 90], en: () => pathOn || (curveOn && (curveType === 'circle' || curveType === 'loxo' || curveType === 'walk')), get: () => pathLam, set: v => { pathLam = v; updatePath(); refreshUI(); } },
-  { g: 'path', t: '進む角度（°）90=赤道 180=南極 360=北極に帰還', min: 0, max: 360, step: 1, dp: 0, en: () => pathOn || allOn || curveOn, get: () => pathT / D2R, set: v => { pathT = v * D2R; updatePath(); refreshUI(); } },
-  { g: 'curve', t: '小円の半径（°）0=北極の点 90=大円（直進と同じ）180=南極', deg: 1, lim: [5, 175], en: () => curveOn && curveType === 'circle', get: () => cvRho, set: v => { cvRho = v; updatePath(); refreshUI(); } },
-  { g: 'curve', t: '結び目 a（xy面で回る回数）', min: 1, max: 9, step: 1, dp: 0, en: () => curveOn && curveType === 'torus', get: () => cvA, set: v => { cvA = v; updatePath(); refreshUI(); } },
-  { g: 'curve', t: '結び目 b（zw面で回る回数）小数にすると閉じない', min: 1, max: 9, step: 0.05, dp: 2, en: () => curveOn && curveType === 'torus', get: () => cvB, set: v => { cvB = v; updatePath(); refreshUI(); } },
-  { g: 'curve', t: 'トーラスの太り方（°）45=クリフォードトーラス', deg: 1, lim: [10, 80], en: () => curveOn && curveType === 'torus', get: () => cvEta, set: v => { cvEta = v; updatePath(); refreshUI(); } },
-  { g: 'curve', t: 'らせんの巻き数（北極→南極で何回転）', min: 0, max: 8, step: 0.1, dp: 1, en: () => curveOn && curveType === 'loxo', get: () => cvK, set: v => { cvK = v; updatePath(); refreshUI(); } },
-  { g: 'curve', t: 'ファイバーの本数', min: 6, max: 120, step: 2, dp: 0, en: () => curveOn && curveType === 'hopf', get: () => cvN, set: v => { cvN = v; updatePath(); refreshUI(); } },
-  { g: 'curve', t: '歩数', min: 50, max: 2000, step: 50, dp: 0, en: () => curveOn && curveType === 'walk', get: () => cvSteps, set: v => { cvSteps = v; updatePath(); refreshUI(); } },
-  { g: 'curve', t: '歩幅（°）', deg: 1, lim: [1, 20], en: () => curveOn && curveType === 'walk', get: () => cvStepLen, set: v => { cvStepLen = v; updatePath(); refreshUI(); } },
-  { g: 'curve', t: '曲がりやすさ 0=直進 大きいほどふらふら', min: 0, max: 3, step: 0.05, dp: 2, en: () => curveOn && curveType === 'walk', get: () => cvNoise, set: v => { cvNoise = v; updatePath(); refreshUI(); } },
-  { g: 'axis', t: '座標軸・向きの矢印の太さ（左右とも）', min: 0.4, max: 5, step: 0.1, dp: 1, get: () => axW, set: v => { axW = v; updatePath(); } },
-  { g: 'scr', t: 'パネルの透け具合（小さいほど透明）', min: 0.1, max: 1, step: 0.05, dp: 2, get: () => paAlpha, set: v => { paAlpha = v; document.documentElement.style.setProperty('--pa', v); } },
-  { g: 'auto', t: '自動回転の速さ', min: 0.2, max: 3, step: .1, dp: 1, get: () => spd, set: v => { spd = v; refreshUI(); } },
-  { g: 'look', t: '境目の影の強さ（不透明時）', min: 0, max: 1, step: .05, dp: 2, get: () => shade, set: v => { shade = v; applyVis(); } },
-  { g: 'view', t: '層数（奇数）', min: 5, max: 101, step: 2, dp: 0, odd: 1, get: () => nLayers, set: v => { nLayers = v; build(); } },
-  { g: 'look', t: '裏側の暗さ（内側が見えているとき）', min: 0, max: 1, step: .05, dp: 2, en: () => backOn, get: () => backAmt, set: v => { backAmt = v; applyBack(); } },
-  { g: 'look', t: '4D球の透明度', min: 0.05, max: 0.75, step: .05, dp: 2, get: () => opacity, set: v => { opacity = v; applyVis(); } },
-  { g: 'look', t: '🌫 霞み始める4D奥行き d（これより奥が霞む）＋1.35=手前の北極 0=中央 −1.35=奥の南極', min: -1.4, max: 1.4, step: 0.01, dp: 2, en: () => dofOn, get: () => dofFocus, set: v => { dofFocus = v; } },
-  { g: 'look', t: '🌫 いちばん霞むまでの距離（小さいほど急に霞む）', min: 0.1, max: 3, step: 0.01, dp: 2, en: () => dofOn, get: () => dofRange, set: v => { dofRange = v; } },
-  { g: 'look', t: '🌫 霞みの強さ（1=奥はほぼ背景に溶ける）', min: 0.1, max: 1, step: 0.01, dp: 2, en: () => dofOn, get: () => dofBlur, set: v => { dofBlur = v; } },
-  { g: 'look', t: '右の3D視点の視野角（°）大きい=広角', min: 20, max: 90, step: 1, dp: 0, get: () => cR.fov, set: v => { cR.fov = v; cR.updateProjectionMatrix(); } },
-  { g: 'look', t: '4D投影パース（4Dカメラまでの距離。大きいほど遠近が弱い＝正射影に近い）', min: 2, max: 60, step: .1, dp: 1, get: () => camW, set: v => { camW = v; updateRight(); refreshUI(); } },
+  { g: 'cut', k: 'cSlice', t: '切り口の位置', tip: '切断面モードで、超球をどの高さ w′ で切るか', min: -1.35, max: 1.35, step: .01, dp: 2, en: () => sliceOn, get: () => cSlice, set: v => { cSlice = v; updateRight(); refreshUI(); } },
+  { g: 'cut', k: 'cutAng', t: '切り欠きの位置', tip: '画面に固定: 0°=手前 90°=右 ／ 物体に固定: 超球の経度', deg: 1, lim: [0, 360], en: () => wedgeOn && cutRef !== 'orig', get: () => ((cutAng % TAU) + TAU) % TAU, set: v => { cutAng = v; cutGoal = null; } },
+  { g: 'cut', k: 'cutW', t: '開き具合', tip: '切り欠きの大きさ（角度）', deg: 1, lim: [10, 300], en: () => wedgeOn && cutRef !== 'orig', get: () => cutW, set: v => { cutW = v; } },
+  { g: 'struct', k: 'nLayers', t: '層数', tip: '球殻／リングの枚数（奇数）。多いほど細かいが重くなる。経度リングでは大円の本数', min: 5, max: 101, step: 2, dp: 0, odd: 1, get: () => nLayers, set: v => { nLayers = v; build(); } },
+  { g: 'tilt', k: 'pitch', t: '前後傾き', tip: '左の3D球の前後の傾き ＝ 4Dの Y-W 回転', deg: 1, get: () => pitch, set: v => { pitch = v; update(); } },
+  { g: 'tilt', k: 'roll', t: '左右傾き', tip: '左の3D球の左右の傾き ＝ 4Dの X-W 回転', deg: 1, get: () => roll, set: v => { roll = v; update(); } },
+  { g: 'tilt', k: 'yaw', t: '面内自転', tip: '画面の中での自転 ＝ 4Dの X-Y 回転', deg: 1, get: () => yaw, set: v => { yaw = v; update(); } },
+  { g: 'tilt', k: 'zw', t: 'Z-W傾き', tip: '左の3D球には現れない、第4の軸へ倒す傾き', deg: 1, get: () => zw, set: v => { zw = v; update(); } },
+  { g: 'tilt', k: 'obT', t: '斜めW 角度', tip: 'w軸と斜め方向が張る平面での回転角', deg: 1, get: () => obT, set: v => { obT = v; update(); } },
+  { g: 'tilt', k: 'obP', t: '斜めW 向き', tip: '回転面の方位。0°=X-W方向, 90°=Y-W方向', deg: 1, get: () => obP, set: v => { obP = v; update(); } },
+  { g: 'cam', k: 'cx', t: 'カメラ X-W', tip: '4Dカメラを x の方向へ回り込ませる角度', deg: 1, en: () => camOn, get: () => cx, set: v => { cx = v; update(); } },
+  { g: 'cam', k: 'cy', t: 'カメラ Y-W', tip: '4Dカメラを y の方向へ回り込ませる角度', deg: 1, en: () => camOn, get: () => cy, set: v => { cy = v; update(); } },
+  { g: 'cam', k: 'cz', t: 'カメラ Z-W', tip: '4Dカメラを z の方向へ回り込ませる角度。90°で左の3D球と同じ写真になる', deg: 1, en: () => camOn, get: () => cz, set: v => { cz = v; update(); } },
+  { g: 'path', k: 'allM', t: '方向の密さ', tip: '全方向の旅で、赤道上に並べる方向の本数', min: 4, max: 24, step: 2, dp: 0, en: () => allOn, get: () => allM, set: v => { allM = v; rebuildAll(); refreshUI(); } },
+  { g: 'path', k: 'pathPhi', t: '方位角', tip: '水平に向く角度。0°=x軸, 90°=y軸', deg: 1, lim: [0, 360], en: () => pathOn || (curveOn && (curveType === 'circle' || curveType === 'loxo' || curveType === 'walk')), get: () => (pathPhi % TAU + TAU) % TAU, set: v => { pathPhi = v; updatePath(); refreshUI(); } },
+  { g: 'path', k: 'pathLam', t: '仰角', tip: '見上げる角度。0°=水平, 90°=真上(z軸)', deg: 1, lim: [-90, 90], en: () => pathOn || (curveOn && (curveType === 'circle' || curveType === 'loxo' || curveType === 'walk')), get: () => pathLam, set: v => { pathLam = v; updatePath(); refreshUI(); } },
+  { g: 'path', k: 'pathT', t: '進む角度', tip: '90°=赤道, 180°=南極, 360°=北極に帰還', min: 0, max: 360, step: 1, dp: 0, en: () => pathOn || allOn || curveOn, get: () => pathT / D2R, set: v => { pathT = v * D2R; updatePath(); refreshUI(); } },
+  { g: 'curve', k: 'cvRho', t: '小円の半径', tip: '0°=北極の点, 90°=大円（直進と同じ）, 180°=南極', deg: 1, lim: [5, 175], hide: 1, en: () => curveOn && curveType === 'circle', get: () => cvRho, set: v => { cvRho = v; updatePath(); refreshUI(); } },
+  { g: 'curve', k: 'cvA', t: '結び目 a', tip: 'xy面で回る回数', min: 1, max: 9, step: 1, dp: 0, hide: 1, en: () => curveOn && curveType === 'torus', get: () => cvA, set: v => { cvA = v; updatePath(); refreshUI(); } },
+  { g: 'curve', k: 'cvB', t: '結び目 b', tip: 'zw面で回る回数。小数にすると閉じない', min: 1, max: 9, step: 0.05, dp: 2, hide: 1, en: () => curveOn && curveType === 'torus', get: () => cvB, set: v => { cvB = v; updatePath(); refreshUI(); } },
+  { g: 'curve', k: 'cvEta', t: 'トーラスの太り方', tip: '45°でクリフォードトーラス', deg: 1, lim: [10, 80], hide: 1, en: () => curveOn && curveType === 'torus', get: () => cvEta, set: v => { cvEta = v; updatePath(); refreshUI(); } },
+  { g: 'curve', k: 'cvK', t: 'らせんの巻き数', tip: '北極→南極で何回転するか', min: 0, max: 8, step: 0.1, dp: 1, hide: 1, en: () => curveOn && curveType === 'loxo', get: () => cvK, set: v => { cvK = v; updatePath(); refreshUI(); } },
+  { g: 'curve', k: 'cvN', t: 'ファイバーの本数', tip: 'ホップ束の大円の本数', min: 6, max: 120, step: 2, dp: 0, hide: 1, en: () => curveOn && curveType === 'hopf', get: () => cvN, set: v => { cvN = v; updatePath(); refreshUI(); } },
+  { g: 'curve', k: 'cvSteps', t: '歩数', tip: 'ランダムウォークの歩数', min: 50, max: 2000, step: 50, dp: 0, hide: 1, en: () => curveOn && curveType === 'walk', get: () => cvSteps, set: v => { cvSteps = v; updatePath(); refreshUI(); } },
+  { g: 'curve', k: 'cvStepLen', t: '歩幅', tip: '一歩で進む角度', deg: 1, lim: [1, 20], hide: 1, en: () => curveOn && curveType === 'walk', get: () => cvStepLen, set: v => { cvStepLen = v; updatePath(); refreshUI(); } },
+  { g: 'curve', k: 'cvNoise', t: '曲がりやすさ', tip: '0=直進。大きいほどふらふら曲がる', min: 0, max: 3, step: 0.05, dp: 2, hide: 1, en: () => curveOn && curveType === 'walk', get: () => cvNoise, set: v => { cvNoise = v; updatePath(); refreshUI(); } },
+  { g: 'axis', k: 'axW', t: '矢印の太さ', tip: '座標軸・向きの矢印の太さ（左右とも）', min: 0.4, max: 5, step: 0.1, dp: 1, get: () => axW, set: v => { axW = v; updatePath(); } },
+  { g: 'scr', k: 'paAlpha', t: 'パネルの透け具合', tip: '小さいほど透明（シースルーのとき）', min: 0.1, max: 1, step: 0.05, dp: 2, get: () => paAlpha, set: v => { paAlpha = v; document.documentElement.style.setProperty('--pa', v); } },
+  { g: 'auto', k: 'spd', t: '回す速さ', tip: '自動回転・進める・軌跡を足す速さに共通で効く', min: 0.2, max: 3, step: .1, dp: 1, get: () => spd, set: v => { spd = v; refreshUI(); } },
+  { g: 'look', k: 'opacity', t: '透明度', tip: '右の球殻の透明度', min: 0.05, max: 0.75, step: .05, dp: 2, get: () => opacity, set: v => { opacity = v; applyVis(); } },
+  { g: 'look', k: 'shade', t: '境目の影の強さ', tip: '「不透明」のときだけ効く', min: 0, max: 1, step: .05, dp: 2, get: () => shade, set: v => { shade = v; applyVis(); } },
+  { g: 'back', k: 'backAmt', t: '裏側の暗さ', tip: '内側が見えている部分をどれだけ暗くするか', min: 0, max: 1, step: .05, dp: 2, en: () => backOn, get: () => backAmt, set: v => { backAmt = v; applyBack(); } },
+  { g: 'dof', k: 'dofFocus', t: '霞み始める奥行き', tip: 'これより4Dで奥が霞む。+1.35=手前の北極, 0=中央, −1.35=奥の南極', min: -1.4, max: 1.4, step: 0.01, dp: 2, en: () => dofOn, get: () => dofFocus, set: v => { dofFocus = v; } },
+  { g: 'dof', k: 'dofRange', t: '霞みきるまでの距離', tip: '小さいほど急に霞む', min: 0.1, max: 3, step: 0.01, dp: 2, en: () => dofOn, get: () => dofRange, set: v => { dofRange = v; } },
+  { g: 'dof', k: 'dofBlur', t: '霞みの強さ', tip: '1=奥はほぼ背景に溶ける', min: 0.1, max: 1, step: 0.01, dp: 2, en: () => dofOn, get: () => dofBlur, set: v => { dofBlur = v; } },
+  { g: 'view3d', k: 'fov', t: '視野角', tip: '右の3D視点の視野角。大きいほど広角', min: 20, max: 90, step: 1, dp: 0, get: () => cR.fov, set: v => { cR.fov = v; cR.updateProjectionMatrix(); } },
+  { g: 'view3d', k: 'camW', t: '4Dパース', tip: '4Dカメラまでの距離。大きいほど遠近が弱い＝正射影に近い', min: 2, max: 60, step: .1, dp: 1, get: () => camW, set: v => { camW = v; updateRight(); refreshUI(); } },
 ];
 const buildSlider = p => {
   const mn = p.deg ? (p.lim ? p.lim[0] : -180) : p.min, mx = p.deg ? (p.lim ? p.lim[1] : 180) : p.max, st = p.deg ? 1 : p.step;
   const d = document.createElement('div'); d.className = 'ctl';
-  d.innerHTML = `<label>${p.t}</label><div class="rw"><input type="range" min="${mn}" max="${mx}" step="${st}"><input type="number" step="${p.deg ? 0.1 : st}"></div>`;
+  const tip = (p.tip || '') + (p.deg ? (p.tip ? ' ／ ' : '') + '単位は度' : '');
+  d.innerHTML = `<label${tip ? ` title="${tip.replace(/"/g, '&quot;')}"` : ''}>${p.t}</label><div class="rw"><input type="range" min="${mn}" max="${mx}" step="${st}"><input type="number" step="${p.deg ? 0.1 : st}"></div>`;
   ($('g-' + p.g) || $('panel')).appendChild(d); p.d = d;
   [p.r, p.n] = d.querySelectorAll('input');
   p.dp = p.deg ? 1 : p.dp;
@@ -1654,7 +1712,10 @@ function syncPanel() {
     const x = p.deg ? p.get() / D2R : p.get();
     p.r.value = x;
     if (document.activeElement !== p.n) p.n.value = x.toFixed(p.dp);
-    p.d.style.display = p.en && !p.en() ? 'none' : '';
+    const off = !!(p.en && !p.en());
+    p.d.classList.toggle('dis', off);                      // 無効でも場所は残す（消すとレイアウトが跳ねる）
+    p.d.style.display = off && p.hide ? 'none' : '';       // 排他的に並ぶものだけは消す
+    [p.r, p.n].forEach(i => i.disabled = off);
   });
 }
 
@@ -1697,7 +1758,7 @@ function renderDof(r1, r2, sc, cm) {
 // 値が変わっていれば0.5秒ごとに自動保存。次回起動時に復元する。
 // 保存対象: 表示モード/半球/見た目/層数/各スライダー値/傾き/カメラ/目的地/パネルの開閉/右画面の視点
 // 保存しないもの: 自動回転・進める・ランダムの動作中状態、足あと
-const LS_KEY = 'hypersphere-settings-v1';
+const LS_KEY = 'hypersphere-settings-v2';   // v2: タブ・セクション構成の再編にあわせて更新（v1の保存は読まない）
 const grpEls = [...document.querySelectorAll('details.grp')];
 let lsLast = '', noSave = false;
 function collectSettings() {
@@ -1705,7 +1766,7 @@ function collectSettings() {
     nLayers, model, leftZW, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn, camFixed, viewLock, axW, axTop,
     backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM, stepOn, hudOn, leftS2, curveType, cvRho, cvA, cvB, cvEta, cvK, cvN, cvSteps, cvStepLen, cvNoise, tab: $('panel').dataset.tab,
     full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'), noinfo: document.body.classList.contains('noinfo'), dofOn, dofFocus2: dofFocus, dofRange2: dofRange, dofFog: dofBlur, noblur: document.body.classList.contains('noblur'), gaugeOn, rfov: cR.fov, seethru: document.body.classList.contains('seethru'), paAlpha, favs, nopanel: document.body.classList.contains('nopanel'),
-    open2: grpEls.map(g => g.open),
+    open3: Object.fromEntries(grpEls.map(g => [g.id, g.open])),   // セクションの開閉はidで保存（並べ替えてもずれない）
     cam: cR.position.toArray(), tgt: controls.target.toArray()
   };
 }
@@ -1750,8 +1811,8 @@ function loadSettings() {
   dofOn = bool('dofOn', dofOn); dofFollow = bool('dofFollow', dofFollow); dofFocus = num('dofFocus2', -1.4, 1.4, dofFocus); dofRange = num('dofRange2', 0.1, 3, dofRange); dofBlur = num('dofFog', 0.1, 1, dofBlur); $('bDof').classList.toggle('on', dofOn);
   { const nb = bool('noblur', false); document.body.classList.toggle('noblur', nb); $('bBlur').classList.toggle('on', !nb); gaugeOn = bool('gaugeOn', gaugeOn); $('bGauge').classList.toggle('on', gaugeOn); if (typeof s.rfov === 'number' && s.rfov >= 20 && s.rfov <= 90) { cR.fov = s.rfov; cR.updateProjectionMatrix(); } }
   { const ni = bool('noinfo', false), np = bool('nopanel', false); document.body.classList.toggle('noinfo', ni); document.body.classList.toggle('nopanel', np); $('bInfo').classList.toggle('on', !ni); }
-  if (Array.isArray(s.open2)) grpEls.forEach((g, i) => { if (typeof s.open2[i] === 'boolean') g.open = s.open2[i]; });
-  { const tb = pick('tab', ['fav', 'view', 'path', 'rot', 'cam', 'look', 'scr'], 'fav'); $('panel').dataset.tab = tb; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === tb)); }
+  if (s.open3 && typeof s.open3 === 'object') grpEls.forEach(g => { if (typeof s.open3[g.id] === 'boolean') g.open = s.open3[g.id]; });
+  { const tb = pick('tab', ['fav', 'geo', 'turn', 'path', 'draw'], 'fav'); $('panel').dataset.tab = tb; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === tb)); }
   mark('[data-mode]', document.querySelector(`[data-mode="${mode}"]`));
   mark('[data-hemi]', document.querySelector(`[data-hemi="${hemi}"]`));
   mark('[data-ax]', document.querySelector(`[data-ax="${axis}"]`));
