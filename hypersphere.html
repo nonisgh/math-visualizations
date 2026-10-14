@@ -39,6 +39,27 @@ button{background:#162136;color:#e5e7eb;border:1px solid #334155;border-radius:8
 button.on{background:#0e7490;border-color:#38bdf8}
 #bSlice.on{background:#b45309;border-color:#f59e0b}
 @media(max-width:700px){main{flex-direction:column}.pane+.pane{border-left:0;border-top:1px solid #1e293b}}
+#tabs{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;position:sticky;top:-8px;z-index:3;background:#0a0f1d;padding:6px 0 4px}
+#tabs button.on{background:#0e7490;border-color:#38bdf8;color:#fff}
+#panel details[data-tab]{display:none}
+#panel[data-tab=fav] details[data-tab=fav],#panel[data-tab=view] details[data-tab=view],#panel[data-tab=path] details[data-tab=path],#panel[data-tab=rot] details[data-tab=rot],#panel[data-tab=cam] details[data-tab=cam],#panel[data-tab=look] details[data-tab=look],#panel[data-tab=scr] details[data-tab=scr]{display:block}
+details.sub{margin:6px 0;border:1px solid #1e293b;border-radius:8px;padding:2px 8px}
+details.sub>summary{cursor:pointer;color:#cbd5e1;font-size:12px;padding:3px 0}
+.info{max-height:38%;max-width:calc(100% - 16px);overflow:auto;pointer-events:auto;font-size:10.5px;line-height:1.35;background:#0f172ab8}
+body.noinfo .info,body.noinfo #cmap{display:none!important}
+body.nopanel #panel{display:none}
+#panelShow{position:fixed;right:10px;bottom:10px;z-index:9;display:none;padding:8px 12px;background:#0e7490;border-color:#38bdf8;box-shadow:0 2px 12px #000a}
+body.nopanel #panelShow{display:block}
+#camNote{max-width:100%}
+:root{--pa:.62}
+body.seethru #panel{position:fixed;left:0;right:0;bottom:0;z-index:5;background:rgba(10,15,29,calc(var(--pa)*.8));backdrop-filter:blur(2px);border-top:1px solid #33415588}
+body.seethru #tabs{background:rgba(10,15,29,var(--pa))}
+body.seethru details.grp{background:rgba(11,18,32,var(--pa))}
+body.seethru .ctl{background:rgba(15,23,42,var(--pa))}
+body.seethru:not(.noinfo) .info,body.seethru #cmap{bottom:calc(var(--ph,0px) + 8px)}
+body.favedit #panel button:not([data-tab]):not(#bFavEdit):not(#bFavReset),body.favedit .ctl label{cursor:copy}
+button.pinned{box-shadow:0 0 0 2px #facc15 inset}.ctl.pinned{border-color:#facc15}
+#favBtns{gap:6px}
 </style>
 </head>
 <body>
@@ -47,39 +68,59 @@ button.on{background:#0e7490;border-color:#38bdf8}
   <div class="pane" id="pR"><div class="tag" id="tagR"></div><div class="info" id="infoR"></div><canvas id="hud" width="320" height="176"></canvas><canvas id="cmap" width="248" height="150"></canvas></div>
 </main>
 
-<div id="panel">
-  <details class="grp" open><summary>🔭 表示</summary>
+<button id="panelShow">⚙ 設定パネルを開く</button>
+<div id="panel" data-tab="fav">
+  <div id="tabs"><button data-tab="fav" class="on">⭐ よく使う</button><button data-tab="view">🔭 表示</button><button data-tab="path">🧭 旅・軌跡</button><button data-tab="rot">🔁 回転</button><button data-tab="cam">🎥 カメラ</button><button data-tab="look">🎨 見た目</button><button data-tab="scr">🖥 画面</button></div>
+  <details class="grp" open data-tab="fav"><summary>⭐ よく使う（基本操作）</summary>
+    <div class="gb"><button id="bFavEdit" title="オンにして他のタブの項目（ボタン・スライダーの名前）をクリックすると、ここに追加／もう一度で外せます">📌 追加・外すモード</button><button id="bFavReset" title="最初の基本セットに戻す">初期セットに戻す</button></div>
+    <div class="gb"><span id="favNote"></span></div>
+    <div class="gb" id="favBtns"></div>
+    <div class="gs" id="g-favs"></div></details>
+  <details class="grp" open data-tab="view"><summary>🔭 表示</summary>
     <div class="gb"><span>モード</span><button data-mode="hybrid" class="on">ハイブリッド</button><button data-mode="wire">ワイヤー</button><button data-mode="solid">半透明</button><button data-mode="points">点群</button></div>
     <div class="gb"><span>3Dモデル</span><button data-model="lat" class="on" title="リングを高さ方向に積む（緯度線）。右は球殻を積む">緯度リング</button><button data-model="mer" title="極を通る大円を等間隔に並べる（経度線）。右は大きな球殻が放射状に並ぶ。β版">経度リング（β）</button><button data-model="both" title="緯度リングと経度リングを同時に表示（地球儀の格子）。右は球殻と大球殻が重なる。β版">両方（β）</button><button data-model="cone" title="円錐（xyzでの極角θ一定の面）だけを表示。左は参考の球だけ。β版">円錐だけ（β）</button><button data-model="full" title="緯度＋経度＋円錐（xyzでの極角θ一定の面）。超球の座標3族がそろう。円錐は右だけに出る。β版">全部（β）</button><span>※経度では「層数」が大円の本数</span></div>
-    <div class="gb"><span>半球</span><button data-hemi="both" class="on">全球</button><button data-hemi="A">北 A</button><button data-hemi="B">南 B</button></div>
-    <div class="gb"><button id="bSlice">🔪 切断面（観察者に固定）</button><button id="bWedge">✂ 断面カット</button><button id="bColor">中心色反転</button></div>
+    <div class="gb"><span>半球</span><button data-hemi="both" class="on">全球</button><button data-hemi="A">北 A</button><button data-hemi="B">南 B</button><button id="bColor">中心色反転</button></div>
+    <details class="sub"><summary>✂ 断面・切り欠き（切断面／断面カット／開き具合）</summary>
+    <div class="gb"><button id="bSlice">🔪 切断面（観察者に固定）</button><button id="bWedge">✂ 断面カット</button></div>
     <div class="gb"><span>切り欠き</span><button data-cref="screen" class="on" title="観察者（画面）から見て常に同じ側を切る">📺 画面に固定</button><button data-cref="obj" title="超球の経度に固定（回すと切り口も一緒に動く）">🧊 物体に固定</button><button data-cref="orig" title="押した瞬間に画面から見て手前側の90°ぶんのポリゴンを作らない。次に押すまで超球に固定">🧱 ポリゴンカット</button></div>
     <div class="gb"><button id="bCutL">⟲ 90°</button><button id="bCutR">90° ⟳</button><button id="bCutSpin">🌀 ぐるっと</button></div>
-    <div class="gb"><span>開き具合</span><button data-cw="60">60°</button><button data-cw="90">90°</button><button data-cw="120">120°</button><button data-cw="180">180°</button><button data-cw="270">270°</button><span>（細かくは下の「開き具合」）</span></div>
+    <div class="gb"><span>開き具合</span><button data-cw="60">60°</button><button data-cw="90">90°</button><button data-cw="120">120°</button><button data-cw="180">180°</button><button data-cw="270">270°</button><span>（細かくは下の「開き具合」）</span></div></details>
     <div class="gs" id="g-view"></div></details>
-  <details class="grp" open><summary>🧭 目的地・全方向の旅（北極スタート）</summary>
+  <details class="grp" open data-tab="path"><summary>▶ 再生</summary>
+    <div class="gb"><button id="bPathPlay">▶ 進める</button><span>点を進める（直進の旅・全方向・いろいろな軌跡で共通）</span></div></details>
+  <details class="grp" open data-tab="path"><summary>🧭 直進の旅（北極スタート）</summary>
     <div class="gb"><button id="bPath">🎯 目的地を指定</button><button id="bRand">🎲 ランダムに次々</button><button id="bFootClr">足あとを消す</button></div>
-    <div class="gb"><button id="bAll">🌌 全方向の旅</button><button id="bPathPlay">▶ 進める</button></div>
-    <div class="gb"><button id="bStep" title="軌跡を、球殻（層）と交わる点だけ直線でつなぐ。球殻の数（「層数」スライダー）を増やすほどなめらかな曲線に近づく＝空間が少しずつ曲がっていることが見える">🪜 球殻ごとのカクカク軌跡</button><button id="bRL" title="北極から、ランダムな方向へ出発する軌跡を次々に足していく。右下の方向マップで、全方向を網羅していく様子が見える">🌠 ランダムな軌跡</button><button id="bRLClr">軌跡を消す</button><button id="bS2" title="左の3D球はS²（2次元の球面）。S²では進む向きは方位角1つだけなので、仰角を使わず球面上の経線として動かす。オフなら、右の超球と同じ点の影（仰角が入ると球の内側に入る）">左: S²（仰角を使わない）</button><button id="bHud" title="右上に方位・仰角のダイヤルを出す（画面が狭くなるので初期はオフ）">座標ダイヤル</button></div>
+    <div class="gb"><button id="bAll">🌌 全方向の旅</button><button id="bRL" title="北極から、ランダムな方向へ出発する軌跡を次々に足していく。右下の方向マップで、全方向を網羅していく様子が見える">🌠 ランダムな軌跡</button><button id="bRLClr">軌跡を消す</button></div>
     <div class="gb"><span>ガイド: 赤=x軸 緑=y軸 青=z軸 黄=進む向き ／ 方位角=水平に向く角度（0°=x軸, 90°=y軸）、仰角=見上げる角度（0°=水平, 90°=真上=z軸）</span></div>
     <div class="gs" id="g-path"></div></details>
-  <details class="grp" open><summary>🔁 回転（傾き）</summary>
+  <details class="grp" open data-tab="path"><summary>🌀 いろいろな軌跡（曲がる・巻く・絡む）</summary>
+    <div class="gb"><button data-cv="circle" title="北極のまわりを一定の距離で回る小円">⭕ 小円</button><button data-cv="torus" title="トーラスの表面を a:b で巻く（結び目）">🍩 トーラス結び目</button><button data-cv="hopf" title="絡み合う大円の束">🔗 ホップ束</button><button data-cv="loxo" title="経線と一定の角度で交わる、北極⇄南極のらせん">🌀 らせん</button><button data-cv="walk" title="一歩ごとに向きをランダムに変える">🍺 ランダムウォーク</button><button id="bWalkNew">🎲 歩き直す</button></div>
+    <div class="gb"><span id="cvNote">種類を選ぶと、軌跡が出ます（もう一度押すと消えます）</span></div>
+    <div class="gs" id="g-curve"></div></details>
+  <details class="grp" open data-tab="path"><summary>👁 軌跡の見せ方</summary>
+    <div class="gb"><button id="bStep" title="軌跡を、球殻（層）と交わる点だけ直線でつなぐ。球殻の数（「層数」スライダー）を増やすほどなめらかな曲線に近づく＝空間が少しずつ曲がっていることが見える">🪜 球殻ごとのカクカク軌跡</button><button id="bS2" title="左の3D球はS²（2次元の球面）。S²では進む向きは方位角1つだけなので、仰角を使わず球面上の経線として動かす。オフなら、右の超球と同じ点の影（仰角が入ると球の内側に入る）">左: S²（仰角を使わない）</button><button id="bHud" title="右上に方位・仰角のダイヤルを出す（画面が狭くなるので初期はオフ）">座標ダイヤル</button></div>
+    <div class="gb"><button id="bAxTop" class="on" title="座標軸・向きの矢印を、球殻やワイヤーの手前に常に描く。オフにすると球殻の裏側に隠れる">🔝 座標軸を最前面に</button></div>
+    <div class="gs" id="g-axis"></div></details>
+  <details class="grp" open data-tab="rot"><summary>🔁 回転（傾き）</summary>
     <div class="gb"><button id="bReset">初期位置</button><button id="bSync" title="今の球の傾き（前後・左右・面内・斜め）はそのまま、超球側の見る向きとZ-W・4Dカメラを0に戻して、左の球と同じ向きにそろえる">超球を球と同じ角度に</button></div>
     <div class="gs" id="g-rot"></div></details>
-  <details class="grp"><summary>⚙ 自動回転</summary>
+  <details class="grp" open data-tab="rot"><summary>⚙ 自動回転</summary>
     <div class="gb"><button id="bDemo">回転/停止</button><button id="bSpin">🔄 回す</button></div>
     <div class="gb"><span>軸</span><button data-ax="mix" class="on">複合</button><button data-ax="mix3" title="Y-W・X-W・Z-Wを違う速さで同時に回す">複合＋Z-W</button><button data-ax="yw" title="Y-Wを 0→-90→-180→90→0 と一周（押すと他の角度は0に戻る）">Y-W</button><button data-ax="xw">X-W</button><button data-ax="zw">Z-W</button><button data-ax="ob" title="w軸と斜め方向（向きスライダー）を含む平面で回す">斜めW</button></div>
     <div class="gb"><span>※ Y-W / X-W / Z-W / 斜めW を押すと、他の平面の角度は0に戻ります（押したあとにスライダーで傾けるのはOK）</span></div>
     <div class="gs" id="g-auto"></div></details>
-  <details class="grp"><summary>🎥 4Dカメラ</summary>
-    <div class="gb"><button id="bCam">カメラ指定</button><button id="bCamReset">カメラ0</button></div>
+  <details class="grp" open data-tab="cam"><summary>🎥 4Dカメラ</summary>
+    <div class="gb"><span>モード</span><button data-cm="off" class="on" title="4Dカメラを使わない（普通の見え方）">オフ</button><button data-cm="free" title="右の超球をドラッグすると4Dカメラの数値が変わる。数値の手入力もできる。「初期位置」で0に戻る">フリー</button><button data-cm="fixed" title="今のカメラ位置・視点を固定。ドラッグしても動かず、「初期位置」でも戻らない（数値の手入力は可）">固定</button><button id="bCamReset" title="4Dカメラを0に戻す（固定中でも戻る）">カメラ0</button></div>
+    <div class="gb"><span id="camNote"></span></div>
     <div class="gs" id="g-cam"></div></details>
-  <details class="grp"><summary>🎨 見た目</summary>
+  <details class="grp" open data-tab="look"><summary>🎨 見た目</summary>
     <div class="gb"><button id="bOpq">不透明</button><button id="bMat">光沢なし</button><button id="bShade" class="on">境目の影</button><button id="bBack" class="on" title="リングや球殻の内側が見えているところを暗く・くすませる">🌗 裏側を暗く</button></div>
     <div class="gb"><span>裏側の判定</span><button data-bm="1" class="on" title="超球面の表裏。4Dカメラに面した側が表、奥側（透けて見える側）が裏">4Dの奥</button><button data-bm="0" title="各殻を3Dの球として見たときの内側">3Dの内側</button></div>
     <div class="gs" id="g-look"></div></details>
-  <details class="grp"><summary>🖥 画面</summary>
-    <div class="gb"><button id="bFull">⛶ 超球全画面</button><button id="bPanel">スライダー隠す</button><button id="bLsReset" title="保存した設定を消して初期状態に戻す">設定を初期化</button></div></details>
+  <details class="grp" open data-tab="scr"><summary>🖥 画面</summary>
+    <div class="gb"><button id="bSee" class="on" title="設定パネルを画面に重ねて半透明にする。後ろの球が見える。オフなら画面の下に分ける">🫧 設定パネルをシースルー</button><button id="bInfo" class="on" title="左右の画面に出ているパラメータの文字を出す／隠す">📋 パラメータ表示</button><button id="bPanelHide" title="設定パネルを隠して、画面を広く使う（右下の「設定パネルを開く」で戻せます）">🙈 設定パネルを隠す</button></div>
+    <div class="gb"><button id="bFull">⛶ 超球全画面</button><button id="bPanel">スライダー隠す</button><button id="bLsReset" title="保存した設定を消して初期状態に戻す">設定を初期化</button></div>
+    <div class="gs" id="g-scr"></div></details>
 </div>
 
 <script>
@@ -96,7 +137,13 @@ let footN = 0, footI = 0, footPts = null, footLast = null, randPlay = false, ran
 const PN = 240;
 let stepOn = false, stepTs = [], stepKey = '';   // カクカク軌跡: 球殻と交わるtの列
 const MAXRL = 800, RLS = 64, NBP = 24, NBL = 12, PTSMAX = 420;
-let hudOn = false, garrow = null, leftS2 = false;   // leftS2: 左の3D球(S²)では仰角を使わず、方位だけで球面上を進む   // hudOn: 右上の座標ダイヤル（初期はオフ）
+let curveOn = false, curveType = 'circle', cvRho = 50 * Math.PI / 180, cvA = 2, cvB = 3, cvEta = Math.PI / 4, cvK = 2.5, cvN = 24, cvSteps = 400, cvStepLen = 6 * Math.PI / 180, cvNoise = 0.4, cvSeed = 1, cvKey = '', cvData = null, cvL = null, cvR = null;
+const CVMAX = 14000, CVDOT = 128;
+let hudOn = false, garrow = null, garrowL = null, leftS2 = false, axW = 1, axTop = true;
+const axMats = [], glabL = {};
+let paAlpha = 0.62;
+const FAV_DEFAULT = ['#bReset', '#bSync', '#bDemo', '#bWedge', '#bSlice', 'data-cref=orig', '#bCutSpin', 'S:前後傾き ↔ 4D Y-W（°）', 'S:左右傾き ↔ 4D X-W（°）', 'S:開き具合（°）切り欠きの大きさ', 'S:層数（奇数）', '#bPath', '#bAll'];
+let favs = FAV_DEFAULT.slice(), favEdit = false;   // leftS2: 左の3D球(S²)では仰角を使わず、方位だけで球面上を進む   // hudOn: 右上の座標ダイヤル（初期はオフ）
 let rlOn = false, rlN = 0, rlHit = 0, rlObj = null, rlTick = 0, allColKey = '';
 const rlD = new Float32Array(MAXRL * 3), rlBin = new Uint8Array(NBP * NBL);
 let spd = 1, axis = 'mix', shadeOn = true, shade = 0.6;
@@ -130,7 +177,7 @@ function addCut(sh) {
   sh.fragmentShader = 'varying float vPhi;\nvarying vec3 vCutP;\nuniform float uCutMode, uCutC, uCutH;\n'
     + sh.fragmentShader.replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n if (uCutMode > 0.5) { float a = (uCutMode < 1.5 ? atan(vCutP.x, vCutP.z) : vPhi) - uCutC; a = mod(a + PI, 2.0 * PI) - PI; if (abs(a) < uCutH) discard; }');
 }
-let zw = 0, cx = 0, cy = 0, cz = 0, camOn = false, opaque = false, matte = false;
+let zw = 0, cx = 0, cy = 0, cz = 0, camOn = false, camFixed = false, opaque = false, matte = false;
 let model = 'lat';                         // 3Dモデル: 'lat'=緯度リング(横に積む) / 'mer'=経度リング(極を通る大円を等間隔に並べる)
 let pitch = 0, roll = 0, yaw = 0;          // 左(3D)の姿勢
 let obT = 0, obP = 0;                      // 斜めW回転: 角度 obT、回転面の向き obP（xy平面内の方位。0°=X-W, 90°=Y-W）
@@ -380,7 +427,7 @@ function makePath() {
     line.frustumCulled = dot.frustumCulled = pts.frustumCulled = false; line.renderOrder = dot.renderOrder = pts.renderOrder = 10;
     parent.add(line, dot, pts); return { line, dot, pts };
   };
-  pathL = mk(gL); pathR = mk(gR); makeAll(); makeFoot(); makeGuide(); makeRL(); updatePath();
+  pathL = mk(gL); pathR = mk(gR); makeAll(); makeFoot(); makeGuide(); makeRL(); makeCurve(); updatePath();
 }
 // ---- 全方向の旅: 北極から「宇宙のあらゆる方向」(xyz空間の全方向 d) へ同時に出発 ----
 // 方向は緯度経度の格子（赤道=左の3D球の経線に対応）。全員が同じ時刻 t に同じ波面（層 w=R·cos t）の上にいて、
@@ -507,6 +554,97 @@ function updateFoot() {
   }
   footPts.geometry.attributes.position.needsUpdate = true; footPts.geometry.setDrawRange(0, footN);
 }
+// ---- いろいろな軌跡（直進以外）: 小円・トーラス結び目・ホップ束・等角らせん・ランダムウォーク ----
+const CVNOTE = {
+  circle: '北極のまわりを一定の距離ρで回る小円。曲がり続ける道で、直進ではない。ρ=90°で大円（直進と同じ）。円の向きは方位・仰角で決まる',
+  torus: 'S³の中のドーナツ（クリフォードトーラス）の表面を、xy面でa回・zw面でb回まわりながら進む。a:bが整数比なら結び目（2:3=三葉結び目）、そうでなければ閉じず表面を埋めていく',
+  hopf: 'S³を絡み合う大円の束に分けたもの。1本ずつは直進の道で、どの2本も一度だけ絡む。「進める」で全部が同時に回る',
+  loxo: '経線と一定の角度で交わりながら、北極→南極→北極と巻きつく道（等角らせん）。巻き数と方位・仰角で形が決まる',
+  walk: '一歩ごとに向きをランダムに変える酔歩。曲がりやすさ0なら直進、大きいほどふらふら。歩数を増やすと超球面全体に広がる'
+};
+const CVNAME = { circle: '小円', torus: 'トーラス結び目', hopf: 'ホップ束', loxo: '等角らせん', walk: 'ランダムウォーク' };
+function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function makeCurve() {
+  const mk = parent => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(CVMAX * 6), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(CVMAX * 6), 3));
+    const lines = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false }));
+    const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(CVDOT * 3), 3));
+    const dots = new THREE.Points(dg, new THREE.PointsMaterial({ size: 8, sizeAttenuation: false, color: 0xfacc15, depthTest: false }));
+    lines.frustumCulled = dots.frustumCulled = false; lines.renderOrder = 9; dots.renderOrder = 13; lines.visible = dots.visible = false;
+    parent.add(lines, dots); return { lines, dots };
+  };
+  cvL = mk(gL); cvR = mk(gR); cvKey = '';
+}
+function genCurve() {
+  const out = [], hues = [], cl = Math.cos(pathLam), d = [cl * Math.cos(pathPhi), cl * Math.sin(pathPhi), Math.sin(pathLam)];
+  let n = 1, len = 129;
+  const push = (x, y, z, w, h) => { out.push(x, y, z, w); hues.push(h); };
+  if (curveType === 'circle') {   // 北極から角度ρの距離を保って回る（w=R·cosρ の面内の円。円の面は d に垂直）
+    const hh = Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    let u = [d[1] * hh[2] - d[2] * hh[1], d[2] * hh[0] - d[0] * hh[2], d[0] * hh[1] - d[1] * hh[0]]; const ul = Math.hypot(...u); u = u.map(x => x / ul);
+    const v = [d[1] * u[2] - d[2] * u[1], d[2] * u[0] - d[0] * u[2], d[0] * u[1] - d[1] * u[0]], sr = Math.sin(cvRho), cr = Math.cos(cvRho);
+    for (let k = 0; k < len; k++) { const t = k / (len - 1) * TAU, c = Math.cos(t), sn = Math.sin(t); push(R * sr * (c * u[0] + sn * v[0]), R * sr * (c * u[1] + sn * v[1]), R * sr * (c * u[2] + sn * v[2]), R * cr, k / (len - 1) * 0.85); }
+  } else if (curveType === 'torus') {   // (cosη·cos aθ, cosη·sin aθ, sinη·cos bθ, sinη·sin bθ)
+    const closed = Number.isInteger(cvA) && Math.abs(cvB - Math.round(cvB)) < 1e-9; len = closed ? 257 : 1001;
+    const span = closed ? TAU : TAU * 12, ce = Math.cos(cvEta), se = Math.sin(cvEta);
+    for (let k = 0; k < len; k++) { const t = k / (len - 1) * span; push(R * ce * Math.cos(cvA * t), R * ce * Math.sin(cvA * t), R * se * Math.cos(cvB * t), R * se * Math.sin(cvB * t), k / (len - 1) * 0.85); }
+  } else if (curveType === 'hopf') {   // ファイバー: e^{iθ}(cos(α/2), sin(α/2)e^{iβ})。基点(α,β)はS²上にほぼ均等（フィボナッチ配置）
+    n = cvN; len = 65;
+    for (let c = 0; c < n; c++) {
+      const al = Math.acos(1 - 2 * (c + 0.5) / n), be = c * 2.399963229728653, ca = Math.cos(al / 2), sa = Math.sin(al / 2), h = (((be / TAU) % 1) + 1) % 1;
+      for (let k = 0; k < len; k++) { const t = k / (len - 1) * TAU; push(R * ca * Math.cos(t), R * ca * Math.sin(t), R * sa * Math.cos(t + be), R * sa * Math.sin(t + be), h); }
+    }
+  } else if (curveType === 'loxo') {   // 北極→南極→北極。方位角が ψ に比例して回り続ける
+    len = 401;
+    for (let k = 0; k < len; k++) { const ps = k / (len - 1) * TAU, ph = pathPhi + cvK * ps, sp = Math.sin(ps); push(R * sp * cl * Math.cos(ph), R * sp * cl * Math.sin(ph), R * sp * Math.sin(pathLam), R * Math.cos(ps), k / (len - 1) * 0.85); }
+  } else {   // walk: 超球面上の測地線を一歩ずつ進み、向きに雑音を足す
+    len = cvSteps + 1;
+    const rng = mulberry(cvSeed * 7919 + 13), gauss = () => Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(TAU * rng());
+    let pp = [0, 0, 0, 1], vv = [d[0], d[1], d[2], 0]; const se = Math.sin(cvStepLen), ce = Math.cos(cvStepLen);
+    for (let k = 0; k < len; k++) {
+      push(R * pp[0], R * pp[1], R * pp[2], R * pp[3], 0.66 * k / (len - 1));
+      const np = pp.map((x, i) => x * ce + vv[i] * se), nv = pp.map((x, i) => -x * se + vv[i] * ce); pp = np; vv = nv;
+      const g = [gauss(), gauss(), gauss(), gauss()], gp = g.reduce((a, x, i) => a + x * pp[i], 0);
+      vv = vv.map((x, i) => x + cvNoise * 0.5 * (g[i] - gp * pp[i]));
+      const vp = vv.reduce((a, x, i) => a + x * pp[i], 0); vv = vv.map((x, i) => x - vp * pp[i]); const vl = Math.hypot(...vv); vv = vv.map(x => x / vl);
+      const pl = Math.hypot(...pp); pp = pp.map(x => x / pl);
+    }
+  }
+  cvData = { n, len, p: Float32Array.from(out) };
+  for (const o of [cvL, cvR]) {   // 頂点ごとの色（線分の両端に同じ色）
+    const ca = o.lines.geometry.attributes.color.array, c = new THREE.Color();
+    for (let ci = 0; ci < n; ci++) for (let k = 0; k < len - 1; k++) for (let e = 0; e < 2; e++) {
+      c.setHSL(hues[ci * len + k + e], 0.9, 0.58); ca.set([c.r, c.g, c.b], ((ci * (len - 1) + k) * 2 + e) * 3);
+    }
+    o.lines.geometry.attributes.color.needsUpdate = true;
+  }
+}
+function updateCurve() {
+  if (!cvR) return;
+  cvL.lines.visible = cvL.dots.visible = curveOn; cvR.lines.visible = cvR.dots.visible = curveOn && !sliceOn;
+  if (!curveOn) return;
+  const key = [curveType, cvRho, cvA, cvB, cvEta, cvK, cvN, cvSteps, cvStepLen, cvNoise, cvSeed, pathPhi, pathLam].join('|');
+  if (key !== cvKey) { cvKey = key; genCurve(); }
+  mkSteps();
+  const { n, len, p } = cvData, zc = Math.cos(zw), zs = Math.sin(zw), v = [0, 0, 0, 0];
+  const pr = cvR.lines.geometry.attributes.position.array, pl = cvL.lines.geometry.attributes.position.array;
+  const dr = cvR.dots.geometry.attributes.position.array, dl = cvL.dots.geometry.attributes.position.array;
+  const tr = new Float32Array(len * 3), tl = new Float32Array(len * 3);
+  const f = (((pathT % TAU) + TAU) % TAU) / TAU, q = f * (len - 1), k0 = Math.min(len - 2, Math.floor(q)), u = q - k0;
+  for (let c = 0; c < n; c++) {
+    for (let k = 0; k < len; k++) {
+      const i = (c * len + k) * 4, x = p[i], y = p[i + 1], z = p[i + 2], w = p[i + 3];
+      tl[k * 3] = x; tl[k * 3 + 1] = y; tl[k * 3 + 2] = z * zs + w * zc;   // 左は (x, y, w′)
+      v[0] = x; v[1] = y; v[2] = z; v[3] = w; xf(v);
+      const sc = camW / Math.max(0.6, camW - v[3]) * SCALE; tr[k * 3] = v[0] * sc; tr[k * 3 + 1] = v[1] * sc; tr[k * 3 + 2] = v[2] * sc;
+    }
+    for (let k = 0; k < len - 1; k++) { const o = (c * (len - 1) + k) * 6; for (let a = 0; a < 3; a++) { pr[o + a] = tr[k * 3 + a]; pr[o + 3 + a] = tr[k * 3 + 3 + a]; pl[o + a] = tl[k * 3 + a]; pl[o + 3 + a] = tl[k * 3 + 3 + a]; } }
+    for (let a = 0; a < 3; a++) { dr[c * 3 + a] = tr[k0 * 3 + a] * (1 - u) + tr[(k0 + 1) * 3 + a] * u; dl[c * 3 + a] = tl[k0 * 3 + a] * (1 - u) + tl[(k0 + 1) * 3 + a] * u; }
+  }
+  for (const o of [cvL, cvR]) { o.lines.geometry.attributes.position.needsUpdate = o.dots.geometry.attributes.position.needsUpdate = true; o.lines.geometry.setDrawRange(0, n * (len - 1) * 2); o.dots.geometry.setDrawRange(0, n); }
+}
 // ---- ランダムな軌跡: 北極からランダムな方向へ出発する線を次々に足す。方向マップ（方位×仰角を面積が等しい格子に区切ったもの）で網羅の様子を見る ----
 function makeRL() {
   const n = MAXRL * RLS * 6, g = new THREE.BufferGeometry();
@@ -549,8 +687,8 @@ function updateRL() {
 let guide = null; const GSEG = 300, glab = {};
 function makeLabel(color) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 64;
-  const tex = new THREE.CanvasTexture(c), sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-  sp.scale.set(0.95, 0.2375, 1); sp.renderOrder = 12; sp.frustumCulled = false; sp.visible = false;
+  const tex = new THREE.CanvasTexture(c), sm = new THREE.SpriteMaterial({ map: tex, depthTest: !axTop, transparent: true, depthWrite: false }), sp = new THREE.Sprite(sm); axMats.push(sm);
+  sp.scale.set(0.95, 0.2375, 1); sp.renderOrder = 60; sp.frustumCulled = false; sp.visible = false;
   return { sp, c, tex, text: '', color };
 }
 function setLabel(lb, text, pos) {
@@ -562,21 +700,42 @@ function setLabel(lb, text, pos) {
   lb.sp.position.set(pos[0], pos[1], pos[2]); lb.sp.visible = true;
 }
 function makeGuide() {
+  axMats.length = 0;
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(GSEG * 6), 3));
   g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(GSEG * 6), 3));
-  guide = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false }));
-  guide.frustumCulled = false; guide.renderOrder = 11; gR.add(guide);
+  const gm = new THREE.LineBasicMaterial({ vertexColors: true, depthTest: !axTop, transparent: true, depthWrite: false }); axMats.push(gm);
+  guide = new THREE.LineSegments(g, gm);
+  guide.frustumCulled = false; guide.renderOrder = 50; gR.add(guide);
   const defs = { x: '#f87171', y: '#4ade80', z: '#60a5fa', dir: '#facc15', az: '#f5f5f4', el: '#67e8f9' };
   for (const k in defs) { glab[k] = makeLabel(defs[k]); gR.add(glab[k].sp); }
   // CGソフトのような3色の矢印（x=赤 y=緑 z=青）と、進む向きの矢印（黄）
-  const mkArrow = (hex, r) => {
-    const sh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 10), new THREE.MeshBasicMaterial({ color: hex, depthTest: false }));
-    const hd = new THREE.Mesh(new THREE.ConeGeometry(r * 3, 1, 18), new THREE.MeshBasicMaterial({ color: hex, depthTest: false }));
-    for (const m of [sh, hd]) { m.renderOrder = 12; m.frustumCulled = false; m.visible = false; gR.add(m); }
+  const mkArrow = (hex, r, parent = gR) => {
+    const mat = () => { const m = new THREE.MeshBasicMaterial({ color: hex, depthTest: !axTop, transparent: true, depthWrite: false }); axMats.push(m); return m; };
+    const sh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 10), mat());
+    const hd = new THREE.Mesh(new THREE.ConeGeometry(r * 3, 1, 18), mat());
+    for (const m of [sh, hd]) { m.renderOrder = 50; m.frustumCulled = false; m.visible = false; parent.add(m); }
     return { sh, hd };
   };
   garrow = { x: mkArrow(0xef4444, 0.024), y: mkArrow(0x22c55e, 0.024), z: mkArrow(0x3b82f6, 0.024), dir: mkArrow(0xfacc15, 0.032) };
+  // 左の3D球にも同じ矢印（出発点＝左の北極）と文字
+  garrowL = { x: mkArrow(0xef4444, 0.024, gL), y: mkArrow(0x22c55e, 0.024, gL), z: mkArrow(0x3b82f6, 0.024, gL), dir: mkArrow(0xfacc15, 0.032, gL) };
+  const defsL = { x: '#f87171', y: '#4ade80', z: '#60a5fa', dir: '#facc15' };
+  for (const k in defsL) { glabL[k] = makeLabel(defsL[k]); glabL[k].sp.scale.set(0.76, 0.19, 1); gL.add(glabL[k].sp); }
+}
+function applyAxTop() { axMats.forEach(m => { m.depthTest = !axTop; m.needsUpdate = true; }); }
+function updateGuideL() {   // 左の3D球: 出発点（北極）から x/y/z の矢印と進む向き。S²表示のときは z 軸なし
+  if (!garrowL) return;
+  const hideAll = () => { for (const k in garrowL) garrowL[k].sh.visible = garrowL[k].hd.visible = false; for (const k in glabL) glabL[k].sp.visible = false; };
+  if (!pathOn) { hideAll(); return; }
+  const Lg = 0.9, zc = Math.cos(zw), zs = Math.sin(zw);
+  const PL = vec => { const l = Math.hypot(vec[0], vec[1], vec[2]), t = l / R, k = l ? R * Math.sin(t) / l : 0; return [vec[0] * k, vec[1] * k, vec[2] * k * zs + R * Math.cos(t) * zc]; };   // 左は (x, y, w′)
+  const cl = leftS2 ? 1 : Math.cos(pathLam), sl = leftS2 ? 0 : Math.sin(pathLam), cp = Math.cos(pathPhi), sp = Math.sin(pathPhi), o = PL([0, 0, 0]);
+  setArrow(garrowL.x, o, PL([Lg, 0, 0])); setArrow(garrowL.y, o, PL([0, Lg, 0]));
+  if (leftS2) { garrowL.z.sh.visible = garrowL.z.hd.visible = false; glabL.z.sp.visible = false; } else { setArrow(garrowL.z, o, PL([0, 0, Lg])); setLabel(glabL.z, 'z', PL([0, 0, Lg * 1.25])); }
+  setArrow(garrowL.dir, o, PL([cl * cp * Lg * 1.12, cl * sp * Lg * 1.12, sl * Lg * 1.12]));
+  setLabel(glabL.x, 'x', PL([Lg * 1.25, 0, 0])); setLabel(glabL.y, 'y', PL([0, Lg * 1.25, 0]));
+  const dp = PL([cl * cp * Lg * 1.3, cl * sp * Lg * 1.3, sl * Lg * 1.3]); setLabel(glabL.dir, leftS2 ? '進む向き（方位）' : '進む向き', [dp[0], dp[1], dp[2] + 0.08]);
 }
 const _Y = new THREE.Vector3(0, 1, 0);
 function setArrow(ar, a, b) {   // a→b の矢印（軸の棒＋円錐の矢じり）
@@ -584,9 +743,9 @@ function setArrow(ar, a, b) {   // a→b の矢印（軸の棒＋円錐の矢じ
   if (len < 1e-6) { ar.sh.visible = ar.hd.visible = false; return; }
   u.divideScalar(len);
   const hl = Math.min(0.22, len * 0.35), q = new THREE.Quaternion().setFromUnitVectors(_Y, u);
-  ar.sh.scale.set(1, len - hl, 1); ar.sh.quaternion.copy(q);
+  ar.sh.scale.set(axW, len - hl, axW); ar.sh.quaternion.copy(q);
   ar.sh.position.set(a[0] + u.x * (len - hl) / 2, a[1] + u.y * (len - hl) / 2, a[2] + u.z * (len - hl) / 2);
-  ar.hd.scale.set(1, hl, 1); ar.hd.quaternion.copy(q);
+  ar.hd.scale.set(axW, hl, axW); ar.hd.quaternion.copy(q);
   ar.hd.position.set(b[0] - u.x * hl / 2, b[1] - u.y * hl / 2, b[2] - u.z * hl / 2);
   ar.sh.visible = ar.hd.visible = true;
 }
@@ -634,7 +793,7 @@ function updateGuide() {
 }
 function updatePath() {
   if (!pathL) return;
-  updateAll(); updateFoot(); updateGuide(); updateRL();
+  updateAll(); updateFoot(); updateGuide(); updateGuideL(); updateRL(); updateCurve();
   pathL.line.visible = pathL.dot.visible = pathOn;
   pathR.line.visible = pathR.dot.visible = pathOn && !sliceOn;   // 切断面モードでは右の軌跡は出さない
   pathL.pts.visible = pathOn && stepOn; pathR.pts.visible = pathOn && stepOn && !sliceOn;
@@ -773,7 +932,7 @@ function updateLeft() {
 function refreshTag() {
   $('tagR').textContent = (sliceOn
     ? '【観察側】4D超球 ― 切断面（観察者に固定した超平面 w′=c での切り口）'
-    : '【観察側】4D超球（球殻積層）ドラッグで視点回転') + (camOn ? ' ＋4Dカメラ：ドラッグでX-W/Y-W、Shift+横ドラッグでZ-W' : '');
+    : '【観察側】4D超球（球殻積層）ドラッグで視点回転') + (camOn ? (camFixed ? ' ＋4Dカメラ（固定）：ドラッグでは動かない（数値で指定）' : ' ＋4Dカメラ（フリー）：ドラッグでX-W/Y-W、Shift+横ドラッグでZ-W') : '');
 }
 
 function drawHud() {
@@ -830,10 +989,11 @@ function refreshUI() {
   }
   if (pathOn) { const p = pathPt(pathT), dc = [Math.cos(pathLam) * Math.cos(pathPhi), Math.cos(pathLam) * Math.sin(pathPhi), Math.sin(pathLam)],
     ax = dc.map((c, i) => 'xyz'[i] + ' ' + (Math.acos(Math.max(-1, Math.min(1, c))) / D2R).toFixed(0) + '°').join('  '); ang += `\n目的地: 方位角 ${deg(pathPhi)} 仰角 ${deg(pathLam)} 進む角度 ${deg(pathT)}（高度z ${(R * Math.cos(pathT)).toFixed(2)}）\n  出発の向きと各軸との角: ${ax}\n  4D座標 (${p.map(v => v.toFixed(2)).join(', ')})  超球面からのずれ ${Math.abs(Math.hypot(...p) - R).toExponential(0)}`; }
+  if (curveOn) ang += `\n軌跡: ${CVNAME[curveType]}` + (curveType === 'circle' ? `（半径 ${deg(cvRho)}）` : curveType === 'torus' ? `（a:b = ${cvA}:${cvB}）` : curveType === 'hopf' ? `（${cvN}本）` : curveType === 'loxo' ? `（巻き数 ${cvK}）` : `（${cvSteps}歩）`);
   if (stepOn) ang += `\nカクカク軌跡: 球殻 ${nLayers * 2 - 1} 枚ごとに直線でつなぐ（交点 ${(calcStepTs(), stepTs.length)} 個）。層数を増やすほどなめらか`;
   if (rlN) ang += `\nランダムな軌跡 ${rlN}/${MAXRL} 本・方向の網羅 ${rlHit}/${NBP * NBL}（${(rlHit / (NBP * NBL) * 100).toFixed(0)}%）` + (rlHit === NBP * NBL ? '\n  ★すべての方向を通った＝超球面の全域に届いた' : '');
   if (footN) ang += `\n足あと ${footN} 点（超球面上に一様にランダムな目的地）`;
-  if (camOn) ang += `\nカメラ位置(x,y,z,w): ${camPos().map(v => (v * camW).toFixed(2)).join(', ')}`;
+  if (camOn) ang += `\n4Dカメラ（${camFixed ? '固定' : 'フリー'}） 位置(x,y,z,w): ${camPos().map(v => (v * camW).toFixed(2)).join(', ')}`;
   if (sliceOn) {
     const rad = Math.sqrt(Math.max(0, R * R - cSlice * cSlice));
     $('infoR').textContent =
@@ -922,30 +1082,87 @@ document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
 });
 $('bColor').onclick = () => { redCenter = !redCenter; build(); };
 $('bReset').onclick = () => {
-  pitch = roll = yaw = zw = obT = obP = cx = cy = cz = 0; demo = false; $('bDemo').classList.remove('on');
+  pitch = roll = yaw = zw = obT = obP = 0; if (!(camOn && camFixed)) cx = cy = cz = 0; demo = false; $('bDemo').classList.remove('on');   // 4Dカメラは、固定中なら戻さない
   resetRightCamera(); update();
 };
 
-$('bCam').onclick = e => { camOn = !camOn; controls.enabled = !camOn; e.currentTarget.classList.toggle('on', camOn); update(); refreshTag(); };
-$('bSync').onclick = () => { zw = cx = cy = cz = 0; resetRightCamera(); update(); };   // 球の傾きは残し、Z-W・4Dカメラ・右の視点だけ0に戻す
+function syncCamUI() {
+  const m = !camOn ? 'off' : camFixed ? 'fixed' : 'free';
+  document.querySelectorAll('[data-cm]').forEach(b => b.classList.toggle('on', b.dataset.cm === m));
+  $('camNote').textContent = m === 'off' ? '4Dカメラは使っていません（普通の見え方）' : m === 'free' ? 'フリー: 右の超球をドラッグ（Shift+横でZ-W）すると下の数値が変わります。手入力も可。「初期位置」で0に戻ります' : '固定: 今のカメラ位置・視点を固定中。右の超球はドラッグしても動かず、「初期位置」でも戻りません（数値の手入力は可）';
+  controls.enabled = !camOn;   // フリー: ドラッグは4Dカメラの数値を動かす／固定: ドラッグでは何も動かない（視点も固定）
+}
+document.querySelectorAll('[data-cm]').forEach(b => b.onclick = () => { camOn = b.dataset.cm !== 'off'; camFixed = b.dataset.cm === 'fixed'; syncCamUI(); update(); refreshTag(); syncPanel(); });
+$('bSync').onclick = () => { zw = 0; if (!(camOn && camFixed)) cx = cy = cz = 0; resetRightCamera(); update(); };   // 球の傾きは残し、Z-W・4Dカメラ・右の視点だけ0に戻す
 $('bCamReset').onclick = () => { cx = cy = cz = 0; update(); };
 $('bOpq').onclick = e => { opaque = !opaque; e.currentTarget.classList.toggle('on', opaque); applyVis(); };
 $('bMat').onclick = e => { matte = !matte; e.currentTarget.classList.toggle('on', matte); applyVis(); };
 $('bAll').onclick = e => {
   allOn = !allOn;
   if (allOn && !pitch && !roll) { pitch = 0.35; roll = -0.7; }   // 初期の向きだと全部が線分に潰れるので、軌跡が輪に見える傾きにする
-  if (!allOn && !pathOn) { pathPlay = false; $('bPathPlay').classList.remove('on'); }
+  if (!allOn && !pathOn && !curveOn) { pathPlay = false; $('bPathPlay').classList.remove('on'); }
   e.currentTarget.classList.toggle('on', allOn); update(); refreshUI();
 };
 $('bRand').onclick = e => { randPlay = !randPlay; if (randPlay) { pathOn = true; $('bPath').classList.add('on'); } e.currentTarget.classList.toggle('on', randPlay); updatePath(); refreshUI(); };
+// ---- よく使う（お気に入り）: ボタン・スライダーを他のタブから集めて複製表示。元と常に連動 ----
+const favKey = el => { if (el.id) return '#' + el.id; for (const a of el.attributes) if (a.name.startsWith('data-') && a.name !== 'data-tab' && a.name !== 'data-fav-of') return a.name + '=' + a.value; return ''; };
+const favFind = key => key.startsWith('#') ? $(key.slice(1)) : document.querySelector('[' + key.split('=')[0] + '="' + key.split('=').slice(1).join('=') + '"]');
+function renderFavs() {
+  $('favBtns').innerHTML = '';
+  for (let i = PR.length - 1; i >= 0; i--) if (PR[i].clone) { PR[i].d.remove(); PR.splice(i, 1); }
+  document.querySelectorAll('.pinned').forEach(e => e.classList.remove('pinned'));
+  favs = favs.filter(k => typeof k === 'string');
+  for (const key of favs) {
+    if (key.startsWith('S:')) {
+      const o = PR.find(q => !q.clone && q.t === key.slice(2)); if (!o) continue;
+      const q = Object.assign({}, o, { g: 'favs', clone: true }); PR.push(q); buildSlider(q); o.d.classList.add('pinned');
+    } else {
+      const o = favFind(key); if (!o) continue;
+      const b = document.createElement('button'); b.textContent = o.textContent; b.title = o.title || ''; b.dataset.favOf = key; b.onclick = () => o.click();
+      $('favBtns').appendChild(b); o.classList.add('pinned');
+    }
+  }
+  $('favNote').textContent = favEdit ? '追加モード中: 他のタブのボタンやスライダーの名前をクリックすると、ここに追加／もう一度で外せます。ここに並んだ項目をクリックしても外せます' : (favs.length ? 'よく使う項目です。「📌 追加・外すモード」で自由に入れ替えられます' : 'まだ何もありません。「📌 追加・外すモード」で、他のタブの項目を集められます');
+  syncFavBtns(); syncPanel();
+}
+function syncFavBtns() { document.querySelectorAll('#favBtns button').forEach(b => { const o = favFind(b.dataset.favOf); if (o) b.classList.toggle('on', o.classList.contains('on')); }); }
+function togglePin(key) { const i = favs.indexOf(key); if (i >= 0) favs.splice(i, 1); else favs.push(key); renderFavs(); }
+$('panel').addEventListener('click', e => {
+  if (!favEdit) return;
+  const b = e.target.closest('button'), lab = e.target.closest('.ctl label');
+  if (b && (b.closest('#tabs') || b.id === 'bFavEdit' || b.id === 'bFavReset')) return;
+  let key = null;
+  if (b) key = b.dataset.favOf || favKey(b);
+  else if (lab) { const p = PR.find(q => q.d === lab.closest('.ctl')); if (p) key = 'S:' + p.t; }
+  if (key) { e.preventDefault(); e.stopPropagation(); togglePin(key); }
+}, true);
+$('bFavEdit').onclick = e => { favEdit = !favEdit; document.body.classList.toggle('favedit', favEdit); e.currentTarget.classList.toggle('on', favEdit); renderFavs(); };
+$('bFavReset').onclick = () => { favs = FAV_DEFAULT.slice(); renderFavs(); };
+setInterval(syncFavBtns, 300);
+$('bSee').onclick = e => { e.currentTarget.classList.toggle('on', document.body.classList.toggle('seethru')); resize(); };
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => document.documentElement.style.setProperty('--ph', $('panel').offsetHeight + 'px')).observe($('panel'));
+$('bAxTop').onclick = e => { axTop = !axTop; e.currentTarget.classList.toggle('on', axTop); applyAxTop(); updatePath(); };
 $('bStep').onclick = e => { stepOn = !stepOn; e.currentTarget.classList.toggle('on', stepOn); if (stepOn && !pathOn && !allOn && !rlN) $('bPath').click(); else { updatePath(); refreshUI(); } };
 $('bRL').onclick = e => { rlOn = !rlOn; if (rlOn && rlN >= MAXRL) { rlN = 0; rlHit = 0; rlBin.fill(0); } if (rlOn && !pitch && !roll) { pitch = 0.35; roll = -0.7; update(); } e.currentTarget.classList.toggle('on', rlOn); refreshUI(); };
 $('bS2').onclick = e => { leftS2 = !leftS2; e.currentTarget.classList.toggle('on', leftS2); updatePath(); refreshUI(); };
+document.querySelectorAll('[data-cv]').forEach(b => b.onclick = () => {
+  if (curveOn && curveType === b.dataset.cv) curveOn = false; else { curveOn = true; curveType = b.dataset.cv; }
+  cvKey = ''; if (curveOn && pathT === 0) pathT = Math.PI / 2;
+  if (curveOn && !pitch && !roll) { pitch = 0.35; roll = -0.7; update(); }
+  if (!curveOn && !pathOn && !allOn) { pathPlay = false; $('bPathPlay').classList.remove('on'); }
+  syncCurveUI(); updatePath(); syncPanel(); refreshUI();
+});
+function syncCurveUI() {
+  document.querySelectorAll('[data-cv]').forEach(b => b.classList.toggle('on', curveOn && b.dataset.cv === curveType));
+  $('cvNote').textContent = curveOn ? CVNOTE[curveType] : '種類を選ぶと、軌跡が出ます（もう一度押すと消えます）。黄色い点は「進める」で動きます';
+}
+$('bWalkNew').onclick = () => { cvSeed++; if (!curveOn || curveType !== 'walk') { curveOn = true; curveType = 'walk'; syncCurveUI(); syncPanel(); } updatePath(); refreshUI(); };
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { $('panel').dataset.tab = b.dataset.tab; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); resize(); });
 $('bHud').onclick = e => { hudOn = !hudOn; e.currentTarget.classList.toggle('on', hudOn); refreshUI(); };
 $('bRLClr').onclick = () => { rlN = 0; rlHit = 0; rlBin.fill(0); updatePath(); refreshUI(); };
 $('bFootClr').onclick = () => { footN = 0; footI = 0; updatePath(); refreshUI(); };
-$('bPath').onclick = e => { pathOn = !pathOn; if (pathOn && pathT === 0) pathT = Math.PI / 2; if (pathOn && !pitch && !roll) { pitch = 0.35; roll = -0.7; update(); } if (!pathOn && !allOn) { pathPlay = false; $('bPathPlay').classList.remove('on'); } e.currentTarget.classList.toggle('on', pathOn); updatePath(); refreshUI(); };
-$('bPathPlay').onclick = e => { pathPlay = !pathPlay; if (pathPlay && !pathOn && !allOn) $('bPath').click(); e.currentTarget.classList.toggle('on', pathPlay); };
+$('bPath').onclick = e => { pathOn = !pathOn; if (pathOn && pathT === 0) pathT = Math.PI / 2; if (pathOn && !pitch && !roll) { pitch = 0.35; roll = -0.7; update(); } if (!pathOn && !allOn && !curveOn) { pathPlay = false; $('bPathPlay').classList.remove('on'); } e.currentTarget.classList.toggle('on', pathOn); updatePath(); refreshUI(); };
+$('bPathPlay').onclick = e => { pathPlay = !pathPlay; if (pathPlay && !pathOn && !allOn && !curveOn) $('bPath').click(); e.currentTarget.classList.toggle('on', pathPlay); };
 $('bBack').onclick = e => { backOn = !backOn; e.currentTarget.classList.toggle('on', backOn); applyBack(); syncPanel(); };
 document.querySelectorAll('[data-bm]').forEach(b => b.onclick = () => { backMode = +b.dataset.bm; uBackMode.value = backMode; mark('[data-bm]', b); });
 $('bShade').onclick = e => { shadeOn = !shadeOn; e.currentTarget.classList.toggle('on', shadeOn); applyVis(); };
@@ -958,11 +1175,14 @@ document.querySelectorAll('[data-ax]').forEach(b => b.onclick = () => {
   else if (axis === 'ob') pitch = roll = yaw = zw = 0;
   update();
 });
+$('bInfo').onclick = e => { e.currentTarget.classList.toggle('on', !document.body.classList.toggle('noinfo')); };
+$('bPanelHide').onclick = () => { document.body.classList.add('nopanel'); resize(); };
+$('panelShow').onclick = () => { document.body.classList.remove('nopanel'); resize(); };
 $('bFull').onclick = e => { e.currentTarget.classList.toggle('on', document.body.classList.toggle('full')); resize(); };
 $('bPanel').onclick = e => { e.currentTarget.classList.toggle('on', $('panel').classList.toggle('min')); resize(); };
 // 4Dカメラ指定ON時: 右ドラッグで4Dカメラ回転（横=X-W, 縦=Y-W, Shift+横=Z-W）
 let drag2 = false, qx = 0, qy = 0;
-pR.addEventListener('pointerdown', e => { if (camOn) { drag2 = true; qx = e.clientX; qy = e.clientY; } });
+pR.addEventListener('pointerdown', e => { if (camOn && !camFixed) { drag2 = true; qx = e.clientX; qy = e.clientY; } });
 addEventListener('pointermove', e => {
   if (!drag2) return;
   const dx = (e.clientX - qx) * 0.012, dy = (e.clientY - qy) * 0.012; qx = e.clientX; qy = e.clientY;
@@ -988,9 +1208,20 @@ const PR = [
   { g: 'cam', t: '4Dカメラ Y-W（°）', deg: 1, en: () => camOn, get: () => cy, set: v => { cy = v; update(); } },
   { g: 'cam', t: '4Dカメラ Z-W（°）', deg: 1, en: () => camOn, get: () => cz, set: v => { cz = v; update(); } },
   { g: 'path', t: '方向の密さ（赤道上の本数）', min: 4, max: 24, step: 2, dp: 0, en: () => allOn, get: () => allM, set: v => { allM = v; rebuildAll(); refreshUI(); } },
-  { g: 'path', t: '方位角（°）水平に向く角度 0=x軸 90=y軸', deg: 1, lim: [0, 360], en: () => pathOn, get: () => (pathPhi % TAU + TAU) % TAU, set: v => { pathPhi = v; updatePath(); refreshUI(); } },
-  { g: 'path', t: '仰角（°）見上げる角度 0=水平 90=真上(z軸)', deg: 1, lim: [-90, 90], en: () => pathOn, get: () => pathLam, set: v => { pathLam = v; updatePath(); refreshUI(); } },
-  { g: 'path', t: '進む角度（°）90=赤道 180=南極 360=北極に帰還', min: 0, max: 360, step: 1, dp: 0, en: () => pathOn || allOn, get: () => pathT / D2R, set: v => { pathT = v * D2R; updatePath(); refreshUI(); } },
+  { g: 'path', t: '方位角（°）水平に向く角度 0=x軸 90=y軸', deg: 1, lim: [0, 360], en: () => pathOn || (curveOn && (curveType === 'circle' || curveType === 'loxo' || curveType === 'walk')), get: () => (pathPhi % TAU + TAU) % TAU, set: v => { pathPhi = v; updatePath(); refreshUI(); } },
+  { g: 'path', t: '仰角（°）見上げる角度 0=水平 90=真上(z軸)', deg: 1, lim: [-90, 90], en: () => pathOn || (curveOn && (curveType === 'circle' || curveType === 'loxo' || curveType === 'walk')), get: () => pathLam, set: v => { pathLam = v; updatePath(); refreshUI(); } },
+  { g: 'path', t: '進む角度（°）90=赤道 180=南極 360=北極に帰還', min: 0, max: 360, step: 1, dp: 0, en: () => pathOn || allOn || curveOn, get: () => pathT / D2R, set: v => { pathT = v * D2R; updatePath(); refreshUI(); } },
+  { g: 'curve', t: '小円の半径（°）0=北極の点 90=大円（直進と同じ）180=南極', deg: 1, lim: [5, 175], en: () => curveOn && curveType === 'circle', get: () => cvRho, set: v => { cvRho = v; updatePath(); refreshUI(); } },
+  { g: 'curve', t: '結び目 a（xy面で回る回数）', min: 1, max: 9, step: 1, dp: 0, en: () => curveOn && curveType === 'torus', get: () => cvA, set: v => { cvA = v; updatePath(); refreshUI(); } },
+  { g: 'curve', t: '結び目 b（zw面で回る回数）小数にすると閉じない', min: 1, max: 9, step: 0.05, dp: 2, en: () => curveOn && curveType === 'torus', get: () => cvB, set: v => { cvB = v; updatePath(); refreshUI(); } },
+  { g: 'curve', t: 'トーラスの太り方（°）45=クリフォードトーラス', deg: 1, lim: [10, 80], en: () => curveOn && curveType === 'torus', get: () => cvEta, set: v => { cvEta = v; updatePath(); refreshUI(); } },
+  { g: 'curve', t: 'らせんの巻き数（北極→南極で何回転）', min: 0, max: 8, step: 0.1, dp: 1, en: () => curveOn && curveType === 'loxo', get: () => cvK, set: v => { cvK = v; updatePath(); refreshUI(); } },
+  { g: 'curve', t: 'ファイバーの本数', min: 6, max: 120, step: 2, dp: 0, en: () => curveOn && curveType === 'hopf', get: () => cvN, set: v => { cvN = v; updatePath(); refreshUI(); } },
+  { g: 'curve', t: '歩数', min: 50, max: 2000, step: 50, dp: 0, en: () => curveOn && curveType === 'walk', get: () => cvSteps, set: v => { cvSteps = v; updatePath(); refreshUI(); } },
+  { g: 'curve', t: '歩幅（°）', deg: 1, lim: [1, 20], en: () => curveOn && curveType === 'walk', get: () => cvStepLen, set: v => { cvStepLen = v; updatePath(); refreshUI(); } },
+  { g: 'curve', t: '曲がりやすさ 0=直進 大きいほどふらふら', min: 0, max: 3, step: 0.05, dp: 2, en: () => curveOn && curveType === 'walk', get: () => cvNoise, set: v => { cvNoise = v; updatePath(); refreshUI(); } },
+  { g: 'axis', t: '座標軸・向きの矢印の太さ（左右とも）', min: 0.4, max: 5, step: 0.1, dp: 1, get: () => axW, set: v => { axW = v; updatePath(); } },
+  { g: 'scr', t: 'パネルの透け具合（小さいほど透明）', min: 0.1, max: 1, step: 0.05, dp: 2, get: () => paAlpha, set: v => { paAlpha = v; document.documentElement.style.setProperty('--pa', v); } },
   { g: 'auto', t: '自動回転の速さ', min: 0.2, max: 3, step: .1, dp: 1, get: () => spd, set: v => { spd = v; refreshUI(); } },
   { g: 'look', t: '境目の影の強さ（不透明時）', min: 0, max: 1, step: .05, dp: 2, get: () => shade, set: v => { shade = v; applyVis(); } },
   { g: 'view', t: '層数（奇数）', min: 5, max: 101, step: 2, dp: 0, odd: 1, get: () => nLayers, set: v => { nLayers = v; build(); } },
@@ -998,7 +1229,7 @@ const PR = [
   { g: 'look', t: '4D球の透明度', min: 0.05, max: 0.75, step: .05, dp: 2, get: () => opacity, set: v => { opacity = v; applyVis(); } },
   { g: 'look', t: '4D投影パース', min: 2, max: 6, step: .1, dp: 1, get: () => camW, set: v => { camW = v; updateRight(); refreshUI(); } },
 ];
-PR.forEach(p => {
+const buildSlider = p => {
   const mn = p.deg ? (p.lim ? p.lim[0] : -180) : p.min, mx = p.deg ? (p.lim ? p.lim[1] : 180) : p.max, st = p.deg ? 1 : p.step;
   const d = document.createElement('div'); d.className = 'ctl';
   d.innerHTML = `<label>${p.t}</label><div class="rw"><input type="range" min="${mn}" max="${mx}" step="${st}"><input type="number" step="${p.deg ? 0.1 : st}"></div>`;
@@ -1012,7 +1243,8 @@ PR.forEach(p => {
   };
   p.r.oninput = () => apply(p.r.value);
   p.n.addEventListener(p.odd ? 'change' : 'input', () => apply(p.n.value));
-});
+};
+PR.forEach(buildSlider);
 function syncPanel() {
   document.querySelectorAll('[data-cw]').forEach(b => b.classList.toggle('on', Math.abs(cutW - +b.dataset.cw * D2R) < 1e-3));
   PR.forEach(p => {
@@ -1038,7 +1270,7 @@ function syncPanel() {
   }
   if (rlOn && ++rlTick % 2 === 0) { for (let k = 0, m = Math.max(1, Math.round(spd)); k < m; k++) addRL(); if (rlN >= MAXRL) { rlOn = false; $('bRL').classList.remove('on'); } updatePath(); refreshUI(); }
   if (randPlay) { addFoot(4); if (++randTick % 15 === 0 && footLast) { pathPhi = footLast.ph; pathLam = footLast.lam; pathT = footLast.t; } updatePath(); refreshUI(); }
-  if (pathPlay && (pathOn || allOn)) { pathT = (pathT + 0.015 * spd) % TAU; updatePath(); refreshUI(); }
+  if (pathPlay && (pathOn || allOn || curveOn)) { pathT = (pathT + 0.015 * spd) % TAU; updatePath(); refreshUI(); }
   if (cutSpin) { cutAng = (cutAng + 0.012 * spd) % TAU; syncPanel(); }
   else if (cutGoal !== null) {
     const d = cutGoal - cutAng;
@@ -1061,10 +1293,10 @@ const grpEls = [...document.querySelectorAll('details.grp')];
 let lsLast = '', noSave = false;
 function collectSettings() {
   return {
-    nLayers, model, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn,
-    backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM, stepOn, hudOn, leftS2,
-    full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'),
-    open: grpEls.map(g => g.open),
+    nLayers, model, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn, camFixed, axW, axTop,
+    backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM, stepOn, hudOn, leftS2, curveType, cvRho, cvA, cvB, cvEta, cvK, cvN, cvSteps, cvStepLen, cvNoise, tab: $('panel').dataset.tab,
+    full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'), noinfo: document.body.classList.contains('noinfo'), seethru: document.body.classList.contains('seethru'), paAlpha, favs, nopanel: document.body.classList.contains('nopanel'),
+    open2: grpEls.map(g => g.open),
     cam: cR.position.toArray(), tgt: controls.target.toArray()
   };
 }
@@ -1090,8 +1322,8 @@ function loadSettings() {
   model = pick('model', ['lat', 'mer', 'both', 'full', 'cone'], model); mark('[data-model]', document.querySelector(`[data-model="${model}"]`));
   hemi = pick('hemi', ['both', 'A', 'B'], hemi);
   redCenter = bool('redCenter', redCenter); shadeOn = bool('shadeOn', shadeOn); opaque = bool('opaque', opaque); matte = bool('matte', matte);
-  wedgeOn = bool('wedgeOn', wedgeOn); sliceOn = bool('sliceOn', sliceOn); camOn = bool('camOn', camOn);
-  pathOn = bool('pathOn', pathOn); allOn = bool('allOn', allOn); stepOn = bool('stepOn', stepOn); hudOn = bool('hudOn', hudOn); leftS2 = bool('leftS2', leftS2);
+  wedgeOn = bool('wedgeOn', wedgeOn); sliceOn = bool('sliceOn', sliceOn); camOn = bool('camOn', camOn); camFixed = bool('camFixed', camFixed); axW = num('axW', 0.4, 5, axW); axTop = bool('axTop', axTop);
+  pathOn = bool('pathOn', pathOn); allOn = bool('allOn', allOn); stepOn = bool('stepOn', stepOn); hudOn = bool('hudOn', hudOn); curveType = pick('curveType', ['circle', 'torus', 'hopf', 'loxo', 'walk'], curveType); cvRho = num('cvRho', 0.05, 3.1, cvRho); cvA = num('cvA', 1, 9, cvA); cvB = num('cvB', 1, 9, cvB); cvEta = num('cvEta', 0.15, 1.4, cvEta); cvK = num('cvK', 0, 8, cvK); cvN = num('cvN', 6, 120, cvN); cvSteps = num('cvSteps', 50, 2000, cvSteps); cvStepLen = num('cvStepLen', 0.01, 0.4, cvStepLen); cvNoise = num('cvNoise', 0, 3, cvNoise); leftS2 = bool('leftS2', leftS2);
   cSlice = num('cSlice', -R, R, cSlice);
   cutPhi = num('cutPhi', 0, TAU, cutPhi);
   backOn = bool('backOn', backOn); backAmt = num('backAmt', 0, 1, backAmt); applyBack(); backMode = s.backMode === 0 ? 0 : 1; uBackMode.value = backMode; mark('[data-bm]', document.querySelector(`[data-bm="${backMode}"]`));
@@ -1105,13 +1337,16 @@ function loadSettings() {
   const full = bool('full', false), min = bool('panelMin', false);
   document.body.classList.toggle('full', full); $('bFull').classList.toggle('on', full);
   $('panel').classList.toggle('min', min); $('bPanel').classList.toggle('on', min);
-  if (Array.isArray(s.open)) grpEls.forEach((g, i) => { if (typeof s.open[i] === 'boolean') g.open = s.open[i]; });
+  { const st = bool('seethru', true); document.body.classList.toggle('seethru', st); $('bSee').classList.toggle('on', st); paAlpha = num('paAlpha', 0.1, 1, paAlpha); document.documentElement.style.setProperty('--pa', paAlpha); if (Array.isArray(s.favs)) favs = s.favs.filter(k => typeof k === 'string'); }
+  { const ni = bool('noinfo', false), np = bool('nopanel', false); document.body.classList.toggle('noinfo', ni); document.body.classList.toggle('nopanel', np); $('bInfo').classList.toggle('on', !ni); }
+  if (Array.isArray(s.open2)) grpEls.forEach((g, i) => { if (typeof s.open2[i] === 'boolean') g.open = s.open2[i]; });
+  { const tb = pick('tab', ['fav', 'view', 'path', 'rot', 'cam', 'look', 'scr'], 'fav'); $('panel').dataset.tab = tb; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === tb)); }
   mark('[data-mode]', document.querySelector(`[data-mode="${mode}"]`));
   mark('[data-hemi]', document.querySelector(`[data-hemi="${hemi}"]`));
   mark('[data-ax]', document.querySelector(`[data-ax="${axis}"]`));
-  [['bSlice', sliceOn], ['bWedge', wedgeOn], ['bCam', camOn], ['bOpq', opaque], ['bMat', matte], ['bShade', shadeOn], ['bBack', backOn], ['bPath', pathOn], ['bAll', allOn], ['bStep', stepOn], ['bHud', hudOn], ['bS2', leftS2]]
+  [['bSlice', sliceOn], ['bWedge', wedgeOn], ['bAxTop', axTop], ['bOpq', opaque], ['bMat', matte], ['bShade', shadeOn], ['bBack', backOn], ['bPath', pathOn], ['bAll', allOn], ['bStep', stepOn], ['bHud', hudOn], ['bS2', leftS2]]
     .forEach(([id, on]) => $(id).classList.toggle('on', on));
-  controls.enabled = !camOn;
+  syncCamUI();
   const v3 = a => Array.isArray(a) && a.length === 3 && a.every(Number.isFinite);
   if (v3(s.cam) && v3(s.tgt)) { cR.position.fromArray(s.cam); controls.target.fromArray(s.tgt); controls.update(); }
 }
@@ -1121,6 +1356,8 @@ $('bLsReset').onclick = () => {
 };
 
 loadSettings();
+try { if (!localStorage.getItem(LS_KEY)) document.body.classList.add('seethru'); } catch (e) { document.body.classList.add('seethru'); }   // 初回はシースルー
+renderFavs();
 resize(); build(); refreshTag();
 setInterval(saveSettings, 500);
 addEventListener('pagehide', saveSettings);
