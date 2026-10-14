@@ -77,6 +77,12 @@ body.learning #learn{display:flex}
 #wgauge{position:absolute!important;right:8px!important;left:auto!important;top:50%!important;transform:translateY(-50%);pointer-events:none;display:none;background:#0f172ae6;border:1px solid #334155;border-radius:10px;z-index:1}
 body.noinfo #wgauge{display:none!important}
 @media (max-width:820px){#lnBody{flex-direction:column}#lnSide{max-width:none;border-left:0;border-top:1px solid #1e293b}}
+#keyHelp{position:fixed;left:12px;top:12px;z-index:40;display:none;background:#0f172af2;border:1px solid #38bdf8;border-radius:12px;padding:10px 14px;font-size:12.5px;color:#e2e8f0;box-shadow:0 6px 24px #000a;min-width:230px}
+body.keyhelp #keyHelp{display:block}
+#keyHelp table{border-collapse:collapse;margin-top:6px}#keyHelp td{padding:3px 8px;vertical-align:top}
+#keyHelp kbd{display:inline-block;min-width:22px;text-align:center;padding:1px 6px;border:1px solid #64748b;border-bottom-width:2px;border-radius:5px;background:#1e293b;font:600 12px ui-monospace,monospace;color:#f8fafc}
+#keyHelp .kh{display:flex;justify-content:space-between;align-items:center;gap:12px;font-weight:600;color:#7dd3fc}
+#keyHelp .kn{color:#94a3b8;font-size:11px;margin-top:6px}
 </style>
 </head>
 <body>
@@ -110,12 +116,29 @@ body.noinfo #wgauge{display:none!important}
     </div>
   </div>
 </div>
+<div id="keyHelp"><div class="kh"><span>⌨ ショートカットキー</span><button id="khClose" aria-label="閉じる">✕</button></div>
+  <table>
+    <tr><td><kbd>R</kbd></td><td>回転 ／ 停止</td></tr>
+    <tr><td><kbd>E</kbd></td><td>初期位置</td></tr>
+    <tr><td><kbd>C</kbd></td><td>断面カット</td></tr>
+    <tr><td><kbd>Y</kbd></td><td>Y-W 回転</td></tr>
+    <tr><td><kbd>X</kbd></td><td>X-W 回転</td></tr>
+    <tr><td><kbd>Z</kbd></td><td>Z-W 回転</td></tr>
+    <tr><td><kbd>W</kbd></td><td>斜めW 回転</td></tr>
+    <tr><td><kbd>Space</kbd></td><td>設定パネルを隠す ／ 出す</td></tr>
+    <tr><td><kbd>?</kbd> <kbd>K</kbd></td><td>この一覧を出す ／ 閉じる</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>一覧・学習モードを閉じる</td></tr>
+    <tr><td>Shift＋ドラッグ</td><td>左の球: Z-W 傾き ／ 右（4Dカメラ フリー）: Z-W</td></tr>
+  </table>
+  <div class="kn">Y・X・Z・W は軸を選び、止まっていれば回し始めます（ほかの平面の角度は0に戻ります）</div>
+</div>
 <button id="panelShow">⚙ 設定パネルを開く（Space）</button>
 <div id="panel" data-tab="fav">
-  <div id="tabs"><button data-tab="fav" class="on">⭐ よく使う</button><button data-tab="view">🔭 表示</button><button data-tab="path">🧭 旅・軌跡</button><button data-tab="rot">🔁 回転</button><button data-tab="cam">🎥 カメラ</button><button data-tab="look">🎨 見た目</button><button data-tab="scr">🖥 画面</button><button id="bLearn" title="4次元→3次元の写真を学ぶ（x・y・z・w の関係）">📚 学習</button></div>
+  <div id="tabs"><button data-tab="fav" class="on">⭐ よく使う</button><button data-tab="view">🔭 表示</button><button data-tab="path">🧭 旅・軌跡</button><button data-tab="rot">🔁 回転</button><button data-tab="cam">🎥 カメラ</button><button data-tab="look">🎨 見た目</button><button data-tab="scr">🖥 画面</button><button id="bLearn" title="4次元→3次元の写真を学ぶ（x・y・z・w の関係）">📚 学習</button><button id="bKeys" title="ショートカットキーの一覧（? または K キー）">⌨ キー</button></div>
   <details class="grp" open data-tab="fav"><summary>⭐ よく使う（基本操作）</summary>
     <div class="gb"><button id="bFavEdit" title="オンにして他のタブの項目（ボタン・スライダーの名前）をクリックすると、ここに追加／もう一度で外せます">📌 追加・外すモード</button><button id="bFavReset" title="最初の基本セットに戻す">初期セットに戻す</button></div>
     <div class="gb"><span id="favNote"></span></div>
+    <div class="gb"><span>⌨ キー: <b>R</b> 回転 <b>E</b> 初期位置 <b>C</b> 断面カット <b>Y/X/Z/W</b> 各回転 <b>Space</b> パネル <b>?</b> 一覧</span></div>
     <div class="gb" id="favBtns"></div>
     <div class="gs" id="g-favs"></div></details>
   <details class="grp" open data-tab="view"><summary>🔭 表示</summary>
@@ -124,7 +147,7 @@ body.noinfo #wgauge{display:none!important}
     <div class="gb"><span>3Dモデル</span><button data-model="lat" class="on" title="リングを高さ方向に積む（緯度線）。右は球殻を積む">緯度リング</button><button data-model="mer" title="極を通る大円を等間隔に並べる（経度線）。右は大きな球殻が放射状に並ぶ。β版">経度リング（β）</button><button data-model="both" title="緯度リングと経度リングを同時に表示（地球儀の格子）。右は球殻と大球殻が重なる。β版">両方（β）</button><button data-model="cone" title="円錐（xyzでの極角θ一定の面）だけを表示。左は参考の球だけ。β版">円錐だけ（β）</button><button data-model="full" title="緯度＋経度＋円錐（xyzでの極角θ一定の面）。超球の座標3族がそろう。円錐は右だけに出る。β版">全部（β）</button><span>※経度では「層数」が大円の本数</span></div>
     <div class="gb"><span>半球</span><button data-hemi="both" class="on">全球</button><button data-hemi="A">北 A</button><button data-hemi="B">南 B</button><button id="bColor">中心色反転</button></div>
     <details class="sub"><summary>✂ 断面・切り欠き（切断面／断面カット／開き具合）</summary>
-    <div class="gb"><button id="bSlice">🔪 切断面（観察者に固定）</button><button id="bWedge">✂ 断面カット</button></div>
+    <div class="gb"><button id="bSlice">🔪 切断面（観察者に固定）</button><button id="bWedge" title="ショートカット: C">✂ 断面カット</button></div>
     <div class="gb"><span>切り欠き</span><button data-cref="screen" class="on" title="観察者（画面）から見て常に同じ側を切る">📺 画面に固定</button><button data-cref="obj" title="超球の経度に固定（回すと切り口も一緒に動く）">🧊 物体に固定</button><button data-cref="orig" title="押した瞬間に画面から見て手前側の90°ぶんのポリゴンを作らない。次に押すまで超球に固定">🧱 ポリゴンカット</button></div>
     <div class="gb"><button id="bCutL">⟲ 90°</button><button id="bCutR">90° ⟳</button><button id="bCutSpin">🌀 ぐるっと</button></div>
     <div class="gb"><span>開き具合</span><button data-cw="60">60°</button><button data-cw="90">90°</button><button data-cw="120">120°</button><button data-cw="180">180°</button><button data-cw="270">270°</button><span>（細かくは下の「開き具合」）</span></div></details>
@@ -145,10 +168,10 @@ body.noinfo #wgauge{display:none!important}
     <div class="gb"><button id="bAxTop" class="on" title="座標軸・向きの矢印を、球殻やワイヤーの手前に常に描く。オフにすると球殻の裏側に隠れる">🔝 座標軸を最前面に</button></div>
     <div class="gs" id="g-axis"></div></details>
   <details class="grp" open data-tab="rot"><summary>🔁 回転（傾き）</summary>
-    <div class="gb"><button id="bReset">初期位置</button><button id="bSync" title="今の球の傾き（前後・左右・面内・斜め）はそのまま、超球側の見る向きとZ-W・4Dカメラを0に戻して、左の球と同じ向きにそろえる">超球を球と同じ角度に</button></div>
+    <div class="gb"><button id="bReset" title="ショートカット: E">初期位置</button><button id="bSync" title="今の球の傾き（前後・左右・面内・斜め）はそのまま、超球側の見る向きとZ-W・4Dカメラを0に戻して、左の球と同じ向きにそろえる">超球を球と同じ角度に</button></div>
     <div class="gs" id="g-rot"></div></details>
   <details class="grp" open data-tab="rot"><summary>⚙ 自動回転</summary>
-    <div class="gb"><button id="bDemo">回転/停止</button><button id="bSpin">🔄 回す</button></div>
+    <div class="gb"><button id="bDemo" title="ショートカット: R">回転/停止</button><button id="bSpin">🔄 回す</button></div>
     <div class="gb"><span>軸</span><button data-ax="mix" class="on">複合</button><button data-ax="mix3" title="Y-W・X-W・Z-Wを違う速さで同時に回す">複合＋Z-W</button><button data-ax="yw" title="Y-Wを 0→-90→-180→90→0 と一周（押すと他の角度は0に戻る）">Y-W</button><button data-ax="xw">X-W</button><button data-ax="zw">Z-W</button><button data-ax="ob" title="w軸と斜め方向（向きスライダー）を含む平面で回す">斜めW</button></div>
     <div class="gb"><span>※ Y-W / X-W / Z-W / 斜めW を押すと、他の平面の角度は0に戻ります（押したあとにスライダーで傾けるのはOK）</span></div>
     <div class="gs" id="g-auto"></div></details>
@@ -157,11 +180,13 @@ body.noinfo #wgauge{display:none!important}
     <div class="gb"><span id="camNote"></span></div>
     <div class="gs" id="g-cam"></div></details>
   <details class="grp" open data-tab="look"><summary>🎨 見た目</summary>
+    <div class="gb"><button id="bDof" title="4Dで遠い（4Dカメラから離れた、奥行き d が小さい）部分ほど、背景に溶けるように霞ませる。手前の北極側はくっきり、奥の南極側ほど霞む。断面カットと組み合わせると、どの層が4Dで奥かが分かりやすい">🌫 4Dで遠いほど霞ませる</button></div>
     <div class="gb"><button id="bOrtho" title="4Dの遠近（パース）をほぼなくす。押すたびに 正射影に近い(camW=60) ⇄ 標準(3.8)">📐 4Dパースなし</button><button id="bFit" title="右の3D視点の距離を、超球の像が画面に完全に収まる理論値に合わせる">🔭 全体が収まる距離に合わせる</button><span id="fitNote"></span></div>
     <div class="gb"><button id="bOpq">不透明</button><button id="bMat">光沢なし</button><button id="bShade" class="on">境目の影</button><button id="bBack" class="on" title="リングや球殻の内側が見えているところを暗く・くすませる">🌗 裏側を暗く</button></div>
     <div class="gb"><span>裏側の判定</span><button data-bm="1" class="on" title="超球面の表裏。4Dカメラに面した側が表、奥側（透けて見える側）が裏">4Dの奥</button><button data-bm="0" title="各殻を3Dの球として見たときの内側">3Dの内側</button></div>
     <div class="gs" id="g-look"></div></details>
   <details class="grp" open data-tab="scr"><summary>🖥 画面</summary>
+    <div class="gb"><span>⌨ ショートカット: <b>Space</b> パネル表示 ／ <b>R</b> 回転・停止 ／ <b>E</b> 初期位置 ／ <b>C</b> 断面カット ／ <b>Y</b> Y-W ／ <b>X</b> X-W ／ <b>Z</b> Z-W ／ <b>W</b> 斜めW（軸キーは止まっていれば回し始めます）</span></div>
     <div class="gb"><button id="bBlur" class="on" title="シースルーのとき、パネルの後ろをぼかす（すりガラス）。オフにすると、くっきり透ける">🧊 すりガラス</button><button id="bSee" class="on" title="設定パネルを画面に重ねて半透明にする。後ろの球が見える。オフなら画面の下に分ける">🫧 設定パネルをシースルー</button><button id="bInfo" class="on" title="左右の画面に出ているパラメータの文字を出す／隠す">📋 パラメータ表示</button><button id="bPanelHide" title="設定パネルを隠して、画面を広く使う。Spaceキーでも切り替えられます">🙈 設定パネルを隠す（Space）</button></div>
     <div class="gb"><button id="bFull">⛶ 超球全画面</button><button id="bPanel">スライダー隠す</button><button id="bLsReset" title="保存した設定を消して初期状態に戻す">設定を初期化</button></div>
     <div class="gs" id="g-scr"></div></details>
@@ -204,15 +229,29 @@ const uBackMode = { value: 1 };
 const uBack = { value: backAmt }, ctrL = new THREE.Vector3();
 const backFrag = f => 'varying float vFace;\nuniform float uBack;\n' + f.replace('#include <fog_fragment>',
   '#include <fog_fragment>\n float bk = (1.0 - smoothstep(-0.1, 0.05, vFace)) * uBack;\n float gr = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(gr), 0.4 * bk) * (1.0 - 0.5 * bk);');
+// ---- 🌫 4D遠近の霞み: 4Dの奥行き d が「霞み始め」より奥（4Dカメラから遠い）ほど、背景色に溶かして薄くする（1回の描画で、消えたりしない）----
+// 1回目（uDofPass=1）はピントの合った分だけ、2回目（=2）はぼけた分だけを、CSSでぼかした2枚目のキャンバスに描いて重ねる
+let dofOn = false, dofFollow = false, dofFocus = 1.0, dofRange = 2.2, dofBlur = 0.85;   // dofBlur: 霞みの強さ（0〜1）   // dofFocus: ここより4Dで奥（d が小さい）ほどぼける / dofRange: 完全にぼけるまでの距離
+const dofU = { uDofAmt: { value: 0.85 }, uDofPass: { value: 0 }, uDofF: { value: 0 }, uDofRg: { value: 0.6 }, uDofR: { value: R }, uDofCW: { value: 3.8 } };
+function addDof(sh, kind, declF4) {
+  Object.assign(sh.uniforms, dofU);
+  const dExpr = kind === 'L' ? '(modelMatrix * vec4(transformed, 1.0)).z' : 'aF4 * uDofR + uDofR * uDofR / uDofCW';   // 右: 回転後の w′（4Dカメラ方向の奥行き）／左: 球の w′ 方向（画面の奥行き）
+  sh.vertexShader = 'varying float vDofD;\nuniform float uDofR, uDofCW;\n' + (declF4 ? 'attribute float aF4;\n' : '') + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vDofD = ' + dExpr + ';');
+  sh.fragmentShader = 'varying float vDofD;\nuniform float uDofPass, uDofF, uDofRg, uDofAmt;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', '#include <dithering_fragment>\n'
+    + ' if (uDofPass > 0.5) { float dofB = smoothstep(0.0, uDofRg, uDofF - vDofD) * uDofAmt;\n'
+    + '  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.012, 0.027, 0.071), dofB); gl_FragColor.a *= 1.0 - 0.55 * dofB; }');
+}
 function addBack(sh, sg) {
   sh.uniforms.uBack = uBack; sh.uniforms.uBackMode = uBackMode; sh.uniforms.uSg = sg || { value: 1 };
   sh.vertexShader = 'varying float vFace;\nattribute float aF4;\nuniform float uBackMode;\nuniform float uSg;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vFace = uBackMode > 0.5 ? aF4 : uSg * dot(normalize(normalMatrix * normal), normalize(-mvPosition.xyz));');   // 3Dの内側: 北は外向きが表、南(isB)は表裏を逆にする
   sh.fragmentShader = backFrag(sh.fragmentShader);
+  addDof(sh, 'R');
 }
 function addBackRing(sh) {
   sh.uniforms.uBack = uBack; sh.uniforms.uCtrL = { value: ctrL };
   sh.vertexShader = 'varying float vFace;\nuniform vec3 uCtrL;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vFace = dot(normalize(mvPosition.xyz - uCtrL), normalize(-mvPosition.xyz));');
   sh.fragmentShader = backFrag(sh.fragmentShader);
+  addDof(sh, 'L');
 }
 function applyBack() { uBack.value = backOn ? backAmt : 0; }
 function addCut(sh) {
@@ -238,6 +277,7 @@ function makeScene() {
   s.add(new THREE.AmbientLight(0xffffff, 0.95));
   const d1 = new THREE.DirectionalLight(0xffffff, 1.2); d1.position.set(5, 12, 8); s.add(d1);
   const d2 = new THREE.DirectionalLight(0x38bdf8, 0.8); d2.position.set(-8, -5, -6); s.add(d2);
+  s.children.forEach(o => o.layers.enable(1));   // ぼかし用の2回目の描画（レイヤー1）でもライトを効かせる
   return s;
 }
 const pL = $('pL'), pR = $('pR');
@@ -248,6 +288,9 @@ const rL = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 const rR = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 rL.setPixelRatio(Math.min(devicePixelRatio, 2)); rR.setPixelRatio(Math.min(devicePixelRatio, 2));
 pL.appendChild(rL.domElement); pR.appendChild(rR.domElement);
+const rL2 = new THREE.WebGLRenderer({ antialias: true, alpha: true }), rR2 = new THREE.WebGLRenderer({ antialias: true, alpha: true });   // 🔍 ぼけ側を描く2枚目（CSSでぼかす）
+rL2.setPixelRatio(Math.min(devicePixelRatio, 2)); rR2.setPixelRatio(Math.min(devicePixelRatio, 2)); rL2.setClearColor(0x000000, 0); rR2.setClearColor(0x000000, 0);
+for (const [p, r] of [[pL, rL2], [pR, rR2]]) { const c = r.domElement; c.style.pointerEvents = 'none'; c.style.display = 'none'; p.appendChild(c); }
 const controls = new THREE.OrbitControls(cR, rR.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.06; controls.autoRotateSpeed = 2.0;
 const gL = new THREE.Group(), gR = new THREE.Group(), gS = new THREE.Group();   // gS: 切断面モード用
@@ -260,6 +303,7 @@ function resize() {
     const w = p.clientWidth, h = p.clientHeight;
     if (!w || !h) return;
     r.setSize(w, h); c.aspect = w / h; c.updateProjectionMatrix();
+    (r === rL ? rL2 : rR2).setSize(w, h);
   });
 }
 addEventListener('resize', resize);
@@ -317,7 +361,7 @@ function build() {
       ring.material.onBeforeCompile = addBackRing;
       ring.position.z = z;
       if (mer) ring.quaternion.copy(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, phi)).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0))));   // 円を φ 方位の縦の面に立てる
-      if (cone) ring.visible = false; else gL.add(ring);   // 円錐は左に出さない
+      ring.layers.enable(1); if (cone) ring.visible = false; else gL.add(ring);   // 円錐は左に出さない
       // 左: Z-W の「影」モード用。層（半径 r の球面）を z 方向から写した影＝平たい回転楕円体（厚み r·|sin Z-W|）
       const shadow = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 14), new THREE.MeshBasicMaterial({ color: col, wireframe: true, transparent: true, opacity: 0.28, depthWrite: false }));
       shadow.rotation.x = Math.PI / 2; shadow.visible = false; shadow.renderOrder = 3; if (!mer && !cone) gL.add(shadow);
@@ -345,10 +389,10 @@ function build() {
       out.material.onBeforeCompile = sh => {
         sh.uniforms.uOut = olU;
         sh.vertexShader = 'uniform float uOut;\n' + sh.vertexShader.replace('#include <begin_vertex>', 'vec3 transformed = position + normal * uOut;');
-        addCut(sh);
+        addCut(sh); addDof(sh, 'R', true);
       };
       out.visible = false;
-      [solid, wire, pts, out].forEach(o => { o.frustumCulled = false; gR.add(o); });
+      [solid, wire, pts, out].forEach(o => { o.frustumCulled = false; o.layers.enable(1); gR.add(o); });
 
       // 右(切断面モード): この層と切断超平面の交線（円）
       const sg = new THREE.BufferGeometry();
@@ -1244,6 +1288,7 @@ function fitRight() {
   cR.position.copy(controls.target).add(dir.normalize().multiplyScalar(d)); controls.update();
   $('fitNote').textContent = `像の半径(理論値) ${rf.toFixed(2)} → 視点距離 ${d.toFixed(1)}`;
 }
+$('bDof').onclick = e => { dofOn = !dofOn; e.currentTarget.classList.toggle('on', dofOn); syncPanel(); };
 $('bOrtho').onclick = e => { camW = camW < 20 ? 60 : 3.8; e.currentTarget.classList.toggle('on', camW >= 20); updateRight(); refreshUI(); syncPanel(); };
 $('bFit').onclick = () => { if (!viewLock) fitRight(); };
 $('bSee').onclick = e => { e.currentTarget.classList.toggle('on', document.body.classList.toggle('seethru')); resize(); };
@@ -1513,6 +1558,22 @@ addEventListener('keyup', e => { if (e.code === 'Space' && e.target && e.target.
   addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('learning')) close(); });
   window.__lnTest = { st, update: () => { if (!built) build(); update(); }, PRESETS, orth, open, close };
 })();
+// ---- ショートカットキー（暫定）: R=回転/停止 E=初期位置 C=断面カット Y=Y-W X=X-W Z=Z-W W=斜めW ----
+const SHORTCUTS = { KeyK: () => toggleKeyHelp(), Slash: () => toggleKeyHelp(), KeyR: () => $('bDemo').click(), KeyE: () => $('bReset').click(), KeyC: () => $('bWedge').click(),
+  KeyY: () => axisKey('yw'), KeyX: () => axisKey('xw'), KeyZ: () => axisKey('zw'), KeyW: () => axisKey('ob') };
+function toggleKeyHelp(on) { const v = on === undefined ? !document.body.classList.contains('keyhelp') : on; document.body.classList.toggle('keyhelp', v); $('bKeys').classList.toggle('on', v); }
+$('bKeys').onclick = () => toggleKeyHelp(); $('khClose').onclick = () => toggleKeyHelp(false);
+addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('keyhelp')) toggleKeyHelp(false); });
+function axisKey(ax) {   // 軸を選び（他の平面の角度は0に戻る）、止まっていれば回し始める
+  document.querySelector(`[data-ax="${ax}"]`).click();
+  if (!demo) $('bDemo').click();
+}
+addEventListener('keydown', e => {
+  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || document.body.classList.contains('learning')) return;
+  const t = e.target; if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && t.type !== 'range' && t.type !== 'checkbox'))) return;
+  const f = e.key === '?' ? SHORTCUTS.Slash : SHORTCUTS[e.code]; if (!f || (e.code === 'Slash' && e.key !== '?' && e.key !== '/')) return;
+  e.preventDefault(); f();
+});
 $('bInfo').onclick = e => { e.currentTarget.classList.toggle('on', !document.body.classList.toggle('noinfo')); };
 $('bPanelHide').onclick = () => { document.body.classList.add('nopanel'); resize(); };
 $('panelShow').onclick = () => { document.body.classList.remove('nopanel'); resize(); };
@@ -1565,6 +1626,9 @@ const PR = [
   { g: 'view', t: '層数（奇数）', min: 5, max: 101, step: 2, dp: 0, odd: 1, get: () => nLayers, set: v => { nLayers = v; build(); } },
   { g: 'look', t: '裏側の暗さ（内側が見えているとき）', min: 0, max: 1, step: .05, dp: 2, en: () => backOn, get: () => backAmt, set: v => { backAmt = v; applyBack(); } },
   { g: 'look', t: '4D球の透明度', min: 0.05, max: 0.75, step: .05, dp: 2, get: () => opacity, set: v => { opacity = v; applyVis(); } },
+  { g: 'look', t: '🌫 霞み始める4D奥行き d（これより奥が霞む）＋1.35=手前の北極 0=中央 −1.35=奥の南極', min: -1.4, max: 1.4, step: 0.01, dp: 2, en: () => dofOn, get: () => dofFocus, set: v => { dofFocus = v; } },
+  { g: 'look', t: '🌫 いちばん霞むまでの距離（小さいほど急に霞む）', min: 0.1, max: 3, step: 0.01, dp: 2, en: () => dofOn, get: () => dofRange, set: v => { dofRange = v; } },
+  { g: 'look', t: '🌫 霞みの強さ（1=奥はほぼ背景に溶ける）', min: 0.1, max: 1, step: 0.01, dp: 2, en: () => dofOn, get: () => dofBlur, set: v => { dofBlur = v; } },
   { g: 'look', t: '右の3D視点の視野角（°）大きい=広角', min: 20, max: 90, step: 1, dp: 0, get: () => cR.fov, set: v => { cR.fov = v; cR.updateProjectionMatrix(); } },
   { g: 'look', t: '4D投影パース（4Dカメラまでの距離。大きいほど遠近が弱い＝正射影に近い）', min: 2, max: 60, step: .1, dp: 1, get: () => camW, set: v => { camW = v; updateRight(); refreshUI(); } },
 ];
@@ -1620,8 +1684,14 @@ function syncPanel() {
   cL.updateMatrixWorld(); ctrL.set(0, 0, 0).applyMatrix4(cL.matrixWorldInverse);   // 左の球の中心（視点座標）
   controls.update(); cR.updateMatrixWorld();
   cutU.uCtr.value.set(0, 0, 0).applyMatrix4(cR.matrixWorldInverse);   // 球の中心の視点座標（画面基準の切り欠き用）
-  rL.render(sL, cL); rR.render(sR, cR);
+  renderDof(rL, rL2, sL, cL); renderDof(rR, rR2, sR, cR);
 })();
+function renderDof(r1, r2, sc, cm) {
+  dofU.uDofCW.value = camW; dofU.uDofRg.value = dofRange; dofU.uDofF.value = dofFocus; dofU.uDofAmt.value = dofBlur;
+  dofU.uDofPass.value = dofOn && !sliceOn ? 1 : 0;
+  r1.render(sc, cm);
+}
+
 
 // ---------------- 設定の保存（localStorage） ----------------
 // 値が変わっていれば0.5秒ごとに自動保存。次回起動時に復元する。
@@ -1634,7 +1704,7 @@ function collectSettings() {
   return {
     nLayers, model, leftZW, opacity, camW, shade, spd, axis, mode, hemi, redCenter, shadeOn, opaque, matte, wedgeOn, sliceOn, cSlice, camOn, camFixed, viewLock, axW, axTop,
     backOn, backAmt, backMode, cutRef, cutPhi, cutAng: ((cutAng % TAU) + TAU) % TAU, cutW, pitch, roll, yaw, zw, obT, obP, cx, cy, cz, pathOn, pathPhi, pathLam, pathT, allOn, allM, stepOn, hudOn, leftS2, curveType, cvRho, cvA, cvB, cvEta, cvK, cvN, cvSteps, cvStepLen, cvNoise, tab: $('panel').dataset.tab,
-    full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'), noinfo: document.body.classList.contains('noinfo'), noblur: document.body.classList.contains('noblur'), gaugeOn, rfov: cR.fov, seethru: document.body.classList.contains('seethru'), paAlpha, favs, nopanel: document.body.classList.contains('nopanel'),
+    full: document.body.classList.contains('full'), panelMin: $('panel').classList.contains('min'), noinfo: document.body.classList.contains('noinfo'), dofOn, dofFocus2: dofFocus, dofRange2: dofRange, dofFog: dofBlur, noblur: document.body.classList.contains('noblur'), gaugeOn, rfov: cR.fov, seethru: document.body.classList.contains('seethru'), paAlpha, favs, nopanel: document.body.classList.contains('nopanel'),
     open2: grpEls.map(g => g.open),
     cam: cR.position.toArray(), tgt: controls.target.toArray()
   };
@@ -1677,6 +1747,7 @@ function loadSettings() {
   document.body.classList.toggle('full', full); $('bFull').classList.toggle('on', full);
   $('panel').classList.toggle('min', min); $('bPanel').classList.toggle('on', min);
   { const st = bool('seethru', true); document.body.classList.toggle('seethru', st); $('bSee').classList.toggle('on', st); paAlpha = num('paAlpha', 0.1, 1, paAlpha); document.documentElement.style.setProperty('--pa', paAlpha); if (Array.isArray(s.favs)) favs = s.favs.filter(k => typeof k === 'string'); }
+  dofOn = bool('dofOn', dofOn); dofFollow = bool('dofFollow', dofFollow); dofFocus = num('dofFocus2', -1.4, 1.4, dofFocus); dofRange = num('dofRange2', 0.1, 3, dofRange); dofBlur = num('dofFog', 0.1, 1, dofBlur); $('bDof').classList.toggle('on', dofOn);
   { const nb = bool('noblur', false); document.body.classList.toggle('noblur', nb); $('bBlur').classList.toggle('on', !nb); gaugeOn = bool('gaugeOn', gaugeOn); $('bGauge').classList.toggle('on', gaugeOn); if (typeof s.rfov === 'number' && s.rfov >= 20 && s.rfov <= 90) { cR.fov = s.rfov; cR.updateProjectionMatrix(); } }
   { const ni = bool('noinfo', false), np = bool('nopanel', false); document.body.classList.toggle('noinfo', ni); document.body.classList.toggle('nopanel', np); $('bInfo').classList.toggle('on', !ni); }
   if (Array.isArray(s.open2)) grpEls.forEach((g, i) => { if (typeof s.open2[i] === 'boolean') g.open = s.open2[i]; });
