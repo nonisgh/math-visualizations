@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>グラフ電卓</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --bg: #030712;
+        --panel: #0b1222;
+        --panel-hover: #111a2e;
+        --line: #1e293b;
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --faint: #64748b;
+        --d2: #38bdf8;
+        --d5: #a855f7;
+        --key: #111a2e;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Noto Sans JP', 'Inter', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        overflow: hidden;
+    }
+    button { font-family: inherit; }
+
+    .app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+
+    /* ---- ヘッダー ---- */
+    .top {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 12px;
+        padding-top: max(8px, env(safe-area-inset-top));
+        border-bottom: 1px solid var(--line);
+        background: #050a18;
+    }
+    .back { color: var(--faint); text-decoration: none; font-size: 13px; white-space: nowrap; }
+    .back:hover { color: var(--d2); }
+    .top h1 { margin: 0; font-size: 16px; font-weight: 900; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .top select, .top .tbtn {
+        height: 32px; border-radius: 8px; border: 1px solid var(--line);
+        background: var(--panel); color: var(--text); font-size: 13px; padding: 0 8px;
+    }
+    .top select { max-width: 34vw; }
+    @media (max-width: 420px) { .top .back { display: none; } }
+    .top .tbtn { cursor: pointer; }
+    .top .tbtn.on { border-color: var(--d2); color: var(--d2); }
+
+    /* ---- グラフ ---- */
+    .graph { position: relative; flex: 0 0 42%; min-height: 180px; }
+    #cv { width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+    .gbtns { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; }
+    .gbtns button {
+        width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line);
+        background: rgba(11, 18, 34, 0.85); color: var(--text); font-size: 18px; cursor: pointer;
+    }
+    .gbtns button:hover { border-color: var(--d2); }
+    .trace {
+        position: absolute; left: 10px; top: 10px; max-width: 70%;
+        background: rgba(5, 10, 24, 0.88); border: 1px solid var(--line); border-radius: 10px;
+        padding: 6px 10px; font: 500 12px ui-monospace, 'SF Mono', Menlo, monospace; pointer-events: none;
+    }
+    .trace[hidden] { display: none; }
+    .trace div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .trace i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+
+    /* ---- パネル ---- */
+    .panel { flex: 1; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--line); }
+    .list { flex: 1; overflow-y: auto; padding: 10px; -webkit-overflow-scrolling: touch; }
+
+    .expr {
+        --c: var(--d2);
+        display: grid; grid-template-columns: 30px 1fr 26px; gap: 8px; align-items: start;
+        padding: 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel);
+        margin-bottom: 8px;
+    }
+    .expr.active { border-color: color-mix(in srgb, var(--c) 65%, var(--line)); background: var(--panel-hover); }
+    .sw {
+        width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--c); background: var(--c);
+        color: #030712; font: 800 12px 'Inter', sans-serif; cursor: pointer; padding: 0; margin-top: 2px;
+    }
+    .expr.off .sw { background: transparent; color: var(--c); }
+    .ebody { min-width: 0; }
+    .ein {
+        width: 100%; background: transparent; border: 0; outline: 0; color: var(--text);
+        font: 500 16px ui-monospace, 'SF Mono', Menlo, monospace; padding: 6px 0; caret-color: var(--c);
+    }
+    .ein::placeholder { color: #334155; }
+    .preview { overflow-x: auto; color: #e2e8f0; }
+    .preview:empty { display: none; }
+    .preview math { font-size: 1.15rem; padding: 2px 0 4px; }
+    .err { font-size: 12px; color: #fb7185; }
+    .err:empty { display: none; }
+    .del {
+        width: 26px; height: 26px; border-radius: 8px; border: 0; background: transparent;
+        color: var(--faint); font-size: 18px; cursor: pointer; margin-top: 4px;
+    }
+    .del:hover { color: #fb7185; background: #1a1020; }
+    .addbtn {
+        width: 100%; height: 38px; border-radius: 12px; border: 1px dashed var(--line);
+        background: transparent; color: var(--muted); font-size: 13px; cursor: pointer; margin-bottom: 12px;
+    }
+    .addbtn:hover { border-color: var(--d2); color: var(--d2); }
+
+    .params[hidden] { display: none; }
+    .phead { font-size: 12px; font-weight: 700; color: var(--faint); letter-spacing: 0.08em; margin: 4px 2px 8px; }
+    .param { padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); margin-bottom: 8px; }
+    .prow { display: flex; align-items: center; gap: 6px; }
+    .play {
+        width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--key);
+        color: var(--d2); cursor: pointer; font-size: 12px; padding: 0; flex: none;
+    }
+    .play.on { background: var(--d2); color: #031018; }
+    .pname { font: italic 600 19px 'Times New Roman', serif; color: #7dd3fc; }
+    .peq { color: var(--faint); }
+    .param input[type=number] {
+        background: #060b17; border: 1px solid var(--line); border-radius: 6px; color: var(--text);
+        font: 500 14px ui-monospace, Menlo, monospace; padding: 3px 6px; width: 64px; -moz-appearance: textfield;
+    }
+    .param input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .prange { margin-left: auto; display: flex; align-items: center; gap: 4px; color: var(--faint); font-size: 12px; }
+    .prange input[type=number] { width: 50px; font-size: 12px; color: var(--muted); }
+    .pslider { width: 100%; margin: 8px 0 2px; accent-color: var(--d2); }
+
+    .hint { font-size: 12px; color: var(--faint); line-height: 1.7; padding: 4px 2px 8px; }
+    .hint code { font-family: ui-monospace, Menlo, monospace; color: var(--muted); background: #0b1222; padding: 0 4px; border-radius: 4px; }
+
+    /* ---- ソフトキーボード ---- */
+    .kb {
+        flex: none; background: #060b17; border-top: 1px solid var(--line);
+        padding: 6px 6px max(6px, env(safe-area-inset-bottom));
+        user-select: none; -webkit-user-select: none; touch-action: manipulation;
+    }
+    .kb[hidden] { display: none; }
+    .krow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 5px; }
+    .kbar { grid-template-columns: repeat(8, 1fr); margin-bottom: 0; }
+    .key {
+        height: 40px; border-radius: 9px; border: 1px solid var(--line); background: var(--key);
+        color: var(--text); font: 600 16px 'Inter', 'Noto Sans JP', sans-serif;
+        display: grid; place-items: center; cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent;
+        min-width: 0; overflow: hidden;
+    }
+    .key:hover { border-color: #334155; }
+    .key.down { background: #22304d; transform: scale(0.97); }
+    .key.num { background: #172238; }
+    .key.v { color: #7dd3fc; font: italic 500 20px 'Times New Roman', serif; }
+    .key.o { color: #cbd5e1; background: #0d162b; }
+    .key.f { color: #c4b5fd; font-size: 14px; }
+    .key.big { font-size: 20px; }
+    .key.act { background: #0d162b; color: var(--muted); font-size: 15px; }
+    .key.tab { font-size: 13px; }
+    .key.tab.on { background: var(--d2); color: #031018; border-color: var(--d2); }
+    .key.enter { background: var(--d5); color: #fff; border-color: var(--d5); }
+    .key sup { font-size: 0.65em; vertical-align: 0.5em; line-height: 0; }
+    .fr { display: inline-flex; flex-direction: column; align-items: center; line-height: 1; font: italic 500 14px 'Times New Roman', serif; }
+    .fr span:first-child { border-bottom: 1.5px solid currentColor; padding: 0 2px 1px; }
+    .fr span:last-child { padding-top: 1px; }
+
+    /* ---- 保存シート ---- */
+    .sheet { position: fixed; inset: 0; z-index: 50; background: rgba(2, 6, 18, 0.7); display: flex; align-items: flex-end; justify-content: center; }
+    .sheet[hidden] { display: none; }
+    .sheet-card {
+        width: 100%; max-width: 520px; max-height: 80dvh; display: flex; flex-direction: column;
+        background: var(--panel); border: 1px solid var(--line); border-radius: 18px 18px 0 0;
+        padding: 14px 14px max(14px, env(safe-area-inset-bottom));
+    }
+    @media (min-width: 600px) { .sheet { align-items: center; } .sheet-card { border-radius: 18px; } }
+    .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .sheet-head h2 { margin: 0; font-size: 16px; font-weight: 800; }
+    .sheet-head button { width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; }
+    .save-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .save-row input {
+        flex: 1; min-width: 0; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: #060b17;
+        color: var(--text); font-size: 16px; padding: 0 10px; outline: 0;
+    }
+    .save-row input:focus { border-color: var(--d2); }
+    .btn {
+        height: 40px; border-radius: 10px; border: 1px solid var(--d2); background: var(--d2); color: #031018;
+        font-weight: 700; font-size: 13px; padding: 0 12px; cursor: pointer; white-space: nowrap;
+    }
+    .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); height: 32px; font-weight: 600; }
+    .btn.ghost:hover { border-color: var(--d2); color: var(--d2); }
+    .btn.danger:hover { border-color: #fb7185; color: #fb7185; }
+    .save-list { overflow-y: auto; flex: 1; min-height: 0; }
+    .save-item { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; background: #0a1020; }
+    .save-item .si-body { flex: 1; min-width: 0; }
+    .save-item .si-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .save-item .si-sub { font: 500 11px ui-monospace, Menlo, monospace; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .save-empty, .sheet-note { color: var(--faint); font-size: 12px; line-height: 1.7; margin: 4px 2px; }
+
+    /* ---- PC：左にパネル、右にグラフ ---- */
+    @media (min-width: 900px) {
+        .app { display: grid; grid-template-columns: 420px 1fr; grid-template-rows: auto 1fr; }
+        .top { grid-column: 1 / -1; }
+        .graph { grid-column: 2; grid-row: 2; min-height: 0; }
+        .panel { grid-column: 1; grid-row: 2; border-top: 0; border-right: 1px solid var(--line); }
+        .key { height: 42px; }
+    }
+</style>
+</head>
+<body>
+<div class="app">
+    <header class="top">
+        <a class="back" href="index.html">← 一覧</a>
+        <h1>グラフ電卓</h1>
+        <select id="preset" aria-label="例を読み込む">
+            <option value="">例を読み込む…</option>
+        </select>
+        <button class="tbtn" id="savesBtn" type="button" title="保存した式">保存</button>
+        <button class="tbtn on" id="kbToggle" type="button" title="数式キーボードの表示切替">⌨</button>
+    </header>
+
+    <div class="graph">
+        <canvas id="cv"></canvas>
+        <div class="trace" id="trace" hidden></div>
+        <div class="gbtns">
+            <button type="button" id="zin" title="拡大">＋</button>
+            <button type="button" id="zout" title="縮小">−</button>
+            <button type="button" id="zhome" title="原点に戻す">⌂</button>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="list" id="list">
+            <div id="exprs"></div>
+            <button class="addbtn" id="addExpr" type="button">＋ 式を追加</button>
+            <div class="params" id="params" hidden></div>
+            <div class="hint">
+                x 以外の文字（n, a など）は自動でスライダーになります。<br>
+                Σ は <code>Σ(k=0,n, 式)</code>、階乗は <code>(2k+1)!</code>、掛け算の × は省略できます（<code>2x</code>, <code>3sin(x)</code>）。<br>
+                グラフはドラッグで移動、ホイール／ピンチで拡大、タップで値を表示。
+            </div>
+        </div>
+        <div class="kb" id="kb">
+            <div id="kbKeys"></div>
+            <div class="krow kbar" id="kbBar"></div>
+        </div>
+    </div>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+    <div class="sheet-card" role="dialog" aria-label="保存した式">
+        <div class="sheet-head"><h2>保存した式</h2><button type="button" id="sheetClose" title="閉じる">×</button></div>
+        <div class="save-row">
+            <input id="saveName" type="text" placeholder="名前（例: sinの展開 n=7）" autocomplete="off">
+            <button class="btn" id="saveNow" type="button">いまの式を保存</button>
+        </div>
+        <div class="save-list" id="saveList"></div>
+        <p class="sheet-note" id="sheetNote">このブラウザの中に保存されます。編集中の式・スライダー・表示範囲も自動で保存され、次に開いたときに戻ります。</p>
+    </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ==== PARSER START ====
+// ---------- 数学関数 ----------
+const FACT = [1];
+for (let i = 1; i <= 170; i++) FACT[i] = FACT[i - 1] * i;
+
+function gamma(z) {
+    if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+    z -= 1;
+    const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313,
+        -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5050632385208166e-7];
+    let x = c[0];
+    for (let i = 1; i < 9; i++) x += c[i] / (z + i);
+    const t = z + 7.5;
+    return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
+}
+function factorial(n) {
+    if (Number.isInteger(n)) return n < 0 ? NaN : (n > 170 ? Infinity : FACT[n]);
+    return gamma(n + 1);
+}
+
+const FUNCS = {
+    sin: Math.sin, cos: Math.cos, tan: Math.tan,
+    sec: x => 1 / Math.cos(x), csc: x => 1 / Math.sin(x), cot: x => 1 / Math.tan(x),
+    asin: Math.asin, acos: Math.acos, atan: Math.atan,
+    arcsin: Math.asin, arccos: Math.acos, arctan: Math.atan,
+    sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh,
+    asinh: Math.asinh, acosh: Math.acosh, atanh: Math.atanh,
+    exp: Math.exp, ln: Math.log, log: Math.log10,
+    sqrt: Math.sqrt, cbrt: Math.cbrt, abs: Math.abs, sign: Math.sign,
+    floor: Math.floor, ceil: Math.ceil, round: Math.round,
+    max: Math.max, min: Math.min, gamma: gamma,
+};
+const VARIADIC = new Set(['max', 'min']);
+const NAMES = [...Object.keys(FUNCS), 'sum', 'prod', 'pi'].sort((a, b) => b.length - a.length);
+const UNI = { '×': '*', '·': '*', '∙': '*', '÷': '/', '−': '-', '–': '-' };
+
+function ParseError(msg) { const e = new Error(msg); e.isParse = true; return e; }
+
+// ---------- 字句解析 ----------
+function tokenize(s) {
+    const t = [];
+    let i = 0;
+    while (i < s.length) {
+        let ch = s[i];
+        if (/\s/.test(ch)) { i++; continue; }
+        if (UNI[ch]) ch = UNI[ch];
+        if (/[0-9.]/.test(ch)) {
+            let j = i;
+            while (j < s.length && /[0-9.]/.test(s[j])) j++;
+            const raw = s.slice(i, j);
+            if (!/^(\d+\.?\d*|\.\d+)$/.test(raw)) throw ParseError(`数の書き方が変です: ${raw}`);
+            t.push({ k: 'num', v: parseFloat(raw), raw });
+            i = j; continue;
+        }
+        if (ch === '²' || ch === '³') {
+            t.push({ k: 'op', v: '^' }, { k: 'num', v: ch === '²' ? 2 : 3, raw: ch === '²' ? '2' : '3' });
+            i++; continue;
+        }
+        if (ch === 'π') { t.push({ k: 'id', v: 'pi' }); i++; continue; }
+        if (ch === 'Σ' || ch === '∑') { t.push({ k: 'fn', v: 'sum' }); i++; continue; }
+        if (ch === 'Π' || ch === '∏') { t.push({ k: 'fn', v: 'prod' }); i++; continue; }
+        if (ch === '√') { t.push({ k: 'fn', v: 'sqrt' }); i++; continue; }
+        if (ch === '∛') { t.push({ k: 'fn', v: 'cbrt' }); i++; continue; }
+        if (/[a-zA-Zα-ωΑ-Ω]/.test(ch)) {
+            const m = NAMES.find(nm => s.startsWith(nm, i));
+            if (m) {
+                t.push(m === 'pi' ? { k: 'id', v: 'pi' } : { k: 'fn', v: m });
+                i += m.length; continue;
+            }
+            t.push({ k: 'id', v: ch });
+            i++; continue;
+        }
+        if ('+-*/^(),=!|'.includes(ch)) { t.push({ k: 'op', v: ch }); i++; continue; }
+        throw ParseError(`使えない文字です: ${ch}`);
+    }
+    return t;
+}
+
+// ---------- 構文解析 ----------
+function parse(src) {
+    const toks = tokenize(src);
+    let p = 0;
+    const isOp = v => p < toks.length && toks[p].k === 'op' && toks[p].v === v;
+    const expect = v => {
+        if (!isOp(v)) {
+            if (p >= toks.length) throw ParseError(`「${v}」が足りません`);
+            throw ParseError(`「${v}」が必要な所に「${toks[p].v}」があります`);
+        }
+        p++;
+    };
+    const startsPrimary = () => {
+        const tk = toks[p];
+        return tk && (tk.k === 'num' || tk.k === 'id' || tk.k === 'fn' || (tk.k === 'op' && tk.v === '('));
+    };
+
+    function expr() {
+        let l = term();
+        while (isOp('+') || isOp('-')) {
+            const op = toks[p++].v;
+            l = { t: 'bin', op, l, r: term() };
+        }
+        return l;
+    }
+    function term() {
+        let l = unary();
+        for (;;) {
+            if (isOp('*') || isOp('/')) {
+                const op = toks[p++].v;
+                l = { t: 'bin', op, l, r: unary() };
+            } else if (startsPrimary()) {
+                l = { t: 'bin', op: '*', l, r: power(), imp: true }; // 暗黙の掛け算
+            } else break;
+        }
+        return l;
+    }
+    function unary() {
+        if (isOp('-')) { p++; return { t: 'neg', a: unary() }; }
+        if (isOp('+')) { p++; return unary(); }
+        return power();
+    }
+    function power() {
+        const b = postfix();
+        if (isOp('^')) { p++; return { t: 'pow', b, e: unary() }; }
+        return b;
+    }
+    function postfix() {
+        let a = primary();
+        while (isOp('!')) { p++; a = { t: 'fact', a }; }
+        return a;
+    }
+    function primary() {
+        const tk = toks[p];
+        if (!tk) throw ParseError('式が途中で終わっています');
+        if (tk.k === 'num') { p++; return { t: 'num', v: tk.v, raw: tk.raw }; }
+        if (tk.k === 'id') { p++; return { t: 'var', name: tk.v }; }
+        if (tk.k === 'op' && tk.v === '(') {
+            p++;
+            if (isOp(')')) throw ParseError('( ) の中が空です');
+            const e = expr(); expect(')'); return e;
+        }
+        if (tk.k === 'op' && tk.v === '|') {
+            p++; const e = expr(); expect('|');
+            return { t: 'call', name: 'abs', args: [e] };
+        }
+        if (tk.k === 'fn') {
+            p++;
+            const name = tk.v;
+            if (name === 'sum' || name === 'prod') {
+                const sym = name === 'sum' ? 'Σ' : 'Π';
+                expect('(');
+                const vt = toks[p];
+                if (!vt || vt.k !== 'id') throw ParseError(`${sym}( の後には変数を書きます（例: ${sym}(k=0,n, 式)）`);
+                p++;
+                if (isOp('=')) p++; else expect(',');
+                if (isOp(',') || isOp(')')) throw ParseError(`${sym} の開始値が空です`);
+                const from = expr(); expect(',');
+                if (isOp(',') || isOp(')')) throw ParseError(`${sym} の終了値が空です`);
+                const to = expr(); expect(',');
+                if (isOp(')') || p >= toks.length) throw ParseError(`${sym} の中の式が空です`);
+                const body = expr(); expect(')');
+                return { t: 'sum', kind: name, v: vt.v, from, to, body };
+            }
+            if (isOp('(')) {
+                p++;
+                const args = [];
+                if (!isOp(')')) {
+                    args.push(expr());
+                    while (isOp(',')) { p++; args.push(expr()); }
+                }
+                expect(')');
+                if (VARIADIC.has(name) ? args.length < 1 : args.length !== 1)
+                    throw ParseError(`${name} の引数の数が違います`);
+                return { t: 'call', name, args };
+            }
+            if (VARIADIC.has(name)) throw ParseError(`${name}( ) と書いてください`);
+            return { t: 'call', name, args: [power()] }; // sin x のような書き方
+        }
+        if (tk.k === 'op' && tk.v === ')') throw ParseError('「(」より「)」が多いか、( ) の中が空です');
+        throw ParseError(`ここに「${tk.v}」は置けません`);
+    }
+
+    const ast = expr();
+    if (p < toks.length) {
+        const tk = toks[p];
+        if (tk.v === ')') throw ParseError('「)」が多すぎます');
+        throw ParseError(`「${tk.v}」の位置が変です`);
+    }
+    return ast;
+}
+
+// ---------- 関数へ変換 ----------
+function compile(n) {
+    switch (n.t) {
+        case 'num': { const v = n.v; return () => v; }
+        case 'var': {
+            if (n.name === 'pi') return () => Math.PI;
+            if (n.name === 'e') return () => Math.E;
+            const nm = n.name;
+            return env => env[nm];
+        }
+        case 'neg': { const a = compile(n.a); return env => -a(env); }
+        case 'bin': {
+            const l = compile(n.l), r = compile(n.r);
+            switch (n.op) {
+                case '+': return env => l(env) + r(env);
+                case '-': return env => l(env) - r(env);
+                case '*': return env => l(env) * r(env);
+                case '/': return env => l(env) / r(env);
+            }
+            break;
+        }
+        case 'pow': { const b = compile(n.b), e = compile(n.e); return env => Math.pow(b(env), e(env)); }
+        case 'fact': { const a = compile(n.a); return env => factorial(a(env)); }
+        case 'call': {
+            const f = FUNCS[n.name];
+            const as = n.args.map(compile);
+            if (as.length === 1) { const a = as[0]; return env => f(a(env)); }
+            return env => f(...as.map(g => g(env)));
+        }
+        case 'sum': {
+            const fr = compile(n.from), to = compile(n.to), body = compile(n.body);
+            const v = n.v, isProd = n.kind === 'prod';
+            return env => {
+                const a = Math.ceil(fr(env) - 1e-9), b = Math.floor(to(env) + 1e-9);
+                if (!isFinite(a) || !isFinite(b) || b - a > 100000) return NaN;
+                const old = env[v];
+                let s = isProd ? 1 : 0;
+                for (let k = a; k <= b; k++) {
+                    env[v] = k;
+                    const t = body(env);
+                    s = isProd ? s * t : s + t;
+                }
+                env[v] = old;
+                return s;
+            };
+        }
+    }
+    throw ParseError('内部エラー');
+}
+
+// ---------- x 以外の自由な文字 = パラメータ ----------
+function freeVars(n, bound = new Set(), out = new Set()) {
+    switch (n.t) {
+        case 'var':
+            if (!['x', 'pi', 'e'].includes(n.name) && !bound.has(n.name)) out.add(n.name);
+            break;
+        case 'neg': case 'fact': freeVars(n.a, bound, out); break;
+        case 'bin': freeVars(n.l, bound, out); freeVars(n.r, bound, out); break;
+        case 'pow': freeVars(n.b, bound, out); freeVars(n.e, bound, out); break;
+        case 'call': n.args.forEach(a => freeVars(a, bound, out)); break;
+        case 'sum': {
+            freeVars(n.from, bound, out); freeVars(n.to, bound, out);
+            const b2 = new Set(bound); b2.add(n.v);
+            freeVars(n.body, b2, out);
+            break;
+        }
+    }
+    return out;
+}
+
+// ---------- 数式の見た目（MathML） ----------
+function prec(n) {
+    if (n.t === 'bin') return n.op === '/' ? 9 : n.op === '*' ? 2 : 1;
+    return { num: 9, var: 9, call: 9, fact: 8, pow: 7, neg: 3, sum: 1.5 }[n.t];
+}
+const mo = s => `<mo>${s}</mo>`;
+const paren = inner => `<mrow><mo>(</mo>${inner}<mo>)</mo></mrow>`;
+const W = (n, min) => prec(n) < min ? paren(toMathML(n)) : toMathML(n);
+function startsNum(n) {
+    switch (n.t) {
+        case 'num': return true;
+        case 'bin': return n.op !== '/' && startsNum(n.l);
+        case 'pow': return startsNum(n.b);
+        case 'fact': return startsNum(n.a);
+        default: return false;
+    }
+}
+const GREEK_NAME = { pi: 'π' };
+function toMathML(n) {
+    switch (n.t) {
+        case 'num': return `<mn>${n.raw}</mn>`;
+        case 'var': return `<mi>${GREEK_NAME[n.name] || n.name}</mi>`;
+        case 'neg': return `<mrow>${mo('−')}${W(n.a, 2)}</mrow>`;
+        case 'bin': {
+            if (n.op === '/') return `<mfrac>${toMathML(n.l)}${toMathML(n.r)}</mfrac>`;
+            if (n.op === '*') {
+                const r = n.r.t === 'neg' ? paren(toMathML(n.r)) : W(n.r, 2.01);
+                const sep = startsNum(n.r) ? mo('·') : '<mo>&#x2062;</mo>';
+                return `<mrow>${W(n.l, 2)}${sep}${r}</mrow>`;
+            }
+            const l = n.l.t === 'sum' ? paren(toMathML(n.l)) : W(n.l, 1);
+            const r = n.r.t === 'neg' ? paren(toMathML(n.r)) : W(n.r, n.op === '-' ? 1.01 : 1);
+            return `<mrow>${l}${mo(n.op === '-' ? '−' : '+')}${r}</mrow>`;
+        }
+        case 'pow': return `<msup>${W(n.b, 9)}${toMathML(n.e)}</msup>`;
+        case 'fact': return `<mrow>${W(n.a, 9)}${mo('!')}</mrow>`;
+        case 'call': {
+            const a = n.args;
+            switch (n.name) {
+                case 'sqrt': return `<msqrt>${toMathML(a[0])}</msqrt>`;
+                case 'cbrt': return `<mroot>${toMathML(a[0])}<mn>3</mn></mroot>`;
+                case 'abs': return `<mrow><mo>|</mo>${toMathML(a[0])}<mo>|</mo></mrow>`;
+                case 'exp': return `<msup><mi>e</mi>${toMathML(a[0])}</msup>`;
+                case 'floor': return `<mrow><mo>⌊</mo>${toMathML(a[0])}<mo>⌋</mo></mrow>`;
+                case 'ceil': return `<mrow><mo>⌈</mo>${toMathML(a[0])}<mo>⌉</mo></mrow>`;
+            }
+            return `<mrow><mi>${n.name}</mi><mo>&#x2061;</mo>${paren(a.map(toMathML).join('<mo>,</mo>'))}</mrow>`;
+        }
+        case 'sum':
+            return `<mrow><munderover><mo>${n.kind === 'sum' ? '∑' : '∏'}</mo>` +
+                `<mrow><mi>${n.v}</mi><mo>=</mo>${toMathML(n.from)}</mrow>${toMathML(n.to)}</munderover>` +
+                `${W(n.body, 2)}</mrow>`;
+    }
+    return '';
+}
+// ==== PARSER END ====
+
+// ================================================================
+// アプリ本体
+// ================================================================
+const $ = s => document.querySelector(s);
+const COLORS = ['#38bdf8', '#f472b6', '#a3e635', '#fbbf24', '#a855f7', '#34d399', '#fb923c', '#60a5fa'];
+const STORE = 'graphcalc.v1';
+
+let exprs = [];
+let params = {};
+let usedParams = [];
+let view = { cx: 0, cy: 0, scale: 40 };
+let pendingFit = null;
+let activeId = null;
+let traceX = null;
+let nextId = 1;
+let kbOn = true;
+let kbTab = '123';
+
+const exprsEl = $('#exprs'), paramsEl = $('#params');
+const canvas = $('#cv'), ctx = canvas.getContext('2d'), traceEl = $('#trace');
+let W_ = 0, H_ = 0, dpr = 1;
+
+// ---------- 例 ----------
+const PRESETS = [
+    { name: 'sin のマクローリン展開', exprs: ['sin(x)', 'Σ(k=0,n,(-1)^k x^(2k+1)/(2k+1)!)'],
+      params: { n: { v: 3, min: 0, max: 15, step: 1 } }, fit: { w: 26, h: 5 } },
+    { name: 'cos のマクローリン展開', exprs: ['cos(x)', 'Σ(k=0,n,(-1)^k x^(2k)/(2k)!)'],
+      params: { n: { v: 3, min: 0, max: 15, step: 1 } }, fit: { w: 26, h: 5 } },
+    { name: 'eˣ のマクローリン展開', exprs: ['e^x', 'Σ(k=0,n,x^k/k!)'],
+      params: { n: { v: 3, min: 0, max: 20, step: 1 } }, fit: { w: 16, h: 14, cy: 4 } },
+    { name: 'ln(1+x) の展開', exprs: ['ln(1+x)', 'Σ(k=1,n,(-1)^(k+1) x^k/k)'],
+      params: { n: { v: 5, min: 1, max: 30, step: 1 } }, fit: { w: 7, h: 5 } },
+    { name: 'arctan の展開', exprs: ['atan(x)', 'Σ(k=0,n,(-1)^k x^(2k+1)/(2k+1))'],
+      params: { n: { v: 5, min: 0, max: 30, step: 1 } }, fit: { w: 7, h: 4 } },
+    { name: '1/(1−x)（等比級数）', exprs: ['1/(1-x)', 'Σ(k=0,n,x^k)'],
+      params: { n: { v: 5, min: 0, max: 30, step: 1 } }, fit: { w: 7, h: 8 } },
+    { name: 'sin の x=a まわりのテイラー展開', exprs: ['sin(x)', 'Σ(k=0,n,sin(a+kπ/2) (x-a)^k/k!)'],
+      params: { n: { v: 4, min: 0, max: 15, step: 1 }, a: { v: 2, min: -8, max: 8, step: 0.1 } }, fit: { w: 26, h: 5 } },
+    { name: '矩形波のフーリエ級数', exprs: ['sign(sin(x))', 'Σ(k=1,n,4 sin((2k-1)x)/((2k-1)π))'],
+      params: { n: { v: 5, min: 1, max: 50, step: 1 } }, fit: { w: 16, h: 3 } },
+];
+
+// ---------- 式の管理 ----------
+function newExpr(text = '', color, visible = true) {
+    const used = exprs.map(e => e.color);
+    color = color || COLORS.find(c => !used.includes(c)) || COLORS[exprs.length % COLORS.length];
+    const ex = { id: nextId++, text, color, visible };
+    analyze(ex);
+    return ex;
+}
+
+function analyze(ex) {
+    ex.fn = null; ex.err = ''; ex.free = []; ex.math = '';
+    let src = ex.text.replace(/^\s*(?:y|[a-zA-Z]\s*\(\s*x\s*\))\s*=/, '');
+    if (!src.trim()) return;
+    // 閉じていない ( は自動で閉じる
+    let open = 0;
+    for (const ch of src) { if (ch === '(') open++; else if (ch === ')') open--; }
+    if (open > 0) src += ')'.repeat(open);
+    try {
+        const ast = parse(src);
+        ex.fn = compile(ast);
+        ex.free = [...freeVars(ast)];
+        ex.math = toMathML(ast);
+    } catch (e) {
+        ex.err = e.isParse ? e.message : '式を読み取れません';
+    }
+}
+
+function renderList() {
+    exprsEl.innerHTML = '';
+    exprs.forEach((ex, i) => {
+        const row = document.createElement('div');
+        row.className = 'expr';
+        row.style.setProperty('--c', ex.color);
+        row.innerHTML =
+            `<button class="sw" type="button" title="表示／非表示">${i + 1}</button>` +
+            `<div class="ebody"><input class="ein" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="式を入力（例: sin(x)）">` +
+            `<div class="preview"></div><div class="err"></div></div>` +
+            `<button class="del" type="button" title="削除">×</button>`;
+        const inp = row.querySelector('.ein');
+        inp.value = ex.text;
+        inp.inputMode = kbOn ? 'none' : 'text';
+        inp.addEventListener('focus', () => setActive(ex.id));
+        inp.addEventListener('input', () => { ex.text = inp.value; onExprChange(ex); });
+        inp.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); addAfter(ex.id); }
+        });
+        row.querySelector('.sw').addEventListener('click', () => {
+            ex.visible = !ex.visible; refreshRow(ex); save(); requestDraw();
+        });
+        row.querySelector('.del').addEventListener('click', () => removeExpr(ex.id));
+        ex.row = row;
+        exprsEl.appendChild(row);
+        refreshRow(ex);
+    });
+}
+
+function refreshRow(ex) {
+    const r = ex.row;
+    if (!r) return;
+    r.classList.toggle('off', !ex.visible);
+    r.classList.toggle('active', ex.id === activeId);
+    r.querySelector('.preview').innerHTML = ex.math
+        ? `<math><mstyle displaystyle="true">${ex.math}</mstyle></math>` : '';
+    r.querySelector('.err').textContent = ex.err;
+}
+
+function setActive(id) {
+    activeId = id;
+    exprs.forEach(e => e.row && e.row.classList.toggle('active', e.id === id));
+}
+
+function onExprChange(ex) {
+    analyze(ex);
+    refreshRow(ex);
+    syncParams();
+    save();
+    requestDraw();
+}
+
+function focusExpr(id, atEnd = true) {
+    const ex = exprs.find(e => e.id === id);
+    if (!ex || !ex.row) return;
+    const inp = ex.row.querySelector('.ein');
+    inp.focus({ preventScroll: true });
+    if (atEnd) inp.setSelectionRange(inp.value.length, inp.value.length);
+    ex.row.scrollIntoView({ block: 'nearest' });
+    setActive(id);
+}
+
+function addAfter(id, text = '') {
+    const idx = exprs.findIndex(e => e.id === id);
+    const ex = newExpr(text);
+    exprs.splice(idx < 0 ? exprs.length : idx + 1, 0, ex);
+    renderList();
+    focusExpr(ex.id);
+    syncParams(); save(); requestDraw();
+}
+
+function removeExpr(id) {
+    const idx = exprs.findIndex(e => e.id === id);
+    if (idx < 0) return;
+    exprs.splice(idx, 1);
+    if (!exprs.length) exprs.push(newExpr());
+    if (activeId === id) activeId = exprs[Math.min(idx, exprs.length - 1)].id;
+    renderList();
+    syncParams(); save(); requestDraw();
+}
+
+$('#addExpr').addEventListener('click', () => addAfter(exprs.length ? exprs[exprs.length - 1].id : null));
+
+// ---------- パラメータ（スライダー） ----------
+function defaultParam(name) {
+    if ('nmkjNMK'.includes(name)) return { v: 3, min: 0, max: 20, step: 1 };
+    return { v: 1, min: -5, max: 5, step: 0.1 };
+}
+
+let paramEls = {};
+const playing = new Set();
+
+function syncParams() {
+    const used = new Set();
+    exprs.forEach(ex => ex.free.forEach(v => used.add(v)));
+    used.forEach(v => { if (!params[v]) params[v] = defaultParam(v); });
+    const list = [...used].sort();
+    if (list.join() !== usedParams.join()) {
+        usedParams = list;
+        [...playing].forEach(n => { if (!used.has(n)) playing.delete(n); });
+        renderParams();
+    }
+}
+
+function fmtP(v, step) {
+    const d = step >= 1 ? 0 : Math.max(0, Math.ceil(-Math.log10(step)));
+    return (+v).toFixed(d);
+}
+
+function renderParams() {
+    paramsEl.innerHTML = '';
+    paramEls = {};
+    if (!usedParams.length) { paramsEl.hidden = true; return; }
+    paramsEl.hidden = false;
+    const h = document.createElement('div');
+    h.className = 'phead';
+    h.textContent = 'パラメータ';
+    paramsEl.appendChild(h);
+
+    usedParams.forEach(name => {
+        const p = params[name];
+        const el = document.createElement('div');
+        el.className = 'param';
+        el.innerHTML =
+            `<div class="prow"><button class="play" type="button" title="自動で動かす">▶</button>` +
+            `<span class="pname">${name}</span><span class="peq">=</span>` +
+            `<input class="pval" type="number" inputmode="decimal">` +
+            `<span class="prange"><input class="pmin" type="number" inputmode="decimal" title="最小">〜` +
+            `<input class="pmax" type="number" inputmode="decimal" title="最大"></span></div>` +
+            `<input class="pslider" type="range">`;
+        const refs = {
+            play: el.querySelector('.play'), val: el.querySelector('.pval'),
+            min: el.querySelector('.pmin'), max: el.querySelector('.pmax'), slider: el.querySelector('.pslider'),
+        };
+        paramEls[name] = refs;
+
+        refs.slider.addEventListener('input', () => {
+            p.v = +refs.slider.value; refs.val.value = fmtP(p.v, p.step);
+            requestDraw(); saveSoon();
+        });
+        refs.val.addEventListener('change', () => {
+            const v = parseFloat(refs.val.value);
+            if (!isFinite(v)) return;
+            p.v = v;
+            if (v < p.min) p.min = v;
+            if (v > p.max) p.max = v;
+            updateParamUI(name); requestDraw(); save();
+        });
+        const rangeChange = () => {
+            const a = parseFloat(refs.min.value), b = parseFloat(refs.max.value);
+            if (isFinite(a) && isFinite(b) && a < b) {
+                p.min = a; p.max = b;
+                p.v = Math.min(b, Math.max(a, p.v));
+            }
+            updateParamUI(name); requestDraw(); save();
+        };
+        refs.min.addEventListener('change', rangeChange);
+        refs.max.addEventListener('change', rangeChange);
+        refs.play.addEventListener('click', () => {
+            if (playing.has(name)) playing.delete(name); else playing.add(name);
+            updateParamUI(name);
+            startAnim();
+        });
+        paramsEl.appendChild(el);
+        updateParamUI(name);
+    });
+}
+
+function updateParamUI(name) {
+    const p = params[name], r = paramEls[name];
+    if (!p || !r) return;
+    r.slider.min = p.min; r.slider.max = p.max; r.slider.step = p.step;
+    r.slider.value = p.v;
+    if (document.activeElement !== r.val) r.val.value = fmtP(p.v, p.step);
+    if (document.activeElement !== r.min) r.min.value = p.min;
+    if (document.activeElement !== r.max) r.max.value = p.max;
+    const on = playing.has(name);
+    r.play.classList.toggle('on', on);
+    r.play.textContent = on ? '❚❚' : '▶';
+}
+
+// 自動再生
+let animating = false, lastT = 0;
+const accum = {}, dirs = {};
+function startAnim() {
+    if (animating || !playing.size) return;
+    animating = true; lastT = 0;
+    requestAnimationFrame(tick);
+}
+function tick(t) {
+    if (!playing.size) { animating = false; save(); return; }
+    const dt = lastT ? Math.min(100, t - lastT) : 16;
+    lastT = t;
+    playing.forEach(n => {
+        const p = params[n];
+        if (!p) return;
+        if (p.step >= 1) {
+            accum[n] = (accum[n] || 0) + dt;
+            if (accum[n] >= 550) {
+                accum[n] = 0;
+                p.v += p.step;
+                if (p.v > p.max) p.v = p.min;
+            }
+        } else {
+            dirs[n] = dirs[n] || 1;
+            p.v += dirs[n] * (p.max - p.min) * dt / 5000;
+            if (p.v >= p.max) { p.v = p.max; dirs[n] = -1; }
+            if (p.v <= p.min) { p.v = p.min; dirs[n] = 1; }
+        }
+        updateParamUI(n);
+    });
+    requestDraw();
+    requestAnimationFrame(tick);
+}
+
+// ---------- ソフトキーボード ----------
+const T = (l, i, b = 0, c = '') => ({ l, i: i ?? l, b, c });
+const FRAC = '<span class="fr"><span>a</span><span>b</span></span>';
+const KB = {
+    '123': [
+        [T('x', 'x', 0, 'v'), T('n', 'n', 0, 'v'), T('k', 'k', 0, 'v'), T('x<sup>y</sup>', '^', 0, 'o'), T('x²', '^2', 0, 'o'), T('√', 'sqrt()', -1, 'f big'), T('π', 'π', 0, 'v')],
+        [T('7'), T('8'), T('9'), T('÷', '/', 0, 'o'), T('(', '(', 0, 'o'), T(')', ')', 0, 'o'), T(FRAC, '()/()', -4, 'f')],
+        [T('4'), T('5'), T('6'), T('×', '*', 0, 'o'), T('Σ', 'Σ(k=0,n,)', -1, 'f big'), T('!', '!', 0, 'o'), T('e', 'e', 0, 'v')],
+        [T('1'), T('2'), T('3'), T('−', '-', 0, 'o'), T('Π', 'Π(k=1,n,)', -1, 'f big'), T('|x|', 'abs()', -1, 'f'), T('a', 'a', 0, 'v')],
+        [T('0'), T('.'), T(',', ',', 0, 'o'), T('+', '+', 0, 'o'), T('=', '=', 0, 'o'), T('sin', 'sin()', -1, 'f'), T('cos', 'cos()', -1, 'f')],
+    ],
+    'f(x)': [
+        [T('sin', 'sin()', -1, 'f'), T('cos', 'cos()', -1, 'f'), T('tan', 'tan()', -1, 'f'), T('sec', 'sec()', -1, 'f'), T('csc', 'csc()', -1, 'f'), T('cot', 'cot()', -1, 'f'), T('√', 'sqrt()', -1, 'f big')],
+        [T('asin', 'asin()', -1, 'f'), T('acos', 'acos()', -1, 'f'), T('atan', 'atan()', -1, 'f'), T('sinh', 'sinh()', -1, 'f'), T('cosh', 'cosh()', -1, 'f'), T('tanh', 'tanh()', -1, 'f'), T('∛', 'cbrt()', -1, 'f big')],
+        [T('exp', 'exp()', -1, 'f'), T('ln', 'ln()', -1, 'f'), T('log', 'log()', -1, 'f'), T('e<sup>x</sup>', 'e^()', -1, 'f'), T('10<sup>x</sup>', '10^()', -1, 'f'), T('⌊x⌋', 'floor()', -1, 'f'), T('⌈x⌉', 'ceil()', -1, 'f')],
+        [T('Σ', 'Σ(k=0,n,)', -1, 'f big'), T('Π', 'Π(k=1,n,)', -1, 'f big'), T('n!', '!', 0, 'f'), T('sign', 'sign()', -1, 'f'), T('Γ', 'gamma()', -1, 'f big'), T('max', 'max(,)', -2, 'f'), T('min', 'min(,)', -2, 'f')],
+        [T('(', '(', 0, 'o'), T(')', ')', 0, 'o'), T(',', ',', 0, 'o'), T('x<sup>y</sup>', '^', 0, 'o'), T('x²', '^2', 0, 'o'), T('π', 'π', 0, 'v'), T('e', 'e', 0, 'v')],
+    ],
+    'abc': [
+        'abcdefg'.split('').map(c => T(c, c, 0, 'v')),
+        'hijklmn'.split('').map(c => T(c, c, 0, 'v')),
+        'opqrstu'.split('').map(c => T(c, c, 0, 'v')),
+        [...'vwxyz'.split('').map(c => T(c, c, 0, 'v')), T('θ', 'θ', 0, 'v'), T('λ', 'λ', 0, 'v')],
+        [T('α', 'α', 0, 'v'), T('β', 'β', 0, 'v'), T('(', '(', 0, 'o'), T(')', ')', 0, 'o'), T('^', '^', 0, 'o'), T('×', '*', 0, 'o'), T('=', '=', 0, 'o')],
+    ],
+};
+
+function target() {
+    let ex = exprs.find(e => e.id === activeId) || exprs[exprs.length - 1];
+    if (!ex) { ex = newExpr(); exprs.push(ex); renderList(); }
+    setActive(ex.id);
+    const inp = ex.row.querySelector('.ein');
+    if (document.activeElement !== inp) inp.focus({ preventScroll: true });
+    return { ex, inp };
+}
+
+function commit(ex, inp) { ex.text = inp.value; onExprChange(ex); }
+
+function insertText(str, back) {
+    const { ex, inp } = target();
+    const s = inp.selectionStart ?? inp.value.length, e = inp.selectionEnd ?? s;
+    inp.setRangeText(str, s, e, 'end');
+    const pos = s + str.length + back;
+    inp.setSelectionRange(pos, pos);
+    commit(ex, inp);
+}
+
+const KB_NAMES = [...NAMES.filter(n => n !== 'pi'), 'Σ', 'Π', '√', '∛'].sort((a, b) => b.length - a.length);
+function backspace() {
+    const { ex, inp } = target();
+    const s = inp.selectionStart, e = inp.selectionEnd, v = inp.value;
+    if (s !== e) {
+        inp.setRangeText('', s, e, 'end');
+    } else if (s > 0) {
+        let a = s - 1, b = s;
+        if (v[a] === '(') {
+            // 「sin(」のような関数名ごと消す。中身が空なら閉じかっこも消す
+            const before = v.slice(0, a);
+            const nm = KB_NAMES.find(n => before.endsWith(n));
+            if (nm) a -= nm.length;
+            if (v[s] === ')') b = s + 1;
+        }
+        inp.setRangeText('', a, b, 'end');
+    }
+    commit(ex, inp);
+}
+
+function moveCaret(d) {
+    const { inp } = target();
+    const s = inp.selectionStart, e = inp.selectionEnd;
+    let pos = s !== e ? (d < 0 ? s : e) : Math.max(0, Math.min(inp.value.length, s + d));
+    inp.setSelectionRange(pos, pos);
+}
+
+function clearLine() {
+    const { ex, inp } = target();
+    inp.value = '';
+    commit(ex, inp);
+}
+
+function bindKey(b, fn, repeat) {
+    let t1 = null, t2 = null;
+    const stop = () => { clearTimeout(t1); clearInterval(t2); b.classList.remove('down'); };
+    b.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        b.classList.add('down');
+        fn();
+        if (repeat) t1 = setTimeout(() => { t2 = setInterval(fn, 60); }, 400);
+    });
+    b.addEventListener('mousedown', e => e.preventDefault());
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, stop));
+}
+
+function makeKey(k) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.tabIndex = -1;
+    b.className = 'key ' + (k.c || '') + (/^[0-9.]$/.test(k.l) ? ' num' : '');
+    b.innerHTML = `<span>${k.l}</span>`;
+    bindKey(b, () => insertText(k.i, k.b));
+    return b;
+}
+
+function renderKB() {
+    const keys = $('#kbKeys');
+    keys.innerHTML = '';
+    KB[kbTab].forEach(row => {
+        const r = document.createElement('div');
+        r.className = 'krow';
+        row.forEach(k => r.appendChild(makeKey(k)));
+        keys.appendChild(r);
+    });
+    document.querySelectorAll('.key.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === kbTab));
+}
+
+function buildBar() {
+    const bar = $('#kbBar');
+    const add = (label, cls, fn, repeat) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.tabIndex = -1;
+        b.className = 'key ' + cls;
+        b.innerHTML = label;
+        bindKey(b, fn, repeat);
+        bar.appendChild(b);
+        return b;
+    };
+    ['123', 'f(x)', 'abc'].forEach(t => {
+        const b = add(t, 'tab', () => { kbTab = t; renderKB(); save(); });
+        b.dataset.tab = t;
+    });
+    add('←', 'act', () => moveCaret(-1), true);
+    add('→', 'act', () => moveCaret(1), true);
+    add('AC', 'act', clearLine);
+    add('⌫', 'act', backspace, true);
+    add('↵', 'enter', () => addAfter(activeId));
+}
+
+$('#kbToggle').addEventListener('click', () => {
+    kbOn = !kbOn;
+    $('#kb').hidden = !kbOn;
+    $('#kbToggle').classList.toggle('on', kbOn);
+    document.querySelectorAll('.ein').forEach(i => { i.inputMode = kbOn ? 'none' : 'text'; });
+    save();
+});
+
+// ---------- 描画 ----------
+let drawQueued = false;
+function requestDraw() {
+    if (drawQueued) return;
+    drawQueued = true;
+    requestAnimationFrame(() => { drawQueued = false; draw(); });
+}
+
+function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const m = raw / p;
+    return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+}
+
+function fmtTick(v, step) {
+    if (Math.abs(v) < step * 1e-6) return '0';
+    const a = Math.abs(v);
+    if (a >= 1e6 || a < 1e-4) return v.toExponential(1).replace('-', '−');
+    const d = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
+    return v.toFixed(d).replace('-', '−');
+}
+
+function fmtNum(v) {
+    if (Number.isNaN(v)) return '未定義';
+    if (!isFinite(v)) return v > 0 ? '∞' : '−∞';
+    const a = Math.abs(v);
+    if (a !== 0 && (a >= 1e8 || a < 1e-6)) return v.toExponential(5).replace('-', '−');
+    return String(+v.toPrecision(8)).replace('-', '−');
+}
+
+function paramEnv() {
+    const env = {};
+    for (const k in params) env[k] = params[k].v;
+    return env;
+}
+
+function applyFit(f) {
+    if (!W_ || !H_) { pendingFit = f; return; }
+    view.cx = f.cx || 0;
+    view.cy = f.cy || 0;
+    view.scale = Math.min(W_ / f.w, H_ / f.h);
+}
+
+function draw() {
+    if (!W_ || !H_) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#030712';
+    ctx.fillRect(0, 0, W_, H_);
+
+    const sc = view.scale;
+    const sx = x => W_ / 2 + (x - view.cx) * sc;
+    const sy = y => H_ / 2 - (y - view.cy) * sc;
+    const x0 = view.cx - W_ / 2 / sc, x1 = view.cx + W_ / 2 / sc;
+    const y0 = view.cy - H_ / 2 / sc, y1 = view.cy + H_ / 2 / sc;
+
+    // 目盛り
+    const step = niceStep(90 / sc);
+    const lead = Math.round(step / Math.pow(10, Math.floor(Math.log10(step) + 1e-9)));
+    const minor = step / (lead === 2 ? 4 : 5);
+    ctx.lineWidth = 1;
+    if (minor * sc >= 9) {
+        ctx.strokeStyle = '#0b1324';
+        ctx.beginPath();
+        for (let x = Math.ceil(x0 / minor) * minor; x <= x1; x += minor) { const p = Math.round(sx(x)) + 0.5; ctx.moveTo(p, 0); ctx.lineTo(p, H_); }
+        for (let y = Math.ceil(y0 / minor) * minor; y <= y1; y += minor) { const p = Math.round(sy(y)) + 0.5; ctx.moveTo(0, p); ctx.lineTo(W_, p); }
+        ctx.stroke();
+    }
+    ctx.strokeStyle = '#18233a';
+    ctx.beginPath();
+    for (let x = Math.ceil(x0 / step) * step; x <= x1; x += step) { const p = Math.round(sx(x)) + 0.5; ctx.moveTo(p, 0); ctx.lineTo(p, H_); }
+    for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) { const p = Math.round(sy(y)) + 0.5; ctx.moveTo(0, p); ctx.lineTo(W_, p); }
+    ctx.stroke();
+
+    // 軸
+    const ax = sx(0), ay = sy(0);
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    if (ay >= 0 && ay <= H_) { ctx.moveTo(0, Math.round(ay) + 0.5); ctx.lineTo(W_, Math.round(ay) + 0.5); }
+    if (ax >= 0 && ax <= W_) { ctx.moveTo(Math.round(ax) + 0.5, 0); ctx.lineTo(Math.round(ax) + 0.5, H_); }
+    ctx.stroke();
+
+    // 目盛りの数字
+    ctx.font = '500 11px Inter, system-ui, sans-serif';
+    ctx.fillStyle = '#64748b';
+    const ly = Math.min(H_ - 15, Math.max(3, ay + 4));
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (let x = Math.ceil(x0 / step) * step; x <= x1; x += step) {
+        if (Math.abs(x) < step * 1e-6) continue;
+        ctx.fillText(fmtTick(x, step), sx(x), ly);
+    }
+    const left = ax < 40;
+    const lx = left ? 4 : Math.min(W_ - 4, ax - 5);
+    ctx.textAlign = left ? 'left' : 'right'; ctx.textBaseline = 'middle';
+    for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) {
+        if (Math.abs(y) < step * 1e-6) continue;
+        ctx.fillText(fmtTick(y, step), lx, sy(y));
+    }
+    if (ax >= 0 && ax <= W_ && ay >= 0 && ay <= H_) {
+        ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+        ctx.fillText('0', ax - 5, ay + 4);
+    }
+
+    // グラフ
+    const env = paramEnv();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const N = Math.ceil(W_);
+    exprs.forEach(ex => {
+        if (!ex.visible || !ex.fn) return;
+        ctx.strokeStyle = ex.color;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        let pen = false, prev = 0;
+        for (let i = 0; i <= N; i++) {
+            env.x = x0 + i / sc;
+            const y = ex.fn(env);
+            if (!isFinite(y)) { pen = false; continue; }
+            let py = sy(y);
+            // 漸近線（画面の上と下に一気に飛ぶ）なら線を切る
+            if (pen && ((prev < -H_ && py > 2 * H_) || (prev > 2 * H_ && py < -H_))) pen = false;
+            prev = py;
+            py = Math.max(-1e4, Math.min(H_ + 1e4, py));
+            if (pen) ctx.lineTo(i, py); else ctx.moveTo(i, py);
+            pen = true;
+        }
+        ctx.stroke();
+    });
+
+    // トレース
+    if (traceX !== null) {
+        const px = sx(traceX);
+        ctx.strokeStyle = 'rgba(148,163,184,0.5)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H_); ctx.stroke();
+        ctx.setLineDash([]);
+        env.x = traceX;
+        let html = `<div style="color:#94a3b8">x = ${fmtNum(traceX)}</div>`;
+        exprs.forEach((ex, i) => {
+            if (!ex.visible || !ex.fn) return;
+            env.x = traceX;
+            const y = ex.fn(env);
+            html += `<div><i style="background:${ex.color}"></i>${i + 1}: ${fmtNum(y)}</div>`;
+            if (isFinite(y)) {
+                const py = sy(y);
+                if (py > -10 && py < H_ + 10) {
+                    ctx.fillStyle = ex.color;
+                    ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = '#030712'; ctx.lineWidth = 1.5; ctx.stroke();
+                }
+            }
+        });
+        traceEl.innerHTML = html;
+        traceEl.hidden = false;
+    } else {
+        traceEl.hidden = true;
+    }
+}
+
+function resize() {
+    const r = canvas.getBoundingClientRect();
+    dpr = window.devicePixelRatio || 1;
+    W_ = r.width; H_ = r.height;
+    canvas.width = Math.max(1, Math.round(W_ * dpr));
+    canvas.height = Math.max(1, Math.round(H_ * dpr));
+    if (pendingFit) { const f = pendingFit; pendingFit = null; applyFit(f); }
+    draw();
+}
+new ResizeObserver(resize).observe(canvas);
+
+// ---------- グラフの操作 ----------
+function zoomAt(f, px = W_ / 2, py = H_ / 2) {
+    const wx = view.cx + (px - W_ / 2) / view.scale;
+    const wy = view.cy - (py - H_ / 2) / view.scale;
+    view.scale = Math.min(1e7, Math.max(1e-4, view.scale * f));
+    view.cx = wx - (px - W_ / 2) / view.scale;
+    view.cy = wy + (py - H_ / 2) / view.scale;
+    requestDraw(); saveSoon();
+}
+$('#zin').addEventListener('click', () => zoomAt(1.5));
+$('#zout').addEventListener('click', () => zoomAt(1 / 1.5));
+$('#zhome').addEventListener('click', () => { applyFit({ w: 20, h: 12 }); requestDraw(); save(); });
+
+canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = canvas.getBoundingClientRect();
+    zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+
+const pts = new Map();
+let gesture = null;
+const pos = e => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+
+function startPan(p) { gesture = { type: 'pan', sx: p.x, sy: p.y, cx: view.cx, cy: view.cy, moved: false }; }
+
+canvas.addEventListener('pointerdown', e => {
+    canvas.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, pos(e));
+    if (pts.size === 1) startPan(pos(e));
+    else if (pts.size === 2) {
+        const [a, b] = [...pts.values()];
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        gesture = {
+            type: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) || 1, scale: view.scale,
+            wx: view.cx + (mid.x - W_ / 2) / view.scale, wy: view.cy - (mid.y - H_ / 2) / view.scale,
+        };
+    }
+});
+
+canvas.addEventListener('pointermove', e => {
+    const p = pos(e);
+    if (!pts.has(e.pointerId)) {
+        if (e.pointerType === 'mouse') { traceX = view.cx + (p.x - W_ / 2) / view.scale; requestDraw(); }
+        return;
+    }
+    pts.set(e.pointerId, p);
+    if (!gesture) return;
+    if (gesture.type === 'pan') {
+        const dx = p.x - gesture.sx, dy = p.y - gesture.sy;
+        if (Math.hypot(dx, dy) > 4) gesture.moved = true;
+        if (gesture.moved) {
+            view.cx = gesture.cx - dx / view.scale;
+            view.cy = gesture.cy + dy / view.scale;
+            if (e.pointerType === 'mouse') traceX = null;
+            requestDraw();
+        }
+    } else if (gesture.type === 'pinch' && pts.size >= 2) {
+        const [a, b] = [...pts.values()];
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        view.scale = Math.min(1e7, Math.max(1e-4, gesture.scale * d / gesture.d));
+        view.cx = gesture.wx - (mid.x - W_ / 2) / view.scale;
+        view.cy = gesture.wy + (mid.y - H_ / 2) / view.scale;
+        requestDraw();
+    }
+});
+
+function endPointer(e) {
+    if (!pts.has(e.pointerId)) return;
+    const p = pos(e);
+    if (gesture && gesture.type === 'pan' && !gesture.moved && pts.size === 1) {
+        // タップ：その位置の値を表示（同じ所をもう一度タップで消す）
+        const wx = view.cx + (p.x - W_ / 2) / view.scale;
+        if (e.pointerType !== 'mouse' && traceX !== null && Math.abs((wx - traceX) * view.scale) < 16) traceX = null;
+        else traceX = wx;
+        requestDraw();
+    }
+    pts.delete(e.pointerId);
+    if (pts.size === 1) { startPan([...pts.values()][0]); gesture.moved = true; }
+    else if (!pts.size) { gesture = null; saveSoon(); }
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('pointerleave', e => {
+    if (e.pointerType === 'mouse' && !pts.size) { traceX = null; requestDraw(); }
+});
+
+// ---------- 例の読み込み ----------
+const presetSel = $('#preset');
+PRESETS.forEach((p, i) => {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = p.name;
+    presetSel.appendChild(o);
+});
+presetSel.addEventListener('change', () => {
+    const i = presetSel.value;
+    presetSel.value = '';
+    if (i === '') return;
+    const hasWork = exprs.some(e => e.text.trim()) &&
+        !PRESETS.some(p => p.exprs.join('\n') === exprs.map(e => e.text).join('\n'));
+    if (hasWork && !confirm('いまの式を置き換えて例を読み込みますか？')) return;
+    loadPreset(PRESETS[+i]);
+});
+
+function loadPreset(p) {
+    playing.clear();
+    exprs = [];
+    p.exprs.forEach(t => exprs.push(newExpr(t)));
+    for (const k in p.params) params[k] = { ...p.params[k] };
+    activeId = exprs[exprs.length - 1].id;
+    traceX = null;
+    usedParams = [];
+    renderList();
+    syncParams();
+    applyFit(p.fit);
+    requestDraw();
+    save();
+}
+
+// ---------- 保存 ----------
+let saveTimer = null;
+function save() {
+    clearTimeout(saveTimer); saveTimer = null;
+    try {
+        localStorage.setItem(STORE, JSON.stringify({
+            exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible })),
+            params, view, kbOn, kbTab,
+        }));
+    } catch (_) { /* 保存できない環境では何もしない */ }
+}
+function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); }
+window.addEventListener('pagehide', () => { if (saveTimer) save(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && saveTimer) save(); });
+
+function load() {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (_) { data = null; }
+    if (!data || !Array.isArray(data.exprs) || !data.exprs.length) return false;
+    params = data.params || {};
+    exprs = data.exprs.map(e => newExpr(String(e.text || ''), e.color, e.visible !== false));
+    if (data.view && isFinite(data.view.scale)) view = data.view;
+    if (data.kbTab && KB[data.kbTab]) kbTab = data.kbTab;
+    if (data.kbOn === false) {
+        kbOn = false;
+        $('#kb').hidden = true;
+        $('#kbToggle').classList.remove('on');
+    }
+    activeId = exprs[exprs.length - 1].id;
+    renderList();
+    syncParams();
+    return true;
+}
+
+// ---------- 名前をつけて保存 ----------
+const SAVES = 'graphcalc.saves.v1';
+function readSaves() {
+    try { const a = JSON.parse(localStorage.getItem(SAVES) || '[]'); return Array.isArray(a) ? a : []; }
+    catch (_) { return []; }
+}
+function writeSaves(a) {
+    try { localStorage.setItem(SAVES, JSON.stringify(a)); return true; }
+    catch (_) { return false; }
+}
+function storageOK() {
+    try { localStorage.setItem('graphcalc.test', '1'); localStorage.removeItem('graphcalc.test'); return true; }
+    catch (_) { return false; }
+}
+function snapshot() {
+    const ps = {};
+    usedParams.forEach(k => { ps[k] = { v: params[k].v, min: params[k].min, max: params[k].max, step: params[k].step }; });
+    return {
+        exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible })),
+        params: ps, view: { cx: view.cx, cy: view.cy, scale: view.scale },
+    };
+}
+const exprKey = list => list.map(e => e.text).join('\n');
+function hasUnsavedWork() {
+    if (!exprs.some(e => e.text.trim())) return false;
+    const cur = exprKey(exprs);
+    return !PRESETS.some(p => p.exprs.join('\n') === cur) && !readSaves().some(s => exprKey(s.exprs) === cur);
+}
+function restore(d) {
+    playing.clear();
+    exprs = [];
+    (d.exprs || []).forEach(e => exprs.push(newExpr(String(e.text || ''), e.color, e.visible !== false)));
+    if (!exprs.length) exprs.push(newExpr());
+    for (const k in (d.params || {})) params[k] = { ...d.params[k] };
+    if (d.view && isFinite(d.view.scale)) view = { ...d.view };
+    activeId = exprs[exprs.length - 1].id;
+    traceX = null;
+    usedParams = [];
+    renderList();
+    syncParams();
+    requestDraw();
+    save();
+}
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function fmtDate(t) {
+    const d = new Date(t), z = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${z(d.getMonth() + 1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
+}
+function renderSaves() {
+    const list = $('#saveList');
+    const saves = readSaves();
+    if (!saves.length) { list.innerHTML = '<p class="save-empty">まだ保存した式はありません。</p>'; return; }
+    list.innerHTML = '';
+    saves.forEach((sv, i) => {
+        const el = document.createElement('div');
+        el.className = 'save-item';
+        const sub = sv.exprs.map(e => e.text).filter(t => t.trim()).join('　|　');
+        el.innerHTML =
+            `<div class="si-body"><div class="si-name">${esc(sv.name)}</div>` +
+            `<div class="si-sub">${esc(fmtDate(sv.t))}　${esc(sub)}</div></div>` +
+            `<button class="btn ghost" type="button">開く</button>` +
+            `<button class="btn ghost danger" type="button" title="削除">削除</button>`;
+        const [openB, delB] = el.querySelectorAll('button');
+        openB.addEventListener('click', () => {
+            if (hasUnsavedWork() && !confirm('いまの式は保存されていません。置き換えて開きますか？')) return;
+            restore(sv);
+            closeSheet();
+        });
+        delB.addEventListener('click', () => {
+            if (!confirm(`「${sv.name}」を削除しますか？`)) return;
+            const a = readSaves(); a.splice(i, 1); writeSaves(a); renderSaves();
+        });
+        list.appendChild(el);
+    });
+}
+function openSheet() {
+    const first = exprs.map(e => e.text.trim()).filter(Boolean);
+    $('#saveName').value = '';
+    $('#saveName').placeholder = first.length ? `名前（空なら「${first[first.length - 1].slice(0, 24)}」）` : '名前';
+    if (!storageOK()) $('#sheetNote').textContent = 'このブラウザ（プライベートモードなど）では保存できません。';
+    renderSaves();
+    $('#sheet').hidden = false;
+}
+function closeSheet() { $('#sheet').hidden = true; }
+$('#savesBtn').addEventListener('click', openSheet);
+$('#sheetClose').addEventListener('click', closeSheet);
+$('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
+function saveCurrent() {
+    const first = exprs.map(e => e.text.trim()).filter(Boolean);
+    if (!first.length) { alert('保存する式がありません'); return; }
+    const name = $('#saveName').value.trim() || first[first.length - 1].slice(0, 40);
+    const a = readSaves();
+    const idx = a.findIndex(s => s.name === name);
+    const entry = { name, t: Date.now(), ...snapshot() };
+    if (idx >= 0) {
+        if (!confirm(`「${name}」はもうあります。上書きしますか？`)) return;
+        a.splice(idx, 1);
+    }
+    a.unshift(entry);
+    if (!writeSaves(a)) { alert('保存できませんでした（容量がいっぱいか、保存が許可されていません）'); return; }
+    $('#saveName').value = '';
+    renderSaves();
+}
+$('#saveNow').addEventListener('click', saveCurrent);
+$('#saveName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveCurrent(); } });
+
+// ---------- 起動 ----------
+buildBar();
+if (!load()) loadPreset(PRESETS[0]);
+renderKB();
+requestDraw();
+})();
+</script>
+</body>
+</html>

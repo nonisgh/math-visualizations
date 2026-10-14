@@ -231,7 +231,7 @@
     <header>
         <p class="eyebrow">Interactive Geometry</p>
         <h1><span class="grad">2次元から5次元まで</span><br>高次元ビジュアルコレクション</h1>
-        <p class="lead">多角形・立方体・球が、次元を上げるとどう見えるか。回して、折りたたんで、分解しながら体験できるシミュレーター集です。</p>
+        <p class="lead">多角形・立方体・球が、次元を上げるとどう見えるか。関数のグラフや級数展開も。回して、折りたたんで、分解しながら体験できるシミュレーター集です。</p>
         <div class="legend" aria-label="次元の色">
             <span class="dim d2">2D</span>
             <span class="dim d3">3D</span>
@@ -255,6 +255,27 @@
                     <div class="meta">
                         <div class="dims"><span class="dim d2">2D</span></div>
                         <span class="file">polygon.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </section>
+
+    <!-- 関数とグラフ -->
+    <section>
+        <div class="sec-head">
+            <h2>関数とグラフ</h2>
+            <span class="path">式を入れて描く</span>
+        </div>
+        <div class="grid">
+            <a class="card" href="graph.html" style="--accent: var(--d2);">
+                <div class="thumb"><svg data-thumb="graph" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>グラフ電卓</h3><span class="new">NEW</span></div>
+                    <p>Σ・階乗・三角関数などを数式キーボードで入力してグラフに。sin のマクローリン展開が、項を増やすほど本物の sin に重なっていく様子をスライダーで確かめられます。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d2">2D</span></div>
+                        <span class="file">graph.html <span class="arrow">→</span></span>
                     </div>
                 </div>
             </a>
@@ -386,9 +407,26 @@
             });
         }
 
+        // グラフ: sin と、そのマクローリン展開（7次）の点線
+        function drawGraph(svg) {
+            svg.appendChild(el('path', { ...stroke, d: 'M-46 0H46M0 -42V42', 'stroke-width': 0.8, opacity: 0.3 }));
+            const X = t => (t * 46 / (2 * Math.PI)).toFixed(2);
+            let d1 = '', d2 = '';
+            for (let i = 0; i <= 120; i++) {
+                const t = -2 * Math.PI + 4 * Math.PI * i / 120;
+                let q = t - t ** 3 / 6 + t ** 5 / 120 - t ** 7 / 5040;
+                q = Math.max(-1.9, Math.min(1.9, q));
+                d1 += `${i ? 'L' : 'M'}${X(t)} ${(-Math.sin(t) * 22).toFixed(2)}`;
+                d2 += `${i ? 'L' : 'M'}${X(t)} ${(-q * 22).toFixed(2)}`;
+            }
+            svg.appendChild(el('path', { ...stroke, d: d2, 'stroke-width': 1.4, opacity: 0.55, 'stroke-dasharray': '3 3' }));
+            svg.appendChild(el('path', { ...stroke, d: d1, 'stroke-width': 2 }));
+        }
+
         document.querySelectorAll('svg[data-thumb]').forEach(svg => {
             switch (svg.dataset.thumb) {
                 case 'star':    drawStar(svg, 7, 3, 42); break;
+                case 'graph':   drawGraph(svg); break;
                 case 'cube4':   drawCube(svg, 4, 43, 1.1); break;
                 case 'cube5':   drawCube(svg, 5, 44, 0.7); break;
                 case 'sphere4':
