@@ -687,18 +687,17 @@
             // 4D → 3D の投影。pblend=0 で遠近、1 で平行。周回中はその中間も使って滑らかにつなぐ。
             const pblend = cycleMode ? cycleBlend : (projAnim !== null ? projAnim : (parallel4D ? 1 : 0));
             const projected = vertices4D.map(p4 => {
-                if (pblend >= 1) return [p4[0], p4[1], p4[2]];   // 平行投影: w を落とすだけ。遠近が入らないので軸の長さが正確に揃う
                 const wVal = p4[3];
-                const safeW = Math.min(Math.max(wVal, -CAMERA_W + 0.5), CAMERA_W - 0.5);
-                const scale = CAMERA_W / (CAMERA_W - safeW);
-                const px = p4[0] * scale, py = p4[1] * scale, pz = p4[2] * scale;
-                if (pblend <= 0) return [px, py, pz];
-                // 遠近と平行を線形に混ぜる
-                return [
-                    px + (p4[0] - px) * pblend,
-                    py + (p4[1] - py) * pblend,
-                    pz + (p4[2] - pz) * pblend
-                ];
+                let x3, y3, z3;
+                if (pblend >= 1) { x3 = p4[0]; y3 = p4[1]; z3 = p4[2]; }   // 平行投影: w を落とすだけ
+                else {
+                    const safeW = Math.min(Math.max(wVal, -CAMERA_W + 0.5), CAMERA_W - 0.5);
+                    const scale = CAMERA_W / (CAMERA_W - safeW);
+                    const px = p4[0] * scale, py = p4[1] * scale, pz = p4[2] * scale;
+                    if (pblend <= 0) { x3 = px; y3 = py; z3 = pz; }
+                    else { x3 = px + (p4[0] - px) * pblend; y3 = py + (p4[1] - py) * pblend; z3 = pz + (p4[2] - pz) * pblend; }
+                }
+                return [x3, y3, z3, wVal];   // 4D の w を4要素目に添える（辺の遠近フェード用）
             });
 
             return projected;
@@ -870,12 +869,15 @@
                 const wireGeo = new THREE.BufferGeometry();
                 const wirePos = new Float32Array(24 * 3);
                 wireGeo.setAttribute('position', new THREE.BufferAttribute(wirePos, 3));
+                const wireCol = new Float32Array(24 * 3);   // 辺ごと・頂点ごとの色（4D奥行きでフェード）
+                wireCol.fill(1);
+                wireGeo.setAttribute('color', new THREE.BufferAttribute(wireCol, 3));
 
                 const wireMat = new THREE.LineBasicMaterial({
-                    color: 0xffffff,
                     linewidth: 2,
                     transparent: true,
-                    opacity: 0.9
+                    opacity: 0.9,
+                    vertexColors: true   // 奥（4Dで遠い）の辺を背景へ沈ませて立体感を出す
                 });
 
                 const wireframe = new THREE.LineSegments(wireGeo, wireMat);
@@ -1172,8 +1174,32 @@
             }
 
             if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'hypercube') {
-                cellObjects3D.forEach(cell => {
-                    const currentVerts = calculateFoldedCellVertices3D(cell.id, progress, linkAngleX, linkAngleY);
+                // まず全胞の頂点を求め、4Dの奥行き(w)の範囲を測る（奥の辺を沈ませる基準にする）
+                const cellVerts = cellObjects3D.map(cell =>
+                    calculateFoldedCellVertices3D(cell.id, progress, linkAngleX, linkAngleY));
+                let wMin = 1e9, wMax = -1e9;
+                cellVerts.forEach(vs => vs.forEach(p => {
+                    const w = (p[3] !== undefined) ? p[3] : 0;
+                    if (w < wMin) wMin = w; if (w > wMax) wMax = w;
+                }));
+                const wSpan = Math.max(wMax - wMin, 1e-3);
+                // 手前の辺は白くくっきり、奥の辺は「うっすら細い線」に見えるよう淡いグレーへ寄せる。
+                // 背景の暗色へ落とすと、背景の上では消え・色面の上では黒い実線に見えてしまうので、
+                // 淡色側（消えかけの極細線っぽい薄グレー）へ寄せて、うっすら残るようにする。
+                const NEAR = [1, 1, 1];
+                const FAR = [0.34, 0.37, 0.44];   // 奥の極細線：消えない・黒くない淡いグレー
+                const smooth = t => t * t * (3 - 2 * t);
+                const wColor = (w) => {
+                    const t = smooth(Math.min(1, Math.max(0, (w - wMin) / wSpan)));   // 1=手前, 0=奥
+                    const r = FAR[0] + (NEAR[0] - FAR[0]) * t;
+                    const g = FAR[1] + (NEAR[1] - FAR[1]) * t;
+                    const bl = FAR[2] + (NEAR[2] - FAR[2]) * t;
+                    // フェードは折りたたみ進行に連動：展開図(progress≈0)は白いまま、組み上がるほど奥をうっすらに。
+                    return [1 + (r - 1) * progress, 1 + (g - 1) * progress, 1 + (bl - 1) * progress];
+                };
+
+                cellObjects3D.forEach((cell, ci) => {
+                    const currentVerts = cellVerts[ci];
 
                     const posAttr = cell.geometry.attributes.position;
                     const posArr = posAttr.array;
@@ -1191,7 +1217,9 @@
 
                     const wireAttr = cell.wireGeo.attributes.position;
                     const wireArr = wireAttr.array;
-                    let wPtr = 0;
+                    const colAttr = cell.wireGeo.attributes.color;
+                    const colArr = colAttr ? colAttr.array : null;
+                    let wPtr = 0, cPtr = 0;
 
                     for (let e = 0; e < cubeEdges.length; e++) {
                         const edge = cubeEdges[e];
@@ -1200,8 +1228,16 @@
 
                         wireArr[wPtr++] = vA[0]; wireArr[wPtr++] = vA[1]; wireArr[wPtr++] = vA[2];
                         wireArr[wPtr++] = vB[0]; wireArr[wPtr++] = vB[1]; wireArr[wPtr++] = vB[2];
+
+                        if (colArr) {
+                            const cA = wColor(vA[3] !== undefined ? vA[3] : 0);
+                            const cB = wColor(vB[3] !== undefined ? vB[3] : 0);
+                            colArr[cPtr++] = cA[0]; colArr[cPtr++] = cA[1]; colArr[cPtr++] = cA[2];
+                            colArr[cPtr++] = cB[0]; colArr[cPtr++] = cB[1]; colArr[cPtr++] = cB[2];
+                        }
                     }
                     wireAttr.needsUpdate = true;
+                    if (colAttr) colAttr.needsUpdate = true;
                 });
             }
 
@@ -1306,6 +1342,10 @@
             }
 
             if (axisTween) {
+                // 再生・プリセット移行の間は右オービットの慣性(ダンピング)を止める。
+                //   これをしないと、直前にカメラをドラッグした“勢い”が毎フレーム効き続け、
+                //   正対カメラが目標へ寄り切らない／再生中に視点がガクつく（＝正対が効かない・アニメが飛ぶ）。
+                if (controls3D) controls3D.enableDamping = false;
                 // X-W / Y-W / Z-W の3角度を同時に目標へ補間（軸の消失・90°ステップ共通）
                 axisTween.t += (axisTween.dur > 0 ? _dt / axisTween.dur : 1);
                 const done = axisTween.t >= 1;
@@ -1330,6 +1370,7 @@
                     if (axisTween.fog1 !== undefined) scene3D.fog.density = axisTween.fog1;
                     const cb = axisTween.onDone;   // 到達後の処理（投影モード確定・projAnim解除など）
                     axisTween = null;
+                    if (controls3D) controls3D.enableDamping = true;   // 慣性を元に戻す（手動操作のなめらかさは維持）
                     if (cb) cb();
                 }
                 updateLinkUI();
@@ -1731,8 +1772,10 @@
                 });
             });
             // 回転アニメのプリセット：胞／面／辺／頂点 の向きへ滑らかに移行する（到達後にその投影モードへ）
-            function animToProj(k) {
+            function animToProj(k, faceCamOverride) {
                 stopCycle();
+                // Shift+クリック時は正対の ON/OFF を一時反転（このプリセット移行のみ）。通常は今の正対設定。
+                const effFaceCam = (typeof faceCamOverride === 'boolean') ? faceCamOverride : presetFaceCamera;
                 const P = PROJ_PRESETS[k];
                 linkSpin = false; soloSpinZW = false;
                 document.getElementById('link-spin-btn').classList.remove('bg-purple-600/40', 'border-purple-400', 'text-purple-200');
@@ -1758,7 +1801,7 @@
                 // カメラ正対ON：右カメラを正面へスムーズに移動。
                 //   超立方体優先：遠距離・低画角(17°)＝平行に近い＝きれいな正多角形。
                 //   立方体優先  ：近距離・画角45°＝遠近のまま＝左右とも奥行き。
-                if (presetFaceCamera) {
+                if (effFaceCam) {
                     const PAN_Y = panelHidden ? 0 : -2.6;
                     if (cubePersp) {
                         tw.cam = { p0: camera3D.position.clone(), p1: new THREE.Vector3(0, PAN_Y, 18), f0: camera3D.fov, f1: 45 };
@@ -1800,7 +1843,7 @@
                 faceCamBtn.classList.toggle('border-slate-700', !presetFaceCamera);
             });
             document.querySelectorAll('.anim-proj-btn').forEach(btn => {
-                btn.addEventListener('click', () => animToProj(btn.getAttribute('data-proj')));
+                btn.addEventListener('click', (ev) => animToProj(btn.getAttribute('data-proj'), ev.shiftKey ? !presetFaceCamera : presetFaceCamera));
             });
 
             // --- 左右連動の回転: 1組の角度で、左は X-Z/Y-Z、右は X-W/Y-W を同時に回す ---
