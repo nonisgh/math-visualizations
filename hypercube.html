@@ -166,6 +166,10 @@
                 <button data-proj="face" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,0,0,1)/√2。X-W=45° だけ。六角柱に見える">面から</button>
                 <button data-proj="edge" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,1,0,1)/√3。X-W=45°・Y-W=35.26°">辺から</button>
                 <button data-proj="vertex" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,1,1,1)/2。X-W=45°・Y-W=35.26°・Z-W=30°。4軸が対等＝等角図。外殻は菱形十二面体（距離2に6頂点＋距離√3に8頂点）になり、対角の2頂点は中心に重なる">頂点から（等角図）</button>
+                <button id="cycle-btn" class="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" title="胞→面→辺→頂点 を自動で滑らかに周回する"><i data-lucide="rotate-cw" class="w-3 h-3"></i><span>周回</span></button>
+                <label class="flex items-center gap-1 text-slate-400 shrink-0" title="一周にかける秒数">
+                    <input id="cycle-sec" type="number" min="2" max="120" step="1" value="12" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-amber-200 text-[11px]">秒/周
+                </label>
                 <span id="proj-note" class="text-[10px] text-slate-400"></span>
             </div>
             <p class="text-[10px] text-slate-400 leading-relaxed -mt-1">
@@ -287,6 +291,21 @@
             vertex: { a: EQUI_A, b: EQUI_B, c: EQUI_C, par: true,  name: '視線 (1,1,1,1)/2｜菱形十二面体（外殻14頂点＝6+8）' }
         };
         let parallel4D = false;   // 等角図のときは遠近をやめる（パースが入ると軸の長さが揃わない）
+
+        // --- 胞→面→辺→頂点 を自動で滑らかに周回するモード ---
+        // 各ビューの角度 (a=X-W, b=Y-W, c=Z-W) と投影の混ざり具合 par(0=遠近, 1=平行)。
+        // 胞だけ遠近、他は平行。周回中はこの par を補間して遠近↔平行をなめらかにつなぐ。
+        const CYCLE_WAYPOINTS = [
+            { a: 0,      b: 0,      c: 0,      par: 0 },  // 胞から
+            { a: EQUI_A, b: 0,      c: 0,      par: 1 },  // 面から
+            { a: EQUI_A, b: EQUI_B, c: 0,      par: 1 },  // 辺から
+            { a: EQUI_A, b: EQUI_B, c: EQUI_C, par: 1 }   // 頂点から
+        ];
+        let cycleMode = false;   // 周回中か
+        let cyclePeriod = 12;    // 一周にかける秒数
+        let cyclePhase = 0;      // 0..1 周回の進み
+        let cycleBlend = 0;      // 投影の混ざり（0=遠近, 1=平行）周回中だけ使う
+        let _lastT = 0;          // 実時間 dt 計測用
 
         let enableStagger = true;
         let displayMode = 'both';
@@ -528,17 +547,20 @@
                 vertices4D.push([gx, gy, gz, gw]);
             }
 
-            // 4D → 3D の投影
+            // 4D → 3D の投影。pblend=0 で遠近、1 で平行。周回中はその中間も使って滑らかにつなぐ。
+            const pblend = cycleMode ? cycleBlend : (parallel4D ? 1 : 0);
             const projected = vertices4D.map(p4 => {
-                if (parallel4D) return [p4[0], p4[1], p4[2]];   // 平行投影: w を落とすだけ。遠近が入らないので軸の長さが正確に揃う
+                if (pblend >= 1) return [p4[0], p4[1], p4[2]];   // 平行投影: w を落とすだけ。遠近が入らないので軸の長さが正確に揃う
                 const wVal = p4[3];
                 const safeW = Math.min(Math.max(wVal, -CAMERA_W + 0.5), CAMERA_W - 0.5);
                 const scale = CAMERA_W / (CAMERA_W - safeW);
-
+                const px = p4[0] * scale, py = p4[1] * scale, pz = p4[2] * scale;
+                if (pblend <= 0) return [px, py, pz];
+                // 遠近と平行を線形に混ぜる
                 return [
-                    p4[0] * scale,
-                    p4[1] * scale,
-                    p4[2] * scale
+                    px + (p4[0] - px) * pblend,
+                    py + (p4[1] - py) * pblend,
+                    pz + (p4[2] - pz) * pblend
                 ];
             });
 
@@ -580,6 +602,7 @@
             renderer2D.domElement.addEventListener('pointerdown', e => { dragging = true; px = e.clientX; py = e.clientY; renderer2D.domElement.setPointerCapture(e.pointerId); });
             renderer2D.domElement.addEventListener('pointermove', e => {
                 if (!dragging) return;
+                stopCycle();
                 linkAngleX = wrapPi(linkAngleX + (e.clientX - px) * 0.01);
                 linkAngleY = wrapPi(linkAngleY + (e.clientY - py) * 0.01);
                 px = e.clientX; py = e.clientY;
@@ -813,7 +836,7 @@
                 const fitR = e => Math.max(0.85, Math.min(3.0, 3.8 / Math.max(e, 1e-3)));
                 // 投影プリセット(平行投影)のときだけ実際の角度で測り、従来どおりの大きさに収める。
                 // 通常の視点では角度0の素の形で測る＝回転しても倍率が変わらない（拡大縮小しない）。
-                const useAng = parallel4D;
+                const useAng = parallel4D || cycleMode;
                 const fAX = useAng ? linkAngleX : 0, fAY = useAng ? linkAngleY : 0;
                 const savedZW = soloAngleZW;
                 if (!useAng) soloAngleZW = 0;
@@ -843,8 +866,30 @@
         function animate() {
             requestAnimationFrame(animate);
 
+            // 実時間の経過（秒）。タブ非表示などの大ジャンプは 0.1s で頭打ち。
+            const _now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+            const _dt = _lastT ? Math.min(0.1, (_now - _lastT) / 1000) : 0;
+            _lastT = _now;
+
             const baseStep = 0.005 * animSpeedMultiplier;
             const loopStep = 0.004 * animSpeedMultiplier;
+
+            if (cycleMode) {
+                // 胞→面→辺→頂点→(胞) を等間隔4区間で周回。各区間は smootherstep で緩急をつけ、
+                // それぞれのビューで一瞬たまる（＝順番に見える）ようにする。
+                cyclePhase += _dt / Math.max(1, cyclePeriod);
+                cyclePhase -= Math.floor(cyclePhase);
+                const seg = cyclePhase * 4;
+                const i = Math.floor(seg) % 4, j = (i + 1) % 4;
+                const f = smootherstep(seg - Math.floor(seg));
+                const A = CYCLE_WAYPOINTS[i], B = CYCLE_WAYPOINTS[j];
+                linkAngleX = A.a + (B.a - A.a) * f;
+                linkAngleY = A.b + (B.b - A.b) * f;
+                soloAngleZW = A.c + (B.c - A.c) * f;
+                cycleBlend = A.par + (B.par - A.par) * f;
+                updateLinkUI();
+                updateMorphingGeometry(animationProgress);
+            }
 
             if (animationMode === 1) {
                 animationProgress += baseStep;
@@ -914,6 +959,16 @@
             soloAngleZW = 0;
             updateLinkUI();
             updateMorphingGeometry(animationProgress);
+        }
+
+        // 周回モードを止める。止めた瞬間の投影の混ざり具合を parallel4D に反映して見た目を連続させる。
+        // 手動操作（スライダー・投影/視点ボタン・スピン等）の先頭で呼び、周回と手動の取り合いを防ぐ。
+        function stopCycle() {
+            if (!cycleMode) return;
+            cycleMode = false;
+            parallel4D = cycleBlend >= 0.5;
+            const cb = document.getElementById('cycle-btn');
+            if (cb) cb.classList.remove('bg-amber-600/50', 'border-amber-400', 'text-amber-100');
         }
 
         function setCameraPreset(preset) {
@@ -1090,26 +1145,31 @@
             const linkX = document.getElementById('link-x-slider');
             const linkY = document.getElementById('link-y-slider');
             linkX.addEventListener('input', e => {
+                stopCycle();
                 linkAngleX = parseFloat(e.target.value) * Math.PI / 180;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
             linkY.addEventListener('input', e => {
+                stopCycle();
                 linkAngleY = parseFloat(e.target.value) * Math.PI / 180;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
             const soloZW = document.getElementById('solo-zw-slider');
             soloZW.addEventListener('input', e => {
+                stopCycle();
                 soloAngleZW = parseFloat(e.target.value) * Math.PI / 180;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
             const soloSpinBtn = document.getElementById('solo-spin-btn');
             soloSpinBtn.addEventListener('click', () => {
+                stopCycle();
                 soloSpinZW = !soloSpinZW;
                 soloSpinBtn.classList.toggle('bg-rose-600/40', soloSpinZW);
                 soloSpinBtn.classList.toggle('border-rose-400', soloSpinZW);
                 soloSpinBtn.classList.toggle('text-rose-200', soloSpinZW);
             });
             document.getElementById('link-reset-btn').addEventListener('click', () => {
+                stopCycle();
                 linkSpin = false; soloSpinZW = false;
                 document.getElementById('link-spin-btn').classList.remove('bg-purple-600/40', 'border-purple-400', 'text-purple-200');
                 document.getElementById('solo-spin-btn').classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
@@ -1117,6 +1177,7 @@
             });
             const spinBtn = document.getElementById('link-spin-btn');
             spinBtn.addEventListener('click', () => {
+                stopCycle();
                 linkSpin = !linkSpin;
                 spinBtn.classList.toggle('bg-purple-600/40', linkSpin);
                 spinBtn.classList.toggle('border-purple-400', linkSpin);
@@ -1146,6 +1207,7 @@
 
             document.querySelectorAll('.proj-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
+                    stopCycle();
                     const k = btn.getAttribute('data-proj'), P = PROJ_PRESETS[k];
                     linkSpin = false; soloSpinZW = false;
                     parallel4D = P.par;                // 胞から以外は平行投影（遠近が入ると軸の長さが揃わない）
@@ -1156,6 +1218,36 @@
                     document.querySelectorAll('.proj-btn').forEach(b => b.classList.toggle('bg-amber-600/40', b === btn));
                     document.getElementById('proj-note').innerText = P.name;
                 });
+            });
+
+            // --- 胞→面→辺→頂点 周回モード ---
+            const cycleBtn = document.getElementById('cycle-btn');
+            const cycleSec = document.getElementById('cycle-sec');
+            cycleSec.addEventListener('input', e => {
+                const v = parseFloat(e.target.value);
+                if (!isNaN(v)) cyclePeriod = Math.max(2, Math.min(120, v));
+            });
+            cycleBtn.addEventListener('click', () => {
+                cycleMode = !cycleMode;
+                if (cycleMode) {
+                    // 投影ビュー（胞/面/辺/頂点）は組み上がった超立方体の見方なので、組み上がり状態にする
+                    animationMode = 0; animationProgress = 1;
+                    // 他の回転系を止めて、投影プリセットと同じ正面・遠距離カメラにする
+                    linkSpin = false; soloSpinZW = false; autoRotateCamera = false;
+                    document.getElementById('link-spin-btn').classList.remove('bg-purple-600/40', 'border-purple-400', 'text-purple-200');
+                    document.getElementById('solo-spin-btn').classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
+                    const ar = document.getElementById('auto-rotate-btn');
+                    ar.classList.remove('border-cyan-500/40', 'text-cyan-400'); ar.classList.add('text-slate-400');
+                    document.querySelectorAll('.proj-btn').forEach(b => b.classList.remove('bg-amber-600/40'));
+                    setCameraPreset('proj');
+                    document.getElementById('proj-note').innerText = '周回中：胞 → 面 → 辺 → 頂点';
+                    cycleBtn.classList.add('bg-amber-600/50', 'border-amber-400', 'text-amber-100');
+                } else {
+                    parallel4D = cycleBlend >= 0.5;
+                    cycleBtn.classList.remove('bg-amber-600/50', 'border-amber-400', 'text-amber-100');
+                    document.getElementById('proj-note').innerText = '';
+                    updateMorphingGeometry(animationProgress);
+                }
             });
 
             const autoRotateBtn = document.getElementById('auto-rotate-btn');
@@ -1175,6 +1267,7 @@
 
             document.querySelectorAll('.cam-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
+                    stopCycle();
                     const camType = btn.getAttribute('data-cam');
                     parallel4D = false;
                     setCameraPreset(camType);
