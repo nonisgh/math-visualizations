@@ -116,6 +116,7 @@
             <button class="anim-proj-btn px-2 py-0.5 rounded bg-slate-800 border border-violet-500/40 text-violet-200 hover:bg-slate-700 transition shrink-0" data-proj="edge" title="辺から へアニメ移行">辺</button>
             <button class="anim-proj-btn px-2 py-0.5 rounded bg-slate-800 border border-violet-500/40 text-violet-200 hover:bg-slate-700 transition shrink-0" data-proj="vertex" title="頂点から（等角図）へアニメ移行">頂点</button>
             <button id="face-cam-btn" class="px-2 py-0.5 rounded bg-violet-900/40 border border-violet-500/50 text-violet-200 hover:bg-slate-700 transition shrink-0" title="ON＝プリセット移行時にカメラも正面へ向けて“きれいな正多角形”にする／OFF＝今のカメラのまま">カメラ正対: ON</button>
+            <button id="persp-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition shrink-0" title="超立方体優先＝面/辺/頂点を平行投影できれいな正多角形に（既定）。立方体優先＝プリセットも遠近投影のまま＝左右とも奥行きが出る（正多角形は少しゆがむ）">優先: 超立方体</button>
         </div>
     </div>
 
@@ -369,6 +370,8 @@
         let showAxes = true;      // X/Y/Z/W 座標軸（右・超立方体）を重ねて表示するか（初期状態＝ON）
         let pinVertex = false;    // 点固定モード：投影後の3Dを再回転し、中心の対角2頂点を画面上で重ねる
         let presetFaceCamera = true;   // プリセット移行時にカメラも正面へ向ける（ONできれいな正多角形）
+        let projAnim = null;           // プリセット移行中の投影ブレンド（0=遠近, 1=平行）。nullで非移行
+        let cubePersp = false;         // 立方体パース優先：ONでプリセットも遠近のまま（左右とも奥行き）。既定OFF＝超立方体優先
         let axisTween = null;     // 90°ステップ回転のアニメ {prop,from,to,t,dur}
         
 
@@ -682,7 +685,7 @@
             }
 
             // 4D → 3D の投影。pblend=0 で遠近、1 で平行。周回中はその中間も使って滑らかにつなぐ。
-            const pblend = cycleMode ? cycleBlend : (parallel4D ? 1 : 0);
+            const pblend = cycleMode ? cycleBlend : (projAnim !== null ? projAnim : (parallel4D ? 1 : 0));
             const projected = vertices4D.map(p4 => {
                 if (pblend >= 1) return [p4[0], p4[1], p4[2]];   // 平行投影: w を落とすだけ。遠近が入らないので軸の長さが正確に揃う
                 const wVal = p4[3];
@@ -946,7 +949,7 @@
             if (linkAngleX !== 0) { const c = Math.cos(linkAngleX), s = Math.sin(linkAngleX); const nx = x * c - w * s, nw = x * s + w * c; x = nx; w = nw; }
             if (linkAngleY !== 0) { const c = Math.cos(linkAngleY), s = Math.sin(linkAngleY); const ny = y * c - w * s, nw = y * s + w * c; y = ny; w = nw; }
             if (soloAngleZW !== 0) { const c = Math.cos(soloAngleZW), s = Math.sin(soloAngleZW); const nz = z * c - w * s, nw = z * s + w * c; z = nz; w = nw; }
-            const pblend = cycleMode ? cycleBlend : (parallel4D ? 1 : 0);
+            const pblend = cycleMode ? cycleBlend : (projAnim !== null ? projAnim : (parallel4D ? 1 : 0));
             if (pblend >= 1) return [x, y, z];
             const safeW = Math.min(Math.max(w, -CAMERA_W + 0.5), CAMERA_W - 0.5);
             const scale = CAMERA_W / (CAMERA_W - safeW);
@@ -1213,11 +1216,13 @@
                 // 主役は右の超立方体。左の立方体は添えものなので小さめに収める
                 const fitL = e => Math.max(0.8, Math.min(1.6, 2.9 / Math.max(e, 1e-3)));
                 // 平行投影（面・辺・頂点）は実角度で測ると小さく収まりがちなので、大きめに合わせて胞とそろえる。
-                const bigR = parallel4D || cycleMode;
-                const fitR = e => Math.max(0.85, Math.min(bigR ? 4.2 : 3.0, (bigR ? 4.7 : 3.8) / Math.max(e, 1e-3)));
-                // 投影プリセット(平行投影)のときだけ実際の角度で測り、従来どおりの大きさに収める。
-                // 通常の視点では角度0の素の形で測る＝回転しても倍率が変わらない（拡大縮小しない）。
-                const useAng = parallel4D || cycleMode;
+                // プリセット移行中(projAnim)は、遠近基準(3.8)と平行基準(4.7)を blend して段差なくつなぐ。
+                const inPreset = projAnim !== null;
+                const bigR = parallel4D || cycleMode || inPreset;
+                const tR = inPreset ? (3.8 + (4.7 - 3.8) * projAnim) : (bigR ? 4.7 : 3.8);
+                const fitR = e => Math.max(0.85, Math.min(bigR ? 4.2 : 3.0, tR / Math.max(e, 1e-3)));
+                // 投影プリセット(平行投影)や移行中は実際の角度で測る。通常視点では角度0の素形で測る（回転で倍率不変）。
+                const useAng = parallel4D || cycleMode || inPreset;
                 const fAX = useAng ? linkAngleX : 0, fAY = useAng ? linkAngleY : 0;
                 const savedZW = soloAngleZW;
                 if (!useAng) soloAngleZW = 0;
@@ -1314,13 +1319,16 @@
                     camera3D.fov = cm.f0 + (cm.f1 - cm.f0) * f;
                     camera3D.updateProjectionMatrix();
                 }
+                if (axisTween.pj1 !== undefined) projAnim = axisTween.pj0 + (axisTween.pj1 - axisTween.pj0) * f;   // 投影を連続ブレンド
+                if (axisTween.fog1 !== undefined) scene3D.fog.density = axisTween.fog0 + (axisTween.fog1 - axisTween.fog0) * f;   // フォグ(色/明るさ)も連続
                 if (done) {
                     // 到達後は -180..180 に正規化（見た目は同じ）。次のステップもここから正しく続く。
                     linkAngleX = wrapPi(axisTween.tx);
                     linkAngleY = wrapPi(axisTween.ty);
                     soloAngleZW = wrapPi(axisTween.tz);
                     if (axisTween.cam) { camera3D.position.copy(axisTween.cam.p1); camera3D.fov = axisTween.cam.f1; camera3D.updateProjectionMatrix(); }
-                    const cb = axisTween.onDone;   // 到達後の処理（プリセットの投影モード確定など）
+                    if (axisTween.fog1 !== undefined) scene3D.fog.density = axisTween.fog1;
+                    const cb = axisTween.onDone;   // 到達後の処理（投影モード確定・projAnim解除など）
                     axisTween = null;
                     if (cb) cb();
                 }
@@ -1729,24 +1737,40 @@
                 linkSpin = false; soloSpinZW = false;
                 document.getElementById('link-spin-btn').classList.remove('bg-purple-600/40', 'border-purple-400', 'text-purple-200');
                 document.getElementById('solo-spin-btn').classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
-                // そのプリセット本来の投影で動かす＝胞は遠近、面・辺・頂点は平行投影できれいな正多角形になる。
-                parallel4D = P.par;
+                // 投影（遠近↔平行）とフォグ（色/明るさ）を移行時間中に連続ブレンドして段差なくつなぐ。
+                // 到達後に parallel4D を確定する（onDone）。胞がらみでも一瞬で切り替わらずなめらか。
+                // 立方体パース優先モードでは、超立方体も遠近投影のまま（平行にしない）＝左右とも奥行きが出る。
+                const wantPar = cubePersp ? false : P.par;
+                const projFrom = projAnim !== null ? projAnim : (parallel4D ? 1 : 0);
+                const projTo = wantPar ? 1 : 0;
+                projAnim = projFrom;
+                const fogFar = 0.018 * 18 / 46;
+                const fogFrom = scene3D.fog.density;
                 const tw = {
                     fx: linkAngleX, fy: linkAngleY, fz: soloAngleZW,
                     tx: linkAngleX + wrapPi(P.a - linkAngleX),
                     ty: linkAngleY + wrapPi(P.b - linkAngleY),
                     tz: soloAngleZW + wrapPi(P.c - soloAngleZW),
-                    t: 0, dur: 1.2
+                    t: 0, dur: 1.2,
+                    pj0: projFrom, pj1: projTo,
+                    onDone: () => { parallel4D = wantPar; projAnim = null; }   // 到達後に投影モードを確定
                 };
-                // カメラ正対ON：右カメラも「その視点の正面（遠距離・正対）」へスムーズに移動＝きれいな正多角形になる。
-                // OFF：カメラは今のまま（斜めから見た形のまま）。左の立方体のカメラは常に固定。
+                // カメラ正対ON：右カメラを正面へスムーズに移動。
+                //   超立方体優先：遠距離・低画角(17°)＝平行に近い＝きれいな正多角形。
+                //   立方体優先  ：近距離・画角45°＝遠近のまま＝左右とも奥行き。
                 if (presetFaceCamera) {
                     const PAN_Y = panelHidden ? 0 : -2.6;
-                    tw.cam = { p0: camera3D.position.clone(), p1: new THREE.Vector3(0, PAN_Y, 46), f0: camera3D.fov, f1: 17 };
+                    if (cubePersp) {
+                        tw.cam = { p0: camera3D.position.clone(), p1: new THREE.Vector3(0, PAN_Y, 18), f0: camera3D.fov, f1: 45 };
+                        tw.fog0 = fogFrom; tw.fog1 = 0.018;   // 近距離フォグ
+                    } else {
+                        tw.cam = { p0: camera3D.position.clone(), p1: new THREE.Vector3(0, PAN_Y, 46), f0: camera3D.fov, f1: 17 };
+                        tw.fog0 = fogFrom; tw.fog1 = fogFar;   // 遠距離に合わせてフォグを薄める（連続）
+                    }
                     if (controls3D) controls3D.target.set(0, PAN_Y, 0);
                     camera3D.up.set(0, 1, 0);
-                    scene3D.fog.density = 0.018 * 18 / 46;   // 遠距離に合わせてフォグを薄める
                 }
+                // カメラ正対OFF：カメラを動かさないので、フォグも触らない（今の濃さのまま＝距離に合ったまま・暗くならない）
                 axisTween = tw;
                 document.querySelectorAll('.proj-btn').forEach(bb => bb.classList.toggle('bg-amber-600/40', bb.getAttribute('data-proj') === k));
                 document.getElementById('proj-note').innerText = P.name;
@@ -1755,6 +1779,17 @@
                 document.getElementById('anim-yw').value = Math.round(P.b * 180 / Math.PI);
                 document.getElementById('anim-zw').value = Math.round(P.c * 180 / Math.PI);
             }
+            const perspModeBtn = document.getElementById('persp-mode-btn');
+            perspModeBtn.addEventListener('click', () => {
+                cubePersp = !cubePersp;
+                perspModeBtn.innerText = cubePersp ? "優先: 立方体" : "優先: 超立方体";
+                perspModeBtn.classList.toggle('bg-sky-900/40', cubePersp);
+                perspModeBtn.classList.toggle('border-sky-500/50', cubePersp);
+                perspModeBtn.classList.toggle('text-sky-200', cubePersp);
+                perspModeBtn.classList.toggle('bg-slate-800', !cubePersp);
+                perspModeBtn.classList.toggle('border-slate-700', !cubePersp);
+                perspModeBtn.classList.toggle('text-slate-300', !cubePersp);
+            });
             const faceCamBtn = document.getElementById('face-cam-btn');
             faceCamBtn.addEventListener('click', () => {
                 presetFaceCamera = !presetFaceCamera;
