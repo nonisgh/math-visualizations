@@ -97,7 +97,7 @@
     <!-- ショートカットの案内（パネルを隠しても見えるよう overlay の外に置く） -->
     <div id="shortcut-hint" class="absolute top-3 right-3 z-20 pointer-events-none text-[10px] text-slate-500 bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1 leading-tight text-right">
         <div><span class="text-slate-300 font-bold">Space</span> 表示トグル　<span class="text-slate-300 font-bold">X</span> 操作パネル　<span class="text-slate-300 font-bold">Enter</span> 全回転 ON/OFF</div>
-        <div><span class="text-slate-300 font-bold">C</span> 組み上げる　<span class="text-slate-300 font-bold">V</span> 展開する</div>
+        <div><span class="text-slate-300 font-bold">C</span> 組み上げる　<span class="text-slate-300 font-bold">V</span> 展開する　<span class="text-slate-300 font-bold">Z</span> 組立⇔展開　<span class="text-slate-300 font-bold">A</span> 座標軸　<span class="text-slate-300 font-bold">R</span> 初期化</div>
     </div>
 
     <!-- UI Overlay Layout -->
@@ -162,6 +162,11 @@
                     <button id="axis-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="X/Y/Z/W の座標軸を重ねて表示。W軸は胞から(0°)では中心の一点、X-W/Y-W/Z-Wを回すと外へ伸びる">
                         <i data-lucide="move-3d" class="w-3.5 h-3.5"></i>
                         <span id="axis-text" class="text-[11px]">座標軸: OFF</span>
+                    </button>
+
+                    <button id="pin-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="点固定モード：等角図の中心にくる対角の2頂点を常に画面中心へ重ねたまま回転・変形する（主対角を視線に固定して観測）">
+                        <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+                        <span id="pin-text" class="text-[11px]">点固定: OFF</span>
                     </button>
 
                     <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-[11px]">
@@ -343,6 +348,7 @@
         let panelHidden = false;  // X キーで操作パネルを隠し、立体を大きく表示する
         let lastPreset = 'iso';   // 最後に設定したカメラプリセット（パネル切替時に再適用）
         let showAxes = false;     // X/Y/Z/W 座標軸（右・超立方体）を重ねて表示するか
+        let pinVertex = false;    // 点固定モード：投影後の3Dを再回転し、中心の対角2頂点を画面上で重ねる
         let axisTween = null;     // 90°ステップ回転のアニメ {prop,from,to,t,dur}
         
 
@@ -523,6 +529,35 @@
                     if (s < minSum) { minSum = s; farVertId = { cell: c, corner: k }; }
                 }
             }
+        }
+
+        // --- 点固定モード ---------------------------------------------------
+        // 考え方：まず超立方体を 4D→3D へ「ふつうに投影」する（スライダーの状態どおりの
+        // 本物の形＝胞からなら立方体の入れ子、面からなら六角、等）。中心にくる2頂点（near/far）は、
+        // 投影後の3Dでは必ず「原点を通る1本の直線」上に乗る（near=s(+w)·v3、far=-s(-w)·v3 と
+        // どちらも同じ3D方向 v3 のスカラー倍になるため）。そこで投影後の3D全体（Root3D）を
+        // 「その直線がカメラ方向を向く」ように再回転すれば、2頂点はカメラから見て1本の視線上に
+        // 並び＝画面上でぴったり重なる。形は本物のまま、ディスプレイ側の回転で点にする。
+        const _pinQuat = new THREE.Quaternion();
+        const _pinU = new THREE.Vector3();
+        const _pinDir = new THREE.Vector3();
+        const _pinTmp = new THREE.Vector3();
+        function updatePinRot(progress) {
+            if (!pinVertex) return;   // OFF のときは Root3D に触れない（連動カメラ回転などを壊さない）
+            const root3D = scene3D && scene3D.getObjectByName('Root3D');
+            if (!root3D || !nearVertId || !camera3D) return;
+            // near 頂点の「本物の3D投影位置」（点固定の再回転は含めない＝ローカル座標）
+            const p3 = rotated4DAxis(cellVerts4D(nearVertId.cell, progress)[nearVertId.corner]);
+            _pinU.set(p3[0], p3[1], p3[2]);
+            if (_pinU.lengthSq() < 1e-9) { root3D.quaternion.identity(); return; }
+            _pinU.normalize();
+            // 2頂点はピボット（Root3D中心）を通る1直線上に乗る。その直線をカメラ位置へ向ければ、
+            // 2頂点はカメラから見て同一視線上に並び＝画面上でぴったり重なる（near 側がカメラ寄り＝手前）。
+            root3D.getWorldPosition(_pinTmp);
+            _pinDir.copy(camera3D.position).sub(_pinTmp);
+            if (_pinDir.lengthSq() < 1e-9) return;
+            _pinDir.normalize();
+            root3D.quaternion.copy(_pinQuat.setFromUnitVectors(_pinU, _pinDir));
         }
 
         // --- 中心核胞を中心座標 (0,0,0) へ完璧に固定・補正した計算処理 ---
@@ -849,6 +884,20 @@
         ];
         const _AXIS_UP = new THREE.Vector3(0, 1, 0);   // コーン(矢じり)の既定向き
         let axisLines = [], axisSprites = [], axisCones = [];
+        // --- X/Y/Z 座標軸（左・立方体）--- 左は3Dなので w は無い。z が折りたたみで生まれる軸。
+        const AXES_3D = [
+            { v: [1, 0, 0], color: 0xff5d6c, label: 'x' },
+            { v: [0, 1, 0], color: 0x3ddc84, label: 'y' },
+            { v: [0, 0, 1], color: 0x56a8ff, label: 'z' }
+        ];
+        let axisLinesL = [], axisSpritesL = [], axisConesL = [];
+        // 左立方体と同じ X-Z / Y-Z 回転を軸ベクトルにかける（投影は無く、そのまま3D）
+        function rotatedLeftAxis(p3) {
+            let x = p3[0], y = p3[1], z = p3[2];
+            if (linkAngleX !== 0) { const c = Math.cos(linkAngleX), s = Math.sin(linkAngleX); const rx = x * c - z * s, rz = x * s + z * c; x = rx; z = rz; }
+            if (linkAngleY !== 0) { const c = Math.cos(linkAngleY), s = Math.sin(linkAngleY); const ry = y * c - z * s, rz = y * s + z * c; y = ry; z = rz; }
+            return [x, y, z];
+        }
         let wMarkPlus = null, wMarkMinus = null;   // 4次元の手前/奥の点マーカー（±W の端点）
         const WMARK = S * 0.5;   // 内側/外側の立方体の中心あたりに置く
 
@@ -906,9 +955,34 @@
             group.visible = false;
             root3D.add(group);
             findExtremeVerts();
+            buildLeftAxisGnomon();
+        }
+
+        // 左・立方体の座標軸（x,y,z）を Root2D に作る。右と同じ矢印ギズモ＋小さなセリフ体ラベル。
+        function buildLeftAxisGnomon() {
+            const root2D = scene2D.getObjectByName('Root2D');
+            if (!root2D) return;
+            const group = new THREE.Group(); group.name = 'Axis2D';
+            AXES_3D.forEach(ax => {
+                const geo = new THREE.BufferGeometry();
+                geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+                const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: ax.color, transparent: true, opacity: 0.95, depthTest: false }));
+                line.renderOrder = 1000;
+                group.add(line); axisLinesL.push(line);
+                const cone = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.05, 0.17, 16),
+                    new THREE.MeshBasicMaterial({ color: ax.color, transparent: true, opacity: 0.98, depthTest: false }));
+                cone.renderOrder = 1000;
+                group.add(cone); axisConesL.push(cone);
+                const sp = makeLabelSprite(ax.label, '#' + ax.color.toString(16).padStart(6, '0'));
+                group.add(sp); axisSpritesL.push(sp);
+            });
+            group.visible = false;
+            root2D.add(group);
         }
 
         function updateAxisGnomon(progress) {
+            updateLeftAxisGnomon();   // 左も先に更新（OFF時にも visible=false を確実に反映させる）
             const root3D = scene3D.getObjectByName('Root3D');
             const group = root3D && root3D.getObjectByName('Axis3D');
             if (!group) return;
@@ -946,7 +1020,35 @@
             }
         }
 
+        // 左・立方体の座標軸を更新（X-Z / Y-Z 回転で立方体と一緒に回る）
+        function updateLeftAxisGnomon() {
+            const root2D = scene2D.getObjectByName('Root2D');
+            const group = root2D && root2D.getObjectByName('Axis2D');
+            if (!group) return;
+            group.visible = showAxes;
+            if (!showAxes) return;
+            AXES_3D.forEach((ax, i) => {
+                const tip = rotatedLeftAxis([ax.v[0] * AXIS_LEN, ax.v[1] * AXIS_LEN, ax.v[2] * AXIS_LEN]);
+                const pa = axisLinesL[i].geometry.attributes.position;
+                pa.array[0] = 0; pa.array[1] = 0; pa.array[2] = 0;
+                pa.array[3] = tip[0]; pa.array[4] = tip[1]; pa.array[5] = tip[2];
+                pa.needsUpdate = true;
+                const cone = axisConesL[i];
+                const len = Math.hypot(tip[0], tip[1], tip[2]);
+                if (len < 0.08) { cone.visible = false; }
+                else {
+                    cone.visible = true;
+                    const dx = tip[0] / len, dy = tip[1] / len, dz = tip[2] / len;
+                    cone.quaternion.setFromUnitVectors(_AXIS_UP, new THREE.Vector3(dx, dy, dz));
+                    const back = 0.085;
+                    cone.position.set(tip[0] - dx * back, tip[1] - dy * back, tip[2] - dz * back);
+                }
+                axisSpritesL[i].position.set(tip[0] * 1.2, tip[1] * 1.2, tip[2] * 1.2);
+            });
+        }
+
         function updateMorphingGeometry(progress) {
+            updatePinRot(progress);   // 点固定モードの整列回転を毎フレーム先に更新
             if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'cube') {
                 faceObjects2D.forEach(face => {
                     const currentVerts = calculateFoldedFaceVertices2D(face.id, progress, linkAngleX, linkAngleY);
@@ -1162,6 +1264,7 @@
             }
             if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'hypercube') {
                 controls3D.update();
+                if (pinVertex) updatePinRot(animationProgress);   // カメラ確定後に再回転して点固定
                 renderer3D.render(scene3D, camera3D);
             }
         }
@@ -1405,6 +1508,16 @@
                 else if (e.key === 'x' || e.key === 'X') { e.preventDefault(); togglePanel(); }
                 else if (e.key === 'c' || e.key === 'C') { e.preventDefault(); document.getElementById('play-fold-btn').click(); }    // 組み上げる
                 else if (e.key === 'v' || e.key === 'V') { e.preventDefault(); document.getElementById('play-unfold-btn').click(); }  // 展開する
+                else if (e.key === 'z' || e.key === 'Z') {   // 組み上げる⇔展開する のトグル
+                    e.preventDefault();
+                    let unfold;   // true なら展開する
+                    if (animationMode === 1) unfold = true;        // 組み上げ中 → 反転して展開
+                    else if (animationMode === -1) unfold = false; // 展開中 → 反転して組み上げ
+                    else unfold = animationProgress >= 0.5;        // 静止中：組み上がっていれば展開、展開図なら組み上げ
+                    document.getElementById(unfold ? 'play-unfold-btn' : 'play-fold-btn').click();
+                }
+                else if (e.key === 'a' || e.key === 'A') { e.preventDefault(); document.getElementById('axis-btn').click(); }  // 座標軸 表示/非表示
+                else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); document.getElementById('reset-all-btn').click(); }  // 初期化（読み込み時に戻す）
                 else if (e.key === 'Enter') { e.preventDefault(); toggleAllSpins(); }
             });
 
@@ -1453,6 +1566,25 @@
                     axisText.innerText = "座標軸: OFF";
                     axisBtn.classList.remove('bg-amber-900/40', 'border-amber-500/50', 'text-amber-200');
                     axisBtn.classList.add('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                }
+                updateMorphingGeometry(animationProgress);
+            });
+
+            // 点固定モードのトグル
+            const pinBtn = document.getElementById('pin-btn');
+            const pinText = document.getElementById('pin-text');
+            pinBtn.addEventListener('click', () => {
+                pinVertex = !pinVertex;
+                if (pinVertex) {
+                    pinText.innerText = "点固定: ON";
+                    pinBtn.classList.add('bg-fuchsia-900/40', 'border-fuchsia-500/50', 'text-fuchsia-200');
+                    pinBtn.classList.remove('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                } else {
+                    pinText.innerText = "点固定: OFF";
+                    pinBtn.classList.remove('bg-fuchsia-900/40', 'border-fuchsia-500/50', 'text-fuchsia-200');
+                    pinBtn.classList.add('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                    const r3 = scene3D.getObjectByName('Root3D');
+                    if (r3) r3.quaternion.identity();   // 点固定の再回転を解除して通常の向きへ戻す
                 }
                 updateMorphingGeometry(animationProgress);
             });
