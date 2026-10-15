@@ -153,6 +153,11 @@
                         <span id="zoom-text" class="text-[11px]">自動ズーム: ON</span>
                     </button>
 
+                    <button id="axis-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="X/Y/Z/W の座標軸を重ねて表示。W軸は胞から(0°)では中心の一点、X-W/Y-W/Z-Wを回すと外へ伸びる">
+                        <i data-lucide="move-3d" class="w-3.5 h-3.5"></i>
+                        <span id="axis-text" class="text-[11px]">座標軸: OFF</span>
+                    </button>
+
                     <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-[11px]">
                         <button id="view-mesh-btn" class="px-2 py-0.5 rounded-lg font-medium text-cyan-400 bg-slate-800 transition">メッシュ</button>
                         <button id="view-wire-btn" class="px-2 py-0.5 rounded-lg font-medium text-slate-400 hover:text-white transition">ワイヤー</button>
@@ -218,6 +223,13 @@
                     <span class="text-[10px] font-mono text-slate-400 w-24 shrink-0">左 Y-Z ／ 右 Y-W</span>
                     <input id="link-y-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-400 border border-slate-700">
                     <span id="link-y-val" class="text-[10px] font-mono text-purple-300 w-9 text-right shrink-0">0°</span>
+                </div>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <span class="text-amber-300 shrink-0 flex items-center gap-1"><i data-lucide="rotate-3d" class="w-3.5 h-3.5"></i>90°ずつ回す:</span>
+                    <button class="step90-btn px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" data-plane="x" title="X-W 面で90°回す。X軸が中心へ消え、W が X 方向へ出てくる">X-W</button>
+                    <button class="step90-btn px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" data-plane="y" title="Y-W 面で90°回す。Y軸が中心へ消え、W が Y 方向へ出てくる">Y-W</button>
+                    <button class="step90-btn px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" data-plane="z" title="Z-W 面で90°回す。Z軸が中心へ消え、W が Z 方向へ出てくる">Z-W</button>
+                    <span class="text-[10px] text-slate-500">押すたび1つの軸が中心へ消え、W が入れ替わりに出ます（軸表示が自動でON）</span>
                 </div>
                 <p class="text-[10px] text-slate-400 leading-relaxed">
                     同じ角度を左右に同時にかけています。<b class="text-cyan-300">左はただ立方体が回るだけ</b>。
@@ -311,6 +323,8 @@
         let displayMode = 'both';
         let wireframeOnly = false;
         let autoFitZoom = true;   // 組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の倍率のまま固定
+        let showAxes = false;     // X/Y/Z/W 座標軸（右・超立方体）を重ねて表示するか
+        let axisTween = null;     // 90°ステップ回転のアニメ {prop,from,to,t,dur}
         
 
         const S = 1.8;
@@ -647,6 +661,7 @@
 
             build2DFaces();
             build3DCells();
+            buildAxisGnomon();
 
             updateLayout();
 
@@ -754,6 +769,78 @@
             updateMorphingGeometry(0);
         }
 
+        // --- X/Y/Z/W 座標軸（右・超立方体）---
+        // 超立方体とまったく同じ 4D 回転（X-W, Y-W, Z-W）と投影を軸ベクトルにもかける。
+        // 0°（胞から＝視線が W 方向）では W 軸は x,y,z=0 なので中心の一点につぶれる
+        //   ＝「等角図の中心の点は 4次元のいちばん手前（W方向）」を軸で可視化。
+        // X-W/Y-W/Z-W を 90° 回すと、その W が X/Y/Z 方向へ出てきて「W に伸びる」のが見える。
+        const AXIS_LEN = S * 1.35;
+        const AXES_4D = [
+            { v: [1, 0, 0, 0], color: 0xff5d6c, label: 'X' },
+            { v: [0, 1, 0, 0], color: 0x3ddc84, label: 'Y' },
+            { v: [0, 0, 1, 0], color: 0x56a8ff, label: 'Z' },
+            { v: [0, 0, 0, 1], color: 0xffcc33, label: 'W' }
+        ];
+        let axisLines = [], axisSprites = [];
+
+        function rotated4DAxis(p4) {
+            let x = p4[0], y = p4[1], z = p4[2], w = p4[3];
+            if (linkAngleX !== 0) { const c = Math.cos(linkAngleX), s = Math.sin(linkAngleX); const nx = x * c - w * s, nw = x * s + w * c; x = nx; w = nw; }
+            if (linkAngleY !== 0) { const c = Math.cos(linkAngleY), s = Math.sin(linkAngleY); const ny = y * c - w * s, nw = y * s + w * c; y = ny; w = nw; }
+            if (soloAngleZW !== 0) { const c = Math.cos(soloAngleZW), s = Math.sin(soloAngleZW); const nz = z * c - w * s, nw = z * s + w * c; z = nz; w = nw; }
+            const pblend = cycleMode ? cycleBlend : (parallel4D ? 1 : 0);
+            if (pblend >= 1) return [x, y, z];
+            const safeW = Math.min(Math.max(w, -CAMERA_W + 0.5), CAMERA_W - 0.5);
+            const scale = CAMERA_W / (CAMERA_W - safeW);
+            const px = x * scale, py = y * scale, pz = z * scale;
+            if (pblend <= 0) return [px, py, pz];
+            return [px + (x - px) * pblend, py + (y - py) * pblend, pz + (z - pz) * pblend];
+        }
+
+        function makeLabelSprite(text, cssColor) {
+            const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
+            const ctx = cv.getContext('2d');
+            ctx.font = 'bold 44px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(2,6,18,0.9)'; ctx.strokeText(text, 32, 34);
+            ctx.fillStyle = cssColor; ctx.fillText(text, 32, 34);
+            const tex = new THREE.CanvasTexture(cv);
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+            sp.scale.set(0.85, 0.85, 0.85); sp.renderOrder = 1001;
+            return sp;
+        }
+
+        function buildAxisGnomon() {
+            const root3D = scene3D.getObjectByName('Root3D');
+            const group = new THREE.Group(); group.name = 'Axis3D';
+            AXES_4D.forEach(ax => {
+                const geo = new THREE.BufferGeometry();
+                geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+                const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: ax.color, transparent: true, opacity: 0.95, depthTest: false }));
+                line.renderOrder = 1000;
+                group.add(line); axisLines.push(line);
+                const sp = makeLabelSprite(ax.label, '#' + ax.color.toString(16).padStart(6, '0'));
+                group.add(sp); axisSprites.push(sp);
+            });
+            group.visible = false;
+            root3D.add(group);
+        }
+
+        function updateAxisGnomon() {
+            const root3D = scene3D.getObjectByName('Root3D');
+            const group = root3D && root3D.getObjectByName('Axis3D');
+            if (!group) return;
+            group.visible = showAxes;
+            if (!showAxes) return;
+            AXES_4D.forEach((ax, i) => {
+                const tip = rotated4DAxis([ax.v[0] * AXIS_LEN, ax.v[1] * AXIS_LEN, ax.v[2] * AXIS_LEN, ax.v[3] * AXIS_LEN]);
+                const pa = axisLines[i].geometry.attributes.position;
+                pa.array[0] = 0; pa.array[1] = 0; pa.array[2] = 0;
+                pa.array[3] = tip[0]; pa.array[4] = tip[1]; pa.array[5] = tip[2];
+                pa.needsUpdate = true;
+                axisSprites[i].position.set(tip[0] * 1.12, tip[1] * 1.12, tip[2] * 1.12);
+            });
+        }
+
         function updateMorphingGeometry(progress) {
             if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'cube') {
                 faceObjects2D.forEach(face => {
@@ -849,6 +936,8 @@
                 if (r3) r3.scale.setScalar(fitR(span(rv)));
             }
 
+            updateAxisGnomon();
+
             document.getElementById('unfold-slider').value = progress;
             const percent = Math.round(progress * 100);
             let statusText = "";
@@ -917,6 +1006,26 @@
                 updateMorphingGeometry(animationProgress);
             }
 
+            if (axisTween) {
+                axisTween.t += (axisTween.dur > 0 ? _dt / axisTween.dur : 1);
+                const done = axisTween.t >= 1;
+                const f = smootherstep(Math.min(1, axisTween.t));
+                const val = axisTween.from + (axisTween.to - axisTween.from) * f;
+                if (axisTween.prop === 'linkX') linkAngleX = val;
+                else if (axisTween.prop === 'linkY') linkAngleY = val;
+                else soloAngleZW = val;
+                if (done) {
+                    // 到達後は -180..180 に正規化（見た目は同じ）。次の90°ステップもここから正しく続く。
+                    const w = wrapPi(axisTween.to);
+                    if (axisTween.prop === 'linkX') linkAngleX = w;
+                    else if (axisTween.prop === 'linkY') linkAngleY = w;
+                    else soloAngleZW = w;
+                    axisTween = null;
+                }
+                updateLinkUI();
+                updateMorphingGeometry(animationProgress);
+            }
+
             if (soloSpinZW) {
                 soloAngleZW = wrapPi(soloAngleZW + 0.007 * animSpeedMultiplier);
                 updateLinkUI();
@@ -959,6 +1068,27 @@
             soloAngleZW = 0;
             updateLinkUI();
             updateMorphingGeometry(animationProgress);
+        }
+
+        // 指定の面(X-W/Y-W/Z-W)で +90°（または -90°）だけ、なめらかにカクッと回す。
+        // 今の角度を一番近い90°へ寄せてから dir×90° 進めるので、常にきれいな90°刻みの姿勢になる。
+        // その姿勢では1つの軸が x,y,z=0 になって中心の一点へ消え、入れ替わりに W がその方向へ出てくる。
+        function step90(plane, dir) {
+            stopCycle();
+            linkSpin = false; soloSpinZW = false;
+            document.getElementById('link-spin-btn').classList.remove('bg-purple-600/40', 'border-purple-400', 'text-purple-200');
+            document.getElementById('solo-spin-btn').classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
+            // 確認しやすいよう座標軸を自動でON
+            if (!showAxes) {
+                showAxes = true;
+                const ab = document.getElementById('axis-btn'), at = document.getElementById('axis-text');
+                if (ab && at) { at.innerText = "座標軸: ON (X赤 Y緑 Z青 W黄)"; ab.classList.add('bg-amber-900/40', 'border-amber-500/50', 'text-amber-200'); ab.classList.remove('bg-slate-800/80', 'border-slate-700', 'text-slate-400'); }
+            }
+            const prop = plane === 'x' ? 'linkX' : plane === 'y' ? 'linkY' : 'soloZW';
+            const cur = prop === 'linkX' ? linkAngleX : prop === 'linkY' ? linkAngleY : soloAngleZW;
+            const q = Math.PI / 2;
+            const to = (Math.round(cur / q) + dir) * q;   // 90°へスナップしてから dir×90° 進める（生の値のまま＝最短で回す）
+            axisTween = { prop, from: cur, to, t: 0, dur: 0.55 };
         }
 
         // 周回モードを止める。止めた瞬間の投影の混ざり具合を parallel4D に反映して見た目を連続させる。
@@ -1141,6 +1271,22 @@
                 updateMorphingGeometry(animationProgress);
             });
 
+            const axisBtn = document.getElementById('axis-btn');
+            const axisText = document.getElementById('axis-text');
+            axisBtn.addEventListener('click', () => {
+                showAxes = !showAxes;
+                if (showAxes) {
+                    axisText.innerText = "座標軸: ON (X赤 Y緑 Z青 W黄)";
+                    axisBtn.classList.add('bg-amber-900/40', 'border-amber-500/50', 'text-amber-200');
+                    axisBtn.classList.remove('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                } else {
+                    axisText.innerText = "座標軸: OFF";
+                    axisBtn.classList.remove('bg-amber-900/40', 'border-amber-500/50', 'text-amber-200');
+                    axisBtn.classList.add('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                }
+                updateMorphingGeometry(animationProgress);
+            });
+
             // --- 左右連動の回転: 1組の角度で、左は X-Z/Y-Z、右は X-W/Y-W を同時に回す ---
             const linkX = document.getElementById('link-x-slider');
             const linkY = document.getElementById('link-y-slider');
@@ -1159,6 +1305,11 @@
                 stopCycle();
                 soloAngleZW = parseFloat(e.target.value) * Math.PI / 180;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
+            });
+
+            // 90°ずつステップ回転（X-W / Y-W / Z-W）
+            document.querySelectorAll('.step90-btn').forEach(btn => {
+                btn.addEventListener('click', () => step90(btn.getAttribute('data-plane'), 1));
             });
             const soloSpinBtn = document.getElementById('solo-spin-btn');
             soloSpinBtn.addEventListener('click', () => {
