@@ -95,8 +95,9 @@
     </div>
 
     <!-- ショートカットの案内（パネルを隠しても見えるよう overlay の外に置く） -->
-    <div id="shortcut-hint" class="absolute top-3 right-3 z-20 pointer-events-none text-[10px] text-slate-500 bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1 leading-tight">
-        <span class="text-slate-300 font-bold">Space</span>: 表示 どっちも ⇄ 超立方体のみ　<span class="text-slate-300 font-bold">X</span>: 操作パネル 表示/非表示
+    <div id="shortcut-hint" class="absolute top-3 right-3 z-20 pointer-events-none text-[10px] text-slate-500 bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1 leading-tight text-right">
+        <div><span class="text-slate-300 font-bold">Space</span> 表示トグル　<span class="text-slate-300 font-bold">X</span> 操作パネル　<span class="text-slate-300 font-bold">Enter</span> 全回転 ON/OFF</div>
+        <div><span class="text-slate-300 font-bold">C</span> 組み上げる　<span class="text-slate-300 font-bold">V</span> 展開する</div>
     </div>
 
     <!-- UI Overlay Layout -->
@@ -1384,11 +1385,27 @@
                 setCameraPreset(lastPreset);   // PAN_Y とズームを現在のパネル状態で再適用
                 requestAnimationFrame(onWindowResize);
             }
+            // Enter: 3Dカメラ同期回転・連動スピン・右だけZWオート を同時に ON/OFF
+            function toggleAllSpins() {
+                stopCycle();
+                const target = !(linkSpin && soloSpinZW && autoRotateCamera);  // どれか切なら全部ON、全部ONなら全部OFF
+                linkSpin = target; soloSpinZW = target; autoRotateCamera = target;
+                const sb = document.getElementById('link-spin-btn');
+                sb.classList.toggle('bg-purple-600/40', target); sb.classList.toggle('border-purple-400', target); sb.classList.toggle('text-purple-200', target);
+                const sob = document.getElementById('solo-spin-btn');
+                sob.classList.toggle('bg-rose-600/40', target); sob.classList.toggle('border-rose-400', target); sob.classList.toggle('text-rose-200', target);
+                const ar = document.getElementById('auto-rotate-btn');
+                if (target) { ar.classList.add('border-cyan-500/40', 'text-cyan-400'); ar.classList.remove('text-slate-400'); }
+                else { ar.classList.remove('border-cyan-500/40', 'text-cyan-400'); ar.classList.add('text-slate-400'); }
+            }
             window.addEventListener('keydown', (e) => {
                 const t = e.target;
                 if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
                 if (e.code === 'Space') { e.preventDefault(); toggleBothMode(); }
                 else if (e.key === 'x' || e.key === 'X') { e.preventDefault(); togglePanel(); }
+                else if (e.key === 'c' || e.key === 'C') { e.preventDefault(); document.getElementById('play-fold-btn').click(); }    // 組み上げる
+                else if (e.key === 'v' || e.key === 'V') { e.preventDefault(); document.getElementById('play-unfold-btn').click(); }  // 展開する
+                else if (e.key === 'Enter') { e.preventDefault(); toggleAllSpins(); }
             });
 
             const staggerBtn = document.getElementById('stagger-btn');
