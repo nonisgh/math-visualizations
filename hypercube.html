@@ -94,8 +94,13 @@
         </div>
     </div>
 
+    <!-- ショートカットの案内（パネルを隠しても見えるよう overlay の外に置く） -->
+    <div id="shortcut-hint" class="absolute top-3 right-3 z-20 pointer-events-none text-[10px] text-slate-500 bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1 leading-tight">
+        <span class="text-slate-300 font-bold">Space</span>: 表示 どっちも ⇄ 超立方体のみ　<span class="text-slate-300 font-bold">X</span>: 操作パネル 表示/非表示
+    </div>
+
     <!-- UI Overlay Layout -->
-    <div class="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none p-3 md:p-6">
+    <div id="ui-overlay" class="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none p-3 md:p-6">
         <div></div>
 
         <div class="max-w-5xl w-full mx-auto mt-auto flex flex-col md:flex-row gap-3 items-stretch">
@@ -217,12 +222,22 @@
                 <div class="flex items-center gap-2">
                     <span class="text-[10px] font-mono text-slate-400 w-24 shrink-0">左 X-Z ／ 右 X-W</span>
                     <input id="link-x-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-400 border border-slate-700">
-                    <span id="link-x-val" class="text-[10px] font-mono text-purple-300 w-9 text-right shrink-0">0°</span>
+                    <input id="link-x-num" type="number" min="-180" max="180" step="1" value="0" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-purple-300 text-[10px] font-mono text-right shrink-0" title="角度を直接入力（↑↓キーで微調整）">
+                    <span class="text-[10px] text-slate-500 shrink-0">°</span>
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="text-[10px] font-mono text-slate-400 w-24 shrink-0">左 Y-Z ／ 右 Y-W</span>
                     <input id="link-y-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-400 border border-slate-700">
-                    <span id="link-y-val" class="text-[10px] font-mono text-purple-300 w-9 text-right shrink-0">0°</span>
+                    <input id="link-y-num" type="number" min="-180" max="180" step="1" value="0" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-purple-300 text-[10px] font-mono text-right shrink-0" title="角度を直接入力（↑↓キーで微調整）">
+                    <span class="text-[10px] text-slate-500 shrink-0">°</span>
+                </div>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <span class="text-amber-300 shrink-0 flex items-center gap-1"><i data-lucide="target" class="w-3.5 h-3.5"></i>手前へ消す軸:</span>
+                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#b07cff" data-axis="w" title="W を手前（視線方向）へ。既定の胞から。見える3軸は X,Y,Z">W</button>
+                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#ff5d6c" data-axis="x" title="X を中心の一点へ消す。見える3軸は Y,Z,W">X</button>
+                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#3ddc84" data-axis="y" title="Y を中心の一点へ消す。見える3軸は X,Z,W">Y</button>
+                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#56a8ff" data-axis="z" title="Z を中心の一点へ消す。見える3軸は X,Y,W">Z</button>
+                    <span class="text-[10px] text-slate-500">選んだ軸を視線方向へ送り一点に消す。超立方体は4軸とも対等なのでどれも同じ入れ子に見える</span>
                 </div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-amber-300 shrink-0 flex items-center gap-1"><i data-lucide="rotate-3d" class="w-3.5 h-3.5"></i>90°ずつ回す:</span>
@@ -240,7 +255,8 @@
                 <div class="flex items-center gap-2 pt-1.5 border-t border-slate-800/60">
                     <span class="text-[10px] font-mono text-rose-300 w-24 shrink-0">右だけ Z-W</span>
                     <input id="solo-zw-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-400 border border-slate-700">
-                    <span id="solo-zw-val" class="text-[10px] font-mono text-rose-300 w-9 text-right shrink-0">0°</span>
+                    <input id="solo-zw-num" type="number" min="-180" max="180" step="1" value="0" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-rose-300 text-[10px] font-mono text-right shrink-0" title="角度を直接入力（↑↓キーで微調整）">
+                    <span class="text-[10px] text-slate-500 shrink-0">°</span>
                     <button id="solo-spin-btn" class="shrink-0 flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="Z-W をまわし続ける。左は止まったまま"><i data-lucide="refresh-cw" class="w-3 h-3"></i><span>オート</span></button>
                 </div>
                 <p class="text-[10px] text-slate-400 leading-relaxed">
@@ -323,6 +339,8 @@
         let displayMode = 'both';
         let wireframeOnly = false;
         let autoFitZoom = true;   // 組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の倍率のまま固定
+        let panelHidden = false;  // X キーで操作パネルを隠し、立体を大きく表示する
+        let lastPreset = 'iso';   // 最後に設定したカメラプリセット（パネル切替時に再適用）
         let showAxes = false;     // X/Y/Z/W 座標軸（右・超立方体）を重ねて表示するか
         let axisTween = null;     // 90°ステップ回転のアニメ {prop,from,to,t,dur}
         
@@ -460,6 +478,52 @@
             });
         }
 
+        // 折りたたみ後の胞の8頂点の「4D座標」（X-W/Y-W/Z-W 回転はかける前、PIV補正済み）を返す。
+        // マーカーが追う頂点の4D位置を得るために使う。
+        function cellVerts4D(cellId, progress) {
+            let foldAngle1, foldAngle2;
+            if (enableStagger) {
+                foldAngle1 = smootherstep(Math.min(1.0, progress / 0.60)) * (Math.PI / 2);
+                foldAngle2 = smootherstep(Math.max(0.0, (progress - 0.45) / 0.55)) * (Math.PI / 2);
+            } else {
+                const t = smootherstep(progress);
+                foldAngle1 = t * (Math.PI / 2); foldAngle2 = t * (Math.PI / 2);
+            }
+            const PIV = HALF_S * (foldAngle1 / (Math.PI / 2));
+            const out = [];
+            for (let i = 0; i < 8; i++) {
+                const u = unitCubeVertices[i];
+                let x = u[0] * S, y = u[1] * S, z = u[2] * S;
+                let gx = x, gy = y, gz = z, gw = 0;
+                if (cellId === 0) { gx = x; gy = y; gz = z; gw = 0; }
+                else if (cellId === 1) { const ly = y + HALF_S; gy = HALF_S + ly * Math.cos(foldAngle1); gw = ly * Math.sin(foldAngle1); }
+                else if (cellId === 2) { const ly = y - HALF_S; gy = -HALF_S + ly * Math.cos(foldAngle1); gw = -ly * Math.sin(foldAngle1); }
+                else if (cellId === 3) { const lx = x + HALF_S; gx = HALF_S + lx * Math.cos(foldAngle1); gw = lx * Math.sin(foldAngle1); }
+                else if (cellId === 4) { const lx = x - HALF_S; gx = -HALF_S + lx * Math.cos(foldAngle1); gw = -lx * Math.sin(foldAngle1); }
+                else if (cellId === 5) { const lz = z + HALF_S; gz = HALF_S + lz * Math.cos(foldAngle1); gw = lz * Math.sin(foldAngle1); }
+                else if (cellId === 6) { const lz = z - HALF_S; gz = -HALF_S + lz * Math.cos(foldAngle1); gw = -lz * Math.sin(foldAngle1); }
+                else if (cellId === 7) { const ly = y + HALF_S; const y1 = HALF_S + S * Math.cos(foldAngle1); const w1 = S * Math.sin(foldAngle1); const ta = foldAngle1 + foldAngle2; gy = y1 + ly * Math.cos(ta); gw = w1 + ly * Math.sin(ta); }
+                gw -= PIV;
+                out.push([gx, gy, gz, gw]);
+            }
+            return out;
+        }
+
+        // 等角図で中心にくる頂点（＝対角(1,1,1,1)方向の頂点＝4次元の手前）と、その反対(奥)の
+        // 胞・頂点インデックスを、組み上がり(progress=1)の4D座標から一度だけ特定する。
+        let nearVertId = null, farVertId = null;
+        function findExtremeVerts() {
+            let maxSum = -1e9, minSum = 1e9;
+            for (let c = 0; c < 8; c++) {
+                const vs = cellVerts4D(c, 1);
+                for (let k = 0; k < 8; k++) {
+                    const s = vs[k][0] + vs[k][1] + vs[k][2] + vs[k][3];   // (1,1,1,1)方向への射影
+                    if (s > maxSum) { maxSum = s; nearVertId = { cell: c, corner: k }; }
+                    if (s < minSum) { minSum = s; farVertId = { cell: c, corner: k }; }
+                }
+            }
+        }
+
         // --- 中心核胞を中心座標 (0,0,0) へ完璧に固定・補正した計算処理 ---
         function calculateFoldedCellVertices3D(cellId, progress, angleXW, angleYW) {
             let foldAngle1, foldAngle2;
@@ -582,16 +646,17 @@
         }
 
         function updateLinkUI() {
-            const d = a => (a * 180 / Math.PI).toFixed(0) + '\u00b0';
+            const deg = a => Math.round(a * 180 / Math.PI);
             const sx = document.getElementById('link-x-slider'), sy = document.getElementById('link-y-slider');
             if (sx && document.activeElement !== sx) sx.value = linkAngleX * 180 / Math.PI;
             if (sy && document.activeElement !== sy) sy.value = linkAngleY * 180 / Math.PI;
             const sz = document.getElementById('solo-zw-slider');
             if (sz && document.activeElement !== sz) sz.value = soloAngleZW * 180 / Math.PI;
-            const vx = document.getElementById('link-x-val'), vy = document.getElementById('link-y-val'), vz = document.getElementById('solo-zw-val');
-            if (vx) vx.innerText = d(linkAngleX);
-            if (vy) vy.innerText = d(linkAngleY);
-            if (vz) vz.innerText = d(soloAngleZW);
+            // \u6570\u5024\u5165\u529b\uff08\u7de8\u96c6\u4e2d\u306f\u3053\u3061\u3089\u3092\u4e0a\u66f8\u304d\u3057\u306a\u3044\uff09
+            const nx = document.getElementById('link-x-num'), ny = document.getElementById('link-y-num'), nz = document.getElementById('solo-zw-num');
+            if (nx && document.activeElement !== nx) nx.value = deg(linkAngleX);
+            if (ny && document.activeElement !== ny) ny.value = deg(linkAngleY);
+            if (nz && document.activeElement !== nz) nz.value = deg(soloAngleZW);
         }
 
         function initScenes() {
@@ -776,12 +841,15 @@
         // X-W/Y-W/Z-W を 90° 回すと、その W が X/Y/Z 方向へ出てきて「W に伸びる」のが見える。
         const AXIS_LEN = S * 1.35;
         const AXES_4D = [
-            { v: [1, 0, 0, 0], color: 0xff5d6c, label: 'X' },
-            { v: [0, 1, 0, 0], color: 0x3ddc84, label: 'Y' },
-            { v: [0, 0, 1, 0], color: 0x56a8ff, label: 'Z' },
-            { v: [0, 0, 0, 1], color: 0xffcc33, label: 'W' }
+            { v: [1, 0, 0, 0], color: 0xff5d6c, label: 'x' },
+            { v: [0, 1, 0, 0], color: 0x3ddc84, label: 'y' },
+            { v: [0, 0, 1, 0], color: 0x56a8ff, label: 'z' },
+            { v: [0, 0, 0, 1], color: 0xb07cff, label: 'w' }
         ];
-        let axisLines = [], axisSprites = [];
+        const _AXIS_UP = new THREE.Vector3(0, 1, 0);   // コーン(矢じり)の既定向き
+        let axisLines = [], axisSprites = [], axisCones = [];
+        let wMarkPlus = null, wMarkMinus = null;   // 4次元の手前/奥の点マーカー（±W の端点）
+        const WMARK = S * 0.5;   // 内側/外側の立方体の中心あたりに置く
 
         function rotated4DAxis(p4) {
             let x = p4[0], y = p4[1], z = p4[2], w = p4[3];
@@ -800,12 +868,12 @@
         function makeLabelSprite(text, cssColor) {
             const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
             const ctx = cv.getContext('2d');
-            ctx.font = 'bold 44px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(2,6,18,0.9)'; ctx.strokeText(text, 32, 34);
+            ctx.font = 'italic 42px Georgia, "Times New Roman", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(2,6,18,0.9)'; ctx.strokeText(text, 32, 34);
             ctx.fillStyle = cssColor; ctx.fillText(text, 32, 34);
             const tex = new THREE.CanvasTexture(cv);
             const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-            sp.scale.set(0.85, 0.85, 0.85); sp.renderOrder = 1001;
+            sp.scale.set(0.52, 0.52, 0.52); sp.renderOrder = 1001;
             return sp;
         }
 
@@ -818,27 +886,63 @@
                 const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: ax.color, transparent: true, opacity: 0.95, depthTest: false }));
                 line.renderOrder = 1000;
                 group.add(line); axisLines.push(line);
+                // 矢じり（3DCGソフトのギズモ風の円錐）
+                const cone = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.05, 0.17, 16),
+                    new THREE.MeshBasicMaterial({ color: ax.color, transparent: true, opacity: 0.98, depthTest: false }));
+                cone.renderOrder = 1000;
+                group.add(cone); axisCones.push(cone);
                 const sp = makeLabelSprite(ax.label, '#' + ax.color.toString(16).padStart(6, '0'));
                 group.add(sp); axisSprites.push(sp);
             });
+            // 中心点マーカー：W 方向の端点に球を置く。0°では中心へ、回すとどこへ動くか追える。
+            const mk = (color) => new THREE.Mesh(
+                new THREE.SphereGeometry(0.07, 16, 16),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthTest: false }));
+            wMarkPlus = mk(0xff44dd);  wMarkPlus.renderOrder = 1003;   // 4次元の手前の頂点: マゼンタ（手前に描く）
+            wMarkMinus = mk(0x33e5ff); wMarkMinus.renderOrder = 1002;  // 4次元の奥の頂点: シアン
+            group.add(wMarkPlus, wMarkMinus);
             group.visible = false;
             root3D.add(group);
+            findExtremeVerts();
         }
 
-        function updateAxisGnomon() {
+        function updateAxisGnomon(progress) {
             const root3D = scene3D.getObjectByName('Root3D');
             const group = root3D && root3D.getObjectByName('Axis3D');
             if (!group) return;
             group.visible = showAxes;
             if (!showAxes) return;
+            if (progress === undefined) progress = animationProgress;
             AXES_4D.forEach((ax, i) => {
                 const tip = rotated4DAxis([ax.v[0] * AXIS_LEN, ax.v[1] * AXIS_LEN, ax.v[2] * AXIS_LEN, ax.v[3] * AXIS_LEN]);
                 const pa = axisLines[i].geometry.attributes.position;
                 pa.array[0] = 0; pa.array[1] = 0; pa.array[2] = 0;
                 pa.array[3] = tip[0]; pa.array[4] = tip[1]; pa.array[5] = tip[2];
                 pa.needsUpdate = true;
-                axisSprites[i].position.set(tip[0] * 1.12, tip[1] * 1.12, tip[2] * 1.12);
+                // 矢じり：先端に置いて原点→先端の向きに円錐を回す
+                const cone = axisCones[i];
+                const len = Math.hypot(tip[0], tip[1], tip[2]);
+                if (len < 0.08) {
+                    cone.visible = false;
+                } else {
+                    cone.visible = true;
+                    const dx = tip[0] / len, dy = tip[1] / len, dz = tip[2] / len;
+                    cone.quaternion.setFromUnitVectors(_AXIS_UP, new THREE.Vector3(dx, dy, dz));
+                    const back = 0.085;   // 円錐の高さの半分だけ戻して頂点を先端に合わせる
+                    cone.position.set(tip[0] - dx * back, tip[1] - dy * back, tip[2] - dz * back);
+                }
+                axisSprites[i].position.set(tip[0] * 1.2, tip[1] * 1.2, tip[2] * 1.2);
             });
+            // 中心点マーカー：等角図で中心にくる頂点（手前＝マゼンタ）と、その反対（奥＝シアン）を追う。
+            // 同じ頂点を回転中もずっと追い続けるので、「中心の点がどこへ動くか」を確認できる。
+            if (wMarkPlus && wMarkMinus && nearVertId) {
+                const vp = cellVerts4D(nearVertId.cell, progress)[nearVertId.corner];
+                const vm = cellVerts4D(farVertId.cell, progress)[farVertId.corner];
+                const pp = rotated4DAxis(vp), pm = rotated4DAxis(vm);
+                wMarkPlus.position.set(pp[0], pp[1], pp[2]);
+                wMarkMinus.position.set(pm[0], pm[1], pm[2]);
+            }
         }
 
         function updateMorphingGeometry(progress) {
@@ -936,7 +1040,7 @@
                 if (r3) r3.scale.setScalar(fitR(span(rv)));
             }
 
-            updateAxisGnomon();
+            updateAxisGnomon(progress);
 
             document.getElementById('unfold-slider').value = progress;
             const percent = Math.round(progress * 100);
@@ -1007,19 +1111,18 @@
             }
 
             if (axisTween) {
+                // X-W / Y-W / Z-W の3角度を同時に目標へ補間（軸の消失・90°ステップ共通）
                 axisTween.t += (axisTween.dur > 0 ? _dt / axisTween.dur : 1);
                 const done = axisTween.t >= 1;
                 const f = smootherstep(Math.min(1, axisTween.t));
-                const val = axisTween.from + (axisTween.to - axisTween.from) * f;
-                if (axisTween.prop === 'linkX') linkAngleX = val;
-                else if (axisTween.prop === 'linkY') linkAngleY = val;
-                else soloAngleZW = val;
+                linkAngleX = axisTween.fx + (axisTween.tx - axisTween.fx) * f;
+                linkAngleY = axisTween.fy + (axisTween.ty - axisTween.fy) * f;
+                soloAngleZW = axisTween.fz + (axisTween.tz - axisTween.fz) * f;
                 if (done) {
-                    // 到達後は -180..180 に正規化（見た目は同じ）。次の90°ステップもここから正しく続く。
-                    const w = wrapPi(axisTween.to);
-                    if (axisTween.prop === 'linkX') linkAngleX = w;
-                    else if (axisTween.prop === 'linkY') linkAngleY = w;
-                    else soloAngleZW = w;
+                    // 到達後は -180..180 に正規化（見た目は同じ）。次のステップもここから正しく続く。
+                    linkAngleX = wrapPi(axisTween.tx);
+                    linkAngleY = wrapPi(axisTween.ty);
+                    soloAngleZW = wrapPi(axisTween.tz);
                     axisTween = null;
                 }
                 updateLinkUI();
@@ -1070,25 +1173,48 @@
             updateMorphingGeometry(animationProgress);
         }
 
-        // 指定の面(X-W/Y-W/Z-W)で +90°（または -90°）だけ、なめらかにカクッと回す。
-        // 今の角度を一番近い90°へ寄せてから dir×90° 進めるので、常にきれいな90°刻みの姿勢になる。
-        // その姿勢では1つの軸が x,y,z=0 になって中心の一点へ消え、入れ替わりに W がその方向へ出てくる。
-        function step90(plane, dir) {
+        // 軸回転操作の前処理：周回・各スピンを止め、確認しやすいよう座標軸を自動でON。
+        function _prepAxisMove() {
             stopCycle();
             linkSpin = false; soloSpinZW = false;
             document.getElementById('link-spin-btn').classList.remove('bg-purple-600/40', 'border-purple-400', 'text-purple-200');
             document.getElementById('solo-spin-btn').classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
-            // 確認しやすいよう座標軸を自動でON
             if (!showAxes) {
                 showAxes = true;
                 const ab = document.getElementById('axis-btn'), at = document.getElementById('axis-text');
-                if (ab && at) { at.innerText = "座標軸: ON (X赤 Y緑 Z青 W黄)"; ab.classList.add('bg-amber-900/40', 'border-amber-500/50', 'text-amber-200'); ab.classList.remove('bg-slate-800/80', 'border-slate-700', 'text-slate-400'); }
+                if (ab && at) { at.innerText = "座標軸: ON (X赤 Y緑 Z青 W紫)"; ab.classList.add('bg-amber-900/40', 'border-amber-500/50', 'text-amber-200'); ab.classList.remove('bg-slate-800/80', 'border-slate-700', 'text-slate-400'); }
             }
-            const prop = plane === 'x' ? 'linkX' : plane === 'y' ? 'linkY' : 'soloZW';
-            const cur = prop === 'linkX' ? linkAngleX : prop === 'linkY' ? linkAngleY : soloAngleZW;
+        }
+
+        // 指定の面(X-W/Y-W/Z-W)で +90°（または -90°）だけ、なめらかにカクッと回す。
+        // 今の角度を一番近い90°へ寄せてから dir×90° 進めるので、常にきれいな90°刻みの姿勢になる。
+        function step90(plane, dir) {
+            _prepAxisMove();
             const q = Math.PI / 2;
-            const to = (Math.round(cur / q) + dir) * q;   // 90°へスナップしてから dir×90° 進める（生の値のまま＝最短で回す）
-            axisTween = { prop, from: cur, to, t: 0, dur: 0.55 };
+            let tx = linkAngleX, ty = linkAngleY, tz = soloAngleZW;
+            if (plane === 'x') tx = (Math.round(linkAngleX / q) + dir) * q;
+            else if (plane === 'y') ty = (Math.round(linkAngleY / q) + dir) * q;
+            else tz = (Math.round(soloAngleZW / q) + dir) * q;
+            axisTween = { fx: linkAngleX, fy: linkAngleY, fz: soloAngleZW, tx, ty, tz, t: 0, dur: 0.55 };
+        }
+
+        // 指定の軸（x/y/z/w）を「W の向き＝視線方向」へ倒して、中心の一点へ消す（残り3軸で見る）。
+        // どの状態からでもきれいに単一軸が消えるよう、絶対角度で指定する。
+        //   w: 全部0（既定＝胞から）／ x: X-W=90°・他0 ／ y: Y-W=90°・他0 ／ z: Z-W=90°・他0
+        function vanishAxis(which) {
+            _prepAxisMove();
+            // 消した軸を「正面から覗く」向き＋遠近つきにする（胞からと同じ条件）。
+            // 斜めから見ると入れ子がつぶれて“ただの立方体”に見えるので、正対させて入れ子を見せる。
+            parallel4D = false;
+            setCameraPreset('proj');
+            document.querySelectorAll('.cam-btn').forEach(b => { b.classList.remove('font-bold', 'text-cyan-300'); b.classList.add('text-slate-300'); });
+            document.querySelectorAll('.proj-btn').forEach(b => b.classList.remove('bg-amber-600/40'));
+            const q = Math.PI / 2;
+            let tx = 0, ty = 0, tz = 0;
+            if (which === 'x') tx = q;
+            else if (which === 'y') ty = q;
+            else if (which === 'z') tz = q;
+            axisTween = { fx: linkAngleX, fy: linkAngleY, fz: soloAngleZW, tx, ty, tz, t: 0, dur: 0.6 };
         }
 
         // 周回モードを止める。止めた瞬間の投影の混ざり具合を parallel4D に反映して見た目を連続させる。
@@ -1103,6 +1229,7 @@
 
         function setCameraPreset(preset) {
             if (!camera2D || !camera3D) return;
+            lastPreset = preset;
 
             // 視点（カメラ）を変えても 4D 回転角はそのまま保持する。
             // ここで角度をクリアすると、立方体で作った回転が視点変更のたびに消えて
@@ -1142,6 +1269,8 @@
 
             const fov = far ? 17 : 45;
             camera2D.fov = fov; camera3D.fov = fov;
+            const vz = panelHidden ? 1.32 : 1.0;   // パネル非表示時は空いた領域に立体を大きく表示
+            camera2D.zoom = vz; camera3D.zoom = vz;
             camera2D.updateProjectionMatrix(); camera3D.updateProjectionMatrix();
 
             // 真上から見るときは、視線が up(0,1,0) とほぼ平行になって視線行列が退化し、
@@ -1152,7 +1281,8 @@
             camera3D.up.set(0, topView ? 0 : 1, topView ? -1 : 0);
 
             // 操作パネルが下にあるぶん、注視点を下げて図形を画面の上寄りに置く
-            const PAN_Y = -2.6;
+            // パネルを隠しているときは中央に戻す
+            const PAN_Y = panelHidden ? 0 : -2.6;
             camera2D.position.y += PAN_Y;
             camera3D.position.y += PAN_Y;
             if (controls2D) controls2D.target.set(0, PAN_Y, 0);
@@ -1238,6 +1368,29 @@
                 updateMorphingGeometry(animationProgress);
             });
 
+            // --- キーボードショートカット ---
+            // Space: 表示を「どっちも」⇄「超立方体のみ」でトグル
+            // X    : 操作パネルを隠す／出す（隠すと空いた領域に立体を大きく表示）
+            function toggleBothMode() {
+                displayMode = (displayMode === 'both') ? 'hypercube' : 'both';
+                displayText.innerText = (displayMode === 'both') ? "表示: どっちも" : "表示: 超立方体のみ";
+                updateLayout();
+                updateMorphingGeometry(animationProgress);
+            }
+            function togglePanel() {
+                panelHidden = !panelHidden;
+                const ov = document.getElementById('ui-overlay');
+                if (ov) ov.style.display = panelHidden ? 'none' : '';
+                setCameraPreset(lastPreset);   // PAN_Y とズームを現在のパネル状態で再適用
+                requestAnimationFrame(onWindowResize);
+            }
+            window.addEventListener('keydown', (e) => {
+                const t = e.target;
+                if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+                if (e.code === 'Space') { e.preventDefault(); toggleBothMode(); }
+                else if (e.key === 'x' || e.key === 'X') { e.preventDefault(); togglePanel(); }
+            });
+
             const staggerBtn = document.getElementById('stagger-btn');
             const staggerText = document.getElementById('stagger-text');
             staggerBtn.addEventListener('click', () => {
@@ -1276,7 +1429,7 @@
             axisBtn.addEventListener('click', () => {
                 showAxes = !showAxes;
                 if (showAxes) {
-                    axisText.innerText = "座標軸: ON (X赤 Y緑 Z青 W黄)";
+                    axisText.innerText = "座標軸: ON (X赤 Y緑 Z青 W紫)";
                     axisBtn.classList.add('bg-amber-900/40', 'border-amber-500/50', 'text-amber-200');
                     axisBtn.classList.remove('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
                 } else {
@@ -1307,9 +1460,26 @@
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
 
+            // 角度の数値入力（X-W / Y-W / Z-W）。↑↓キーでも微調整できる。
+            const bindNum = (id, set) => {
+                const el = document.getElementById(id);
+                el.addEventListener('input', e => {
+                    stopCycle();
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v)) { set(v * Math.PI / 180); updateLinkUI(); updateMorphingGeometry(animationProgress); }
+                });
+            };
+            bindNum('link-x-num', v => linkAngleX = v);
+            bindNum('link-y-num', v => linkAngleY = v);
+            bindNum('solo-zw-num', v => soloAngleZW = v);
+
             // 90°ずつステップ回転（X-W / Y-W / Z-W）
             document.querySelectorAll('.step90-btn').forEach(btn => {
                 btn.addEventListener('click', () => step90(btn.getAttribute('data-plane'), 1));
+            });
+            // 指定軸を手前（視線方向）へ消す（W / X / Y / Z）
+            document.querySelectorAll('.vanish-btn').forEach(btn => {
+                btn.addEventListener('click', () => vanishAxis(btn.getAttribute('data-axis')));
             });
             const soloSpinBtn = document.getElementById('solo-spin-btn');
             soloSpinBtn.addEventListener('click', () => {
