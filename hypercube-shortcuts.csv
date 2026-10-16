@@ -26,9 +26,10 @@ zoom,自動ズーム ON/OFF,
 mesh,メッシュ表示,
 wire,ワイヤー表示,
 vanish_w,手前へ消す軸 W,W
-vanish_x,手前へ消す軸 X,
-vanish_y,手前へ消す軸 Y,
-vanish_z,手前へ消す軸 Z,
+vanish_x,手前へ消す軸 X,Shift+X
+vanish_y,手前へ消す軸 Y,Shift+Y
+vanish_z,手前へ消す軸 Z,Shift+Z
 step_xw,90°回す X-W,X
 step_yw,90°回す Y-W,Y
 step_zw,90°回す Z-W,Z
+zwlink,ZW連動 ON/OFF（左の立方体に擬似歪み）,
