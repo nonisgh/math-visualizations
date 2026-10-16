@@ -22,7 +22,7 @@ persp,優先モード切替（超立方体⇔立方体）,J
 pin,点固定 ON/OFF,
 loop,往復再生 ON/OFF,
 xparent,面透過 切替（立体感⇔正確）,V
-zoom,自動ズーム ON/OFF,
+zoom,自動ズーム ON/OFF,3
 mesh,メッシュ表示,
 wire,ワイヤー表示,
 vanish_w,手前へ消す軸 W,W
