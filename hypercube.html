@@ -110,12 +110,16 @@
                 <button id="viewcfg-close" class="text-slate-400 hover:text-slate-200 text-xl leading-none px-1">×</button>
             </div>
             <p class="text-[10px] text-slate-500 mb-3 leading-snug">「面透過: 正確」のときの見た目を調整します。変更は即反映＆このブラウザに保存されます。</p>
+            <p class="text-[10px] text-slate-500 -mt-2 mb-2">※ 設定は超立方体・立方体の両方に反映されます。</p>
             <div class="space-y-3 text-[11px] text-slate-200">
-                <label class="block">面の不透明度 <span id="vc-op-val" class="font-mono text-teal-300 float-right"></span><input id="vc-op" type="range" min="0.05" max="0.6" step="0.01" class="w-full accent-teal-400"></label>
+                <label class="block">面の不透明度（組み上がり） <span id="vc-op-val" class="font-mono text-teal-300 float-right"></span><input id="vc-op" type="range" min="0.05" max="0.6" step="0.01" class="w-full accent-teal-400"></label>
+                <label class="block">展開図の不透明度の上乗せ <span id="vc-fb-val" class="font-mono text-teal-300 float-right"></span><input id="vc-fb" type="range" min="0" max="0.5" step="0.02" class="w-full accent-teal-400"></label>
                 <label class="block">奥の面の暗さ <span class="text-slate-500">(1=暗くしない)</span> <span id="vc-far-val" class="font-mono text-teal-300 float-right"></span><input id="vc-far" type="range" min="0.3" max="1" step="0.05" class="w-full accent-teal-400"></label>
                 <label class="block">手前の面の明るさ <span id="vc-nb-val" class="font-mono text-teal-300 float-right"></span><input id="vc-nb" type="range" min="1" max="1.6" step="0.05" class="w-full accent-teal-400"></label>
+                <label class="block">展開図の奥のコントラスト <span id="vc-fc-val" class="font-mono text-teal-300 float-right"></span><input id="vc-fc" type="range" min="1" max="2.5" step="0.05" class="w-full accent-teal-400"></label>
                 <label class="block">手前の線の濃さ <span id="vc-en-val" class="font-mono text-teal-300 float-right"></span><input id="vc-en" type="range" min="0.3" max="1" step="0.02" class="w-full accent-teal-400"></label>
                 <label class="block">奥の線の濃さ <span id="vc-ef-val" class="font-mono text-teal-300 float-right"></span><input id="vc-ef" type="range" min="0" max="0.5" step="0.02" class="w-full accent-teal-400"></label>
+                <label class="block">遠近の強さ（4D/ZW） <span class="text-slate-500">(小さいほど強い)</span> <span id="vc-cw-val" class="font-mono text-teal-300 float-right"></span><input id="vc-cw" type="range" min="2.5" max="9" step="0.1" class="w-full accent-teal-400"></label>
             </div>
             <div class="flex gap-2 justify-end mt-4">
                 <button id="viewcfg-reset" class="px-2.5 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-xs">既定に戻す</button>
@@ -424,11 +428,13 @@
         let mergedFaces3D = null;    // 正確透過モード用：全胞の面をまとめた1メッシュ（毎フレーム全三角形を深度ソート）
         const _mTri = new THREE.Vector3();
         // 表示設定（設定画面で調整。正確モードの見た目に効く。localStorageに保存）
-        let cfgFaceOpacity = 0.26;   // 面の不透明度（組み上がり時／展開図は少し濃いめ）
-        let cfgFarDim = 0.6;         // 奥の面の暗さ（1=暗くしない）
-        let cfgNearBright = 1.25;    // 手前の面の明るさ
-        let cfgEdgeNear = 0.80;      // 手前の線の濃さ
-        let cfgEdgeFar = 0.17;       // 奥の線の濃さ
+        let cfgFaceOpacity = 0.26;     // 面の不透明度（組み上がり時）
+        let cfgFlatOpacityBoost = 0.26; // 展開図での不透明度の上乗せ（展開図を見やすく）
+        let cfgFarDim = 0.6;           // 奥の面の暗さ（1=暗くしない）
+        let cfgNearBright = 1.25;      // 手前の面の明るさ
+        let cfgFlatContrast = 1.4;     // 展開図での奥のコントラスト（大きいほど展開図の奥が暗い）
+        let cfgEdgeNear = 0.80;        // 手前の線の濃さ
+        let cfgEdgeFar = 0.17;         // 奥の線の濃さ
         const edgeTint = v => [v, Math.min(1, v + 0.02), Math.min(1, v + 0.08)];   // 線色：わずかに青白く
         let zwLink = true;   // ZW連動：ONで ZW回転(soloAngleZW)を左の立方体に「z×cos(zw)」の擬似歪みで反映（90°で平面に潰れ180°で裏返る）
         let autoFitZoom = true;   // 組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の倍率のまま固定
@@ -445,7 +451,7 @@
 
         const S = 1.8;
         const HALF_S = S / 2;
-        const CAMERA_W = 4.5;
+        let CAMERA_W = 4.5;   // 4D遠近の強さ（設定画面で調整。右の超立方体と左のZW遠近に共通）
 
         const cellObjects3D = [];
         const faceObjects2D = [];
@@ -936,9 +942,12 @@
                 const geometry = new THREE.BufferGeometry();
                 const positions = new Float32Array(cubeIndices.length * 3);
                 geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                const cellCol = new Float32Array(cubeIndices.length * 3); cellCol.fill(1);   // 頂点ごとの明るさ（画面奥行きで陰影）
+                geometry.setAttribute('color', new THREE.BufferAttribute(cellCol, 3));
 
                 const material = new THREE.MeshStandardMaterial({
                     color: config.color,
+                    vertexColors: true,   // 手前=明るい／奥=暗い の陰影を面に乗せ、立体感モードの展開図にもコントラストを出す
                     transparent: true,
                     opacity: 0.5,
                     roughness: 0.15,
@@ -1266,7 +1275,8 @@
                     return [LN[0] + (LF[0] - LN[0]) * t, LN[1] + (LF[1] - LN[1]) * t, LN[2] + (LF[2] - LN[2]) * t];
                 };
                 // 面の明るさ係数：正確モードでは右と同じく手前=明るい(NB)/奥=暗い(FAR)。立体感モードは一定(1)。
-                const LF_FAR = cfgFarDim, LF_NB = cfgNearBright;   // 奥の暗さ・手前の明るさは設定画面で調整（右と共通）
+                // 奥の暗さ・手前の明るさは設定画面で調整（右と共通）。展開図は cfgFlatContrast で奥をさらに暗く。
+                const LF_FAR = cfgFarDim / (1 + (cfgFlatContrast - 1) * (1 - progress)), LF_NB = cfgNearBright;
                 const fbright = d => accurateFaces ? (LF_NB - (LF_NB - LF_FAR) * smL((d - zmn) / zsp)) : 1;
 
                 faceObjects2D.forEach((face, fi) => {
@@ -1289,7 +1299,7 @@
                     posAttr.needsUpdate = true;
                     if (fcolAttr) fcolAttr.needsUpdate = true;
                     // 正確モードでは展開図(progress≈0)を濃いめ、組み上がりを薄めにして展開図を見やすく。濃さは設定画面で調整。
-                    if (accurateFaces) face.material.opacity = Math.min(0.95, cfgFaceOpacity + 0.26 * (1 - progress));
+                    if (accurateFaces) face.material.opacity = Math.min(0.95, cfgFaceOpacity + cfgFlatOpacityBoost * (1 - progress));
                     face.geometry.computeVertexNormals();
 
                     const wireAttr = face.wireGeo.attributes.position;
@@ -1332,6 +1342,12 @@
                     if (d < zMin) zMin = d; if (d > zMax) zMax = d; return d;
                 }));
                 const zSpan = Math.max(zMax - zMin, 1e-3), sm = t => t * t * (3 - 2 * t);
+                // 面の陰影と不透明度（立体感モードの面・正確モードのまとめメッシュで共通）。
+                // 手前=明るい(NB)／奥=暗い(FAR_DIM)。展開図(progress≈0)は cfgFlatContrast で奥をさらに暗く＝コントラストを強める。
+                const FAR_DIM = cfgFarDim / (1 + (cfgFlatContrast - 1) * (1 - progress)), NB = cfgNearBright;
+                const brightOf = d => NB - (NB - FAR_DIM) * sm((d - zMin) / zSpan);
+                // 展開図(progress≈0)は濃いめ／組み上がり(1)は薄めにして奥を見せる。
+                const faceOpacity = Math.min(0.95, cfgFaceOpacity + cfgFlatOpacityBoost * (1 - progress));
                 // 辺は「画面の実際の奥行き」でフェード：手前＝白い極細線（内側の立方体の手前側もちゃんと見える）、
                 //   奥＝ダーク／ほぼ消す（隠れている部分は描かない＝立体感）。展開図(progress≈0)は白のまま。
                 // 線の太さはWebGLでは変えられない(常に1px)ので、明るさで細さを表現。濃さは設定画面で調整。
@@ -1347,7 +1363,9 @@
 
                     const posAttr = cell.geometry.attributes.position;
                     const posArr = posAttr.array;
-                    let ptr = 0;
+                    const fcolAttr = cell.geometry.attributes.color;
+                    const fcolArr = fcolAttr ? fcolAttr.array : null;
+                    let ptr = 0, fcp = 0;
 
                     for (let i = 0; i < cubeIndices.length; i++) {
                         const vIdx = cubeIndices[i];
@@ -1355,8 +1373,11 @@
                         posArr[ptr++] = v[0];
                         posArr[ptr++] = v[1];
                         posArr[ptr++] = v[2];
+                        if (fcolArr) { const bt = brightOf(cellDist[ci][vIdx]); fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; }   // 奥ほど暗く＝立体感・コントラスト
                     }
                     posAttr.needsUpdate = true;
+                    if (fcolAttr) fcolAttr.needsUpdate = true;
+                    cell.material.opacity = faceOpacity;   // 展開図は濃いめ／組み上がりは薄め（正確モードと共通）
                     cell.geometry.computeVertexNormals();
 
                     const wireAttr = cell.wireGeo.attributes.position;
@@ -1387,10 +1408,7 @@
                 // 入れ子（内外の立方体）の前後も三角形単位で正しく決まる＝奥の面もちゃんと透ける。
                 if (accurateFaces && mergedFaces3D && mergedFaces3D.visible) {
                     // 展開図(progress≈0)は暗くて見えづらいので濃いめ(0.52)、組み上がり(1)は薄め(0.26)で奥を見せる。
-                    mergedFaces3D.material.opacity = Math.min(0.95, cfgFaceOpacity + 0.26 * (1 - progress));
-                    // 画面の奥行き(cellDist/zMin/zMax)は上で計算済み。奥の面ほど暗く沈めて遠近感を出す。設定画面で調整。
-                    const FAR_DIM = cfgFarDim, NB = cfgNearBright;
-                    const brightOf = d => NB - (NB - FAR_DIM) * sm((d - zMin) / zSpan);
+                    mergedFaces3D.material.opacity = faceOpacity;   // 面の陰影(brightOf)・不透明度(faceOpacity)は上で定義済み（立体感モードと共通）
                     // (B) 「面（四角形＝連続する2三角形）」単位で並べ替える（三角形単位だと斜線の継ぎ目が出る）
                     const quads = [];
                     for (let ci = 0; ci < cellVerts.length; ci++) {
@@ -2032,16 +2050,18 @@
 
             // --- 表示設定モーダル（透明度・奥の暗さ・手前の明るさ・線の濃さ） ---
             const VC_STORE = 'hypercubeViewCfg';
-            const VC_DEF = { op: 0.26, far: 0.6, nb: 1.25, en: 0.80, ef: 0.17 };
+            const VC_DEF = { op: 0.26, fb: 0.26, far: 0.6, nb: 1.25, fc: 1.4, en: 0.80, ef: 0.17, cw: 4.5 };
             function applyViewCfg(c) {
-                cfgFaceOpacity = c.op; cfgFarDim = c.far; cfgNearBright = c.nb; cfgEdgeNear = c.en; cfgEdgeFar = c.ef;
+                cfgFaceOpacity = c.op; cfgFlatOpacityBoost = c.fb; cfgFarDim = c.far; cfgNearBright = c.nb;
+                cfgFlatContrast = c.fc; cfgEdgeNear = c.en; cfgEdgeFar = c.ef; CAMERA_W = c.cw;
                 const set = (id, v, dec) => { const el = document.getElementById(id + '-val'); if (el) el.textContent = (+v).toFixed(dec); const sl = document.getElementById(id); if (sl) sl.value = v; };
-                set('vc-op', c.op, 2); set('vc-far', c.far, 2); set('vc-nb', c.nb, 2); set('vc-en', c.en, 2); set('vc-ef', c.ef, 2);
+                set('vc-op', c.op, 2); set('vc-fb', c.fb, 2); set('vc-far', c.far, 2); set('vc-nb', c.nb, 2);
+                set('vc-fc', c.fc, 2); set('vc-en', c.en, 2); set('vc-ef', c.ef, 2); set('vc-cw', c.cw, 1);
                 try { updateMorphingGeometry(animationProgress); } catch (_) {}
             }
-            function readViewCfg() { return { op: cfgFaceOpacity, far: cfgFarDim, nb: cfgNearBright, en: cfgEdgeNear, ef: cfgEdgeFar }; }
+            function readViewCfg() { return { op: cfgFaceOpacity, fb: cfgFlatOpacityBoost, far: cfgFarDim, nb: cfgNearBright, fc: cfgFlatContrast, en: cfgEdgeNear, ef: cfgEdgeFar, cw: CAMERA_W }; }
             function saveViewCfg() { try { localStorage.setItem(VC_STORE, JSON.stringify(readViewCfg())); } catch (_) {} }
-            [['vc-op', 'op'], ['vc-far', 'far'], ['vc-nb', 'nb'], ['vc-en', 'en'], ['vc-ef', 'ef']].forEach(([id, key]) => {
+            [['vc-op', 'op'], ['vc-fb', 'fb'], ['vc-far', 'far'], ['vc-nb', 'nb'], ['vc-fc', 'fc'], ['vc-en', 'en'], ['vc-ef', 'ef'], ['vc-cw', 'cw']].forEach(([id, key]) => {
                 const sl = document.getElementById(id);
                 sl.addEventListener('input', () => {
                     const c = readViewCfg(); c[key] = parseFloat(sl.value); applyViewCfg(c); saveViewCfg();
