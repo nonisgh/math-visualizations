@@ -117,6 +117,13 @@
             <button class="anim-proj-btn px-2 py-0.5 rounded bg-slate-800 border border-violet-500/40 text-violet-200 hover:bg-slate-700 transition shrink-0" data-proj="vertex" title="頂点から（等角図）へアニメ移行">頂点</button>
             <button id="face-cam-btn" class="px-2 py-0.5 rounded bg-violet-900/40 border border-violet-500/50 text-violet-200 hover:bg-slate-700 transition shrink-0" title="ON＝プリセット移行時にカメラも正面へ向けて“きれいな正多角形”にする／OFF＝今のカメラのまま">カメラ正対: ON</button>
             <button id="persp-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition shrink-0" title="超立方体優先＝面/辺/頂点を平行投影できれいな正多角形に（既定）。立方体優先＝プリセットも遠近投影のまま＝左右とも奥行きが出る（正多角形は少しゆがむ）">優先: 超立方体</button>
+            <span class="text-slate-600 mx-0.5">|</span>
+            <span class="text-amber-300 shrink-0 flex items-center gap-1" title="どの軸を画面に垂直（正面の奥行き）に据えるか。既定は Z（今の正面図）。X/Y はその軸が正面を向くようカメラが回り込み、W は Z-W を90°回して W を奥行きに出す">垂直軸:</span>
+            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-sky-900/50 border-sky-400/60 text-sky-100" data-axis="z" title="Z を画面に垂直（＝今の正面図）。既定">Z</button>
+            <span class="text-[9px] text-slate-500 shrink-0 -ml-1">(既定)</span>
+            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" data-axis="w" style="color:#b07cff" title="W を画面に垂直（奥行き）へ。Z-W を90°回して W を奥へ出す">W</button>
+            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" data-axis="x" title="X を画面に垂直へ。横から覗く向きへカメラが回り込む">X</button>
+            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" data-axis="y" title="Y を画面に垂直へ。真上から覗く向きへカメラが回り込む">Y</button>
         </div>
     </div>
 
@@ -370,6 +377,7 @@
         let showAxes = true;      // X/Y/Z/W 座標軸（右・超立方体）を重ねて表示するか（初期状態＝ON）
         let pinVertex = false;    // 点固定モード：投影後の3Dを再回転し、中心の対角2頂点を画面上で重ねる
         let presetFaceCamera = true;   // プリセット移行時にカメラも正面へ向ける（ONできれいな正多角形）
+        let screenAxis = 'z';          // 画面に垂直に立てる軸（Z=既定）。回転アニメ中もこの軸を立て続ける
         let projAnim = null;           // プリセット移行中の投影ブレンド（0=遠近, 1=平行）。nullで非移行
         let cubePersp = false;         // 立方体パース優先：ONでプリセットも遠近のまま（左右とも奥行き）。既定OFF＝超立方体優先
         let axisTween = null;     // 90°ステップ回転のアニメ {prop,from,to,t,dur}
@@ -1359,6 +1367,34 @@
                     camera3D.fov = cm.f0 + (cm.f1 - cm.f0) * f;
                     camera3D.updateProjectionMatrix();
                 }
+                if (axisTween.camOrbit) {   // 垂直軸：選んだ軸方向へ、球面に沿って弧を描いてカメラを回り込ませる
+                    const co = axisTween.camOrbit;
+                    const dot = Math.max(-1, Math.min(1, co.from.dot(co.to)));
+                    const r = co.r0 + (co.r1 - co.r0) * f;
+                    let dir;
+                    if (dot > 0.9995) dir = co.to.clone();
+                    else {
+                        const theta = Math.acos(dot) * f;
+                        const rel = co.to.clone().addScaledVector(co.from, -dot).normalize();
+                        dir = co.from.clone().multiplyScalar(Math.cos(theta)).addScaledVector(rel, Math.sin(theta));
+                    }
+                    camera3D.position.copy(co.tgt).addScaledVector(dir, r);
+                    camera3D.fov = co.f0 + (co.f1 - co.f0) * f;
+                    camera3D.updateProjectionMatrix();
+                }
+                if (axisTween.trackAxis && screenAxis !== 'z') {   // 移行中ずっと：選んだ軸を画面に垂直に立て続ける（4D回転と同時に3D回り込み）
+                    const BASIS = { x: [1, 0, 0, 0], y: [0, 1, 0, 0], z: [0, 0, 1, 0], w: [0, 0, 0, 1] }[screenAxis];
+                    const d3 = rotated4DAxis(BASIS);
+                    const dir = new THREE.Vector3(d3[0], d3[1], d3[2]);
+                    if (dir.lengthSq() > 1e-6) {   // 軸がつぶれている瞬間はカメラ据え置き
+                        dir.normalize();
+                        const PAN_Y = panelHidden ? 0 : -2.6;
+                        const R = axisTween.trackR0 + (18 - axisTween.trackR0) * f;
+                        camera3D.position.set(dir.x * R, PAN_Y + dir.y * R, dir.z * R);
+                        camera3D.fov = axisTween.trackFov0 + (45 - axisTween.trackFov0) * f;
+                        camera3D.updateProjectionMatrix();
+                    }
+                }
                 if (axisTween.pj1 !== undefined) projAnim = axisTween.pj0 + (axisTween.pj1 - axisTween.pj0) * f;   // 投影を連続ブレンド
                 if (axisTween.fog1 !== undefined) scene3D.fog.density = axisTween.fog0 + (axisTween.fog1 - axisTween.fog0) * f;   // フォグ(色/明るさ)も連続
                 if (done) {
@@ -1367,6 +1403,7 @@
                     linkAngleY = wrapPi(axisTween.ty);
                     soloAngleZW = wrapPi(axisTween.tz);
                     if (axisTween.cam) { camera3D.position.copy(axisTween.cam.p1); camera3D.fov = axisTween.cam.f1; camera3D.updateProjectionMatrix(); }
+                    if (axisTween.camOrbit) { const co = axisTween.camOrbit; camera3D.position.copy(co.tgt).addScaledVector(co.to, co.r1); camera3D.fov = co.f1; camera3D.updateProjectionMatrix(); }
                     if (axisTween.fog1 !== undefined) scene3D.fog.density = axisTween.fog1;
                     const cb = axisTween.onDone;   // 到達後の処理（投影モード確定・projAnim解除など）
                     axisTween = null;
@@ -1763,6 +1800,15 @@
                     tz: target('anim-zw', soloAngleZW),
                     t: 0, dur: 1.2
                 };
+                // 垂直軸がZ以外なら、再生中ずっと（4D回転と同時に）その軸を画面に立て続ける
+                if (screenAxis !== 'z') {
+                    const PAN_Y = panelHidden ? 0 : -2.6;
+                    axisTween.trackAxis = true;
+                    axisTween.trackR0 = camera3D.position.distanceTo(new THREE.Vector3(0, PAN_Y, 0)) || 18;
+                    axisTween.trackFov0 = camera3D.fov;
+                    if (controls3D) controls3D.target.set(0, PAN_Y, 0);
+                    camera3D.up.set(0, 1, 0);
+                }
             }
             document.getElementById('anim-play').addEventListener('click', playRotAnim);
             // 入力欄で Enter を押しても再生
@@ -1798,10 +1844,19 @@
                     pj0: projFrom, pj1: projTo,
                     onDone: () => { parallel4D = wantPar; projAnim = null; }   // 到達後に投影モードを確定
                 };
+                // 垂直軸がZ以外なら、移行中ずっと（4D回転と同時に）その軸を画面に立て続ける
+                if (screenAxis !== 'z') {
+                    const PAN_Y = panelHidden ? 0 : -2.6;
+                    tw.trackAxis = true;
+                    tw.trackR0 = camera3D.position.distanceTo(new THREE.Vector3(0, PAN_Y, 0)) || 18;
+                    tw.trackFov0 = camera3D.fov;
+                    if (controls3D) controls3D.target.set(0, PAN_Y, 0);
+                    camera3D.up.set(0, 1, 0);
+                }
                 // カメラ正対ON：右カメラを正面へスムーズに移動。
                 //   超立方体優先：遠距離・低画角(17°)＝平行に近い＝きれいな正多角形。
                 //   立方体優先  ：近距離・画角45°＝遠近のまま＝左右とも奥行き。
-                if (effFaceCam) {
+                if (effFaceCam && screenAxis === 'z') {   // 垂直軸がZ以外のときは正対せず、到達後に軸を立て直す
                     const PAN_Y = panelHidden ? 0 : -2.6;
                     if (cubePersp) {
                         tw.cam = { p0: camera3D.position.clone(), p1: new THREE.Vector3(0, PAN_Y, 18), f0: camera3D.fov, f1: 45 };
@@ -1844,6 +1899,53 @@
             });
             document.querySelectorAll('.anim-proj-btn').forEach(btn => {
                 btn.addEventListener('click', (ev) => animToProj(btn.getAttribute('data-proj'), ev.shiftKey ? !presetFaceCamera : presetFaceCamera));
+            });
+
+            // --- 画面に垂直な軸を選ぶ：選んだ軸を正面の奥行き（視線方向）へなめらかに据える ---
+            //   X / Y / Z は 3D カメラをその軸方向へ回り込ませる（その軸が画面に垂直になる）。
+            //   W は 3D に軸が無いので Z-W を90°回して W を奥行きへ出す（カメラは正面）。
+            //   既定は Z（今の正面図）。X-W / Y-W の折り角はそのまま保つ。
+            function setScreenAxis(axis) {
+                stopCycle();
+                linkSpin = false; soloSpinZW = false;
+                document.getElementById('link-spin-btn').classList.remove('bg-purple-600/40', 'border-purple-400', 'text-purple-200');
+                document.getElementById('solo-spin-btn').classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
+                screenAxis = axis;
+                // 4D回転（X-W/Y-W/Z-W）はそのまま保持する。
+                // 今の投影で、選んだ軸が3Dモデル上でどの向きに出ているかを rotated4DAxis で求め、
+                // その向きからカメラで覗く＝その軸が画面に垂直（視線方向）になる。
+                const BASIS = { x: [1, 0, 0, 0], y: [0, 1, 0, 0], z: [0, 0, 1, 0], w: [0, 0, 0, 1] }[axis];
+                const d3 = rotated4DAxis(BASIS);
+                let dir = new THREE.Vector3(d3[0], d3[1], d3[2]);
+                if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);   // 軸がつぶれている（例：胞のW）→正面にフォールバック
+                dir.normalize();
+                const PAN_Y = panelHidden ? 0 : -2.6;
+                const tgt = new THREE.Vector3(0, PAN_Y, 0);
+                const r0 = camera3D.position.distanceTo(tgt) || 18;
+                let up = new THREE.Vector3(0, 1, 0);
+                if (Math.abs(dir.dot(up)) > 0.95) up = new THREE.Vector3(0, 0, 1);   // 視線とupが平行になるのを避ける
+                if (controls3D) controls3D.target.copy(tgt);
+                camera3D.up.copy(up);
+                const from = camera3D.position.clone().sub(tgt);
+                if (from.lengthSq() < 1e-6) from.set(0, 0, 1);
+                from.normalize();
+                axisTween = {
+                    fx: linkAngleX, fy: linkAngleY, fz: soloAngleZW,
+                    tx: linkAngleX, ty: linkAngleY, tz: soloAngleZW,   // 4Dは変えない
+                    t: 0, dur: 1.0,
+                    camOrbit: { tgt: tgt, from: from, to: dir.clone(), r0: r0, r1: 18, f0: camera3D.fov, f1: 45 }
+                };
+                document.querySelectorAll('.screen-axis-btn').forEach(b => {
+                    const on = b.getAttribute('data-axis') === axis;
+                    b.classList.toggle('bg-sky-900/50', on);
+                    b.classList.toggle('border-sky-400/60', on);
+                    b.classList.toggle('text-sky-100', on && axis === 'z');
+                    b.classList.toggle('bg-slate-800', !on);
+                    b.classList.toggle('border-slate-700', !on);
+                });
+            }
+            document.querySelectorAll('.screen-axis-btn').forEach(btn => {
+                btn.addEventListener('click', () => setScreenAxis(btn.getAttribute('data-axis')));
             });
 
             // --- 左右連動の回転: 1組の角度で、左は X-Z/Y-Z、右は X-W/Y-W を同時に回す ---
