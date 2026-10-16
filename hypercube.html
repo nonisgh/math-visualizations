@@ -96,8 +96,27 @@
 
     <!-- ショートカットの案内（パネルを隠しても見えるよう overlay の外に置く） -->
     <div id="shortcut-hint" class="absolute top-3 right-3 z-20 pointer-events-none text-[10px] text-slate-500 bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1 leading-tight text-right">
-        <div><span class="text-slate-300 font-bold">Space</span> 表示トグル　<span class="text-slate-300 font-bold">X</span> 操作パネル　<span class="text-slate-300 font-bold">Enter</span> 全回転 ON/OFF</div>
-        <div><span class="text-slate-300 font-bold">C</span> 組み上げる　<span class="text-slate-300 font-bold">V</span> 展開する　<span class="text-slate-300 font-bold">Z</span> 組立⇔展開　<span class="text-slate-300 font-bold">A</span> 座標軸　<span class="text-slate-300 font-bold">O</span> 回転0,0,0　<span class="text-slate-300 font-bold">R</span> 初期化</div>
+        <div id="shortcut-hint-keys"></div>
+        <button id="keycfg-open" class="pointer-events-auto mt-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[10px]" title="ショートカットキーを割り当て・保存・読み込み">⚙ キー設定</button>
+    </div>
+
+    <!-- ショートカットキー設定モーダル -->
+    <div id="keycfg-overlay" class="fixed inset-0 z-50 hidden items-center justify-center">
+        <div class="absolute inset-0 bg-black/60" id="keycfg-backdrop"></div>
+        <div class="relative glass-panel rounded-xl p-4 w-[min(92vw,540px)] max-h-[82vh] overflow-auto shadow-2xl pointer-events-auto">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-sm font-bold text-violet-200 flex items-center gap-1"><i data-lucide="keyboard" class="w-4 h-4"></i>ショートカットキー設定</h2>
+                <button id="keycfg-close" class="text-slate-400 hover:text-slate-200 text-xl leading-none px-1">×</button>
+            </div>
+            <p class="text-[10px] text-slate-500 mb-2 leading-snug">各機能に好きなキーを割り当て（「変更」を押して登録したいキーを押す。重複キーは自動で外れます）。設定はこのブラウザに保存され、同じフォルダに <span class="font-mono text-slate-400">hypercube-shortcuts.csv</span> があれば起動時に毎回それを読み込みます。</p>
+            <div id="keycfg-list" class="mb-3 text-[11px]"></div>
+            <div class="flex flex-wrap gap-2 justify-end">
+                <button id="keycfg-reset" class="px-2.5 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-xs">既定に戻す</button>
+                <button id="keycfg-export" class="px-2.5 py-1 rounded bg-emerald-900/40 border border-emerald-500/40 text-emerald-200 hover:bg-emerald-800/40 text-xs">CSVダウンロード</button>
+                <label class="px-2.5 py-1 rounded bg-sky-900/40 border border-sky-500/40 text-sky-200 hover:bg-sky-800/40 text-xs cursor-pointer">CSV読込<input id="keycfg-import" type="file" accept=".csv,text/csv" class="hidden"></label>
+                <button id="keycfg-close2" class="px-2.5 py-1 rounded bg-violet-600/40 border border-violet-400/50 text-violet-100 hover:bg-violet-600/60 text-xs">閉じる</button>
+            </div>
+        </div>
     </div>
 
     <!-- 回転アニメパネル：操作パネル(X)を隠しても使えるよう overlay の外に置く -->
@@ -200,6 +219,11 @@
                         <button id="view-mesh-btn" class="px-2 py-0.5 rounded-lg font-medium text-cyan-400 bg-slate-800 transition">メッシュ</button>
                         <button id="view-wire-btn" class="px-2 py-0.5 rounded-lg font-medium text-slate-400 hover:text-white transition">ワイヤー</button>
                     </div>
+
+                    <button id="xparent-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="立体感＝今の見た目（奥の面が濃いが立体感が強い）／正確＝毎フレーム面を奥から並べ直し透過を正しく合成（奥の面もちゃんと透ける。立体感は辺のフェードが担う）">
+                        <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                        <span id="xparent-text" class="text-[11px]">面透過: 立体感</span>
+                    </button>
                 </div>
             </div>
 
@@ -371,6 +395,9 @@
         let enableStagger = true;
         let displayMode = 'both';
         let wireframeOnly = false;
+        let accurateFaces = false;   // 面透過：ON=毎フレーム奥から並べ直し＋depthWrite無効で正しく合成。OFF=今の立体感重視
+        let mergedFaces3D = null;    // 正確透過モード用：全胞の面をまとめた1メッシュ（毎フレーム全三角形を深度ソート）
+        const _mTri = new THREE.Vector3();
         let autoFitZoom = true;   // 組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の倍率のまま固定
         let panelHidden = false;  // X キーで操作パネルを隠し、立体を大きく表示する
         let lastPreset = 'iso';   // 最後に設定したカメラプリセット（パネル切替時に再適用）
@@ -429,6 +456,7 @@
             { id: 6, name: "後ヒンジ胞",   color: 0xf43f5e },
             { id: 7, name: "連鎖頂点胞",   color: 0xa855f7 }
         ];
+        const CELL_RGB = cellConfigs3D.map(c => new THREE.Color(c.color));   // 胞ごとの色（正確透過モードの頂点カラーに使う）
 
         const wrapPi = a => { a %= 2 * Math.PI; if (a > Math.PI) a -= 2 * Math.PI; if (a < -Math.PI) a += 2 * Math.PI; return a; };
 
@@ -900,6 +928,18 @@
                 });
             }
 
+            // 正確透過モード用：全胞の面をまとめた1メッシュ（頂点カラーで胞の色を保持、depthWrite無効）
+            {
+                const mg = new THREE.BufferGeometry();
+                const nVert = 8 * cubeIndices.length;   // 8胞 × 36頂点
+                mg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nVert * 3), 3));
+                mg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nVert * 3), 3));
+                const mm = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 0.32, roughness: 0.15, metalness: 0.5, side: THREE.DoubleSide, depthWrite: false });   // 正確モードは薄めにして奥を見やすく
+                mergedFaces3D = new THREE.Mesh(mg, mm);
+                mergedFaces3D.visible = false;
+                root3D.add(mergedFaces3D);
+            }
+
             updateMorphingGeometry(animationProgress);   // 既定の組み上がり状態で初期描画
         }
 
@@ -1194,8 +1234,10 @@
                 // 手前の辺は白くくっきり、奥の辺は「うっすら細い線」に見えるよう淡いグレーへ寄せる。
                 // 背景の暗色へ落とすと、背景の上では消え・色面の上では黒い実線に見えてしまうので、
                 // 淡色側（消えかけの極細線っぽい薄グレー）へ寄せて、うっすら残るようにする。
-                const NEAR = [1, 1, 1];
-                const FAR = [0.34, 0.37, 0.44];   // 奥の極細線：消えない・黒くない淡いグレー
+                // 正確モードは「外側の辺だけ薄く残し、内側(奥)の辺は背景へ沈めてほぼ消す」＝フレームを目立たせず、
+                //   奥の形は陰影・透過（立体感）で分かるようにする。立体感モードは従来どおり。
+                const NEAR = accurateFaces ? [0.70, 0.72, 0.80] : [1, 1, 1];        // 手前(外側)の辺：白すぎない薄グレー
+                const FAR = accurateFaces ? [0.05, 0.06, 0.09] : [0.34, 0.37, 0.44]; // 奥(内側)の辺：背景色へ＝ほぼ消える
                 const smooth = t => t * t * (3 - 2 * t);
                 const wColor = (w) => {
                     const t = smooth(Math.min(1, Math.max(0, (w - wMin) / wSpan)));   // 1=手前, 0=奥
@@ -1247,6 +1289,53 @@
                     wireAttr.needsUpdate = true;
                     if (colAttr) colAttr.needsUpdate = true;
                 });
+
+                // 正確透過モード：全胞の三角形を1つにまとめ、毎フレーム「全体で」カメラから遠い順に並べ替えて描く。
+                // 入れ子（内外の立方体）の前後も三角形単位で正しく決まる＝奥の面もちゃんと透ける。
+                if (accurateFaces && mergedFaces3D && mergedFaces3D.visible) {
+                    const r3 = scene3D.getObjectByName('Root3D');
+                    if (r3) r3.updateMatrixWorld();
+                    camera3D.updateMatrixWorld();
+                    const r3mat = r3 ? r3.matrixWorld : null, camP = camera3D.position;
+                    // (A) 画面の奥行き（カメラからの距離）で各頂点の明るさを決める。
+                    //     奥の面ほど暗く沈めて遠近感を出す＝奥の形が引っ込んで見やすくなる。
+                    let zMin = 1e9, zMax = -1e9; const cellDist = [];
+                    for (let ci = 0; ci < cellVerts.length; ci++) {
+                        const cv = cellVerts[ci]; const ds = new Array(cv.length);
+                        for (let vi = 0; vi < cv.length; vi++) {
+                            const v = cv[vi]; _mTri.set(v[0], v[1], v[2]); if (r3mat) _mTri.applyMatrix4(r3mat);
+                            const d = _mTri.distanceTo(camP); ds[vi] = d;
+                            if (d < zMin) zMin = d; if (d > zMax) zMax = d;
+                        }
+                        cellDist.push(ds);
+                    }
+                    const zSpan = Math.max(zMax - zMin, 1e-3), FAR_DIM = 0.5, sm = t => t * t * (3 - 2 * t);
+                    const brightOf = d => 1 - (1 - FAR_DIM) * sm((d - zMin) / zSpan);   // 手前=1.0, 奥=FAR_DIM
+                    // (B) 「面（四角形＝連続する2三角形）」単位で並べ替える（三角形単位だと斜線の継ぎ目が出る）
+                    const quads = [];
+                    for (let ci = 0; ci < cellVerts.length; ci++) {
+                        for (let q = 0; q < 6; q++) {
+                            const base = q * 6; let dsum = 0;
+                            for (let k = 0; k < 6; k++) dsum += cellDist[ci][cubeIndices[base + k]];
+                            quads.push([ci, base, dsum]);   // 面の奥行き（6頂点の距離和）で並べ替え
+                        }
+                    }
+                    quads.sort((p, q) => q[2] - p[2]);   // 遠い面を先に描く
+                    const mpos = mergedFaces3D.geometry.attributes.position.array;
+                    const mcol = mergedFaces3D.geometry.attributes.color.array;
+                    let mp = 0, mc = 0;
+                    for (let qi = 0; qi < quads.length; qi++) {
+                        const ci = quads[qi][0], base = quads[qi][1], cv = cellVerts[ci], C = CELL_RGB[ci];
+                        for (let k = 0; k < 6; k++) {   // 面の2三角形を連続で書く＝斜線が出ない
+                            const idx = cubeIndices[base + k], v = cv[idx], bt = brightOf(cellDist[ci][idx]);
+                            mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
+                            mcol[mc++] = C.r * bt; mcol[mc++] = C.g * bt; mcol[mc++] = C.b * bt;   // 奥ほど暗く＝遠近感
+                        }
+                    }
+                    mergedFaces3D.geometry.attributes.position.needsUpdate = true;
+                    mergedFaces3D.geometry.attributes.color.needsUpdate = true;
+                    mergedFaces3D.geometry.computeVertexNormals();
+                }
             }
 
             if (autoFitZoom) {   // 自動ズームON時のみ。OFFなら倍率を触らない＝今の大きさのまま折りたたみを確認できる。
@@ -1679,35 +1768,176 @@
                 if (target) { ar.classList.add('border-cyan-500/40', 'text-cyan-400'); ar.classList.remove('text-slate-400'); }
                 else { ar.classList.remove('border-cyan-500/40', 'text-cyan-400'); ar.classList.add('text-slate-400'); }
             }
+            // --- O: 回転を 0,0,0 へ ---
+            function doOrigin() {
+                stopCycle();
+                axisTween = null; projAnim = null;   // 進行中の移行を止める（これが無いと O 後にtweenが上書きして戻らない）
+                linkSpin = false; soloSpinZW = false;
+                document.getElementById('link-spin-btn').classList.remove('bg-purple-600/40', 'border-purple-400', 'text-purple-200');
+                document.getElementById('solo-spin-btn').classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
+                parallel4D = false;
+                linkAngleX = 0; linkAngleY = 0; soloAngleZW = 0;
+                updateLinkUI(); updateMorphingGeometry(animationProgress);
+            }
+            // --- Z: 組み上げ⇔展開 トグル ---
+            function doFoldToggle() {
+                let unfold;
+                if (animationMode === 1) unfold = true;
+                else if (animationMode === -1) unfold = false;
+                else unfold = animationProgress >= 0.5;
+                document.getElementById(unfold ? 'play-unfold-btn' : 'play-fold-btn').click();
+            }
+            const clickSel = sel => () => { const el = document.querySelector(sel); if (el) el.click(); };
+
+            // --- ショートカット：アクション登録表（label=設定画面の表示名, short=ヒント用の短縮名, def=既定キー） ---
+            const SHORTCUT_ACTIONS = [
+                { id: 'both', label: '表示トグル（どっちも⇔超立方体のみ）', short: '表示トグル', def: 'Space', run: toggleBothMode },
+                { id: 'panel', label: '操作パネル 表示/非表示', short: '操作パネル', def: 'X', run: togglePanel },
+                { id: 'allSpins', label: '全回転 ON/OFF（同期回転＋スピン＋ZWオート）', short: '全回転', def: 'Enter', run: toggleAllSpins },
+                { id: 'fold', label: '組み上げる', short: '組み上げ', def: 'C', run: clickSel('#play-fold-btn') },
+                { id: 'unfold', label: '展開する', short: '展開', def: 'V', run: clickSel('#play-unfold-btn') },
+                { id: 'foldToggle', label: '組立⇔展開 トグル', short: '組立⇔展開', def: 'Z', run: doFoldToggle },
+                { id: 'axis', label: '座標軸 表示/非表示', short: '座標軸', def: 'A', run: clickSel('#axis-btn') },
+                { id: 'origin', label: '回転を 0,0,0', short: '回転0,0,0', def: 'O', run: doOrigin },
+                { id: 'reset', label: '初期化（読み込み時に戻す）', short: '初期化', def: 'R', run: clickSel('#reset-all-btn') },
+                { id: 'play', label: '回転アニメ 再生', short: '再生', def: '', run: clickSel('#anim-play') },
+                { id: 'preset_cell', label: 'プリセット 胞', short: '胞', def: '', run: clickSel('.anim-proj-btn[data-proj="cell"]') },
+                { id: 'preset_face', label: 'プリセット 面', short: '面', def: '', run: clickSel('.anim-proj-btn[data-proj="face"]') },
+                { id: 'preset_edge', label: 'プリセット 辺', short: '辺', def: '', run: clickSel('.anim-proj-btn[data-proj="edge"]') },
+                { id: 'preset_vertex', label: 'プリセット 頂点', short: '頂点', def: '', run: clickSel('.anim-proj-btn[data-proj="vertex"]') },
+                { id: 'vaxis_z', label: '垂直軸 Z', short: '垂直Z', def: '', run: clickSel('.screen-axis-btn[data-axis="z"]') },
+                { id: 'vaxis_w', label: '垂直軸 W', short: '垂直W', def: '', run: clickSel('.screen-axis-btn[data-axis="w"]') },
+                { id: 'vaxis_x', label: '垂直軸 X', short: '垂直X', def: '', run: clickSel('.screen-axis-btn[data-axis="x"]') },
+                { id: 'vaxis_y', label: '垂直軸 Y', short: '垂直Y', def: '', run: clickSel('.screen-axis-btn[data-axis="y"]') },
+                { id: 'facecam', label: 'カメラ正対 ON/OFF', short: '正対', def: '', run: clickSel('#face-cam-btn') },
+                { id: 'persp', label: '優先モード切替（超立方体⇔立方体）', short: '優先', def: '', run: clickSel('#persp-mode-btn') },
+                { id: 'pin', label: '点固定 ON/OFF', short: '点固定', def: '', run: clickSel('#pin-btn') },
+                { id: 'loop', label: '往復再生 ON/OFF', short: '往復', def: '', run: clickSel('#loop-btn') },
+                { id: 'xparent', label: '面透過 切替（立体感⇔正確）', short: '面透過', def: '', run: clickSel('#xparent-btn') },
+                { id: 'zoom', label: '自動ズーム ON/OFF', short: '自動ズーム', def: '', run: clickSel('#zoom-btn') },
+                { id: 'mesh', label: 'メッシュ表示', short: 'メッシュ', def: '', run: clickSel('#view-mesh-btn') },
+                { id: 'wire', label: 'ワイヤー表示', short: 'ワイヤー', def: '', run: clickSel('#view-wire-btn') },
+                { id: 'vanish_w', label: '手前へ消す軸 W', short: '消すW', def: '', run: clickSel('.vanish-btn[data-axis="w"]') },
+                { id: 'vanish_x', label: '手前へ消す軸 X', short: '消すX', def: '', run: clickSel('.vanish-btn[data-axis="x"]') },
+                { id: 'vanish_y', label: '手前へ消す軸 Y', short: '消すY', def: '', run: clickSel('.vanish-btn[data-axis="y"]') },
+                { id: 'vanish_z', label: '手前へ消す軸 Z', short: '消すZ', def: '', run: clickSel('.vanish-btn[data-axis="z"]') },
+                { id: 'step_xw', label: '90°回す X-W', short: '90°XW', def: '', run: clickSel('.step90-btn[data-plane="x"]') },
+                { id: 'step_yw', label: '90°回す Y-W', short: '90°YW', def: '', run: clickSel('.step90-btn[data-plane="y"]') },
+                { id: 'step_zw', label: '90°回す Z-W', short: '90°ZW', def: '', run: clickSel('.step90-btn[data-plane="z"]') }
+            ];
+            const SC_STORE = 'hypercubeShortcuts', SC_FILE = 'hypercube-shortcuts.csv';
+            let keyMap = {};
+            let scRecording = null;   // 記録中のアクションID
+            function defaultMap() { const m = {}; SHORTCUT_ACTIONS.forEach(a => m[a.id] = a.def); return m; }
+            function keyToken(e) {    // キーを登録・照合用の文字列トークンに正規化
+                if (e.code === 'Space') return 'Space';
+                if (e.key === 'Enter') return 'Enter';
+                if (e.key === 'Escape') return 'Escape';
+                if (e.key && e.key.length === 1) return e.key.toUpperCase();
+                if (/^(Arrow(Up|Down|Left|Right)|F([1-9]|1[0-2])|Home|End|PageUp|PageDown|Insert|Delete|Backspace|Tab)$/.test(e.key)) return e.key;
+                return null;
+            }
+            function saveMap() { try { localStorage.setItem(SC_STORE, JSON.stringify(keyMap)); } catch (_) {} }
+            function applyMap(m) { keyMap = Object.assign(defaultMap(), m || {}); renderHint(); }
+            function renderHint() {
+                const el = document.getElementById('shortcut-hint-keys'); if (!el) return;
+                el.innerHTML = SHORTCUT_ACTIONS.filter(a => keyMap[a.id]).map(a =>
+                    '<span class="text-slate-300 font-bold">' + keyMap[a.id] + '</span> ' + a.short).join('　');
+            }
+            function parseCSV(txt) {   // id,label,key / id,key どちらでも読める
+                const map = {};
+                String(txt).split(/\r?\n/).forEach(line => {
+                    if (!line.trim()) return;
+                    const cols = line.split(',');
+                    const id = (cols[0] || '').trim();
+                    if (!id || id.toLowerCase() === 'id') return;   // ヘッダ/空はスキップ
+                    const key = (cols.length >= 3 ? cols[2] : cols[1] || '').trim();
+                    if (SHORTCUT_ACTIONS.some(a => a.id === id)) map[id] = key;
+                });
+                return map;
+            }
+            function toCSV() {
+                let out = 'id,label,key\n';
+                SHORTCUT_ACTIONS.forEach(a => { out += a.id + ',' + a.label.replace(/,/g, '、') + ',' + (keyMap[a.id] || '') + '\n'; });
+                return out;
+            }
+            function downloadCSV() {
+                const blob = new Blob([toCSV()], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = SC_FILE; document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }
+            // メインのキー処理：押されたキーに割り当てられたアクションを実行
             window.addEventListener('keydown', (e) => {
+                if (scRecording) return;   // 記録中は捕捉側で処理
                 const t = e.target;
                 if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-                if (e.code === 'Space') { e.preventDefault(); toggleBothMode(); }
-                else if (e.key === 'x' || e.key === 'X') { e.preventDefault(); togglePanel(); }
-                else if (e.key === 'c' || e.key === 'C') { e.preventDefault(); document.getElementById('play-fold-btn').click(); }    // 組み上げる
-                else if (e.key === 'v' || e.key === 'V') { e.preventDefault(); document.getElementById('play-unfold-btn').click(); }  // 展開する
-                else if (e.key === 'z' || e.key === 'Z') {   // 組み上げる⇔展開する のトグル
-                    e.preventDefault();
-                    let unfold;   // true なら展開する
-                    if (animationMode === 1) unfold = true;        // 組み上げ中 → 反転して展開
-                    else if (animationMode === -1) unfold = false; // 展開中 → 反転して組み上げ
-                    else unfold = animationProgress >= 0.5;        // 静止中：組み上がっていれば展開、展開図なら組み上げ
-                    document.getElementById(unfold ? 'play-unfold-btn' : 'play-fold-btn').click();
-                }
-                else if (e.key === 'a' || e.key === 'A') { e.preventDefault(); document.getElementById('axis-btn').click(); }  // 座標軸 表示/非表示
-                else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); document.getElementById('reset-all-btn').click(); }  // 初期化（読み込み時に戻す）
-                else if (e.key === 'o' || e.key === 'O') {   // X-W/Y-W/Z-W を 0,0,0 へ（正面の向き・遠近に戻す）
-                    e.preventDefault();
-                    stopCycle();
-                    linkSpin = false; soloSpinZW = false;
-                    document.getElementById('link-spin-btn').classList.remove('bg-purple-600/40', 'border-purple-400', 'text-purple-200');
-                    document.getElementById('solo-spin-btn').classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
-                    parallel4D = false;
-                    linkAngleX = 0; linkAngleY = 0; soloAngleZW = 0;
-                    updateLinkUI(); updateMorphingGeometry(animationProgress);
-                }
-                else if (e.key === 'Enter') { e.preventDefault(); toggleAllSpins(); }
+                if (document.getElementById('keycfg-overlay') && !document.getElementById('keycfg-overlay').classList.contains('hidden')) return;  // 設定を開いている間は無効
+                const tok = keyToken(e); if (!tok) return;
+                const up = tok.toUpperCase();
+                const act = SHORTCUT_ACTIONS.find(a => keyMap[a.id] && keyMap[a.id].toUpperCase() === up);
+                if (act) { e.preventDefault(); act.run(); }
             });
+
+            // --- 設定モーダル ---
+            function renderCfgList() {
+                const list = document.getElementById('keycfg-list'); if (!list) return;
+                list.innerHTML = '';
+                SHORTCUT_ACTIONS.forEach(a => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center justify-between gap-2 py-1 border-b border-slate-800';
+                    const lab = document.createElement('span'); lab.className = 'text-slate-200'; lab.textContent = a.label;
+                    const right = document.createElement('div'); right.className = 'flex items-center gap-1.5 shrink-0';
+                    const kbd = document.createElement('kbd'); kbd.className = 'px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-100 min-w-[3.2rem] text-center'; kbd.textContent = keyMap[a.id] || '—';
+                    const btn = document.createElement('button'); btn.className = 'px-2 py-0.5 rounded bg-sky-900/40 border border-sky-500/40 text-sky-200 hover:bg-sky-800/40'; btn.textContent = '変更';
+                    const clr = document.createElement('button'); clr.className = 'px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-400 hover:bg-slate-700'; clr.textContent = '消す';
+                    btn.addEventListener('click', () => startRecord(a.id, kbd, btn));
+                    clr.addEventListener('click', () => { keyMap[a.id] = ''; saveMap(); kbd.textContent = '—'; renderHint(); });
+                    right.append(kbd, btn, clr); row.append(lab, right); list.append(row);
+                });
+            }
+            function startRecord(id, kbd, btn) {
+                if (scRecording) return;
+                scRecording = id; btn.textContent = 'キーを押す…'; kbd.textContent = '…';
+                const onKey = (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    if (e.key === 'Escape') { cleanup(); kbd.textContent = keyMap[id] || '—'; return; }
+                    const tok = keyToken(e); if (!tok) return;
+                    SHORTCUT_ACTIONS.forEach(a => { if (a.id !== id && (keyMap[a.id] || '').toUpperCase() === tok.toUpperCase()) keyMap[a.id] = ''; });  // 重複解除
+                    keyMap[id] = tok; saveMap(); cleanup(); renderCfgList(); renderHint();
+                };
+                function cleanup() { scRecording = null; btn.textContent = '変更'; window.removeEventListener('keydown', onKey, true); }
+                window.addEventListener('keydown', onKey, true);
+            }
+            function openKeyCfg() { const ov = document.getElementById('keycfg-overlay'); ov.classList.remove('hidden'); ov.classList.add('flex'); renderCfgList(); }
+            function closeKeyCfg() { const ov = document.getElementById('keycfg-overlay'); ov.classList.add('hidden'); ov.classList.remove('flex'); }
+            document.getElementById('keycfg-open').addEventListener('click', openKeyCfg);
+            document.getElementById('keycfg-close').addEventListener('click', closeKeyCfg);
+            document.getElementById('keycfg-close2').addEventListener('click', closeKeyCfg);
+            document.getElementById('keycfg-backdrop').addEventListener('click', closeKeyCfg);
+            document.getElementById('keycfg-reset').addEventListener('click', () => { keyMap = defaultMap(); saveMap(); renderCfgList(); renderHint(); });
+            document.getElementById('keycfg-export').addEventListener('click', downloadCSV);
+            document.getElementById('keycfg-import').addEventListener('change', (e) => {
+                const f = e.target.files && e.target.files[0]; if (!f) return;
+                const rd = new FileReader();
+                rd.onload = () => { const fm = parseCSV(rd.result); applyMap(Object.assign({}, keyMap, fm)); saveMap(); renderCfgList(); renderHint(); };
+                rd.readAsText(f); e.target.value = '';
+            });
+
+            // --- 起動時ロード：既定 → ローカルストレージ → 同じフォルダの設定ファイル(あれば優先) ---
+            (function initShortcuts() {
+                let m = defaultMap();
+                try { const s = localStorage.getItem(SC_STORE); if (s) m = Object.assign(m, JSON.parse(s)); } catch (_) {}
+                applyMap(m);
+                // 同じフォルダの設定ファイルは、http/https で配信されているときだけ読み込む
+                // （file:// で開いた場合はブラウザが fetch を禁止するのでスキップ＝ローカルストレージのまま）
+                if (location.protocol === 'http:' || location.protocol === 'https:') {
+                    fetch(SC_FILE, { cache: 'no-store' })
+                        .then(r => r.ok ? r.text() : null)
+                        .then(txt => { if (txt) { const fm = parseCSV(txt); keyMap = Object.assign({}, keyMap, fm); saveMap(); renderHint(); if (!document.getElementById('keycfg-overlay').classList.contains('hidden')) renderCfgList(); } })
+                        .catch(() => {});
+                }
+            })();
 
             const staggerBtn = document.getElementById('stagger-btn');
             const staggerText = document.getElementById('stagger-text');
@@ -2034,6 +2264,27 @@
                 updateRenderStyles();
             });
 
+            // 面透過モード切替：立体感（今のまま）⇔ 正確（並べ直し＋depthWrite無効）
+            const xparentBtn = document.getElementById('xparent-btn');
+            const xparentText = document.getElementById('xparent-text');
+            xparentBtn.addEventListener('click', () => {
+                accurateFaces = !accurateFaces;
+                // 左の立方体は depthWrite を切るだけで（6面が別メッシュなので）正しく並ぶ。右は「まとめメッシュ」で全体ソート。
+                // 正確モードは面を少し薄め(0.4)にして奥を見やすく。戻したら 0.5。
+                faceObjects2D.forEach(f => { f.material.depthWrite = !accurateFaces; f.material.opacity = accurateFaces ? 0.32 : 0.5; f.material.needsUpdate = true; });
+                updateRenderStyles();   // 右：胞ごとの面⇔まとめメッシュ の表示切替
+                if (accurateFaces) {
+                    xparentText.innerText = "面透過: 正確";
+                    xparentBtn.classList.add('bg-teal-900/40', 'border-teal-500/50', 'text-teal-200');
+                    xparentBtn.classList.remove('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                } else {
+                    xparentText.innerText = "面透過: 立体感";
+                    xparentBtn.classList.remove('bg-teal-900/40', 'border-teal-500/50', 'text-teal-200');
+                    xparentBtn.classList.add('bg-slate-800/80', 'border-slate-700', 'text-slate-400');
+                }
+                updateMorphingGeometry(animationProgress);
+            });
+
             document.querySelectorAll('.proj-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     stopCycle();
@@ -2111,8 +2362,11 @@
         }
 
         function updateRenderStyles() {
-            faceObjects2D.forEach(f => f.material.visible = !wireframeOnly);
-            cellObjects3D.forEach(c => c.material.visible = !wireframeOnly);
+            const showFaces = !wireframeOnly;
+            faceObjects2D.forEach(f => f.material.visible = showFaces);
+            // 正確透過モードでは右の面は「まとめメッシュ」で描くので、胞ごとの面は隠す（ワイヤーは別なので残る）
+            cellObjects3D.forEach(c => c.material.visible = showFaces && !accurateFaces);
+            if (mergedFaces3D) mergedFaces3D.visible = showFaces && accurateFaces;
         }
 
         function onWindowResize() {
