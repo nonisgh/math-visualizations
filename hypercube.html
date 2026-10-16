@@ -339,6 +339,7 @@
                     <input id="solo-zw-num" type="number" min="-180" max="180" step="1" value="0" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-rose-300 text-[10px] font-mono text-right shrink-0" title="角度を直接入力（↑↓キーで微調整）">
                     <span class="text-[10px] text-slate-500 shrink-0">°</span>
                     <button id="solo-spin-btn" class="shrink-0 flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="Z-W をまわし続ける。左は止まったまま"><i data-lucide="refresh-cw" class="w-3 h-3"></i><span>オート</span></button>
+                    <button id="zwlink-btn" class="shrink-0 px-2 py-0.5 bg-rose-900/40 border border-rose-500/50 text-rose-200 rounded-lg hover:bg-rose-800/50 transition text-[11px]" title="ZW連動：ONで Z-W回転を左の立方体にも擬似的な歪み（z×cos：90°で平面に潰れ180°で裏返る）で反映">ZW連動: ON</button>
                 </div>
                 <p class="text-[10px] text-slate-400 leading-relaxed">
                     <b class="text-rose-300">こちらは左が追いつけない回転です。</b>
@@ -429,6 +430,7 @@
         let cfgEdgeNear = 0.80;      // 手前の線の濃さ
         let cfgEdgeFar = 0.17;       // 奥の線の濃さ
         const edgeTint = v => [v, Math.min(1, v + 0.02), Math.min(1, v + 0.08)];   // 線色：わずかに青白く
+        let zwLink = true;   // ZW連動：ONで ZW回転(soloAngleZW)を左の立方体に「z×cos(zw)」の擬似歪みで反映（90°で平面に潰れ180°で裏返る）
         let autoFitZoom = true;   // 組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の倍率のまま固定
         let panelHidden = false;  // X キーで操作パネルを隠し、立体を大きく表示する
         let lastPreset = 'iso';   // 最後に設定したカメラプリセット（パネル切替時に再適用）
@@ -800,6 +802,7 @@
             controls2D.enableDamping = true;
             controls2D.dampingFactor = 0.05;
             controls2D.enableRotate = false;   // 左はドラッグで「立方体そのもの」を回す（視点ではなく物体を回すので、右と同じ操作になる）
+            controls2D.enablePan = false;      // Shift+ドラッグのパン(位置移動)を無効化＝Shift+ドラッグは ZW 操作に割り当てる
 
             // 左の立方体をドラッグで回すと、同じ角度が右の超立方体にもかかる
             let dragging = false, px = 0, py = 0;
@@ -807,8 +810,15 @@
             renderer2D.domElement.addEventListener('pointermove', e => {
                 if (!dragging) return;
                 stopCycle();
-                linkAngleX = wrapPi(linkAngleX + (e.clientX - px) * 0.01);
-                linkAngleY = wrapPi(linkAngleY + (e.clientY - py) * 0.01);
+                if (e.shiftKey) {
+                    // Shift+左右ドラッグ＝Z-W回転。右の超立方体に反映＆（ZW連動ONなら）左の立方体は擬似歪みで表現。
+                    soloAngleZW = wrapPi(soloAngleZW + (e.clientX - px) * 0.01);
+                } else {
+                    // ZWで180°裏返っている間(cos<0)は見た目の前後が反転するので、ドラッグ方向も反転して操作感を合わせる
+                    const flip = (zwLink && Math.cos(soloAngleZW) < 0) ? -1 : 1;
+                    linkAngleX = wrapPi(linkAngleX + (e.clientX - px) * 0.01 * flip);
+                    linkAngleY = wrapPi(linkAngleY + (e.clientY - py) * 0.01 * flip);
+                }
                 px = e.clientX; py = e.clientY;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
@@ -1224,9 +1234,21 @@
         function updateMorphingGeometry(progress) {
             updatePinRot(progress);   // 点固定モードの整列回転を毎フレーム先に更新
             if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'cube') {
-                // 立方体の各面の頂点を求め、画面の奥行き（カメラ距離）の範囲を測る＝奥の辺をかすかにするため
-                const faceVerts = faceObjects2D.map(face =>
-                    calculateFoldedFaceVertices2D(face.id, progress, linkAngleX, linkAngleY));
+                // 立方体の各面の頂点を求める。ZW連動ONなら、立方体を w=0 の4D点として ZW回転し、
+                // 右の超立方体と「同じ遠近射影」で描く（整合性）。90°付近で遠近が強まり、180°で裏返る。
+                const zwOn = zwLink && soloAngleZW !== 0;
+                const zc = Math.cos(soloAngleZW), zs = Math.sin(soloAngleZW);
+                const faceVerts = faceObjects2D.map(face => {
+                    const vs = calculateFoldedFaceVertices2D(face.id, progress, linkAngleX, linkAngleY);
+                    if (zwOn) for (let i = 0; i < vs.length; i++) {
+                        const v = vs[i], z = v[2];
+                        const wv = z * zs;                                             // ZW回転で生じる4D成分
+                        const safeW = Math.min(Math.max(wv, -CAMERA_W + 0.5), CAMERA_W - 0.5);
+                        const sc = CAMERA_W / (CAMERA_W - safeW);                        // 右と同じ遠近射影
+                        v[0] *= sc; v[1] *= sc; v[2] = (z * zc) * sc;
+                    }
+                    return vs;
+                });
                 const r2 = scene2D.getObjectByName('Root2D'); if (r2) r2.updateMatrixWorld();
                 if (camera2D) camera2D.updateMatrixWorld();
                 const r2mat = r2 ? r2.matrixWorld : null, cam2P = camera2D ? camera2D.position : null;
@@ -1890,7 +1912,8 @@
                 { id: 'vanish_z', label: '手前へ消す軸 Z', short: '消すZ', def: '', run: clickSel('.vanish-btn[data-axis="z"]') },
                 { id: 'step_xw', label: '90°回す X-W', short: '90°XW', def: '', run: clickSel('.step90-btn[data-plane="x"]') },
                 { id: 'step_yw', label: '90°回す Y-W', short: '90°YW', def: '', run: clickSel('.step90-btn[data-plane="y"]') },
-                { id: 'step_zw', label: '90°回す Z-W', short: '90°ZW', def: '', run: clickSel('.step90-btn[data-plane="z"]') }
+                { id: 'step_zw', label: '90°回す Z-W', short: '90°ZW', def: '', run: clickSel('.step90-btn[data-plane="z"]') },
+                { id: 'zwlink', label: 'ZW連動 ON/OFF（左の立方体に擬似歪み）', short: 'ZW連動', def: '', run: clickSel('#zwlink-btn') }
             ];
             const SC_STORE = 'hypercubeShortcuts', SC_FILE = 'hypercube-shortcuts.csv';
             let keyMap = {};
@@ -2324,6 +2347,19 @@
                 soloSpinBtn.classList.toggle('bg-rose-600/40', soloSpinZW);
                 soloSpinBtn.classList.toggle('border-rose-400', soloSpinZW);
                 soloSpinBtn.classList.toggle('text-rose-200', soloSpinZW);
+            });
+            // ZW連動トグル：ONで Z-W回転を左の立方体にも擬似歪みで反映
+            const zwlinkBtn = document.getElementById('zwlink-btn');
+            zwlinkBtn.addEventListener('click', () => {
+                zwLink = !zwLink;
+                zwlinkBtn.innerText = zwLink ? "ZW連動: ON" : "ZW連動: OFF";
+                zwlinkBtn.classList.toggle('bg-rose-900/40', zwLink);
+                zwlinkBtn.classList.toggle('border-rose-500/50', zwLink);
+                zwlinkBtn.classList.toggle('text-rose-200', zwLink);
+                zwlinkBtn.classList.toggle('bg-slate-800/80', !zwLink);
+                zwlinkBtn.classList.toggle('border-slate-700', !zwLink);
+                zwlinkBtn.classList.toggle('text-slate-400', !zwLink);
+                updateMorphingGeometry(animationProgress);
             });
             document.getElementById('link-reset-btn').addEventListener('click', () => {
                 stopCycle();
