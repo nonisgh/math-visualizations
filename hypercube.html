@@ -350,21 +350,20 @@
                     <b class="text-purple-300">右は内側の胞と外側の胞が入れ替わり、裏返るように見えます</b>。
                     操作は同じで、1次元違うだけです。<b class="text-cyan-300">左の立方体は直接ドラッグして回せます</b>（右もついてきます）。
                 </p>
+
+                <div class="flex items-center gap-2 pt-1.5 border-t border-slate-800/60">
+                    <span class="text-[10px] font-mono text-rose-300 w-24 shrink-0">右だけ Z-W</span>
+                    <input id="solo-zw-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-400 border border-slate-700">
+                    <input id="solo-zw-num" type="number" min="-180" max="180" step="1" value="0" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-rose-300 text-[10px] font-mono text-right shrink-0" title="角度を直接入力（↑↓キーで微調整）">
+                    <span class="text-[10px] text-slate-500 shrink-0">°</span>
+                    <button id="solo-spin-btn" class="shrink-0 flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="Z-W をまわし続ける。左は止まったまま"><i data-lucide="refresh-cw" class="w-3 h-3"></i><span>オート</span></button>
+                    <button id="zwlink-btn" class="shrink-0 px-2 py-0.5 bg-rose-900/40 border border-rose-500/50 text-rose-200 rounded-lg hover:bg-rose-800/50 transition text-[11px]" title="ZW連動：ONで Z-W回転を左の立方体にも擬似的な歪み（z×cos：90°で平面に潰れ180°で裏返る）で反映">ZW連動: ON</button>
+                </div>
                 <p class="text-[10px] text-slate-400 leading-relaxed">
-                    <b class="text-rose-300">Z-W は左が追いつけない回転です。</b>
+                    <b class="text-rose-300">こちらは左が追いつけない回転です。</b>
                     左の立方体の回転面は3枚（XY・XZ・YZ）、右の超立方体は6枚（XY・XZ・YZ・XW・YW・ZW）。
                     上の2本は左の面を右へ移したものなので完全に同期しますが、<b>残り3枚は右にしか無い</b>ので左は止まったままになります。これが次元の差です。
                 </p>
-                <div class="flex items-center gap-1.5 flex-wrap text-[11px] pt-1.5 border-t border-slate-800/60">
-                    <span class="text-amber-300 shrink-0 flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>点を置く:</span>
-                    <label class="flex items-center gap-0.5" style="color:#ff5d6c">x<input id="pt-x" type="number" step="0.1" value="1" class="w-11 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 text-[10px] font-mono text-right"></label>
-                    <label class="flex items-center gap-0.5" style="color:#3ddc84">y<input id="pt-y" type="number" step="0.1" value="1" class="w-11 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 text-[10px] font-mono text-right"></label>
-                    <label class="flex items-center gap-0.5" style="color:#56a8ff">z<input id="pt-z" type="number" step="0.1" value="1" class="w-11 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 text-[10px] font-mono text-right"></label>
-                    <label class="flex items-center gap-0.5" style="color:#b07cff">w<input id="pt-w" type="number" step="0.1" value="1" class="w-11 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 text-[10px] font-mono text-right"></label>
-                    <button id="pt-add" class="shrink-0 px-2 py-0.5 rounded bg-amber-900/40 border border-amber-500/50 text-amber-200 hover:bg-amber-800/50 transition">追加</button>
-                    <button id="pt-clear" class="shrink-0 px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 transition">全消去</button>
-                    <span class="text-[10px] text-slate-500 w-full">指定座標 (x,y,z,w) に点を置きます。回転・投影に追従するので、どの頂点がどこへ動くか追えます（右の超立方体に表示）</span>
-                </div>
             </div>
             </footer>
         </div>
@@ -1042,7 +1041,6 @@
             return [x, y, z];
         }
         let wMarkPlus = null, wMarkMinus = null, wMarkBlend = null;   // 右：手前/奥マーカー＋重なり時の混色マーカー
-        let userPoints = [];   // 任意座標の点マーカー {p4:[x,y,z,w], mesh, sprite}
         let lMarkPlus = null, lMarkMinus = null, lMarkBlend = null;   // 左・立方体：同上
         const WMARK = S * 0.5;   // 内側/外側の立方体の中心あたりに置く
         const MARK_NEAR = 0xff44dd, MARK_FAR = 0x33e5ff, MARK_BLEND = 0x8f7bff;  // 手前=ピンク, 奥=水色, 重なり=シアン×マゼンタの混色(青紫)
@@ -1129,41 +1127,6 @@
             return m;
         }
 
-        // 任意座標ラベル用スプライト（座標文字を横長キャンバスに描く）
-        function makeCoordSprite(text, cssColor) {
-            const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
-            const ctx = cv.getContext('2d');
-            ctx.font = 'bold 30px ui-monospace, Menlo, Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(2,6,18,0.92)'; ctx.strokeText(text, 128, 34);
-            ctx.fillStyle = cssColor; ctx.fillText(text, 128, 34);
-            const tex = new THREE.CanvasTexture(cv);
-            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-            sp.scale.set(0.9, 0.225, 1); sp.renderOrder = 1006;
-            return sp;
-        }
-        // 指定した4D座標 (x,y,z,w) に点マーカーを追加（右の超立方体空間）
-        function addUserPoint(x, y, z, w) {
-            const root3D = scene3D.getObjectByName('Root3D'); if (!root3D) return;
-            const fmt = n => (Math.round(n * 100) / 100).toString();
-            const mesh = makeMarker(0xffd54a, 0.06, 1005);
-            const sprite = makeCoordSprite('(' + [x, y, z, w].map(fmt).join(',') + ')', '#ffe082');
-            root3D.add(mesh); root3D.add(sprite);
-            userPoints.push({ p4: [x, y, z, w], mesh, sprite });
-            updateUserPoints();
-        }
-        function updateUserPoints() {
-            for (const up of userPoints) {
-                const q = rotated4DAxis(up.p4);
-                up.mesh.position.set(q[0], q[1], q[2]);
-                up.sprite.position.set(q[0], q[1] + 0.16, q[2]);
-            }
-        }
-        function clearUserPoints() {
-            const root3D = scene3D.getObjectByName('Root3D');
-            userPoints.forEach(up => { if (root3D) { root3D.remove(up.mesh); root3D.remove(up.sprite); } });
-            userPoints = [];
-        }
-
         // 左・立方体の座標軸（x,y,z）を Root2D に作る。右と同じ矢印ギズモ＋小さなセリフ体ラベル。
         function buildLeftAxisGnomon() {
             const root2D = scene2D.getObjectByName('Root2D');
@@ -1217,7 +1180,6 @@
 
         function updateAxisGnomon(progress) {
             updateLeftAxisGnomon();   // 左も先に更新（OFF時にも visible=false を確実に反映させる）
-            updateUserPoints();       // 任意座標の点マーカーは軸表示ON/OFFに関係なく追従させる
             const root3D = scene3D.getObjectByName('Root3D');
             const group = root3D && root3D.getObjectByName('Axis3D');
             if (!group) return;
@@ -2465,38 +2427,6 @@
                 spinBtn.classList.toggle('border-purple-400', linkSpin);
                 spinBtn.classList.toggle('text-purple-200', linkSpin);
             });
-            // 面ごとの「0に戻す」ボタン（↺）
-            document.querySelectorAll('.rot-reset').forEach(b => {
-                b.addEventListener('click', () => {
-                    stopCycle();
-                    const pl = b.getAttribute('data-plane');
-                    if (pl === 'x') linkAngleX = 0; else if (pl === 'y') linkAngleY = 0; else if (pl === 'zw') soloAngleZW = 0;
-                    updateLinkUI(); updateMorphingGeometry(animationProgress);
-                });
-            });
-            // 「全部回す」：X-Z・Y-Z・Z-W の3面を同時にスピン
-            const spinAllBtn = document.getElementById('spin-all-btn');
-            spinAllBtn.addEventListener('click', () => {
-                stopCycle();
-                const on = !(linkSpin && soloSpinZW);
-                linkSpin = on; soloSpinZW = on;
-                spinAllBtn.classList.toggle('bg-violet-600/40', on);
-                spinAllBtn.classList.toggle('border-violet-400', on);
-                spinAllBtn.classList.toggle('text-violet-200', on);
-                spinBtn.classList.toggle('bg-purple-600/40', linkSpin);
-                spinBtn.classList.toggle('border-purple-400', linkSpin);
-                spinBtn.classList.toggle('text-purple-200', linkSpin);
-                const sob = document.getElementById('solo-spin-btn');
-                sob.classList.toggle('bg-rose-600/40', soloSpinZW);
-                sob.classList.toggle('border-rose-400', soloSpinZW);
-                sob.classList.toggle('text-rose-200', soloSpinZW);
-            });
-            // 任意座標の点マーカー：追加／全消去
-            const ptG = id => parseFloat(document.getElementById(id).value) || 0;
-            document.getElementById('pt-add').addEventListener('click', () => {
-                addUserPoint(ptG('pt-x'), ptG('pt-y'), ptG('pt-z'), ptG('pt-w'));
-            });
-            document.getElementById('pt-clear').addEventListener('click', clearUserPoints);
 
             const viewMeshBtn = document.getElementById('view-mesh-btn');
             const viewWireBtn = document.getElementById('view-wire-btn');
