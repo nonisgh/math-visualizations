@@ -1,11 +1,11 @@
 id,label,key
-both,表示トグル（どっちも⇔超立方体のみ）,X
+both,表示トグル（どっちも⇔超立方体のみ）,1
 panel,操作パネル 表示/非表示,Space
 allSpins,全回転 ON/OFF（同期回転＋スピン＋ZWオート）,Enter
 fold,組み上げる,
 unfold,展開する,
 foldToggle,組立⇔展開 トグル,C
-axis,座標軸 表示/非表示,A
+axis,座標軸 表示/非表示,
 origin,回転を 0、0、0,O
 reset,初期化（読み込み時に戻す）,R
 play,回転アニメ 再生,
@@ -29,6 +29,6 @@ vanish_w,手前へ消す軸 W,W
 vanish_x,手前へ消す軸 X,
 vanish_y,手前へ消す軸 Y,
 vanish_z,手前へ消す軸 Z,
-step_xw,90°回す X-W,
-step_yw,90°回す Y-W,
+step_xw,90°回す X-W,X
+step_yw,90°回す Y-W,Y
 step_zw,90°回す Z-W,Z
