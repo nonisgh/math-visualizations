@@ -13,7 +13,7 @@ preset_cell,プリセット 胞,H
 preset_face,プリセット 面,
 preset_edge,プリセット 辺,
 preset_vertex,プリセット 頂点,T
-vaxis_z,垂直軸 Z,
+vaxis_z,垂直軸 Z,2
 vaxis_w,垂直軸 W,
 vaxis_x,垂直軸 X,
 vaxis_y,垂直軸 Y,
