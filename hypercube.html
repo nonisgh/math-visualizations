@@ -553,10 +553,10 @@
             </section>
             <section class="sb-sec">
                 <div class="flex items-center justify-between gap-2">
-                    <h3 class="sb-h"><i data-lucide="list" class="w-3.5 h-3.5"></i>置いた点 <span id="pt-count" class="text-slate-500 font-normal"></span></h3>
+                    <h3 class="sb-h whitespace-nowrap"><i data-lucide="list" class="w-3.5 h-3.5"></i>置いた点 <span id="pt-count" class="text-slate-500 font-normal"></span></h3>
                     <div class="flex items-center gap-1">
-                        <button id="pt-lock-all" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-amber-200 hover:bg-slate-700 text-[11px]" title="置いた点をまとめてロック／解除（ロックした点は「消す」でも「全部消す」でも消えません）">🔒 全部ロック</button>
-                        <button id="pt-clear" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px]" title="ロックしていない点を全部消す（ロックした点と既定のピンク・水色は残ります）">全部消す</button>
+                        <button id="pt-lock-all" class="whitespace-nowrap px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-amber-200 hover:bg-slate-700 text-[11px]" title="置いた点をまとめてロック／解除（ロックした点は「消す」でも「全部消す」でも消えません）">🔒 全部ロック</button>
+                        <button id="pt-clear" class="whitespace-nowrap px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px]" title="ロックしていない点を全部消す（ロックした点と既定のピンク・水色は残ります）">全部消す</button>
                     </div>
                 </div>
                 <div id="pt-list" class="space-y-1 text-[11px]"></div>
@@ -2796,7 +2796,7 @@
                 return p;
             }
             function removePt(p) {
-                if (p.lock) { ptStatus('ロック中なので消せません（🔒 を押すと外せます）', false); return; }
+                if (p.lock) { ptStatus('ロック中なので消せません（→🔓 を押すと外せます）', false); return; }
                 disposePt(p); userPoints = userPoints.filter(q => q !== p); savePts(); renderPtList(); updateMorphingGeometry(animationProgress); }
             function renderPtList() {
                 const list = ptEl('pt-list'); list.innerHTML = '';
@@ -2811,14 +2811,14 @@
                     const txt = document.createElement('span'); txt.className = 'flex-1 min-w-0 truncate font-mono text-[10px] text-slate-200';
                     txt.textContent = xyz + '  既定';
                     const eye = document.createElement('button'); eye.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (fixedMarks[key] ? 'text-slate-200' : 'text-slate-500');
-                    eye.textContent = fixedMarks[key] ? '表示' : '隠す'; eye.title = '既定の' + nm + 'を表示する／隠す（左の立方体の' + nm + 'も一緒）';
+                    eye.textContent = fixedMarks[key] ? '→隠す' : '→表示'; eye.title = (fixedMarks[key] ? '押すと隠す' : '押すと表示する') + '（左の立方体の' + nm + 'も一緒）';
                     eye.addEventListener('click', () => { fixedMarks[key] = !fixedMarks[key]; saveFixedMarks(); renderPtList(); updateMorphingGeometry(animationProgress); });
                     const lock = document.createElement('span'); lock.className = 'px-1.5 py-0.5 rounded border border-slate-800 text-slate-500 text-[10px] cursor-default'; lock.textContent = '固定'; lock.title = '既定の点なので消せません（隠すことはできます）';
                     row.append(sw, txt, eye, lock); list.appendChild(row);
                 });
                 const glue = document.createElement('button');
                 glue.className = 'w-full text-left px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700 text-[10px] ' + (fixedMarks.glue ? 'text-violet-200' : 'text-slate-400');
-                glue.innerHTML = '重なったら混色: <b>' + (fixedMarks.glue ? 'ON' : 'OFF') + '</b>　<span class="text-slate-500">' + (fixedMarks.glue ? '重なると青紫の1点に' : '重なってもそのまま') + '</span>';
+                glue.innerHTML = '→ 重なったら混色: <b>' + (fixedMarks.glue ? 'OFF' : 'ON') + '</b>　<span class="text-slate-500">' + (fixedMarks.glue ? '重なってもそのままに' : '重なると青紫の1点に') + '</span>';
                 glue.title = '画面上でピンクと水色が重なったとき、2つを隠して青紫の1点にまとめるか（片方を隠しているときは混ぜません）';
                 glue.addEventListener('click', () => { fixedMarks.glue = !fixedMarks.glue; saveFixedMarks(); renderPtList(); updateMorphingGeometry(animationProgress); });
                 list.appendChild(glue);
@@ -2840,16 +2840,16 @@
                     row.className = 'flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded px-1.5 py-1';
                     const col = document.createElement('input'); col.type = 'color'; col.value = p.color; col.className = 'w-6 h-5 bg-transparent border border-slate-700 rounded cursor-pointer shrink-0'; col.title = '色を変える';
                     col.addEventListener('input', () => { p.color = col.value; buildPt(p); savePts(); updateMorphingGeometry(animationProgress); });
-                    const txt = document.createElement('span'); txt.className = 'flex-1 min-w-0 truncate font-mono text-[10px] text-slate-300';
+                    const txt = document.createElement('span'); txt.className = 'flex-1 min-w-0 break-words leading-tight font-mono text-[10px] ' + (p.show ? 'text-slate-300' : 'text-slate-500');
                     txt.textContent = (p.label ? p.label + '  ' : '') + '(' + [p.x, p.y, p.z, p.w].map(fmtPt).join(', ') + ')' + (ptKind(p) ? '  ' + ptKind(p) : '');
-                    const eye = document.createElement('button'); eye.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (p.show ? 'text-slate-200' : 'text-slate-500');
-                    eye.textContent = p.show ? '表示' : '隠す'; eye.title = '表示する／隠す';
+                    const eye = document.createElement('button'); eye.className = 'shrink-0 whitespace-nowrap px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (p.show ? 'text-slate-200' : 'text-slate-500');
+                    eye.textContent = p.show ? '→隠す' : '→表示'; eye.title = p.show ? '押すと隠す（今は表示中）' : '押すと表示する（今は隠し中）';
                     eye.addEventListener('click', () => { p.show = !p.show; savePts(); renderPtList(); updateMorphingGeometry(animationProgress); });
                     if (p.lock) row.className = row.className.replace('border-slate-800', 'border-amber-500/40');
-                    const lk = document.createElement('button'); lk.className = 'px-1 py-0.5 rounded border text-[11px] leading-none ' + (p.lock ? 'bg-amber-900/40 border-amber-500/50' : 'bg-slate-800 border-slate-700 opacity-50 hover:opacity-100');
-                    lk.textContent = p.lock ? '🔒' : '🔓'; lk.title = p.lock ? 'ロック中（消せません）。押すと外す' : '押すとロック（消せなくなる）';
+                    const lk = document.createElement('button'); lk.className = 'shrink-0 whitespace-nowrap px-1 py-0.5 rounded border text-[11px] leading-none ' + (p.lock ? 'bg-amber-900/40 border-amber-500/50' : 'bg-slate-800 border-slate-700 opacity-50 hover:opacity-100');
+                    lk.textContent = p.lock ? '→🔓' : '→🔒'; lk.title = p.lock ? '押すとロックを外す（今はロック中で消せません）' : '押すとロック（消せなくなる）';
                     lk.addEventListener('click', () => { p.lock = !p.lock; savePts(); renderPtList(); });
-                    const del = document.createElement('button'); del.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (p.lock ? 'text-slate-600 cursor-not-allowed' : 'text-rose-300'); del.textContent = '消す';
+                    const del = document.createElement('button'); del.className = 'shrink-0 whitespace-nowrap px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (p.lock ? 'text-slate-600 cursor-not-allowed' : 'text-rose-300'); del.textContent = '消す';
                     del.title = p.lock ? 'ロック中なので消せません' : 'この点を消す';
                     del.addEventListener('click', () => removePt(p));
                     row.append(col, txt, eye, lk, del); list.appendChild(row);
@@ -3214,11 +3214,11 @@
                     go.children[0].textContent = P.name; go.children[1].textContent = angText(P); go.title = '押すとこの角度へ移る';
                     go.addEventListener('click', () => { animToAngles(P, P.name); angStatus('移りました：' + P.name); });
                     const lk = document.createElement('button'); lk.className = 'px-1 py-0.5 rounded border text-[11px] leading-none ' + (P.lock ? 'bg-amber-900/40 border-amber-500/50' : 'bg-slate-800 border-slate-700 opacity-50 hover:opacity-100');
-                    lk.textContent = P.lock ? '🔒' : '🔓'; lk.title = P.lock ? 'ロック中（消せません）。押すと外す' : '押すとロック（消せなくなる）';
+                    lk.textContent = P.lock ? '→🔓' : '→🔒'; lk.title = P.lock ? '押すとロックを外す（今はロック中で消せません）' : '押すとロック（消せなくなる）';
                     lk.addEventListener('click', () => { P.lock = !P.lock; saveAng(); renderAngList(); });
                     const del = document.createElement('button'); del.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (P.lock ? 'text-slate-600 cursor-not-allowed' : 'text-rose-300'); del.textContent = '消す';
                     del.title = P.lock ? 'ロック中なので消せません' : 'この角度を消す';
-                    del.addEventListener('click', () => { if (P.lock) { angStatus('ロック中なので消せません（🔒 を押すと外せます）'); return; } angPresets = angPresets.filter(q => q !== P); saveAng(); renderAngList(); });
+                    del.addEventListener('click', () => { if (P.lock) { angStatus('ロック中なので消せません（→🔓 を押すと外せます）'); return; } angPresets = angPresets.filter(q => q !== P); saveAng(); renderAngList(); });
                     row.append(go, lk, del); list.appendChild(row);
                 });
             }
@@ -3626,6 +3626,33 @@
                 }
             });
 
+
+            // --- ボタンの文字は「押すとこうなる」を出す（今の状態ではなく、押したあとのモード）。今の状態はボタンの色で見せる ---
+            // 各ボタンの処理が書いた文字は、そのあとでここが上書きする（クリック・キー操作のたびに直後にそろえる）
+            const NEXT = '→ ';
+            const DISPLAY_LABEL = { both: '表示: どっちも', hypercube_pip: '表示: 超立方体(右上ミニ)', hypercube: '表示: 超立方体のみ', cube: '表示: 立方体のみ' };
+            const DISPLAY_NEXT = { both: 'hypercube_pip', hypercube_pip: 'hypercube', hypercube: 'cube', cube: 'both' };   // 表示ボタンを押したときの順
+            function syncToggleLabels() {
+                const set = (id, t) => { const el = document.getElementById(id); if (el && el.textContent !== t) el.textContent = t; };
+                set('speed-text', NEXT + '速度: ' + speeds[(speeds.indexOf(animSpeedMultiplier) + 1) % speeds.length].toFixed(1) + 'x');
+                set('stagger-text', NEXT + (enableStagger ? '時間差: OFF (同時)' : '時間差: ON'));
+                set('zoom-text', NEXT + (autoFitZoom ? '自動ズーム: OFF' : '自動ズーム: ON'));
+                set('display-mode-text', NEXT + DISPLAY_LABEL[DISPLAY_NEXT[displayMode] || 'both']);
+                set('axis-text', NEXT + (showAxes ? '座標軸: OFF' : '座標軸: ON (X赤 Y緑 Z青 W紫)'));
+                set('pin-text', NEXT + (pinVertex ? '点固定: OFF' : '点固定: ON'));
+                set('xparent-text', NEXT + (accurateFaces ? '面透過: 立体感' : '面透過: 正確'));
+                set('persp-mode-btn', NEXT + (cubePersp ? '平行投影' : '遠近投影'));
+                set('face-cam-btn', NEXT + (presetFaceCamera ? 'カメラ正対: OFF' : 'カメラ正対: ON'));
+                set('left3d-btn', NEXT + (leftFull3D ? 'X-Y だけ' : '全部'));
+                set('pt-labels', NEXT + 'ラベル: ' + (ptShowLabels ? 'OFF' : 'ON'));
+                set('pt-left', NEXT + '左にも: ' + (ptShowLeft ? 'OFF' : 'ON'));
+                const hk = document.getElementById('shortcut-hint-keys');
+                set('hint-toggle', hk && !hk.classList.contains('hidden') ? '⌨ キー一覧を閉じる' : '⌨ キー一覧');
+            }
+            const syncLabelsSoon = () => setTimeout(syncToggleLabels, 0);   // 各ボタンの処理が終わってから
+            document.addEventListener('click', syncLabelsSoon, true);
+            document.addEventListener('keydown', syncLabelsSoon, true);
+            setTimeout(syncToggleLabels, 0);   // 起動時（保存した設定を戻したあと）
 
             // 読み込み時の状態へ完全に戻す。ページを読み直すのが最も確実
             // （カメラの向き・root の回転・スピン・OrbitControls の内部状態まで全部クリアされる）。
