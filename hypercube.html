@@ -419,11 +419,12 @@
 
             <section class="sb-sec">
                 <h3 class="sb-h"><i data-lucide="repeat-2" class="w-3.5 h-3.5"></i>角度の往復（A ⇄ B）</h3>
-                <p class="text-[10px] text-slate-500 leading-snug">A と B の角度を決めて、その間をアニメで行ったり来たりします（両端ではゆっくり折り返す）。手で回す・スライダー・プリセット・リセット・スピンで止まります。</p>
+                <p class="text-[10px] text-slate-500 leading-snug">A と B の角度を決めて、その間をアニメで行ったり来たりします（両端ではゆっくり折り返す）。「▶ A→B」は片道を1回だけ再生し、押すたびに A→B と B→A が入れ替わります。手で回す・スライダー・プリセット・リセット・スピンで止まります。</p>
                 <div id="pp-slots" class="space-y-1 text-[11px]"></div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <label class="flex items-center gap-1 text-slate-400">片道<input id="pp-sec" type="number" min="0.5" max="60" step="0.5" value="3" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 font-mono text-right">秒</label>
                     <button id="pp-swap" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="A と B を入れ替える">A⇄B 入替</button>
+                    <button id="pp-once" class="px-2.5 py-1 rounded bg-cyan-900/40 border border-cyan-500/50 text-cyan-100 hover:bg-cyan-800/50 font-bold font-mono" title="片道を1回だけ再生。押すたびに A→B、B→A が交互（Shift+G キー）">▶ A→B</button>
                     <button id="pp-play" class="px-2.5 py-1 rounded bg-fuchsia-900/40 border border-fuchsia-500/50 text-fuchsia-100 hover:bg-fuchsia-800/50 font-bold" title="A ⇄ B の往復を始める／止める（G キー）">▶ 往復スタート</button>
                 </div>
                 <div class="flex items-center gap-1.5 text-[11px] pt-1 border-t border-slate-800">
@@ -775,10 +776,11 @@
         //   最初に今の角度から A へ寄せ（intro）、そのあと A→B→A→… 。どの面も最短の向きに回る。
         //   手で回す・スライダー・プリセット・リセット・スピンを始めると止まる。
         let pingPong = null;
+        let ppOnceDir = 'AB';   // 片道ボタンを次に押したときの向き（A→B ／ B→A が交互）
         const PP_KEYS = ['a', 'b', 'c', 'xy', 'xz', 'yz'];
         const angles6 = () => [linkAngleX, linkAngleY, soloAngleZW, rotXY, rotXZ, rotYZ];
         function setAngles6(v) { linkAngleX = v[0]; linkAngleY = v[1]; soloAngleZW = v[2]; rotXY = v[3]; rotXZ = v[4]; rotYZ = v[5]; }
-        function startPingPong(A, B, legSec) {   // A, B は度の {a,b,c,xy,xz,yz}
+        function startPingPong(A, B, legSec, once = false) {   // A, B は度の {a,b,c,xy,xz,yz}。once＝片道1回だけ（A→B で止まる）
             stopCycle();
             linkSpin = false; soloSpinZW = false; spinX = false; spinY = false; spinXY = false; spinXZ = false; spinYZ = false; updateSpinBtns();
             const ssb = document.getElementById('solo-spin-btn'); if (ssb) ssb.classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
@@ -787,9 +789,10 @@
             const a = PP_KEYS.map(k => R(A[k])), b = PP_KEYS.map(k => R(B[k])), cur = angles6();
             const turned = a.slice(0, 3).concat(b.slice(0, 3)).some(v => Math.abs(wrapPi(v)) > 0.02);
             const pj0 = projAnim !== null ? projAnim : (parallel4D ? 1 : 0);
+            const atStart = a.every((v, i) => Math.abs(wrapPi(v - cur[i])) < 0.003) && Math.abs(xyManualOff) < 0.003;
             pingPong = {
                 from: cur, A: a.map((v, i) => cur[i] + wrapPi(v - cur[i])), d: a.map((v, i) => wrapPi(b[i] - v)),
-                legSec: Math.max(0.3, legSec || 3), t: 0, intro: 0.8, pj0, pj1: (!cubePersp && turned) ? 1 : 0, off0: xyManualOff
+                legSec: Math.max(0.3, legSec || 3), t: 0, intro: atStart ? 0 : 0.8, pj0, pj1: (!cubePersp && turned) ? 1 : 0, off0: xyManualOff, once
             };
             projAnim = pj0;
             updatePingPongBtn();
@@ -810,15 +813,28 @@
                 if (projAnim !== null) { projAnim = null; parallel4D = P.pj1 === 1; }
                 xyManualOff = 0;
                 const u = (P.t - P.intro) / P.legSec, k = Math.floor(u), fr = u - k;
+                if (P.once && u >= 1) {   // 片道1回：終点にぴったり置いて止める
+                    setAngles6(P.A.map((v, i) => wrapPi(v + P.d[i])));
+                    stopPingPong(); updateLinkUI(); updateMorphingGeometry(animationProgress);
+                    return;
+                }
                 const f = smootherstep(k % 2 === 0 ? fr : 1 - fr);   // A→B（偶数の片道）、B→A（奇数の片道）
                 setAngles6(P.A.map((v, i) => wrapPi(v + P.d[i] * f)));
             }
             updateLinkUI(); updateMorphingGeometry(animationProgress);
         }
         function updatePingPongBtn() {
-            const b = document.getElementById('pp-play'); if (!b) return;
-            b.textContent = pingPong ? '■ 往復ストップ' : '▶ 往復スタート';
-            b.classList.toggle('bg-fuchsia-600/50', !!pingPong); b.classList.toggle('border-fuchsia-300', !!pingPong);
+            const loop = !!(pingPong && !pingPong.once), one = !!(pingPong && pingPong.once);
+            const b = document.getElementById('pp-play');
+            if (b) {
+                b.textContent = loop ? '■ 往復ストップ' : '▶ 往復スタート';
+                b.classList.toggle('bg-fuchsia-600/50', loop); b.classList.toggle('border-fuchsia-300', loop);
+            }
+            const o = document.getElementById('pp-once');   // 片道ボタン：押すとこの向きに1回だけ
+            if (o) {
+                o.textContent = '▶ ' + (ppOnceDir === 'AB' ? 'A→B' : 'B→A');
+                o.classList.toggle('bg-cyan-600/50', one); o.classList.toggle('border-cyan-300', one);
+            }
         }
         let cycleMode = false;   // 周回中か
         let cyclePeriod = 12;    // 一周にかける秒数
@@ -2786,6 +2802,7 @@
                 { id: 'pin', label: '点固定 ON/OFF', short: '点固定', def: 'I', run: clickSel('#pin-btn') },
                 { id: 'loop', label: '往復再生 ON/OFF', short: '往復', def: 'L', run: clickSel('#loop-btn') },
                 { id: 'pingPong', label: '角度の往復（A ⇄ B）スタート/ストップ', short: '角度往復', def: 'G', run: clickSel('#pp-play') },
+                { id: 'ppOnce', label: '角度の片道（A→B ／ B→A を交互に1回）', short: '角度片道', def: 'Shift+G', run: clickSel('#pp-once') },
                 { id: 'xparent', label: '面透過 切替（立体感⇔正確）', short: '面透過', def: 'V', run: clickSel('#xparent-btn') },
                 { id: 'zoom', label: '自動ズーム ON/OFF', short: '自動ズーム', def: '3', run: clickSel('#zoom-btn') },
                 { id: 'mesh', label: 'メッシュ表示', short: 'メッシュ', def: 'M', run: clickSel('#view-mesh-btn') },
@@ -3439,6 +3456,7 @@
             const pick6 = P => Object.fromEntries(PP_KEYS.map(k => [k, Math.round((P[k] || 0) * 100) / 100]));
             function renderPPSlots() {
                 const box = document.getElementById('pp-slots'); box.innerHTML = '';
+                ppOnceDir = 'AB'; updatePingPongBtn();   // A・B が変わったら、片道は A→B から
                 ['A', 'B'].forEach(key => {
                     const row = document.createElement('div');
                     row.className = 'flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded px-1.5 py-1';
@@ -3461,7 +3479,14 @@
             }
             const ppSec = () => { const v = parseFloat(document.getElementById('pp-sec').value); return isFinite(v) && v > 0 ? v : 3; };
             document.getElementById('pp-sec').addEventListener('keydown', e => e.stopPropagation());
-            document.getElementById('pp-swap').addEventListener('click', () => { const t = ppSlot.A; ppSlot.A = ppSlot.B; ppSlot.B = t; renderPPSlots(); if (pingPong) startPingPong(ppSlot.A, ppSlot.B, ppSec()); });
+            document.getElementById('pp-swap').addEventListener('click', () => { const t = ppSlot.A; ppSlot.A = ppSlot.B; ppSlot.B = t; renderPPSlots(); if (pingPong && !pingPong.once) startPingPong(ppSlot.A, ppSlot.B, ppSec()); });
+            document.getElementById('pp-once').addEventListener('click', () => {
+                const ab = ppOnceDir === 'AB';
+                startPingPong(ab ? ppSlot.A : ppSlot.B, ab ? ppSlot.B : ppSlot.A, ppSec(), true);
+                ppOnceDir = ab ? 'BA' : 'AB';   // 次に押すと逆向き
+                updatePingPongBtn();
+                ppSt('片道：' + (ab ? 'A→B' : 'B→A') + '（' + ppSec() + ' 秒）');
+            });
             document.getElementById('pp-play').addEventListener('click', () => {
                 if (pingPong) { stopPingPong(); ppSt('往復を止めました'); }
                 else { startPingPong(ppSlot.A, ppSlot.B, ppSec()); ppSt('往復中：A ⇄ B（片道 ' + ppSec() + ' 秒）'); }
