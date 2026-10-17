@@ -266,6 +266,7 @@
             <button class="sb-tab" data-tab="fold" role="tab"><i data-lucide="sliders" class="w-3.5 h-3.5"></i>折りたたみ</button>
             <button class="sb-tab" data-tab="rot" role="tab"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>回転</button>
             <button class="sb-tab" data-tab="view" role="tab"><i data-lucide="eye" class="w-3.5 h-3.5"></i>見え方</button>
+            <button class="sb-tab" data-tab="pts" role="tab"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>点</button>
         </div>
         <div class="flex-1 overflow-y-auto px-3 py-2.5 space-y-3">
             <div class="sb-panel space-y-3" data-panel="fold">
@@ -491,6 +492,56 @@
                         <i data-lucide="layers" class="w-3.5 h-3.5"></i>
                         <span id="xparent-text" class="text-[11px]">面透過: 立体感</span>
                     </button></div>
+            </section>
+            </div>
+            <div class="sb-panel space-y-3 hidden" data-panel="pts">
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>座標を指定して点を置く</h3>
+                <p class="text-[10px] text-slate-500 leading-snug">頂点が ±1 の座標です（中心が 0）。1 より大きい数は小数に直します：<span class="font-mono text-slate-400">443→0.443</span>、<span class="font-mono text-slate-400">12→0.12</span>、<span class="font-mono text-slate-400">2→0.2</span>（0.443 はそのまま）。</p>
+                <div class="grid grid-cols-4 gap-1.5 text-[11px]">
+                    <label class="flex flex-col gap-0.5"><span style="color:#ff5d6c">x</span><input id="pt-x" type="text" inputmode="decimal" value="0" class="pt-in w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100 font-mono text-right"></label>
+                    <label class="flex flex-col gap-0.5"><span style="color:#3ddc84">y</span><input id="pt-y" type="text" inputmode="decimal" value="0" class="pt-in w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100 font-mono text-right"></label>
+                    <label class="flex flex-col gap-0.5"><span style="color:#56a8ff">z</span><input id="pt-z" type="text" inputmode="decimal" value="0" class="pt-in w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100 font-mono text-right"></label>
+                    <label class="flex flex-col gap-0.5"><span style="color:#b07cff">w</span><input id="pt-w" type="text" inputmode="decimal" value="0" class="pt-in w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100 font-mono text-right"></label>
+                </div>
+                <div id="pt-preview" class="text-[10px] font-mono text-slate-400"></div>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <label class="flex items-center gap-1 text-slate-400">色<input id="pt-color" type="color" value="#ffd54a" class="w-8 h-6 bg-transparent border border-slate-700 rounded cursor-pointer"></label>
+                    <div id="pt-swatches" class="flex items-center gap-1"></div>
+                    <input id="pt-label" type="text" placeholder="名前（なくても可）" class="flex-1 min-w-[90px] bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100">
+                    <button id="pt-add" class="px-2.5 py-1 rounded bg-amber-600/40 border border-amber-400/50 text-amber-100 hover:bg-amber-600/60 font-bold">追加</button>
+                </div>
+            </section>
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="grid-3x3" class="w-3.5 h-3.5"></i>頂点のプリセット（16個）</h3>
+                <p class="text-[10px] text-slate-500 leading-snug">押すとその頂点に点を置きます（＋は 1、−は −1。並びは x y z w）。頂点の点は折りたたみ中も、その頂点を追いかけます。</p>
+                <div id="pt-vertex-grid" class="grid grid-cols-4 gap-1 text-[10px] font-mono"></div>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <button id="pt-default-pair" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-200 hover:bg-slate-700" title="等角図で中心に重なる対角の2頂点（＋＋＋＋＝ピンク、−−−−＝水色）。座標軸の表示に付いている既定のピンク・水色と同じ組み合わせ">既定の2点（ピンク・水色）</button>
+                    <button id="pt-all-vertices" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-200 hover:bg-slate-700" title="16頂点すべてに点を置く（w が＋は暖色、−は寒色）">16頂点ぜんぶ</button>
+                </div>
+            </section>
+            <section class="sb-sec">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="sb-h"><i data-lucide="list" class="w-3.5 h-3.5"></i>置いた点 <span id="pt-count" class="text-slate-500 font-normal"></span></h3>
+                    <button id="pt-clear" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px]">全部消す</button>
+                </div>
+                <div id="pt-list" class="space-y-1 text-[11px]"></div>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px] pt-1 border-t border-slate-800">
+                    <button id="pt-labels" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700">ラベル: ON</button>
+                    <button id="pt-left" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700" title="左の立方体にも、対応する位置 (x, y, w) に点を出す（左の z は右の w に対応。右の z は右だけの軸）。左は組み上がった状態のときだけ">左にも: ON</button>
+                </div>
+            </section>
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="save" class="w-3.5 h-3.5"></i>保存</h3>
+                <p class="text-[10px] text-slate-500 leading-snug">置いた点はこのブラウザに自動で保存されます。「GitHub に保存」で <span class="font-mono text-slate-400">hypercube-points.csv</span> に書き込み、他の端末では「GitHub から読込」で同じ点を出せます（鍵はキー設定で保存したものを使います）。</p>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <button id="pt-gh-save" class="px-2 py-1 rounded bg-emerald-600/40 border border-emerald-400/50 text-emerald-100 hover:bg-emerald-600/60">GitHub に保存</button>
+                    <button id="pt-gh-load" class="px-2 py-1 rounded bg-sky-900/40 border border-sky-500/40 text-sky-200 hover:bg-sky-800/40">GitHub から読込</button>
+                    <button id="pt-csv-dl" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700">CSVダウンロード</button>
+                    <label class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 cursor-pointer">CSV読込<input id="pt-csv-up" type="file" accept=".csv,text/csv" class="hidden"></label>
+                </div>
+                <div id="pt-status" class="text-[10px] text-slate-500"></div>
             </section>
             </div>
         </div>
@@ -1377,6 +1428,92 @@
             return m;
         }
 
+
+        // ===== 点マーカー（ユーザーが座標を指定して置く点） =====
+        //   座標は「頂点が ±1」の単位（中で HALF_S=0.9 を掛けて実寸にする）。1 より大きい入力は小数に直す（443→0.443）。
+        //   右の超立方体：4D 座標 (x,y,z,w) を、今の回転・投影で 3D に写して置く。頂点ちょうどの点は折りたたみ中もその頂点を追う。
+        //   左の立方体：対応する (x, y, w) に置く（左の z は右の w に対応）。左は組み上がった状態のときだけ。
+        const PT_STORE = 'hypercubePoints';
+        let userPoints = [];          // { x, y, z, w, color, label, show, vid, mesh3, sprite3, mesh2, sprite2 }
+        let ptShowLabels = true, ptShowLeft = true;
+        function normPtValue(raw) {
+            let v = parseFloat(String(raw).replace(/[^0-9.eE+\-]/g, ''));
+            if (!isFinite(v)) return 0;
+            const a = Math.abs(v);
+            if (a > 1) { const digits = Math.floor(Math.log10(Math.floor(a))) + 1; v = v / Math.pow(10, digits); }
+            return Math.round(v * 1e6) / 1e6;
+        }
+        const fmtPt = v => (Math.round(v * 1000) / 1000).toString();
+        function ptLabelText(p) { return p.label ? p.label : '(' + [p.x, p.y, p.z, p.w].map(fmtPt).join(', ') + ')'; }
+        function makePtSprite(text, cssColor) {
+            const cv = document.createElement('canvas'); cv.width = 512; cv.height = 64;
+            const ctx = cv.getContext('2d');
+            ctx.font = 'bold 30px ui-monospace, Menlo, Consolas, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(2,6,18,0.92)'; ctx.strokeText(text, 6, 34);
+            ctx.fillStyle = cssColor; ctx.fillText(text, 6, 34);
+            const tex = new THREE.CanvasTexture(cv);
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+            sp.scale.set(1.6, 0.2, 1); sp.renderOrder = 1011; sp.center.set(0, 0.5);
+            return sp;
+        }
+        // 頂点ちょうどの点なら、組み上がり時の4D座標が一致する胞・頂点を探す（折りたたみ中もそこを追うため）
+        function findPtVertex(p) {
+            if ([p.x, p.y, p.z, p.w].some(v => Math.abs(Math.abs(v) - 1) > 1e-6)) return null;
+            const t = [p.x, p.y, p.z, p.w].map(v => v * HALF_S);
+            for (let c = 0; c < 8; c++) {
+                const vs = cellVerts4D(c, 1);
+                for (let k = 0; k < 8; k++) if (vs[k].every((v, i) => Math.abs(v - t[i]) < 1e-6)) return { cell: c, corner: k };
+            }
+            return null;
+        }
+        function disposePt(p) {
+            [p.mesh3, p.sprite3, p.mesh2, p.sprite2].forEach(o => { if (o && o.parent) o.parent.remove(o); if (o && o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } if (o && o.geometry) o.geometry.dispose(); });
+            p.mesh3 = p.sprite3 = p.mesh2 = p.sprite2 = null;
+        }
+        function buildPt(p) {
+            disposePt(p);
+            const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D');
+            if (!r3 || !r2) return;
+            const col = new THREE.Color(p.color);
+            p.mesh3 = makeMarker(col, 0.065, 1010); r3.add(p.mesh3);
+            p.sprite3 = makePtSprite(ptLabelText(p), p.color); r3.add(p.sprite3);
+            p.mesh2 = makeMarker(col, 0.065, 1010); r2.add(p.mesh2);
+            p.sprite2 = makePtSprite(ptLabelText(p), p.color); r2.add(p.sprite2);
+            p.vid = findPtVertex(p);
+        }
+        // 左の立方体の点の位置：左の面と同じ順に（X-Z・Y-Z → ZW の擬似歪み → 3D回転）
+        function leftPtPos(x, y, z) {
+            if (linkAngleX !== 0) { const c = Math.cos(linkAngleX), s = Math.sin(linkAngleX); const rx = x * c - z * s, rz = x * s + z * c; x = rx; z = rz; }
+            if (linkAngleY !== 0) { const c = Math.cos(linkAngleY), s = Math.sin(linkAngleY); const ry = y * c - z * s, rz = y * s + z * c; y = ry; z = rz; }
+            if (zwLink && soloAngleZW !== 0) {
+                const zc = Math.cos(soloAngleZW), zs = Math.sin(soloAngleZW);
+                const wv = z * zs, safeW = Math.min(Math.max(wv, -CAMERA_W + 0.5), CAMERA_W - 0.5), sc = CAMERA_W / (CAMERA_W - safeW);
+                x *= sc; y *= sc; z = (z * zc) * sc;
+            }
+            return rot3DLeft(x, y, z);
+        }
+        function updateUserPoints(progress) {
+            const folded = progress >= 0.999;
+            const off = 0.09;
+            for (const p of userPoints) {
+                if (!p.mesh3) continue;
+                // 右（超立方体）
+                let p4 = null;
+                if (p.vid && !folded) p4 = cellVerts4D(p.vid.cell, progress)[p.vid.corner];
+                else if (folded) p4 = [p.x * HALF_S, p.y * HALF_S, p.z * HALF_S, p.w * HALF_S];
+                const showR = p.show && p4 !== null;
+                p.mesh3.visible = showR; p.sprite3.visible = showR && ptShowLabels;
+                if (showR) { const q = rotated4DAxis(p4); p.mesh3.position.set(q[0], q[1], q[2]); p.sprite3.position.set(q[0] + off, q[1] + off, q[2]); }
+                // 左（立方体）：(x, y, w) の位置。組み上がった状態のときだけ
+                const showL = p.show && ptShowLeft && folded;
+                p.mesh2.visible = showL; p.sprite2.visible = showL && ptShowLabels;
+                if (showL) { const q = leftPtPos(p.x * HALF_S, p.y * HALF_S, p.w * HALF_S); p.mesh2.position.set(q[0], q[1], q[2]); p.sprite2.position.set(q[0] + off, q[1] + off, q[2]); }
+            }
+        }
+        function savePts() {
+            try { localStorage.setItem(PT_STORE, JSON.stringify(userPoints.map(p => ({ x: p.x, y: p.y, z: p.z, w: p.w, color: p.color, label: p.label, show: p.show })))); } catch (_) {}
+        }
+
         // 左・立方体の座標軸（x,y,z）を Root2D に作る。右と同じ矢印ギズモ＋小さなセリフ体ラベル。
         function buildLeftAxisGnomon() {
             const root2D = scene2D.getObjectByName('Root2D');
@@ -1747,6 +1884,7 @@
             }
 
             updateAxisGnomon(progress);
+            updateUserPoints(progress);   // 置いた点も今の回転・投影・折りたたみに合わせる
 
             document.getElementById('unfold-slider').value = progress;
             const percent = Math.round(progress * 100);
@@ -1761,6 +1899,16 @@
 
             document.getElementById('progress-percent').innerText = `${percent}%${statusText}`;
         }
+
+        // --- 省エネ描画：何も動いていないときは描き直さない（GPU を休ませてファンを回さない） ---
+        //   アニメ・移行・自動回転・周回・カメラの慣性のどれかが動いている間と、操作（クリック・キー・ドラッグ・
+        //   ホイール・入力・画面サイズ変更）の直後の数フレームだけ描く。止まっている間は最後の絵がそのまま映り続ける。
+        let _renderFrames = 20;   // あと何フレーム描くか（起動直後は少し多めに描いて落ち着かせる）
+        function requestRender(n = 30) { _renderFrames = Math.max(_renderFrames, n); }
+        ['pointerdown', 'pointerup', 'wheel', 'keydown', 'keyup', 'input', 'change', 'click', 'touchstart', 'touchmove'].forEach(t =>
+            document.addEventListener(t, () => requestRender(), { capture: true, passive: true }));
+        document.addEventListener('pointermove', e => { if (e.buttons) requestRender(); }, { capture: true, passive: true });
+        window.addEventListener('resize', () => requestRender());
 
         function animate() {
             requestAnimationFrame(animate);
@@ -1930,9 +2078,10 @@
 
             const show2D = (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'cube');
             const show3D = (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'hypercube');
-            if (show2D) controls2D.update();
+            let camMoved = false;   // カメラが動いたか（ズーム・パン・慣性）
+            if (show2D) camMoved = controls2D.update() || camMoved;
             if (show3D) {
-                controls3D.update();
+                camMoved = controls3D.update() || camMoved;
                 // フォグの濃さをカメラ距離に連動させ、距離が変わっても明るさを一定に保つ。
                 //   これでカメラ正対 ON/OFF（遠距離/近距離）でも見た目の明るさが揃う＝ライティング差が出ない。
                 //   移行アニメ中(axisTween)はそちらがフォグを滑らかに制御するので触らない。
@@ -1941,6 +2090,10 @@
                     scene3D.fog.density = Math.max(0.004, Math.min(0.045, 0.32 / Math.max(dist, 1)));
                 }
             }
+            // 何も動いていなければ、ここで終わり（描き直さない＝省エネ）
+            const busy = animationMode !== 0 || axisTween !== null || cycleMode || anySpin() || autoRotateCamera || camMoved;
+            if (!busy && _renderFrames <= 0) return;
+            if (_renderFrames > 0) _renderFrames--;
             // カメラを回している最中も「手前=はっきり/奥=ダーク」を毎フレーム再評価する
             //   （辺・面の濃淡はカメラ距離ベースなので、カメラ移動でも更新が要る）。描画直前に更新。
             updateMorphingGeometry(animationProgress);
@@ -2280,7 +2433,7 @@
             document.querySelectorAll('.sb-tab').forEach(b => b.addEventListener('click', () => showTab(b.getAttribute('data-tab'))));
             let firstTab = 'rot';
             try { firstTab = localStorage.getItem('hypercubeSidebarTab') || 'rot'; } catch (_) {}
-            showTab(['fold', 'rot', 'view'].includes(firstTab) ? firstTab : 'rot');
+            showTab(['fold', 'rot', 'view', 'pts'].includes(firstTab) ? firstTab : 'rot');
             // Enter／W回転: W の絡む3面（X-W・Y-W・Z-W）を同時に ON/OFF
             function toggleAllSpins() {
                 stopCycle();
@@ -2548,6 +2701,127 @@
             }
             document.getElementById('gh-save-btn').addEventListener('click', saveToGithub);
             renderGhUI();
+
+            // ===== 点マーカーの操作 =====
+            const PT_FILE = 'hypercube-points.csv';
+            const PT_SWATCHES = ['#ffd54a', '#ff5d6c', '#3ddc84', '#56a8ff', '#b07cff', '#ff44dd', '#33e5ff', '#ffffff'];
+            const ptEl = id => document.getElementById(id);
+            const ptStatus = (msg, ok) => { const el = ptEl('pt-status'); el.textContent = msg; el.className = 'text-[10px] ' + (ok === true ? 'text-emerald-300' : ok === false ? 'text-rose-300' : 'text-slate-400'); };
+            function addPt(x, y, z, w, color, label, show = true, render = true) {
+                const p = { x: normPtValue(x), y: normPtValue(y), z: normPtValue(z), w: normPtValue(w), color: color || '#ffd54a', label: label || '', show };
+                userPoints.push(p); buildPt(p);
+                if (render) { savePts(); renderPtList(); updateMorphingGeometry(animationProgress); }
+                return p;
+            }
+            function removePt(p) { disposePt(p); userPoints = userPoints.filter(q => q !== p); savePts(); renderPtList(); updateMorphingGeometry(animationProgress); }
+            function renderPtList() {
+                const list = ptEl('pt-list'); list.innerHTML = '';
+                ptEl('pt-count').textContent = userPoints.length ? '（' + userPoints.length + '個）' : '';
+                if (!userPoints.length) { list.innerHTML = '<div class="text-[10px] text-slate-500">まだありません。上で座標を入れるか、頂点のプリセットを押してください。</div>'; return; }
+                userPoints.forEach(p => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded px-1.5 py-1';
+                    const col = document.createElement('input'); col.type = 'color'; col.value = p.color; col.className = 'w-6 h-5 bg-transparent border border-slate-700 rounded cursor-pointer shrink-0'; col.title = '色を変える';
+                    col.addEventListener('input', () => { p.color = col.value; buildPt(p); savePts(); updateMorphingGeometry(animationProgress); });
+                    const txt = document.createElement('span'); txt.className = 'flex-1 min-w-0 truncate font-mono text-[10px] text-slate-300';
+                    txt.textContent = (p.label ? p.label + '  ' : '') + '(' + [p.x, p.y, p.z, p.w].map(fmtPt).join(', ') + ')' + (p.vid ? '  頂点' : '');
+                    const eye = document.createElement('button'); eye.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (p.show ? 'text-slate-200' : 'text-slate-500');
+                    eye.textContent = p.show ? '表示' : '隠す'; eye.title = '表示する／隠す';
+                    eye.addEventListener('click', () => { p.show = !p.show; savePts(); renderPtList(); updateMorphingGeometry(animationProgress); });
+                    const del = document.createElement('button'); del.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-rose-300 text-[10px]'; del.textContent = '消す';
+                    del.addEventListener('click', () => removePt(p));
+                    row.append(col, txt, eye, del); list.appendChild(row);
+                });
+            }
+            // 入力のプレビュー（変換後の値）
+            const ptPreview = () => { ptEl('pt-preview').textContent = '→ 置く位置 (' + ['pt-x', 'pt-y', 'pt-z', 'pt-w'].map(id => fmtPt(normPtValue(ptEl(id).value))).join(', ') + ')'; };
+            document.querySelectorAll('.pt-in').forEach(el => { el.addEventListener('input', ptPreview); el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ptEl('pt-add').click(); } e.stopPropagation(); }); });
+            ptEl('pt-label').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ptEl('pt-add').click(); } e.stopPropagation(); });
+            ptPreview();
+            // 色の見本（押すと色を選ぶ）。追加するたびに次の色へ進む
+            let swatchIdx = 0;
+            PT_SWATCHES.forEach((c, i) => { const b = document.createElement('button'); b.className = 'w-5 h-5 rounded border border-slate-600'; b.style.background = c; b.title = c; b.addEventListener('click', () => { ptEl('pt-color').value = c; swatchIdx = i; }); ptEl('pt-swatches').appendChild(b); });
+            ptEl('pt-add').addEventListener('click', () => {
+                addPt(ptEl('pt-x').value, ptEl('pt-y').value, ptEl('pt-z').value, ptEl('pt-w').value, ptEl('pt-color').value, ptEl('pt-label').value.trim());
+                ptEl('pt-label').value = '';
+                swatchIdx = (PT_SWATCHES.indexOf(ptEl('pt-color').value) + 1) % PT_SWATCHES.length; ptEl('pt-color').value = PT_SWATCHES[swatchIdx];
+                ptStatus('点を置きました', true);
+            });
+            // 頂点のプリセット（16個）。並びは x y z w の符号
+            for (let i = 0; i < 16; i++) {
+                const sg = [8, 4, 2, 1].map(b => (i & b) ? -1 : 1);
+                const b = document.createElement('button');
+                b.className = 'px-1 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700';
+                b.innerHTML = sg.map((v, k) => '<span style="color:' + ['#ff5d6c', '#3ddc84', '#56a8ff', '#b07cff'][k] + '">' + (v > 0 ? '+' : '−') + '</span>').join('');
+                b.title = '頂点 (' + sg.join(', ') + ') に点を置く（色は上の「色」）';
+                b.addEventListener('click', () => { addPt(sg[0], sg[1], sg[2], sg[3], ptEl('pt-color').value, ''); ptStatus('頂点 (' + sg.join(', ') + ') に点を置きました', true); });
+                ptEl('pt-vertex-grid').appendChild(b);
+            }
+            ptEl('pt-default-pair').addEventListener('click', () => {
+                addPt(1, 1, 1, 1, '#ff44dd', '', true, false); addPt(-1, -1, -1, -1, '#33e5ff', '', true, false);
+                savePts(); renderPtList(); updateMorphingGeometry(animationProgress); ptStatus('既定の2点（＋＋＋＋＝ピンク、−−−−＝水色）を置きました', true);
+            });
+            ptEl('pt-all-vertices').addEventListener('click', () => {
+                for (let i = 0; i < 16; i++) { const sg = [8, 4, 2, 1].map(b => (i & b) ? -1 : 1); addPt(sg[0], sg[1], sg[2], sg[3], sg[3] > 0 ? '#ffb347' : '#56c8ff', '', true, false); }
+                savePts(); renderPtList(); updateMorphingGeometry(animationProgress); ptStatus('16頂点すべてに点を置きました（w が＋は橙、−は水色）', true);
+            });
+            ptEl('pt-clear').addEventListener('click', () => { userPoints.forEach(disposePt); userPoints = []; savePts(); renderPtList(); updateMorphingGeometry(animationProgress); ptStatus('全部消しました'); });
+            ptEl('pt-labels').addEventListener('click', () => { ptShowLabels = !ptShowLabels; ptEl('pt-labels').textContent = 'ラベル: ' + (ptShowLabels ? 'ON' : 'OFF'); try { localStorage.setItem('hypercubePtLabels', ptShowLabels ? '1' : '0'); } catch (_) {} updateMorphingGeometry(animationProgress); });
+            ptEl('pt-left').addEventListener('click', () => { ptShowLeft = !ptShowLeft; ptEl('pt-left').textContent = '左にも: ' + (ptShowLeft ? 'ON' : 'OFF'); try { localStorage.setItem('hypercubePtLeft', ptShowLeft ? '1' : '0'); } catch (_) {} updateMorphingGeometry(animationProgress); });
+            // CSV（label,x,y,z,w,color,show）
+            const ptToCSV = () => 'label,x,y,z,w,color,show\n' + userPoints.map(p => [String(p.label || '').replace(/[,\n]/g, ' '), p.x, p.y, p.z, p.w, p.color, p.show ? 1 : 0].join(',')).join('\n') + '\n';
+            function ptFromCSV(txt) {
+                const out = [];
+                String(txt).split(/\r?\n/).forEach(line => {
+                    const c = line.split(','); if (c.length < 5 || c[0].trim().toLowerCase() === 'label') return;
+                    out.push({ label: c[0].trim(), x: c[1], y: c[2], z: c[3], w: c[4], color: (c[5] || '#ffd54a').trim(), show: (c[6] || '1').trim() !== '0' });
+                });
+                return out;
+            }
+            function replacePts(list) {
+                userPoints.forEach(disposePt); userPoints = [];
+                list.forEach(q => addPt(q.x, q.y, q.z, q.w, q.color, q.label, q.show, false));
+                savePts(); renderPtList(); updateMorphingGeometry(animationProgress);
+            }
+            ptEl('pt-csv-dl').addEventListener('click', () => {
+                const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ptToCSV()], { type: 'text/csv' })); a.download = PT_FILE; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            });
+            ptEl('pt-csv-up').addEventListener('change', e => {
+                const f = e.target.files && e.target.files[0]; if (!f) return;
+                const rd = new FileReader(); rd.onload = () => { const l = ptFromCSV(rd.result); replacePts(l); ptStatus('CSV から ' + l.length + '個 読み込みました', true); }; rd.readAsText(f); e.target.value = '';
+            });
+            // GitHub（キー設定で保存した鍵を使う）
+            const ghApi = 'https://api.github.com/repos/' + GH_REPO + '/contents/' + PT_FILE;
+            const ghHeaders = () => ({ 'Authorization': 'Bearer ' + ghToken(), 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' });
+            const ghExplain = r => r.status === 401 ? '鍵が無効です（期限切れ・貼り間違い）' : (r.status === 403 || r.status === 404) ? '権限が足りないか、ファイルがありません' : 'HTTP ' + r.status;
+            const b64ToText = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\n/g, '')), ch => ch.charCodeAt(0)));
+            ptEl('pt-gh-save').addEventListener('click', async () => {
+                if (!ghToken()) { ptStatus('先にキー設定の「GitHub に保存」欄で鍵を保存してください', false); return; }
+                ptStatus('保存中…');
+                try {
+                    let sha = null; const r0 = await fetch(ghApi, { headers: ghHeaders(), cache: 'no-store' });
+                    if (r0.status === 200) sha = (await r0.json()).sha; else if (r0.status !== 404) throw new Error(ghExplain(r0));
+                    const bytes = new TextEncoder().encode(ptToCSV()); let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+                    const body = { message: 'hypercube-points.csv: 点マーカーをアプリから保存（' + userPoints.length + '個）', content: btoa(bin) }; if (sha) body.sha = sha;
+                    const r1 = await fetch(ghApi, { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, ghHeaders()), body: JSON.stringify(body) });
+                    if (!r1.ok) throw new Error(ghExplain(r1));
+                    ptStatus('GitHub に保存しました（' + userPoints.length + '個）', true);
+                } catch (e) { ptStatus('失敗: ' + (e && e.message ? e.message : e), false); }
+            });
+            ptEl('pt-gh-load').addEventListener('click', async () => {
+                ptStatus('読み込み中…');
+                try {
+                    let txt = null;
+                    if (ghToken()) { const r = await fetch(ghApi, { headers: ghHeaders(), cache: 'no-store' }); if (!r.ok) throw new Error(ghExplain(r)); txt = b64ToText((await r.json()).content); }
+                    else { const r = await fetch(PT_FILE, { cache: 'no-store' }); if (!r.ok) throw new Error('GitHub Pages に ' + PT_FILE + ' がありません'); txt = await r.text(); }   // 鍵が無くても公開ページからは読める
+                    const l = ptFromCSV(txt); replacePts(l); ptStatus('GitHub から ' + l.length + '個 読み込みました', true);
+                } catch (e) { ptStatus('失敗: ' + (e && e.message ? e.message : e), false); }
+            });
+            // 起動時：このブラウザに保存した点を戻す
+            try { ptShowLabels = localStorage.getItem('hypercubePtLabels') !== '0'; ptShowLeft = localStorage.getItem('hypercubePtLeft') !== '0'; } catch (_) {}
+            ptEl('pt-labels').textContent = 'ラベル: ' + (ptShowLabels ? 'ON' : 'OFF'); ptEl('pt-left').textContent = '左にも: ' + (ptShowLeft ? 'ON' : 'OFF');
+            try { const saved = JSON.parse(localStorage.getItem(PT_STORE) || '[]'); saved.forEach(q => addPt(q.x, q.y, q.z, q.w, q.color, q.label, q.show !== false, false)); } catch (_) {}
+            renderPtList(); updateMorphingGeometry(animationProgress);
             document.getElementById('keycfg-import').addEventListener('change', (e) => {
                 const f = e.target.files && e.target.files[0]; if (!f) return;
                 const rd = new FileReader();
