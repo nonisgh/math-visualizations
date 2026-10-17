@@ -304,10 +304,10 @@
             </span>
         </div>
         <div class="flex gap-1 px-3 pb-2 border-b border-slate-800" role="tablist">
-            <button class="sb-tab" data-tab="fold" role="tab"><i data-lucide="sliders" class="w-3.5 h-3.5"></i>折りたたみ</button>
-            <button class="sb-tab" data-tab="rot" role="tab"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>回転</button>
-            <button class="sb-tab" data-tab="view" role="tab"><i data-lucide="eye" class="w-3.5 h-3.5"></i>見え方</button>
-            <button class="sb-tab" data-tab="pts" role="tab"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>点</button>
+            <button class="sb-tab" data-tab="fold" role="tab" title="Shift+1（N で次のタブへ）"><i data-lucide="sliders" class="w-3.5 h-3.5"></i>折りたたみ</button>
+            <button class="sb-tab" data-tab="rot" role="tab" title="Shift+2（N で次のタブへ）"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>回転</button>
+            <button class="sb-tab" data-tab="view" role="tab" title="Shift+3（N で次のタブへ）"><i data-lucide="eye" class="w-3.5 h-3.5"></i>見え方</button>
+            <button class="sb-tab" data-tab="pts" role="tab" title="Shift+4（N で次のタブへ）"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>点</button>
         </div>
         <div class="flex-1 overflow-y-auto px-3 py-2.5 space-y-3">
             <div class="sb-panel space-y-3" data-panel="fold">
@@ -2981,6 +2981,10 @@
             let firstTab = 'rot';
             try { firstTab = localStorage.getItem('hypercubeSidebarTab') || 'rot'; } catch (_) {}
             showTab(['fold', 'rot', 'view', 'pts'].includes(firstTab) ? firstTab : 'rot');
+            // ショートカットでタブを切り替える（パネルを閉じていたら開いてから）
+            const TAB_ORDER = ['fold', 'rot', 'view', 'pts'];
+            const goTab = name => { if (document.body.classList.contains('sidebar-hidden')) togglePanel(); showTab(name); };
+            const nextTab = () => { const a = document.querySelector('.sb-tab.active'), i = TAB_ORDER.indexOf(a ? a.getAttribute('data-tab') : ''); goTab(TAB_ORDER[(i + 1) % TAB_ORDER.length]); };
             // Enter／W回転: W の絡む3面（X-W・Y-W・Z-W）を同時に ON/OFF
             function toggleAllSpins() {
                 stopCycle();
@@ -3035,6 +3039,11 @@
             const SHORTCUT_ACTIONS = [
                 { id: 'both', label: '表示トグル（どっちも⇔超立方体のみ）', short: '表示トグル', def: '1', run: toggleBothMode },
                 { id: 'panel', label: '操作パネル 表示/非表示', short: '操作パネル', def: 'Space', run: togglePanel },
+                { id: 'tab_fold', label: 'タブ：折りたたみ', short: '折りたたみタブ', def: 'Shift+1', run: () => goTab('fold') },
+                { id: 'tab_rot', label: 'タブ：回転', short: '回転タブ', def: 'Shift+2', run: () => goTab('rot') },
+                { id: 'tab_view', label: 'タブ：見え方', short: '見え方タブ', def: 'Shift+3', run: () => goTab('view') },
+                { id: 'tab_pts', label: 'タブ：点', short: '点タブ', def: 'Shift+4', run: () => goTab('pts') },
+                { id: 'tab_next', label: 'タブ：次へ（順に切り替え）', short: '次のタブ', def: 'N', run: nextTab },
                 { id: 'allSpins', label: 'W ON/OFF（X-W・Y-W・Z-W）', short: 'W', def: 'Enter', run: toggleAllSpins },
                 { id: 'fold', label: '組み上げる', short: '組み上げ', def: 'F', run: clickSel('#play-fold-btn') },
                 { id: 'unfold', label: '展開する', short: '展開', def: 'U', run: clickSel('#play-unfold-btn') },
