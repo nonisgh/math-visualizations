@@ -49,8 +49,15 @@
             background: #00f0ff;
         }
 
-        .mode-split #wrapper-2d3d { width: 50%; height: 100%; display: block; position: relative; border-right: 1px solid #1e293b; }
-        .mode-split #wrapper-3d4d { width: 50%; height: 100%; display: block; position: relative; }
+        .mode-split #wrapper-2d3d { width: calc(var(--split-l, 0.5) * 100%); flex: none; height: 100%; display: block; position: relative; border-right: 1px solid #1e293b; }
+        .mode-split #wrapper-3d4d { width: auto; flex: 1 1 0; min-width: 0; height: 100%; display: block; position: relative; }
+        /* 立方体と超立方体の境目のつまみ（ドラッグで広さを変える。ダブルクリックで半分に戻す）。並び方に合わせて縦線／横線になる */
+        #split-handle { display: none; }
+        .mode-split #split-handle { display: block; flex: none; position: relative; z-index: 25; width: 14px; margin: 0 -7px; cursor: col-resize; touch-action: none; }
+        #split-handle::after { content: ''; position: absolute; left: 50%; top: 50%; width: 5px; height: 48px; transform: translate(-50%, -50%); border-radius: 4px; background: rgba(148, 163, 184, 0.35); transition: background 0.15s; }
+        #split-handle:hover::after, #split-handle.dragging::after { background: rgba(167, 139, 250, 0.95); }
+        body.split-dragging, body.split-dragging * { cursor: col-resize !important; user-select: none !important; }
+        body.split-dragging.split-col, body.split-dragging.split-col * { cursor: row-resize !important; }
         /* 左右入れ替え：超立方体を左、立方体を右に（縦長の画面では超立方体を上に） */
         #main-container.swap-views { flex-direction: row-reverse; }
         #zw-dial { top: 64px; right: 12px; }   /* 見出しの下（縦長の画面でも見出しと重ならない） */
@@ -105,8 +112,10 @@
         /* 縦長の画面（iPad 縦・iPhone）は、立方体と超立方体を上下に並べる（超立方体を大きく） */
         @media (orientation: portrait) and (max-width: 1100px) {
             #main-container { flex-direction: column; }
-            .mode-split #wrapper-2d3d { width: 100% !important; height: 40% !important; border-right: 0 !important; border-bottom: 1px solid #1e293b; }
-            .mode-split #wrapper-3d4d { width: 100% !important; height: 60% !important; }
+            .mode-split #wrapper-2d3d { width: 100% !important; height: calc(var(--split-p, 0.4) * 100%) !important; border-right: 0 !important; border-bottom: 1px solid #1e293b; }
+            .mode-split #wrapper-3d4d { width: 100% !important; height: auto !important; flex: 1 1 0; min-height: 0; }
+            .mode-split #split-handle { width: auto; height: 14px; margin: -7px 0; cursor: row-resize; }
+            #split-handle::after { width: 48px; height: 5px; }
             #main-container.swap-views { flex-direction: column-reverse; }
             .mode-split.swap-views #wrapper-2d3d { border-left: 0 !important; border-bottom: 0 !important; border-top: 1px solid #1e293b; }
         }
@@ -128,8 +137,8 @@
             #sidebar-side { display: none !important; }   /* 左右の切替はスマホでは使わない */
             #badge-2d3d, #badge-3d4d { top: 6px !important; left: 6px !important; padding: 3px 8px !important; font-size: 10px !important; }
             #badge-2d3d span span, #badge-3d4d span span { display: none; }   /* 小さい画面では見出しの説明文を省く */
-            .mode-split #wrapper-2d3d { height: 38% !important; }
-            .mode-split #wrapper-3d4d { height: 62% !important; }
+            .mode-split #wrapper-2d3d { height: calc(var(--split-p, 0.38) * 100%) !important; }
+            .mode-split #wrapper-3d4d { height: auto !important; }
         }
         /* iPhone 横向き（高さが低い）：パネルは横、図形は左右に並べたまま */
         @media (max-height: 500px) and (orientation: landscape) {
@@ -178,6 +187,8 @@
                 <div id="zwd-sub" class="text-[9px] text-slate-400 font-mono"></div>
             </div>
         </div>
+
+        <div id="split-handle" title="ドラッグで立方体と超立方体の広さを変える（ダブルクリックで元に戻す）"></div>
 
         <div id="wrapper-3d4d">
             <div id="canvas-3d4d" class="w-full h-full"></div>
@@ -2809,6 +2820,47 @@
                 const nextIndex = (currentIndex + 1) % speeds.length;
                 animSpeedMultiplier = speeds[nextIndex];
                 speedText.innerText = `速度: ${animSpeedMultiplier.toFixed(1)}x`;
+            });
+
+            // 立方体と超立方体の境目をドラッグして広さを変える。横並び＝立方体の幅、縦並び＝立方体の高さ（それぞれ保存）
+            const splitHandle = document.getElementById('split-handle');
+            const SPLIT_STORE = 'hypercubeSplit';
+            let splitSaved = {}; try { splitSaved = JSON.parse(localStorage.getItem(SPLIT_STORE) || '{}') || {}; } catch (_) {}
+            const applySplit = () => {
+                ['l', 'p'].forEach(k => { if (isFinite(splitSaved[k])) document.body.style.setProperty('--split-' + k, String(splitSaved[k])); else document.body.style.removeProperty('--split-' + k); });
+            };
+            applySplit();
+            const splitAfter = () => { onWindowResize(); updateMorphingGeometry(animationProgress); requestRender(20); };
+            let splitDrag = null;
+            splitHandle.addEventListener('pointerdown', e => {
+                const mc = document.getElementById('main-container'), dirn = getComputedStyle(mc).flexDirection;
+                splitDrag = { rect: mc.getBoundingClientRect(), dirn };
+                splitHandle.classList.add('dragging'); document.body.classList.add('split-dragging'); document.body.classList.toggle('split-col', dirn.startsWith('column'));
+                try { splitHandle.setPointerCapture(e.pointerId); } catch (_) {}
+                e.preventDefault();
+            });
+            splitHandle.addEventListener('pointermove', e => {
+                if (!splitDrag) return;
+                const { rect: r, dirn } = splitDrag;
+                // 立方体の側から測った割合（入れ替え中は反対側から）
+                let f = dirn === 'row' ? (e.clientX - r.left) / r.width : dirn === 'row-reverse' ? (r.right - e.clientX) / r.width
+                      : dirn === 'column' ? (e.clientY - r.top) / r.height : (r.bottom - e.clientY) / r.height;
+                f = Math.max(0.12, Math.min(0.88, f));
+                splitSaved[dirn.startsWith('row') ? 'l' : 'p'] = Math.round(f * 1000) / 1000;
+                applySplit(); splitAfter();
+            });
+            const endSplit = () => {
+                if (!splitDrag) return; splitDrag = null;
+                splitHandle.classList.remove('dragging'); document.body.classList.remove('split-dragging', 'split-col');
+                try { localStorage.setItem(SPLIT_STORE, JSON.stringify(splitSaved)); } catch (_) {}
+                splitAfter();
+            };
+            splitHandle.addEventListener('pointerup', endSplit); splitHandle.addEventListener('pointercancel', endSplit);
+            splitHandle.addEventListener('dblclick', () => {   // 元の割合に戻す（今の並び方の分だけ）
+                const dirn = getComputedStyle(document.getElementById('main-container')).flexDirection;
+                delete splitSaved[dirn.startsWith('row') ? 'l' : 'p'];
+                try { localStorage.setItem(SPLIT_STORE, JSON.stringify(splitSaved)); } catch (_) {}
+                applySplit(); splitAfter();
             });
 
             // 立方体と超立方体の左右入れ替え（保存して次回も同じ並び）
