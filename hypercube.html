@@ -505,7 +505,7 @@
                     同じ角度を立方体と超立方体に同時にかけています。<b class="text-cyan-300">立方体はただ回るだけ</b>。
                     <b class="text-purple-300">超立方体は内側の胞と外側の胞が入れ替わり、裏返るように見えます</b>。
                     操作は同じで、1次元違うだけです。<b class="text-cyan-300">立方体は直接ドラッグして回せます</b>（超立方体もついてきます）。
-                    <b class="text-purple-300">超立方体もドラッグで回せます</b>（つかんだ形を画面の縦横の軸まわりに回す。Option+ドラッグで画面の中でひねる。iPad は2本指でひねる）。回した向きは X-Y・X-Z・Y-Z の数字に出ます。手で回した X-Y は立方体には伝わりません。
+                    <b class="text-purple-300">超立方体もドラッグで回せます</b>（つかんだ形を画面の縦横の軸まわりに回す。Option+ドラッグで画面の中でひねる。iPad は2本指でひねる）。どちらの画面も、<b>⌘（Ctrl）+ドラッグ・右ドラッグ・2本指で位置を動かせます</b>（Shift+ドラッグは Z-W。リセットで位置も戻る）。回した向きは X-Y・X-Z・Y-Z の数字に出ます。手で回した X-Y は立方体には伝わりません。
                 </p>
 
                 <p class="text-[10px] text-slate-400 leading-relaxed">
@@ -1363,16 +1363,18 @@
             controls2D.enableDamping = true;
             controls2D.dampingFactor = 0.05;
             controls2D.enableRotate = false;   // 左はドラッグで「立方体そのもの」を回す（視点ではなく物体を回すので、右と同じ操作になる）
-            controls2D.enablePan = false;      // Shift+ドラッグのパン(位置移動)を無効化＝Shift+ドラッグは ZW 操作に割り当てる
+            controls2D.enablePan = true;       // 位置の移動（パン）：⌘/Ctrl+ドラッグ・右ドラッグ・2本指。Shift+ドラッグは Z-W なので、そのときだけ切る（下の pointerdown）
 
             // 左の立方体をドラッグで回すと、同じ角度が右の超立方体にもかかる
             let dragging = false, px = 0, py = 0;
             const ptrsL = new Set();   // 触れている指の数（iPad の二本指ピンチ中は回さない）
-            let camDragL = false;   // 往復の再生中に始めたドラッグ＝カメラを回す（立方体は回さない）
-            renderer2D.domElement.addEventListener('pointerdown', e => { ptrsL.add(e.pointerId); camDragL = !!pingPong; if (e.button !== 0 && e.pointerType === 'mouse') return; dragging = ptrsL.size === 1; px = e.clientX; py = e.clientY; try { renderer2D.domElement.setPointerCapture(e.pointerId); } catch (_) {} });
+            let camDragL = false, panDragL = false;   // 往復の再生中に始めたドラッグ＝カメラを回す／⌘・Ctrl で始めたドラッグ＝位置を動かす（どちらも立方体は回さない）
+            // カメラ操作（OrbitControls）より先に：Shift・Option のときは位置の移動を切る（Shift＝Z-W、Option＝ひねる）
+            renderer2D.domElement.addEventListener('pointerdown', e => { controls2D.enablePan = !(e.shiftKey || e.altKey); }, true);
+            renderer2D.domElement.addEventListener('pointerdown', e => { ptrsL.add(e.pointerId); camDragL = !!pingPong; panDragL = e.metaKey || e.ctrlKey; if (e.button !== 0 && e.pointerType === 'mouse') return; dragging = ptrsL.size === 1; px = e.clientX; py = e.clientY; try { renderer2D.domElement.setPointerCapture(e.pointerId); } catch (_) {} });
             renderer2D.domElement.addEventListener('pointermove', e => {
                 if (!dragging || ptrsL.size !== 1) return;
-                if (pingPong || camDragL) return;
+                if (pingPong || camDragL || panDragL) return;
                 stopCycle();
                 if (e.shiftKey) {
                     // Shift+左右ドラッグ＝Z-W回転。右の超立方体に反映＆（ZW連動ONなら）左の立方体は擬似歪みで表現。
@@ -1412,10 +1414,12 @@
             //   正面のままなら、左右ドラッグ＝X-Z、上下ドラッグ＝Y-Z（今までと同じ）。
             //   Option(Alt)+ドラッグ＝画面の中でひねる（形の中心のまわりのダイヤル）。iPad は2本指でひねる。
             //   手で回して生まれた X-Y は立方体には伝えない（xyManualOff）。Shift+左右ドラッグ＝Z-W（立方体と同じ操作）。
-            let draggingR = false, rx = 0, ry = 0, twistAng = null, camDragR = false;
+            let draggingR = false, rx = 0, ry = 0, twistAng = null, camDragR = false, panDragR = false;
             const ptrsR = new Set(), ptPosR = new Map();
+            renderer3D.domElement.addEventListener('pointerdown', e => { controls3D.enablePan = !(e.shiftKey || e.altKey); }, true);   // Shift＝Z-W、Option＝ひねる のときは位置を動かさない
             renderer3D.domElement.addEventListener('pointerdown', e => {
                 ptrsR.add(e.pointerId); ptPosR.set(e.pointerId, { x: e.clientX, y: e.clientY }); twistAng = null;
+                panDragR = e.metaKey || e.ctrlKey;   // ⌘/Ctrl で始めたドラッグ＝位置を動かす（超立方体は回さない）
                 camDragR = !!pingPong;   // 往復の再生中に始めたドラッグ＝カメラを回す（超立方体は回さない）
                 if (e.button !== 0 && e.pointerType === 'mouse') return;
                 draggingR = ptrsR.size === 1; rx = e.clientX; ry = e.clientY;
@@ -1423,7 +1427,7 @@
             });
             renderer3D.domElement.addEventListener('pointermove', e => {
                 if (ptPosR.has(e.pointerId)) ptPosR.set(e.pointerId, { x: e.clientX, y: e.clientY });
-                if (pingPong || camDragR) return;   // 往復中はカメラ（OrbitControls）が回す
+                if (pingPong || camDragR || panDragR) return;   // 往復中はカメラ（OrbitControls）が回す／⌘・Ctrl は位置の移動
                 if (ptrsR.size === 2 && e.pointerType === 'touch') {   // 2本指のひねり＝画面の中で回す
                     const [p, q] = [...ptPosR.values()];
                     const ang = Math.atan2(q.y - p.y, q.x - p.x);
@@ -2548,7 +2552,10 @@
         }
         function resetRotationParallel(only) {
             stopCycle();
-            if (!only) { cubePersp = true; applyPerspUI(); }   // 全部のリセットは、いつも遠近投影に戻す
+            if (!only) {
+                cubePersp = true; applyPerspUI();   // 全部のリセットは、いつも遠近投影に戻す
+                if (controls2D && camera2D) { controls2D.target.set(0, 0, 0); camera2D.position.set(0, 0, 18); camera2D.up.set(0, 1, 0); camera2D.lookAt(0, 0, 0); }   // 立方体の画面の位置（パン）も元へ
+            }
             const z = k => (!only || only === k);
             const par = wantParallel();   // リセット後のカメラは「優先」に合わせる（超立方体＝遠く・平行に近い／立方体＝近く・遠近）
             // 4D は「W を手前（視線方向）へ」＝胞から と同じ遠近投影にする。内と外の立方体が入れ子に見える。
