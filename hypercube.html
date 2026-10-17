@@ -1281,6 +1281,8 @@
 
                 const grid = new THREE.GridHelper(36, 36, 0x1e293b, 0x0f172a);
                 grid.position.y = -5;
+                grid.name = 'FloorGrid';
+                grid.visible = false;   // 床の座標グリッドは今のところ意味がないので非表示（true にすれば戻る）
                 s.add(grid);
             });
 
