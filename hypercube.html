@@ -392,6 +392,26 @@
             </section>
 
             <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="bookmark" class="w-3.5 h-3.5"></i>角度のプリセット</h3>
+                <p class="text-[10px] text-slate-500 leading-snug">押すと、その角度へアニメで移ります。W の角度が付いていれば「平行投影」のとき平行投影で見ます（等角図はこれで正確）。</p>
+                <div class="text-[10px] text-slate-400">等角図（中心に重なる対角の2頂点のうち、4D で手前の頂点）</div>
+                <div id="ang-builtin" class="grid grid-cols-2 gap-1.5 text-[11px]"></div>
+                <div class="flex items-center gap-1.5 text-[11px] pt-1 border-t border-slate-800">
+                    <input id="ang-name" type="text" placeholder="名前（なくても可）" class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100">
+                    <button id="ang-save" class="px-2 py-1 rounded bg-amber-600/40 border border-amber-400/50 text-amber-100 hover:bg-amber-600/60 font-bold shrink-0" title="今の X-W・Y-W・Z-W と 3D回転（X-Y・X-Z・Y-Z）の角度を保存（このブラウザに自動保存）">今の角度を保存</button>
+                </div>
+                <div id="ang-list" class="space-y-1 text-[11px]"></div>
+                <p class="text-[10px] text-slate-500 leading-snug pt-1 border-t border-slate-800">保存した角度はこのブラウザに自動で保存されます。「GitHub に保存」で <span class="font-mono text-slate-400">hypercube-angles.csv</span> に書き込み、他の端末では「GitHub から読込」で同じ角度を出せます（鍵はキー設定で保存したものを使います）。読み込んでも、ロックした角度は残ります。</p>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <button id="ang-gh-save" class="px-2 py-1 rounded bg-emerald-600/40 border border-emerald-400/50 text-emerald-100 hover:bg-emerald-600/60">GitHub に保存</button>
+                    <button id="ang-gh-load" class="px-2 py-1 rounded bg-sky-900/40 border border-sky-500/40 text-sky-200 hover:bg-sky-800/40">GitHub から読込</button>
+                    <button id="ang-csv-dl" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700">CSVダウンロード</button>
+                    <label class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 cursor-pointer">CSV読込<input id="ang-csv-up" type="file" accept=".csv,text/csv" class="hidden"></label>
+                </div>
+                <div id="ang-status" class="text-[10px] text-slate-400"></div>
+            </section>
+
+            <section class="sb-sec">
                 <h3 class="sb-h"><i data-lucide="target" class="w-3.5 h-3.5"></i>軸の操作</h3>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-amber-300 shrink-0 flex items-center gap-1"><i data-lucide="target" class="w-3.5 h-3.5"></i>手前へ消す軸:</span>
@@ -3121,6 +3141,148 @@
                 }
             }
             document.getElementById('anim-play').addEventListener('click', playRotAnim);
+
+            // --- 角度のプリセット：保存した角度（4D の3つ＋3D の3つ）へ滑らかに移る ---
+            // 投影は「平行投影」優先なら、W の角度が付いていれば平行、全部0なら遠近（プリセット移行と同じ考え方）
+            function animToAngles(A, name) {
+                stopCycle();
+                linkSpin = false; soloSpinZW = false; spinX = false; spinY = false; spinXY = false; spinXZ = false; spinYZ = false; updateSpinBtns();
+                document.getElementById('solo-spin-btn').classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
+                const R = v => (v || 0) * Math.PI / 180;
+                const a = R(A.a), b = R(A.b), c = R(A.c), t3 = [R(A.xy), R(A.xz), R(A.yz)];
+                const turned = [a, b, c].some(v => Math.abs(wrapPi(v)) > 0.02);
+                const projFrom = projAnim !== null ? projAnim : (parallel4D ? 1 : 0);
+                const projTo = (!cubePersp && turned) ? 1 : 0;
+                projAnim = projFrom;
+                const fogFar = 0.018 * 18 / 46, fogFrom = scene3D.fog.density;
+                const tw = {
+                    fx: linkAngleX, fy: linkAngleY, fz: soloAngleZW,
+                    tx: linkAngleX + wrapPi(a - linkAngleX), ty: linkAngleY + wrapPi(b - linkAngleY), tz: soloAngleZW + wrapPi(c - soloAngleZW),
+                    f3: [rotXY, rotXZ, rotYZ], t3: [rotXY + wrapPi(t3[0] - rotXY), rotXZ + wrapPi(t3[1] - rotXZ), rotYZ + wrapPi(t3[2] - rotYZ)],
+                    t: 0, dur: 1.2, pj0: projFrom, pj1: projTo,
+                    onDone: () => { parallel4D = projTo === 1; projAnim = null; }
+                };
+                const PAN_Y = 0;
+                if (screenAxis !== 'z') {   // 垂直軸がZ以外なら、移行中ずっとその軸を画面に立て続ける
+                    tw.trackAxis = true;
+                    tw.trackR0 = camera3D.position.distanceTo(new THREE.Vector3(0, PAN_Y, 0)) || 18;
+                    tw.trackFov0 = camera3D.fov;
+                    if (controls3D) controls3D.target.set(0, PAN_Y, 0);
+                    camera3D.up.set(0, 1, 0);
+                } else if (presetFaceCamera) {   // 正対ON：プリセット移行と同じく右カメラも正面へ
+                    if (projTo === 1) { tw.cam = { p0: camera3D.position.clone(), p1: new THREE.Vector3(0, PAN_Y, 46), f0: camera3D.fov, f1: 17 }; tw.fog0 = fogFrom; tw.fog1 = fogFar; }
+                    else { tw.cam = { p0: camera3D.position.clone(), p1: new THREE.Vector3(0, PAN_Y, 18), f0: camera3D.fov, f1: 45 }; tw.fog0 = fogFrom; tw.fog1 = 0.018; }
+                    if (controls3D) controls3D.target.set(0, PAN_Y, 0);
+                    camera3D.up.set(0, 1, 0);
+                }
+                axisTween = tw;
+                // 回転アニメの入力欄にも目標角を出す
+                [['anim-xw', A.a], ['anim-yw', A.b], ['anim-zw', A.c]].forEach(([id, v]) => { document.getElementById(id).value = String(Math.round((v || 0) * 100) / 100); });
+                const note = document.getElementById('proj-note'); if (note && name) note.innerText = name;
+            }
+            const EQ_B = Math.round(Math.asin(1 / Math.sqrt(3)) * 180 / Math.PI * 1000) / 1000;   // 35.264°
+            const ANG_BUILTIN = [
+                { name: '1,1,1,1 が手前', sub: '今の「頂点から」', a: 45, b: EQ_B, c: 30, col: '#ff44dd' },
+                { name: '−1,−1,−1,−1 が手前', sub: '全く裏返し', a: -135, b: 180 - EQ_B, c: -150, col: '#33e5ff' },
+                { name: '−1,−1,−1,1 が手前', sub: 'w 反転', a: -45, b: -EQ_B, c: -30, col: '#b07cff' },
+                { name: '1,1,1,−1 が手前', sub: 'w 反転の裏返し', a: 135, b: -(180 - EQ_B), c: 150, col: '#b07cff' }
+            ];
+            const fmtAng = v => (Math.round((v || 0) * 100) / 100).toString();
+            const angText = A => fmtAng(A.a) + '°, ' + fmtAng(A.b) + '°, ' + fmtAng(A.c) + '°' + ((A.xy || A.xz || A.yz) ? '  3D ' + fmtAng(A.xy) + '°, ' + fmtAng(A.xz) + '°, ' + fmtAng(A.yz) + '°' : '');
+            ANG_BUILTIN.forEach(P => {
+                const b = document.createElement('button');
+                b.className = 'px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-200 hover:bg-slate-700 text-left leading-tight';
+                b.innerHTML = '<div class="font-mono text-[10px]" style="color:' + P.col + '">' + P.name + '</div><div class="text-[9px] text-slate-500">' + P.sub + '｜' + angText(P) + '</div>';
+                b.title = '等角図：' + P.name + '（' + P.sub + '）。X-W・Y-W・Z-W = ' + angText(P) + '、3D回転は 0';
+                b.addEventListener('click', () => { animToAngles(P, '等角図｜' + P.name + '（' + P.sub + '）'); angStatus('等角図へ：' + P.name + '（' + P.sub + '）'); });
+                document.getElementById('ang-builtin').appendChild(b);
+            });
+            // 自分で保存した角度（このブラウザに自動保存。ロックで消せないようにできる）
+            const ANG_STORE = 'hypercubeAnglePresets';
+            let angPresets = [];
+            try { angPresets = JSON.parse(localStorage.getItem(ANG_STORE) || '[]') || []; } catch (_) { angPresets = []; }
+            const saveAng = () => { try { localStorage.setItem(ANG_STORE, JSON.stringify(angPresets)); } catch (_) {} };
+            const angStatus = msg => { const n = document.getElementById('ang-status'); if (n) n.textContent = msg; };
+            function renderAngList() {
+                const list = document.getElementById('ang-list'); list.innerHTML = '';
+                if (!angPresets.length) { list.innerHTML = '<div class="text-[10px] text-slate-500">保存した角度はまだありません。好きな向きにしてから「今の角度を保存」を押してください。</div>'; return; }
+                angPresets.forEach(P => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center gap-1.5 bg-slate-900/60 border rounded px-1.5 py-1 ' + (P.lock ? 'border-amber-500/40' : 'border-slate-800');
+                    const go = document.createElement('button'); go.className = 'flex-1 min-w-0 text-left leading-tight hover:text-amber-200';
+                    go.innerHTML = '<div class="truncate text-[11px] text-slate-200"></div><div class="truncate font-mono text-[9px] text-slate-500"></div>';
+                    go.children[0].textContent = P.name; go.children[1].textContent = angText(P); go.title = '押すとこの角度へ移る';
+                    go.addEventListener('click', () => { animToAngles(P, P.name); angStatus('移りました：' + P.name); });
+                    const lk = document.createElement('button'); lk.className = 'px-1 py-0.5 rounded border text-[11px] leading-none ' + (P.lock ? 'bg-amber-900/40 border-amber-500/50' : 'bg-slate-800 border-slate-700 opacity-50 hover:opacity-100');
+                    lk.textContent = P.lock ? '🔒' : '🔓'; lk.title = P.lock ? 'ロック中（消せません）。押すと外す' : '押すとロック（消せなくなる）';
+                    lk.addEventListener('click', () => { P.lock = !P.lock; saveAng(); renderAngList(); });
+                    const del = document.createElement('button'); del.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (P.lock ? 'text-slate-600 cursor-not-allowed' : 'text-rose-300'); del.textContent = '消す';
+                    del.title = P.lock ? 'ロック中なので消せません' : 'この角度を消す';
+                    del.addEventListener('click', () => { if (P.lock) { angStatus('ロック中なので消せません（🔒 を押すと外せます）'); return; } angPresets = angPresets.filter(q => q !== P); saveAng(); renderAngList(); });
+                    row.append(go, lk, del); list.appendChild(row);
+                });
+            }
+            const D2 = v => Math.round(wrapPi(v) * 180 / Math.PI * 100) / 100;
+            document.getElementById('ang-save').addEventListener('click', () => {
+                const P = { a: D2(linkAngleX), b: D2(linkAngleY), c: D2(soloAngleZW), xy: D2(rotXY), xz: D2(rotXZ), yz: D2(rotYZ), lock: false };
+                const nm = document.getElementById('ang-name').value.trim();
+                P.name = nm || ('角度 ' + (angPresets.length + 1));
+                angPresets.push(P); saveAng(); renderAngList();
+                document.getElementById('ang-name').value = '';
+                angStatus('角度を保存しました：' + P.name + '（' + angText(P) + '）');
+            });
+            document.getElementById('ang-name').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('ang-save').click(); } e.stopPropagation(); });
+            renderAngList();
+            // 角度の CSV（name,xw,yw,zw,xy,xz,yz,lock。角度は度）と GitHub 保存・読込。点と同じ仕組み
+            const ANG_FILE = 'hypercube-angles.csv';
+            const angSt = (msg, ok) => { const el = document.getElementById('ang-status'); el.textContent = msg; el.className = 'text-[10px] ' + (ok === true ? 'text-emerald-300' : ok === false ? 'text-rose-300' : 'text-slate-400'); };
+            const angToCSV = () => 'name,xw,yw,zw,xy,xz,yz,lock\n' + angPresets.map(P => [String(P.name || '').replace(/[,\n]/g, ' '), P.a || 0, P.b || 0, P.c || 0, P.xy || 0, P.xz || 0, P.yz || 0, P.lock ? 1 : 0].join(',')).join('\n') + '\n';
+            function angFromCSV(txt) {
+                const out = [], num = v => { const n = parseFloat(v); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+                String(txt).split(/\r?\n/).forEach(line => {
+                    const c = line.split(','); if (c.length < 4 || c[0].trim().toLowerCase() === 'name') return;
+                    out.push({ name: c[0].trim() || '角度', a: num(c[1]), b: num(c[2]), c: num(c[3]), xy: num(c[4]), xz: num(c[5]), yz: num(c[6]), lock: (c[7] || '0').trim() === '1' });
+                });
+                return out;
+            }
+            function replaceAngs(list) {   // ロックした角度は残し、同じ角度のものは読み込まない
+                const keep = angPresets.filter(P => P.lock);
+                const same = (P, Q) => ['a', 'b', 'c', 'xy', 'xz', 'yz'].every(k => Math.abs((P[k] || 0) - (Q[k] || 0)) < 0.005);
+                angPresets = keep.concat(list.filter(Q => !keep.some(P => same(P, Q))));
+                saveAng(); renderAngList();
+                return keep.length;
+            }
+            const angKept = n => n ? '（ロックした ' + n + '個はそのまま残しました）' : '';
+            document.getElementById('ang-csv-dl').addEventListener('click', () => {
+                const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([angToCSV()], { type: 'text/csv' })); a.download = ANG_FILE; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            });
+            document.getElementById('ang-csv-up').addEventListener('change', e => {
+                const f = e.target.files && e.target.files[0]; if (!f) return;
+                const rd = new FileReader(); rd.onload = () => { const l = angFromCSV(rd.result); const kept = replaceAngs(l); angSt('CSV から ' + l.length + '個 読み込みました' + angKept(kept), true); }; rd.readAsText(f); e.target.value = '';
+            });
+            const angGhApi = 'https://api.github.com/repos/' + GH_REPO + '/contents/' + ANG_FILE;
+            document.getElementById('ang-gh-save').addEventListener('click', async () => {
+                if (!ghToken()) { angSt('先にキー設定の「GitHub に保存」欄で鍵を保存してください', false); return; }
+                angSt('保存中…');
+                try {
+                    let sha = null; const r0 = await fetch(angGhApi, { headers: ghHeaders(), cache: 'no-store' });
+                    if (r0.status === 200) sha = (await r0.json()).sha; else if (r0.status !== 404) throw new Error(ghExplain(r0));
+                    const bytes = new TextEncoder().encode(angToCSV()); let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+                    const body = { message: 'hypercube-angles.csv: 角度のプリセットをアプリから保存（' + angPresets.length + '個）', content: btoa(bin) }; if (sha) body.sha = sha;
+                    const r1 = await fetch(angGhApi, { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, ghHeaders()), body: JSON.stringify(body) });
+                    if (!r1.ok) throw new Error(ghExplain(r1));
+                    angSt('GitHub に保存しました（' + angPresets.length + '個）', true);
+                } catch (e) { angSt('失敗: ' + (e && e.message ? e.message : e), false); }
+            });
+            document.getElementById('ang-gh-load').addEventListener('click', async () => {
+                angSt('読み込み中…');
+                try {
+                    let txt = null;
+                    if (ghToken()) { const r = await fetch(angGhApi, { headers: ghHeaders(), cache: 'no-store' }); if (r.status === 404) throw new Error('GitHub にまだ ' + ANG_FILE + ' がありません。先に「GitHub に保存」を押してください'); if (!r.ok) throw new Error(ghExplain(r)); txt = b64ToText((await r.json()).content); }
+                    else { const r = await fetch(ANG_FILE, { cache: 'no-store' }); if (!r.ok) throw new Error('GitHub Pages に ' + ANG_FILE + ' がありません'); txt = await r.text(); }   // 鍵が無くても公開ページからは読める
+                    const l = angFromCSV(txt); const kept = replaceAngs(l); angSt('GitHub から ' + l.length + '個 読み込みました' + angKept(kept), true);
+                } catch (e) { angSt('失敗: ' + (e && e.message ? e.message : e), false); }
+            });
             // 入力欄で Enter を押しても再生
             ['anim-xw', 'anim-yw', 'anim-zw'].forEach(id => {
                 document.getElementById(id).addEventListener('keydown', e => {
