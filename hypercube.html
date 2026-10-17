@@ -529,6 +529,7 @@
                 <div id="pt-list" class="space-y-1 text-[11px]"></div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px] pt-1 border-t border-slate-800">
                     <button id="pt-labels" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700">ラベル: ON</button>
+                    <label class="flex items-center gap-1 text-slate-400" title="置いた点の大きさ（ピンク・水色の既定の2点はいつもの大きさのまま）">大きさ<input id="pt-size" type="range" min="0.25" max="1.2" step="0.05" value="0.55" class="w-20 accent-amber-400"></label>
                     <button id="pt-left" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700" title="左の立方体にも、対応する位置 (x, y, w) に点を出す（左の z は右の w に対応。右の z は右だけの軸）。左は組み上がった状態のときだけ">左にも: ON</button>
                 </div>
             </section>
@@ -1436,6 +1437,9 @@
         const PT_STORE = 'hypercubePoints';
         let userPoints = [];          // { x, y, z, w, color, label, show, vid, mesh3, sprite3, mesh2, sprite2 }
         let ptShowLabels = true, ptShowLeft = true;
+        let ptSize = 0.55;   // 点の大きさ（もとの大きさに対する倍率）。ピンク・水色の既定の2点は対象外＝いつもの大きさのまま
+        const PT_PAIR_COLORS = ['#ff44dd', '#33e5ff'];
+        const isPairPt = p => PT_PAIR_COLORS.includes(String(p.color).toLowerCase()) && p.vid && [p.x, p.y, p.z, p.w].every(v => v === p.x);
         function normPtValue(raw) {
             let v = parseFloat(String(raw).replace(/[^0-9.eE+\-]/g, ''));
             if (!isFinite(v)) return 0;
@@ -1445,7 +1449,7 @@
         }
         const fmtPt = v => (Math.round(v * 1000) / 1000).toString();
         function ptLabelText(p) { return p.label ? p.label : '(' + [p.x, p.y, p.z, p.w].map(fmtPt).join(', ') + ')'; }
-        function makePtSprite(text, cssColor) {
+        function makePtSprite(text, cssColor, k = 1) {
             const cv = document.createElement('canvas'); cv.width = 512; cv.height = 64;
             const ctx = cv.getContext('2d');
             ctx.font = 'bold 30px ui-monospace, Menlo, Consolas, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
@@ -1453,7 +1457,7 @@
             ctx.fillStyle = cssColor; ctx.fillText(text, 6, 34);
             const tex = new THREE.CanvasTexture(cv);
             const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-            sp.scale.set(1.6, 0.2, 1); sp.renderOrder = 1011; sp.center.set(0, 0.5);
+            sp.scale.set(1.6 * k, 0.2 * k, 1); sp.renderOrder = 1011; sp.center.set(0, 0.5);
             return sp;
         }
         // 頂点ちょうどの点なら、組み上がり時の4D座標が一致する胞・頂点を探す（折りたたみ中もそこを追うため）
@@ -1475,11 +1479,13 @@
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D');
             if (!r3 || !r2) return;
             const col = new THREE.Color(p.color);
-            p.mesh3 = makeMarker(col, 0.065, 1010); r3.add(p.mesh3);
-            p.sprite3 = makePtSprite(ptLabelText(p), p.color); r3.add(p.sprite3);
-            p.mesh2 = makeMarker(col, 0.065, 1010); r2.add(p.mesh2);
-            p.sprite2 = makePtSprite(ptLabelText(p), p.color); r2.add(p.sprite2);
             p.vid = findPtVertex(p);
+            // ピンク（＋＋＋＋）・水色（−−−−）の既定の2点はいつもの大きさ、それ以外は「点の大きさ」で小さめに
+            const k = isPairPt(p) ? 1 : ptSize;
+            p.mesh3 = makeMarker(col, 0.065 * k, 1010); r3.add(p.mesh3);
+            p.sprite3 = makePtSprite(ptLabelText(p), p.color, Math.max(0.6, k)); r3.add(p.sprite3);
+            p.mesh2 = makeMarker(col, 0.065 * k, 1010); r2.add(p.mesh2);
+            p.sprite2 = makePtSprite(ptLabelText(p), p.color, Math.max(0.6, k)); r2.add(p.sprite2);
         }
         // 左の立方体の点の位置：左の面と同じ順に（X-Z・Y-Z → ZW の擬似歪み → 3D回転）
         function leftPtPos(x, y, z) {
@@ -1494,9 +1500,9 @@
         }
         function updateUserPoints(progress) {
             const folded = progress >= 0.999;
-            const off = 0.09;
             for (const p of userPoints) {
                 if (!p.mesh3) continue;
+                const off = 0.09 * (isPairPt(p) ? 1 : Math.max(0.6, ptSize));   // ラベルは点のすぐ右上
                 // 右（超立方体）
                 let p4 = null;
                 if (p.vid && !folded) p4 = cellVerts4D(p.vid.cell, progress)[p.vid.corner];
@@ -2768,6 +2774,13 @@
             ptEl('pt-clear').addEventListener('click', () => { userPoints.forEach(disposePt); userPoints = []; savePts(); renderPtList(); updateMorphingGeometry(animationProgress); ptStatus('全部消しました'); });
             ptEl('pt-labels').addEventListener('click', () => { ptShowLabels = !ptShowLabels; ptEl('pt-labels').textContent = 'ラベル: ' + (ptShowLabels ? 'ON' : 'OFF'); try { localStorage.setItem('hypercubePtLabels', ptShowLabels ? '1' : '0'); } catch (_) {} updateMorphingGeometry(animationProgress); });
             ptEl('pt-left').addEventListener('click', () => { ptShowLeft = !ptShowLeft; ptEl('pt-left').textContent = '左にも: ' + (ptShowLeft ? 'ON' : 'OFF'); try { localStorage.setItem('hypercubePtLeft', ptShowLeft ? '1' : '0'); } catch (_) {} updateMorphingGeometry(animationProgress); });
+            // 点の大きさ（ピンク・水色の既定の2点は対象外）
+            try { const v = parseFloat(localStorage.getItem('hypercubePtSize')); if (isFinite(v)) ptSize = v; } catch (_) {}
+            ptEl('pt-size').value = ptSize;
+            ptEl('pt-size').addEventListener('input', e => {
+                ptSize = parseFloat(e.target.value); try { localStorage.setItem('hypercubePtSize', String(ptSize)); } catch (_) {}
+                userPoints.forEach(p => buildPt(p)); updateMorphingGeometry(animationProgress);
+            });
             // CSV（label,x,y,z,w,color,show）
             const ptToCSV = () => 'label,x,y,z,w,color,show\n' + userPoints.map(p => [String(p.label || '').replace(/[,\n]/g, ' '), p.x, p.y, p.z, p.w, p.color, p.show ? 1 : 0].join(',')).join('\n') + '\n';
             function ptFromCSV(txt) {
