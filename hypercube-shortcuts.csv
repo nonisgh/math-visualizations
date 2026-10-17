@@ -46,4 +46,5 @@ spin_3d,3D ON/OFF（X-Y・X-Z・Y-Z）,D
 spin_6,全て ON/OFF（6面すべて）,Shift+A
 sideSwap,パネルの左右 切替,B
 viewSwap,立方体と超立方体の左右 入替,Shift+B
+zwVizAll,Z-W のときの立方体の表現 全部オン・オフ,Q
 left3d,立方体の3D回転 切替（X-Yだけ⇔全部）,Shift+D
