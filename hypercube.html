@@ -238,20 +238,20 @@
             <button id="spin-all-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="W の絡む3面（X-W・Y-W・Z-W）をすべて回し続ける＝中身がグリグリ入れ替わる4Dの回転。もう一度押すと止まる（Enter キーでも同じ）">
                             <i data-lucide="orbit" class="w-3 h-3"></i><span>W</span>
                         </button>
-                        <button id="spin-w2-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="X-W・Y-W の2面だけを回し続ける（Z-W は回さない）。左の立方体も X-Z・Y-Z で一緒に回る＝左右が完全に同期する4D回転。もう一度押すと止まる">
+                        <button id="spin-w2-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="X-W・Y-W の2面だけを回し続ける（Z-W は回さない）。立方体も X-Z・Y-Z で一緒に回る＝立方体と超立方体が完全に同期する4D回転。もう一度押すと止まる">
                             <i data-lucide="orbit" class="w-3 h-3"></i><span>W(X,Y)</span>
                         </button>
-                        <button id="spin-3d-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="X-Y・X-Z・Y-Z（w を含まない3面＝ふつうの3D回転）をすべて回し続ける。形は変わらず転がるだけ。左がどこまでついてくるかは「左の立方体の3D回転」で切り替え">
+                        <button id="spin-3d-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="X-Y・X-Z・Y-Z（w を含まない3面＝ふつうの3D回転）をすべて回し続ける。形は変わらず転がるだけ。立方体がどこまでついてくるかは「立方体の3D回転」で切り替え">
                             <i data-lucide="rotate-3d" class="w-3 h-3"></i><span>3D</span>
                         </button>
                         <button id="spin-6-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="6面すべて（X-Y・X-Z・Y-Z・X-W・Y-W・Z-W）を同時に回し続ける">
                             <i data-lucide="sparkles" class="w-3 h-3"></i><span>全て</span>
                         </button>
             <span class="text-slate-600">|</span>
-            <button id="snap-left-btn" class="flex items-center gap-1 px-2 py-1 bg-slate-800 border border-emerald-500/50 text-emerald-200 rounded-lg hover:bg-slate-700 transition shrink-0" title="Z 軸を画面に垂直（視線方向）に立て直す。回転は止めない。z を傾ける Z-W・X-Z・Y-Z を瞬時に0へ戻してその回転だけ止め、カメラも正面へ戻す。投影とカメラの遠さは「平行投影／遠近投影」の切替に合わせる。X-W・Y-W・X-Y は回り続ける＝左の立方体の動きはそのまま"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i>補正</button>
-            <button id="link-reset-btn" class="whitespace-nowrap px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="回転を止めて、6面すべてを0に戻し、W を手前（視線方向）へ向けた正面の形にする（カメラの遠さは「平行投影／遠近投影」の切替に合わせる。O キーでも同じ）。全部を読み込み時に戻すのは左の「初期化」">リセット</button>
+            <button id="snap-left-btn" class="flex items-center gap-1 px-2 py-1 bg-slate-800 border border-emerald-500/50 text-emerald-200 rounded-lg hover:bg-slate-700 transition shrink-0" title="Z 軸を画面に垂直（視線方向）に立て直す。回転は止めない。z を傾ける Z-W・X-Z・Y-Z を瞬時に0へ戻してその回転だけ止め、カメラも正面へ戻す。投影とカメラの遠さは「平行投影／遠近投影」の切替に合わせる。X-W・Y-W・X-Y は回り続ける＝立方体の動きはそのまま"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i>補正</button>
+            <button id="link-reset-btn" class="whitespace-nowrap px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="回転を止めて、6面すべてを0に戻し、W を手前（視線方向）へ向けた正面の形にする（カメラの遠さは「平行投影／遠近投影」の切替に合わせる。O キーでも同じ）。全部を読み込み時に戻すのはパネル下の「初期化」">リセット</button>
             <span class="text-slate-600">|</span>
-            <button id="persp-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition shrink-0" title="投影の切替。平行投影＝W の回転・面/辺/頂点プリセットがきれいな正多角形（既定）。遠近投影＝左右とも奥行きが出る。平行投影を選んでいても、W の回転が0のときは遠近で表示（平行だと内と外の立方体が重なって中が見えなくなり、折りたたみも潰れて見えないため）">平行投影</button>
+            <button id="persp-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition shrink-0" title="投影の切替。平行投影＝W の回転・面/辺/頂点プリセットがきれいな正多角形（既定）。遠近投影＝立方体も超立方体も奥行きが出る。平行投影を選んでいても、W の回転が0のときは遠近で表示（平行だと内と外の立方体が重なって中が見えなくなり、折りたたみも潰れて見えないため）">平行投影</button>
         </div>
     </div>
 
@@ -329,23 +329,23 @@
             <section class="sb-sec">
                 <h3 class="sb-h"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>角度（スライダー・数値・↺・自動回転）</h3>
                 <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-purple-300 text-[11px]">X-W</b><br><span class="text-slate-500">左は X-Z</span></span>
+                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-purple-300 text-[11px]">X-W</b><br><span class="text-slate-500">立方体は X-Z</span></span>
                     <input id="link-x-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-400 border border-slate-700">
                     <input id="link-x-num" type="number" min="-180" max="180" step="1" value="0" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-purple-300 text-[10px] font-mono text-right shrink-0" title="角度を直接入力（↑↓キーで微調整）">
                     <span class="text-[10px] text-slate-500 shrink-0">°</span>
                     <button class="rot-reset shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px] leading-none" data-plane="x" title="この面(X-Z/X-W)の角度を0に戻す（投影はリセット切替どおり）">↺</button>
-                    <button class="plane-spin-btn shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" data-plane="x" title="X-W（左は X-Z）だけをまわし続ける。ほかの面とは別々にON/OFFできる"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
+                    <button class="plane-spin-btn shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" data-plane="x" title="X-W（立方体は X-Z）だけをまわし続ける。ほかの面とは別々にON/OFFできる"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-purple-300 text-[11px]">Y-W</b><br><span class="text-slate-500">左は Y-Z</span></span>
+                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-purple-300 text-[11px]">Y-W</b><br><span class="text-slate-500">立方体は Y-Z</span></span>
                     <input id="link-y-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-400 border border-slate-700">
                     <input id="link-y-num" type="number" min="-180" max="180" step="1" value="0" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-purple-300 text-[10px] font-mono text-right shrink-0" title="角度を直接入力（↑↓キーで微調整）">
                     <span class="text-[10px] text-slate-500 shrink-0">°</span>
                     <button class="rot-reset shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px] leading-none" data-plane="y" title="この面(Y-Z/Y-W)の角度を0に戻す（投影はリセット切替どおり）">↺</button>
-                    <button class="plane-spin-btn shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" data-plane="y" title="Y-W（左は Y-Z）だけをまわし続ける。ほかの面とは別々にON/OFFできる"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
+                    <button class="plane-spin-btn shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" data-plane="y" title="Y-W（立方体は Y-Z）だけをまわし続ける。ほかの面とは別々にON/OFFできる"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-rose-300 text-[11px]">Z-W</b><br><span class="text-slate-500">右だけ</span></span>
+                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-rose-300 text-[11px]">Z-W</b><br><span class="text-slate-500">超立方体だけ</span></span>
                     <input id="solo-zw-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-400 border border-slate-700">
                     <input id="solo-zw-num" type="number" min="-180" max="180" step="1" value="0" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-rose-300 text-[10px] font-mono text-right shrink-0" title="角度を直接入力（↑↓キーで微調整）">
                     <span class="text-[10px] text-slate-500 shrink-0">°</span>
@@ -353,37 +353,37 @@
                     <button id="solo-spin-btn" class="shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="Z-W だけをまわし続ける。ほかの面とは別々にON/OFFできる"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-sky-300 text-[11px]">X-Y</b><br><span class="text-slate-500">左右とも・3D</span></span>
+                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-sky-300 text-[11px]">X-Y</b><br><span class="text-slate-500">両方 3D</span></span>
                     <input id="rot-xy-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-400 border border-slate-700">
                     <input id="rot-xy-num" type="number" min="-180" max="180" step="1" value="0" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-sky-300 text-[10px] font-mono text-right shrink-0" title="角度を直接入力（↑↓キーで微調整）">
                     <span class="text-[10px] text-slate-500 shrink-0">°</span>
                     <button class="rot-reset shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px] leading-none" data-plane="xy" title="この面(X-Y)の角度を0に戻す（投影はリセット切替どおり）">↺</button>
-                    <button class="plane-spin-btn shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" data-plane="xy" title="X-Y だけをまわし続ける（左右とも回る）"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
+                    <button class="plane-spin-btn shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" data-plane="xy" title="X-Y だけをまわし続ける（立方体も超立方体も回る）"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-sky-300 text-[11px]">X-Z</b><br><span class="left3d-sub text-slate-500">右だけ・3D</span></span>
+                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-sky-300 text-[11px]">X-Z</b><br><span class="left3d-sub text-slate-500">超立方体だけ 3D</span></span>
                     <input id="rot-xz-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-400 border border-slate-700">
                     <input id="rot-xz-num" type="number" min="-180" max="180" step="1" value="0" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-sky-300 text-[10px] font-mono text-right shrink-0" title="角度を直接入力（↑↓キーで微調整）">
                     <span class="text-[10px] text-slate-500 shrink-0">°</span>
                     <button class="rot-reset shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px] leading-none" data-plane="xz" title="この面(3D の X-Z)の角度を0に戻す（投影はリセット切替どおり）">↺</button>
-                    <button class="plane-spin-btn shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" data-plane="xz" title="X-Z だけをまわし続ける（ふつうの3D回転。上の「X-W（左は X-Z）」とは別の操作）"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
+                    <button class="plane-spin-btn shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" data-plane="xz" title="X-Z だけをまわし続ける（ふつうの3D回転。上の「X-W（立方体は X-Z）」とは別の操作）"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-sky-300 text-[11px]">Y-Z</b><br><span class="left3d-sub text-slate-500">右だけ・3D</span></span>
+                    <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-sky-300 text-[11px]">Y-Z</b><br><span class="left3d-sub text-slate-500">超立方体だけ 3D</span></span>
                     <input id="rot-yz-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-400 border border-slate-700">
                     <input id="rot-yz-num" type="number" min="-180" max="180" step="1" value="0" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-sky-300 text-[10px] font-mono text-right shrink-0" title="角度を直接入力（↑↓キーで微調整）">
                     <span class="text-[10px] text-slate-500 shrink-0">°</span>
                     <button class="rot-reset shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px] leading-none" data-plane="yz" title="この面(3D の Y-Z)の角度を0に戻す（投影はリセット切替どおり）">↺</button>
-                    <button class="plane-spin-btn shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" data-plane="yz" title="Y-Z だけをまわし続ける（ふつうの3D回転。上の「Y-W（左は Y-Z）」とは別の操作）"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
+                    <button class="plane-spin-btn shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" data-plane="yz" title="Y-Z だけをまわし続ける（ふつうの3D回転。上の「Y-W（立方体は Y-Z）」とは別の操作）"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
                 </div>
             </section>
 
             <section class="sb-sec">
-                <h3 class="sb-h"><i data-lucide="square" class="w-3.5 h-3.5"></i>左の立方体</h3>
+                <h3 class="sb-h"><i data-lucide="square" class="w-3.5 h-3.5"></i>立方体</h3>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
-                    <span class="text-sky-300 shrink-0">左の立方体の3D回転:</span>
-                    <button id="left3d-btn" class="whitespace-nowrap px-2 py-0.5 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 hover:bg-slate-700 transition" title="X-Yだけ＝左は自分の平面（X-Y）の回転だけついてくる。X-Z・Y-Z では右だけが転がる／全部＝左も X-Y・X-Z・Y-Z すべてで右と同じように転がる">X-Y だけ</button>
-                    <span class="text-[10px] text-slate-500">押すと「全部（左右そろって転がる）」に切り替わります</span>
+                    <span class="text-sky-300 shrink-0">立方体の3D回転:</span>
+                    <button id="left3d-btn" class="whitespace-nowrap px-2 py-0.5 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 hover:bg-slate-700 transition" title="X-Yだけ＝立方体は自分の平面（X-Y）の回転だけついてくる。X-Z・Y-Z では超立方体だけが転がる／全部＝立方体も X-Y・X-Z・Y-Z すべてで超立方体と同じように転がる">X-Y だけ</button>
+                    <span class="text-[10px] text-slate-500">押すと「全部（立方体と超立方体がそろって転がる）」に切り替わります</span>
                 </div>
             </section>
 
@@ -434,20 +434,20 @@
                     <span class="text-[10px] text-slate-500">押すたび1つの軸が中心へ消え、W が入れ替わりに出ます（軸表示が自動でON）</span>
                 </div>
             </section>
-                <details class="sb-sec text-[10px]"><summary class="sb-h cursor-pointer"><i data-lucide="info" class="w-3.5 h-3.5"></i>説明（左と右の対応）</summary>
+                <details class="sb-sec text-[10px]"><summary class="sb-h cursor-pointer"><i data-lucide="info" class="w-3.5 h-3.5"></i>説明（立方体と超立方体の対応）</summary>
                 <p class="text-[10px] text-slate-400 leading-relaxed">
-                    同じ角度を左右に同時にかけています。<b class="text-cyan-300">左はただ立方体が回るだけ</b>。
-                    <b class="text-purple-300">右は内側の胞と外側の胞が入れ替わり、裏返るように見えます</b>。
-                    操作は同じで、1次元違うだけです。<b class="text-cyan-300">左の立方体は直接ドラッグして回せます</b>（右もついてきます）。
+                    同じ角度を立方体と超立方体に同時にかけています。<b class="text-cyan-300">立方体はただ回るだけ</b>。
+                    <b class="text-purple-300">超立方体は内側の胞と外側の胞が入れ替わり、裏返るように見えます</b>。
+                    操作は同じで、1次元違うだけです。<b class="text-cyan-300">立方体は直接ドラッグして回せます</b>（超立方体もついてきます）。
                 </p>
 
                 <p class="text-[10px] text-slate-400 leading-relaxed">
-                    <b class="text-rose-300">Z-W は左が追いつけない回転です。</b>
-                    左の立方体の回転面は3枚（XY・XZ・YZ）、右の超立方体は6枚（XY・XZ・YZ・XW・YW・ZW）。
-                    上の X-W・Y-W は、左の X-Z・Y-Z の z を w に置きかえた「1次元上げた同じ操作」なので完全に同期します（右は中身が入れ替わる）。
-                    <b>Z-W は右にしか無い</b>ので左は止まったまま。これが次元の差です。
-                    下の X-Y・X-Z・Y-Z（3D回転）は、形を変えずに転がすだけの回転です。標準では左は X-Y だけついてきます
-                    （左にとっては自分の平面の回転だけ＝低い次元から見た視界）。「左の立方体の3D回転: 全部」にすると、左右が<b>同じように転がり</b>ます。
+                    <b class="text-rose-300">Z-W は立方体が追いつけない回転です。</b>
+                    立方体の回転面は3枚（XY・XZ・YZ）、超立方体は6枚（XY・XZ・YZ・XW・YW・ZW）。
+                    上の X-W・Y-W は、立方体の X-Z・Y-Z の z を w に置きかえた「1次元上げた同じ操作」なので完全に同期します（超立方体は中身が入れ替わる）。
+                    <b>Z-W は超立方体にしか無い</b>ので立方体は止まったまま。これが次元の差です。
+                    下の X-Y・X-Z・Y-Z（3D回転）は、形を変えずに転がすだけの回転です。標準では立方体は X-Y だけついてきます
+                    （立方体にとっては自分の平面の回転だけ＝低い次元から見た視界）。「立方体の3D回転: 全部」にすると、2つが<b>同じように転がり</b>ます。
                 </p>
                 </details>
             </div>
@@ -572,7 +572,7 @@
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px] pt-1 border-t border-slate-800">
                     <button id="pt-labels" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700">ラベル: ON</button>
                     <label class="flex items-center gap-1 text-slate-400" title="置いた点の大きさ（既定のピンク・水色はいつもの大きさのまま）">大きさ<input id="pt-size" type="range" min="0.25" max="1.2" step="0.05" value="0.55" class="w-20 accent-amber-400"></label>
-                    <button id="pt-left" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700" title="左の立方体にも、対応する位置 (x, y, w) に点を出す（左の z は右の w に対応。右の z は右だけの軸）。左は組み上がった状態のときだけ">左にも: ON</button>
+                    <button id="pt-left" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700" title="立方体にも、対応する位置 (x, y, w) に点を出す（立方体の z は超立方体の w に対応。超立方体の z は超立方体だけの軸）。立方体には組み上がった状態のときだけ出る">立方体にも: ON</button>
                 </div>
             </section>
             <section class="sb-sec">
@@ -2648,7 +2648,7 @@
                 { id: 'spin_6', label: '全て ON/OFF（6面すべて）', short: '全て', def: 'Shift+A', run: clickSel('#spin-6-btn') },
                 { id: 'sideSwap', label: 'パネルの左右 切替', short: 'パネル左右', def: 'B', run: () => document.getElementById('sidebar-side').click() },
                 { id: 'viewSwap', label: '立方体と超立方体の左右 入替', short: '図の左右', def: 'Shift+B', run: () => document.getElementById('swap-views-btn').click() },
-                { id: 'left3d', label: '左の立方体の3D回転 切替（X-Yだけ⇔全部）', short: '左3D', def: 'Shift+D', run: clickSel('#left3d-btn') }
+                { id: 'left3d', label: '立方体の3D回転 切替（X-Yだけ⇔全部）', short: '立方体3D', def: 'Shift+D', run: clickSel('#left3d-btn') }
             ];
             const SC_STORE = 'hypercubeShortcuts', SC_FILE = 'hypercube-shortcuts.csv';
             let keyMap = {};
@@ -2847,7 +2847,7 @@
                     const txt = document.createElement('span'); txt.className = 'flex-1 min-w-0 truncate font-mono text-[10px] text-slate-200';
                     txt.textContent = xyz + '  既定';
                     const eye = document.createElement('button'); eye.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (fixedMarks[key] ? 'text-slate-200' : 'text-slate-500');
-                    eye.textContent = fixedMarks[key] ? '→隠す' : '→表示'; eye.title = (fixedMarks[key] ? '押すと隠す' : '押すと表示する') + '（左の立方体の' + nm + 'も一緒）';
+                    eye.textContent = fixedMarks[key] ? '→隠す' : '→表示'; eye.title = (fixedMarks[key] ? '押すと隠す' : '押すと表示する') + '（立方体の' + nm + 'も一緒）';
                     eye.addEventListener('click', () => { fixedMarks[key] = !fixedMarks[key]; saveFixedMarks(); renderPtList(); updateMorphingGeometry(animationProgress); });
                     const lock = document.createElement('span'); lock.className = 'px-1.5 py-0.5 rounded border border-slate-800 text-slate-500 text-[10px] cursor-default'; lock.textContent = '固定'; lock.title = '既定の点なので消せません（隠すことはできます）';
                     row.append(sw, txt, eye, lock); list.appendChild(row);
@@ -2861,7 +2861,7 @@
                 // ピンク・水色の大きさ（2点セットで変わる。混色の青紫も同じ倍率）
                 const szRow = document.createElement('label');
                 szRow.className = 'flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] text-slate-400';
-                szRow.title = 'ピンクと水色の大きさ（2点をセットで変えます。左の立方体と、重なったときの青紫も同じ倍率）';
+                szRow.title = 'ピンクと水色の大きさ（2点をセットで変えます。立方体のピンク・水色と、重なったときの青紫も同じ倍率）';
                 szRow.innerHTML = '<span class="shrink-0">ピンク・水色の大きさ</span>';
                 const sz = document.createElement('input'); sz.type = 'range'; sz.min = '0.3'; sz.max = '2'; sz.step = '0.05'; sz.value = String(fixedMarks.size || 1);
                 sz.className = 'flex-1 min-w-0 accent-fuchsia-400';
@@ -2952,7 +2952,7 @@
                 ptStatus(lockAll ? '置いた点を全部ロックしました（' + userPoints.length + '個）' : 'ロックを全部外しました', true);
             });
             ptEl('pt-labels').addEventListener('click', () => { ptShowLabels = !ptShowLabels; ptEl('pt-labels').textContent = 'ラベル: ' + (ptShowLabels ? 'ON' : 'OFF'); try { localStorage.setItem('hypercubePtLabels', ptShowLabels ? '1' : '0'); } catch (_) {} updateMorphingGeometry(animationProgress); });
-            ptEl('pt-left').addEventListener('click', () => { ptShowLeft = !ptShowLeft; ptEl('pt-left').textContent = '左にも: ' + (ptShowLeft ? 'ON' : 'OFF'); try { localStorage.setItem('hypercubePtLeft', ptShowLeft ? '1' : '0'); } catch (_) {} updateMorphingGeometry(animationProgress); });
+            ptEl('pt-left').addEventListener('click', () => { ptShowLeft = !ptShowLeft; ptEl('pt-left').textContent = '立方体にも: ' + (ptShowLeft ? 'ON' : 'OFF'); try { localStorage.setItem('hypercubePtLeft', ptShowLeft ? '1' : '0'); } catch (_) {} updateMorphingGeometry(animationProgress); });
             // 点の大きさ（既定のピンク・水色は対象外）
             try { const v = parseFloat(localStorage.getItem('hypercubePtSize')); if (isFinite(v)) ptSize = v; } catch (_) {}
             ptEl('pt-size').value = ptSize;
@@ -3015,7 +3015,7 @@
             });
             // 起動時：このブラウザに保存した点を戻す
             try { ptShowLabels = localStorage.getItem('hypercubePtLabels') !== '0'; ptShowLeft = localStorage.getItem('hypercubePtLeft') !== '0'; } catch (_) {}
-            ptEl('pt-labels').textContent = 'ラベル: ' + (ptShowLabels ? 'ON' : 'OFF'); ptEl('pt-left').textContent = '左にも: ' + (ptShowLeft ? 'ON' : 'OFF');
+            ptEl('pt-labels').textContent = 'ラベル: ' + (ptShowLabels ? 'ON' : 'OFF'); ptEl('pt-left').textContent = '立方体にも: ' + (ptShowLeft ? 'ON' : 'OFF');
             try {
                 const saved = JSON.parse(localStorage.getItem(PT_STORE) || '[]'), keep = saved.filter(q => !isOldPairPt(q));
                 keep.forEach(q => addPt(q.x, q.y, q.z, q.w, q.color, q.label, q.show !== false, false, q.lock));
@@ -3559,8 +3559,8 @@
                 left3dBtn.classList.toggle('border-sky-400', leftFull3D);
                 left3dBtn.classList.toggle('text-sky-100', leftFull3D);
                 const hint = left3dBtn.nextElementSibling;
-                if (hint) hint.innerText = leftFull3D ? '押すと「X-Y だけ」に戻ります' : '押すと「全部（左右そろって転がる）」に切り替わります';
-                document.querySelectorAll('.left3d-sub').forEach(el => el.innerText = leftFull3D ? '左右とも・3D' : '右だけ・3D');
+                if (hint) hint.innerText = leftFull3D ? '押すと「X-Y だけ」に戻ります' : '押すと「全部（立方体と超立方体がそろって転がる）」に切り替わります';
+                document.querySelectorAll('.left3d-sub').forEach(el => el.innerText = leftFull3D ? '両方 3D' : '超立方体だけ 3D');
             };
             left3dBtn.addEventListener('click', () => {
                 leftFull3D = !leftFull3D;
@@ -3682,7 +3682,7 @@
                 set('left3d-btn', NEXT + (leftFull3D ? 'X-Y だけ' : '全部'));
                 set('swap-views-text', NEXT + (viewsSwapped ? '立方体を' : '超立方体を') + sideWord(true) + 'に');
                 set('pt-labels', NEXT + 'ラベル: ' + (ptShowLabels ? 'OFF' : 'ON'));
-                set('pt-left', NEXT + '左にも: ' + (ptShowLeft ? 'OFF' : 'ON'));
+                set('pt-left', NEXT + '立方体にも: ' + (ptShowLeft ? 'OFF' : 'ON'));
                 const hk = document.getElementById('shortcut-hint-keys');
                 set('hint-toggle', hk && !hk.classList.contains('hidden') ? '⌨ キー一覧を閉じる' : '⌨ キー一覧');
             }
