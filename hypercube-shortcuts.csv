@@ -14,7 +14,7 @@ preset_cell,プリセット 胞,H
 preset_face,プリセット 面,
 preset_edge,プリセット 辺,
 preset_vertex,プリセット 頂点,T
-vaxis_z,垂直軸 Z,2
+vaxis_z,垂直軸 Z,
 vaxis_w,垂直軸 W,
 vaxis_x,垂直軸 X,
 vaxis_y,垂直軸 Y,
@@ -23,13 +23,13 @@ persp,投影 切替（平行投影 ⇔ 遠近投影）,J
 pin,点固定 ON/OFF,
 loop,往復再生 ON/OFF,
 xparent,面透過 切替（立体感⇔正確）,V
-zoom,自動ズーム ON/OFF,3
+zoom,自動ズーム ON/OFF,
 mesh,メッシュ表示,
 wire,ワイヤー表示,
 vanish_w,手前へ消す軸 W,W
-vanish_x,手前へ消す軸 X,Shift+X
-vanish_y,手前へ消す軸 Y,Shift+Y
-vanish_z,手前へ消す軸 Z,Shift+Z
+vanish_x,手前へ消す軸 X,
+vanish_y,手前へ消す軸 Y,
+vanish_z,手前へ消す軸 Z,
 step_xw,90°回す X-W,X
 step_yw,90°回す Y-W,Y
 step_zw,90°回す Z-W,Z
