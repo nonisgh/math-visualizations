@@ -534,7 +534,10 @@
             <section class="sb-sec">
                 <div class="flex items-center justify-between gap-2">
                     <h3 class="sb-h"><i data-lucide="list" class="w-3.5 h-3.5"></i>置いた点 <span id="pt-count" class="text-slate-500 font-normal"></span></h3>
-                    <button id="pt-clear" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px]">全部消す</button>
+                    <div class="flex items-center gap-1">
+                        <button id="pt-lock-all" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-amber-200 hover:bg-slate-700 text-[11px]" title="置いた点をまとめてロック／解除（ロックした点は「消す」でも「全部消す」でも消えません）">🔒 全部ロック</button>
+                        <button id="pt-clear" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px]" title="ロックしていない点を全部消す（ロックした点と既定のピンク・水色は残ります）">全部消す</button>
+                    </div>
                 </div>
                 <div id="pt-list" class="space-y-1 text-[11px]"></div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px] pt-1 border-t border-slate-800">
@@ -1452,7 +1455,7 @@
         //   右の超立方体：4D 座標 (x,y,z,w) を、今の回転・投影で 3D に写して置く。頂点ちょうどの点は折りたたみ中もその頂点を追う。
         //   左の立方体：対応する (x, y, w) に置く（左の z は右の w に対応）。左は組み上がった状態のときだけ。
         const PT_STORE = 'hypercubePoints';
-        let userPoints = [];          // { x, y, z, w, color, label, show, vid, mesh3, sprite3, mesh2, sprite2 }
+        let userPoints = [];          // { x, y, z, w, color, label, show, lock, vid, cw, mesh3, sprite3, mesh2, sprite2 }。lock＝消せないようにロック
         let ptShowLabels = true, ptShowLeft = true;
         let ptSize = 0.55;   // 置いた点の大きさ（もとの大きさに対する倍率）。既定のピンク・水色は別物なので対象外＝いつもの大きさのまま
         // 以前「既定の2点」ボタンで置いた点（＋＋＋＋ピンク・−−−−水色・名前なし）は、固定の2点と重なるので読み込み時に省く
@@ -1565,7 +1568,7 @@
             }
         }
         function savePts() {
-            try { localStorage.setItem(PT_STORE, JSON.stringify(userPoints.map(p => ({ x: p.x, y: p.y, z: p.z, w: p.w, color: p.color, label: p.label, show: p.show })))); } catch (_) {}
+            try { localStorage.setItem(PT_STORE, JSON.stringify(userPoints.map(p => ({ x: p.x, y: p.y, z: p.z, w: p.w, color: p.color, label: p.label, show: p.show, lock: !!p.lock })))); } catch (_) {}
         }
 
         // 左・立方体の座標軸（x,y,z）を Root2D に作る。右と同じ矢印ギズモ＋小さなセリフ体ラベル。
@@ -2766,16 +2769,20 @@
             const PT_SWATCHES = ['#ffd54a', '#ff5d6c', '#3ddc84', '#56a8ff', '#b07cff', '#ff44dd', '#33e5ff', '#ffffff'];
             const ptEl = id => document.getElementById(id);
             const ptStatus = (msg, ok) => { const el = ptEl('pt-status'); el.textContent = msg; el.className = 'text-[10px] ' + (ok === true ? 'text-emerald-300' : ok === false ? 'text-rose-300' : 'text-slate-400'); };
-            function addPt(x, y, z, w, color, label, show = true, render = true) {
-                const p = { x: normPtValue(x), y: normPtValue(y), z: normPtValue(z), w: normPtValue(w), color: color || '#ffd54a', label: label || '', show };
+            function addPt(x, y, z, w, color, label, show = true, render = true, lock = false) {
+                const p = { x: normPtValue(x), y: normPtValue(y), z: normPtValue(z), w: normPtValue(w), color: color || '#ffd54a', label: label || '', show, lock: !!lock };
                 userPoints.push(p); buildPt(p);
                 if (render) { savePts(); renderPtList(); updateMorphingGeometry(animationProgress); }
                 return p;
             }
-            function removePt(p) { disposePt(p); userPoints = userPoints.filter(q => q !== p); savePts(); renderPtList(); updateMorphingGeometry(animationProgress); }
+            function removePt(p) {
+                if (p.lock) { ptStatus('ロック中なので消せません（🔒 を押すと外せます）', false); return; }
+                disposePt(p); userPoints = userPoints.filter(q => q !== p); savePts(); renderPtList(); updateMorphingGeometry(animationProgress); }
             function renderPtList() {
                 const list = ptEl('pt-list'); list.innerHTML = '';
                 ptEl('pt-count').textContent = '（' + (userPoints.length + 2) + '個）';
+                const allLocked = userPoints.length > 0 && userPoints.every(p => p.lock);
+                ptEl('pt-lock-all').textContent = allLocked ? '🔓 全部解除' : '🔒 全部ロック';
                 // 既定のピンク・水色（固定。消せない。表示/非表示だけ）
                 [['near', '#ff44dd', '(1, 1, 1, 1)', 'ピンク'], ['far', '#33e5ff', '(−1, −1, −1, −1)', '水色']].forEach(([key, c, xyz, nm]) => {
                     const row = document.createElement('div');
@@ -2818,9 +2825,14 @@
                     const eye = document.createElement('button'); eye.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (p.show ? 'text-slate-200' : 'text-slate-500');
                     eye.textContent = p.show ? '表示' : '隠す'; eye.title = '表示する／隠す';
                     eye.addEventListener('click', () => { p.show = !p.show; savePts(); renderPtList(); updateMorphingGeometry(animationProgress); });
-                    const del = document.createElement('button'); del.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-rose-300 text-[10px]'; del.textContent = '消す';
+                    if (p.lock) row.className = row.className.replace('border-slate-800', 'border-amber-500/40');
+                    const lk = document.createElement('button'); lk.className = 'px-1 py-0.5 rounded border text-[11px] leading-none ' + (p.lock ? 'bg-amber-900/40 border-amber-500/50' : 'bg-slate-800 border-slate-700 opacity-50 hover:opacity-100');
+                    lk.textContent = p.lock ? '🔒' : '🔓'; lk.title = p.lock ? 'ロック中（消せません）。押すと外す' : '押すとロック（消せなくなる）';
+                    lk.addEventListener('click', () => { p.lock = !p.lock; savePts(); renderPtList(); });
+                    const del = document.createElement('button'); del.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (p.lock ? 'text-slate-600 cursor-not-allowed' : 'text-rose-300'); del.textContent = '消す';
+                    del.title = p.lock ? 'ロック中なので消せません' : 'この点を消す';
                     del.addEventListener('click', () => removePt(p));
-                    row.append(col, txt, eye, del); list.appendChild(row);
+                    row.append(col, txt, eye, lk, del); list.appendChild(row);
                 });
             }
             // 入力のプレビュー（変換後の値）
@@ -2871,7 +2883,18 @@
             ptEl('pt-face-ctr').addEventListener('click', () => addPresetPts(PT81.filter(v => zeroCount(v) === 2), v => v[3] === 0 ? '#d9a6ff' : '#ffd54a', '面の中心'));
             ptEl('pt-cell-ctr').addEventListener('click', () => addPresetPts(PT81.filter(v => zeroCount(v) === 3), v => AXIS_COL[v.findIndex(a => a !== 0)], '胞の中心'));
             ptEl('pt-w0-slice').addEventListener('click', () => addPresetPts(PT81.filter(v => v[3] === 0 && zeroCount(v) === 1), () => '#7dffcf', 'w=0 の断面'));
-            ptEl('pt-clear').addEventListener('click', () => { userPoints.forEach(disposePt); userPoints = []; savePts(); renderPtList(); updateMorphingGeometry(animationProgress); ptStatus('全部消しました'); });
+            ptEl('pt-clear').addEventListener('click', () => {
+                const keep = userPoints.filter(p => p.lock);
+                userPoints.filter(p => !p.lock).forEach(disposePt); userPoints = keep;
+                savePts(); renderPtList(); updateMorphingGeometry(animationProgress);
+                ptStatus(keep.length ? '消しました（ロックした ' + keep.length + '個は残しました）' : '全部消しました');
+            });
+            ptEl('pt-lock-all').addEventListener('click', () => {
+                if (!userPoints.length) { ptStatus('ロックする点がありません'); return; }
+                const lockAll = !userPoints.every(p => p.lock);
+                userPoints.forEach(p => p.lock = lockAll); savePts(); renderPtList();
+                ptStatus(lockAll ? '置いた点を全部ロックしました（' + userPoints.length + '個）' : 'ロックを全部外しました', true);
+            });
             ptEl('pt-labels').addEventListener('click', () => { ptShowLabels = !ptShowLabels; ptEl('pt-labels').textContent = 'ラベル: ' + (ptShowLabels ? 'ON' : 'OFF'); try { localStorage.setItem('hypercubePtLabels', ptShowLabels ? '1' : '0'); } catch (_) {} updateMorphingGeometry(animationProgress); });
             ptEl('pt-left').addEventListener('click', () => { ptShowLeft = !ptShowLeft; ptEl('pt-left').textContent = '左にも: ' + (ptShowLeft ? 'ON' : 'OFF'); try { localStorage.setItem('hypercubePtLeft', ptShowLeft ? '1' : '0'); } catch (_) {} updateMorphingGeometry(animationProgress); });
             // 点の大きさ（既定のピンク・水色は対象外）
@@ -2882,26 +2905,30 @@
                 userPoints.forEach(p => buildPt(p)); updateMorphingGeometry(animationProgress);
             });
             // CSV（label,x,y,z,w,color,show）
-            const ptToCSV = () => 'label,x,y,z,w,color,show\n' + userPoints.map(p => [String(p.label || '').replace(/[,\n]/g, ' '), p.x, p.y, p.z, p.w, p.color, p.show ? 1 : 0].join(',')).join('\n') + '\n';
+            const ptToCSV = () => 'label,x,y,z,w,color,show,lock\n' + userPoints.map(p => [String(p.label || '').replace(/[,\n]/g, ' '), p.x, p.y, p.z, p.w, p.color, p.show ? 1 : 0, p.lock ? 1 : 0].join(',')).join('\n') + '\n';
             function ptFromCSV(txt) {
                 const out = [];
                 String(txt).split(/\r?\n/).forEach(line => {
                     const c = line.split(','); if (c.length < 5 || c[0].trim().toLowerCase() === 'label') return;
-                    out.push({ label: c[0].trim(), x: c[1], y: c[2], z: c[3], w: c[4], color: (c[5] || '#ffd54a').trim(), show: (c[6] || '1').trim() !== '0' });
+                    out.push({ label: c[0].trim(), x: c[1], y: c[2], z: c[3], w: c[4], color: (c[5] || '#ffd54a').trim(), show: (c[6] || '1').trim() !== '0', lock: (c[7] || '0').trim() === '1' });
                 });
                 return out;
             }
             function replacePts(list) {
-                userPoints.forEach(disposePt); userPoints = [];
-                list.filter(q => !isOldPairPt(q)).forEach(q => addPt(q.x, q.y, q.z, q.w, q.color, q.label, q.show, false));
+                const keep = userPoints.filter(p => p.lock);   // ロックした点は読み込みでも消さない
+                userPoints.filter(p => !p.lock).forEach(disposePt); userPoints = keep.slice();
+                const same = (p, q) => p.x === normPtValue(q.x) && p.y === normPtValue(q.y) && p.z === normPtValue(q.z) && p.w === normPtValue(q.w);
+                list.filter(q => !isOldPairPt(q) && !keep.some(p => same(p, q))).forEach(q => addPt(q.x, q.y, q.z, q.w, q.color, q.label, q.show, false, q.lock));
                 savePts(); renderPtList(); updateMorphingGeometry(animationProgress);
+                return keep.length;
             }
+            const keptNote = n => n ? '（ロックした ' + n + '個はそのまま残しました）' : '';
             ptEl('pt-csv-dl').addEventListener('click', () => {
                 const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ptToCSV()], { type: 'text/csv' })); a.download = PT_FILE; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
             });
             ptEl('pt-csv-up').addEventListener('change', e => {
                 const f = e.target.files && e.target.files[0]; if (!f) return;
-                const rd = new FileReader(); rd.onload = () => { const l = ptFromCSV(rd.result); replacePts(l); ptStatus('CSV から ' + l.length + '個 読み込みました', true); }; rd.readAsText(f); e.target.value = '';
+                const rd = new FileReader(); rd.onload = () => { const l = ptFromCSV(rd.result); const kept = replacePts(l); ptStatus('CSV から ' + l.length + '個 読み込みました' + keptNote(kept), true); }; rd.readAsText(f); e.target.value = '';
             });
             // GitHub（キー設定で保存した鍵を使う）
             const ghApi = 'https://api.github.com/repos/' + GH_REPO + '/contents/' + PT_FILE;
@@ -2927,7 +2954,7 @@
                     let txt = null;
                     if (ghToken()) { const r = await fetch(ghApi, { headers: ghHeaders(), cache: 'no-store' }); if (!r.ok) throw new Error(ghExplain(r)); txt = b64ToText((await r.json()).content); }
                     else { const r = await fetch(PT_FILE, { cache: 'no-store' }); if (!r.ok) throw new Error('GitHub Pages に ' + PT_FILE + ' がありません'); txt = await r.text(); }   // 鍵が無くても公開ページからは読める
-                    const l = ptFromCSV(txt); replacePts(l); ptStatus('GitHub から ' + l.length + '個 読み込みました', true);
+                    const l = ptFromCSV(txt); const kept = replacePts(l); ptStatus('GitHub から ' + l.length + '個 読み込みました' + keptNote(kept), true);
                 } catch (e) { ptStatus('失敗: ' + (e && e.message ? e.message : e), false); }
             });
             // 起動時：このブラウザに保存した点を戻す
@@ -2935,7 +2962,7 @@
             ptEl('pt-labels').textContent = 'ラベル: ' + (ptShowLabels ? 'ON' : 'OFF'); ptEl('pt-left').textContent = '左にも: ' + (ptShowLeft ? 'ON' : 'OFF');
             try {
                 const saved = JSON.parse(localStorage.getItem(PT_STORE) || '[]'), keep = saved.filter(q => !isOldPairPt(q));
-                keep.forEach(q => addPt(q.x, q.y, q.z, q.w, q.color, q.label, q.show !== false, false));
+                keep.forEach(q => addPt(q.x, q.y, q.z, q.w, q.color, q.label, q.show !== false, false, q.lock));
                 if (keep.length !== saved.length) savePts();   // 以前の「既定の2点」は固定の2点に置き換わった
             } catch (_) {}
             renderPtList(); updateMorphingGeometry(animationProgress);
