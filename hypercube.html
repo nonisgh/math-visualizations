@@ -53,6 +53,8 @@
         .mode-split #wrapper-3d4d { width: 50%; height: 100%; display: block; position: relative; }
         /* 左右入れ替え：超立方体を左、立方体を右に（縦長の画面では超立方体を上に） */
         #main-container.swap-views { flex-direction: row-reverse; }
+        #zw-dial { top: 64px; right: 12px; }   /* 見出しの下（縦長の画面でも見出しと重ならない） */
+        .mode-pip #zw-dial, .mode-hypercube #zw-dial { display: none !important; }
         .mode-split.swap-views #wrapper-2d3d { border-right: 0; border-left: 1px solid #1e293b; }
 
         .mode-pip #wrapper-3d4d { width: 100%; height: 100%; display: block; position: relative; }
@@ -156,6 +158,24 @@
             <div id="badge-2d3d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-cyan-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-cyan-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="square" class="w-4 h-4 text-cyan-400"></i>
                 <span><em id="side-2d3d" class="not-italic">左</em>: 2D展開図 → 立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = z。そこへ倒すと、ただ立方体が回る</span></span>
+            </div>
+            <!-- Z-W 平面のダイヤル（立方体の画面の右上）。横＝z、縦＝w。針の z 方向の長さ＝立方体に残った z、w 方向＝w へ移った分 -->
+            <div id="zw-dial" class="hidden absolute pointer-events-none z-10 bg-slate-900/80 backdrop-blur border border-slate-700 rounded-xl px-2 pt-1 pb-1.5 text-center" title="Z-W 平面">
+                <svg width="92" height="92" viewBox="-46 -46 92 92">
+                    <circle r="34" fill="none" stroke="#334155" stroke-width="1"/>
+                    <line x1="-42" y1="0" x2="42" y2="0" stroke="#56a8ff" stroke-width="1" opacity="0.6"/>
+                    <line x1="0" y1="42" x2="0" y2="-42" stroke="#b07cff" stroke-width="1" opacity="0.6" stroke-dasharray="3 2"/>
+                    <text x="43" y="-3" font-size="10" fill="#56a8ff" text-anchor="end" font-style="italic">z</text>
+                    <text x="4" y="-37" font-size="10" fill="#b07cff" font-style="italic">w</text>
+                    <line id="zwd-gz" stroke="#94a3b8" stroke-width="0.8" stroke-dasharray="2 2"/>
+                    <line id="zwd-gw" stroke="#94a3b8" stroke-width="0.8" stroke-dasharray="2 2"/>
+                    <line id="zwd-zpart" x1="0" y1="0" x2="34" y2="0" stroke="#56a8ff" stroke-width="3.5" stroke-linecap="round"/>
+                    <line id="zwd-wpart" x1="0" y1="0" x2="0" y2="0" stroke="#ff44dd" stroke-width="3.5" stroke-linecap="round"/>
+                    <line id="zwd-hand" x1="0" y1="0" x2="34" y2="0" stroke="#fda4af" stroke-width="2" stroke-linecap="round"/>
+                    <circle id="zwd-tip" cx="34" cy="0" r="2.6" fill="#fda4af"/>
+                </svg>
+                <div id="zwd-text" class="text-[10px] font-bold text-rose-200 font-mono -mt-0.5">Z-W 0°</div>
+                <div id="zwd-sub" class="text-[9px] text-slate-400 font-mono"></div>
             </div>
         </div>
 
@@ -385,6 +405,14 @@
                     <span class="text-sky-300 shrink-0">立方体の3D回転:</span>
                     <button id="left3d-btn" class="whitespace-nowrap px-2 py-0.5 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 hover:bg-slate-700 transition" title="X-Yだけ＝立方体は自分の平面（X-Y）の回転だけついてくる。X-Z・Y-Z では超立方体だけが転がる／全部＝立方体も X-Y・X-Z・Y-Z すべてで超立方体と同じように転がる">X-Y だけ</button>
                     <span class="text-[10px] text-slate-500">押すと「全部（立方体と超立方体がそろって転がる）」に切り替わります</span>
+                </div>
+                <div class="text-[10px] text-slate-400 pt-1 border-t border-slate-800">Z-W 回転のときの表現（立方体には w が無いので、回っていることを別の形で見せる）</div>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <button class="zwviz-btn px-2 py-0.5 rounded-lg border transition" data-k="tint" title="z が w へ移った分だけ、面を w＋＝ピンク・w−＝水色に染める（超立方体の既定の2点と同じ色の約束）"></button>
+                    <button class="zwviz-btn px-2 py-0.5 rounded-lg border transition" data-k="dial" title="立方体の画面の右上に Z-W 平面のダイヤル。針の横（z）の長さ＝立方体に残った z、縦（w）の長さ＝w へ移った分"></button>
+                    <button class="zwviz-btn px-2 py-0.5 rounded-lg border transition" data-k="ghost" title="回す前の立方体を点線で残す。縮んだ分は消えたのではなく w へ行ったと分かる"></button>
+                    <button class="zwviz-btn px-2 py-0.5 rounded-lg border transition" data-k="wArrow" title="z の矢印が縮み、紫の点線の w 矢印が伸びる（w は3次元の外の向きなので、画面の左下向きに点線で描く）。座標軸が表示のとき"></button>
+                    <button id="zwviz-all" class="px-2 py-0.5 rounded-lg border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 transition" title="4つをまとめてオン・オフ（Q キー）"></button>
                 </div>
             </section>
 
@@ -939,6 +967,12 @@
             return out;
         }
         const edgeTint = v => [v, Math.min(1, v + 0.02), Math.min(1, v + 0.08)];   // 線色：わずかに青白く
+        // Z-W 回転のときの立方体の表現（それぞれオン・オフ。このブラウザに保存）
+        //   tint＝w へ逃げた分を色で（w＋ピンク／w−水色）、dial＝Z-W 平面のダイヤル、ghost＝回す前の立方体の点線の輪郭、wArrow＝z の矢印が縮み w の点線矢印が伸びる
+        let zwViz = { tint: true, dial: true, ghost: true, wArrow: true };
+        try { const zv = JSON.parse(localStorage.getItem('hypercubeZwViz') || 'null'); if (zv) zwViz = Object.assign(zwViz, zv); } catch (_) {}
+        const ZW_TINT_POS = new THREE.Color(0xff44dd), ZW_TINT_NEG = new THREE.Color(0x33e5ff);   // 超立方体の既定の2点と同じ色の約束
+        let zwGhost = null, zwArrowLine = null, zwArrowCone = null, zwArrowLabel = null;
         let zwLink = true;   // ZW連動：ONで ZW回転(soloAngleZW)を左の立方体に「z×cos(zw)」の擬似歪みで反映（90°で平面に潰れ180°で裏返る）
         let autoFitZoom = true;   // 組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の倍率のまま固定
         let panelHidden = false;  // X キーで操作パネルを隠し、立体を大きく表示する
@@ -1825,6 +1859,14 @@
             lMarkMinus = makeMarker(MARK_FAR, 0.07, 1002);
             lMarkBlend = makeMarker(MARK_BLEND, 0.085, 1004); lMarkBlend.material.opacity = 0.8; lMarkBlend.visible = false;
             root2D.add(lMarkPlus, lMarkMinus, lMarkBlend);
+            // Z-W のときの w の点線矢印（紫）
+            { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+              zwArrowLine = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xb07cff, dashSize: 0.1, gapSize: 0.07, transparent: true, opacity: 0.95, depthTest: false }));
+              zwArrowLine.renderOrder = 1000; zwArrowLine.visible = false;
+              zwArrowCone = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.17, 16), new THREE.MeshBasicMaterial({ color: 0xb07cff, transparent: true, opacity: 0.9, depthTest: false }));
+              zwArrowCone.renderOrder = 1000; zwArrowCone.visible = false;
+              zwArrowLabel = makeLabelSprite('w', '#b07cff'); zwArrowLabel.visible = false;
+              group.add(zwArrowLine, zwArrowCone, zwArrowLabel); }
             group.visible = showAxes;
             root2D.add(group);
             findLeftExtreme();
@@ -1913,8 +1955,11 @@
             if (!group) return;
             group.visible = showAxes;
             if (!showAxes) return;
+            const zwArrowOn = zwViz.wArrow && zwLink && Math.abs(wrapPi(soloAngleZW)) > 0.003;
+            const zk = zwArrowOn ? Math.cos(soloAngleZW) : 1;   // z が w へ移った分だけ z の矢印を縮める（90°で0、180°で反対向き）
             AXES_3D.forEach((ax, i) => {
-                const tip = rotatedLeftAxis([ax.v[0] * AXIS_LEN, ax.v[1] * AXIS_LEN, ax.v[2] * AXIS_LEN]);
+                const L = AXIS_LEN * (i === 2 ? zk : 1);
+                const tip = rotatedLeftAxis([ax.v[0] * L, ax.v[1] * L, ax.v[2] * L]);
                 const pa = axisLinesL[i].geometry.attributes.position;
                 pa.array[0] = 0; pa.array[1] = 0; pa.array[2] = 0;
                 pa.array[3] = tip[0]; pa.array[4] = tip[1]; pa.array[5] = tip[2];
@@ -1931,8 +1976,60 @@
                 }
                 axisSpritesL[i].position.set(tip[0] * 1.2, tip[1] * 1.2, tip[2] * 1.2);
             });
+            // w の点線矢印：3次元の中には w の向きが無いので、画面の左下向き（＝この空間の外）に点線で描く。長さは sin 倍
+            if (zwArrowLine) {
+                const sn = Math.sin(soloAngleZW);
+                zwArrowLine.visible = zwArrowCone.visible = zwArrowLabel.visible = zwArrowOn && Math.abs(sn) > 0.02;
+                if (zwArrowLine.visible) {
+                    camera2D.updateMatrixWorld();
+                    const m = camera2D.matrixWorld.elements, dir = new THREE.Vector3(-m[0] - m[4], -m[1] - m[5], -m[2] - m[6]).normalize();
+                    const r2 = scene2D.getObjectByName('Root2D'); if (r2) { const q = new THREE.Quaternion(); r2.getWorldQuaternion(q); dir.applyQuaternion(q.invert()); }
+                    const len = AXIS_LEN * sn, tip = dir.clone().multiplyScalar(len);
+                    const pa = zwArrowLine.geometry.attributes.position.array; pa[0] = pa[1] = pa[2] = 0; pa[3] = tip.x; pa[4] = tip.y; pa[5] = tip.z;
+                    zwArrowLine.geometry.attributes.position.needsUpdate = true; zwArrowLine.geometry.computeBoundingSphere(); zwArrowLine.computeLineDistances();
+                    const d = dir.clone().multiplyScalar(Math.sign(len));
+                    zwArrowCone.quaternion.setFromUnitVectors(_AXIS_UP, d);
+                    zwArrowCone.position.copy(tip).addScaledVector(d, -0.085);
+                    zwArrowLabel.position.copy(tip).multiplyScalar(1.2);
+                }
+            }
         }
 
+        const _zwBase = new THREE.Color(), _zwMix = new THREE.Color();
+        // ===== Z-W のときの立方体の表現：輪郭（回す前）・ダイヤル =====
+        function updateZwGhost(progress, zwOn, visible) {
+            const r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r2) return;
+            if (!zwGhost) {
+                const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6 * 4 * 2 * 3), 3));
+                zwGhost = new THREE.LineSegments(g, new THREE.LineDashedMaterial({ color: 0xcbd5e1, dashSize: 0.09, gapSize: 0.07, transparent: true, opacity: 0.55, depthTest: false }));
+                zwGhost.renderOrder = 999; r2.add(zwGhost);
+            }
+            const on = visible && zwViz.ghost && zwOn;
+            zwGhost.visible = on; if (!on) return;
+            const arr = zwGhost.geometry.attributes.position.array; let k = 0;
+            for (let f = 0; f < 6; f++) {   // 回す前（ZW なし）の各面の4辺
+                const vs = calculateFoldedFaceVertices2D(f, progress, linkAngleX, linkAngleY).map(v => rot3DLeft(v[0], v[1], v[2]));
+                for (let e = 0; e < 4; e++) { const A = vs[e], B = vs[(e + 1) % 4]; arr[k++] = A[0]; arr[k++] = A[1]; arr[k++] = A[2]; arr[k++] = B[0]; arr[k++] = B[1]; arr[k++] = B[2]; }
+            }
+            zwGhost.geometry.attributes.position.needsUpdate = true;
+            zwGhost.geometry.computeBoundingSphere(); zwGhost.computeLineDistances();
+        }
+        function updateZwDial(visible) {
+            const el = document.getElementById('zw-dial'); if (!el) return;
+            const a = wrapPi(soloAngleZW), on = visible && zwViz.dial && zwLink && (Math.abs(a) > 0.003 || soloSpinZW);
+            el.classList.toggle('hidden', !on); if (!on) return;
+            const R = 34, c = Math.cos(a), sn = Math.sin(a), hx = R * c, hy = -R * sn;   // 横＝z、縦＝w（上が＋）
+            const set = (id, at) => { const n = document.getElementById(id); if (n) Object.entries(at).forEach(([k, v]) => n.setAttribute(k, v)); };
+            set('zwd-hand', { x2: hx.toFixed(2), y2: hy.toFixed(2) });
+            set('zwd-tip', { cx: hx.toFixed(2), cy: hy.toFixed(2) });
+            set('zwd-zpart', { x2: hx.toFixed(2) });                               // z に残った分（立方体の z の長さ）
+            set('zwd-wpart', { y2: hy.toFixed(2), stroke: sn >= 0 ? '#ff44dd' : '#33e5ff' });   // w へ移った分（色づけと同じ色）
+            set('zwd-gz', { x1: hx.toFixed(2), y1: hy.toFixed(2), x2: hx.toFixed(2), y2: 0 });
+            set('zwd-gw', { x1: hx.toFixed(2), y1: hy.toFixed(2), x2: 0, y2: hy.toFixed(2) });
+            const deg = Math.round(a * 180 / Math.PI);
+            const t = document.getElementById('zwd-text'); if (t) t.textContent = 'Z-W ' + deg + '°';
+            const t2 = document.getElementById('zwd-sub'); if (t2) t2.textContent = 'z ' + c.toFixed(2) + '　w ' + (sn >= 0 ? '+' : '') + sn.toFixed(2);
+        }
         function updateMorphingGeometry(progress) {
             updatePinRot(progress);   // 点固定モードの整列回転を毎フレーム先に更新
             if (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'cube') {
@@ -1940,8 +2037,10 @@
                 // 右の超立方体と「同じ遠近射影」で描く（整合性）。90°付近で遠近が強まり、180°で裏返る。
                 const zwOn = zwLink && soloAngleZW !== 0;
                 const zc = Math.cos(soloAngleZW), zs = Math.sin(soloAngleZW);
-                const faceVerts = faceObjects2D.map(face => {
+                const faceW = [];   // 頂点ごとの w（色づけ用）
+                const faceVerts = faceObjects2D.map((face, fi) => {
                     const vs = calculateFoldedFaceVertices2D(face.id, progress, linkAngleX, linkAngleY);
+                    faceW[fi] = vs.map(v => zwOn ? v[2] * zs : 0);
                     if (zwOn) for (let i = 0; i < vs.length; i++) {
                         const v = vs[i], z = v[2];
                         const wv = z * zs;                                             // ZW回転で生じる4D成分
@@ -1976,8 +2075,14 @@
                 // ※ 裏向きの面の透け（右で使用）は左には効かせない：左の立方体は折りたたみ途中は「開いた箱」なので、裏面が隙間から見えるのが正しい。
                 //   展開図(平ら)では裏面の混ざりが起きないので、左にはそもそも不要。
 
+                updateZwGhost(progress, zwOn, true);
+                updateZwDial(true);
+                const tintOn = zwViz.tint && zwOn;
                 faceObjects2D.forEach((face, fi) => {
                     const currentVerts = faceVerts[fi];
+                    // 色づけ中は面の色を頂点の色に移す（材質は白）。w＋ほどピンク、w−ほど水色に寄せる
+                    if (face.tinted !== tintOn) { face.material.color.set(tintOn ? 0xffffff : faceConfigs2D[fi].color); face.tinted = tintOn; }
+                    const baseC = _zwBase.set(faceConfigs2D[fi].color);
 
                     const posAttr = face.geometry.attributes.position;
                     const posArr = posAttr.array;
@@ -1991,7 +2096,14 @@
                         posArr[ptr++] = v[0];
                         posArr[ptr++] = v[1];
                         posArr[ptr++] = v[2];
-                        if (fcolArr) { const bt = fbright(faceDist[fi][vIdx]); fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; }
+                        if (fcolArr) {
+                            const bt = fbright(faceDist[fi][vIdx]);
+                            if (tintOn) {
+                                const w = faceW[fi][vIdx], a = Math.min(1, Math.abs(w) / HALF_S);
+                                _zwMix.copy(baseC).lerp(w >= 0 ? ZW_TINT_POS : ZW_TINT_NEG, a);
+                                fcolArr[fcp++] = _zwMix.r * bt; fcolArr[fcp++] = _zwMix.g * bt; fcolArr[fcp++] = _zwMix.b * bt;
+                            } else { fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; }
+                        }
                     }
                     posAttr.needsUpdate = true;
                     if (fcolAttr) fcolAttr.needsUpdate = true;
@@ -2014,7 +2126,12 @@
                         wireArr[wPtr++] = vB[0]; wireArr[wPtr++] = vB[1]; wireArr[wPtr++] = vB[2];
 
                         if (colArrL) {
-                            const cA = lcol(faceDist[fi][edge[0]]), cB = lcol(faceDist[fi][edge[1]]);
+                            let cA = lcol(faceDist[fi][edge[0]]), cB = lcol(faceDist[fi][edge[1]]);
+                            if (tintOn) {   // 色づけ：辺も w＋ピンク／w−水色に（面が透けていても分かるように）。明るさ（奥のフェード）は保つ
+                                const tw = (c, w) => { const a = Math.min(1, Math.abs(w) / HALF_S), T = w >= 0 ? ZW_TINT_POS : ZW_TINT_NEG, L = Math.max(c[0], c[1], c[2]);
+                                    return [c[0] + (T.r * L - c[0]) * a, c[1] + (T.g * L - c[1]) * a, c[2] + (T.b * L - c[2]) * a]; };
+                                cA = tw(cA, faceW[fi][edge[0]]); cB = tw(cB, faceW[fi][edge[1]]);
+                            }
                             colArrL[cPtr++] = cA[0]; colArrL[cPtr++] = cA[1]; colArrL[cPtr++] = cA[2];
                             colArrL[cPtr++] = cB[0]; colArrL[cPtr++] = cB[1]; colArrL[cPtr++] = cB[2];
                         }
@@ -2873,6 +2990,7 @@
                 { id: 'spin_6', label: '全て ON/OFF（6面すべて）', short: '全て', def: 'Shift+A', run: clickSel('#spin-6-btn') },
                 { id: 'sideSwap', label: 'パネルの左右 切替', short: 'パネル左右', def: 'B', run: () => document.getElementById('sidebar-side').click() },
                 { id: 'viewSwap', label: '立方体と超立方体の左右 入替', short: '図の左右', def: 'Shift+B', run: () => document.getElementById('swap-views-btn').click() },
+                { id: 'zwVizAll', label: 'Z-W のときの立方体の表現 全部オン・オフ', short: 'ZW表現', def: 'Q', run: clickSel('#zwviz-all') },
                 { id: 'left3d', label: '立方体の3D回転 切替（X-Yだけ⇔全部）', short: '立方体3D', def: 'Shift+D', run: clickSel('#left3d-btn') }
             ];
             const SC_STORE = 'hypercubeShortcuts', SC_FILE = 'hypercube-shortcuts.csv';
@@ -3921,6 +4039,28 @@
             // 全部盛り：6面すべてをまとめて ON/OFF
             document.getElementById('spin-6-btn').addEventListener('click', toggle6Spins);
             // 左の立方体の3D回転：X-Y だけ（標準）⇔ 全部（左右そろって転がる）
+            // Z-W のときの立方体の表現のオン・オフ
+            const ZWV_NAME = { tint: '色づけ', dial: 'ダイヤル', ghost: '元の輪郭', wArrow: 'w の点線矢印' };
+            const saveZwViz = () => { try { localStorage.setItem('hypercubeZwViz', JSON.stringify(zwViz)); } catch (_) {} };
+            function syncZwVizUI() {
+                document.querySelectorAll('.zwviz-btn').forEach(b => {
+                    const k = b.dataset.k, on = !!zwViz[k];
+                    b.textContent = '→ ' + ZWV_NAME[k] + ': ' + (on ? 'OFF' : 'ON');   // 押すとこうなる
+                    b.classList.toggle('bg-rose-900/40', on); b.classList.toggle('border-rose-500/50', on); b.classList.toggle('text-rose-100', on);
+                    b.classList.toggle('bg-slate-800', !on); b.classList.toggle('border-slate-700', !on); b.classList.toggle('text-slate-400', !on);
+                });
+                const anyOn = Object.keys(ZWV_NAME).some(k => zwViz[k]);
+                document.getElementById('zwviz-all').textContent = '→ 全部 ' + (anyOn ? 'OFF' : 'ON');
+            }
+            document.querySelectorAll('.zwviz-btn').forEach(b => b.addEventListener('click', () => {
+                zwViz[b.dataset.k] = !zwViz[b.dataset.k]; saveZwViz(); syncZwVizUI(); updateMorphingGeometry(animationProgress);
+            }));
+            document.getElementById('zwviz-all').addEventListener('click', () => {
+                const anyOn = Object.keys(ZWV_NAME).some(k => zwViz[k]);
+                Object.keys(ZWV_NAME).forEach(k => zwViz[k] = !anyOn); saveZwViz(); syncZwVizUI(); updateMorphingGeometry(animationProgress);
+            });
+            syncZwVizUI();
+
             const left3dBtn = document.getElementById('left3d-btn');
             const syncLeft3dUI = () => {
                 left3dBtn.innerText = leftFull3D ? '全部' : 'X-Y だけ';
