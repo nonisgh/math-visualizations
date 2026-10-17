@@ -69,8 +69,9 @@
         .sb-sec.collapsed > .sb-body { display: none; }
         .sb-sec > .sb-h.sb-fold { cursor: pointer; user-select: none; }
         .sb-sec > .sb-h.sb-fold:hover { color: #f1f5f9; }
-        /* たたんだ欄は枠線を少し太く（たたんであることが分かるように） */
-        .sb-sec.collapsed, details.sb-sec:not([open]) { border-width: 1.5px; }
+        /* たたんだ欄は枠線を少し太く・明るく（「ここにも項目がありますよ」と分かるように） */
+        .sb-sec.collapsed, details.sb-sec:not([open]) { border-width: 1.5px; border-color: rgba(148, 163, 184, 0.55); }
+        .sb-sec.collapsed:hover, details.sb-sec:not([open]):hover { border-color: rgba(203, 213, 225, 0.75); }
         body.split-dragging.split-col, body.split-dragging.split-col * { cursor: row-resize !important; }
         /* 左右入れ替え：超立方体を左、立方体を右に（縦長の画面では超立方体を上に） */
         #main-container.swap-views { flex-direction: row-reverse; }
