@@ -150,10 +150,16 @@
             overflow: hidden;
         }
         .thumb svg { width: 72px; height: 72px; display: block; }
-        /* アプリのアイコンをそのまま使うカード（枠いっぱいに） */
-        .thumb.thumb-icon { background: none; border: none; }
-        .thumb.thumb-icon svg.icon { width: 84px; height: 84px; }
-        .title-row .sub { font-size: 11px; color: var(--faint); }
+        /* アプリ名のしるし（カードの色に合わせた枠つき） */
+        .title-row .app {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 1px 8px;
+            border-radius: 999px;
+            color: var(--accent);
+            border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+            background: color-mix(in srgb, var(--accent) 10%, transparent);
+        }
 
         .body { min-width: 0; }
         .title-row {
@@ -294,9 +300,9 @@
         </div>
         <div class="grid">
             <a class="card" href="hypercube.html" style="--accent: var(--d4);">
-                <div class="thumb thumb-icon"><svg class="icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="hc-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#151b45"/><stop offset="1" stop-color="#050816"/></linearGradient><radialGradient id="hc-gl" cx="0.52" cy="0.48" r="0.55"><stop offset="0" stop-color="#8b5cf6" stop-opacity="0.42"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient><linearGradient id="hc-ln" x1="0.1" y1="0.95" x2="0.9" y2="0.05"><stop offset="0" stop-color="#38bdf8"/><stop offset="0.55" stop-color="#a78bfa"/><stop offset="1" stop-color="#f5d0fe"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#hc-bg)"/><rect width="64" height="64" rx="14" fill="url(#hc-gl)"/><g fill="none" stroke="url(#hc-ln)" stroke-linecap="round" stroke-linejoin="round"><path d="M13 26L23.64 29.64M37 26L34.2 29.64M37 50L34.2 40.2M13 50L23.64 40.2M27 15L29.8 24.8M51 15L40.36 24.8M51 39L40.36 35.36M27 39L29.8 35.36" stroke-width="1.15" opacity="0.6"/><path d="M23.64 29.64L34.2 29.64M34.2 29.64L34.2 40.2M34.2 40.2L23.64 40.2M23.64 40.2L23.64 29.64M29.8 24.8L40.36 24.8M40.36 24.8L40.36 35.36M40.36 35.36L29.8 35.36M29.8 35.36L29.8 24.8M23.64 29.64L29.8 24.8M34.2 29.64L40.36 24.8M34.2 40.2L40.36 35.36M23.64 40.2L29.8 35.36" stroke-width="1.5" opacity="0.95"/><path d="M13 26L37 26M37 26L37 50M37 50L13 50M13 50L13 26M27 15L51 15M51 15L51 39M51 39L27 39M27 39L27 15M13 26L27 15M37 26L51 15M37 50L51 39M13 50L27 39" stroke-width="2.3"/></g><circle cx="37" cy="26" r="4.6" fill="#ff44dd" opacity="0.28"/><circle cx="37" cy="26" r="2.6" fill="#ff44dd"/><circle cx="29.8" cy="35.36" r="3.6" fill="#33e5ff" opacity="0.28"/><circle cx="29.8" cy="35.36" r="1.9" fill="#33e5ff"/></svg></div>
+                <div class="thumb"><svg data-thumb="cube4" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
                 <div class="body">
-                    <div class="title-row"><h3>次元おりがみ</h3><span class="sub">超立方体（テセラクト）</span></div>
+                    <div class="title-row"><h3>超立方体（テセラクト）</h3><span class="app">アプリ：次元おりがみ</span></div>
                     <p>立方体の展開図（2D→3D）と、超立方体の展開図（3D→4D）を同時に折りたたみ、並べて比べます。</p>
                     <div class="meta">
                         <div class="dims"><span class="dim d3">3D</span><span class="dim d4">4D</span></div>
