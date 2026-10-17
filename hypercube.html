@@ -466,7 +466,7 @@
 
             <section class="sb-sec">
                 <h3 class="sb-h"><i data-lucide="repeat-2" class="w-3.5 h-3.5"></i>角度の往復（A ⇄ B）</h3>
-                <p class="text-[10px] text-slate-500 leading-snug">A と B の角度を決めて、その間をアニメで行ったり来たりします。動き方は「単振動」（振り子のように、速さが sin のカーブ）・「バウンド」（端で弾む）・「ばね」（少し行き過ぎて戻る）から選べます。「▶ A→B」は片道を1回だけ再生し、押すたびに A→B と B→A が入れ替わります。<b class="text-slate-300">再生中はドラッグで視点（カメラ）を回せる</b>ので、回っている図形を外から眺められます（「視点を正面へ」で戻す）。スライダー・プリセット・リセット・スピンで止まります。</p>
+                <p class="text-[10px] text-slate-500 leading-snug">A と B の角度を決めて、その間をアニメで行ったり来たりします。動き方は「なめらかターン」（ほぼ一定の速さで進み、端でなめらかに折り返す）・「単振動」（振り子のように、速さが sin のカーブ）・「バウンド」（端で弾む）・「ばね」（少し行き過ぎて戻る）から選べます。「▶ A→B」は片道を1回だけ再生し、押すたびに A→B と B→A が入れ替わります。<b class="text-slate-300">再生中はドラッグで視点（カメラ）を回せる</b>ので、回っている図形を外から眺められます（「視点を正面へ」で戻す）。スライダー・プリセット・リセット・スピンで止まります。</p>
                 <div id="pp-slots" class="space-y-1 text-[11px]"></div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <label class="flex items-center gap-1 text-slate-400">片道<input id="pp-sec" type="number" min="0.5" max="60" step="0.5" value="3" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 font-mono text-right">秒</label>
@@ -475,11 +475,17 @@
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-slate-400">動き方</span>
                     <div id="pp-ease" class="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-slate-800">
+                        <button data-ease="turn" class="px-2 py-0.5 rounded-md transition" title="ほぼ一定の速さで進み、端の近くでだけ短くなめらかに折り返す（ターンの長さはスライダーで）">なめらかターン</button>
                         <button data-ease="sine" class="px-2 py-0.5 rounded-md transition" title="振り子のように行き来する（速さが sin のカーブ）">単振動</button>
                         <button data-ease="bounce" class="px-2 py-0.5 rounded-md transition" title="ボールのように端へ落ちていき、ぶつかってポンポンと弾んで止まる">バウンド</button>
                         <button data-ease="spring" class="px-2 py-0.5 rounded-md transition" title="少し行き過ぎてから、ばねのように戻って止まる">ばね</button>
                     </div>
                 </div>
+                <label id="pp-turn-row" class="flex items-center gap-1.5 text-[10px] text-slate-400" title="なめらかターンの折り返しの長さ。左ほどゆっくり（単振動に近い）、右ほどきびきび">
+                    <span class="shrink-0">ターン</span><span class="shrink-0 text-slate-500">ゆっくり</span>
+                    <input id="pp-turn" type="range" min="0" max="1" step="0.01" class="flex-1 min-w-0 accent-fuchsia-400">
+                    <span class="shrink-0 text-slate-500">きびきび</span>
+                </label>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <button id="pp-once" class="px-2.5 py-1 rounded bg-cyan-900/40 border border-cyan-500/50 text-cyan-100 hover:bg-cyan-800/50 font-bold font-mono" title="片道を1回だけ再生。押すたびに A→B、B→A が交互（Shift+G キー）">▶ A→B</button>
                     <button id="pp-play" class="px-2.5 py-1 rounded bg-fuchsia-900/40 border border-fuchsia-500/50 text-fuchsia-100 hover:bg-fuchsia-800/50 font-bold" title="A ⇄ B の往復を始める／止める（G キー）">▶ 往復スタート</button>
@@ -836,7 +842,13 @@
         let pingPong = null;
         let ppOnceDir = 'AB';
         // 往復の動き方（片道の進み u：0→1 を、位置 f：0→1 に写す）。B→A は 1−f。このブラウザに覚える
+        // なめらかターン：三角波の角を丸めた形。道のりのほとんどをほぼ一定の速さで進み、端の近くでだけ短くなめらかに折り返す。
+        //   p(u) = 1/2 − asin(k·cos πu) / (2·asin k)。k が 1 に近いほどターンが短く（きびきび）、小さいほど単振動に近い
+        let ppTurnS = 0.4;   // ターンのスライダー（0＝ゆっくり 〜 1＝きびきび）
+        try { const v = parseFloat(localStorage.getItem('hypercubePPTurn')); if (isFinite(v)) ppTurnS = Math.max(0, Math.min(1, v)); } catch (_) {}
+        const ppTurnK = () => 1 - Math.pow(10, -(0.5 + 2.5 * ppTurnS));
         const PP_EASES = {
+            turn: u => { const k = ppTurnK(); return 0.5 - Math.asin(k * Math.cos(Math.PI * u)) / (2 * Math.asin(k)); },
             sine: u => (1 - Math.cos(Math.PI * u)) / 2,                     // 単振動：速さが sin のカーブ
             bounce: u => {                                                   // バウンド：端に落ちてぶつかり、3回弾んで止まる
                 const n1 = 7.5625, d1 = 2.75;
@@ -847,8 +859,8 @@
             },
             spring: u => { const c1 = 1.70158, c3 = c1 + 1, v = u - 1; return 1 + c3 * v * v * v + c1 * v * v; }   // ばね：少し行き過ぎて戻る
         };
-        let ppEase = 'bounce';
-        try { const e = localStorage.getItem('hypercubePPEase'); if (e && PP_EASES[e]) ppEase = e; } catch (_) {}   // 片道ボタンを次に押したときの向き（A→B ／ B→A が交互）
+        let ppEase = 'turn';
+        try { const e = localStorage.getItem('hypercubePPEase2'); if (e && PP_EASES[e]) ppEase = e; } catch (_) {}   // 片道ボタンを次に押したときの向き（A→B ／ B→A が交互）
         const PP_KEYS = ['a', 'b', 'c', 'xy', 'xz', 'yz'];
         const angles6 = () => [linkAngleX, linkAngleY, soloAngleZW, rotXY, rotXZ, rotYZ];
         function setAngles6(v) { linkAngleX = v[0]; linkAngleY = v[1]; soloAngleZW = v[2]; rotXY = v[3]; rotXZ = v[4]; rotYZ = v[5]; }
@@ -3780,13 +3792,19 @@
             const ppSec = () => { const v = parseFloat(document.getElementById('pp-sec').value); return isFinite(v) && v > 0 ? v : 3; };
             document.getElementById('pp-sec').addEventListener('keydown', e => e.stopPropagation());
             // 動き方の切り替え（再生中でもすぐ効く）
-            const syncEaseUI = () => document.querySelectorAll('#pp-ease button').forEach(b => {
-                const on = b.dataset.ease === ppEase;
-                b.classList.toggle('bg-fuchsia-600/40', on); b.classList.toggle('text-fuchsia-100', on); b.classList.toggle('font-bold', on);
-                b.classList.toggle('text-slate-400', !on); b.classList.toggle('hover:text-white', !on);
-            });
+            const syncEaseUI = () => {
+                document.querySelectorAll('#pp-ease button').forEach(b => {
+                    const on = b.dataset.ease === ppEase;
+                    b.classList.toggle('bg-fuchsia-600/40', on); b.classList.toggle('text-fuchsia-100', on); b.classList.toggle('font-bold', on);
+                    b.classList.toggle('text-slate-400', !on); b.classList.toggle('hover:text-white', !on);
+                });
+                document.getElementById('pp-turn-row').classList.toggle('hidden', ppEase !== 'turn');   // ターンのスライダーは「なめらかターン」のときだけ
+            };
+            const turnEl = document.getElementById('pp-turn');
+            turnEl.value = String(ppTurnS);
+            turnEl.addEventListener('input', () => { ppTurnS = parseFloat(turnEl.value); try { localStorage.setItem('hypercubePPTurn', String(ppTurnS)); } catch (_) {} });
             document.querySelectorAll('#pp-ease button').forEach(b => b.addEventListener('click', () => {
-                ppEase = b.dataset.ease; try { localStorage.setItem('hypercubePPEase', ppEase); } catch (_) {}
+                ppEase = b.dataset.ease; try { localStorage.setItem('hypercubePPEase2', ppEase); } catch (_) {}
                 syncEaseUI(); ppSt('動き方：' + b.textContent);
             }));
             syncEaseUI();
