@@ -282,7 +282,7 @@
             <button id="snap-left-btn" class="flex items-center gap-1 px-2 py-1 bg-slate-800 border border-emerald-500/50 text-emerald-200 rounded-lg hover:bg-slate-700 transition shrink-0" title="Z 軸を画面に垂直（視線方向）に立て直す。回転は止めない。z を傾ける Z-W・X-Z・Y-Z を瞬時に0へ戻してその回転だけ止め、カメラも正面へ戻す。投影とカメラの遠さは「平行投影／遠近投影」の切替に合わせる。X-W・Y-W・X-Y は回り続ける＝立方体の動きはそのまま"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i>補正</button>
             <button id="link-reset-btn" class="whitespace-nowrap px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="回転を止めて、6面すべてを0に戻し、W を手前（視線方向）へ向けた正面の形にする（カメラの遠さは「平行投影／遠近投影」の切替に合わせる。O キーでも同じ）。全部を読み込み時に戻すのはパネル下の「初期化」">リセット</button>
             <span class="text-slate-600">|</span>
-            <span id="proj-indicator" class="shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-bold" title="今の投影モード（遠近＝いつも奥行きあり／平行＝W の角度が付いていれば平行投影）">投影: 遠近</span>
+            <span id="proj-indicator" class="shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-bold" title="今の投影モード（遠近＝いつも奥行きあり／平行＝W の角度が付いていれば平行投影）。立方体も同じ：超立方体が w を、立方体が z を、遠近なしで落とす">投影: 遠近</span>
             <button id="persp-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition shrink-0" title="投影の切替。平行投影＝W の回転・面/辺/頂点プリセットがきれいな正多角形（既定）。遠近投影＝立方体も超立方体も奥行きが出る。平行投影を選んでいても、W の回転が0のときは遠近で表示（平行だと内と外の立方体が重なって中が見えなくなり、折りたたみも潰れて見えないため）">平行投影</button>
         </div>
     </div>
@@ -1663,6 +1663,23 @@
                 (nearObj.position.z + farObj.position.z) / 2);
         }
 
+        // 今の投影の混ざり具合（0＝遠近、1＝平行）。超立方体と立方体で同じ値を使う
+        function projBlendNow() { return cycleMode ? cycleBlend : (projAnim !== null ? projAnim : (parallel4D ? 1 : 0)); }
+        // 立方体のカメラも投影に合わせる：遠近＝距離18・画角45°、平行＝距離46・画角17°（超立方体の平行と同じ。ほぼ平行投影）。
+        //   立方体にとっての新しい次元 z を、遠近なしで落とすのが平行投影（超立方体が w を遠近なしで落とすのと同じ関係）。
+        //   ズーム・位置の移動・回り込みはそのまま残し、距離の比と画角だけを変える。
+        let _lastPbL = 0;
+        const CAM2D_D = pb => 18 + 28 * pb, CAM2D_F = pb => 45 - 28 * pb;
+        function updateCubeCamProjection(pb) {
+            if (!camera2D || Math.abs(pb - _lastPbL) < 1e-4) return;
+            const tgt = controls2D ? controls2D.target : new THREE.Vector3();
+            const off = camera2D.position.clone().sub(tgt), d = off.length() || CAM2D_D(_lastPbL);
+            const k = d / CAM2D_D(_lastPbL);   // ズームの分
+            camera2D.position.copy(tgt).addScaledVector(off.normalize(), k * CAM2D_D(pb));
+            camera2D.fov = CAM2D_F(pb); camera2D.updateProjectionMatrix();
+            if (scene2D && scene2D.fog) scene2D.fog.density = 0.018 * 18 / CAM2D_D(pb);   // 遠くても暗くならないように
+            _lastPbL = pb;
+        }
         function rotated4DAxis(p4) {
             let x = p4[0], y = p4[1], z = p4[2], w = p4[3];
             if (linkAngleX !== 0) { const c = Math.cos(linkAngleX), s = Math.sin(linkAngleX); const nx = x * c - w * s, nw = x * s + w * c; x = nx; w = nw; }
@@ -1819,7 +1836,7 @@
             if (linkAngleY !== 0) { const c = Math.cos(linkAngleY), s = Math.sin(linkAngleY); const ry = y * c - z * s, rz = y * s + z * c; y = ry; z = rz; }
             if (zwLink && soloAngleZW !== 0) {
                 const zc = Math.cos(soloAngleZW), zs = Math.sin(soloAngleZW);
-                const wv = z * zs, safeW = Math.min(Math.max(wv, -CAMERA_W + 0.5), CAMERA_W - 0.5), sc = CAMERA_W / (CAMERA_W - safeW);
+                const wv = z * zs, safeW = Math.min(Math.max(wv, -CAMERA_W + 0.5), CAMERA_W - 0.5), sc = 1 + (CAMERA_W / (CAMERA_W - safeW) - 1) * (1 - projBlendNow());
                 x *= sc; y *= sc; z = (z * zc) * sc;
             }
             return rot3DLeft(x, y, z);
@@ -2052,6 +2069,8 @@
                 // 右の超立方体と「同じ遠近射影」で描く（整合性）。90°付近で遠近が強まり、180°で裏返る。
                 const zwOn = zwLink && soloAngleZW !== 0;
                 const zc = Math.cos(soloAngleZW), zs = Math.sin(soloAngleZW);
+                const pbL = projBlendNow();
+                updateCubeCamProjection(pbL);   // 立方体のカメラも遠近⇔平行
                 const faceW = [];   // 頂点ごとの w（色づけ用）
                 const faceVerts = faceObjects2D.map((face, fi) => {
                     const vs = calculateFoldedFaceVertices2D(face.id, progress, linkAngleX, linkAngleY);
@@ -2060,7 +2079,7 @@
                         const v = vs[i], z = v[2];
                         const wv = z * zs;                                             // ZW回転で生じる4D成分
                         const safeW = Math.min(Math.max(wv, -CAMERA_W + 0.5), CAMERA_W - 0.5);
-                        const sc = CAMERA_W / (CAMERA_W - safeW);                        // 右と同じ遠近射影
+                        const sc = 1 + (CAMERA_W / (CAMERA_W - safeW) - 1) * (1 - pbL);   // 右と同じ射影（遠近→平行の混ざり具合も同じ）
                         v[0] *= sc; v[1] *= sc; v[2] = (z * zc) * sc;
                     }
                     // 3D回転は最後にかける。標準は X-Y だけ（左にとっての平面の回転）、トグルONで右と同じ角度・同じ順で全部＝左右がそろって転がる
@@ -2554,7 +2573,7 @@
             stopCycle();
             if (!only) {
                 cubePersp = true; applyPerspUI();   // 全部のリセットは、いつも遠近投影に戻す
-                if (controls2D && camera2D) { controls2D.target.set(0, 0, 0); camera2D.position.set(0, 0, 18); camera2D.up.set(0, 1, 0); camera2D.lookAt(0, 0, 0); }   // 立方体の画面の位置（パン）も元へ
+                if (controls2D && camera2D) { controls2D.target.set(0, 0, 0); camera2D.position.set(0, 0, CAM2D_D(_lastPbL)); camera2D.up.set(0, 1, 0); camera2D.lookAt(0, 0, 0); }   // 立方体の画面の位置（パン）も元へ
             }
             const z = k => (!only || only === k);
             const par = wantParallel();   // リセット後のカメラは「優先」に合わせる（超立方体＝遠く・平行に近い／立方体＝近く・遠近）
@@ -2739,7 +2758,8 @@
                     break;
             }
             // 左カメラは常に固定（距離18・画角45°の遠近）＝初期化して組み上げた時のパースに統一
-            camera2D.position.set(0, 0, 18);
+            camera2D.position.set(0, 0, 18);   // ここでは遠近の位置に置き、すぐ後の描画で今の投影に合わせる
+            _lastPbL = 0;
 
             // 等角図のときは右だけ画角を絞って遠くから見る＝ほぼ平行投影にする（遠近があると軸の長さが揃わない）
             const far = (preset === 'equi' || preset === 'proj');
@@ -2748,7 +2768,7 @@
             scene3D.fog.density = far ? 0.018 * 18 / 46 : 0.018;
 
             camera3D.fov = far ? 17 : 45;
-            camera2D.fov = 45;                      // 左は常にパース45°
+            camera2D.fov = 45;                      // 遠近の画角（平行投影のときは描画で 17° へ合わせる）
             const vz = viewZoom();   // 画面の大きさに合わせた倍率（スマホは描画エリアが低いので大きめ）
             camera2D.zoom = viewZoom2D(); camera3D.zoom = vz;
             camera2D.updateProjectionMatrix(); camera3D.updateProjectionMatrix();
