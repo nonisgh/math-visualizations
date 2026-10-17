@@ -61,6 +61,10 @@
         #split-handle::after { content: ''; position: absolute; left: 50%; top: 50%; width: 5px; height: 48px; transform: translate(-50%, -50%); border-radius: 4px; background: rgba(148, 163, 184, 0.35); transition: background 0.15s; }
         #split-handle:hover::after, #split-handle.dragging::after { background: rgba(167, 139, 250, 0.95); }
         body.split-dragging, body.split-dragging * { cursor: col-resize !important; user-select: none !important; }
+        /* 回転タブの欄をたたむ（見出しだけ残す） */
+        .sb-sec.collapsed > .sb-body { display: none; }
+        .sb-sec > .sb-h.sb-fold { cursor: pointer; user-select: none; }
+        .sb-sec > .sb-h.sb-fold:hover { color: #f1f5f9; }
         body.split-dragging.split-col, body.split-dragging.split-col * { cursor: row-resize !important; }
         /* 左右入れ替え：超立方体を左、立方体を右に（縦長の画面では超立方体を上に） */
         #main-container.swap-views { flex-direction: row-reverse; }
@@ -860,15 +864,20 @@
         function camViewNow() {   // 今の視点
             const one = (cam, ctl) => { const t = ctl ? ctl.target : new THREE.Vector3(); return { p: cam.position.clone().sub(t).toArray().map(r3n), u: cam.up.toArray().map(r3n) }; };
             const a = one(camera3D, controls3D), b = one(camera2D, controls2D);
-            return { p3: a.p, u3: a.u, p2: b.p, u2: b.u };
+            return { p3: a.p, u3: a.u, p2: b.p, u2: b.u, f3: r3n(camera3D.fov), f2: r3n(camera2D.fov) };   // 画角も（見かけの大きさをそろえるため）
         }
         const isFrontView = v => !!v && [[v.p3, v.u3], [v.p2, v.u2]].every(([p, u]) => Math.hypot(p[0], p[1]) < 1e-3 * Math.hypot(...p) && Math.abs(u[0]) < 1e-3 && u[1] > 0.999);
         function startCamTo(view) {
             // ドラッグのあとの惰性（OrbitControls の減衰中の回転）を先に出し切って止める。残っていると移した後にずれる
             [controls3D, controls2D].forEach(c => { if (c && c.enableDamping) { c.enableDamping = false; c.update(); c.enableDamping = true; } });
-            const items = [[camera3D, controls3D, view.p3, view.u3], [camera2D, controls2D, view.p2, view.u2]].filter(([c, , p]) => c && p).map(([cam, ctl, p1, u1]) => {
+            const items = [[camera3D, controls3D, view.p3, view.u3, view.f3], [camera2D, controls2D, view.p2, view.u2, view.f2]].filter(([c, , p]) => c && p).map(([cam, ctl, p1, u1, f1]) => {
                 const tgt = ctl ? ctl.target.clone() : new THREE.Vector3();
-                const off = cam.position.clone().sub(tgt), r0 = off.length() || 18, to = new THREE.Vector3(...p1), r1 = to.length() || r0;
+                const off = cam.position.clone().sub(tgt), r0 = off.length() || 18, to = new THREE.Vector3(...p1);
+                // 保存したときと今とで画角が違っても、見かけの大きさがそろう距離にする（距離×tan(画角/2) を同じに）。
+                //   画角を持たない前の保存は、距離から推定（遠く＝平行投影の 17°、近く＝遠近の 45°）
+                const fSaved = isFinite(f1) && f1 > 0 ? f1 : (to.length() > 30 ? 17 : 45);
+                const tanH = f => Math.tan(f * Math.PI / 360);
+                const r1 = (to.length() || r0) * tanH(fSaved) / tanH(cam.fov);
                 return { cam, tgt, r0, r1, d0: off.normalize(), q: new THREE.Quaternion().setFromUnitVectors(off.clone(), to.clone().normalize()), up0: cam.up.clone(), up1: new THREE.Vector3(...(u1 || [0, 1, 0])).normalize() };
             });
             camHome = { t: 0, dur: 0.7, items };
@@ -3802,8 +3811,8 @@
             });
             document.getElementById('pp-name').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('pp-save').click(); } e.stopPropagation(); });
             // CSV（name,a_xw,a_yw,a_zw,a_xy,a_xz,a_yz,b_xw,b_yw,b_zw,b_xy,b_xz,b_yz,sec,lock。角度は度）と GitHub。点・角度と同じ仕組み
-            const PP_CAM_COLS = 'c3x,c3y,c3z,u3x,u3y,u3z,c2x,c2y,c2z,u2x,u2y,u2z';   // 視点（カメラの注視点からの位置と上向き）
-            const camCols = v => v ? [].concat(v.p3, v.u3, v.p2, v.u2) : Array(12).fill('');
+            const PP_CAM_COLS = 'c3x,c3y,c3z,u3x,u3y,u3z,c2x,c2y,c2z,u2x,u2y,u2z,f3,f2';   // 視点（カメラの注視点からの位置と上向き、画角）
+            const camCols = v => v ? [].concat(v.p3, v.u3, v.p2, v.u2, [isFinite(v.f3) ? v.f3 : '', isFinite(v.f2) ? v.f2 : '']) : Array(14).fill('');
             const ppToCSV = () => 'name,a_xw,a_yw,a_zw,a_xy,a_xz,a_yz,b_xw,b_yw,b_zw,b_xy,b_xz,b_yz,sec,lock,' + PP_CAM_COLS + '\n' + ppPairs.map(P => [String(P.name || '').replace(/[,\n]/g, ' ')].concat(PP_KEYS.map(k => P.A[k] || 0), PP_KEYS.map(k => P.B[k] || 0), [P.sec || 3, P.lock ? 1 : 0], camCols(P.cam)).join(',')).join('\n') + '\n';
             function ppFromCSV(txt) {
                 const out = [], num = v => { const n = parseFloat(v); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
@@ -3812,7 +3821,8 @@
                     const A = {}, B = {}; PP_KEYS.forEach((k, i) => { A[k] = num(c[1 + i]); B[k] = num(c[7 + i]); });
                     const sec = parseFloat(c[13]);
                     const cv = c.slice(15, 27).map(v => parseFloat(v)), hasCam = cv.length === 12 && cv.every(isFinite);
-                    const cam = hasCam ? { p3: cv.slice(0, 3), u3: cv.slice(3, 6), p2: cv.slice(6, 9), u2: cv.slice(9, 12) } : undefined;
+                    const fv = [parseFloat(c[27]), parseFloat(c[28])];
+                    const cam = hasCam ? { p3: cv.slice(0, 3), u3: cv.slice(3, 6), p2: cv.slice(6, 9), u2: cv.slice(9, 12), f3: isFinite(fv[0]) ? fv[0] : undefined, f2: isFinite(fv[1]) ? fv[1] : undefined } : undefined;
                     out.push({ name: c[0].trim() || '往復', A, B, sec: isFinite(sec) && sec > 0 ? sec : 3, lock: (c[14] || '0').trim() === '1', cam });
                 });
                 return out;
@@ -4298,6 +4308,37 @@
             document.addEventListener('click', syncLabelsSoon, true);
             document.addEventListener('keydown', syncLabelsSoon, true);
             setTimeout(syncToggleLabels, 0);   // 起動時（保存した設定を戻したあと）
+
+            // ===== 回転タブ：各欄の見出しを押すと、その欄をたたむ／ひらく（このブラウザに覚える） =====
+            (function setupFoldableSections() {
+                const panel = document.querySelector('.sb-panel[data-panel="rot"]'); if (!panel) return;
+                const KEY = 'hypercubeCollapsedRot';
+                let closed = {}; try { closed = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (_) {}
+                const save = () => { try { localStorage.setItem(KEY, JSON.stringify(closed)); } catch (_) {} };
+                const secs = [...panel.children].filter(sec => sec.tagName === 'SECTION' && sec.classList.contains('sb-sec') && sec.querySelector(':scope > .sb-h'));
+                secs.forEach(sec => {
+                    const h = sec.querySelector(':scope > .sb-h'), name = h.textContent.trim();
+                    const body = document.createElement('div'); body.className = 'sb-body flex flex-col gap-2';
+                    [...sec.children].forEach(ch => { if (ch !== h) body.appendChild(ch); });
+                    sec.appendChild(body);
+                    const chev = document.createElement('span'); chev.className = 'ml-auto shrink-0 text-[10px] font-normal text-slate-500';
+                    h.appendChild(chev); h.classList.add('sb-fold'); h.setAttribute('role', 'button');
+                    const apply = () => {
+                        const c = !!closed[name]; sec.classList.toggle('collapsed', c);
+                        chev.textContent = c ? '▸ ひらく' : '▾ たたむ';   // 押すとこうなる
+                        h.title = c ? '押すとこの欄をひらく' : '押すとこの欄をたたむ';
+                    };
+                    h.addEventListener('click', () => { if (closed[name]) delete closed[name]; else closed[name] = true; save(); apply(); });
+                    sec._fold = { name, apply }; apply();
+                });
+                // 全部たたむ／全部ひらく
+                const bar = document.createElement('div'); bar.className = 'flex justify-end gap-1.5 text-[10px]';
+                const mk = (label, fn) => { const b = document.createElement('button'); b.className = 'px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700'; b.textContent = label; b.addEventListener('click', fn); return b; };
+                bar.append(
+                    mk('▸ 全部たたむ', () => { secs.forEach(sc => closed[sc._fold.name] = true); save(); secs.forEach(sc => sc._fold.apply()); }),
+                    mk('▾ 全部ひらく', () => { closed = {}; save(); secs.forEach(sc => sc._fold.apply()); }));
+                panel.insertBefore(bar, panel.firstChild);
+            })();
 
             // 読み込み時の状態へ完全に戻す。ページを読み直すのが最も確実
             // （カメラの向き・root の回転・スピン・OrbitControls の内部状態まで全部クリアされる）。
