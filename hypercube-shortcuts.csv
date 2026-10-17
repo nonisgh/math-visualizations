@@ -53,3 +53,5 @@ sideSwap,パネルの左右 切替,B
 viewSwap,立方体と超立方体の左右 入替,Shift+B
 zwVizAll,Z-W のときの立方体の表現 全部オン・オフ,Q
 left3d,立方体の3D回転 切替（X-Yだけ⇔全部）,Shift+D
+dim5,5次元β 切替（立方体×超立方体 ⇔ 超立方体×5次元超立方体）,Shift+5
+spin_p5,オート回転 5次元だけの4面（5次元β）,Shift+6
