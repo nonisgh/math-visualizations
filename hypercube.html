@@ -279,7 +279,7 @@
                             <i data-lucide="sparkles" class="w-3 h-3"></i><span>全て</span>
                         </button>
             <span class="text-slate-600">|</span>
-            <button id="snap-left-btn" class="flex items-center gap-1 px-2 py-1 bg-slate-800 border border-emerald-500/50 text-emerald-200 rounded-lg hover:bg-slate-700 transition shrink-0" title="Z 軸を画面に垂直（視線方向）に立て直す。回転は止めない。z を傾ける Z-W・X-Z・Y-Z を瞬時に0へ戻してその回転だけ止め、カメラも正面へ戻す。投影とカメラの遠さは「平行投影／遠近投影」の切替に合わせる。X-W・Y-W・X-Y は回り続ける＝立方体の動きはそのまま"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i>補正</button>
+            <button id="snap-left-btn" class="flex items-center gap-1 px-2 py-1 bg-slate-800 border border-emerald-500/50 text-emerald-200 rounded-lg hover:bg-slate-700 transition shrink-0" title="Z 軸を画面に垂直（視線方向）に立て直す。回転は止めない。z を傾ける Z-W・X-Z・Y-Z を瞬時に0へ戻してその回転だけ止め、カメラも正面へ戻す。投影とカメラの遠さは「平行投影／遠近投影」の切替に合わせる。X-W・Y-W・X-Y は回り続ける＝立方体の動きはそのまま。手で回したときに入った X-Y の傾きは戻し、立方体の画面のカメラも正面へ"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i>補正</button>
             <button id="link-reset-btn" class="whitespace-nowrap px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="回転を止めて、6面すべてを0に戻し、W を手前（視線方向）へ向けた正面の形にする（カメラの遠さは「平行投影／遠近投影」の切替に合わせる。O キーでも同じ）。全部を読み込み時に戻すのはパネル下の「初期化」">リセット</button>
             <span class="text-slate-600">|</span>
             <span id="proj-indicator" class="shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-bold" title="今の投影モード（遠近＝いつも奥行きあり／平行＝W の角度が付いていれば平行投影）。立方体も同じ：超立方体が w を、立方体が z を、遠近なしで落とす">投影: 遠近</span>
@@ -2654,7 +2654,12 @@
             }
             soloAngleZW = 0; soloSpinZW = false;
             rotXZ = 0; rotYZ = 0; spinXZ = false; spinYZ = false;
+            // 手で回したときに入った X-Y の分も外す（残すと画面の中で傾いて見える）。スライダー・自動回転の X-Y は残す＝立方体と同じ X-Y にそろう
+            rotXY = wrapPi(rotXY - xyManualOff); xyManualOff = 0;
             updateSpinBtns();
+            // ドラッグのあとの惰性（カメラの減衰中の回転）を止めてから正面へ（残っていると補正の後に傾く）
+            [controls3D, controls2D].forEach(c => { if (c && c.enableDamping) { c.enableDamping = false; c.update(); c.enableDamping = true; } });
+            camHome = null;
             // カメラを正面へ。垂直軸の表示も Z に戻す
             //   優先: 超立方体（平行）＝遠く・低画角（平行に近い）、優先: 立方体（遠近）＝近く・画角45°
             const PAN_Y = 0;
@@ -2663,6 +2668,8 @@
             camera3D.position.set(0, PAN_Y, par ? 46 : 18); camera3D.up.set(0, 1, 0);
             camera3D.fov = par ? 17 : 45; camera3D.updateProjectionMatrix();
             if (controls3D) { controls3D.target.copy(tgt); controls3D.update(); }
+            // 立方体の画面のカメラも正面へ（回り込み・位置の移動・傾きを戻す。距離と画角は今の投影のまま）
+            if (camera2D && controls2D) { controls2D.target.set(0, 0, 0); camera2D.position.set(0, 0, CAM2D_D(_lastPbL)); camera2D.up.set(0, 1, 0); camera2D.lookAt(0, 0, 0); controls2D.update(); }
             lastPreset = par ? 'proj' : 'front';
             screenAxis = 'z';
             document.querySelectorAll('.screen-axis-btn').forEach(b => {
