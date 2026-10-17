@@ -51,6 +51,9 @@
 
         .mode-split #wrapper-2d3d { width: 50%; height: 100%; display: block; position: relative; border-right: 1px solid #1e293b; }
         .mode-split #wrapper-3d4d { width: 50%; height: 100%; display: block; position: relative; }
+        /* 左右入れ替え：超立方体を左、立方体を右に（縦長の画面では超立方体を上に） */
+        #main-container.swap-views { flex-direction: row-reverse; }
+        .mode-split.swap-views #wrapper-2d3d { border-right: 0; border-left: 1px solid #1e293b; }
 
         .mode-pip #wrapper-3d4d { width: 100%; height: 100%; display: block; position: relative; }
         .mode-pip #wrapper-2d3d { 
@@ -102,6 +105,8 @@
             #main-container { flex-direction: column; }
             .mode-split #wrapper-2d3d { width: 100% !important; height: 40% !important; border-right: 0 !important; border-bottom: 1px solid #1e293b; }
             .mode-split #wrapper-3d4d { width: 100% !important; height: 60% !important; }
+            #main-container.swap-views { flex-direction: column-reverse; }
+            .mode-split.swap-views #wrapper-2d3d { border-left: 0 !important; border-bottom: 0 !important; border-top: 1px solid #1e293b; }
         }
         /* iPad 縦（と小さめの画面）：パネルを少し細く */
         @media (max-width: 1100px) { body { --sb-w: 320px; } }
@@ -150,7 +155,7 @@
             <div id="canvas-2d3d" class="w-full h-full"></div>
             <div id="badge-2d3d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-cyan-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-cyan-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="square" class="w-4 h-4 text-cyan-400"></i>
-                <span>左: 2D展開図 → 立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = z。そこへ倒すと、ただ立方体が回る</span></span>
+                <span><em id="side-2d3d" class="not-italic">左</em>: 2D展開図 → 立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = z。そこへ倒すと、ただ立方体が回る</span></span>
             </div>
         </div>
 
@@ -158,7 +163,7 @@
             <div id="canvas-3d4d" class="w-full h-full"></div>
             <div id="badge-3d4d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="box" class="w-4 h-4 text-purple-400"></i>
-                <span>右: 3D展開図 → 超立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = w。そこへ倒すと、影が裏返って見える</span></span>
+                <span><em id="side-3d4d" class="not-italic">右</em>: 3D展開図 → 超立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = w。そこへ倒すと、影が裏返って見える</span></span>
             </div>
         </div>
     </div>
@@ -492,6 +497,10 @@
                         <i data-lucide="columns" class="w-3.5 h-3.5 text-emerald-400"></i>
                         <span id="display-mode-text" class="text-[11px]">表示: どっちも</span>
                     </button>
+                    <button id="swap-views-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="立方体と超立方体の左右を入れ替える（縦長の画面では上下）。「どっちも」表示のとき（Shift+B）">
+                        <i data-lucide="arrow-left-right" class="w-3.5 h-3.5"></i>
+                        <span id="swap-views-text" class="text-[11px]">→ 超立方体を左に</span>
+                    </button>
 
                     <button id="axis-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-amber-900/40 border border-amber-500/50 text-amber-200 rounded-xl hover:bg-slate-700 transition text-xs" title="X/Y/Z/W の座標軸を重ねて表示。W軸は胞から(0°)では中心の一点、X-W/Y-W/Z-Wを回すと外へ伸びる">
                         <i data-lucide="move-3d" class="w-3.5 h-3.5"></i>
@@ -701,6 +710,8 @@
 
         let enableStagger = true;
         let displayMode = 'both';
+        let viewsSwapped = false;   // 左右入れ替え：true で超立方体が左（縦長の画面では上）
+        try { viewsSwapped = localStorage.getItem('hypercubeViewsSwapped') === '1'; } catch (_) {}
         let wireframeOnly = false;
         let accurateFaces = false;   // 面透過：ON=毎フレーム奥から並べ直し＋depthWrite無効で正しく合成。OFF=今の立体感重視
         let mergedFaces3D = null;    // 正確透過モード用：全胞の面をまとめた1メッシュ（毎フレーム全三角形を深度ソート）
@@ -2402,6 +2413,7 @@
         function updateLayout() {
             const mainContainer = document.getElementById('main-container');
             mainContainer.className = "w-full h-full absolute inset-0 z-0 flex";
+            if (viewsSwapped) mainContainer.classList.add('swap-views');
 
             if (displayMode === 'both') {
                 mainContainer.classList.add('mode-split');
@@ -2458,6 +2470,29 @@
                 animSpeedMultiplier = speeds[nextIndex];
                 speedText.innerText = `速度: ${animSpeedMultiplier.toFixed(1)}x`;
             });
+
+            // 立方体と超立方体の左右入れ替え（保存して次回も同じ並び）
+            const swapViewsBtn = document.getElementById('swap-views-btn');
+            // 縦長の画面（上下に並ぶとき）は「上／下」、横並びは「左／右」
+            const PORTRAIT_MQ = window.matchMedia('(orientation: portrait) and (max-width: 1100px)');
+            const sideWord = first => PORTRAIT_MQ.matches ? (first ? '上' : '下') : (first ? '左' : '右');
+            function updateSideWords() {
+                document.getElementById('side-2d3d').textContent = sideWord(!viewsSwapped);
+                document.getElementById('side-3d4d').textContent = sideWord(viewsSwapped);
+            }
+            window.addEventListener('resize', () => { updateSideWords(); syncToggleLabels(); });
+            function applyViewsSwap() {
+                updateSideWords();
+                swapViewsBtn.classList.toggle('bg-emerald-900/40', viewsSwapped); swapViewsBtn.classList.toggle('border-emerald-500/50', viewsSwapped); swapViewsBtn.classList.toggle('text-emerald-200', viewsSwapped);
+                swapViewsBtn.classList.toggle('bg-slate-800/80', !viewsSwapped); swapViewsBtn.classList.toggle('border-slate-700', !viewsSwapped); swapViewsBtn.classList.toggle('text-slate-300', !viewsSwapped);
+                updateLayout();
+            }
+            swapViewsBtn.addEventListener('click', () => {
+                viewsSwapped = !viewsSwapped;
+                try { localStorage.setItem('hypercubeViewsSwapped', viewsSwapped ? '1' : '0'); } catch (_) {}
+                applyViewsSwap(); updateMorphingGeometry(animationProgress);
+            });
+            if (viewsSwapped) applyViewsSwap(); else updateSideWords();
 
             const displayBtn = document.getElementById('display-mode-btn');
             const displayText = document.getElementById('display-mode-text');
@@ -2612,6 +2647,7 @@
                 { id: 'spin_3d', label: '3D ON/OFF（X-Y・X-Z・Y-Z）', short: '3D', def: 'D', run: clickSel('#spin-3d-btn') },
                 { id: 'spin_6', label: '全て ON/OFF（6面すべて）', short: '全て', def: 'Shift+A', run: clickSel('#spin-6-btn') },
                 { id: 'sideSwap', label: 'パネルの左右 切替', short: 'パネル左右', def: 'B', run: () => document.getElementById('sidebar-side').click() },
+                { id: 'viewSwap', label: '立方体と超立方体の左右 入替', short: '図の左右', def: 'Shift+B', run: () => document.getElementById('swap-views-btn').click() },
                 { id: 'left3d', label: '左の立方体の3D回転 切替（X-Yだけ⇔全部）', short: '左3D', def: 'Shift+D', run: clickSel('#left3d-btn') }
             ];
             const SC_STORE = 'hypercubeShortcuts', SC_FILE = 'hypercube-shortcuts.csv';
@@ -3644,6 +3680,7 @@
                 set('persp-mode-btn', NEXT + (cubePersp ? '平行投影' : '遠近投影'));
                 set('face-cam-btn', NEXT + (presetFaceCamera ? 'カメラ正対: OFF' : 'カメラ正対: ON'));
                 set('left3d-btn', NEXT + (leftFull3D ? 'X-Y だけ' : '全部'));
+                set('swap-views-text', NEXT + (viewsSwapped ? '立方体を' : '超立方体を') + sideWord(true) + 'に');
                 set('pt-labels', NEXT + 'ラベル: ' + (ptShowLabels ? 'OFF' : 'ON'));
                 set('pt-left', NEXT + '左にも: ' + (ptShowLeft ? 'OFF' : 'ON'));
                 const hk = document.getElementById('shortcut-hint-keys');
