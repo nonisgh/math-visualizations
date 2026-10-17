@@ -2,45 +2,45 @@ id,label,key
 both,表示トグル（どっちも⇔超立方体のみ）,1
 panel,操作パネル 表示/非表示,Space
 allSpins,W ON/OFF（X-W・Y-W・Z-W）,Enter
-fold,組み上げる,
-unfold,展開する,
+fold,組み上げる,F
+unfold,展開する,U
 foldToggle,組立⇔展開 トグル,C
-axis,座標軸 表示/非表示,
+axis,座標軸 表示/非表示,A
 origin,リセット（回転を止めて6面とも0、W を手前へ）,O
-snap,補正（Z 軸を画面に垂直へ。回転は止めない）,
+snap,補正（Z 軸を画面に垂直へ。回転は止めない）,S
 reset,初期化（読み込み時に戻す）,R
-play,回転アニメ 再生,
+play,回転アニメ 再生,P
 preset_cell,プリセット 胞,H
-preset_face,プリセット 面,
-preset_edge,プリセット 辺,
+preset_face,プリセット 面,Shift+F
+preset_edge,プリセット 辺,E
 preset_vertex,プリセット 頂点,T
-vaxis_z,垂直軸 Z,
-vaxis_w,垂直軸 W,
-vaxis_x,垂直軸 X,
-vaxis_y,垂直軸 Y,
+vaxis_z,垂直軸 Z,2
+vaxis_w,垂直軸 W,Alt+W
+vaxis_x,垂直軸 X,Alt+X
+vaxis_y,垂直軸 Y,Alt+Y
 facecam,カメラ正対 ON/OFF,K
 persp,投影 切替（平行投影 ⇔ 遠近投影）,J
-pin,点固定 ON/OFF,
-loop,往復再生 ON/OFF,
+pin,点固定 ON/OFF,I
+loop,往復再生 ON/OFF,L
 xparent,面透過 切替（立体感⇔正確）,V
 zoom,自動ズーム ON/OFF,3
-mesh,メッシュ表示,
-wire,ワイヤー表示,
+mesh,メッシュ表示,M
+wire,ワイヤー表示,Shift+M
 vanish_w,手前へ消す軸 W,W
-vanish_x,手前へ消す軸 X,
-vanish_y,手前へ消す軸 Y,
-vanish_z,手前へ消す軸 Z,
+vanish_x,手前へ消す軸 X,Shift+X
+vanish_y,手前へ消す軸 Y,Shift+Y
+vanish_z,手前へ消す軸 Z,Shift+Z
 step_xw,90°回す X-W,X
 step_yw,90°回す Y-W,Y
 step_zw,90°回す Z-W,Z
-spin_xw,オート回転 X-W,
-spin_yw,オート回転 Y-W,
-spin_zw,オート回転 Z-W,
-spin_xy,オート回転 X-Y,
-spin_xz,オート回転 X-Z（超立方体）,
-spin_yz,オート回転 Y-Z（超立方体）,
-spin_w2,W(X、Y) ON/OFF（X-W・Y-W）,
-spin_3d,3D ON/OFF（X-Y・X-Z・Y-Z）,
-spin_6,全て ON/OFF（6面すべて）,0
+spin_xw,オート回転 X-W,4
+spin_yw,オート回転 Y-W,5
+spin_zw,オート回転 Z-W,6
+spin_xy,オート回転 X-Y,7
+spin_xz,オート回転 X-Z（超立方体）,8
+spin_yz,オート回転 Y-Z（超立方体）,9
+spin_w2,W(X、Y) ON/OFF（X-W・Y-W）,Shift+Enter
+spin_3d,3D ON/OFF（X-Y・X-Z・Y-Z）,D
+spin_6,全て ON/OFF（6面すべて）,Shift+A
 sideSwap,パネルの左右 切替,B
-left3d,左の立方体の3D回転 切替（X-Yだけ⇔全部）,
+left3d,左の立方体の3D回転 切替（X-Yだけ⇔全部）,Shift+D
