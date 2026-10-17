@@ -41,5 +41,5 @@ spin_xz,オート回転 X-Z（超立方体）,
 spin_yz,オート回転 Y-Z（超立方体）,
 spin_w2,W(X、Y) ON/OFF（X-W・Y-W）,
 spin_3d,3D ON/OFF（X-Y・X-Z・Y-Z）,
-spin_6,全て ON/OFF（6面すべて）,
+spin_6,全て ON/OFF（6面すべて）,0
 left3d,左の立方体の3D回転 切替（X-Yだけ⇔全部）,
