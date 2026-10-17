@@ -158,6 +158,14 @@ body.keycfg #keyCfg{display:flex}
   body.seethru:not(.nopanel).sbleft #pL .tag,body.seethru:not(.nopanel).sbleft #pL .info,body.seethru:not(.nopanel).sbleft.full #pR .tag,body.seethru:not(.nopanel).sbleft.full #pR .info{left:calc(var(--sbw) + 8px)}
 }
 @media (max-width:700px){#tabs .tabx[data-side]{display:none}}
+/* β：上の帯は2段。1段目に β・学習・キー・⇆・✕、2段目にタブ4つ（幅が狭いときは、タブの段が折り返す） */
+@media (min-width:701px){
+  #tabs .beta-pill{order:0}
+  #tabs #bLearn,#tabs #bKeys{order:1}
+  #tabs .tabx{order:2}
+  #tabs::after{content:'';order:3;flex-basis:100%;height:0;margin-top:-4px}
+  #tabs button[data-tab]{order:4;flex:1 1 auto;padding:4px 6px}
+}
 /* 線のアイコン（次元おりがみと同じ） */
 svg.lucide,i.ic{width:14px;height:14px;vertical-align:-2px;margin-right:4px;stroke-width:2;flex:none}
 #tabs svg.lucide{width:15px;height:15px}
@@ -186,6 +194,12 @@ details.sub>summary{font-size:11px;color:#cbd5e1}
 button{font-size:11px;padding:3px 8px;border-radius:8px;background:rgba(30,41,59,.8);border:1px solid #334155;color:#cbd5e1;transition:background .15s,border-color .15s,color .15s}
 button:hover{background:#334155;color:#f1f5f9}
 button.on{background:rgba(14,116,144,.45);border-color:rgba(56,189,248,.6);color:#e0f2fe}
+/* β：切り替えボタンは「→ 押すとこうなる」（次元おりがみと同じ）。今オンの設定は水色、動いているものは琥珀色 */
+.tga{opacity:.7}
+.tgs{font-family:Inter,ui-monospace,monospace;font-weight:700;font-size:10px;letter-spacing:.02em;opacity:.85}
+button.tgrun.on{background:rgba(217,119,6,.35);border-color:rgba(251,191,36,.7);color:#fef3c7}
+/* β：上のタブの帯は下へ送っても残るので、シースルーでも後ろの欄の文字が透けて重ならないよう濃くしてぼかす */
+body.seethru #tabs{background:rgba(10,15,29,max(.9,var(--pa)));-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .gb{gap:5px}
 .gb span{font-size:10.5px;color:#94a3b8}
 .hint{font-size:10px;color:#64748b;line-height:1.55}
@@ -261,7 +275,7 @@ input[type=range]:disabled::-webkit-slider-thumb{background:#475569;box-shadow:n
 </div></div>
 <button id="panelShow"><i data-lucide="settings" class="ic"></i>設定パネルを開く（Space）</button>
 <div id="panel" data-tab="fav">
-  <div id="tabs"><span class="beta-pill" title="β版（テストモード）。保存データは本番と別">β テスト</span><button data-tab="fav" class="on"><i data-lucide="star" class="ic"></i>よく使う</button><button data-tab="geo" title="どの構造を出すか・どう切るか"><i data-lucide="box" class="ic"></i>構造・切断</button><button data-tab="turn" title="球の傾き・4Dカメラ・右の3D視点"><i data-lucide="orbit" class="ic"></i>回転・視点</button><button data-tab="path" title="超球面上を進む点と軌跡"><i data-lucide="compass" class="ic"></i>旅・軌跡</button><button data-tab="draw" title="描き方・画面とパネルの設定"><i data-lucide="palette" class="ic"></i>見え方・画面</button><button id="bLearn" title="4次元→3次元の写真を学ぶ（x・y・z・w の関係）"><i data-lucide="book-open" class="ic"></i>学習</button><button id="bKeys" title="ショートカットキーの一覧（? または K キー）"><i data-lucide="keyboard" class="ic"></i>キー</button><button id="bSide" class="tabx" data-side title="パネルを左／右へ（B）">⇆</button><button id="bPanelX" class="tabx" title="パネルを閉じて図を広く（Space）">✕</button></div>
+  <div id="tabs"><span class="beta-pill" title="β版（テストモード）。保存データは本番と別">β テスト</span><button data-tab="fav" class="on"><i data-lucide="star" class="ic"></i>よく使う</button><button data-tab="geo" title="どの構造を出すか・どう切るか・描き方・画面とパネル"><i data-lucide="box" class="ic"></i>構造・見え方</button><button data-tab="turn" title="球の傾き・4Dカメラ・右の3D視点"><i data-lucide="orbit" class="ic"></i>回転・視点</button><button data-tab="path" title="超球面上を進む点と軌跡"><i data-lucide="compass" class="ic"></i>旅・軌跡</button><button id="bLearn" title="4次元→3次元の写真を学ぶ（x・y・z・w の関係）"><i data-lucide="book-open" class="ic"></i>学習</button><button id="bKeys" title="ショートカットキーの一覧（? または K キー）"><i data-lucide="keyboard" class="ic"></i>キー</button><button id="bSide" class="tabx" data-side title="パネルを左／右へ（B）">⇆</button><button id="bPanelX" class="tabx" title="パネルを閉じて図を広く（Space）">✕</button></div>
   <div id="foldBar"><button id="bFoldAll" title="このタブの欄を全部たたむ">▸ 全部たたむ</button><button id="bOpenAll" title="このタブの欄を全部ひらく">▾ 全部ひらく</button></div>
 
   <div class="bar" data-tab="path"><button id="bPathPlay">▶ 進める</button><span class="hint">直進の旅・全方向・いろいろな軌跡で共通</span></div>
@@ -273,7 +287,7 @@ input[type=range]:disabled::-webkit-slider-thumb{background:#475569;box-shadow:n
     <div class="gb" id="favBtns"></div>
     <div class="gs" id="g-favs"></div></details>
 
-  <!-- ===== 🧊 構造・切断 ===== -->
+  <!-- ===== 🧊 構造・見え方（構造・切断） ===== -->
   <details class="grp" id="s-struct" open data-tab="geo"><summary><i data-lucide="box" class="ic"></i>どの構造を出す</summary>
     <div class="gb"><span>3Dモデル</span><button data-model="lat" class="on" title="リングを高さ方向に積む（緯度線）。右は球殻を積む">緯度リング</button><button data-model="mer" title="極を通る大円を等間隔に並べる（経度線）。右は大きな球殻が放射状に並ぶ。β版">経度リング（β）</button><button data-model="both" title="緯度リングと経度リングを同時に表示（地球儀の格子）。右は球殻と大球殻が重なる。β版">両方（β）</button><button data-model="cone" title="円錐（xyzでの極角θ一定の面）だけを表示。左は参考の球だけ。β版">円錐だけ（β）</button><button data-model="full" title="緯度＋経度＋円錐（xyzでの極角θ一定の面）。超球の座標3族がそろう。円錐は右だけに出る。β版">全部（β）</button></div>
     <div class="gb"><span>半球</span><button data-hemi="both" class="on">全球</button><button data-hemi="A">北 A</button><button data-hemi="B">南 B</button><button id="bColor" title="層の色の並びを反転する">中心色反転</button></div>
@@ -295,7 +309,7 @@ input[type=range]:disabled::-webkit-slider-thumb{background:#475569;box-shadow:n
     <div class="hint">左の球をドラッグでも傾けられます（<b>Shift＋横ドラッグ</b>で Z-W）。</div></details>
 
   <details class="grp" id="s-auto" data-tab="turn"><summary><i data-lucide="settings" class="ic"></i>自動で回す</summary>
-    <div class="gb"><button id="bDemo" title="ショートカット: R">回転/停止</button><button id="bSpin" title="右の3D視点をゆっくり回す"><i data-lucide="refresh-cw" class="ic"></i>右の視点を回す</button></div>
+    <div class="gb"><button id="bDemo" title="超球を自動で回す／止める（R）"><i data-lucide="rotate-3d" class="ic"></i>回転/停止</button><button id="bSpin" title="右の3D視点をゆっくり回す"><i data-lucide="refresh-cw" class="ic"></i>右の視点を回す</button></div>
     <div class="gb"><span>回す面</span><button data-ax="mix" class="on">複合</button><button data-ax="mix3" title="Y-W・X-W・Z-Wを違う速さで同時に回す">複合＋Z-W</button><button data-ax="yw" title="Y-Wを 0→-90→-180→90→0 と一周（押すと他の角度は0に戻る）">Y-W</button><button data-ax="xw">X-W</button><button data-ax="zw">Z-W</button><button data-ax="ob" title="w軸と斜め方向（向きスライダー）を含む平面で回す">斜めW</button><button data-ax="dbl" title="XY面とZW面を、独立した速さで同時に回す。この2平面は原点以外を共有しないので互いに干渉しない。3次元には相当する運動が存在しない"><i data-lucide="tornado" class="ic"></i>二重回転（β）</button></div>
     <div class="gs" id="g-auto"></div>
     <div class="gb" id="dblRow"><span>速さの比</span><button data-dbl="1" title="等速。全ての点が大円を描き、どの2本も絡み合う＝ホップ束">1:1 ホップ束</button><button data-dbl="1.5" title="2:3。閉じた曲線＝三葉結び目">2:3 三葉結び目</button><button data-dbl="2" title="1:2。閉じた曲線">1:2</button><button data-dbl="1.4142135623730951" title="無理数比。軌道は決して閉じず、トーラス面を埋め尽くす">1:√2 閉じない</button><button id="bDblPts" class="on" title="超球面上の点を置いて、二重回転でどう運ばれるかを尾つきで見る。色はη（XY面とZW面への配分）: 赤=XY大円だけ 黄=クリフォードトーラス 紫=ZW大円だけ"><i data-lucide="sparkles" class="ic"></i>動く点</button><button id="bDblView" title="球殻を減らして薄くし、2つの円が重ならない斜めの視点にする。点の動きが見やすくなる"><i data-lucide="eye" class="ic"></i>見やすい視点に</button></div>
@@ -331,22 +345,22 @@ input[type=range]:disabled::-webkit-slider-thumb{background:#475569;box-shadow:n
     <div class="gb"><button id="bGauge" class="on" title="軌跡の点が4次元で手前（カメラ側）か奥かを、右端のゲージで示す">w′ゲージ</button><button id="bHud" title="右上に方位・仰角のダイヤルを出す（画面が狭くなるので初期はオフ）">座標ダイヤル</button><button id="bHorizon" class="on" title="今いる距離の「前方の球面」の面積をグラフにする。赤道で最大になり、そこから先は進むほど前方の世界が狭くなる＝空間が閉じていることが数値で見える"><i data-lucide="sunrise" class="ic"></i>地平線グラフ</button><button id="bAxTop" class="on" title="座標軸・向きの矢印を、球殻やワイヤーの手前に常に描く。オフにすると球殻の裏側に隠れる"><i data-lucide="arrow-up-to-line" class="ic"></i>座標軸を最前面に</button></div>
     <div class="gs" id="g-axis"></div></details>
 
-  <!-- ===== 🎨 見え方・画面 ===== -->
-  <details class="grp" id="s-mode" open data-tab="draw"><summary><i data-lucide="palette" class="ic"></i>描き方</summary>
+  <!-- ===== 🎨 構造・見え方（描き方・画面）。β で「構造・切断」と同じタブにまとめた ===== -->
+  <details class="grp" id="s-mode" open data-tab="geo"><summary><i data-lucide="palette" class="ic"></i>描き方</summary>
     <div class="gb"><span>モード</span><button data-mode="hybrid" class="on">ハイブリッド</button><button data-mode="wire">ワイヤー</button><button data-mode="solid">半透明</button><button data-mode="points">点群</button></div>
     <div class="gb"><button id="bOpq" title="球殻を不透明にする">不透明</button><button id="bMat" title="金属光沢をなくす">光沢なし</button><button id="bShade" class="on" title="縁を暗くして立体の境目を出す（不透明時）">境目の影</button></div>
     <div class="gs" id="g-look"></div></details>
 
-  <details class="grp" id="s-back" data-tab="draw"><summary><i data-lucide="contrast" class="ic"></i>裏側の見せ方</summary>
+  <details class="grp" id="s-back" data-tab="geo"><summary><i data-lucide="contrast" class="ic"></i>裏側の見せ方</summary>
     <div class="gb"><button id="bBack" class="on" title="リングや球殻の内側が見えているところを暗く・くすませる"><i data-lucide="contrast" class="ic"></i>裏側を暗く</button></div>
     <div class="gb"><span>裏側の判定</span><button data-bm="1" class="on" title="超球面の表裏。4Dカメラに面した側が表、奥側（透けて見える側）が裏">4Dの奥</button><button data-bm="0" title="各殻を3Dの球として見たときの内側">3Dの内側</button></div>
     <div class="gs" id="g-back"></div></details>
 
-  <details class="grp" id="s-dof" data-tab="draw"><summary><i data-lucide="cloud-fog" class="ic"></i>4Dの奥行きで霞ませる</summary>
+  <details class="grp" id="s-dof" data-tab="geo"><summary><i data-lucide="cloud-fog" class="ic"></i>4Dの奥行きで霞ませる</summary>
     <div class="gb"><button id="bDof" title="4Dで遠い（4Dカメラから離れた、奥行き d が小さい）部分ほど、背景に溶けるように霞ませる。手前の北極側はくっきり、奥の南極側ほど霞む。断面カットと組み合わせると、どの層が4Dで奥かが分かりやすい"><i data-lucide="cloud-fog" class="ic"></i>4Dで遠いほど霞ませる</button></div>
     <div class="gs" id="g-dof"></div></details>
 
-  <details class="grp" id="s-scr" data-tab="draw"><summary><i data-lucide="monitor" class="ic"></i>画面とパネル</summary>
+  <details class="grp" id="s-scr" data-tab="geo"><summary><i data-lucide="monitor" class="ic"></i>画面とパネル</summary>
     <div class="gb"><button id="bInfo" class="on" title="左右の画面に出ているパラメータの文字を出す／隠す"><i data-lucide="clipboard" class="ic"></i>パラメータ表示</button><button id="bFull" title="左の3D球を隠して、超球だけを全画面で見る"><i data-lucide="maximize" class="ic"></i>超球全画面</button><button id="bPanelHide" title="設定パネルを隠して、画面を広く使う。Spaceキーでも切り替えられます"><i data-lucide="eye-off" class="ic"></i>パネルを隠す（Space）</button></div>
     <div class="gb"><button id="bSee" class="on" title="設定パネルを画面に重ねて半透明にする。後ろの球が見える。オフなら画面の下に分ける"><i data-lucide="droplets" class="ic"></i>シースルー</button><button id="bBlur" class="on" title="シースルーのとき、パネルの後ろをぼかす（すりガラス）。オフにすると、くっきり透ける"><i data-lucide="box" class="ic"></i>すりガラス</button><button id="bPanel" title="スライダーだけ隠してボタンだけにする">スライダー隠す</button></div>
     <div class="gb"><button id="bZoomReset" title="左の球・右の超球の大きさ（カメラの距離）を最初に戻す。ふだんはマウスのホイールや2本指で拡大縮小できます">球の大きさを戻す</button><span class="hint">拡大縮小：ホイール／2本指（左右どちらの画面も）</span></div>
@@ -2060,10 +2074,9 @@ const SHORTCUT_ACTIONS = [
   { id: 'panel', label: '設定パネルを隠す ／ 出す', def: 'Space', run: togglePanelKey },
   { id: 'keys', label: 'キー一覧を出す ／ 閉じる（? でも）', def: 'K', run: () => toggleKeyHelp() },
   { id: 'tab_fav', label: 'タブ：よく使う', def: 'Shift+1', run: () => goTab('fav') },
-  { id: 'tab_geo', label: 'タブ：構造・切断', def: 'Shift+2', run: () => goTab('geo') },
+  { id: 'tab_geo', label: 'タブ：構造・見え方', def: 'Shift+2', run: () => goTab('geo') },
   { id: 'tab_turn', label: 'タブ：回転・視点', def: 'Shift+3', run: () => goTab('turn') },
   { id: 'tab_path', label: 'タブ：旅・軌跡', def: 'Shift+4', run: () => goTab('path') },
-  { id: 'tab_draw', label: 'タブ：見え方・画面', def: 'Shift+5', run: () => goTab('draw') },
   { id: 'side', label: 'パネルの左右を入れかえる', def: 'B', run: () => $('bSide').click() },
   { id: 'learn', label: '学習を開く', def: '', run: () => $('bLearn').click() },
   { id: 'keycfg', label: 'キー設定を開く', def: '', run: () => openKeyCfg() }
@@ -2091,6 +2104,7 @@ function keyToken(e) {   // 修飾キー＋基本キー（⌘ と Ctrl は同じ
 const prettyKey = t => (t || '').replace('Mod+', '⌘/Ctrl+');
 const saveKeyMap = () => { try { localStorage.setItem(SC_STORE, JSON.stringify(keyMap)); } catch (_) {} };
 try { keyMap = Object.assign(defaultMap(), JSON.parse(localStorage.getItem(SC_STORE) || '{}') || {}); } catch (_) { keyMap = defaultMap(); }
+for (const k of Object.keys(keyMap)) if (!SHORTCUT_ACTIONS.some(a => a.id === k)) delete keyMap[k];   // 無くなった操作（見え方・画面のタブなど）のキーは捨てる
 // キー一覧（? / K）：表から作る
 function renderKeyHelp() {
   const kb = t => t.split('+').map(x => '<kbd>' + (x === 'Mod' ? '⌘/Ctrl' : x) + '</kbd>').join('＋');
@@ -2414,7 +2428,7 @@ function loadSettings() {
   { const nb = bool('noblur', false); document.body.classList.toggle('noblur', nb); $('bBlur').classList.toggle('on', !nb); gaugeOn = bool('gaugeOn', gaugeOn); $('bGauge').classList.toggle('on', gaugeOn); horizonOn = bool('horizonOn', horizonOn); $('bHorizon').classList.toggle('on', horizonOn); if (typeof s.rfov === 'number' && s.rfov >= 20 && s.rfov <= 90) { cR.fov = s.rfov; cR.updateProjectionMatrix(); } }
   { const ni = bool('noinfo', false), np = bool('nopanel', false); document.body.classList.toggle('noinfo', ni); document.body.classList.toggle('nopanel', np); $('bInfo').classList.toggle('on', !ni); }
   if (s.open3 && typeof s.open3 === 'object') grpEls.forEach(g => { if (typeof s.open3[g.id] === 'boolean') g.open = s.open3[g.id]; });
-  { const tb = pick('tab', ['fav', 'geo', 'turn', 'path', 'draw'], 'fav'); $('panel').dataset.tab = tb; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === tb)); }
+  { let tb = pick('tab', ['fav', 'geo', 'turn', 'path', 'draw'], 'fav'); if (tb === 'draw') tb = 'geo'; $('panel').dataset.tab = tb; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === tb)); }
   mark('[data-mode]', document.querySelector(`[data-mode="${mode}"]`));
   mark('[data-hemi]', document.querySelector(`[data-hemi="${hemi}"]`));
   mark('[data-ax]', document.querySelector(`[data-ax="${axis}"]`)); syncDblUI();
@@ -2431,6 +2445,47 @@ $('bLsReset').onclick = () => {
 
 loadSettings();
 try { if (!localStorage.getItem(LS_KEY)) document.body.classList.add('seethru'); } catch (e) { document.body.classList.add('seethru'); }
+// ===== β：切り替えボタンの文字は「→ 押すとこうなる」（次元おりがみと同じ） =====
+// 設定のオン／オフ：「→ 名前: ON」（今オフ）／「→ 名前: OFF」（今オン）
+const TG_SET = {
+  bSlice: '切断面（観察者に固定）', bWedge: '断面カット', bViewLock: '視点ロック', bOrtho: '4Dパースなし',
+  bPath: '目的地を指定', bAll: '全方向の旅', bStep: '球殻ごとのカクカク軌跡', bS2: '左は S²（方位だけ）',
+  bGauge: 'w′ゲージ', bHud: '座標ダイヤル', bHorizon: '地平線グラフ', bAxTop: '座標軸を最前面に',
+  bOpq: '不透明', bMat: '光沢なし', bShade: '境目の影', bBack: '裏側を暗く', bDof: '4Dで遠いほど霞ませる', bDblPts: '動く点',
+  bInfo: 'パラメータ表示', bSee: 'シースルー', bBlur: 'すりガラス', bFavEdit: '追加・外すモード',
+  lnColDepth: '4D奥行きで色分け', lnFilm: 'フィルム断面と輪郭'
+};
+// 押すと始まる／止まるもの：[今オフのときの文字, 今オンのときの文字, 動きなら 1（オンの色が琥珀色）]
+const TG_ACT = {
+  bDemo: ['→ 自動で回す', '→ 自動回転を止める', 1], bSpin: ['→ 右の視点を回す', '→ 右の視点を止める', 1],
+  bCutSpin: ['→ ぐるっと回す', '→ ぐるっとを止める', 1], bRand: ['→ ランダムに次々', '→ ランダムを止める', 1],
+  bRL: ['→ ランダムな軌跡を描く', '→ 軌跡を描くのを止める', 1], bPathPlay: ['▶ 進める', '■ 止める', 1],
+  bFull: ['→ 超球を全画面に', '→ 全画面をやめる'], bPanel: ['→ スライダーを隠す', '→ スライダーを出す']
+};
+function tgSync(b) {   // b の文字を今の状態に合わせる（「よく使う」に写したボタンは、元のボタンの決まりで）
+  const src = b.dataset.favOf ? favFind(b.dataset.favOf) : b;
+  if (!src || !src.dataset.tgk) return;
+  const a = b.querySelector('.tga'), t = b.querySelector('.tgt'), st = b.querySelector('.tgs');
+  if (!a || !t || !st) return;
+  const on = b.classList.contains('on');
+  if (src.dataset.tgk === 'set') { a.textContent = '→ '; st.textContent = on ? ': OFF' : ': ON'; }
+  else { const v = TG_ACT[src.id][on ? 1 : 0]; a.textContent = v.slice(0, 2); t.textContent = v.slice(2); st.textContent = ''; }
+  const run = src.classList.contains('tgrun');
+  if (b.classList.contains('tgrun') !== run) b.classList.toggle('tgrun', run);
+}
+(function tgBuild() {
+  const mk = (b, kind, name) => {
+    const ic = b.querySelector('i[data-lucide]');
+    b.dataset.tgk = kind;
+    b.innerHTML = '<span class="tga"></span>' + (ic ? ic.outerHTML : '') + '<span class="tgt">' + name + '</span><span class="tgs"></span>';
+  };
+  for (const [id, name] of Object.entries(TG_SET)) { const b = $(id); if (b) mk(b, 'set', name); }
+  for (const [id, v] of Object.entries(TG_ACT)) { const b = $(id); if (!b) continue; mk(b, 'act', ''); if (v[2]) b.classList.add('tgrun'); }
+  document.querySelectorAll('[data-tgk]').forEach(tgSync);
+  // class 'on' が変わったら文字も変える（どこから切り替えても、キーでも、「よく使う」の写しでも）
+  new MutationObserver(ms => { for (const m of ms) { const b = m.target; if (b.tagName === 'BUTTON' && (b.dataset.tgk || b.dataset.favOf)) tgSync(b); } })
+    .observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+})();
 if (window.lucide) lucide.createIcons();   // 絵文字の代わりの線のアイコン（次元おりがみと同じ lucide）   // 初回はシースルー
 renderFavs(); syncDblUI();
 resize(); build(); refreshTag();
