@@ -17,6 +17,10 @@
     <!-- Three.js & OrbitControls -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- 太い線（強調した辺の太さ用）。WebGL のふつうの線は 1px から太くできないため -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegmentsGeometry.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
         
@@ -201,6 +205,22 @@
         #main-container.dim5.mode-pip #axlen-5d { right: auto; left: 12px; }
         @media (max-width: 700px) { #axlen-5d { display: none !important; } }
         .seri-btn.on { background: rgba(217, 119, 6, 0.35); border-color: rgba(251, 191, 36, 0.7); color: #fef3c7; }
+
+        /* 分解：番号ラベルと「数える」の札（各画面の上に重ねる） */
+        .xp-layer { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
+        .xp-label { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 4px; padding: 2px 8px 2px 3px; border-radius: 999px;
+            background: rgba(15, 23, 42, 0.82); border: 1px solid rgba(255, 255, 255, 0.18); font-size: 11px; font-weight: 700; color: #f1f5f9; white-space: nowrap;
+            opacity: 0; transition: opacity 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; will-change: transform; }
+        .xp-label .num { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: #0f172a; font-size: 11px; font-weight: 900; }
+        .xp-label.current { border-color: #fde68a; box-shadow: 0 0 16px rgba(253, 230, 138, 0.8), 0 0 4px rgba(253, 230, 138, 0.9); }
+        .xp-badge { position: absolute; top: 5.2rem; left: 50%; transform: translateX(-50%); z-index: 15; pointer-events: none; padding: 5px 14px; border-radius: 14px;
+            background: rgba(15, 23, 42, 0.88); border: 1px solid rgba(253, 230, 138, 0.55); box-shadow: 0 0 24px rgba(245, 158, 11, 0.35);
+            color: #fde68a; font-weight: 900; font-size: 16px; white-space: nowrap; display: none; }
+        .xp-badge small { font-size: 11px; font-weight: 600; color: #e2e8f0; margin-left: 8px; }
+        @media (max-width: 700px) { .xp-badge { top: 2.6rem; font-size: 13px; } .xp-label { font-size: 10px; } }
+        /* 高次元マップ：次元の矢印の札 */
+        .xp-axis-label { position: absolute; left: 0; top: 0; padding: 2px 9px; border-radius: 999px; background: rgba(15, 23, 42, 0.85); border: 1px solid currentColor;
+            font-size: 11px; font-weight: 800; white-space: nowrap; opacity: 0; transition: opacity 0.25s ease; will-change: transform; box-shadow: 0 0 12px rgba(0, 0, 0, 0.5); }
     </style>
 </head>
 <body class="w-full h-screen relative flex flex-col select-none overflow-hidden" style="height: 100vh; height: 100dvh;">
@@ -209,6 +229,7 @@
     <div id="main-container" class="w-full h-full absolute inset-0 z-0 flex mode-split">
         <div id="wrapper-2d3d">
             <div id="canvas-2d3d" class="w-full h-full"></div>
+            <div id="xp-layer-2d" class="xp-layer"></div><div id="xp-badge-2d" class="xp-badge"></div>
             <div id="badge-2d3d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-cyan-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-cyan-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="square" class="w-4 h-4 text-cyan-400"></i>
                 <span><em id="side-2d3d" class="not-italic">左</em>: 2D展開図 → 立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = z。そこへ倒すと、ただ立方体が回る</span></span>
@@ -237,6 +258,7 @@
 
         <div id="wrapper-3d4d">
             <div id="canvas-3d4d" class="w-full h-full"></div>
+            <div id="xp-layer-3d" class="xp-layer"></div><div id="xp-badge-3d" class="xp-badge"></div>
             <div id="badge-3d4d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="box" class="w-4 h-4 text-purple-400"></i>
                 <span><em id="side-3d4d" class="not-italic">右</em>: 3D展開図 → 超立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = w。そこへ倒すと、影が裏返って見える</span></span>
@@ -246,6 +268,7 @@
         <!-- 5次元β：5次元超立方体の画面 -->
         <div id="wrapper-4d5d">
             <div id="canvas-4d5d" class="w-full h-full"></div>
+            <div id="xp-layer-5d" class="xp-layer"></div><div id="xp-badge-5d" class="xp-badge"></div>
             <div id="badge-4d5d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="hexagon" class="w-4 h-4 text-amber-400"></i>
                 <span><em id="side-4d5d" class="not-italic">右</em>: 4D展開図 → 5次元超立方体（β）<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = v。v と w の2段で 3D に写す</span></span>
@@ -275,7 +298,7 @@
             <p class="text-[10px] text-slate-500 -mt-2 mb-2">※ 設定は超立方体・立方体の両方に反映されます。</p>
             <div class="space-y-3 text-[11px] text-slate-200">
                 <label class="block">面の不透明度（組み上がり） <span id="vc-op-val" class="font-mono text-teal-300 float-right"></span><input id="vc-op" type="range" min="0.05" max="0.6" step="0.01" class="w-full accent-teal-400"></label>
-                <label class="block">展開図の不透明度の上乗せ <span id="vc-fb-val" class="font-mono text-teal-300 float-right"></span><input id="vc-fb" type="range" min="0" max="0.5" step="0.02" class="w-full accent-teal-400"></label>
+                <label class="block">展開図の濃さ <span class="text-slate-500">(1=透けない紙)</span> <span id="vc-fb-val" class="font-mono text-teal-300 float-right"></span><input id="vc-fb" type="range" min="0.3" max="1" step="0.02" class="w-full accent-teal-400"></label>
                 <label class="block">奥の面の暗さ <span class="text-slate-500">(1=暗くしない)</span> <span id="vc-far-val" class="font-mono text-teal-300 float-right"></span><input id="vc-far" type="range" min="0.3" max="1" step="0.05" class="w-full accent-teal-400"></label>
                 <label class="block">手前の面の明るさ <span id="vc-nb-val" class="font-mono text-teal-300 float-right"></span><input id="vc-nb" type="range" min="1" max="1.6" step="0.05" class="w-full accent-teal-400"></label>
                 <label class="block">展開図の奥のコントラスト <span id="vc-fc-val" class="font-mono text-teal-300 float-right"></span><input id="vc-fc" type="range" min="1" max="2.5" step="0.05" class="w-full accent-teal-400"></label>
@@ -419,6 +442,29 @@
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
                         <span id="zoom-text" class="text-[11px]">自動ズーム: ON</span>
                     </button></div>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="boxes" class="w-3.5 h-3.5"></i>分解（どんな形でできているか）</h3>
+                <div class="d5-sub text-[10px] text-slate-400 leading-snug" data-d4="立方体は6枚の正方形、超立方体は8個の立方体でできています。バラすと1つずつ離れて番号が付き、「数える」で1個ずつ光らせて数えます。" data-d5="超立方体は8個の立方体、5次元超立方体は10個の超立方体でできています。バラすと1つずつ離れて番号が付き、「数える」で1個ずつ光らせて数えます。">立方体は6枚の正方形、超立方体は8個の立方体でできています。バラすと1つずつ離れて番号が付き、「数える」で1個ずつ光らせて数えます。</div>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] text-slate-400 shrink-0">くっついた</span>
+                    <input id="explode-slider" type="range" min="0" max="1" step="0.001" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400 border border-slate-700" title="どれだけ離すか（0%＝くっついた形、100%＝全部バラバラ）">
+                    <span class="text-[10px] text-slate-400 shrink-0">バラバラ</span>
+                    <span id="explode-val" class="w-9 text-right font-mono text-amber-200 text-[11px] shrink-0">0%</span>
+                </div>
+                <label class="flex items-center gap-2" title="バラすときに、どれだけ離すか（1倍＝標準。展開図ではとなりとのすきま、組み上がりでは外へ離す距離）。画面に入らないときは自動で引いて収めます">
+                    <span class="text-[10px] text-slate-400 shrink-0">離す距離</span>
+                    <input id="explode-dist" type="range" min="0.3" max="2.5" step="0.05" value="1" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400 border border-slate-700">
+                    <span id="explode-dist-val" class="w-10 text-right font-mono text-amber-200 text-[11px] shrink-0">1倍</span>
+                </label>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <button id="explode-btn" class="px-2.5 py-1 rounded-xl border font-bold transition" title="1つずつの形に分けて離す／元にくっつける（Shift+E）">→ バラす</button>
+                    <button id="count-btn" class="px-2.5 py-1 rounded-xl border font-bold transition" title="バラして、1個ずつ番号を付けて光らせながら数える（Shift+C）">→ 数える</button>
+                    <button id="explode-stag-btn" class="px-2.5 py-1 rounded-xl border transition" title="ボタンでバラす・くっつけるときに、番号の順に少しずつずらして動かすか（OFF＝全部いっしょに動く）">→ バラす時間差: OFF</button>
+                    <button id="explode-map-btn" class="px-2.5 py-1 rounded-xl border transition" title="バラしたときに、くっついていた面どうしを点線で結び、高い次元の向きを矢印で示す">→ 高次元マップ: OFF</button>
+                </div>
+                <p class="d5-sub text-[10px] text-slate-500 leading-snug" data-d4="高次元マップ：点線＝くっついていた面どうし。紫の点線は「4次元目（w）を通ってつながる」面（中心と蓋の立方体につながる線）。組み上がりをバラすと、中心→蓋 の向きに「w：4次元目の向き」の矢印が出ます。立方体の画面では、青が3次元目（z）。" data-d5="高次元マップ：点線＝くっついていた面どうし。琥珀色の点線は5次元目（v）、紫の点線は4次元目（w）を通ってつながる面。組み上がりをバラすと、中心→蓋 に「v：5次元目の向き」、−W→+W に「w：4次元目の向き」の矢印が出ます。">高次元マップ：点線＝くっついていた面どうし。紫の点線は「4次元目（w）を通ってつながる」面（中心と蓋の立方体につながる線）。組み上がりをバラすと、中心→蓋 の向きに「w：4次元目の向き」の矢印が出ます。立方体の画面では、青が3次元目（z）。</p>
             </section>
             </div>
             <div class="sb-panel space-y-3 hidden" data-panel="rot">
@@ -739,6 +785,26 @@
             </section>
             </div>
             <div class="sb-panel space-y-3 hidden" data-panel="pts">
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="highlighter" class="w-3.5 h-3.5"></i>手前と奥の辺を色で強調</h3>
+                <p class="d5-sub text-[10px] text-slate-500 leading-snug" data-d4="手前＝w が＋の側の立方体（遠近では外側の大きい立方体。ピンクの点の側。展開図では蓋）、奥＝w が−の側の立方体（中心。水色の点の側）。立方体の画面では、z の＋と−の正方形（蓋と中央）。" data-d5="超立方体は、手前＝w が＋の側の立方体（蓋）、奥＝w が−の側の立方体（中心）。5次元超立方体は、手前＝v が＋の側の超立方体（蓋）、奥＝v が−の側の超立方体（中心）。">手前＝w が＋の側の立方体（遠近では外側の大きい立方体。ピンクの点の側。展開図では蓋）、奥＝w が−の側の立方体（中心。水色の点の側）。立方体の画面では、z の＋と−の正方形（蓋と中央）。</p>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <button id="eh-toggle" class="px-2 py-1 rounded border transition" title="手前と奥の胞の辺に色を付ける／やめる">→ 辺の強調: OFF</button>
+                    <label class="flex items-center gap-1 text-slate-300" title="手前の胞の辺の色">手前<input id="eh-near" type="color" value="#ff44dd" class="w-8 h-6 bg-transparent border border-slate-700 rounded cursor-pointer"></label>
+                    <label class="flex items-center gap-1 text-slate-300" title="奥の胞の辺の色">奥<input id="eh-far" type="color" value="#33e5ff" class="w-8 h-6 bg-transparent border border-slate-700 rounded cursor-pointer"></label>
+                    <button id="eh-reset" class="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700" title="ピンクと水色に戻す">色を戻す</button>
+                </div>
+                <label class="flex items-center gap-2 text-[11px] text-slate-300" title="手前の胞の辺の太さ（画面の上でのピクセル。1＝ほかの辺と同じ細さ）">
+                    <span class="shrink-0 w-16">手前の太さ</span>
+                    <input id="eh-width-near" type="range" min="1" max="8" step="0.5" value="3" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-400 border border-slate-700">
+                    <span id="eh-width-near-val" class="w-10 text-right font-mono text-pink-200 shrink-0">3px</span>
+                </label>
+                <label class="flex items-center gap-2 text-[11px] text-slate-300" title="奥の胞の辺の太さ（画面の上でのピクセル。1＝ほかの辺と同じ細さ）">
+                    <span class="shrink-0 w-16">奥の太さ</span>
+                    <input id="eh-width-far" type="range" min="1" max="8" step="0.5" value="3" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-slate-700">
+                    <span id="eh-width-far-val" class="w-10 text-right font-mono text-cyan-200 shrink-0">3px</span>
+                </label>
+            </section>
             <section class="sb-sec">
                 <h3 class="sb-h"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>座標を指定して点を置く</h3>
                 <p class="text-[10px] text-slate-500 leading-snug">頂点が ±1 の座標です（中心が 0）。1 より大きい数は小数に直します：<span class="font-mono text-slate-400">443→0.443</span>、<span class="font-mono text-slate-400">12→0.12</span>、<span class="font-mono text-slate-400">2→0.2</span>（0.443 はそのまま）。</p>
@@ -1147,7 +1213,11 @@
         const _mTri = new THREE.Vector3();
         // 表示設定（設定画面で調整。正確モードの見た目に効く。localStorageに保存）
         let cfgFaceOpacity = 0.26;     // 面の不透明度（組み上がり時）
-        let cfgFlatOpacityBoost = 0.26; // 展開図での不透明度の上乗せ（展開図を見やすく）
+        let cfgFlatOpacityBoost = 0.26; // （前の設定。今は使わない）
+        // 展開図の濃さ：展開図ほど面を不透明にして「紙を広げた展開図」だと分かるように。組み上がるにつれて今までの透け方へ戻る
+        let cfgNetOpacity = 0.85;
+        const netMix = pr => Math.pow(1 - Math.max(0, Math.min(1, pr)), 1.5);   // 1＝展開図、0＝組み上がり
+        const netOpacity = (base, pr) => Math.min(0.97, base + (Math.max(base, cfgNetOpacity) - base) * netMix(pr));
         let cfgFarDim = 0.6;           // 奥の面の暗さ（1=暗くしない）
         let cfgNearBright = 1.25;      // 手前の面の明るさ
         let cfgFlatContrast = 1.4;     // 展開図での奥のコントラスト（大きいほど展開図の奥が暗い）
@@ -1378,16 +1448,16 @@
         // 等角図で中心にくる頂点（＝対角(1,1,1,1)方向の頂点＝4次元の手前）と、その反対(奥)の
         // 胞・頂点インデックスを、組み上がり(progress=1)の4D座標から一度だけ特定する。
         let nearVertId = null, farVertId = null;
+        //   同じ頂点は何個かの胞が分け合っているので、ピンク（手前）は蓋の胞（7）の頂点、水色（奥）は中心の胞（0）の頂点に決める。
+        //   こうしておくと、分解したときにピンクは蓋と、水色は中心と一緒に動く（手前と奥の辺の強調とも同じ胞）
         function findExtremeVerts() {
             let maxSum = -1e9, minSum = 1e9;
-            for (let c = 0; c < 8; c++) {
-                const vs = cellVerts4D(c, 1);
-                for (let k = 0; k < 8; k++) {
-                    const s = vs[k][0] + vs[k][1] + vs[k][2] + vs[k][3];   // (1,1,1,1)方向への射影
-                    if (s > maxSum) { maxSum = s; nearVertId = { cell: c, corner: k }; }
-                    if (s < minSum) { minSum = s; farVertId = { cell: c, corner: k }; }
-                }
-            }
+            const pick = (c, isNear) => cellVerts4D(c, 1).forEach((v, k) => {
+                const s = v[0] + v[1] + v[2] + v[3];   // (1,1,1,1)方向への射影
+                if (isNear && s > maxSum) { maxSum = s; nearVertId = { cell: c, corner: k }; }
+                if (!isNear && s < minSum) { minSum = s; farVertId = { cell: c, corner: k }; }
+            });
+            pick(7, true); pick(0, false);
         }
 
         // --- 点固定モード ---------------------------------------------------
@@ -1690,6 +1760,8 @@
             build3DCells();
             buildAxisGnomon();
             build5D();   // 5次元モード（β）の画面
+            buildXpLabels();   // 分解の番号ラベル
+            buildGluePairs(); buildXpAxisLabels();   // 高次元マップ（くっついていた面の組・次元の矢印の札）
 
             updateLayout();
 
@@ -1746,6 +1818,7 @@
                     id: i,
                     geometry: geometry,
                     wireGeo: wireGeo,
+                    wire: wireframe,
                     material: material,
                     quadIndices: quadIndices,
                     quadEdges: quadEdges
@@ -1801,6 +1874,7 @@
                     id: i,
                     geometry: geometry,
                     wireGeo: wireGeo,
+                    wire: wireframe,
                     material: material
                 });
             }
@@ -2008,13 +2082,15 @@
         }
         // ピンク＝(1,1,1,1,1) の頂点、水色＝(−1,−1,−1,−1,−1) の頂点（組み上がりで決めた 胞・頂点の番号を、折りたたみ中も追う）
         let p5NearId = null, p5FarId = null;
+        //   ピンクは蓋（9）の頂点、水色は中心（0）の頂点（分解したときに蓋・中心と一緒に動く）
         function findExtremeVerts5() {
             let mx = -1e9, mn = 1e9;
-            for (let c = 0; c < P5_CELLS.length; c++) cellVerts5D(c, 1).forEach((v, k) => {
+            const pick = (c, isNear) => cellVerts5D(c, 1).forEach((v, k) => {
                 const sm = v[0] + v[1] + v[2] + v[3] + v[4];
-                if (sm > mx) { mx = sm; p5NearId = { cell: c, corner: k }; }
-                if (sm < mn) { mn = sm; p5FarId = { cell: c, corner: k }; }
+                if (isNear && sm > mx) { mx = sm; p5NearId = { cell: c, corner: k }; }
+                if (!isNear && sm < mn) { mn = sm; p5FarId = { cell: c, corner: k }; }
             });
+            pick(P5_CELLS.length - 1, true); pick(0, false);
         }
         const AXES_5D = [
             { v: [1, 0, 0, 0, 0], color: 0xff5d6c, label: 'x' },
@@ -2090,9 +2166,9 @@
                 const wg = new THREE.BufferGeometry();
                 wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(T5_EDGES.length * 6), 3));
                 const wc = new Float32Array(T5_EDGES.length * 6); wc.fill(1); wg.setAttribute('color', new THREE.BufferAttribute(wc, 3));
-                mesh.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ transparent: true, opacity: 0.9, vertexColors: true })));
-                root.add(mesh);
-                cellObjects5D.push({ geometry: g, wireGeo: wg, material: m });
+                const wire = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ transparent: true, opacity: 0.9, vertexColors: true }));
+                mesh.add(wire); root.add(mesh);
+                cellObjects5D.push({ geometry: g, wireGeo: wg, wire, material: m });
             });
             const ag = new THREE.Group(); ag.name = 'Axis5D';
             AXES_5D.forEach(ax => {
@@ -2115,12 +2191,13 @@
             const root = scene5D.getObjectByName('Root5D'); if (root) root.updateMatrixWorld();
             const pb = projBlendNow(), mat = root ? root.matrixWorld : null, camP = camera3D.position;
             const verts = cellObjects5D.map((_, ci) => cellVerts5D(ci, progress).map(q => project5(rotate5(q), pb)));
+            applyExplode(5, verts, progress);   // 分解：10個の超立方体を1個ずつ離す
             let dMin = 1e9, dMax = -1e9;
             const dist = verts.map(cv => cv.map(v => { _p5v.set(v[0], v[1], v[2]); if (mat) _p5v.applyMatrix4(mat); const d = _p5v.distanceTo(camP); if (d < dMin) dMin = d; if (d > dMax) dMax = d; return d; }));
             const span = Math.max(dMax - dMin, 1e-3), sm = t => t * t * (3 - 2 * t);
             const FAR_DIM = cfgFarDim / (1 + (cfgFlatContrast - 1) * (1 - progress)), NB = cfgNearBright;
             const bright = d => NB - (NB - FAR_DIM) * sm((d - dMin) / span);
-            const op = Math.min(0.5, (cfgFaceOpacity + cfgFlatOpacityBoost * (1 - progress)) * 0.6);   // 胞が多いので超立方体より薄め
+            const op = Math.min(0.75, netOpacity(cfgFaceOpacity, progress) * 0.7);   // 胞が多いので超立方体より薄め。展開図ほど濃く
             const EN = edgeTint(cfgEdgeNear), EF = edgeTint(cfgEdgeFar);
             const ecol = d => { const t = sm((d - dMin) / span); return [EN[0] + (EF[0] - EN[0]) * t, EN[1] + (EF[1] - EN[1]) * t, EN[2] + (EF[2] - EN[2]) * t]; };
             cellObjects5D.forEach((cell, ci) => {
@@ -2132,15 +2209,18 @@
                 }
                 cell.geometry.attributes.position.needsUpdate = true; cell.geometry.attributes.color.needsUpdate = true;
                 cell.geometry.computeVertexNormals();
-                cell.material.opacity = op; cell.material.visible = !wireframeOnly;
+                cell.material.opacity = Math.min(0.97, op * cellFocus(5, ci).face); cell.material.visible = !wireframeOnly;
                 const wa = cell.wireGeo.attributes.position.array, wc = cell.wireGeo.attributes.color.array;
                 for (let e = 0, k = 0; e < T5_EDGES.length; e++) {
                     const i0 = T5_EDGES[e][0], i1 = T5_EDGES[e][1], A = cv[i0], B = cv[i1], cA = ecol(cd[i0]), cB = ecol(cd[i1]);
                     wa[k] = A[0]; wc[k++] = cA[0]; wa[k] = A[1]; wc[k++] = cA[1]; wa[k] = A[2]; wc[k++] = cA[2];
                     wa[k] = B[0]; wc[k++] = cB[0]; wa[k] = B[1]; wc[k++] = cB[1]; wa[k] = B[2]; wc[k++] = cB[2];
                 }
+                paintEdgeHi(cell, ci, cellObjects5D.length - 1, wc, EN[0]);   // 手前と奥の超立方体の辺を色で強調
+                { const fe = cellFocus(5, ci).edge; if (fe !== 1) for (let k = 0; k < wc.length; k++) wc[k] *= fe; }
                 cell.wireGeo.attributes.position.needsUpdate = true; cell.wireGeo.attributes.color.needsUpdate = true;
             });
+            updateFatEdges(5, cellObjects5D, scene5D, 'Root5D');   // 強調した辺の太さ
             // 既定のピンク・水色（大きさ・表示・重なりの乗算は超立方体と共通の設定）
             if (p5MarkPlus && p5NearId) {
                 const fk = fixedMarks.size || 1, a = verts[p5NearId.cell][p5NearId.corner], b = verts[p5FarId.cell][p5FarId.corner];
@@ -2204,6 +2284,403 @@
             const sl = document.getElementById('seri-slider'), sv = document.getElementById('seri-val');
             if (sl && document.activeElement !== sl && t !== null) sl.value = String(Math.round(t * 100));
             if (sv) sv.textContent = t === null ? '—' : Math.round(t * 100) + '%';
+        }
+
+        // ===== 分解（こんな形でできている）=====
+        //   投影したあとの 3D で、胞（立方体は面）を丸ごと平行移動して離す（形はそのまま）。
+        //   離す向き：その胞の外向きの向き（組み上がったときの ±x・±y・±z・±w…）に、今の回転をかけたもの。
+        //   ただし 3D に写すと消える向き（立方体の z＝折りたたみの向き、超立方体の w、5次元の w・v）と z は、
+        //   正面から見ても離れて見えるよう、斜めの決まった向きに置きかえる（立方体の z・超立方体の w・5次元の v は同じ向き＝次元を上げても同じ役）。
+        let explodeRaw = 0, explodeTarget = null;   // 0＝くっついた、1＝全部バラバラ（スライダーの値）。explodeTarget＝ボタンのアニメの行き先
+        // ボタンのアニメ：番号の順に少しずつずらして（時間差）、バラすときは勢いよく飛び出して少し行き過ぎて戻る（easeOutBack）、
+        //   くっつけるときは一瞬外へためてから加速して吸いつく（easeInBack）。吸いついた瞬間に、その胞の辺がパッと光る
+        let xpAnim = null;   // { from, to, t, total }
+        const XP_DUR = 0.72, XP_STAG = 0.05, XP_FLASH = 0.35;   // 1個の動きの秒数・となりとの時間差・光る長さ
+        let xpStagger = true;   // 時間差を付けるか（分解の欄のボタン。このブラウザに覚える）
+        try { const v = localStorage.getItem('hypercubeExplodeStagger'); if (v !== null) xpStagger = v === '1'; } catch (_) {}
+        const xpStag = () => xpStagger ? XP_STAG : 0;   // OFF のときは全部いっしょに動く
+        const _easeOutBack = (u, k = 1.7) => 1 + (k + 1) * Math.pow(u - 1, 3) + k * Math.pow(u - 1, 2);
+        const _easeInBack = (u, k = 1.4) => (k + 1) * u * u * u - k * u * u;
+        const explodeE = () => xpAnim ? xpAnim.from + (xpAnim.to - xpAnim.from) * smootherstep(Math.min(1, xpAnim.t / xpAnim.total)) : smootherstep(explodeRaw);   // 全体の進み
+        function xpCellE(i) {   // 胞 i の今の離し具合（番号1の中心は動かない）
+            if (!xpAnim) return smootherstep(explodeRaw);
+            const u = Math.max(0, Math.min(1, (xpAnim.t - Math.max(0, i - 1) * xpStag()) / XP_DUR));
+            return xpAnim.from + (xpAnim.to - xpAnim.from) * (xpAnim.to > xpAnim.from ? _easeOutBack(u) : _easeInBack(u));
+        }
+        // くっついた瞬間の光（0〜1）。中心は最後の胞が吸いついたときに光る
+        function xpFlashOf(dim, i) {
+            if (!xpAnim || xpAnim.to !== 0) return 0;
+            const arrive = (i === 0 ? xpCountOf(dim) - 2 : i - 1) * xpStag() + XP_DUR, dt = xpAnim.t - arrive;
+            return dt >= 0 && dt < XP_FLASH ? 1 - dt / XP_FLASH : 0;
+        }
+        function startXpAnim(to) {
+            const from = explodeE();
+            if (Math.abs(from - to) < 1e-4) { xpAnim = null; explodeTarget = null; explodeRaw = to; return; }
+            const n = Math.max(6, ...xpPanes().map(xpCountOf));
+            xpAnim = { from, to, t: 0, total: XP_DUR + (n - 2) * xpStag() + (to === 0 ? XP_FLASH : 0) };
+            explodeTarget = to;
+        }
+        const EXPLODE_DIST = 2.2, EXPLODE_ZOOM = 0.6;   // 離す距離（ローカル座標）・バラしたぶん引く量
+        const _xpN = (v, k = 1) => { const l = Math.hypot(...v) || 1; return v.map(c => c / l * k); };
+        // z と、3D で消える向きの代わりの斜めの向きは、ほかより大きく離す（正面から見ても真ん中で重ならないように）
+        const EX_X = [1, 0, 0], EX_Y = [0, 1, 0], EX_Z = _xpN([0.55, 0.42, 1], 1.25), EX_F = _xpN([0.75, -0.75, -0.3], 1.4), EX_E = _xpN([-0.9, 0.35, -0.5], 1.4);
+        const XP_N2 = [[0, 0, -1], [0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1]];   // 立方体の面（中央・上・下・右・左・蓋）
+        const XP_N3 = [[0, 0, 0, -1], [0, 1, 0, 0], [0, -1, 0, 0], [1, 0, 0, 0], [-1, 0, 0, 0], [0, 0, 1, 0], [0, 0, -1, 0], [0, 0, 0, 1]];   // 超立方体の胞
+        const XP_N5 = [[0, 0, 0, 0, -1], [0, 1, 0, 0, 0], [0, -1, 0, 0, 0], [1, 0, 0, 0, 0], [-1, 0, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, -1, 0, 0], [0, 0, 0, 1, 0], [0, 0, 0, -1, 0], [0, 0, 0, 0, 1]];
+        const XP_SHORT = {
+            2: ['中央', '+Y', '−Y', '+X', '−X', '蓋'],
+            3: ['中心', '+Y', '−Y', '+X', '−X', '+Z', '−Z', '蓋'],
+            5: ['中心', '+Y', '−Y', '+X', '−X', '+Z', '−Z', '+W', '−W', '蓋']
+        };
+        const XP_KIND = { 2: ['6枚', '正方形'], 3: ['8個', '立方体'], 5: ['10個', '超立方体（4次元）'] };
+        const _xpComb = (c, basis) => [0, 1, 2].map(i => basis.reduce((sm, b, k) => sm + c[k] * b[i], 0));
+        const _xpRot = (q, a, b, th) => { if (!th) return; const c = Math.cos(th), sn = Math.sin(th), qa = q[a] * c - q[b] * sn, qb = q[a] * sn + q[b] * c; q[a] = qa; q[b] = qb; };
+        const xpOffset = {
+            2: (i, d) => { const q = XP_N2[i].slice(); _xpRot(q, 0, 2, linkAngleX); _xpRot(q, 1, 2, linkAngleY);   // 立方体と同じ X-Z → Y-Z
+                const o = _xpComb(q, [EX_X, EX_Y, EX_F]); return rot3DLeft(o[0] * d, o[1] * d, o[2] * d); },
+            3: (i, d) => { const q = XP_N3[i].slice(); _xpRot(q, 0, 3, linkAngleX); _xpRot(q, 1, 3, linkAngleY); _xpRot(q, 2, 3, soloAngleZW);   // 超立方体と同じ X-W → Y-W → Z-W
+                const o = _xpComb(q, [EX_X, EX_Y, EX_Z, EX_F]); return rot3D(o[0] * d, o[1] * d, o[2] * d); },
+            5: (i, d) => { const q = XP_N5[i].slice(); _xpRot(q, 0, 4, linkAngleX); _xpRot(q, 1, 4, linkAngleY); _xpRot(q, 2, 4, soloAngleZW);
+                _xpRot(q, 0, 3, p5XW); _xpRot(q, 1, 3, p5YW); _xpRot(q, 2, 3, p5ZW); _xpRot(q, 3, 4, p5WV);   // 5次元超立方体と同じ順
+                const o = _xpComb(q, [EX_X, EX_Y, EX_Z, EX_E, EX_F]); return rot3D(o[0] * d, o[1] * d, o[2] * d); }
+        };
+        const xpOff = { 2: [], 3: [], 5: [] }, xpCtr = { 2: [], 3: [], 5: [] };   // 今の離し量と、離したあとの胞の中心（ラベルの位置）
+        // 頂点の並び（胞ごとの配列）に離し量を足す。中心も覚える
+        //   中心の胞（番号1）は動かさず、ほかの胞がそこから浮き上がるように離れる。
+        //   組み上がり：外向きの向きへ離す（蓋は中心のちょうど反対側＝遠近では中心を包む外側の大きな胞なので、少し多めに）。
+        //   展開図：今見えている並びのまま、中心からの距離に比例して広げる（となりとのすきまがどこも同じ＝元の形を保つ）。
+        //     蓋は +Y の胞の先にあるので、+Y の胞の上へ同じすきまで浮き上がる。中心と重なって見える胞（5次元の ±W など）だけは斜めへ逃がす。
+        //   途中は、折りたたみの進み具合で2つを混ぜる
+        const EXPLODE_NET_GAP = 1.2;   // 展開図でのとなりとのすきま（胞の大きさ S=1.8 の 2/3）
+        // 展開図のすきまの強弱：中心のとなりは少しだけ狭く（0.8倍）、そこから胞1個ぶん遠くなるごとに離す量を 25% ずつ増やす
+        //   （となりのすきま 0.96、+Y→蓋のすきま 1.56。遠いところは前と同じで、中心のまわりだけ詰まる）
+        const XP_NEAR_K = 0.8, XP_FAR_K = 0.25;
+        let xpDistK = 1;   // 離す距離の倍率（分解の欄のスライダー。このブラウザに覚える）
+        try { const v = parseFloat(localStorage.getItem('hypercubeExplodeDist')); if (isFinite(v)) xpDistK = Math.max(0.3, Math.min(2.5, v)); } catch (_) {}
+        const xpSpan = { 2: 1, 3: 1, 5: 1 };   // バラしたあとの広がり ÷ バラす前（カメラの引き具合に使う）
+        const xpVerts = { 2: null, 3: null, 5: null };   // バラしたあとの頂点（画面に収まるかを見る）
+        const _xpCenter = vs => { let cx = 0, cy = 0, cz = 0; for (const v of vs) { cx += v[0]; cy += v[1]; cz += v[2]; } return [cx / vs.length, cy / vs.length, cz / vs.length]; };
+        function applyExplode(dim, verts, progress) {
+            const last = verts.length - 1, DF = EXPLODE_DIST * (dim === 5 ? 1.2 : 1) * xpDistK, GN = EXPLODE_NET_GAP * xpDistK;   // 離す距離はスライダーの倍率で
+            const m = smootherstep(Math.max(0, Math.min(1, progress === undefined ? animationProgress : progress)));   // 0＝展開図、1＝組み上がり
+            const ctr = verts.map(_xpCenter), c0 = ctr[0];
+            const rad = verts.map((vs, i) => vs.reduce((mx, v) => Math.max(mx, Math.hypot(v[0] - ctr[i][0], v[1] - ctr[i][1], v[2] - ctr[i][2])), 0));   // 胞の大きさ（中心からいちばん遠い頂点）
+            let r0 = 1e-6, r1 = 1e-6;
+            verts.forEach((vs, i) => {
+                let o = [0, 0, 0];
+                const e = i === 0 ? 0 : xpCellE(i), dFold = DF * e, gNet = GN * e;   // この胞の離し具合（アニメ中は胞ごとに時間差・行き過ぎあり）
+                if (e !== 0) {
+                    const fo = m > 0 ? xpOffset[dim](i, i === last ? dFold * 1.35 : dFold) : [0, 0, 0];
+                    let no = [0, 0, 0];
+                    if (m < 1) {
+                        const rel = [ctr[i][0] - c0[0], ctr[i][1] - c0[1], ctr[i][2] - c0[2]];
+                        // 中心の近くは少しだけ詰めて、遠い胞ほどすきまを広く
+                        const len = Math.hypot(rel[0], rel[1], rel[2]), far = XP_NEAR_K + XP_FAR_K * Math.max(0, len / S - 1);
+                        // 中心と重なって見える胞（5次元の展開図の ±W：遠近で大きく写る）は、自分と中心の大きさの分まで斜めへ離して、すきまをあける
+                        no = len > 0.6 * S ? rel.map(c => c * gNet / S * far) : xpOffset[dim](i, e * (rad[i] + rad[0] + GN));
+                    }
+                    o = [0, 1, 2].map(k => no[k] * (1 - m) + fo[k] * m);
+                }
+                xpOff[dim][i] = o;
+                for (const v of vs) {
+                    r0 = Math.max(r0, Math.hypot(v[0], v[1], v[2]));
+                    v[0] += o[0]; v[1] += o[1]; v[2] += o[2];
+                    r1 = Math.max(r1, Math.hypot(v[0], v[1], v[2]));
+                }
+                xpCtr[dim][i] = [ctr[i][0] + o[0], ctr[i][1] + o[1], ctr[i][2] + o[2]];
+            });
+            xpSpan[dim] = Math.max(1, r1 / r0);
+            xpVerts[dim] = verts;
+            updateXpMap(dim, verts, m);   // 高次元マップ（つながりの点線・次元の矢印）
+        }
+        const xpOffOf = (dim, i) => xpOff[dim][i] || [0, 0, 0];
+
+        // --- 1個ずつ数える：まずバラして、番号の順に1個ずつ光らせる。まだの胞はうっすら、今の胞は濃く ---
+        const xpCount = { active: false, phase: 'idle', idx: -1, t: 0 };
+        const XP_STEP = 0.85;   // 1個あたりの秒数
+        const XP_ONE = { face: 1, edge: 1 }, XP_DIM = { face: 0.12, edge: 0.16 }, XP_CUR = { face: 1.7, edge: 1.3 };
+        const xpCountOf = dim => dim === 2 ? 6 : dim === 3 ? 8 : 10;
+        function cellFocus(dim, i) {
+            const fl = xpFlashOf(dim, i);
+            if (fl > 0) return { face: 1 + 0.4 * fl, edge: 1 + 1.8 * fl };   // くっついた瞬間にパッと光る
+            if (!xpCount.active || xpCount.phase !== 'step') return XP_ONE;
+            const n = xpCountOf(dim); if (xpCount.idx >= n) return XP_ONE;   // この形はもう数え終わった
+            return i > xpCount.idx ? XP_DIM : i === xpCount.idx ? XP_CUR : XP_ONE;
+        }
+        // 表示中の形（dim：2＝立方体、3＝超立方体、5＝5次元超立方体）
+        function xpPanes() {
+            const out = [];
+            if (!dim5 && displayMode !== 'hypercube') out.push(2);
+            if (dim5 ? displayMode !== 'hypercube' : displayMode !== 'cube') out.push(3);
+            if (dim5 && displayMode !== 'cube' && renderer5D) out.push(5);
+            return out;
+        }
+        function setExplodeRaw(v) {
+            explodeRaw = Math.max(0, Math.min(1, v));
+            syncExplodeUI(); updateMorphingGeometry(animationProgress); requestRender(10);
+        }
+        function syncExplodeUI() {
+            const sl = document.getElementById('explode-slider'), val = document.getElementById('explode-val');
+            const shown = xpAnim ? Math.max(0, Math.min(1, explodeE())) : explodeRaw;
+            if (sl && document.activeElement !== sl) sl.value = shown;
+            if (val) val.textContent = Math.round(shown * 100) + '%';
+            const apart = explodeTarget !== null ? explodeTarget === 1 : explodeRaw >= 0.5;
+            const tone = (b, on) => { if (!b) return; b.classList.toggle('bg-amber-900/50', on); b.classList.toggle('border-amber-400/70', on); b.classList.toggle('text-amber-100', on);
+                b.classList.toggle('bg-slate-800/80', !on); b.classList.toggle('border-slate-700', !on); b.classList.toggle('text-amber-200', !on); };
+            const eb = document.getElementById('explode-btn'), cb = document.getElementById('count-btn');
+            if (eb) { eb.textContent = apart ? '→ くっつける' : '→ バラす'; tone(eb, apart); }   // 文字＝押すとこうなる、色＝今バラしているか
+            if (cb) { cb.textContent = xpCount.active ? '→ やめる' : '→ 数える'; tone(cb, xpCount.active); }
+        }
+        function startXpCount() {
+            xpCount.active = true; xpCount.phase = 'explode'; xpCount.idx = -1; xpCount.t = 0;
+            startXpAnim(1); syncExplodeUI(); updateXpBadges(); requestRender(10);
+        }
+        function endXpCount() {
+            xpCount.active = false; xpCount.phase = 'idle'; xpCount.idx = -1;
+            syncExplodeUI(); updateXpBadges(); updateMorphingGeometry(animationProgress); requestRender(10);
+        }
+        function stepXpCount(dt) {
+            if (!xpCount.active) return;
+            if (xpCount.phase === 'explode') { if (explodeRaw >= 1) { xpCount.phase = 'step'; xpCount.t = XP_STEP; } return; }
+            xpCount.t += dt;
+            const nMax = Math.max(0, ...xpPanes().map(xpCountOf));
+            if (xpCount.phase === 'step' && xpCount.t >= XP_STEP) {
+                xpCount.t = 0; xpCount.idx++;
+                if (xpCount.idx >= nMax) xpCount.phase = 'done';
+                updateXpBadges(); updateMorphingGeometry(animationProgress);
+            } else if (xpCount.phase === 'done' && xpCount.t > 3) endXpCount();
+        }
+        function xpNameOf(dim, i) { return dim === 2 ? faceConfigs2D[i].name : dim === 3 ? cellConfigs3D[i].name : P5_CELLS[i].name; }
+        function xpColorOf(dim, i) { return dim === 2 ? faceConfigs2D[i].color : dim === 3 ? cellConfigs3D[i].color : P5_CELLS[i].color; }
+        // 各画面の上の札：「3 / 8 +X（右ヒンジ胞）」→ 数え終わったら「全部で 8個 の立方体」
+        function updateXpBadges() {
+            [2, 3, 5].forEach(dim => {
+                const b = document.getElementById('xp-badge-' + dim + 'd'); if (!b) return;
+                const n = xpCountOf(dim), [cnt, kind] = XP_KIND[dim];
+                if (!xpCount.active || xpCount.phase === 'explode' || xpCount.idx < 0) { b.style.display = 'none'; return; }
+                if (xpCount.idx >= n || xpCount.phase === 'done') b.innerHTML = '全部で ' + cnt + '<small>の' + kind + '</small>';
+                else b.innerHTML = (xpCount.idx + 1) + ' / ' + n + '<small>' + XP_SHORT[dim][xpCount.idx] + '（' + xpNameOf(dim, xpCount.idx) + '）</small>';
+                b.style.display = 'block';
+            });
+        }
+        // 番号ラベル：離したあとの胞の中心を、その画面のカメラで画面の位置に直す
+        const xpLabelEls = { 2: [], 3: [], 5: [] };
+        let _xpLabelsShown = false;
+        function buildXpLabels() {
+            [2, 3, 5].forEach(dim => {
+                const layer = document.getElementById('xp-layer-' + dim + 'd'); if (!layer) return;
+                XP_SHORT[dim].forEach((nm, i) => {
+                    const el = document.createElement('div'); el.className = 'xp-label';
+                    el.innerHTML = '<span class="num" style="background:#' + xpColorOf(dim, i).toString(16).padStart(6, '0') + '">' + (i + 1) + '</span>' + nm;
+                    el.title = xpNameOf(dim, i); layer.appendChild(el); xpLabelEls[dim].push(el);
+                });
+            });
+        }
+        const _xpV = new THREE.Vector3();
+        function updateXpLabels(show2D, show3D, show5D) {
+            const e = explodeE(), want = e > 0.01 || xpCount.active;
+            if (!want && !_xpLabelsShown) return;
+            _xpLabelsShown = want;
+            const panes = [[2, show2D, camera2D, scene2D, 'Root2D', 'canvas-2d3d'], [3, show3D, camera3D, scene3D, 'Root3D', 'canvas-3d4d'], [5, show5D, camera5D, scene5D, 'Root5D', 'canvas-4d5d']];
+            panes.forEach(([dim, show, cam, scn, rootName, cid]) => {
+                const els = xpLabelEls[dim]; if (!els.length) return;
+                const root = show && scn && scn.getObjectByName(rootName), box = document.getElementById(cid);
+                const w = box ? box.clientWidth : 0, h = box ? box.clientHeight : 0;
+                els.forEach((el, i) => {
+                    let op = Math.min(1, e * 1.6), scale = 1, cur = false;
+                    if (xpCount.active && xpCount.phase !== 'explode') {
+                        if (xpCount.phase === 'step' && i > xpCount.idx) op = 0;
+                        else { op = 1; if (xpCount.phase === 'step' && i === xpCount.idx) { scale = 1.3; cur = true; } }
+                    }
+                    const c = xpCtr[dim][i];
+                    if (!want || !root || !cam || !c || !w) op = 0;
+                    else {
+                        _xpV.set(c[0], c[1], c[2]).applyMatrix4(root.matrixWorld).project(cam);
+                        if (_xpV.z > 1) op = 0;
+                        el.style.transform = 'translate(' + ((_xpV.x * 0.5 + 0.5) * w).toFixed(1) + 'px, ' + ((-_xpV.y * 0.5 + 0.5) * h).toFixed(1) + 'px) translate(-50%, -50%) scale(' + scale + ')';
+                    }
+                    el.style.opacity = op; el.classList.toggle('current', cur);
+                });
+                // 次元の矢印の札
+                xpAxisEls[dim].forEach((el, n) => {
+                    const c = xpArrowMid[dim][n], ka = xpArrowK[dim];
+                    let op = (want && root && cam && c && w) ? ka : 0;
+                    if (op > 0) {
+                        _xpV.set(c[0], c[1], c[2]).applyMatrix4(root.matrixWorld).project(cam);
+                        if (_xpV.z > 1) op = 0;
+                        el.style.transform = 'translate(' + ((_xpV.x * 0.5 + 0.5) * w).toFixed(1) + 'px, ' + ((-_xpV.y * 0.5 + 0.5) * h).toFixed(1) + 'px) translate(-50%, -160%)';
+                    }
+                    el.style.opacity = op;
+                });
+            });
+        }
+        // バラしたぶん、各画面のカメラを引いて全体を収める（ズームの倍率で）。
+        //   バラしたあとの頂点を画面に写して、画面の枠（横 88%・縦 78%。上の見出しの分をあける）からはみ出す分だけ引く。
+        //   画面に入る限りは引かない＝空いているところいっぱいに広げる。バラし具合 e に合わせてなめらかに
+        const _xpP = new THREE.Vector3();
+        function xpFitZoom(dim, cam, scn, rootName, zBase) {
+            const e = explodeE(), vs = xpVerts[dim], root = scn && scn.getObjectByName(rootName);
+            if (e <= 0 || !vs || !root || !cam) return zBase;
+            cam.updateMatrixWorld(); root.updateMatrixWorld();
+            let mx = 0, my = 0;
+            for (const cv of vs) for (const v of cv) {
+                _xpP.set(v[0], v[1], v[2]).applyMatrix4(root.matrixWorld).project(cam);
+                if (_xpP.z < 1) { mx = Math.max(mx, Math.abs(_xpP.x)); my = Math.max(my, Math.abs(_xpP.y)); }
+            }
+            const zr = cam.zoom / zBase;   // 今のズームで測ったので、もとのズームの大きさに直す
+            const need = Math.max(mx / zr / 0.88, my / zr / 0.78, 1e-3);
+            const fit = Math.max(0.35, Math.min(1, 1 / need));
+            return zBase * (1 - e + e * fit);
+        }
+        function applyExplodeZoom() {
+            const set = (cam, z) => { if (cam && Math.abs(cam.zoom - z) > 1e-4) { cam.zoom = z; cam.updateProjectionMatrix(); } };
+            set(camera2D, xpFitZoom(2, camera2D, scene2D, 'Root2D', viewZoom2D()));
+            set(camera3D, xpFitZoom(3, camera3D, scene3D, 'Root3D', (dim5 && displayMode === 'hypercube_pip') ? 2.2 : viewZoom()));
+            set(camera5D, xpFitZoom(5, camera5D, scene5D, 'Root5D', viewZoom()));
+        }
+
+        // ===== 手前と奥の胞の辺を色で強調（点タブ）=====
+        //   手前＝折りたたみでできた次元の＋側の胞（いちばん最後の番号＝蓋）、奥＝−側の胞（番号1＝中心）。
+        //   超立方体なら w＋（遠近では外側の大きい立方体）と w−、立方体なら z＋ と z− の正方形、5次元超立方体なら v＋ と v−。
+        //   既定の色は、手前の頂点の印（ピンク）・奥の頂点の印（水色）と同じ約束
+        const EH_DEF = { on: true, near: '#ff44dd', far: '#33e5ff', widthNear: 3, widthFar: 3 };   // widthNear・widthFar＝手前・奥の辺の太さ（画面の px）
+        let edgeHi = Object.assign({}, EH_DEF);
+        try {
+            const v = JSON.parse(localStorage.getItem('hypercubeEdgeHi') || 'null');
+            if (v) { if (isFinite(v.width) && v.widthNear === undefined) { v.widthNear = v.width; v.widthFar = v.width; } delete v.width; edgeHi = Object.assign(edgeHi, v); }   // 前の「太さ」1つは両方へ
+        } catch (_) {}
+        const _ehN = new THREE.Color(), _ehF = new THREE.Color();
+        // 胞 i の辺の色（頂点ごとの RGB の並び arr）を強調の色に塗りかえる。奥にある辺ほど少し暗くして立体感は残す
+        function paintEdgeHi(obj, i, last, arr, base) {
+            const H = !edgeHi.on ? null : i === last ? _ehN.set(edgeHi.near) : i === 0 ? _ehF.set(edgeHi.far) : null;
+            if (obj && obj.wire) obj.wire.renderOrder = H ? 3 : 0;   // 強調した辺は、となりの胞と重なる辺より後に描く（色が混ざらないように）
+            if (!H || !arr) return;
+            const b = Math.max(base, 1e-3);
+            for (let k = 0; k < arr.length; k += 3) {
+                const L = 0.78 + 0.32 * Math.min(1, Math.max(arr[k], arr[k + 1], arr[k + 2]) / b);   // 奥でも 0.78、手前は少し明るめ（線は細いので色を濃く）
+                arr[k] = Math.min(1, H.r * L); arr[k + 1] = Math.min(1, H.g * L); arr[k + 2] = Math.min(1, H.b * L);
+            }
+        }
+
+        // 強調した辺の太さ：手前と奥の胞の辺を、太い線（画面の上でのピクセル幅）で描き重ねる。
+        //   位置と色は、その胞のふつうの線と同じ（分解・数える・奥の暗さもそのまま効く）。太さ 1 のときはふつうの線だけ
+        const ehFat = { 2: {}, 3: {}, 5: {} };   // 画面ごとに { near: 手前の太い線, far: 奥の太い線 }
+        const EH_BOX = { 2: 'canvas-2d3d', 3: 'canvas-3d4d', 5: 'canvas-4d5d' };
+        function setFatResolution() {
+            [2, 3, 5].forEach(dim => { const box = document.getElementById(EH_BOX[dim]); if (!box || box.clientWidth <= 0) return;
+                ['near', 'far'].forEach(side => { const F = ehFat[dim][side]; if (F) F.material.resolution.set(box.clientWidth, box.clientHeight); }); });
+        }
+        function updateFatEdges(dim, objs, scn, rootName) {
+            const root = scn && scn.getObjectByName(rootName);
+            const can = !!(root && edgeHi.on && THREE.LineSegments2 && THREE.LineMaterial);
+            [['near', objs.length - 1, edgeHi.widthNear], ['far', 0, edgeHi.widthFar]].forEach(([side, i, width]) => {   // 手前＝最後の番号（蓋）、奥＝番号1（中心）
+                let F = ehFat[dim][side];
+                if (!can || !(width > 1.01) || !objs[i]) { if (F) F.visible = false; return; }
+                if (!F) {
+                    const mat = new THREE.LineMaterial({ vertexColors: true, linewidth: width, transparent: true, opacity: 0.95, depthWrite: false });
+                    F = new THREE.LineSegments2(new THREE.LineSegmentsGeometry(), mat);
+                    F.renderOrder = 4; F.frustumCulled = false;
+                    root.add(F); ehFat[dim][side] = F; setFatResolution();
+                }
+                F.geometry.setPositions(Array.from(objs[i].wireGeo.attributes.position.array)); F.geometry.setColors(Array.from(objs[i].wireGeo.attributes.color.array));
+                F.material.linewidth = width; F.visible = true;
+                if (F.material.resolution.x <= 1) setFatResolution();   // 隠れていた画面で作ったときは、出てきたときに大きさを合わせる
+            });
+        }
+
+        // ===== 高次元マップ（分解したときに、高い次元がどこにあるかを見せる） =====
+        //   つながりの点線：組み上がりで同じ場所にあった面（立方体＝辺、超立方体＝正方形、5次元＝立方体）を、バラしたあとの2つの写しの間で結ぶ。
+        //     中心と蓋（折りたたみでできた次元の −側と＋側）や 5次元の ±W につながる線は、その次元の色（そこを通ってつながっている）
+        //   次元の矢印：組み上がりをバラしたとき、中心→蓋（5次元はさらに −W→+W）に矢印と札。展開図のときは出さない（向きの意味が違うので）
+        let xpMap = true;
+        try { const v = localStorage.getItem('hypercubeExplodeMap'); if (v !== null) xpMap = v === '1'; } catch (_) {}
+        const XP_GLUE = { 2: [], 3: [], 5: [] };   // { a, b, ia, ib }：胞 a の頂点 ia と、胞 b の頂点 ib が同じ面
+        function buildGluePairs() {
+            const sets = { 2: [0, 1, 2, 3, 4, 5].map(f => calculateFoldedFaceVertices2D(f, 1, 0, 0)), 3: [0, 1, 2, 3, 4, 5, 6, 7].map(c => cellVerts4D(c, 1)), 5: P5_CELLS.map((_, c) => cellVerts5D(c, 1)) };
+            const need = { 2: 2, 3: 4, 5: 8 };   // 共有する頂点の数（辺・正方形・立方体）
+            [2, 3, 5].forEach(dim => {
+                const L = sets[dim], out = [];
+                for (let a = 0; a < L.length; a++) for (let b = a + 1; b < L.length; b++) {
+                    const ia = [], ib = [];
+                    L[a].forEach((pp, i) => { const j = L[b].findIndex(q => pp.every((v, k) => Math.abs(v - q[k]) < 1e-6)); if (j >= 0) { ia.push(i); ib.push(j); } });
+                    if (ia.length >= need[dim]) out.push({ a, b, ia, ib });
+                }
+                XP_GLUE[dim] = out;
+            });
+        }
+        // 高い次元の向きの胞と、その色（立方体は z＝青、超立方体は w＝紫、5次元は v＝琥珀・w＝紫）
+        const XP_HID = { 2: { 0: '#56a8ff', 5: '#56a8ff' }, 3: { 0: '#b07cff', 7: '#b07cff' }, 5: { 0: '#fbbf24', 9: '#fbbf24', 7: '#b07cff', 8: '#b07cff' } };
+        const XP_ARROWS = {
+            2: [{ from: 0, to: 5, color: '#56a8ff', text: 'z：3次元目の向き' }],
+            3: [{ from: 0, to: 7, color: '#b07cff', text: 'w：4次元目の向き' }],
+            5: [{ from: 0, to: 9, color: '#fbbf24', text: 'v：5次元目の向き' }, { from: 8, to: 7, color: '#b07cff', text: 'w：4次元目の向き' }]
+        };
+        const XP_ROOT = { 2: () => scene2D && scene2D.getObjectByName('Root2D'), 3: () => scene3D && scene3D.getObjectByName('Root3D'), 5: () => scene5D && scene5D.getObjectByName('Root5D') };
+        const xpGlueObj = { 2: null, 3: null, 5: null }, xpArrowObj = { 2: [], 3: [], 5: [] }, xpArrowMid = { 2: [], 3: [], 5: [] }, xpArrowK = { 2: 0, 3: 0, 5: 0 };
+        const _xpCA = new THREE.Color(), _xpCB = new THREE.Color(), XP_NEUTRAL = new THREE.Color('#94a3b8');
+        const _xpMean = (vs, idx) => { const o = [0, 0, 0]; idx.forEach(i => { o[0] += vs[i][0]; o[1] += vs[i][1]; o[2] += vs[i][2]; }); return o.map(v => v / idx.length); };
+        function updateXpMap(dim, verts, m) {
+            const root = XP_ROOT[dim](), e = explodeE(), k = xpMap && root ? Math.min(1, e * 1.5) : 0;
+            // つながりの点線
+            const pairs = XP_GLUE[dim];
+            let G = xpGlueObj[dim];
+            if (k <= 0.01 || !pairs.length) { if (G) G.visible = false; }
+            else {
+                if (!G) {
+                    const g = new THREE.BufferGeometry();
+                    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pairs.length * 6), 3));
+                    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pairs.length * 6), 3));
+                    G = new THREE.LineSegments(g, new THREE.LineDashedMaterial({ vertexColors: true, dashSize: 0.13, gapSize: 0.09, transparent: true, opacity: 0.9, depthWrite: false }));
+                    G.renderOrder = 5; G.frustumCulled = false; root.add(G); xpGlueObj[dim] = G;
+                }
+                const pa = G.geometry.attributes.position.array, ca = G.geometry.attributes.color.array;
+                pairs.forEach((P, n) => {
+                    const A = _xpMean(verts[P.a], P.ia), B = _xpMean(verts[P.b], P.ib);
+                    pa[n * 6] = A[0]; pa[n * 6 + 1] = A[1]; pa[n * 6 + 2] = A[2]; pa[n * 6 + 3] = B[0]; pa[n * 6 + 4] = B[1]; pa[n * 6 + 5] = B[2];
+                    const ha = XP_HID[dim][P.a], hb = XP_HID[dim][P.b];
+                    if (ha && hb) { _xpCA.set(ha); _xpCB.set(hb); }                       // どちらも高い次元の胞：両端をそれぞれの色に
+                    else if (ha || hb) { _xpCA.set(ha || hb); _xpCB.copy(_xpCA); }       // 高い次元を通ってつながる線
+                    else { _xpCA.copy(XP_NEUTRAL).multiplyScalar(0.75); _xpCB.copy(_xpCA); }   // ふつうの3Dのつながり（うすい灰色）
+                    ca[n * 6] = _xpCA.r; ca[n * 6 + 1] = _xpCA.g; ca[n * 6 + 2] = _xpCA.b; ca[n * 6 + 3] = _xpCB.r; ca[n * 6 + 4] = _xpCB.g; ca[n * 6 + 5] = _xpCB.b;
+                });
+                G.geometry.attributes.position.needsUpdate = true; G.geometry.attributes.color.needsUpdate = true;
+                G.computeLineDistances(); G.material.opacity = 0.9 * k; G.visible = true;
+            }
+            // 次元の矢印（組み上がりのときだけ）
+            const ka = k * m;
+            xpArrowK[dim] = ka;
+            XP_ARROWS[dim].forEach((ar, n) => {
+                let o = xpArrowObj[dim][n];
+                if (ka <= 0.01) { if (o) { o.line.visible = false; o.cone.visible = false; } return; }
+                if (!o) {
+                    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+                    const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: ar.color, transparent: true, opacity: 1, depthTest: false }));
+                    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.3, 16), new THREE.MeshBasicMaterial({ color: ar.color, transparent: true, opacity: 1, depthTest: false }));
+                    line.renderOrder = 1001; cone.renderOrder = 1001; root.add(line, cone);
+                    o = xpArrowObj[dim][n] = { line, cone };
+                }
+                const A = xpCtr[dim][ar.from], B = xpCtr[dim][ar.to];
+                if (!A || !B) return;
+                const d = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], len = Math.hypot(d[0], d[1], d[2]) || 1, u = d.map(v => v / len);
+                const P0 = A.map((v, i) => v - u[i] * len * 0.15), P1 = B.map((v, i) => v + u[i] * len * 0.25);   // 両側を少しのばす
+                const pa = o.line.geometry.attributes.position.array;
+                pa[0] = P0[0]; pa[1] = P0[1]; pa[2] = P0[2]; pa[3] = P1[0]; pa[4] = P1[1]; pa[5] = P1[2];
+                o.line.geometry.attributes.position.needsUpdate = true; o.line.geometry.computeBoundingSphere();
+                o.cone.position.set(P1[0], P1[1], P1[2]); o.cone.quaternion.setFromUnitVectors(_AXIS_UP, new THREE.Vector3(u[0], u[1], u[2]));
+                o.line.material.opacity = ka; o.cone.material.opacity = ka; o.line.visible = true; o.cone.visible = true;
+                xpArrowMid[dim][n] = A.map((v, i) => v + d[i] * 0.55);   // 札の位置（中心と蓋のあいだ、少し蓋寄り）
+            });
+        }
+        // 次元の矢印の札（HTML）。番号ラベルと同じ層に置く
+        const xpAxisEls = { 2: [], 3: [], 5: [] };
+        function buildXpAxisLabels() {
+            [2, 3, 5].forEach(dim => {
+                const layer = document.getElementById('xp-layer-' + dim + 'd'); if (!layer) return;
+                XP_ARROWS[dim].forEach(ar => {
+                    const el = document.createElement('div'); el.className = 'xp-axis-label'; el.style.color = ar.color; el.textContent = ar.text;
+                    layer.appendChild(el); xpAxisEls[dim].push(el);
+                });
+            });
         }
 
         function makeLabelSprite(text, cssColor) {
@@ -2365,11 +2842,11 @@
                     for (let k = 0; k < 8; k++) { const wk = p.cw.w[k]; if (wk) for (let i = 0; i < 4; i++) p4[i] += wk * vs[k][i]; }
                 }
                 else if (folded) p4 = [p.x * HALF_S, p.y * HALF_S, p.z * HALF_S, p.w * HALF_S];
-                const showR = p.show && p4 !== null;
+                const showR = p.show && p4 !== null && explodeE() < 0.02;   // 分解中は隠す（境目の点はどの胞にも属するので）
                 p.mesh3.visible = showR; p.sprite3.visible = showR && ptShowLabels;
                 if (showR) { const q = rotated4DAxis(p4); p.mesh3.position.set(q[0], q[1], q[2]); p.sprite3.position.set(q[0] + off, q[1] + off, q[2]); }
                 // 左（立方体）：(x, y, w) の位置。組み上がった状態のときだけ
-                const showL = p.show && ptShowLeft && folded;
+                const showL = p.show && ptShowLeft && folded && explodeE() < 0.02;
                 p.mesh2.visible = showL; p.sprite2.visible = showL && ptShowLabels;
                 if (showL) { const q = leftPtPos(p.x * HALF_S, p.y * HALF_S, p.w * HALF_S); p.mesh2.position.set(q[0], q[1], q[2]); p.sprite2.position.set(q[0] + off, q[1] + off, q[2]); }
             }
@@ -2418,16 +2895,15 @@
         // 立方体の (1,1,1) 方向の角（等角図の中心にくる頂点）とその反対の角を、
         // 回転前（angles=0・組み上がり）の座標で一度だけ特定する。右の findExtremeVerts と同じ考え方。
         let nearLId = null, farLId = null;
+        //   ピンク（手前）は蓋の面（5）の頂点、水色（奥）は中央の面（0）の頂点（分解したときに蓋・中央と一緒に動く）
         function findLeftExtreme() {
             let maxS = -1e9, minS = 1e9;
-            for (let f = 0; f < 6; f++) {
-                const vs = calculateFoldedFaceVertices2D(f, 1, 0, 0);
-                for (let k = 0; k < vs.length; k++) {
-                    const s = vs[k][0] + vs[k][1] + vs[k][2];
-                    if (s > maxS) { maxS = s; nearLId = { face: f, idx: k }; }
-                    if (s < minS) { minS = s; farLId = { face: f, idx: k }; }
-                }
-            }
+            const pick = (f, isNear) => calculateFoldedFaceVertices2D(f, 1, 0, 0).forEach((v, k) => {
+                const s = v[0] + v[1] + v[2];
+                if (isNear && s > maxS) { maxS = s; nearLId = { face: f, idx: k }; }
+                if (!isNear && s < minS) { minS = s; farLId = { face: f, idx: k }; }
+            });
+            pick(5, true); pick(0, false);
         }
         // 特定した角を、現在の折りたたみ・X-Z/Y-Z 回転をかけて追う
         function leftExtremePoints(progress) {
@@ -2477,15 +2953,17 @@
             if (wMarkPlus && wMarkMinus && nearVertId) {
                 const pp = rotated4DAxis(cellVerts4D(nearVertId.cell, progress)[nearVertId.corner]);
                 const pm = rotated4DAxis(cellVerts4D(farVertId.cell, progress)[farVertId.corner]);
-                wMarkPlus.position.set(pp[0], pp[1], pp[2]);
-                wMarkMinus.position.set(pm[0], pm[1], pm[2]);
+                const oP = xpOffOf(3, nearVertId.cell), oM = xpOffOf(3, farVertId.cell);   // 分解中はその胞と一緒に動く
+                wMarkPlus.position.set(pp[0] + oP[0], pp[1] + oP[1], pp[2] + oP[2]);
+                wMarkMinus.position.set(pm[0] + oM[0], pm[1] + oM[1], pm[2] + oM[2]);
                 applyMarkerBlend(wMarkPlus, wMarkMinus, wMarkBlend, camera3D, 0.04);
             }
             if (lMarkPlus && lMarkMinus) {
                 const ex = leftExtremePoints(progress);
                 if (ex.near && ex.far) {
-                    lMarkPlus.position.set(ex.near[0], ex.near[1], ex.near[2]);
-                    lMarkMinus.position.set(ex.far[0], ex.far[1], ex.far[2]);
+                    const oP = xpOffOf(2, nearLId.face), oM = xpOffOf(2, farLId.face);
+                    lMarkPlus.position.set(ex.near[0] + oP[0], ex.near[1] + oP[1], ex.near[2] + oP[2]);
+                    lMarkMinus.position.set(ex.far[0] + oM[0], ex.far[1] + oM[1], ex.far[2] + oM[2]);
                     applyMarkerBlend(lMarkPlus, lMarkMinus, lMarkBlend, camera2D, 0.12);
                 }
             }
@@ -2597,6 +3075,7 @@
                     if (rotXY !== 0 || rotXZ !== 0 || rotYZ !== 0) for (let i = 0; i < vs.length; i++) { const r = rot3DLeft(vs[i][0], vs[i][1], vs[i][2]); vs[i][0] = r[0]; vs[i][1] = r[1]; vs[i][2] = r[2]; }
                     return vs;
                 });
+                applyExplode(2, faceVerts, progress);   // 分解：面を1枚ずつ離す
                 const r2 = scene2D.getObjectByName('Root2D'); if (r2) r2.updateMatrixWorld();
                 if (camera2D) camera2D.updateMatrixWorld();
                 const r2mat = r2 ? r2.matrixWorld : null, cam2P = camera2D ? camera2D.position : null;
@@ -2653,7 +3132,7 @@
                     posAttr.needsUpdate = true;
                     if (fcolAttr) fcolAttr.needsUpdate = true;
                     // 正確モードでは展開図(progress≈0)を濃いめ、組み上がりを薄めにして展開図を見やすく。濃さは設定画面で調整。
-                    if (accurateFaces) face.material.opacity = Math.min(0.95, cfgFaceOpacity + cfgFlatOpacityBoost * (1 - progress));
+                    face.material.opacity = Math.min(0.97, netOpacity(accurateFaces ? cfgFaceOpacity : 0.5, progress) * cellFocus(2, fi).face);   // 展開図ほど濃く（紙の展開図）。数えている間は今の面を濃く
                     face.geometry.computeVertexNormals();
 
                     const wireAttr = face.wireGeo.attributes.position;
@@ -2681,9 +3160,12 @@
                             colArrL[cPtr++] = cB[0]; colArrL[cPtr++] = cB[1]; colArrL[cPtr++] = cB[2];
                         }
                     }
+                    paintEdgeHi(face, fi, faceObjects2D.length - 1, colArrL, LN[0]);   // 手前と奥の面の辺を色で強調
+                    { const fe = cellFocus(2, fi).edge; if (fe !== 1 && colArrL) for (let k = 0; k < colArrL.length; k++) colArrL[k] *= fe; }
                     wireAttr.needsUpdate = true;
                     if (colAttrL) colAttrL.needsUpdate = true;
                 });
+                updateFatEdges(2, faceObjects2D, scene2D, 'Root2D');   // 強調した辺の太さ
             }
 
             if (dim5 && displayMode !== 'cube') update5D(progress);   // 5次元モード：右の5次元超立方体
@@ -2691,6 +3173,7 @@
                 // まず全胞の頂点を求め、4Dの奥行き(w)の範囲を測る（奥の辺を沈ませる基準にする）
                 const cellVerts = cellObjects3D.map(cell =>
                     calculateFoldedCellVertices3D(cell.id, progress, linkAngleX, linkAngleY));
+                applyExplode(3, cellVerts, progress);   // 分解：胞を1個ずつ離す
                 // 画面の奥行き（カメラからの距離）を各頂点で測る。辺のフェードと面の陰影に共通で使う。
                 const r3 = scene3D.getObjectByName('Root3D'); if (r3) r3.updateMatrixWorld();
                 if (camera3D) camera3D.updateMatrixWorld();
@@ -2707,7 +3190,7 @@
                 const FAR_DIM = cfgFarDim / (1 + (cfgFlatContrast - 1) * (1 - progress)), NB = cfgNearBright;
                 const brightOf = d => NB - (NB - FAR_DIM) * sm((d - zMin) / zSpan);
                 // 展開図(progress≈0)は濃いめ／組み上がり(1)は薄めにして奥を見せる。
-                const faceOpacity = Math.min(0.95, cfgFaceOpacity + cfgFlatOpacityBoost * (1 - progress));
+                const faceOpacity = netOpacity(cfgFaceOpacity, progress);   // 展開図ほど濃く（紙の展開図）、組み上がりは透ける
                 // 辺は「画面の実際の奥行き」でフェード：手前＝白い極細線（内側の立方体の手前側もちゃんと見える）、
                 //   奥＝ダーク／ほぼ消す（隠れている部分は描かない＝立体感）。展開図(progress≈0)は白のまま。
                 // 線の太さはWebGLでは変えられない(常に1px)ので、明るさで細さを表現。濃さは設定画面で調整。
@@ -2737,7 +3220,7 @@
                     }
                     posAttr.needsUpdate = true;
                     if (fcolAttr) fcolAttr.needsUpdate = true;
-                    cell.material.opacity = faceOpacity;   // 展開図は濃いめ／組み上がりは薄め（正確モードと共通）
+                    cell.material.opacity = Math.min(0.97, faceOpacity * cellFocus(3, ci).face);   // 展開図は濃いめ／組み上がりは薄め（正確モードと共通）。数えている間は今の胞を濃く
                     cell.geometry.computeVertexNormals();
 
                     const wireAttr = cell.wireGeo.attributes.position;
@@ -2760,9 +3243,12 @@
                             colArr[cPtr++] = cB[0]; colArr[cPtr++] = cB[1]; colArr[cPtr++] = cB[2];
                         }
                     }
+                    paintEdgeHi(cell, ci, cellObjects3D.length - 1, colArr, E_NEAR[0]);   // 手前と奥の胞の辺を色で強調
+                    { const fe = cellFocus(3, ci).edge; if (fe !== 1 && colArr) for (let k = 0; k < colArr.length; k++) colArr[k] *= fe; }
                     wireAttr.needsUpdate = true;
                     if (colAttr) colAttr.needsUpdate = true;
                 });
+                updateFatEdges(3, cellObjects3D, scene3D, 'Root3D');   // 強調した辺の太さ
 
                 // 正確透過モード：全胞の三角形を1つにまとめ、毎フレーム「全体で」カメラから遠い順に並べ替えて描く。
                 // 入れ子（内外の立方体）の前後も三角形単位で正しく決まる＝奥の面もちゃんと透ける。
@@ -2798,7 +3284,7 @@
                         for (let k = 0; k < 6; k++) {   // 面の2三角形を連続で書く＝斜線が出ない
                             const idx = cubeIndices[base + k], v = cv[idx], bt = brightOf(cellDist[ci][idx]) * qs;   // 奥行きの明暗 × 面の向きの陰影
                             mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
-                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = qa;   // 奥ほど暗く＝遠近感。裏向きの面は透明に
+                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = Math.min(1, qa * cellFocus(3, ci).face);   // 奥ほど暗く＝遠近感。裏向きの面は透明に
                         }
                     }
                     mergedFaces3D.geometry.attributes.position.needsUpdate = true;
@@ -2903,6 +3389,13 @@
             }
 
             if (camHome) stepCamHome(_dt);
+            if (xpAnim) {   // 分解：ボタンのアニメ（時間差・加速度つき）
+                xpAnim.t += _dt;
+                if (xpAnim.t >= xpAnim.total) { explodeRaw = xpAnim.to; xpAnim = null; explodeTarget = null; }
+                syncExplodeUI(); updateMorphingGeometry(animationProgress);
+            }
+            stepXpCount(_dt);
+            applyExplodeZoom();
             if (pingPong) {
                 // スピンや、角度を動かす移行アニメが始まったら往復は止める（同じ角度を取り合わない）
                 const tw = axisTween, twAngles = tw && (tw.tx !== tw.fx || tw.ty !== tw.fy || tw.tz !== tw.fz || tw.t3);
@@ -3080,7 +3573,7 @@
                 }
             }
             // 何も動いていなければ、ここで終わり（描き直さない＝省エネ）
-            const busy = animationMode !== 0 || axisTween !== null || cycleMode || pingPong !== null || camHome !== null || anySpin() || autoRotateCamera || camMoved;
+            const busy = animationMode !== 0 || axisTween !== null || cycleMode || pingPong !== null || camHome !== null || anySpin() || autoRotateCamera || camMoved || explodeTarget !== null || xpCount.active;
             if (!busy && _renderFrames <= 0) return;
             if (_renderFrames > 0) _renderFrames--;
             // カメラを回している最中も「手前=はっきり/奥=ダーク」を毎フレーム再評価する
@@ -3094,6 +3587,7 @@
                 if (scene5D.fog && scene3D.fog) scene5D.fog.density = scene3D.fog.density;
                 renderer5D.render(scene5D, camera5D);
             }
+            updateXpLabels(show2D, show3D, show5D);   // 分解の番号ラベル
         }
 
         // リセット系（リセットボタン・O キー・各面の ↺）の共通処理。
@@ -3637,7 +4131,9 @@
                 { id: 'zwVizAll', label: 'Z-W のときの立方体の表現 全部オン・オフ', short: 'ZW表現', def: 'Q', run: clickSel('#zwviz-all') },
                 { id: 'left3d', label: '立方体の3D回転 切替（X-Yだけ⇔全部）', short: '立方体3D', def: 'Shift+D', run: clickSel('#left3d-btn') },
                 { id: 'dim5', label: '5次元β 切替（立方体×超立方体 ⇔ 超立方体×5次元超立方体）', short: '5次元β', def: 'Shift+5', run: clickSel('#dim5-btn') },
-                { id: 'spin_p5', label: 'オート回転 5次元だけの4面（5次元β）', short: 'オート5D', def: 'Shift+6', run: clickSel('#p5-spin-all') }
+                { id: 'spin_p5', label: 'オート回転 5次元だけの4面（5次元β）', short: 'オート5D', def: 'Shift+6', run: clickSel('#p5-spin-all') },
+                { id: 'explode', label: '分解（バラす⇔くっつける）', short: '分解', def: 'Shift+E', run: clickSel('#explode-btn') },
+                { id: 'count', label: '分解して1個ずつ数える', short: '数える', def: 'Shift+C', run: clickSel('#count-btn') }
             ];
             const SC_STORE = 'hypercubeShortcuts', SC_FILE = 'hypercube-shortcuts.csv';
             let keyMap = {};
@@ -4035,18 +4531,18 @@
 
             // --- 表示設定モーダル（透明度・奥の暗さ・手前の明るさ・線の濃さ） ---
             const VC_STORE = 'hypercubeViewCfg';
-            const VC_DEF = { op: 0.26, fb: 0.26, far: 0.6, nb: 1.25, fc: 1.4, en: 0.80, ef: 0.17, cw: 4.5, bf: 0.12, sh: 0.6 };
+            const VC_DEF = { op: 0.26, net: 0.85, far: 0.6, nb: 1.25, fc: 1.4, en: 0.80, ef: 0.17, cw: 4.5, bf: 0.12, sh: 0.6 };
             function applyViewCfg(c) {
-                cfgFaceOpacity = c.op; cfgFlatOpacityBoost = c.fb; cfgFarDim = c.far; cfgNearBright = c.nb;
+                cfgFaceOpacity = c.op; cfgNetOpacity = c.net; cfgFarDim = c.far; cfgNearBright = c.nb;
                 cfgFlatContrast = c.fc; cfgEdgeNear = c.en; cfgEdgeFar = c.ef; CAMERA_W = c.cw; cfgBackFade = c.bf; cfgFaceShade = c.sh;
                 const set = (id, v, dec) => { const el = document.getElementById(id + '-val'); if (el) el.textContent = (+v).toFixed(dec); const sl = document.getElementById(id); if (sl) sl.value = v; };
-                set('vc-op', c.op, 2); set('vc-fb', c.fb, 2); set('vc-far', c.far, 2); set('vc-nb', c.nb, 2);
+                set('vc-op', c.op, 2); set('vc-fb', c.net, 2); set('vc-far', c.far, 2); set('vc-nb', c.nb, 2);
                 set('vc-fc', c.fc, 2); set('vc-en', c.en, 2); set('vc-ef', c.ef, 2); set('vc-cw', c.cw, 1); set('vc-bf', c.bf, 2); set('vc-sh', c.sh, 2);
                 try { updateMorphingGeometry(animationProgress); } catch (_) {}
             }
-            function readViewCfg() { return { op: cfgFaceOpacity, fb: cfgFlatOpacityBoost, far: cfgFarDim, nb: cfgNearBright, fc: cfgFlatContrast, en: cfgEdgeNear, ef: cfgEdgeFar, cw: CAMERA_W, bf: cfgBackFade, sh: cfgFaceShade }; }
+            function readViewCfg() { return { op: cfgFaceOpacity, net: cfgNetOpacity, far: cfgFarDim, nb: cfgNearBright, fc: cfgFlatContrast, en: cfgEdgeNear, ef: cfgEdgeFar, cw: CAMERA_W, bf: cfgBackFade, sh: cfgFaceShade }; }
             function saveViewCfg() { try { localStorage.setItem(VC_STORE, JSON.stringify(readViewCfg())); } catch (_) {} }
-            [['vc-op', 'op'], ['vc-fb', 'fb'], ['vc-far', 'far'], ['vc-nb', 'nb'], ['vc-fc', 'fc'], ['vc-en', 'en'], ['vc-ef', 'ef'], ['vc-cw', 'cw'], ['vc-bf', 'bf'], ['vc-sh', 'sh']].forEach(([id, key]) => {
+            [['vc-op', 'op'], ['vc-fb', 'net'], ['vc-far', 'far'], ['vc-nb', 'nb'], ['vc-fc', 'fc'], ['vc-en', 'en'], ['vc-ef', 'ef'], ['vc-cw', 'cw'], ['vc-bf', 'bf'], ['vc-sh', 'sh']].forEach(([id, key]) => {
                 const sl = document.getElementById(id);
                 sl.addEventListener('input', () => {
                     const c = readViewCfg(); c[key] = parseFloat(sl.value); applyViewCfg(c); saveViewCfg();
@@ -5005,6 +5501,78 @@
             document.getElementById('seri-slider').addEventListener('keydown', e => e.stopPropagation());   // ←→ キーで微調整（ショートカットにしない）
             syncSeriBtns();
 
+            // ===== 分解：スライダー＝その場で離す量、ボタン＝なめらかにバラす／くっつける、数える＝バラして1個ずつ =====
+            const xpSlider = document.getElementById('explode-slider');
+            xpSlider.addEventListener('input', () => { xpAnim = null; explodeTarget = null; if (xpCount.active) endXpCount(); setExplodeRaw(parseFloat(xpSlider.value)); });
+            xpSlider.addEventListener('keydown', e => e.stopPropagation());
+            document.getElementById('explode-btn').addEventListener('click', () => {
+                const apart = explodeTarget !== null ? explodeTarget === 1 : explodeRaw >= 0.5;
+                if (apart && xpCount.active) endXpCount();
+                startXpAnim(apart ? 0 : 1); syncExplodeUI(); requestRender(10);
+            });
+            document.getElementById('count-btn').addEventListener('click', () => { if (xpCount.active) endXpCount(); else startXpCount(); });
+            syncExplodeUI();
+            // 時間差の切替（文字＝押すとこうなる、色＝今 ON か）
+            const xpStagBtn = document.getElementById('explode-stag-btn');
+            const syncXpStag = () => {
+                xpStagBtn.textContent = '→ バラす時間差: ' + (xpStagger ? 'OFF' : 'ON');
+                xpStagBtn.classList.toggle('bg-amber-900/50', xpStagger); xpStagBtn.classList.toggle('border-amber-400/70', xpStagger); xpStagBtn.classList.toggle('text-amber-100', xpStagger);
+                xpStagBtn.classList.toggle('bg-slate-800/80', !xpStagger); xpStagBtn.classList.toggle('border-slate-700', !xpStagger); xpStagBtn.classList.toggle('text-slate-400', !xpStagger);
+            };
+            xpStagBtn.addEventListener('click', () => {
+                xpStagger = !xpStagger; syncXpStag();
+                try { localStorage.setItem('hypercubeExplodeStagger', xpStagger ? '1' : '0'); } catch (_) {}
+            });
+            syncXpStag();
+            // 高次元マップの切替（文字＝押すとこうなる、色＝今 ON か）
+            const xpMapBtn = document.getElementById('explode-map-btn');
+            const syncXpMap = () => {
+                xpMapBtn.textContent = '→ 高次元マップ: ' + (xpMap ? 'OFF' : 'ON');
+                xpMapBtn.classList.toggle('bg-violet-900/50', xpMap); xpMapBtn.classList.toggle('border-violet-400/70', xpMap); xpMapBtn.classList.toggle('text-violet-100', xpMap);
+                xpMapBtn.classList.toggle('bg-slate-800/80', !xpMap); xpMapBtn.classList.toggle('border-slate-700', !xpMap); xpMapBtn.classList.toggle('text-slate-400', !xpMap);
+            };
+            xpMapBtn.addEventListener('click', () => {
+                xpMap = !xpMap; syncXpMap();
+                try { localStorage.setItem('hypercubeExplodeMap', xpMap ? '1' : '0'); } catch (_) {}
+                updateMorphingGeometry(animationProgress); requestRender(10);
+            });
+            syncXpMap();
+            // 離す距離のスライダー
+            const xpDistEl = document.getElementById('explode-dist'), xpDistVal = document.getElementById('explode-dist-val');
+            const syncXpDist = () => { xpDistEl.value = xpDistK; xpDistVal.textContent = (Math.round(xpDistK * 100) / 100) + '倍'; };
+            xpDistEl.addEventListener('input', () => {
+                xpDistK = parseFloat(xpDistEl.value); syncXpDist();
+                try { localStorage.setItem('hypercubeExplodeDist', String(xpDistK)); } catch (_) {}
+                updateMorphingGeometry(animationProgress); requestRender(10);
+            });
+            xpDistEl.addEventListener('keydown', e => e.stopPropagation());
+            syncXpDist();
+
+            // ===== 手前と奥の辺の強調：オン・オフと色（このブラウザに覚える） =====
+            const ehBtn = document.getElementById('eh-toggle'), ehNear = document.getElementById('eh-near'), ehFar = document.getElementById('eh-far');
+            const saveEdgeHi = () => { try { localStorage.setItem('hypercubeEdgeHi', JSON.stringify(edgeHi)); } catch (_) {} };
+            function syncEdgeHiUI() {
+                ehBtn.textContent = '→ 辺の強調: ' + (edgeHi.on ? 'OFF' : 'ON');   // 押すとこうなる
+                ehBtn.classList.toggle('bg-fuchsia-900/40', edgeHi.on); ehBtn.classList.toggle('border-fuchsia-400/60', edgeHi.on); ehBtn.classList.toggle('text-fuchsia-100', edgeHi.on);
+                ehBtn.classList.toggle('bg-slate-800', !edgeHi.on); ehBtn.classList.toggle('border-slate-700', !edgeHi.on); ehBtn.classList.toggle('text-slate-400', !edgeHi.on);
+                ehNear.value = edgeHi.near; ehFar.value = edgeHi.far;
+                [['near', edgeHi.widthNear], ['far', edgeHi.widthFar]].forEach(([side, w]) => {
+                    const sl = document.getElementById('eh-width-' + side); if (sl && document.activeElement !== sl) sl.value = w;
+                    document.getElementById('eh-width-' + side + '-val').textContent = (+w).toFixed(1).replace(/\.0$/, '') + 'px';
+                });
+            }
+            const ehApply = () => { saveEdgeHi(); syncEdgeHiUI(); updateMorphingGeometry(animationProgress); requestRender(10); };
+            ehBtn.addEventListener('click', () => { edgeHi.on = !edgeHi.on; ehApply(); });
+            ehNear.addEventListener('input', () => { edgeHi.near = ehNear.value; edgeHi.on = true; ehApply(); });   // 色を選んだら強調もオンに
+            ehFar.addEventListener('input', () => { edgeHi.far = ehFar.value; edgeHi.on = true; ehApply(); });
+            document.getElementById('eh-reset').addEventListener('click', () => { edgeHi.near = EH_DEF.near; edgeHi.far = EH_DEF.far; ehApply(); });
+            [['near', 'widthNear'], ['far', 'widthFar']].forEach(([side, key]) => {
+                const sl = document.getElementById('eh-width-' + side);
+                sl.addEventListener('input', e => { edgeHi[key] = parseFloat(e.target.value); edgeHi.on = true; ehApply(); });   // 太さを変えたら強調もオンに
+                sl.addEventListener('keydown', e => e.stopPropagation());
+            });
+            syncEdgeHiUI();
+
             // 読み込み時の状態へ完全に戻す。ページを読み直すのが最も確実
             // （カメラの向き・root の回転・スピン・OrbitControls の内部状態まで全部クリアされる）。
             document.getElementById('reset-all-btn').addEventListener('click', () => location.reload());
@@ -5047,6 +5615,7 @@
                 }
             }
 
+            setFatResolution();   // 太い線の太さはピクセルで決まるので、画面の大きさに合わせる
             const container5D = document.getElementById('canvas-4d5d');
             if (container5D && renderer5D && camera5D) {
                 const w = container5D.clientWidth, h = container5D.clientHeight;
