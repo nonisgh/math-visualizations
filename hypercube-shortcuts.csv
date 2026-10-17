@@ -1,6 +1,11 @@
 id,label,key
 both,表示トグル（どっちも⇔超立方体のみ）,1
 panel,操作パネル 表示/非表示,Space
+tab_fold,タブ：折りたたみ,Shift+1
+tab_rot,タブ：回転,Shift+2
+tab_view,タブ：見え方,Shift+3
+tab_pts,タブ：点,Shift+4
+tab_next,タブ：次へ（順に切り替え）,N
 allSpins,W ON/OFF（X-W・Y-W・Z-W）,Enter
 fold,組み上げる,F
 unfold,展開する,U
