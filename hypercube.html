@@ -471,6 +471,7 @@
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <label class="flex items-center gap-1 text-slate-400">片道<input id="pp-sec" type="number" min="0.5" max="60" step="0.5" value="3" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 font-mono text-right">秒</label>
                     <button id="pp-swap" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="A と B を入れ替える">A⇄B 入替</button>
+                    <button id="pp-opposite" class="px-2 py-1 rounded bg-slate-800 border border-cyan-600/60 text-cyan-200 hover:bg-slate-700" title="B に A の正反対（全く裏返し：4次元で全部の向きを反対にした角度）を入れる。X-W−180°、180°−Y-W、Z-W−180°、3D はそのまま">B ← A の裏返し</button>
                 </div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-slate-400">動き方</span>
@@ -3861,6 +3862,16 @@
             }));
             syncEaseUI();
             document.getElementById('pp-swap').addEventListener('click', () => { const t = ppSlot.A; ppSlot.A = ppSlot.B; ppSlot.B = t; renderPPSlots(); if (pingPong && !pingPong.once) startPingPong(ppSlot.A, ppSlot.B, ppSec()); });
+            // B に A の正反対（全く裏返し＝4次元で全部の向きを反対に）を入れる。
+            //   どんな角度でも X-W−180°、180°−Y-W、Z-W−180° で全部の向きが反対になる（3D の X-Y・X-Z・Y-Z はそのまま）
+            document.getElementById('pp-opposite').addEventListener('click', () => {
+                const w = v => { let x = ((v + 180) % 360 + 360) % 360 - 180; if (x <= -180) x += 360; return Math.round(x * 100) / 100; };
+                const A = ppSlot.A;
+                ppSlot.B = { a: w(A.a - 180), b: w(180 - A.b), c: w(A.c - 180), xy: A.xy || 0, xz: A.xz || 0, yz: A.yz || 0 };
+                renderPPSlots();
+                if (pingPong && !pingPong.once) startPingPong(ppSlot.A, ppSlot.B, ppSec());
+                ppSt('B に A の正反対（全く裏返し）を入れました');
+            });
             document.getElementById('pp-once').addEventListener('click', () => {
                 const ab = ppOnceDir === 'AB';
                 startPingPong(ab ? ppSlot.A : ppSlot.B, ab ? ppSlot.B : ppSlot.A, ppSec(), true);
