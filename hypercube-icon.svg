@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#151b45"/><stop offset="1" stop-color="#050816"/></linearGradient>
+<radialGradient id="gl" cx="0.52" cy="0.48" r="0.55"><stop offset="0" stop-color="#8b5cf6" stop-opacity="0.42"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient>
+<linearGradient id="ln" x1="0.1" y1="0.95" x2="0.9" y2="0.05"><stop offset="0" stop-color="#38bdf8"/><stop offset="0.55" stop-color="#a78bfa"/><stop offset="1" stop-color="#f5d0fe"/></linearGradient>
+</defs>
+<rect width="64" height="64" rx="14" fill="url(#bg)"/>
+<rect width="64" height="64" rx="14" fill="url(#gl)"/>
+<g fill="none" stroke="url(#ln)" stroke-linecap="round" stroke-linejoin="round">
+<path d="M13 26L23.64 29.64M37 26L34.2 29.64M37 50L34.2 40.2M13 50L23.64 40.2M27 15L29.8 24.8M51 15L40.36 24.8M51 39L40.36 35.36M27 39L29.8 35.36" stroke-width="1.15" opacity="0.6"/>
+<path d="M23.64 29.64L34.2 29.64M34.2 29.64L34.2 40.2M34.2 40.2L23.64 40.2M23.64 40.2L23.64 29.64M29.8 24.8L40.36 24.8M40.36 24.8L40.36 35.36M40.36 35.36L29.8 35.36M29.8 35.36L29.8 24.8M23.64 29.64L29.8 24.8M34.2 29.64L40.36 24.8M34.2 40.2L40.36 35.36M23.64 40.2L29.8 35.36" stroke-width="1.5" opacity="0.95"/>
+<path d="M13 26L37 26M37 26L37 50M37 50L13 50M13 50L13 26M27 15L51 15M51 15L51 39M51 39L27 39M27 39L27 15M13 26L27 15M37 26L51 15M37 50L51 39M13 50L27 39" stroke-width="2.3"/>
+</g>
+<circle cx="37" cy="26" r="4.6" fill="#ff44dd" opacity="0.28"/>
+<circle cx="37" cy="26" r="2.6" fill="#ff44dd"/>
+<circle cx="29.8" cy="35.36" r="3.6" fill="#33e5ff" opacity="0.28"/>
+<circle cx="29.8" cy="35.36" r="1.9" fill="#33e5ff"/>
+</svg>
