@@ -23,6 +23,7 @@ persp,投影 切替（平行投影 ⇔ 遠近投影）,J
 pin,点固定 ON/OFF,I
 loop,往復再生 ON/OFF,L
 pingPong,角度の往復（A ⇄ B）スタート/ストップ,G
+ppOnce,角度の片道（A→B ／ B→A を交互に1回）,Shift+G
 xparent,面透過 切替（立体感⇔正確）,V
 zoom,自動ズーム ON/OFF,3
 mesh,メッシュ表示,M
