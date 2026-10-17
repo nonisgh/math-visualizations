@@ -246,7 +246,7 @@
             <button id="snap-left-btn" class="flex items-center gap-1 px-2 py-1 bg-slate-800 border border-emerald-500/50 text-emerald-200 rounded-lg hover:bg-slate-700 transition shrink-0" title="Z 軸を画面に垂直（視線方向）に立て直す。回転は止めない。z を傾ける Z-W・X-Z・Y-Z を瞬時に0へ戻してその回転だけ止め、カメラも正面へ戻す。投影とカメラの遠さは「平行投影／遠近投影」の切替に合わせる。X-W・Y-W・X-Y は回り続ける＝左の立方体の動きはそのまま"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i>補正</button>
             <button id="link-reset-btn" class="whitespace-nowrap px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="回転を止めて、6面すべてを0に戻し、W を手前（視線方向）へ向けた正面の形にする（カメラの遠さは「平行投影／遠近投影」の切替に合わせる。O キーでも同じ）。全部を読み込み時に戻すのは左の「初期化」">リセット</button>
             <span class="text-slate-600">|</span>
-            <button id="persp-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition shrink-0" title="投影の切替。平行投影＝W の回転・面/辺/頂点プリセットがきれいな正多角形（既定）。遠近投影＝左右とも奥行きが出る。平行投影を選んでいても、折りたたみ中や W の回転が0のときは遠近で表示（平行だと内と外の立方体が重なって中が見えなくなるため）">平行投影</button>
+            <button id="persp-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition shrink-0" title="投影の切替。平行投影＝W の回転・面/辺/頂点プリセットがきれいな正多角形（既定）。遠近投影＝左右とも奥行きが出る。平行投影を選んでいても、W の回転が0のときは遠近で表示（平行だと内と外の立方体が重なって中が見えなくなり、折りたたみも潰れて見えないため）">平行投影</button>
         </div>
     </div>
 
@@ -1790,13 +1790,13 @@
                 updateMorphingGeometry(animationProgress);
             }
 
-            if (animationMode !== 0 && (parallel4D || projAnim !== null)) ensureProjection();   // 折りたたみ中は遠近へ（平行だと潰れて見えない）
+            if (animationMode !== 0) ensureProjection();   // 折りたたみ中も投影を見直す（W の回転が0なら遠近、角度が付いていれば平行のまま）
             if (animationMode === 1) {
                 animationProgress += baseStep;
                 if (animationProgress >= 1.0) {
                     animationProgress = 1.0;
                     animationMode = 0;
-                    ensureProjection();   // 組み上がったら、平行／遠近の切替どおりに戻す（W の回転が0なら遠近のまま）
+                    ensureProjection();   // 組み上がったら投影を見直す
                 }
                 updateMorphingGeometry(animationProgress);
             } else if (animationMode === -1) {
@@ -1994,10 +1994,11 @@
         //   回転を始めたとき・補正・優先の切替で呼び、今の投影を 0.5秒でなめらかにそろえる（角度は触らない＝回転は止まらない）。
         // ただし平行投影は w を落とすだけなので、W の回転（X-W・Y-W・Z-W）が全部0のときは内と外の立方体がぴったり重なって
         //   「中の立方体」が見えなくなり、折りたたみ中は w へ倒れる胞が中心へ潰れてアニメが見えなくなる。
-        //   なので「平行投影」を選んでいても、折りたたみ中・W の回転が0（で W の自動回転もしていない）のときは遠近にする。
+        //   なので「平行投影」を選んでいても、W の回転が0（で W の自動回転もしていない）ときは遠近にする。
+        //   W の角度が付いていれば（等角図など）折りたたみ中も平行投影のまま＝胞が均等にゆがんだ正しい等角図の展開図になる。
         const wTurned = () => Math.abs(wrapPi(linkAngleX)) > 0.02 || Math.abs(wrapPi(linkAngleY)) > 0.02 || Math.abs(wrapPi(soloAngleZW)) > 0.02;
         const wSpinning = () => linkSpin || spinX || spinY || soloSpinZW;
-        const wantParallel = () => !cubePersp && animationMode === 0 && animationProgress >= 0.999 && (wTurned() || wSpinning());
+        const wantParallel = () => !cubePersp && (wTurned() || wSpinning());
         function ensureProjection() {
             if (cycleMode) return;
             const target = wantParallel() ? 1 : 0;
@@ -2188,7 +2189,7 @@
             slider.addEventListener('input', (e) => {
                 animationMode = 0;
                 animationProgress = parseFloat(e.target.value);
-                ensureProjection();   // 折りたたみ途中は遠近（平行だと胞が中心へ潰れて見えない）
+                ensureProjection();   // 投影を見直す（W の回転が0なら遠近）
                 updateMorphingGeometry(animationProgress);
             });
 
