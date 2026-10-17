@@ -1739,14 +1739,27 @@
         // 混色マーカーは2点の中点に置く（画面上で中央にまとまって見える）。
         // 一覧で片方を隠しているとき・「重なったら混色」OFF のときは混ぜない（見えている色のまま）。
         function applyMarkerBlend(nearObj, farObj, blendObj, camera, thr) {
-            const sn = fixedMarks.near, sf = fixedMarks.far;
-            const overlapping = fixedMarks.glue && sn && sf && markersOverlap(nearObj, farObj, camera, thr);
-            nearObj.visible = sn && !overlapping; farObj.visible = sf && !overlapping;
-            blendObj.visible = overlapping;
-            if (overlapping) blendObj.position.set(
-                (nearObj.position.x + farObj.position.x) / 2,
-                (nearObj.position.y + farObj.position.y) / 2,
-                (nearObj.position.z + farObj.position.z) / 2);
+            // 重なりの乗算：水色の点が「ここは水色」の印（ステンシル）を付け、ピンクは印のないところは普通に、
+            //   印のある重なった部分だけ水色に掛け合わせて描く（ピンク×水色＝青）。重なっていない部分は元の色のまま。
+            //   暗い背景の上では普通の乗算だと点そのものが黒くなるので、重なった部分だけに効かせる
+            const sn = fixedMarks.near, sf = fixedMarks.far, mul = !!(fixedMarks.glue && sn && sf);
+            nearObj.visible = sn; farObj.visible = sf; blendObj.visible = false;   // 前の「青紫の1点にまとめる」は使わない
+            setMarkerMultiply(nearObj, farObj, mul);
+        }
+        function setMarkerMultiply(nearObj, farObj, on) {
+            if (nearObj._mulOn === on) return; nearObj._mulOn = on;
+            const fm = farObj.material, nm = nearObj.material;
+            fm.stencilWrite = on; fm.stencilRef = 1; fm.stencilFunc = THREE.AlwaysStencilFunc; fm.stencilZPass = THREE.ReplaceStencilOp;
+            nm.stencilWrite = on; nm.stencilRef = 1; nm.stencilFunc = THREE.NotEqualStencilFunc;
+            nm.stencilFail = nm.stencilZFail = nm.stencilZPass = THREE.KeepStencilOp;
+            if (!nearObj._mulTwin) {   // 重なった部分だけ乗算で描く分身（ピンクと同じ形・同じ場所）
+                const tm = new THREE.MeshBasicMaterial({ color: nm.color.clone(), transparent: true, depthTest: false, blending: THREE.MultiplyBlending });
+                tm.stencilWrite = true; tm.stencilRef = 1; tm.stencilFunc = THREE.EqualStencilFunc;
+                tm.stencilFail = tm.stencilZFail = tm.stencilZPass = THREE.KeepStencilOp;
+                const tw = new THREE.Mesh(nearObj.geometry, tm); tw.renderOrder = nearObj.renderOrder;
+                nearObj.add(tw); nearObj._mulTwin = tw;
+            }
+            nearObj._mulTwin.visible = on;
         }
 
         // 今の投影の混ざり具合（0＝遠近、1＝平行）。超立方体と立方体で同じ値を使う
@@ -3378,14 +3391,14 @@
                 });
                 const glue = document.createElement('button');
                 glue.className = 'w-full text-left px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700 text-[10px] ' + (fixedMarks.glue ? 'text-violet-200' : 'text-slate-400');
-                glue.innerHTML = '→ 重なったら混色: <b>' + (fixedMarks.glue ? 'OFF' : 'ON') + '</b>　<span class="text-slate-500">' + (fixedMarks.glue ? '重なってもそのままに' : '重なると青紫の1点に') + '</span>';
-                glue.title = '画面上でピンクと水色が重なったとき、2つを隠して青紫の1点にまとめるか（片方を隠しているときは混ぜません）';
+                glue.innerHTML = '→ 重なりの乗算: <b>' + (fixedMarks.glue ? 'OFF' : 'ON') + '</b>　<span class="text-slate-500">' + (fixedMarks.glue ? 'ピンクが上に重なるだけに' : '重なった部分の色を掛け合わせる') + '</span>';
+                glue.title = 'ピンクと水色が重なった部分だけ、色を掛け合わせて（乗算）描くか。重なっていない部分は元の色のまま（片方を隠しているときは掛け合わせません）';
                 glue.addEventListener('click', () => { fixedMarks.glue = !fixedMarks.glue; saveFixedMarks(); renderPtList(); updateMorphingGeometry(animationProgress); });
                 list.appendChild(glue);
                 // ピンク・水色の大きさ（2点セットで変わる。混色の青紫も同じ倍率）
                 const szRow = document.createElement('label');
                 szRow.className = 'flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] text-slate-400';
-                szRow.title = 'ピンクと水色の大きさ（2点をセットで変えます。立方体のピンク・水色と、重なったときの青紫も同じ倍率）';
+                szRow.title = 'ピンクと水色の大きさ（2点をセットで変えます。立方体のピンク・水色も同じ倍率）';
                 szRow.innerHTML = '<span class="shrink-0">ピンク・水色の大きさ</span>';
                 const sz = document.createElement('input'); sz.type = 'range'; sz.min = '0.3'; sz.max = '2'; sz.step = '0.05'; sz.value = String(fixedMarks.size || 1);
                 sz.className = 'flex-1 min-w-0 accent-fuchsia-400';
