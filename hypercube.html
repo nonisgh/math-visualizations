@@ -439,6 +439,7 @@
                     同じ角度を立方体と超立方体に同時にかけています。<b class="text-cyan-300">立方体はただ回るだけ</b>。
                     <b class="text-purple-300">超立方体は内側の胞と外側の胞が入れ替わり、裏返るように見えます</b>。
                     操作は同じで、1次元違うだけです。<b class="text-cyan-300">立方体は直接ドラッグして回せます</b>（超立方体もついてきます）。
+                    <b class="text-purple-300">超立方体もドラッグで回せます</b>（つかんだ形を画面の縦横の軸まわりに回す。Option+ドラッグで画面の中でひねる。iPad は2本指でひねる）。回した向きは X-Y・X-Z・Y-Z の数字に出ます。手で回した X-Y は立方体には伝わりません。
                 </p>
 
                 <p class="text-[10px] text-slate-400 leading-relaxed">
@@ -633,6 +634,9 @@
         //   4D回転（右の X-W・Y-W・Z-W／左の X-Z・Y-Z）のあとにかけるので、できた形をそのまま3Dで転がす動きになる。
         //   ※ 左の X-Z・Y-Z スライダー（右の X-W・Y-W と対応）とは役割が別：あちらは「次元を1つ上げた同じ操作」、こちらは見た目を転がすだけ。
         let rotXY = 0, rotXZ = 0, rotYZ = 0;
+        // 超立方体を手で回して生まれた X-Y の分。立方体（X-Yだけのとき）はこの分を無視する＝手で回しても立方体は動かない。
+        // スライダー・プリセット・リセットで X-Y を決めたときは 0 に戻す（立方体も同じ角度にそろう）。自動回転の X-Y は両方に効く。
+        let xyManualOff = 0;
         let spinXY = false, spinXZ = false, spinYZ = false;
         // x,y,z に X-Y → X-Z → Y-Z の順で3D回転をかける（左右共通）
         function rot3D(x, y, z) {
@@ -641,13 +645,53 @@
             if (rotYZ !== 0) { const c = Math.cos(rotYZ), s = Math.sin(rotYZ); const ny = y * c - z * s, nz = y * s + z * c; y = ny; z = nz; }
             return [x, y, z];
         }
+        // --- 手で回す：画面の軸まわりの回転を今の向きにかけ、X-Y → X-Z → Y-Z の順の3つの角度に分け直す ---
+        // 向き R = YZ(γ)・XZ(β)・XY(α)。R[0][2] = −sinβ、R[0][0]・R[0][1] から α、R[1][2]・R[2][2] から γ。
+        // 解は2通り（α+π, π−β, γ+π）あるので、今の角度に近いほうを選ぶ（数字が飛ばない）。β=±90° のときは α を今のままにして γ を求める。
+        function decomposeRot3D(cols, prev) {
+            const R = (i, j) => cols[j][i];
+            const b0 = Math.asin(Math.max(-1, Math.min(1, -R(0, 2)))), cb = Math.cos(b0);
+            let a0, g0;
+            if (Math.abs(cb) > 1e-6) { a0 = Math.atan2(-R(0, 1), R(0, 0)); g0 = Math.atan2(-R(1, 2), R(2, 2)); }
+            else { a0 = prev[0]; g0 = (-R(0, 2) > 0) ? a0 - Math.atan2(R(1, 0), R(1, 1)) : Math.atan2(R(1, 0), R(1, 1)) - a0; }
+            const s1 = [a0, b0, g0], s2 = [a0 + Math.PI, Math.PI - b0, g0 + Math.PI];
+            const dist = sol => sol.reduce((t, v, i) => t + Math.abs(wrapPi(v - prev[i])), 0);
+            return (dist(s1) <= dist(s2) ? s1 : s2).map(wrapPi);
+        }
+        // カメラの軸（0=右, 1=上, 2=手前）を、超立方体（Root3D）の座標で
+        function camAxisInRoot3D(col) {
+            camera3D.updateMatrixWorld();
+            const m = camera3D.matrixWorld.elements, v = new THREE.Vector3(m[col * 4], m[col * 4 + 1], m[col * 4 + 2]).normalize();
+            const r3 = scene3D.getObjectByName('Root3D');
+            if (r3) { const q = new THREE.Quaternion(); r3.getWorldQuaternion(q); v.applyQuaternion(q.invert()); }
+            return v;
+        }
+        function applyRot3DIncrement(q) {
+            const prev = [rotXY, rotXZ, rotYZ];
+            const cols = [[1, 0, 0], [0, 1, 0], [0, 0, 1]].map(e => { const v = new THREE.Vector3(...rot3D(e[0], e[1], e[2])).applyQuaternion(q); return [v.x, v.y, v.z]; });
+            const r = decomposeRot3D(cols, prev);
+            rotXY = r[0]; rotXZ = r[1]; rotYZ = r[2];
+            xyManualOff = wrapPi(xyManualOff + wrapPi(rotXY - prev[0]));   // 手で回した X-Y の分は立方体が無視する
+        }
+        function turn3D(h, v) {   // h：画面の縦の軸まわり（左右ドラッグ）、v：画面の横の軸まわり（上下ドラッグ）
+            const q = new THREE.Quaternion().setFromAxisAngle(camAxisInRoot3D(1), h);
+            q.multiply(new THREE.Quaternion().setFromAxisAngle(camAxisInRoot3D(0), v));
+            applyRot3DIncrement(q);
+        }
+        function twist3D(t) { applyRot3DIncrement(new THREE.Quaternion().setFromAxisAngle(camAxisInRoot3D(2), t)); }   // 画面の中でひねる
+        function shapeCenterOnScreen() {   // 超立方体の中心の画面上の位置（Option+ドラッグのダイヤルの中心）
+            const r3 = scene3D.getObjectByName('Root3D'), rect = renderer3D.domElement.getBoundingClientRect();
+            const p = new THREE.Vector3(); if (r3) p.setFromMatrixPosition(r3.matrixWorld); p.project(camera3D);
+            return { x: rect.left + (p.x + 1) / 2 * rect.width, y: rect.top + (1 - p.y) / 2 * rect.height };
+        }
         // 左の立方体の3D回転の効かせ方。false（標準）＝左は X-Y だけ（左にとっての「自分の平面の回転」）、
         //   true＝X-Y・X-Z・Y-Z すべて（左右がそろって同じように転がる）。
         let leftFull3D = false;
         const anySpin = () => linkSpin || spinX || spinY || soloSpinZW || spinXY || spinXZ || spinYZ;
         function rot3DLeft(x, y, z) {
             if (leftFull3D) return rot3D(x, y, z);
-            if (rotXY !== 0) { const c = Math.cos(rotXY), s = Math.sin(rotXY); const nx = x * c - y * s, ny = x * s + y * c; x = nx; y = ny; }
+            const a = rotXY - xyManualOff;   // 手で回した X-Y の分は立方体には伝えない
+            if (a !== 0) { const c = Math.cos(a), s = Math.sin(a); const nx = x * c - y * s, ny = x * s + y * c; x = nx; y = ny; }
             return [x, y, z];
         }
         const allW = () => (spinX || linkSpin) && (spinY || linkSpin) && soloSpinZW;
@@ -1183,26 +1227,42 @@
             controls3D.enableRotate = false;   // 右もドラッグで「超立方体そのもの」を回す（カメラは回さない）＝回した角度がスライダーの数字に出る
                                                // ホイール／ピンチのズーム・右ドラッグのパンはそのまま
 
-            // 右の超立方体をドラッグで回す：左右ドラッグ＝3D回転 X-Z、上下ドラッグ＝3D回転 Y-Z。
-            //   X-Y は左の立方体も一緒に回る面なので、手で回すときは使わない（左は止まったまま）。X-Y が動くのは自動回転のときだけ。
-            //   Shift+左右ドラッグ＝Z-W（左の立方体と同じ操作）。
-            let draggingR = false, rx = 0, ry = 0;
-            const ptrsR = new Set();
-            renderer3D.domElement.addEventListener('pointerdown', e => { ptrsR.add(e.pointerId); if (e.button !== 0 && e.pointerType === 'mouse') return; draggingR = ptrsR.size === 1; rx = e.clientX; ry = e.clientY; renderer3D.domElement.setPointerCapture(e.pointerId); });
+            // 超立方体をドラッグで回す：つかんだ形を、画面の縦の軸（左右ドラッグ）・横の軸（上下ドラッグ）のまわりに回す。
+            //   回したあとの向きから X-Y・X-Z・Y-Z の角度を逆算してスライダーの数字に出す（X-Y の成分が入れば X-Y も変わる）。
+            //   正面のままなら、左右ドラッグ＝X-Z、上下ドラッグ＝Y-Z（今までと同じ）。
+            //   Option(Alt)+ドラッグ＝画面の中でひねる（形の中心のまわりのダイヤル）。iPad は2本指でひねる。
+            //   手で回して生まれた X-Y は立方体には伝えない（xyManualOff）。Shift+左右ドラッグ＝Z-W（立方体と同じ操作）。
+            let draggingR = false, rx = 0, ry = 0, twistAng = null;
+            const ptrsR = new Set(), ptPosR = new Map();
+            renderer3D.domElement.addEventListener('pointerdown', e => {
+                ptrsR.add(e.pointerId); ptPosR.set(e.pointerId, { x: e.clientX, y: e.clientY }); twistAng = null;
+                if (e.button !== 0 && e.pointerType === 'mouse') return;
+                draggingR = ptrsR.size === 1; rx = e.clientX; ry = e.clientY;
+                try { renderer3D.domElement.setPointerCapture(e.pointerId); } catch (_) {}
+            });
             renderer3D.domElement.addEventListener('pointermove', e => {
+                if (ptPosR.has(e.pointerId)) ptPosR.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (ptrsR.size === 2 && e.pointerType === 'touch') {   // 2本指のひねり＝画面の中で回す
+                    const [p, q] = [...ptPosR.values()];
+                    const ang = Math.atan2(q.y - p.y, q.x - p.x);
+                    if (twistAng !== null) { stopCycle(); twist3D(-wrapPi(ang - twistAng)); ensureProjection(); updateLinkUI(); updateMorphingGeometry(animationProgress); }
+                    twistAng = ang; return;
+                }
                 if (!draggingR || ptrsR.size !== 1) return;
                 stopCycle();
                 const dx = e.clientX - rx, dy = e.clientY - ry;
                 if (e.shiftKey) soloAngleZW = wrapPi(soloAngleZW + dx * 0.01);
-                else {
-                    rotXZ = wrapPi(rotXZ - dx * 0.01);   // 右へドラッグ＝手前の面が右へ
-                    rotYZ = wrapPi(rotYZ + dy * 0.01);   // 下へドラッグ＝手前の面が下へ
+                else if (e.altKey) {   // Option+ドラッグ：形の中心のまわりを回すダイヤル
+                    const c = shapeCenterOnScreen();
+                    if (Math.hypot(e.clientX - c.x, e.clientY - c.y) > 12 && Math.hypot(rx - c.x, ry - c.y) > 12)
+                        twist3D(-wrapPi(Math.atan2(e.clientY - c.y, e.clientX - c.x) - Math.atan2(ry - c.y, rx - c.x)));
                 }
+                else turn3D(dx * 0.01, dy * 0.01);   // 右へドラッグ＝手前の面が右へ、下へドラッグ＝手前の面が下へ
                 rx = e.clientX; ry = e.clientY;
                 ensureProjection();
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
-            const endDragR = e => { ptrsR.delete(e.pointerId); draggingR = false; };
+            const endDragR = e => { ptrsR.delete(e.pointerId); ptPosR.delete(e.pointerId); twistAng = null; draggingR = false; };
             renderer3D.domElement.addEventListener('pointerup', endDragR);
             renderer3D.domElement.addEventListener('pointercancel', endDragR);
 
@@ -1964,13 +2024,13 @@
                 // 投影プリセット(平行投影)や移行中は実際の角度で測る。通常視点では角度0の素形で測る（回転で倍率不変）。
                 const useAng = parallel4D || cycleMode || inPreset;
                 const fAX = useAng ? linkAngleX : 0, fAY = useAng ? linkAngleY : 0;
-                const savedZW = soloAngleZW, saved3 = [rotXY, rotXZ, rotYZ];
+                const savedZW = soloAngleZW, saved3 = [rotXY, rotXZ, rotYZ], savedOff = xyManualOff;
                 if (!useAng) soloAngleZW = 0;
-                rotXY = 0; rotXZ = 0; rotYZ = 0;   // 3D回転は形の大きさを変えないので、外して測る（回転中にズームが脈打たない）
+                rotXY = 0; rotXZ = 0; rotYZ = 0; xyManualOff = 0;   // 3D回転は形の大きさを変えないので、外して測る（回転中にズームが脈打たない）
                 let lv = [], rv = [];
                 for (let i = 0; i < 6; i++) lv = lv.concat(calculateFoldedFaceVertices2D(i, progress, fAX, fAY));
                 for (let i = 0; i < 8; i++) rv = rv.concat(calculateFoldedCellVertices3D(i, progress, fAX, fAY));
-                soloAngleZW = savedZW; rotXY = saved3[0]; rotXZ = saved3[1]; rotYZ = saved3[2];
+                soloAngleZW = savedZW; rotXY = saved3[0]; rotXZ = saved3[1]; rotYZ = saved3[2]; xyManualOff = savedOff;
                 const r2 = scene2D.getObjectByName("Root2D"), r3 = scene3D.getObjectByName("Root3D");
                 if (r2) r2.scale.setScalar(fitL(span(lv)));
                 if (r3) r3.scale.setScalar(fitR(span(rv)));
@@ -2076,6 +2136,7 @@
                     if (axisTween.t3[0] !== axisTween.f3[0]) rotXY = axisTween.f3[0] + (axisTween.t3[0] - axisTween.f3[0]) * f;
                     if (axisTween.t3[1] !== axisTween.f3[1]) rotXZ = axisTween.f3[1] + (axisTween.t3[1] - axisTween.f3[1]) * f;
                     if (axisTween.t3[2] !== axisTween.f3[2]) rotYZ = axisTween.f3[2] + (axisTween.t3[2] - axisTween.f3[2]) * f;
+                    if (axisTween.alignXY) { if (axisTween.off0 === undefined) axisTween.off0 = xyManualOff; xyManualOff = axisTween.off0 * (1 - f); }   // 立方体の X-Y も同じ角度へ
                 }
                 if (axisTween.cam) {   // カメラ正対：右カメラ位置と画角を正面（遠距離）へ補間
                     const cm = axisTween.cam;
@@ -2122,6 +2183,7 @@
                         if (axisTween.t3[0] !== axisTween.f3[0]) rotXY = wrapPi(axisTween.t3[0]);
                         if (axisTween.t3[1] !== axisTween.f3[1]) rotXZ = wrapPi(axisTween.t3[1]);
                         if (axisTween.t3[2] !== axisTween.f3[2]) rotYZ = wrapPi(axisTween.t3[2]);
+                        if (axisTween.alignXY) xyManualOff = 0;
                     }
                     if (axisTween.cam) { camera3D.position.copy(axisTween.cam.p1); camera3D.fov = axisTween.cam.f1; camera3D.updateProjectionMatrix(); }
                     if (axisTween.camOrbit) { const co = axisTween.camOrbit; camera3D.position.copy(co.tgt).addScaledVector(co.to, co.r1); camera3D.fov = co.f1; camera3D.updateProjectionMatrix(); }
@@ -2208,7 +2270,7 @@
             axisTween = {
                 fx: linkAngleX, fy: linkAngleY, fz: soloAngleZW,
                 tx: z('x') ? 0 : linkAngleX, ty: z('y') ? 0 : linkAngleY, tz: z('zw') ? 0 : soloAngleZW,
-                f3: [rotXY, rotXZ, rotYZ], t3: [z('xy') ? 0 : rotXY, z('xz') ? 0 : rotXZ, z('yz') ? 0 : rotYZ],
+                f3: [rotXY, rotXZ, rotYZ], t3: [z('xy') ? 0 : rotXY, z('xz') ? 0 : rotXZ, z('yz') ? 0 : rotYZ], alignXY: z('xy'),
                 t: 0, dur: 0.6,
                 pj0: projFrom, pj1: 0,
                 onDone: () => { parallel4D = false; projAnim = null; }   // 到達後に「W 手前」の遠近投影を確定
@@ -2339,7 +2401,7 @@
             if (which === 'x') tx = q;
             else if (which === 'y') ty = q;
             else if (which === 'z') tz = q;
-            axisTween = { fx: linkAngleX, fy: linkAngleY, fz: soloAngleZW, tx, ty, tz, t: 0, dur: 0.6, f3: [rotXY, rotXZ, rotYZ], t3: [0, 0, 0] };   // 3D回転は0へ（どの状態からでも同じ見え方に）
+            axisTween = { fx: linkAngleX, fy: linkAngleY, fz: soloAngleZW, tx, ty, tz, t: 0, dur: 0.6, f3: [rotXY, rotXZ, rotYZ], t3: [0, 0, 0], alignXY: true };   // 3D回転は0へ（どの状態からでも同じ見え方に）
         }
 
         // 周回モードを止める。止めた瞬間の投影の混ざり具合を parallel4D に反映して見た目を連続させる。
@@ -3194,7 +3256,7 @@
                 const tw = {
                     fx: linkAngleX, fy: linkAngleY, fz: soloAngleZW,
                     tx: linkAngleX + wrapPi(a - linkAngleX), ty: linkAngleY + wrapPi(b - linkAngleY), tz: soloAngleZW + wrapPi(c - soloAngleZW),
-                    f3: [rotXY, rotXZ, rotYZ], t3: [rotXY + wrapPi(t3[0] - rotXY), rotXZ + wrapPi(t3[1] - rotXZ), rotYZ + wrapPi(t3[2] - rotYZ)],
+                    f3: [rotXY, rotXZ, rotYZ], t3: [rotXY + wrapPi(t3[0] - rotXY), rotXZ + wrapPi(t3[1] - rotXZ), rotYZ + wrapPi(t3[2] - rotYZ)], alignXY: true,
                     t: 0, dur: 1.2, pj0: projFrom, pj1: projTo,
                     onDone: () => { parallel4D = projTo === 1; projAnim = null; }
                 };
@@ -3347,7 +3409,7 @@
                     tx: linkAngleX + wrapPi(P.a - linkAngleX),
                     ty: linkAngleY + wrapPi(P.b - linkAngleY),
                     tz: soloAngleZW + wrapPi(P.c - soloAngleZW),
-                    f3: [rotXY, rotXZ, rotYZ], t3: [0, 0, 0],   // プリセットの見え方は3D回転なしが前提
+                    f3: [rotXY, rotXZ, rotYZ], t3: [0, 0, 0], alignXY: true,   // プリセットの見え方は3D回転なしが前提
                     t: 0, dur: 1.2,
                     pj0: projFrom, pj1: projTo,
                     onDone: () => { parallel4D = wantPar; projAnim = null; }   // 到達後に投影モードを確定
@@ -3489,7 +3551,7 @@
             bindNum('link-y-num', v => linkAngleY = v);
             bindNum('solo-zw-num', v => soloAngleZW = v);
             // 3D回転（X-Y・X-Z・Y-Z）のスライダーと数値入力
-            const set3 = { xy: v => rotXY = v, xz: v => rotXZ = v, yz: v => rotYZ = v };
+            const set3 = { xy: v => { rotXY = v; xyManualOff = 0; }, xz: v => rotXZ = v, yz: v => rotYZ = v };   // X-Y のスライダーは両方に同じ角度
             ['xy', 'xz', 'yz'].forEach(k => {
                 document.getElementById('rot-' + k + '-slider').addEventListener('input', e => {
                     stopCycle(); ensureProjection();
@@ -3626,7 +3688,7 @@
                     linkSpin = false; soloSpinZW = false; spinX = false; spinY = false; spinXY = false; spinXZ = false; spinYZ = false; updateSpinBtns();
                     parallel4D = P.par;                // 胞から以外は平行投影（遠近が入ると軸の長さが揃わない）
                     setCameraPreset('proj');           // ここで角度が 0 に戻るので、指定はこの後
-                    linkAngleX = P.a; linkAngleY = P.b; soloAngleZW = P.c; rotXY = 0; rotXZ = 0; rotYZ = 0;
+                    linkAngleX = P.a; linkAngleY = P.b; soloAngleZW = P.c; rotXY = 0; rotXZ = 0; rotYZ = 0; xyManualOff = 0;
                     updateLinkUI();
                     updateMorphingGeometry(animationProgress);
                     document.querySelectorAll('.proj-btn').forEach(b => b.classList.toggle('bg-amber-600/40', b === btn));
@@ -3646,7 +3708,7 @@
                 if (cycleMode) {
                     // 投影ビュー（胞/面/辺/頂点）は組み上がった超立方体の見方なので、組み上がり状態にする
                     animationMode = 0; animationProgress = 1;
-                    rotXY = 0; rotXZ = 0; rotYZ = 0;   // 周回（胞→面→辺→頂点）は3D回転なしの見え方
+                    rotXY = 0; rotXZ = 0; rotYZ = 0; xyManualOff = 0;   // 周回（胞→面→辺→頂点）は3D回転なしの見え方
                     // 他の回転系を止めて、投影プリセットと同じ正面・遠距離カメラにする
                     linkSpin = false; soloSpinZW = false; spinX = false; spinY = false; spinXY = false; spinXZ = false; spinYZ = false; updateSpinBtns(); autoRotateCamera = false;
                     document.getElementById('solo-spin-btn').classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
