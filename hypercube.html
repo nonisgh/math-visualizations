@@ -430,10 +430,10 @@
                 </div>
                 <div class="flex items-center gap-1.5 text-[11px] pt-1 border-t border-slate-800">
                     <input id="pp-name" type="text" placeholder="名前（なくても可）" class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100">
-                    <button id="pp-save" class="px-2 py-1 rounded bg-amber-600/40 border border-amber-400/50 text-amber-100 hover:bg-amber-600/60 font-bold shrink-0" title="今の A・B・片道の秒数を保存（このブラウザに自動保存）">この往復を保存</button>
+                    <button id="pp-save" class="px-2 py-1 rounded bg-amber-600/40 border border-amber-400/50 text-amber-100 hover:bg-amber-600/60 font-bold shrink-0" title="今の A・B・片道の秒数と、今の視点（カメラ）を保存（このブラウザに自動保存）">この往復を保存</button>
                 </div>
                 <div id="pp-list" class="space-y-1 text-[11px]"></div>
-                <p class="text-[10px] text-slate-500 leading-snug pt-1 border-t border-slate-800">保存した往復はこのブラウザに自動で保存されます。「GitHub に保存」で <span class="font-mono text-slate-400">hypercube-angle-pairs.csv</span> に書き込み、他の端末では「GitHub から読込」で同じ往復を出せます（鍵はキー設定で保存したものを使います）。読み込んでも、ロックした往復は残ります。</p>
+                <p class="text-[10px] text-slate-500 leading-snug pt-1 border-t border-slate-800">保存した往復には、そのときの視点（カメラ）も入ります。「上書き」で、今の A・B・秒数・視点に書き換えられます（ロック中は不可）。保存した往復はこのブラウザに自動で保存されます。「GitHub に保存」で <span class="font-mono text-slate-400">hypercube-angle-pairs.csv</span> に書き込み、他の端末では「GitHub から読込」で同じ往復を出せます（鍵はキー設定で保存したものを使います）。読み込んでも、ロックした往復は残ります。</p>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <button id="pp-gh-save" class="px-2 py-1 rounded bg-emerald-600/40 border border-emerald-400/50 text-emerald-100 hover:bg-emerald-600/60">GitHub に保存</button>
                     <button id="pp-gh-load" class="px-2 py-1 rounded bg-sky-900/40 border border-sky-500/40 text-sky-200 hover:bg-sky-800/40">GitHub から読込</button>
@@ -810,25 +810,37 @@
             [controls3D, controls2D].forEach(c => { if (c) c.enableRotate = !!on; });
             ['canvas-3d4d', 'canvas-2d3d'].forEach(id => { const el = document.getElementById(id); if (el) el.style.cursor = on ? 'move' : ''; });
         }
-        // 視点を正面へ：カメラを今の距離のまま、球面に沿って正面（+z）へなめらかに戻す。図形の角度は変えない
+        // 視点（カメラ）の移動：今の位置から目標の視点へ、球面に沿ってなめらかに。図形の角度は変えない
+        //   視点 view = { p3, u3, p2, u2 }：超立方体（3）と立方体（2）のカメラの、注視点からの位置と上向き
         let camHome = null;
-        function startCamHome() {
-            // ドラッグのあとの惰性（OrbitControls の減衰中の回転）を先に出し切って止める。残っていると戻した後にずれる
+        const r3n = v => Math.round(v * 1000) / 1000;
+        function camViewNow() {   // 今の視点
+            const one = (cam, ctl) => { const t = ctl ? ctl.target : new THREE.Vector3(); return { p: cam.position.clone().sub(t).toArray().map(r3n), u: cam.up.toArray().map(r3n) }; };
+            const a = one(camera3D, controls3D), b = one(camera2D, controls2D);
+            return { p3: a.p, u3: a.u, p2: b.p, u2: b.u };
+        }
+        const isFrontView = v => !!v && [[v.p3, v.u3], [v.p2, v.u2]].every(([p, u]) => Math.hypot(p[0], p[1]) < 1e-3 * Math.hypot(...p) && Math.abs(u[0]) < 1e-3 && u[1] > 0.999);
+        function startCamTo(view) {
+            // ドラッグのあとの惰性（OrbitControls の減衰中の回転）を先に出し切って止める。残っていると移した後にずれる
             [controls3D, controls2D].forEach(c => { if (c && c.enableDamping) { c.enableDamping = false; c.update(); c.enableDamping = true; } });
-            const items = [[camera3D, controls3D], [camera2D, controls2D]].filter(([c]) => c).map(([cam, ctl]) => {
+            const items = [[camera3D, controls3D, view.p3, view.u3], [camera2D, controls2D, view.p2, view.u2]].filter(([c, , p]) => c && p).map(([cam, ctl, p1, u1]) => {
                 const tgt = ctl ? ctl.target.clone() : new THREE.Vector3();
-                const off = cam.position.clone().sub(tgt), r = off.length() || 18;
-                return { cam, tgt, r, d0: off.normalize(), q: new THREE.Quaternion().setFromUnitVectors(off.clone(), new THREE.Vector3(0, 0, 1)), up0: cam.up.clone() };
+                const off = cam.position.clone().sub(tgt), r0 = off.length() || 18, to = new THREE.Vector3(...p1), r1 = to.length() || r0;
+                return { cam, tgt, r0, r1, d0: off.normalize(), q: new THREE.Quaternion().setFromUnitVectors(off.clone(), to.clone().normalize()), up0: cam.up.clone(), up1: new THREE.Vector3(...(u1 || [0, 1, 0])).normalize() };
             });
             camHome = { t: 0, dur: 0.7, items };
+        }
+        function startCamHome() {   // 視点を正面へ（今の距離のまま）
+            const r = (cam, ctl) => cam.position.distanceTo(ctl ? ctl.target : new THREE.Vector3()) || 18;
+            startCamTo({ p3: [0, 0, r(camera3D, controls3D)], u3: [0, 1, 0], p2: [0, 0, r(camera2D, controls2D)], u2: [0, 1, 0] });
         }
         function stepCamHome(dt) {
             camHome.t += dt / camHome.dur;
             const f = smootherstep(Math.min(1, camHome.t)), qi = new THREE.Quaternion();
             camHome.items.forEach(it => {
                 qi.identity().slerp(it.q, f);
-                it.cam.position.copy(it.tgt).addScaledVector(it.d0.clone().applyQuaternion(qi), it.r);
-                it.cam.up.copy(it.up0).lerp(new THREE.Vector3(0, 1, 0), f).normalize();
+                it.cam.position.copy(it.tgt).addScaledVector(it.d0.clone().applyQuaternion(qi), it.r0 + (it.r1 - it.r0) * f);
+                it.cam.up.copy(it.up0).lerp(it.up1, f).normalize();
                 it.cam.lookAt(it.tgt);
             });
             if (camHome.t >= 1) camHome = null;
@@ -3540,11 +3552,21 @@
                     row.className = 'flex items-center gap-1.5 bg-slate-900/60 border rounded px-1.5 py-1 ' + (P.lock ? 'border-amber-500/40' : 'border-slate-800');
                     const go = document.createElement('button'); go.className = 'flex-1 min-w-0 text-left leading-tight hover:text-amber-200';
                     go.innerHTML = '<div class="text-[11px] text-slate-200 break-words"></div><div class="font-mono text-[9px] text-slate-500 break-words"></div>';
-                    go.children[0].textContent = P.name + '（片道 ' + (P.sec || 3) + ' 秒）'; go.children[1].textContent = 'A ' + angText(P.A) + ' ⇄ B ' + angText(P.B);
-                    go.title = '押すと A・B に入れて往復を始める';
+                    const camNote = P.cam ? (isFrontView(P.cam) ? '・視点：正面' : '・視点あり') : '';
+                    go.children[0].textContent = P.name + '（片道 ' + (P.sec || 3) + ' 秒' + camNote + '）'; go.children[1].textContent = 'A ' + angText(P.A) + ' ⇄ B ' + angText(P.B);
+                    go.title = '押すと A・B に入れて往復を始める' + (P.cam ? '（保存した視点へカメラも移る）' : '');
                     go.addEventListener('click', () => {
                         ppSlot.A = pick6(P.A); ppSlot.B = pick6(P.B); document.getElementById('pp-sec').value = P.sec || 3; renderPPSlots();
-                        startPingPong(ppSlot.A, ppSlot.B, ppSec()); ppSt('往復中：' + P.name);
+                        startPingPong(ppSlot.A, ppSlot.B, ppSec());
+                        if (P.cam) startCamTo(P.cam);   // 保存した視点へ
+                        ppSt('往復中：' + P.name + (P.cam ? '（保存した視点）' : ''));
+                    });
+                    const ow = document.createElement('button'); ow.className = 'shrink-0 whitespace-nowrap px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (P.lock ? 'text-slate-600 cursor-not-allowed' : 'text-amber-200 hover:bg-slate-700'); ow.textContent = '上書き';
+                    ow.title = P.lock ? 'ロック中なので上書きできません' : '今の A・B・片道の秒数・視点（カメラ）で、この往復を上書き保存する（名前はそのまま）';
+                    ow.addEventListener('click', () => {
+                        if (P.lock) { ppSt('ロック中なので上書きできません（→🔓 を押すと外せます）', false); return; }
+                        P.A = pick6(ppSlot.A); P.B = pick6(ppSlot.B); P.sec = ppSec(); P.cam = camViewNow();
+                        savePP(); renderPPList(); ppSt('「' + P.name + '」を上書きしました（' + (isFrontView(P.cam) ? '視点は正面' : '今の視点も保存') + '）', true);
                     });
                     const lk = document.createElement('button'); lk.className = 'shrink-0 whitespace-nowrap px-1 py-0.5 rounded border text-[11px] leading-none ' + (P.lock ? 'bg-amber-900/40 border-amber-500/50' : 'bg-slate-800 border-slate-700 opacity-50 hover:opacity-100');
                     lk.textContent = P.lock ? '→🔓' : '→🔒'; lk.title = P.lock ? '押すとロックを外す（今はロック中で消せません）' : '押すとロック（消せなくなる）';
@@ -3552,25 +3574,29 @@
                     const del = document.createElement('button'); del.className = 'shrink-0 whitespace-nowrap px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (P.lock ? 'text-slate-600 cursor-not-allowed' : 'text-rose-300'); del.textContent = '消す';
                     del.title = P.lock ? 'ロック中なので消せません' : 'この往復を消す';
                     del.addEventListener('click', () => { if (P.lock) { ppSt('ロック中なので消せません（→🔓 を押すと外せます）', false); return; } ppPairs = ppPairs.filter(q => q !== P); savePP(); renderPPList(); });
-                    row.append(go, lk, del); list.appendChild(row);
+                    row.append(go, ow, lk, del); list.appendChild(row);
                 });
             }
             document.getElementById('pp-save').addEventListener('click', () => {
                 const nm = document.getElementById('pp-name').value.trim();
-                const P = { name: nm || ('往復 ' + (ppPairs.length + 1)), A: pick6(ppSlot.A), B: pick6(ppSlot.B), sec: ppSec(), lock: false };
+                const P = { name: nm || ('往復 ' + (ppPairs.length + 1)), A: pick6(ppSlot.A), B: pick6(ppSlot.B), sec: ppSec(), lock: false, cam: camViewNow() };
                 ppPairs.push(P); savePP(); renderPPList(); document.getElementById('pp-name').value = '';
-                ppSt('往復を保存しました：' + P.name, true);
+                ppSt('往復を保存しました：' + P.name + (isFrontView(P.cam) ? '' : '（今の視点も保存）'), true);
             });
             document.getElementById('pp-name').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('pp-save').click(); } e.stopPropagation(); });
             // CSV（name,a_xw,a_yw,a_zw,a_xy,a_xz,a_yz,b_xw,b_yw,b_zw,b_xy,b_xz,b_yz,sec,lock。角度は度）と GitHub。点・角度と同じ仕組み
-            const ppToCSV = () => 'name,a_xw,a_yw,a_zw,a_xy,a_xz,a_yz,b_xw,b_yw,b_zw,b_xy,b_xz,b_yz,sec,lock\n' + ppPairs.map(P => [String(P.name || '').replace(/[,\n]/g, ' ')].concat(PP_KEYS.map(k => P.A[k] || 0), PP_KEYS.map(k => P.B[k] || 0), [P.sec || 3, P.lock ? 1 : 0]).join(',')).join('\n') + '\n';
+            const PP_CAM_COLS = 'c3x,c3y,c3z,u3x,u3y,u3z,c2x,c2y,c2z,u2x,u2y,u2z';   // 視点（カメラの注視点からの位置と上向き）
+            const camCols = v => v ? [].concat(v.p3, v.u3, v.p2, v.u2) : Array(12).fill('');
+            const ppToCSV = () => 'name,a_xw,a_yw,a_zw,a_xy,a_xz,a_yz,b_xw,b_yw,b_zw,b_xy,b_xz,b_yz,sec,lock,' + PP_CAM_COLS + '\n' + ppPairs.map(P => [String(P.name || '').replace(/[,\n]/g, ' ')].concat(PP_KEYS.map(k => P.A[k] || 0), PP_KEYS.map(k => P.B[k] || 0), [P.sec || 3, P.lock ? 1 : 0], camCols(P.cam)).join(',')).join('\n') + '\n';
             function ppFromCSV(txt) {
                 const out = [], num = v => { const n = parseFloat(v); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
                 String(txt).split(/\r?\n/).forEach(line => {
                     const c = line.split(','); if (c.length < 13 || c[0].trim().toLowerCase() === 'name') return;
                     const A = {}, B = {}; PP_KEYS.forEach((k, i) => { A[k] = num(c[1 + i]); B[k] = num(c[7 + i]); });
                     const sec = parseFloat(c[13]);
-                    out.push({ name: c[0].trim() || '往復', A, B, sec: isFinite(sec) && sec > 0 ? sec : 3, lock: (c[14] || '0').trim() === '1' });
+                    const cv = c.slice(15, 27).map(v => parseFloat(v)), hasCam = cv.length === 12 && cv.every(isFinite);
+                    const cam = hasCam ? { p3: cv.slice(0, 3), u3: cv.slice(3, 6), p2: cv.slice(6, 9), u2: cv.slice(9, 12) } : undefined;
+                    out.push({ name: c[0].trim() || '往復', A, B, sec: isFinite(sec) && sec > 0 ? sec : 3, lock: (c[14] || '0').trim() === '1', cam });
                 });
                 return out;
             }
