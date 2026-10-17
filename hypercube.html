@@ -465,6 +465,15 @@
                     <button id="explode-map-btn" class="px-2.5 py-1 rounded-xl border transition" title="バラしたときに、くっついていた面どうしを点線で結び、高い次元の向きを矢印で示す">→ 高次元マップ: OFF</button>
                 </div>
                 <p class="d5-sub text-[10px] text-slate-500 leading-snug" data-d4="高次元マップ：点線＝くっついていた面どうし。紫の点線は「4次元目（w）を通ってつながる」面（中心と蓋の立方体につながる線）。組み上がりをバラすと、中心→蓋 の向きに「w：4次元目の向き」の矢印が出ます。立方体の画面では、青が3次元目（z）。" data-d5="高次元マップ：点線＝くっついていた面どうし。琥珀色の点線は5次元目（v）、紫の点線は4次元目（w）を通ってつながる面。組み上がりをバラすと、中心→蓋 に「v：5次元目の向き」、−W→+W に「w：4次元目の向き」の矢印が出ます。">高次元マップ：点線＝くっついていた面どうし。紫の点線は「4次元目（w）を通ってつながる」面（中心と蓋の立方体につながる線）。組み上がりをバラすと、中心→蓋 の向きに「w：4次元目の向き」の矢印が出ます。立方体の画面では、青が3次元目（z）。</p>
+                <div class="flex items-center gap-2 text-[11px] pt-1 border-t border-slate-800">
+                    <span class="text-[10px] text-slate-400 shrink-0">見せる胞</span>
+                    <div id="xp-side" class="flex rounded-lg border border-slate-700 overflow-hidden" title="ひとつ上の次元から見て、表を向いている胞・裏を向いている胞だけにする">
+                        <button data-side="all" class="px-2.5 py-0.5 transition">全部</button>
+                        <button data-side="front" class="px-2.5 py-0.5 border-l border-slate-700 transition">表だけ</button>
+                        <button data-side="back" class="px-2.5 py-0.5 border-l border-slate-700 transition">裏だけ</button>
+                    </div>
+                </div>
+                <p class="d5-sub text-[10px] text-slate-500 leading-snug" data-d4="表だけ＝4次元目（w）の向こうの目から見て、表を向いている立方体だけ（多くて4個。立方体の画面では、カメラから見て表の正方形＝多くて3面）。裏だけ＝その反対。遠近のときは見える数が減ります（正面からだと蓋の1個だけ）。" data-d5="表だけ＝5次元目（v）の向こうの目から見て、表を向いている超立方体だけ（多くて5個。左の超立方体は w の向こうから見て多くて4個）。裏だけ＝その反対。遠近のときは見える数が減ります。">表だけ＝4次元目（w）の向こうの目から見て、表を向いている立方体だけ（多くて4個。立方体の画面では、カメラから見て表の正方形＝多くて3面）。裏だけ＝その反対。遠近のときは見える数が減ります（正面からだと蓋の1個だけ）。</p>
             </section>
             </div>
             <div class="sb-panel space-y-3 hidden" data-panel="rot">
@@ -2216,6 +2225,7 @@
                     wa[k] = A[0]; wc[k++] = cA[0]; wa[k] = A[1]; wc[k++] = cA[1]; wa[k] = A[2]; wc[k++] = cA[2];
                     wa[k] = B[0]; wc[k++] = cB[0]; wa[k] = B[1]; wc[k++] = cB[1]; wa[k] = B[2]; wc[k++] = cB[2];
                 }
+                if (cell.wire && cell.wire.parent) cell.wire.parent.visible = xpVisible(5, ci);   // 見せる胞（表だけ・裏だけ）
                 paintEdgeHi(cell, ci, cellObjects5D.length - 1, wc, EN[0]);   // 手前と奥の超立方体の辺を色で強調
                 { const fe = cellFocus(5, ci).edge; if (fe !== 1) for (let k = 0; k < wc.length; k++) wc[k] *= fe; }
                 cell.wireGeo.attributes.position.needsUpdate = true; cell.wireGeo.attributes.color.needsUpdate = true;
@@ -2226,7 +2236,7 @@
                 const fk = fixedMarks.size || 1, a = verts[p5NearId.cell][p5NearId.corner], b = verts[p5FarId.cell][p5FarId.corner];
                 p5MarkPlus.scale.setScalar(fk); p5MarkMinus.scale.setScalar(fk);
                 p5MarkPlus.position.set(a[0], a[1], a[2]); p5MarkMinus.position.set(b[0], b[1], b[2]);
-                p5MarkPlus.visible = fixedMarks.near; p5MarkMinus.visible = fixedMarks.far;
+                p5MarkPlus.visible = fixedMarks.near && xpVisible(5, p5NearId.cell); p5MarkMinus.visible = fixedMarks.far && xpVisible(5, p5FarId.cell);
                 setMarkerMultiply(p5MarkPlus, p5MarkMinus, !!(fixedMarks.glue && fixedMarks.near && fixedMarks.far));
             }
             // 座標軸 x・y・z・w・v（v 軸は、v を手前に向けた 0° では中心の一点につぶれる）
@@ -2363,6 +2373,7 @@
         function applyExplode(dim, verts, progress) {
             const last = verts.length - 1, DF = EXPLODE_DIST * (dim === 5 ? 1.2 : 1) * xpDistK, GN = EXPLODE_NET_GAP * xpDistK;   // 離す距離はスライダーの倍率で
             const m = smootherstep(Math.max(0, Math.min(1, progress === undefined ? animationProgress : progress)));   // 0＝展開図、1＝組み上がり
+            updateXpShow(dim, verts.length); updateXpSideBadge(dim);   // 見せる胞（全部／表だけ／裏だけ）
             const ctr = verts.map(_xpCenter), c0 = ctr[0];
             const rad = verts.map((vs, i) => vs.reduce((mx, v) => Math.max(mx, Math.hypot(v[0] - ctr[i][0], v[1] - ctr[i][1], v[2] - ctr[i][2])), 0));   // 胞の大きさ（中心からいちばん遠い頂点）
             let r0 = 1e-6, r1 = 1e-6;
@@ -2457,7 +2468,7 @@
             [2, 3, 5].forEach(dim => {
                 const b = document.getElementById('xp-badge-' + dim + 'd'); if (!b) return;
                 const n = xpCountOf(dim), [cnt, kind] = XP_KIND[dim];
-                if (!xpCount.active || xpCount.phase === 'explode' || xpCount.idx < 0) { b.style.display = 'none'; return; }
+                if (!xpCount.active || xpCount.phase === 'explode' || xpCount.idx < 0) { b.style.display = 'none'; b.dataset.side = ''; return; }
                 if (xpCount.idx >= n || xpCount.phase === 'done') b.innerHTML = '全部で ' + cnt + '<small>の' + kind + '</small>';
                 else b.innerHTML = (xpCount.idx + 1) + ' / ' + n + '<small>' + XP_SHORT[dim][xpCount.idx] + '（' + xpNameOf(dim, xpCount.idx) + '）</small>';
                 b.style.display = 'block';
@@ -2493,7 +2504,7 @@
                         else { op = 1; if (xpCount.phase === 'step' && i === xpCount.idx) { scale = 1.3; cur = true; } }
                     }
                     const c = xpCtr[dim][i];
-                    if (!want || !root || !cam || !c || !w) op = 0;
+                    if (!want || !root || !cam || !c || !w || !xpVisible(dim, i)) op = 0;
                     else {
                         _xpV.set(c[0], c[1], c[2]).applyMatrix4(root.matrixWorld).project(cam);
                         if (_xpV.z > 1) op = 0;
@@ -2575,7 +2586,7 @@
             const can = !!(root && edgeHi.on && THREE.LineSegments2 && THREE.LineMaterial);
             [['near', objs.length - 1, edgeHi.widthNear], ['far', 0, edgeHi.widthFar]].forEach(([side, i, width]) => {   // 手前＝最後の番号（蓋）、奥＝番号1（中心）
                 let F = ehFat[dim][side];
-                if (!can || !(width > 1.01) || !objs[i]) { if (F) F.visible = false; return; }
+                if (!can || !(width > 1.01) || !objs[i] || !xpVisible(dim, i)) { if (F) F.visible = false; return; }
                 if (!F) {
                     const mat = new THREE.LineMaterial({ vertexColors: true, linewidth: width, transparent: true, opacity: 0.95, depthWrite: false });
                     F = new THREE.LineSegments2(new THREE.LineSegmentsGeometry(), mat);
@@ -2635,7 +2646,7 @@
                 }
                 const pa = G.geometry.attributes.position.array, ca = G.geometry.attributes.color.array;
                 pairs.forEach((P, n) => {
-                    const A = _xpMean(verts[P.a], P.ia), B = _xpMean(verts[P.b], P.ib);
+                    const A = _xpMean(verts[P.a], P.ia), B = (xpVisible(dim, P.a) && xpVisible(dim, P.b)) ? _xpMean(verts[P.b], P.ib) : A;   // 隠した胞につながる線は長さ 0
                     pa[n * 6] = A[0]; pa[n * 6 + 1] = A[1]; pa[n * 6 + 2] = A[2]; pa[n * 6 + 3] = B[0]; pa[n * 6 + 4] = B[1]; pa[n * 6 + 5] = B[2];
                     const ha = XP_HID[dim][P.a], hb = XP_HID[dim][P.b];
                     if (ha && hb) { _xpCA.set(ha); _xpCB.set(hb); }                       // どちらも高い次元の胞：両端をそれぞれの色に
@@ -2681,6 +2692,55 @@
                     layer.appendChild(el); xpAxisEls[dim].push(el);
                 });
             });
+        }
+
+        // ===== 見せる胞：全部／表だけ／裏だけ =====
+        //   表＝ひとつ上の次元の目から見て、表を向いている胞（外向きの向きが目のほうを向いている）。
+        //     超立方体：w の向こうの目（4D→3D の写し方の目）。平行なら外向きの w 成分が＋の胞、遠近なら目の位置 (0,0,0,CAMERA_W) から見て表。
+        //       一般の向きでは ±X・±Y・±Z・±W の各組から1個ずつ＝多くて4個（立方体を見ると多くて3面、と同じ）。
+        //     5次元超立方体：v の向こうの目（5D→4D の目）から見て。多くて5個。
+        //     立方体：ふつうのカメラから見て表の面。多くて3面。
+        //   裏だけ＝表でない胞ぜんぶ（反転）
+        let xpSide = 'all';
+        try { const v = localStorage.getItem('hypercubeExplodeSide'); if (v === 'front' || v === 'back') xpSide = v; } catch (_) {}
+        const xpShow = { 2: [], 3: [], 5: [] };   // 胞ごとに、今見せるか
+        const _xpCam = new THREE.Vector3();
+        function xpIsFront(dim, i) {
+            const pb = projBlendNow();
+            if (dim === 2) {
+                const q = XP_N2[i].slice(); _xpRot(q, 0, 2, linkAngleX); _xpRot(q, 1, 2, linkAngleY);
+                const n = rot3DLeft(q[0], q[1], q[2]), root = scene2D && scene2D.getObjectByName('Root2D');
+                if (!root || !camera2D) return true;
+                root.updateMatrixWorld(); _xpCam.copy(camera2D.position); root.worldToLocal(_xpCam);   // カメラを立方体の座標で
+                return n[0] * (_xpCam.x - n[0] * HALF_S) + n[1] * (_xpCam.y - n[1] * HALF_S) + n[2] * (_xpCam.z - n[2] * HALF_S) > 1e-6;
+            }
+            if (dim === 3) {
+                const q = XP_N3[i].slice(); _xpRot(q, 0, 3, linkAngleX); _xpRot(q, 1, 3, linkAngleY); _xpRot(q, 2, 3, soloAngleZW);
+                return q[3] > (HALF_S / CAMERA_W) * (1 - pb) + 1e-6;   // 遠近：目 (0,0,0,D) から胞の中心 HALF_S·n を見て表 ⇔ n_w > HALF_S/D
+            }
+            const q = XP_N5[i].slice(); _xpRot(q, 0, 4, linkAngleX); _xpRot(q, 1, 4, linkAngleY); _xpRot(q, 2, 4, soloAngleZW);
+            _xpRot(q, 0, 3, p5XW); _xpRot(q, 1, 3, p5YW); _xpRot(q, 2, 3, p5ZW); _xpRot(q, 3, 4, p5WV);
+            return q[4] > (HALF_S / CAMERA_V()) * (1 - pb) + 1e-6;
+        }
+        function updateXpShow(dim, n) {
+            const out = xpShow[dim]; out.length = n;
+            for (let i = 0; i < n; i++) out[i] = xpSide === 'all' ? true : (xpIsFront(dim, i) === (xpSide === 'front'));
+        }
+        const xpVisible = (dim, i) => xpShow[dim][i] !== false;
+        // 表だけ・裏だけのとき、各画面の上に「見えている胞 4 / 8」（数えている間は数える札が優先）
+        const XP_SIDE_KIND = {
+            2: ['見えている面', 'カメラから見て表を向いている正方形', '裏の面', 'カメラから見て裏を向いている正方形'],
+            3: ['見えている胞', 'w の向こうから見て表を向いている立方体', '裏の胞', 'w の向こうから見て裏を向いている立方体'],
+            5: ['見えている胞', 'v の向こうから見て表を向いている超立方体', '裏の胞', 'v の向こうから見て裏を向いている超立方体']
+        };
+        function updateXpSideBadge(dim) {
+            if (xpCount.active) return;
+            const b = document.getElementById('xp-badge-' + dim + 'd'); if (!b) return;
+            if (xpSide === 'all') { if (b.dataset.side) { b.style.display = 'none'; b.dataset.side = ''; } return; }
+            const k = xpShow[dim].filter(v => v).length, n = xpShow[dim].length, t = XP_SIDE_KIND[dim], f = xpSide === 'front';
+            const html = (f ? t[0] : t[2]) + ' ' + k + ' / ' + n + '<small>' + (f ? t[1] : t[3]) + '</small>';
+            if (b.dataset.side !== html) { b.innerHTML = html; b.dataset.side = html; }
+            b.style.display = 'block';
         }
 
         function makeLabelSprite(text, cssColor) {
@@ -2957,6 +3017,7 @@
                 wMarkPlus.position.set(pp[0] + oP[0], pp[1] + oP[1], pp[2] + oP[2]);
                 wMarkMinus.position.set(pm[0] + oM[0], pm[1] + oM[1], pm[2] + oM[2]);
                 applyMarkerBlend(wMarkPlus, wMarkMinus, wMarkBlend, camera3D, 0.04);
+                if (!xpVisible(3, nearVertId.cell)) wMarkPlus.visible = false; if (!xpVisible(3, farVertId.cell)) wMarkMinus.visible = false;   // 付いている胞を隠したとき
             }
             if (lMarkPlus && lMarkMinus) {
                 const ex = leftExtremePoints(progress);
@@ -2965,6 +3026,7 @@
                     lMarkPlus.position.set(ex.near[0] + oP[0], ex.near[1] + oP[1], ex.near[2] + oP[2]);
                     lMarkMinus.position.set(ex.far[0] + oM[0], ex.far[1] + oM[1], ex.far[2] + oM[2]);
                     applyMarkerBlend(lMarkPlus, lMarkMinus, lMarkBlend, camera2D, 0.12);
+                    if (!xpVisible(2, nearLId.face)) lMarkPlus.visible = false; if (!xpVisible(2, farLId.face)) lMarkMinus.visible = false;
                 }
             }
         }
@@ -3160,6 +3222,7 @@
                             colArrL[cPtr++] = cB[0]; colArrL[cPtr++] = cB[1]; colArrL[cPtr++] = cB[2];
                         }
                     }
+                    if (face.wire && face.wire.parent) face.wire.parent.visible = xpVisible(2, fi);   // 見せる胞（表だけ・裏だけ）
                     paintEdgeHi(face, fi, faceObjects2D.length - 1, colArrL, LN[0]);   // 手前と奥の面の辺を色で強調
                     { const fe = cellFocus(2, fi).edge; if (fe !== 1 && colArrL) for (let k = 0; k < colArrL.length; k++) colArrL[k] *= fe; }
                     wireAttr.needsUpdate = true;
@@ -3243,6 +3306,7 @@
                             colArr[cPtr++] = cB[0]; colArr[cPtr++] = cB[1]; colArr[cPtr++] = cB[2];
                         }
                     }
+                    if (cell.wire && cell.wire.parent) cell.wire.parent.visible = xpVisible(3, ci);   // 見せる胞（表だけ・裏だけ）
                     paintEdgeHi(cell, ci, cellObjects3D.length - 1, colArr, E_NEAR[0]);   // 手前と奥の胞の辺を色で強調
                     { const fe = cellFocus(3, ci).edge; if (fe !== 1 && colArr) for (let k = 0; k < colArr.length; k++) colArr[k] *= fe; }
                     wireAttr.needsUpdate = true;
@@ -3284,7 +3348,7 @@
                         for (let k = 0; k < 6; k++) {   // 面の2三角形を連続で書く＝斜線が出ない
                             const idx = cubeIndices[base + k], v = cv[idx], bt = brightOf(cellDist[ci][idx]) * qs;   // 奥行きの明暗 × 面の向きの陰影
                             mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
-                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = Math.min(1, qa * cellFocus(3, ci).face);   // 奥ほど暗く＝遠近感。裏向きの面は透明に
+                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = xpVisible(3, ci) ? Math.min(1, qa * cellFocus(3, ci).face) : 0;   // 奥ほど暗く＝遠近感。裏向きの面は透明に
                         }
                     }
                     mergedFaces3D.geometry.attributes.position.needsUpdate = true;
@@ -5537,6 +5601,19 @@
                 updateMorphingGeometry(animationProgress); requestRender(10);
             });
             syncXpMap();
+            // 見せる胞：全部／表だけ／裏だけ（選んでいるものを色で）
+            const xpSideBtns = document.querySelectorAll('#xp-side button');
+            const syncXpSide = () => xpSideBtns.forEach(b => {
+                const on = b.dataset.side === xpSide;
+                b.classList.toggle('bg-violet-700/50', on); b.classList.toggle('text-violet-100', on); b.classList.toggle('font-bold', on);
+                b.classList.toggle('text-slate-400', !on); b.classList.toggle('hover:bg-slate-800', !on);
+            });
+            xpSideBtns.forEach(b => b.addEventListener('click', () => {
+                xpSide = b.dataset.side; syncXpSide();
+                try { localStorage.setItem('hypercubeExplodeSide', xpSide); } catch (_) {}
+                updateMorphingGeometry(animationProgress); requestRender(10);
+            }));
+            syncXpSide();
             // 離す距離のスライダー
             const xpDistEl = document.getElementById('explode-dist'), xpDistVal = document.getElementById('explode-dist-val');
             const syncXpDist = () => { xpDistEl.value = xpDistK; xpDistVal.textContent = (Math.round(xpDistK * 100) / 100) + '倍'; };
