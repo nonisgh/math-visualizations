@@ -477,11 +477,16 @@
                     <span class="text-slate-400">動き方</span>
                     <div id="pp-ease" class="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-slate-800">
                         <button data-ease="turn" class="px-2 py-0.5 rounded-md transition" title="ほぼ一定の速さで進み、端の近くでだけ短くなめらかに折り返す（ターンの長さはスライダーで）">なめらかターン</button>
-                        <button data-ease="sine" class="px-2 py-0.5 rounded-md transition" title="振り子のように行き来する（速さが sin のカーブ）">単振動</button>
+                        <button data-ease="sine" class="px-2 py-0.5 rounded-md transition" title="振り子のように行き来する（速さが sin のカーブ）。緩やかさのスライダーで、端での止まり方をもっとふわっとできる">単振動</button>
                         <button data-ease="bounce" class="px-2 py-0.5 rounded-md transition" title="ボールのように端へ落ちていき、ぶつかってポンポンと弾んで止まる">バウンド</button>
                         <button data-ease="spring" class="px-2 py-0.5 rounded-md transition" title="減衰しながら揺れるばね：少し行き過ぎてから戻って落ち着き、折り返しも速さが途切れずつながる（弾みはスライダーで）">ばね</button>
                     </div>
                 </div>
+                <label id="pp-sine-row" class="flex items-center gap-1.5 text-[10px] text-slate-400" title="単振動の緩やかさ。右端が今の単振動（端での引き戻しがいちばん強い）、左へ寄せるほど端でふわっと止まって、ふわっと動き出す">
+                    <span class="shrink-0">緩やかさ</span><span class="shrink-0 text-slate-500">緩やか</span>
+                    <input id="pp-sine" type="range" min="0" max="1" step="0.01" class="flex-1 min-w-0 accent-fuchsia-400">
+                    <span class="shrink-0 text-slate-500">単振動</span>
+                </label>
                 <label id="pp-spring-row" class="flex items-center gap-1.5 text-[10px] text-slate-400" title="ばねの弾み。左ほど行き過ぎが小さく落ち着いた動き、右ほど大きく弾む">
                     <span class="shrink-0">弾み</span><span class="shrink-0 text-slate-500">小さく</span>
                     <input id="pp-spring" type="range" min="0" max="1" step="0.01" class="flex-1 min-w-0 accent-fuchsia-400">
@@ -863,9 +868,13 @@
             const ex = Math.exp(-a * tau), c = Math.cos(wd * tau), sn = Math.sin(wd * tau);
             return [T + ex * (e0 * c + B * sn), ex * (-a * (e0 * c + B * sn) + (-e0 * wd * sn + B * wd * c))];
         }
+        // 単振動の緩やかさ：スライダー 1（右端）＝今の単振動そのまま、0（左端）＝端で加速も 0 になる、いちばん緩やかな形
+        //   位置 = 単振動 (1−cos πu)/2 と、緩やかな形 u − sin(2πu)/(2π) を混ぜる（どちらも端で速さ 0、行き戻りしない）
+        let ppSineS = 1;
+        try { const v = parseFloat(localStorage.getItem('hypercubePPSine')); if (isFinite(v)) ppSineS = Math.max(0, Math.min(1, v)); } catch (_) {}
         const PP_EASES = {
             turn: u => { const k = ppTurnK(); return 0.5 - Math.asin(k * Math.cos(Math.PI * u)) / (2 * Math.asin(k)); },
-            sine: u => (1 - Math.cos(Math.PI * u)) / 2,                     // 単振動：速さが sin のカーブ
+            sine: u => { const a = (1 - Math.cos(Math.PI * u)) / 2, b = u - Math.sin(2 * Math.PI * u) / (2 * Math.PI); return a + (b - a) * (1 - ppSineS); },   // 単振動（緩やかさで混ぜる）
             bounce: u => {                                                   // バウンド：端に落ちてぶつかり、3回弾んで止まる
                 const n1 = 7.5625, d1 = 2.75;
                 if (u < 1 / d1) return n1 * u * u;
@@ -3849,7 +3858,11 @@
                 });
                 document.getElementById('pp-turn-row').classList.toggle('hidden', ppEase !== 'turn');   // ターンのスライダーは「なめらかターン」のときだけ
                 document.getElementById('pp-spring-row').classList.toggle('hidden', ppEase !== 'spring');   // 弾みのスライダーは「ばね」のときだけ
+                document.getElementById('pp-sine-row').classList.toggle('hidden', ppEase !== 'sine');       // 緩やかさのスライダーは「単振動」のときだけ
             };
+            const sineEl = document.getElementById('pp-sine');
+            sineEl.value = String(ppSineS);
+            sineEl.addEventListener('input', () => { ppSineS = parseFloat(sineEl.value); try { localStorage.setItem('hypercubePPSine', String(ppSineS)); } catch (_) {} });
             const springEl = document.getElementById('pp-spring');
             springEl.value = String(ppSpringS);
             springEl.addEventListener('input', () => { ppSpringS = parseFloat(springEl.value); try { localStorage.setItem('hypercubePPSpring', String(ppSpringS)); } catch (_) {} });
