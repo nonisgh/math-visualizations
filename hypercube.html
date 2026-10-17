@@ -2,7 +2,9 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>2D➔3D vs 3D➔4D 超立方体シミュレーター（超立方体の中心まわりで回転）</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -71,9 +73,76 @@
 
         .mode-cube #wrapper-2d3d { width: 100%; height: 100%; display: block; position: relative; }
         .mode-cube #wrapper-3d4d { display: none !important; }
+
+        /* 右サイドパネル（--sb-w：パネル幅、--sb：描画領域から引く幅。パネルを閉じると 0） */
+        body { --sb-w: 360px; --sb: var(--sb-w); }
+        body.sidebar-hidden { --sb: 0px; }
+        body.sidebar-hidden #ui-overlay { display: none; }
+        body.sidebar-hidden #sidebar-open { display: flex; }
+        #main-container { right: var(--sb) !important; width: auto !important; }
+        #rot-bar { left: 12px; right: calc(var(--sb) + 12px); }
+        #ui-overlay { right: 0; left: auto; border-width: 0 0 0 1px !important; }
+        #sidebar-open { right: 12px; left: auto; }
+        /* パネルを左に置くとき */
+        body.sidebar-left #main-container { right: 0 !important; left: var(--sb) !important; }
+        body.sidebar-left #rot-bar { left: calc(var(--sb) + 12px); right: 12px; }
+        body.sidebar-left #ui-overlay { left: 0; right: auto; border-width: 0 1px 0 0 !important; }
+        body.sidebar-left #sidebar-open { left: 12px; right: auto; }
+        .sb-tab { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 8px; font-size: 11px; color: #94a3b8; border: 1px solid transparent; }
+        .sb-tab:hover { background: rgba(30, 41, 59, 0.8); color: #e2e8f0; }
+        .sb-tab.active { background: rgba(124, 58, 237, 0.25); border-color: rgba(167, 139, 250, 0.5); color: #ede9fe; }
+        .sb-sec { background: rgba(2, 6, 23, 0.35); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .sb-h { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #cbd5e1; margin: 0; }
+
+        /* ===== iPad・iPhone 向け（レスポンシブ） ===== */
+        button, input, label, summary { touch-action: manipulation; }   /* ダブルタップで拡大しない */
+        #rot-bar > div { max-width: 100%; }
+        /* 縦長の画面（iPad 縦・iPhone）は、立方体と超立方体を上下に並べる（超立方体を大きく） */
+        @media (orientation: portrait) and (max-width: 1100px) {
+            #main-container { flex-direction: column; }
+            .mode-split #wrapper-2d3d { width: 100% !important; height: 40% !important; border-right: 0 !important; border-bottom: 1px solid #1e293b; }
+            .mode-split #wrapper-3d4d { width: 100% !important; height: 60% !important; }
+        }
+        /* iPad 縦（と小さめの画面）：パネルを少し細く */
+        @media (max-width: 1100px) { body { --sb-w: 320px; } }
+        /* iPhone（幅が狭い）：パネルは下から出るシート。図形はシートの上 */
+        @media (max-width: 700px) {
+            body { --sb: 0px; --sheet: 46%; }
+            body.sidebar-hidden { --sheet: 0px; }
+            #main-container, body.sidebar-left #main-container { left: 0 !important; right: 0 !important; bottom: var(--sheet) !important; height: auto !important; }
+            #ui-overlay, body.sidebar-left #ui-overlay { left: 0 !important; right: 0 !important; top: auto !important; bottom: 0; width: 100% !important; height: var(--sheet) !important;
+                border-width: 1px 0 0 0 !important; border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+            #rot-bar, body.sidebar-left #rot-bar { left: 8px !important; right: 8px !important; bottom: calc(var(--sheet) + 8px) !important; }
+            body.sidebar-hidden #rot-bar { bottom: calc(8px + env(safe-area-inset-bottom)) !important; }
+            #rot-bar > div { flex-wrap: nowrap !important; overflow-x: auto; justify-content: flex-start !important; scrollbar-width: none; }
+            #rot-bar > div::-webkit-scrollbar { display: none; }
+            #rot-bar button { flex-shrink: 0; }
+            #sidebar-open, body.sidebar-left #sidebar-open { top: calc(8px + env(safe-area-inset-top)) !important; right: 8px !important; left: auto !important; }
+            #sidebar-side { display: none !important; }   /* 左右の切替はスマホでは使わない */
+            #badge-2d3d, #badge-3d4d { top: 6px !important; left: 6px !important; padding: 3px 8px !important; font-size: 10px !important; }
+            #badge-2d3d span span, #badge-3d4d span span { display: none; }   /* 小さい画面では見出しの説明文を省く */
+            .mode-split #wrapper-2d3d { height: 38% !important; }
+            .mode-split #wrapper-3d4d { height: 62% !important; }
+        }
+        /* iPhone 横向き（高さが低い）：パネルは横、図形は左右に並べたまま */
+        @media (max-height: 500px) and (orientation: landscape) {
+            body { --sb-w: 300px; }
+            #badge-2d3d span span, #badge-3d4d span span { display: none; }
+        }
+        /* 指で操作する端末：ボタンと入力欄を押しやすい大きさに */
+        @media (pointer: coarse) {
+            #ui-overlay button, #rot-bar button, #ui-overlay summary { min-height: 34px; }
+            #ui-overlay input[type=number] { min-height: 32px; font-size: 13px !important; width: 3.6rem !important; }
+            #ui-overlay input[type=range] { height: 28px; }
+            .sb-tab { padding: 8px 14px; font-size: 13px; }
+        }
+
+        /* 右上ミニ表示：見出しは小さく、説明文は省く（小窓をふさがない） */
+        .mode-pip #badge-2d3d { top: 6px !important; left: 6px !important; padding: 2px 8px !important; font-size: 10px !important; }
+        .mode-pip #badge-2d3d span span { display: none; }
     </style>
 </head>
-<body class="w-full h-screen relative flex flex-col select-none overflow-hidden">
+<body class="w-full h-screen relative flex flex-col select-none overflow-hidden" style="height: 100vh; height: 100dvh;">
 
     <!-- Render Canvas Container -->
     <div id="main-container" class="w-full h-full absolute inset-0 z-0 flex mode-split">
@@ -94,12 +163,6 @@
         </div>
     </div>
 
-    <!-- ショートカットの案内（パネルを隠しても見えるよう overlay の外に置く） -->
-    <div id="shortcut-hint" class="absolute top-3 right-3 z-20 pointer-events-none text-[10px] text-slate-500 bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1 leading-tight text-right">
-        <div id="shortcut-hint-keys"></div>
-        <button id="keycfg-open" class="pointer-events-auto mt-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[10px]" title="ショートカットキーを割り当て・保存・読み込み">⚙ キー設定</button>
-        <button id="viewcfg-open" class="pointer-events-auto mt-1 ml-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[10px]" title="透明度・奥の暗さ・手前の明るさ・線の濃さを調整（正確モード）">⚙ 表示設定</button>
-    </div>
 
     <!-- 表示設定モーダル（正確モードの見た目を調整） -->
     <div id="viewcfg-overlay" class="fixed inset-0 z-50 hidden items-center justify-center">
@@ -163,40 +226,52 @@
         </div>
     </div>
 
-    <!-- 回転アニメパネル：操作パネル(X)を隠しても使えるよう overlay の外に置く -->
-    <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none max-w-[94vw]">
-        <div class="glass-panel rounded-xl px-3 py-2 pointer-events-auto shadow-xl flex items-center justify-center gap-2 text-[11px] flex-wrap">
-            <span class="font-bold text-violet-200 flex items-center gap-1 shrink-0"><i data-lucide="film" class="w-3.5 h-3.5"></i>回転アニメ</span>
-            <label class="flex items-center gap-1 text-rose-200">X-W<input id="anim-xw" type="number" step="1" placeholder="現状" title="空欄＝今のまま変えない／数値＝その角度まで移行（0で0°）" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 text-[11px]"></label>
-            <label class="flex items-center gap-1 text-emerald-200">Y-W<input id="anim-yw" type="number" step="1" placeholder="現状" title="空欄＝今のまま変えない／数値＝その角度まで移行（0で0°）" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 text-[11px]"></label>
-            <label class="flex items-center gap-1 text-sky-200">Z-W<input id="anim-zw" type="number" step="1" placeholder="現状" title="空欄＝今のまま変えない／数値＝その角度まで移行（0で0°）" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 text-[11px]"></label>
-            <span class="text-slate-500">°</span>
-            <button id="anim-play" class="flex items-center gap-1 px-2 py-1 bg-violet-600/40 border border-violet-400/50 text-violet-100 rounded-lg hover:bg-violet-600/60 transition shrink-0" title="今の回転から、入力した角度まで滑らかに移行して再生"><i data-lucide="play" class="w-3.5 h-3.5"></i>再生</button>
+    <!-- 回転バー：描画領域の下に細く。よく使う回転・補正・リセット・投影だけ -->
+    <div id="rot-bar" class="absolute bottom-3 z-30 pointer-events-none flex justify-center">
+        <div class="glass-panel rounded-xl px-2.5 py-1.5 pointer-events-auto shadow-xl flex items-center gap-1.5 text-[11px] flex-wrap justify-center">
+            <span class="text-violet-200 font-bold flex items-center gap-1 shrink-0 mr-0.5"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>回転</span>
+            <button id="spin-all-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="W の絡む3面（X-W・Y-W・Z-W）をすべて回し続ける＝中身がグリグリ入れ替わる4Dの回転。もう一度押すと止まる（Enter キーでも同じ）">
+                            <i data-lucide="orbit" class="w-3 h-3"></i><span>W</span>
+                        </button>
+                        <button id="spin-w2-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="X-W・Y-W の2面だけを回し続ける（Z-W は回さない）。左の立方体も X-Z・Y-Z で一緒に回る＝左右が完全に同期する4D回転。もう一度押すと止まる">
+                            <i data-lucide="orbit" class="w-3 h-3"></i><span>W(X,Y)</span>
+                        </button>
+                        <button id="spin-3d-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="X-Y・X-Z・Y-Z（w を含まない3面＝ふつうの3D回転）をすべて回し続ける。形は変わらず転がるだけ。左がどこまでついてくるかは「左の立方体の3D回転」で切り替え">
+                            <i data-lucide="rotate-3d" class="w-3 h-3"></i><span>3D</span>
+                        </button>
+                        <button id="spin-6-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="6面すべて（X-Y・X-Z・Y-Z・X-W・Y-W・Z-W）を同時に回し続ける">
+                            <i data-lucide="sparkles" class="w-3 h-3"></i><span>全て</span>
+                        </button>
+            <span class="text-slate-600">|</span>
             <button id="snap-left-btn" class="flex items-center gap-1 px-2 py-1 bg-slate-800 border border-emerald-500/50 text-emerald-200 rounded-lg hover:bg-slate-700 transition shrink-0" title="Z 軸を画面に垂直（視線方向）に立て直す。回転は止めない。z を傾ける Z-W・X-Z・Y-Z を瞬時に0へ戻してその回転だけ止め、カメラも正面へ戻す。投影とカメラの遠さは「平行投影／遠近投影」の切替に合わせる。X-W・Y-W・X-Y は回り続ける＝左の立方体の動きはそのまま"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i>補正</button>
-            <span class="text-slate-600 mx-0.5">|</span>
-            <span class="text-slate-400 shrink-0">プリセットへ移行:</span>
-            <button class="anim-proj-btn px-2 py-0.5 rounded bg-slate-800 border border-violet-500/40 text-violet-200 hover:bg-slate-700 transition shrink-0" data-proj="cell" title="胞から（正面・立方体の入れ子）へアニメ移行">胞</button>
-            <button class="anim-proj-btn px-2 py-0.5 rounded bg-slate-800 border border-violet-500/40 text-violet-200 hover:bg-slate-700 transition shrink-0" data-proj="face" title="面から へアニメ移行">面</button>
-            <button class="anim-proj-btn px-2 py-0.5 rounded bg-slate-800 border border-violet-500/40 text-violet-200 hover:bg-slate-700 transition shrink-0" data-proj="edge" title="辺から へアニメ移行">辺</button>
-            <button class="anim-proj-btn px-2 py-0.5 rounded bg-slate-800 border border-violet-500/40 text-violet-200 hover:bg-slate-700 transition shrink-0" data-proj="vertex" title="頂点から（等角図）へアニメ移行">頂点</button>
-            <button id="face-cam-btn" class="px-2 py-0.5 rounded bg-violet-900/40 border border-violet-500/50 text-violet-200 hover:bg-slate-700 transition shrink-0" title="ON＝プリセット移行時にカメラも正面へ向けて“きれいな正多角形”にする／OFF＝今のカメラのまま">カメラ正対: ON</button>
-            <button id="persp-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition shrink-0" title="投影の切替。平行投影＝回転・補正・面/辺/頂点プリセットがきれいな正多角形（既定）。遠近投影＝左右とも奥行きが出る。リセットの「W 手前」は常に遠近で、カメラの遠さだけこれに合わせる">平行投影</button>
-            <span class="text-slate-600 mx-0.5">|</span>
-            <span class="text-amber-300 shrink-0 flex items-center gap-1" title="どの軸を画面に垂直（正面の奥行き）に据えるか。既定は Z（今の正面図）。X/Y はその軸が正面を向くようカメラが回り込み、W は Z-W を90°回して W を奥行きに出す">垂直軸:</span>
-            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-sky-900/50 border-sky-400/60" style="color:#56a8ff" data-axis="z" title="Z を画面に垂直（＝今の正面図）。既定">Z</button>
-            <span class="text-[9px] text-slate-500 shrink-0 -ml-1">(既定)</span>
-            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" data-axis="w" style="color:#b07cff" title="W を画面に垂直（奥行き）へ。Z-W を90°回して W を奥へ出す">W</button>
-            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 hover:bg-slate-700" style="color:#ff5d6c" data-axis="x" title="X を画面に垂直へ。横から覗く向きへカメラが回り込む">X</button>
-            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 hover:bg-slate-700" style="color:#3ddc84" data-axis="y" title="Y を画面に垂直へ。真上から覗く向きへカメラが回り込む">Y</button>
+            <button id="link-reset-btn" class="whitespace-nowrap px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="回転を止めて、6面すべてを0に戻し、W を手前（視線方向）へ向けた正面の形にする（カメラの遠さは「平行投影／遠近投影」の切替に合わせる。O キーでも同じ）。全部を読み込み時に戻すのは左の「初期化」">リセット</button>
+            <span class="text-slate-600">|</span>
+            <button id="persp-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition shrink-0" title="投影の切替。平行投影＝W の回転・面/辺/頂点プリセットがきれいな正多角形（既定）。遠近投影＝左右とも奥行きが出る。平行投影を選んでいても、折りたたみ中や W の回転が0のときは遠近で表示（平行だと内と外の立方体が重なって中が見えなくなるため）">平行投影</button>
         </div>
     </div>
 
-    <!-- UI Overlay Layout -->
-    <div id="ui-overlay" class="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none p-3 md:p-6">
-        <div></div>
+    <!-- パネルを閉じているときに開くボタン -->
+    <button id="sidebar-open" class="hidden absolute top-3 z-30 glass-panel rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 hover:bg-slate-700 flex items-center gap-1" title="操作パネルを開く（Space）"><i data-lucide="panel-right-open" class="w-3.5 h-3.5"></i>パネル</button>
 
-        <div class="max-w-5xl w-full mx-auto mt-auto flex flex-col md:flex-row gap-3 items-stretch">
-        <footer class="glass-panel rounded-2xl p-4 md:p-5 flex-1 min-w-0 pointer-events-auto shadow-2xl space-y-3.5 glow-effect">
+    <!-- 右サイドパネル（タブ：折りたたみ／回転／見え方）。Space で開閉 -->
+    <aside id="ui-overlay" class="absolute top-0 h-full z-30 glass-panel flex flex-col pointer-events-auto" style="width: var(--sb-w);">
+        <div class="flex items-center justify-between px-3 pt-2.5 pb-1.5">
+            <span class="text-[12px] font-bold text-slate-200 flex items-center gap-1.5"><i data-lucide="box" class="w-4 h-4 text-purple-300"></i>超立方体シミュレーター</span>
+            <span class="flex items-center gap-1">
+            <button id="sidebar-side" class="text-slate-400 hover:text-slate-200 px-1.5 py-0.5 rounded hover:bg-slate-800 text-[11px] flex items-center gap-1" title="パネルを左右どちらに置くか切り替える（B キー）。選んだ側はこのブラウザに保存"><i data-lucide="arrow-left-right" class="w-3.5 h-3.5"></i><span id="sidebar-side-text">右へ</span></button>
+            <button id="sidebar-close" class="text-slate-400 hover:text-slate-200 px-1.5 py-0.5 rounded hover:bg-slate-800 text-[11px] flex items-center gap-1" title="パネルを閉じて図形を広く（Space）"><i data-lucide="panel-right-close" class="w-3.5 h-3.5"></i>閉じる</button>
+            </span>
+        </div>
+        <div class="flex gap-1 px-3 pb-2 border-b border-slate-800" role="tablist">
+            <button class="sb-tab" data-tab="fold" role="tab"><i data-lucide="sliders" class="w-3.5 h-3.5"></i>折りたたみ</button>
+            <button class="sb-tab" data-tab="rot" role="tab"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>回転</button>
+            <button class="sb-tab" data-tab="view" role="tab"><i data-lucide="eye" class="w-3.5 h-3.5"></i>見え方</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-3 py-2.5 space-y-3">
+            <div class="sb-panel space-y-3" data-panel="fold">
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="sliders" class="w-3.5 h-3.5"></i>折りたたみ進行</h3>
             <div class="space-y-1.5">
                 <div class="flex justify-between items-center text-xs font-semibold">
                     <span class="flex items-center gap-2 text-slate-300">
@@ -213,10 +288,11 @@
                     <span class="text-[10px] font-bold text-cyan-400 bg-cyan-950/80 px-2 py-1 rounded border border-cyan-800/80">組み上がり完成</span>
                 </div>
             </div>
+            </section>
 
-            <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800">
-                <div class="flex items-center gap-2">
-                    <button id="play-fold-btn" class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-slate-950 font-black rounded-xl transition shadow-lg shadow-cyan-500/20 active:scale-95 text-xs">
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="play" class="w-3.5 h-3.5"></i>再生</h3>
+<div class="flex items-center gap-2 flex-wrap">                    <button id="play-fold-btn" class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-slate-950 font-black rounded-xl transition shadow-lg shadow-cyan-500/20 active:scale-95 text-xs">
                         <i data-lucide="box" class="w-4 h-4"></i>
                         <span>組みあげる</span>
                     </button>
@@ -232,94 +308,20 @@
                         <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400"></i>
                         <span id="speed-text" class="text-[11px]">速度: 1.0x</span>
                     </button>
-                </div>
-
-                <div class="flex items-center gap-1.5 flex-wrap">
-                    <button id="display-mode-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-900/40 border border-emerald-500/50 text-emerald-200 rounded-xl hover:bg-emerald-800/50 transition text-xs" title="表示モード切替">
-                        <i data-lucide="columns" class="w-3.5 h-3.5 text-emerald-400"></i>
-                        <span id="display-mode-text" class="text-[11px]">表示: どっちも</span>
-                    </button>
-
                     <button id="stagger-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-cyan-900/40 border border-cyan-500/50 text-cyan-200 rounded-xl hover:bg-cyan-800/50 transition text-xs" title="時間差か同時かを選択">
                         <i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400"></i>
                         <span id="stagger-text" class="text-[11px]">時間差: ON</span>
                     </button>
-
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
                         <span id="zoom-text" class="text-[11px]">自動ズーム: ON</span>
-                    </button>
-
-                    <button id="axis-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-amber-900/40 border border-amber-500/50 text-amber-200 rounded-xl hover:bg-slate-700 transition text-xs" title="X/Y/Z/W の座標軸を重ねて表示。W軸は胞から(0°)では中心の一点、X-W/Y-W/Z-Wを回すと外へ伸びる">
-                        <i data-lucide="move-3d" class="w-3.5 h-3.5"></i>
-                        <span id="axis-text" class="text-[11px]">座標軸: ON (X赤 Y緑 Z青 W紫)</span>
-                    </button>
-
-                    <button id="pin-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="点固定モード：等角図の中心にくる対角の2頂点を常に画面中心へ重ねたまま回転・変形する（主対角を視線に固定して観測）">
-                        <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
-                        <span id="pin-text" class="text-[11px]">点固定: OFF</span>
-                    </button>
-
-                    <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-[11px]">
-                        <button id="view-mesh-btn" class="px-2 py-0.5 rounded-lg font-medium text-cyan-400 bg-slate-800 transition">メッシュ</button>
-                        <button id="view-wire-btn" class="px-2 py-0.5 rounded-lg font-medium text-slate-400 hover:text-white transition">ワイヤー</button>
-                    </div>
-
-                    <button id="xparent-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="立体感＝今の見た目（奥の面が濃いが立体感が強い）／正確＝毎フレーム面を奥から並べ直し透過を正しく合成（奥の面もちゃんと透ける。立体感は辺のフェードが担う）">
-                        <i data-lucide="layers" class="w-3.5 h-3.5"></i>
-                        <span id="xparent-text" class="text-[11px]">面透過: 立体感</span>
-                    </button>
-                </div>
+                    </button></div>
+            </section>
             </div>
+            <div class="sb-panel space-y-3 hidden" data-panel="rot">
 
-            <div class="flex items-center gap-2 text-[11px] pt-1.5 border-t border-slate-800/80 flex-wrap">
-                <span class="text-amber-300 flex items-center gap-1 font-bold"><i data-lucide="aperture" class="w-3.5 h-3.5"></i>どこから見る:</span>
-                <button data-proj="cell" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (0,0,0,1)。角度0個。おなじみの「立方体の中に立方体」。ここだけ遠近つき（平行投影だと内と外がぴったり重なって1個に見えるため）">胞から</button>
-                <button data-proj="face" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,0,0,1)/√2。X-W=45° だけ。六角柱に見える">面から</button>
-                <button data-proj="edge" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,1,0,1)/√3。X-W=45°・Y-W=35.26°">辺から</button>
-                <button data-proj="vertex" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,1,1,1)/2。X-W=45°・Y-W=35.26°・Z-W=30°。4軸が対等＝等角図。外殻は菱形十二面体（距離2に6頂点＋距離√3に8頂点）になり、対角の2頂点は中心に重なる">頂点から（等角図）</button>
-                <button id="cycle-btn" class="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" title="胞→面→辺→頂点 を自動で滑らかに周回する"><i data-lucide="rotate-cw" class="w-3 h-3"></i><span>周回</span></button>
-                <label class="flex items-center gap-1 text-slate-400 shrink-0" title="一周にかける秒数">
-                    <input id="cycle-sec" type="number" min="2" max="120" step="1" value="12" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-amber-200 text-[11px]">秒/周
-                </label>
-                <span id="proj-note" class="text-[10px] text-slate-400"></span>
-            </div>
-            <p class="text-[10px] text-slate-400 leading-relaxed -mt-1">
-                角度を<b class="text-amber-300">1つずつ足していくだけ</b>で順に移れます（45° → +35.26° → +30°）。足した数が、視線が使う軸の本数です。
-            </p>
-
-            <div class="flex items-center justify-between gap-1 text-[11px] pt-1 border-t border-slate-800/80">
-
-                <div class="flex items-center gap-1.5">
-                    <button id="reset-all-btn" class="flex items-center gap-1 px-2 py-0.5 bg-rose-900/40 border border-rose-500/50 text-rose-200 rounded-lg hover:bg-rose-800/50 transition text-[11px]" title="すべて読み込み時の状態に戻す">
-                        <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
-                        <span>初期化</span>
-                    </button>
-                </div>
-            </div>
-        </footer>
-        <footer class="glass-panel rounded-2xl p-4 md:p-5 flex-1 min-w-0 pointer-events-auto shadow-2xl space-y-3.5 glow-effect"><div class="space-y-1.5">
-                <div class="flex items-center justify-between gap-2 flex-wrap">
-                    <span class="text-[11px] font-bold text-purple-300 flex items-center gap-1.5">
-                        <i data-lucide="orbit" class="w-3.5 h-3.5 text-purple-400"></i>
-                        左右連動の回転（新しくできた次元へ倒す）
-                    </span>
-                    <div class="flex items-center gap-1.5">
-                        <button id="spin-all-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="W の絡む3面（X-W・Y-W・Z-W）をすべて回し続ける＝中身がグリグリ入れ替わる4Dの回転。もう一度押すと止まる（Enter キーでも同じ）">
-                            <i data-lucide="orbit" class="w-3 h-3"></i><span>W</span>
-                        </button>
-                        <button id="spin-w2-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="X-W・Y-W の2面だけを回し続ける（Z-W は回さない）。左の立方体も X-Z・Y-Z で一緒に回る＝左右が完全に同期する4D回転。もう一度押すと止まる">
-                            <i data-lucide="orbit" class="w-3 h-3"></i><span>W(X,Y)</span>
-                        </button>
-                        <button id="spin-3d-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="X-Y・X-Z・Y-Z（w を含まない3面＝ふつうの3D回転）をすべて回し続ける。形は変わらず転がるだけ。左がどこまでついてくるかは「左の立方体の3D回転」で切り替え">
-                            <i data-lucide="rotate-3d" class="w-3 h-3"></i><span>3D</span>
-                        </button>
-                        <button id="spin-6-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="6面すべて（X-Y・X-Z・Y-Z・X-W・Y-W・Z-W）を同時に回し続ける">
-                            <i data-lucide="sparkles" class="w-3 h-3"></i><span>全て</span>
-                        </button>
-                        <button id="link-reset-btn" class="whitespace-nowrap px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="回転を止めて、6面すべてを0に戻し、W を手前（視線方向）へ向けた正面の形にする（カメラの遠さは「平行投影／遠近投影」の切替に合わせる。O キーでも同じ）。全部を読み込み時に戻すのは左の「初期化」">リセット</button>
-                    </div>
-                </div>
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>角度（スライダー・数値・↺・自動回転）</h3>
                 <div class="flex items-center gap-2">
                     <span class="text-[10px] font-mono w-20 shrink-0 leading-tight"><b class="text-purple-300 text-[11px]">X-W</b><br><span class="text-slate-500">左は X-Z</span></span>
                     <input id="link-x-slider" type="range" min="-180" max="180" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-400 border border-slate-700">
@@ -368,11 +370,28 @@
                     <button class="rot-reset shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px] leading-none" data-plane="yz" title="この面(3D の Y-Z)の角度を0に戻す（投影はリセット切替どおり）">↺</button>
                     <button class="plane-spin-btn shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" data-plane="yz" title="Y-Z だけをまわし続ける（ふつうの3D回転。上の「Y-W（左は Y-Z）」とは別の操作）"><i data-lucide="refresh-cw" class="w-3 h-3"></i></button>
                 </div>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="square" class="w-3.5 h-3.5"></i>左の立方体</h3>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-sky-300 shrink-0">左の立方体の3D回転:</span>
                     <button id="left3d-btn" class="whitespace-nowrap px-2 py-0.5 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 hover:bg-slate-700 transition" title="X-Yだけ＝左は自分の平面（X-Y）の回転だけついてくる。X-Z・Y-Z では右だけが転がる／全部＝左も X-Y・X-Z・Y-Z すべてで右と同じように転がる">X-Y だけ</button>
                     <span class="text-[10px] text-slate-500">押すと「全部（左右そろって転がる）」に切り替わります</span>
                 </div>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="film" class="w-3.5 h-3.5"></i>回転アニメ（入力した角度まで再生）</h3>
+<div class="flex items-center gap-1.5 flex-wrap text-[11px]">            <label class="flex items-center gap-1 text-rose-200">X-W<input id="anim-xw" type="number" step="1" placeholder="現状" title="空欄＝今のまま変えない／数値＝その角度まで移行（0で0°）" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 text-[11px]"></label>
+            <label class="flex items-center gap-1 text-emerald-200">Y-W<input id="anim-yw" type="number" step="1" placeholder="現状" title="空欄＝今のまま変えない／数値＝その角度まで移行（0で0°）" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 text-[11px]"></label>
+            <label class="flex items-center gap-1 text-sky-200">Z-W<input id="anim-zw" type="number" step="1" placeholder="現状" title="空欄＝今のまま変えない／数値＝その角度まで移行（0で0°）" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 text-[11px]"></label>
+            <span class="text-slate-500">°</span>
+            <button id="anim-play" class="flex items-center gap-1 px-2 py-1 bg-violet-600/40 border border-violet-400/50 text-violet-100 rounded-lg hover:bg-violet-600/60 transition shrink-0" title="今の回転から、入力した角度まで滑らかに移行して再生"><i data-lucide="play" class="w-3.5 h-3.5"></i>再生</button></div>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="target" class="w-3.5 h-3.5"></i>軸の操作</h3>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-amber-300 shrink-0 flex items-center gap-1"><i data-lucide="target" class="w-3.5 h-3.5"></i>手前へ消す軸:</span>
                     <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#b07cff" data-axis="w" title="W を手前（視線方向）へ。既定の胞から。見える3軸は X,Y,Z">W</button>
@@ -388,6 +407,8 @@
                     <button class="step90-btn px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" data-plane="z" title="Z-W 面で90°回す。Z軸が中心へ消え、W が Z 方向へ出てくる">Z-W</button>
                     <span class="text-[10px] text-slate-500">押すたび1つの軸が中心へ消え、W が入れ替わりに出ます（軸表示が自動でON）</span>
                 </div>
+            </section>
+                <details class="sb-sec text-[10px]"><summary class="sb-h cursor-pointer"><i data-lucide="info" class="w-3.5 h-3.5"></i>説明（左と右の対応）</summary>
                 <p class="text-[10px] text-slate-400 leading-relaxed">
                     同じ角度を左右に同時にかけています。<b class="text-cyan-300">左はただ立方体が回るだけ</b>。
                     <b class="text-purple-300">右は内側の胞と外側の胞が入れ替わり、裏返るように見えます</b>。
@@ -402,10 +423,91 @@
                     下の X-Y・X-Z・Y-Z（3D回転）は、形を変えずに転がすだけの回転です。標準では左は X-Y だけついてきます
                     （左にとっては自分の平面の回転だけ＝低い次元から見た視界）。「左の立方体の3D回転: 全部」にすると、左右が<b>同じように転がり</b>ます。
                 </p>
+                </details>
             </div>
-            </footer>
+            <div class="sb-panel space-y-3 hidden" data-panel="view">
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="aperture" class="w-3.5 h-3.5"></i>どこから見る</h3>
+            <div class="flex items-center gap-2 text-[11px] pt-1.5 border-t border-slate-800/80 flex-wrap">
+                
+                <button data-proj="cell" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (0,0,0,1)。角度0個。おなじみの「立方体の中に立方体」。ここだけ遠近つき（平行投影だと内と外がぴったり重なって1個に見えるため）">胞から</button>
+                <button data-proj="face" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,0,0,1)/√2。X-W=45° だけ。六角柱に見える">面から</button>
+                <button data-proj="edge" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,1,0,1)/√3。X-W=45°・Y-W=35.26°">辺から</button>
+                <button data-proj="vertex" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,1,1,1)/2。X-W=45°・Y-W=35.26°・Z-W=30°。4軸が対等＝等角図。外殻は菱形十二面体（距離2に6頂点＋距離√3に8頂点）になり、対角の2頂点は中心に重なる">頂点から（等角図）</button>
+                <button id="cycle-btn" class="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" title="胞→面→辺→頂点 を自動で滑らかに周回する"><i data-lucide="rotate-cw" class="w-3 h-3"></i><span>周回</span></button>
+                <label class="flex items-center gap-1 text-slate-400 shrink-0" title="一周にかける秒数">
+                    <input id="cycle-sec" type="number" min="2" max="120" step="1" value="12" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-amber-200 text-[11px]">秒/周
+                </label>
+                <span id="proj-note" class="text-[10px] text-slate-400"></span>
+            </div>
+            <p class="text-[10px] text-slate-400 leading-relaxed -mt-1">
+                角度を<b class="text-amber-300">1つずつ足していくだけ</b>で順に移れます（45° → +35.26° → +30°）。足した数が、視線が使う軸の本数です。
+            </p>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="film" class="w-3.5 h-3.5"></i>プリセットへ移行（アニメ）</h3>
+<div class="flex items-center gap-1.5 flex-wrap text-[11px]">            <button class="anim-proj-btn px-2 py-0.5 rounded bg-slate-800 border border-violet-500/40 text-violet-200 hover:bg-slate-700 transition shrink-0" data-proj="cell" title="胞から（正面・立方体の入れ子）へアニメ移行">胞</button>
+            <button class="anim-proj-btn px-2 py-0.5 rounded bg-slate-800 border border-violet-500/40 text-violet-200 hover:bg-slate-700 transition shrink-0" data-proj="face" title="面から へアニメ移行">面</button>
+            <button class="anim-proj-btn px-2 py-0.5 rounded bg-slate-800 border border-violet-500/40 text-violet-200 hover:bg-slate-700 transition shrink-0" data-proj="edge" title="辺から へアニメ移行">辺</button>
+            <button class="anim-proj-btn px-2 py-0.5 rounded bg-slate-800 border border-violet-500/40 text-violet-200 hover:bg-slate-700 transition shrink-0" data-proj="vertex" title="頂点から（等角図）へアニメ移行">頂点</button>
+<button id="face-cam-btn" class="px-2 py-0.5 rounded bg-violet-900/40 border border-violet-500/50 text-violet-200 hover:bg-slate-700 transition shrink-0" title="ON＝プリセット移行時にカメラも正面へ向けて“きれいな正多角形”にする／OFF＝今のカメラのまま">カメラ正対: ON</button></div>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="move-vertical" class="w-3.5 h-3.5"></i>垂直軸</h3>
+<div class="flex items-center gap-1.5 flex-wrap text-[11px]">            <span class="sr-only" title="どの軸を画面に垂直（正面の奥行き）に据えるか。既定は Z（今の正面図）。X/Y はその軸が正面を向くようカメラが回り込み、W は Z-W を90°回して W を奥行きに出す">垂直軸:</span>
+            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-sky-900/50 border-sky-400/60" style="color:#56a8ff" data-axis="z" title="Z を画面に垂直（＝今の正面図）。既定">Z</button>
+            <span class="text-[9px] text-slate-500 shrink-0 -ml-1">(既定)</span>
+            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" data-axis="w" style="color:#b07cff" title="W を画面に垂直（奥行き）へ。Z-W を90°回して W を奥へ出す">W</button>
+            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 hover:bg-slate-700" style="color:#ff5d6c" data-axis="x" title="X を画面に垂直へ。横から覗く向きへカメラが回り込む">X</button>
+            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 hover:bg-slate-700" style="color:#3ddc84" data-axis="y" title="Y を画面に垂直へ。真上から覗く向きへカメラが回り込む">Y</button></div>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="layers" class="w-3.5 h-3.5"></i>表示</h3>
+<div class="flex items-center gap-1.5 flex-wrap">                    <button id="display-mode-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-900/40 border border-emerald-500/50 text-emerald-200 rounded-xl hover:bg-emerald-800/50 transition text-xs" title="表示モード切替">
+                        <i data-lucide="columns" class="w-3.5 h-3.5 text-emerald-400"></i>
+                        <span id="display-mode-text" class="text-[11px]">表示: どっちも</span>
+                    </button>
+
+                    <button id="axis-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-amber-900/40 border border-amber-500/50 text-amber-200 rounded-xl hover:bg-slate-700 transition text-xs" title="X/Y/Z/W の座標軸を重ねて表示。W軸は胞から(0°)では中心の一点、X-W/Y-W/Z-Wを回すと外へ伸びる">
+                        <i data-lucide="move-3d" class="w-3.5 h-3.5"></i>
+                        <span id="axis-text" class="text-[11px]">座標軸: ON (X赤 Y緑 Z青 W紫)</span>
+                    </button>
+
+                    <button id="pin-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="点固定モード：等角図の中心にくる対角の2頂点を常に画面中心へ重ねたまま回転・変形する（主対角を視線に固定して観測）">
+                        <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+                        <span id="pin-text" class="text-[11px]">点固定: OFF</span>
+                    </button>
+
+                    <div class="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-[11px]">
+                        <button id="view-mesh-btn" class="px-2 py-0.5 rounded-lg font-medium text-cyan-400 bg-slate-800 transition">メッシュ</button>
+                        <button id="view-wire-btn" class="px-2 py-0.5 rounded-lg font-medium text-slate-400 hover:text-white transition">ワイヤー</button>
+                    </div>
+
+                    <button id="xparent-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="立体感＝今の見た目（奥の面が濃いが立体感が強い）／正確＝毎フレーム面を奥から並べ直し透過を正しく合成（奥の面もちゃんと透ける。立体感は辺のフェードが担う）">
+                        <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                        <span id="xparent-text" class="text-[11px]">面透過: 立体感</span>
+                    </button></div>
+            </section>
+            </div>
         </div>
-    </div>
+        <div class="border-t border-slate-800 px-3 py-2 text-[10px] text-slate-500">
+            <div id="shortcut-hint-keys" class="hidden max-w-[min(70vw,560px)] max-h-[40vh] overflow-auto mb-1"></div>
+            <div class="flex items-center gap-1 flex-wrap">
+                <button id="hint-toggle" class="pointer-events-auto mt-1 mr-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[10px]" title="割り当て済みのショートカットキーの一覧を開く／閉じる">⌨ キー一覧</button>
+                <button id="keycfg-open" class="pointer-events-auto mt-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[10px]" title="ショートカットキーを割り当て・保存・読み込み">⚙ キー設定</button>
+                <button id="viewcfg-open" class="pointer-events-auto mt-1 ml-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[10px]" title="透明度・奥の暗さ・手前の明るさ・線の濃さを調整（正確モード）">⚙ 表示設定</button>
+                <span class="flex-1"></span>
+                                    <button id="reset-all-btn" class="flex items-center gap-1 px-2 py-0.5 bg-rose-900/40 border border-rose-500/50 text-rose-200 rounded-lg hover:bg-rose-800/50 transition text-[11px]" title="すべて読み込み時の状態に戻す">
+                        <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                        <span>初期化</span>
+                    </button>
+            </div>
+        </div>
+    </aside>
 
     <script>
         lucide.createIcons();
@@ -947,9 +1049,10 @@
 
             // 左の立方体をドラッグで回すと、同じ角度が右の超立方体にもかかる
             let dragging = false, px = 0, py = 0;
-            renderer2D.domElement.addEventListener('pointerdown', e => { dragging = true; px = e.clientX; py = e.clientY; renderer2D.domElement.setPointerCapture(e.pointerId); });
+            const ptrsL = new Set();   // 触れている指の数（iPad の二本指ピンチ中は回さない）
+            renderer2D.domElement.addEventListener('pointerdown', e => { ptrsL.add(e.pointerId); if (e.button !== 0 && e.pointerType === 'mouse') return; dragging = ptrsL.size === 1; px = e.clientX; py = e.clientY; renderer2D.domElement.setPointerCapture(e.pointerId); });
             renderer2D.domElement.addEventListener('pointermove', e => {
-                if (!dragging) return;
+                if (!dragging || ptrsL.size !== 1) return;
                 stopCycle();
                 if (e.shiftKey) {
                     // Shift+左右ドラッグ＝Z-W回転。右の超立方体に反映＆（ZW連動ONなら）左の立方体は擬似歪みで表現。
@@ -963,7 +1066,7 @@
                 px = e.clientX; py = e.clientY;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
-            const endDrag = () => { dragging = false; };
+            const endDrag = e => { ptrsL.delete(e.pointerId); dragging = false; };
             renderer2D.domElement.addEventListener('pointerup', endDrag);
             renderer2D.domElement.addEventListener('pointercancel', endDrag);
 
@@ -981,6 +1084,31 @@
             controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
             controls3D.enableDamping = true;
             controls3D.dampingFactor = 0.05;
+            controls3D.enableRotate = false;   // 右もドラッグで「超立方体そのもの」を回す（カメラは回さない）＝回した角度がスライダーの数字に出る
+                                               // ホイール／ピンチのズーム・右ドラッグのパンはそのまま
+
+            // 右の超立方体をドラッグで回す：左右ドラッグ＝3D回転 X-Z、上下ドラッグ＝3D回転 Y-Z。
+            //   X-Y は左の立方体も一緒に回る面なので、手で回すときは使わない（左は止まったまま）。X-Y が動くのは自動回転のときだけ。
+            //   Shift+左右ドラッグ＝Z-W（左の立方体と同じ操作）。
+            let draggingR = false, rx = 0, ry = 0;
+            const ptrsR = new Set();
+            renderer3D.domElement.addEventListener('pointerdown', e => { ptrsR.add(e.pointerId); if (e.button !== 0 && e.pointerType === 'mouse') return; draggingR = ptrsR.size === 1; rx = e.clientX; ry = e.clientY; renderer3D.domElement.setPointerCapture(e.pointerId); });
+            renderer3D.domElement.addEventListener('pointermove', e => {
+                if (!draggingR || ptrsR.size !== 1) return;
+                stopCycle();
+                const dx = e.clientX - rx, dy = e.clientY - ry;
+                if (e.shiftKey) soloAngleZW = wrapPi(soloAngleZW + dx * 0.01);
+                else {
+                    rotXZ = wrapPi(rotXZ - dx * 0.01);   // 右へドラッグ＝手前の面が右へ
+                    rotYZ = wrapPi(rotYZ + dy * 0.01);   // 下へドラッグ＝手前の面が下へ
+                }
+                rx = e.clientX; ry = e.clientY;
+                ensureProjection();
+                updateLinkUI(); updateMorphingGeometry(animationProgress);
+            });
+            const endDragR = e => { ptrsR.delete(e.pointerId); draggingR = false; };
+            renderer3D.domElement.addEventListener('pointerup', endDragR);
+            renderer3D.domElement.addEventListener('pointercancel', endDragR);
 
             setCameraPreset('front');   // 既定は右の超立方体も真正面（xy/yz/xz=0）
 
@@ -1662,11 +1790,13 @@
                 updateMorphingGeometry(animationProgress);
             }
 
+            if (animationMode !== 0 && (parallel4D || projAnim !== null)) ensureProjection();   // 折りたたみ中は遠近へ（平行だと潰れて見えない）
             if (animationMode === 1) {
                 animationProgress += baseStep;
                 if (animationProgress >= 1.0) {
                     animationProgress = 1.0;
                     animationMode = 0;
+                    ensureProjection();   // 組み上がったら、平行／遠近の切替どおりに戻す（W の回転が0なら遠近のまま）
                 }
                 updateMorphingGeometry(animationProgress);
             } else if (animationMode === -1) {
@@ -1733,7 +1863,7 @@
                     const dir = new THREE.Vector3(d3[0], d3[1], d3[2]);
                     if (dir.lengthSq() > 1e-6) {   // 軸がつぶれている瞬間はカメラ据え置き
                         dir.normalize();
-                        const PAN_Y = panelHidden ? 0 : -2.6;
+                        const PAN_Y = 0;
                         const R = axisTween.trackR0 + (18 - axisTween.trackR0) * f;
                         camera3D.position.set(dir.x * R, PAN_Y + dir.y * R, dir.z * R);
                         camera3D.fov = axisTween.trackFov0 + (45 - axisTween.trackFov0) * f;
@@ -1840,7 +1970,7 @@
             // 右カメラも正面へなめらかに寄せる（垂直軸も既定の Z に戻す）。
             //   平行：「手前へ消す軸 W」「胞から」と同じ遠距離・低画角＝平行に近い＝きれいな「四角の中の四角」
             //   遠近：起動時と同じ近距離・画角45°
-            const PAN_Y = panelHidden ? 0 : -2.6;
+            const PAN_Y = 0;
             axisTween.cam = { p0: camera3D.position.clone(), p1: new THREE.Vector3(0, PAN_Y, par ? 46 : 18), f0: camera3D.fov, f1: par ? 17 : 45 };
             axisTween.fog0 = scene3D.fog.density; axisTween.fog1 = par ? 0.018 * 18 / 46 : 0.018;
             if (controls3D) controls3D.target.set(0, PAN_Y, 0);
@@ -1862,12 +1992,18 @@
         //   回転中の見え方が平行になったり遠近になったりして安定しない。切り替えは0.5秒でなめらかに。
         // 投影は「優先」ボタンで決まる：優先: 立方体＝遠近投影、優先: 超立方体＝平行投影。
         //   回転を始めたとき・補正・優先の切替で呼び、今の投影を 0.5秒でなめらかにそろえる（角度は触らない＝回転は止まらない）。
-        const wantParallel = () => !cubePersp;
+        // ただし平行投影は w を落とすだけなので、W の回転（X-W・Y-W・Z-W）が全部0のときは内と外の立方体がぴったり重なって
+        //   「中の立方体」が見えなくなり、折りたたみ中は w へ倒れる胞が中心へ潰れてアニメが見えなくなる。
+        //   なので「平行投影」を選んでいても、折りたたみ中・W の回転が0（で W の自動回転もしていない）のときは遠近にする。
+        const wTurned = () => Math.abs(wrapPi(linkAngleX)) > 0.02 || Math.abs(wrapPi(linkAngleY)) > 0.02 || Math.abs(wrapPi(soloAngleZW)) > 0.02;
+        const wSpinning = () => linkSpin || spinX || spinY || soloSpinZW;
+        const wantParallel = () => !cubePersp && animationMode === 0 && animationProgress >= 0.999 && (wTurned() || wSpinning());
         function ensureProjection() {
             if (cycleMode) return;
             const target = wantParallel() ? 1 : 0;
             const cur = projAnim !== null ? projAnim : (parallel4D ? 1 : 0);
             if (projAnim === null && cur === target) return;   // もうその投影
+            if (axisTween && axisTween.pj1 === target) return;   // もうその投影へ移行中
             if (axisTween) {   // プリセット等の移行中なら、その行き先の投影を差し替える
                 if (axisTween.pj0 === undefined) { axisTween.pj0 = cur; projAnim = cur; }
                 axisTween.pj1 = target;
@@ -1898,7 +2034,7 @@
             updateSpinBtns();
             // カメラを正面へ。垂直軸の表示も Z に戻す
             //   優先: 超立方体（平行）＝遠く・低画角（平行に近い）、優先: 立方体（遠近）＝近く・画角45°
-            const PAN_Y = panelHidden ? 0 : -2.6;
+            const PAN_Y = 0;
             const tgt = new THREE.Vector3(0, PAN_Y, 0);
             const par = wantParallel();
             camera3D.position.set(0, PAN_Y, par ? 46 : 18); camera3D.up.set(0, 1, 0);
@@ -2008,8 +2144,8 @@
 
             camera3D.fov = far ? 17 : 45;
             camera2D.fov = 45;                      // 左は常にパース45°
-            const vz = panelHidden ? 1.32 : 1.0;   // パネル非表示時は空いた領域に立体を大きく表示
-            camera2D.zoom = vz; camera3D.zoom = vz;
+            const vz = viewZoom();   // 画面の大きさに合わせた倍率（スマホは描画エリアが低いので大きめ）
+            camera2D.zoom = viewZoom2D(); camera3D.zoom = vz;
             camera2D.updateProjectionMatrix(); camera3D.updateProjectionMatrix();
 
             // 真上から見るときは、視線が up(0,1,0) とほぼ平行になって視線行列が退化するため up を倒す。
@@ -2020,7 +2156,7 @@
 
             // 操作パネルが下にあるぶん、注視点を下げて図形を画面の上寄りに置く
             // パネルを隠しているときは中央に戻す
-            const PAN_Y = panelHidden ? 0 : -2.6;
+            const PAN_Y = 0;
             camera2D.position.y += PAN_Y;
             camera3D.position.y += PAN_Y;
             if (controls2D) controls2D.target.set(0, PAN_Y, 0);
@@ -2052,6 +2188,7 @@
             slider.addEventListener('input', (e) => {
                 animationMode = 0;
                 animationProgress = parseFloat(e.target.value);
+                ensureProjection();   // 折りたたみ途中は遠近（平行だと胞が中心へ潰れて見えない）
                 updateMorphingGeometry(animationProgress);
             });
 
@@ -2115,13 +2252,34 @@
                 updateLayout();
                 updateMorphingGeometry(animationProgress);
             }
+            // 右サイドパネルの開閉（Space・「閉じる」「パネル」ボタン）。閉じると描画領域が右端まで広がる
             function togglePanel() {
                 panelHidden = !panelHidden;
-                const ov = document.getElementById('ui-overlay');
-                if (ov) ov.style.display = panelHidden ? 'none' : '';
-                setCameraPreset(lastPreset);   // PAN_Y とズームを現在のパネル状態で再適用
+                document.body.classList.toggle('sidebar-hidden', panelHidden);
                 requestAnimationFrame(onWindowResize);
             }
+            document.getElementById('sidebar-close').addEventListener('click', togglePanel);
+            // パネルの左右（既定は左。選んだ側はこのブラウザに保存）
+            function setSidebarSide(left) {
+                document.body.classList.toggle('sidebar-left', left);
+                document.getElementById('sidebar-side-text').innerText = left ? '右へ' : '左へ';
+                try { localStorage.setItem('hypercubeSidebarSide', left ? 'left' : 'right'); } catch (_) {}
+                requestAnimationFrame(onWindowResize);
+            }
+            function toggleSidebarSide() { setSidebarSide(!document.body.classList.contains('sidebar-left')); }
+            document.getElementById('sidebar-side').addEventListener('click', toggleSidebarSide);
+            { let side = 'left'; try { side = localStorage.getItem('hypercubeSidebarSide') || 'left'; } catch (_) {} setSidebarSide(side !== 'right'); }
+            document.getElementById('sidebar-open').addEventListener('click', togglePanel);
+            // サイドパネルのタブ（折りたたみ／回転／見え方）。最後に開いたタブを覚えておく
+            const showTab = name => {
+                document.querySelectorAll('.sb-tab').forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === name));
+                document.querySelectorAll('.sb-panel').forEach(p => p.classList.toggle('hidden', p.getAttribute('data-panel') !== name));
+                try { localStorage.setItem('hypercubeSidebarTab', name); } catch (_) {}
+            };
+            document.querySelectorAll('.sb-tab').forEach(b => b.addEventListener('click', () => showTab(b.getAttribute('data-tab'))));
+            let firstTab = 'rot';
+            try { firstTab = localStorage.getItem('hypercubeSidebarTab') || 'rot'; } catch (_) {}
+            showTab(['fold', 'rot', 'view'].includes(firstTab) ? firstTab : 'rot');
             // Enter／W回転: W の絡む3面（X-W・Y-W・Z-W）を同時に ON/OFF
             function toggleAllSpins() {
                 stopCycle();
@@ -2174,50 +2332,51 @@
 
             // --- ショートカット：アクション登録表（label=設定画面の表示名, short=ヒント用の短縮名, def=既定キー） ---
             const SHORTCUT_ACTIONS = [
-                { id: 'both', label: '表示トグル（どっちも⇔超立方体のみ）', short: '表示トグル', def: 'Space', run: toggleBothMode },
-                { id: 'panel', label: '操作パネル 表示/非表示', short: '操作パネル', def: 'X', run: togglePanel },
+                { id: 'both', label: '表示トグル（どっちも⇔超立方体のみ）', short: '表示トグル', def: '1', run: toggleBothMode },
+                { id: 'panel', label: '操作パネル 表示/非表示', short: '操作パネル', def: 'Space', run: togglePanel },
                 { id: 'allSpins', label: 'W ON/OFF（X-W・Y-W・Z-W）', short: 'W', def: 'Enter', run: toggleAllSpins },
-                { id: 'fold', label: '組み上げる', short: '組み上げ', def: 'C', run: clickSel('#play-fold-btn') },
-                { id: 'unfold', label: '展開する', short: '展開', def: 'V', run: clickSel('#play-unfold-btn') },
-                { id: 'foldToggle', label: '組立⇔展開 トグル', short: '組立⇔展開', def: 'Z', run: doFoldToggle },
+                { id: 'fold', label: '組み上げる', short: '組み上げ', def: 'F', run: clickSel('#play-fold-btn') },
+                { id: 'unfold', label: '展開する', short: '展開', def: 'U', run: clickSel('#play-unfold-btn') },
+                { id: 'foldToggle', label: '組立⇔展開 トグル', short: '組立⇔展開', def: 'C', run: doFoldToggle },
                 { id: 'axis', label: '座標軸 表示/非表示', short: '座標軸', def: 'A', run: clickSel('#axis-btn') },
                 { id: 'origin', label: 'リセット（回転を止めて6面とも0、W を手前へ）', short: 'リセット', def: 'O', run: doOrigin },
-                { id: 'snap', label: '補正（Z 軸を画面に垂直へ。回転は止めない）', short: '補正', def: '', run: clickSel('#snap-left-btn') },
+                { id: 'snap', label: '補正（Z 軸を画面に垂直へ。回転は止めない）', short: '補正', def: 'S', run: clickSel('#snap-left-btn') },
                 { id: 'reset', label: '初期化（読み込み時に戻す）', short: '初期化', def: 'R', run: clickSel('#reset-all-btn') },
-                { id: 'play', label: '回転アニメ 再生', short: '再生', def: '', run: clickSel('#anim-play') },
-                { id: 'preset_cell', label: 'プリセット 胞', short: '胞', def: '', run: clickSel('.anim-proj-btn[data-proj="cell"]') },
-                { id: 'preset_face', label: 'プリセット 面', short: '面', def: '', run: clickSel('.anim-proj-btn[data-proj="face"]') },
-                { id: 'preset_edge', label: 'プリセット 辺', short: '辺', def: '', run: clickSel('.anim-proj-btn[data-proj="edge"]') },
-                { id: 'preset_vertex', label: 'プリセット 頂点', short: '頂点', def: '', run: clickSel('.anim-proj-btn[data-proj="vertex"]') },
-                { id: 'vaxis_z', label: '垂直軸 Z', short: '垂直Z', def: '', run: clickSel('.screen-axis-btn[data-axis="z"]') },
-                { id: 'vaxis_w', label: '垂直軸 W', short: '垂直W', def: '', run: clickSel('.screen-axis-btn[data-axis="w"]') },
-                { id: 'vaxis_x', label: '垂直軸 X', short: '垂直X', def: '', run: clickSel('.screen-axis-btn[data-axis="x"]') },
-                { id: 'vaxis_y', label: '垂直軸 Y', short: '垂直Y', def: '', run: clickSel('.screen-axis-btn[data-axis="y"]') },
-                { id: 'facecam', label: 'カメラ正対 ON/OFF', short: '正対', def: '', run: clickSel('#face-cam-btn') },
-                { id: 'persp', label: '投影 切替（平行投影 ⇔ 遠近投影）', short: '投影', def: '', run: clickSel('#persp-mode-btn') },
-                { id: 'pin', label: '点固定 ON/OFF', short: '点固定', def: '', run: clickSel('#pin-btn') },
-                { id: 'loop', label: '往復再生 ON/OFF', short: '往復', def: '', run: clickSel('#loop-btn') },
-                { id: 'xparent', label: '面透過 切替（立体感⇔正確）', short: '面透過', def: '', run: clickSel('#xparent-btn') },
-                { id: 'zoom', label: '自動ズーム ON/OFF', short: '自動ズーム', def: '', run: clickSel('#zoom-btn') },
-                { id: 'mesh', label: 'メッシュ表示', short: 'メッシュ', def: '', run: clickSel('#view-mesh-btn') },
-                { id: 'wire', label: 'ワイヤー表示', short: 'ワイヤー', def: '', run: clickSel('#view-wire-btn') },
-                { id: 'vanish_w', label: '手前へ消す軸 W', short: '消すW', def: '', run: clickSel('.vanish-btn[data-axis="w"]') },
-                { id: 'vanish_x', label: '手前へ消す軸 X', short: '消すX', def: '', run: clickSel('.vanish-btn[data-axis="x"]') },
-                { id: 'vanish_y', label: '手前へ消す軸 Y', short: '消すY', def: '', run: clickSel('.vanish-btn[data-axis="y"]') },
-                { id: 'vanish_z', label: '手前へ消す軸 Z', short: '消すZ', def: '', run: clickSel('.vanish-btn[data-axis="z"]') },
-                { id: 'step_xw', label: '90°回す X-W', short: '90°XW', def: '', run: clickSel('.step90-btn[data-plane="x"]') },
-                { id: 'step_yw', label: '90°回す Y-W', short: '90°YW', def: '', run: clickSel('.step90-btn[data-plane="y"]') },
-                { id: 'step_zw', label: '90°回す Z-W', short: '90°ZW', def: '', run: clickSel('.step90-btn[data-plane="z"]') },
-                { id: 'spin_xw', label: 'オート回転 X-W', short: 'オートXW', def: '', run: clickSel('.plane-spin-btn[data-plane="x"]') },
-                { id: 'spin_yw', label: 'オート回転 Y-W', short: 'オートYW', def: '', run: clickSel('.plane-spin-btn[data-plane="y"]') },
-                { id: 'spin_zw', label: 'オート回転 Z-W', short: 'オートZW', def: '', run: clickSel('#solo-spin-btn') },
-                { id: 'spin_xy', label: 'オート回転 X-Y', short: 'オートXY', def: '', run: clickSel('.plane-spin-btn[data-plane="xy"]') },
-                { id: 'spin_xz', label: 'オート回転 X-Z（超立方体）', short: 'オートXZ', def: '', run: clickSel('.plane-spin-btn[data-plane="xz"]') },
-                { id: 'spin_yz', label: 'オート回転 Y-Z（超立方体）', short: 'オートYZ', def: '', run: clickSel('.plane-spin-btn[data-plane="yz"]') },
-                { id: 'spin_w2', label: 'W(X,Y) ON/OFF（X-W・Y-W）', short: 'W(X,Y)', def: '', run: clickSel('#spin-w2-btn') },
-                { id: 'spin_3d', label: '3D ON/OFF（X-Y・X-Z・Y-Z）', short: '3D', def: '', run: clickSel('#spin-3d-btn') },
-                { id: 'spin_6', label: '全て ON/OFF（6面すべて）', short: '全て', def: '', run: clickSel('#spin-6-btn') },
-                { id: 'left3d', label: '左の立方体の3D回転 切替（X-Yだけ⇔全部）', short: '左3D', def: '', run: clickSel('#left3d-btn') }
+                { id: 'play', label: '回転アニメ 再生', short: '再生', def: 'P', run: clickSel('#anim-play') },
+                { id: 'preset_cell', label: 'プリセット 胞', short: '胞', def: 'H', run: clickSel('.anim-proj-btn[data-proj="cell"]') },
+                { id: 'preset_face', label: 'プリセット 面', short: '面', def: 'Shift+F', run: clickSel('.anim-proj-btn[data-proj="face"]') },
+                { id: 'preset_edge', label: 'プリセット 辺', short: '辺', def: 'E', run: clickSel('.anim-proj-btn[data-proj="edge"]') },
+                { id: 'preset_vertex', label: 'プリセット 頂点', short: '頂点', def: 'T', run: clickSel('.anim-proj-btn[data-proj="vertex"]') },
+                { id: 'vaxis_z', label: '垂直軸 Z', short: '垂直Z', def: '2', run: clickSel('.screen-axis-btn[data-axis="z"]') },
+                { id: 'vaxis_w', label: '垂直軸 W', short: '垂直W', def: 'Alt+W', run: clickSel('.screen-axis-btn[data-axis="w"]') },
+                { id: 'vaxis_x', label: '垂直軸 X', short: '垂直X', def: 'Alt+X', run: clickSel('.screen-axis-btn[data-axis="x"]') },
+                { id: 'vaxis_y', label: '垂直軸 Y', short: '垂直Y', def: 'Alt+Y', run: clickSel('.screen-axis-btn[data-axis="y"]') },
+                { id: 'facecam', label: 'カメラ正対 ON/OFF', short: '正対', def: 'K', run: clickSel('#face-cam-btn') },
+                { id: 'persp', label: '投影 切替（平行投影 ⇔ 遠近投影）', short: '投影', def: 'J', run: clickSel('#persp-mode-btn') },
+                { id: 'pin', label: '点固定 ON/OFF', short: '点固定', def: 'I', run: clickSel('#pin-btn') },
+                { id: 'loop', label: '往復再生 ON/OFF', short: '往復', def: 'L', run: clickSel('#loop-btn') },
+                { id: 'xparent', label: '面透過 切替（立体感⇔正確）', short: '面透過', def: 'V', run: clickSel('#xparent-btn') },
+                { id: 'zoom', label: '自動ズーム ON/OFF', short: '自動ズーム', def: '3', run: clickSel('#zoom-btn') },
+                { id: 'mesh', label: 'メッシュ表示', short: 'メッシュ', def: 'M', run: clickSel('#view-mesh-btn') },
+                { id: 'wire', label: 'ワイヤー表示', short: 'ワイヤー', def: 'Shift+M', run: clickSel('#view-wire-btn') },
+                { id: 'vanish_w', label: '手前へ消す軸 W', short: '消すW', def: 'W', run: clickSel('.vanish-btn[data-axis="w"]') },
+                { id: 'vanish_x', label: '手前へ消す軸 X', short: '消すX', def: 'Shift+X', run: clickSel('.vanish-btn[data-axis="x"]') },
+                { id: 'vanish_y', label: '手前へ消す軸 Y', short: '消すY', def: 'Shift+Y', run: clickSel('.vanish-btn[data-axis="y"]') },
+                { id: 'vanish_z', label: '手前へ消す軸 Z', short: '消すZ', def: 'Shift+Z', run: clickSel('.vanish-btn[data-axis="z"]') },
+                { id: 'step_xw', label: '90°回す X-W', short: '90°XW', def: 'X', run: clickSel('.step90-btn[data-plane="x"]') },
+                { id: 'step_yw', label: '90°回す Y-W', short: '90°YW', def: 'Y', run: clickSel('.step90-btn[data-plane="y"]') },
+                { id: 'step_zw', label: '90°回す Z-W', short: '90°ZW', def: 'Z', run: clickSel('.step90-btn[data-plane="z"]') },
+                { id: 'spin_xw', label: 'オート回転 X-W', short: 'オートXW', def: '4', run: clickSel('.plane-spin-btn[data-plane="x"]') },
+                { id: 'spin_yw', label: 'オート回転 Y-W', short: 'オートYW', def: '5', run: clickSel('.plane-spin-btn[data-plane="y"]') },
+                { id: 'spin_zw', label: 'オート回転 Z-W', short: 'オートZW', def: '6', run: clickSel('#solo-spin-btn') },
+                { id: 'spin_xy', label: 'オート回転 X-Y', short: 'オートXY', def: '7', run: clickSel('.plane-spin-btn[data-plane="xy"]') },
+                { id: 'spin_xz', label: 'オート回転 X-Z（超立方体）', short: 'オートXZ', def: '8', run: clickSel('.plane-spin-btn[data-plane="xz"]') },
+                { id: 'spin_yz', label: 'オート回転 Y-Z（超立方体）', short: 'オートYZ', def: '9', run: clickSel('.plane-spin-btn[data-plane="yz"]') },
+                { id: 'spin_w2', label: 'W(X,Y) ON/OFF（X-W・Y-W）', short: 'W(X,Y)', def: 'Shift+Enter', run: clickSel('#spin-w2-btn') },
+                { id: 'spin_3d', label: '3D ON/OFF（X-Y・X-Z・Y-Z）', short: '3D', def: 'D', run: clickSel('#spin-3d-btn') },
+                { id: 'spin_6', label: '全て ON/OFF（6面すべて）', short: '全て', def: 'Shift+A', run: clickSel('#spin-6-btn') },
+                { id: 'sideSwap', label: 'パネルの左右 切替', short: 'パネル左右', def: 'B', run: () => document.getElementById('sidebar-side').click() },
+                { id: 'left3d', label: '左の立方体の3D回転 切替（X-Yだけ⇔全部）', short: '左3D', def: 'Shift+D', run: clickSel('#left3d-btn') }
             ];
             const SC_STORE = 'hypercubeShortcuts', SC_FILE = 'hypercube-shortcuts.csv';
             let keyMap = {};
@@ -2324,6 +2483,11 @@
             function openKeyCfg() { const ov = document.getElementById('keycfg-overlay'); ov.classList.remove('hidden'); ov.classList.add('flex'); renderCfgList(); renderGhUI(); ghStatus(''); }
             function closeKeyCfg() { const ov = document.getElementById('keycfg-overlay'); ov.classList.add('hidden'); ov.classList.remove('flex'); }
             document.getElementById('keycfg-open').addEventListener('click', openKeyCfg);
+            // 右上のキー一覧の開閉（開いたかどうかはこのブラウザに覚えておく）
+            const hintKeys = document.getElementById('shortcut-hint-keys');
+            const setHint = on => { hintKeys.classList.toggle('hidden', !on); try { localStorage.setItem('hypercubeHintOpen', on ? '1' : '0'); } catch (_) {} };
+            document.getElementById('hint-toggle').addEventListener('click', () => setHint(hintKeys.classList.contains('hidden')));
+            try { if (localStorage.getItem('hypercubeHintOpen') === '1') setHint(true); } catch (_) {}
             document.getElementById('keycfg-close').addEventListener('click', closeKeyCfg);
             document.getElementById('keycfg-close2').addEventListener('click', closeKeyCfg);
             document.getElementById('keycfg-backdrop').addEventListener('click', closeKeyCfg);
@@ -2529,7 +2693,7 @@
                 };
                 // 垂直軸がZ以外なら、再生中ずっと（4D回転と同時に）その軸を画面に立て続ける
                 if (screenAxis !== 'z') {
-                    const PAN_Y = panelHidden ? 0 : -2.6;
+                    const PAN_Y = 0;
                     axisTween.trackAxis = true;
                     axisTween.trackR0 = camera3D.position.distanceTo(new THREE.Vector3(0, PAN_Y, 0)) || 18;
                     axisTween.trackFov0 = camera3D.fov;
@@ -2573,7 +2737,7 @@
                 };
                 // 垂直軸がZ以外なら、移行中ずっと（4D回転と同時に）その軸を画面に立て続ける
                 if (screenAxis !== 'z') {
-                    const PAN_Y = panelHidden ? 0 : -2.6;
+                    const PAN_Y = 0;
                     tw.trackAxis = true;
                     tw.trackR0 = camera3D.position.distanceTo(new THREE.Vector3(0, PAN_Y, 0)) || 18;
                     tw.trackFov0 = camera3D.fov;
@@ -2584,7 +2748,7 @@
                 //   超立方体優先：遠距離・低画角(17°)＝平行に近い＝きれいな正多角形。
                 //   立方体優先  ：近距離・画角45°＝遠近のまま＝左右とも奥行き。
                 if (effFaceCam && screenAxis === 'z') {   // 垂直軸がZ以外のときは正対せず、到達後に軸を立て直す
-                    const PAN_Y = panelHidden ? 0 : -2.6;
+                    const PAN_Y = 0;
                     if (cubePersp) {
                         tw.cam = { p0: camera3D.position.clone(), p1: new THREE.Vector3(0, PAN_Y, 18), f0: camera3D.fov, f1: 45 };
                         tw.fog0 = fogFrom; tw.fog1 = 0.018;   // 近距離フォグ
@@ -2646,7 +2810,7 @@
                 let dir = new THREE.Vector3(d3[0], d3[1], d3[2]);
                 if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);   // 軸がつぶれている（例：胞のW）→正面にフォールバック
                 dir.normalize();
-                const PAN_Y = panelHidden ? 0 : -2.6;
+                const PAN_Y = 0;
                 const tgt = new THREE.Vector3(0, PAN_Y, 0);
                 const r0 = camera3D.position.distanceTo(tgt) || 18;
                 let up = new THREE.Vector3(0, 1, 0);
@@ -2679,18 +2843,18 @@
             const linkX = document.getElementById('link-x-slider');
             const linkY = document.getElementById('link-y-slider');
             linkX.addEventListener('input', e => {
-                stopCycle(); parallel4D = false;   // 手動回転＝遠近投影へ
+                stopCycle(); ensureProjection();   // 手動回転も投影は切替どおり
                 linkAngleX = parseFloat(e.target.value) * Math.PI / 180;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
             linkY.addEventListener('input', e => {
-                stopCycle(); parallel4D = false;
+                stopCycle(); ensureProjection();
                 linkAngleY = parseFloat(e.target.value) * Math.PI / 180;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
             const soloZW = document.getElementById('solo-zw-slider');
             soloZW.addEventListener('input', e => {
-                stopCycle(); parallel4D = false;
+                stopCycle(); ensureProjection();
                 soloAngleZW = parseFloat(e.target.value) * Math.PI / 180;
                 updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
@@ -2699,7 +2863,7 @@
             const bindNum = (id, set) => {
                 const el = document.getElementById(id);
                 el.addEventListener('input', e => {
-                    stopCycle(); parallel4D = false;
+                    stopCycle(); ensureProjection();
                     const v = parseFloat(e.target.value);
                     if (!isNaN(v)) { set(v * Math.PI / 180); updateLinkUI(); updateMorphingGeometry(animationProgress); }
                 });
@@ -2711,7 +2875,7 @@
             const set3 = { xy: v => rotXY = v, xz: v => rotXZ = v, yz: v => rotYZ = v };
             ['xy', 'xz', 'yz'].forEach(k => {
                 document.getElementById('rot-' + k + '-slider').addEventListener('input', e => {
-                    stopCycle(); parallel4D = false;
+                    stopCycle(); ensureProjection();
                     set3[k](parseFloat(e.target.value) * Math.PI / 180);
                     updateLinkUI(); updateMorphingGeometry(animationProgress);
                 });
@@ -2896,7 +3060,12 @@
             if (mergedFaces3D) mergedFaces3D.visible = showFaces && accurateFaces;
         }
 
+        // 描画エリアの倍率：スマホは図形を置く場所が小さいので大きめに映す
+        function viewZoom() { return window.innerWidth <= 700 ? 1.7 : (window.innerHeight <= 500 ? 1.4 : 1.0); }   // スマホ縦＝1.7、スマホ横＝1.4
+        // 左（立方体）の倍率：右上ミニ表示のときは小窓いっぱいに映す（そのままだと点のように小さく、展開・組み立てが見えない）
+        function viewZoom2D() { return displayMode === 'hypercube_pip' ? 2.2 : viewZoom(); }
         function onWindowResize() {
+            if (camera2D && camera3D) { camera2D.zoom = viewZoom2D(); camera3D.zoom = viewZoom(); }
             const container2D = document.getElementById('canvas-2d3d');
             if (container2D && renderer2D && camera2D) {
                 const w = container2D.clientWidth;
