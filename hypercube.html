@@ -2599,7 +2599,8 @@
                 }
                 cell.geometry.attributes.position.needsUpdate = true; cell.geometry.attributes.color.needsUpdate = true;
                 cell.geometry.computeVertexNormals();
-                cell.material.opacity = Math.min(0.97, op * cellFocus(5, ci).face * (!edgeHi.on ? 1 : EH_MID5.includes(ci) ? edgeHi.faceMid : EH_ARM5.includes(ci) ? edgeHi.faceArm : 1)) * (1 - rhombi.t); cell.material.visible = !wireframeOnly;   // 中（±W）・腕の面はひとつ濃く
+                const cdMean = cd.reduce((s, d) => s + d, 0) / cd.length, depthFade = 1 - 0.62 * sm((cdMean - dMin) / span);   // 奥の胞ほど面を薄く＝手前の腕を透かして奥の緑・青が見えにくくなる（刺さり方がはっきり）
+                cell.material.opacity = Math.min(0.97, op * cellFocus(5, ci).face * (!edgeHi.on ? 1 : EH_MID5.includes(ci) ? edgeHi.faceMid : EH_ARM5.includes(ci) ? edgeHi.faceArm : 1) * depthFade) * (1 - rhombi.t); cell.material.visible = !wireframeOnly;   // 中（±W）・腕の面はひとつ濃く
                 const wa = cell.wireGeo.attributes.position.array, wc = cell.wireGeo.attributes.color.array;
                 for (let e = 0, k = 0; e < T5_EDGES.length; e++) {
                     const i0 = T5_EDGES[e][0], i1 = T5_EDGES[e][1], A = cv[i0], B = cv[i1], cA = ecol(cd[i0]), cB = ecol(cd[i1]);
@@ -2987,7 +2988,7 @@
         //   手前＝折りたたみでできた次元の＋側の胞（いちばん最後の番号＝蓋）、奥＝−側の胞（番号1＝中心）。
         //   超立方体なら w＋（遠近では外側の大きい立方体）と w−、立方体なら z＋ と z− の正方形、5次元超立方体なら v＋ と v−。
         //   既定の色は ピンクと水色（奥の頂点の印は 2026-10-18 にエメラルドに変えたが、辺の強調はユーザーの希望で水色のまま）
-        const EH_DEF = { on: true, near: '#ff44dd', far: '#50c878', widthNear: 3, widthFar: 3, mid: '#b6ff4d', widthMid: 2, faceMid: 1.4, arm: '#aab4c4', widthArm: 1.5, faceArm: 1.15 };   // widthNear・widthFar＝手前・奥の辺の太さ（画面の px）。mid・widthMid・faceMid＝5次元の「中」（±W の超立方体）の辺の色・太さ・面の濃さ（お試し）
+        const EH_DEF = { on: true, near: '#ff44dd', far: '#50c878', widthNear: 3, widthFar: 3, mid: '#b6ff4d', widthMid: 2.6, faceMid: 1.4, arm: '#aab4c4', widthArm: 2.3, faceArm: 1.15 };   // widthNear・widthFar＝手前・奥の辺の太さ（画面の px）。mid・widthMid・faceMid＝5次元の「中」（±W の超立方体）の辺の色・太さ・面の濃さ（お試し）
         let edgeHi = Object.assign({}, EH_DEF);
         try {
             const v = JSON.parse(localStorage.getItem('hypercubeEdgeHi') || 'null');
@@ -3005,7 +3006,7 @@
             if (!H || !arr) return;
             const b = Math.max(base, 1e-3);
             for (let k = 0; k < arr.length; k += 3) {
-                const L = 0.78 + 0.32 * Math.min(1, Math.max(arr[k], arr[k + 1], arr[k + 2]) / b);   // 奥でも 0.78、手前は少し明るめ（線は細いので色を濃く）
+                const L = 0.86 + 0.28 * Math.min(1, Math.max(arr[k], arr[k + 1], arr[k + 2]) / b);   // 奥でも 0.86（淡さ対策で底上げ）、手前は少し明るめ
                 arr[k] = Math.min(1, H.r * L); arr[k + 1] = Math.min(1, H.g * L); arr[k + 2] = Math.min(1, H.b * L);
             }
         }
@@ -3995,7 +3996,7 @@
                 if (dim5 && scene5D) { const pbF = projBlendNow(); for (let c = 0; c < P5_CELLS.length; c++) pv = pv.concat(cellVerts5D(c, progress).map(q => project5(rotate5(q), pbF))); }
                 // 帯は4次元の遠近で息づく幅より広くして、ふつうの回転では倍率を動かさない（暴れない）。目標 mid を小さめにして「大きすぎ」を直す。
                 adjust(scene3D.getObjectByName('Root3D'), rv, camera3D, 0.35, 0.82, 0.5);   // 右（超立方体）が主役
-                if (dim5) adjust(scene5D.getObjectByName('Root5D'), pv, camera5D, 0.35, 0.82, 0.5);
+                if (dim5 && scene5D) adjust(scene5D.getObjectByName('Root5D'), pv, camera5D, 0.35, 0.82, 0.5);
             }
 
             updateAxisGnomon(progress);
