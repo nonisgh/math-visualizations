@@ -377,10 +377,16 @@
         <div class="glass-panel rounded-xl px-2.5 py-1.5 pointer-events-auto shadow-xl flex items-center gap-1.5 text-[11px] flex-wrap justify-center">
             <span class="text-violet-200 font-bold flex items-center gap-1 shrink-0 mr-0.5"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>回転</span>
             <button id="spin-all-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="W の絡む3面（X-W・Y-W・Z-W）をすべて回し続ける＝中身がグリグリ入れ替わる4Dの回転。もう一度押すと止まる（Enter キーでも同じ）">
-                            <i data-lucide="orbit" class="w-3 h-3"></i><span>W</span>
+                            <i data-lucide="orbit" class="w-3 h-3"></i><span id="spin-all-text">W</span>
                         </button>
                         <button id="spin-w2-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="X-W・Y-W の2面だけを回し続ける（Z-W は回さない）。立方体も X-Z・Y-Z で一緒に回る＝立方体と超立方体が完全に同期する4D回転。もう一度押すと止まる">
-                            <i data-lucide="orbit" class="w-3 h-3"></i><span>W(X,Y)</span>
+                            <i data-lucide="orbit" class="w-3 h-3"></i><span id="spin-w2-text">W(X,Y)</span>
+                        </button>
+                        <button id="spin-w5-btn" class="d5-only hidden whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="5次元だけの X-W・Y-W・Z-W（w が絡んで v は絡まない3面）を回し続ける＝4次元体に無い w の回転。4次元体は動かない。W-V は V の仲間（Shift+8）">
+                            <i data-lucide="orbit" class="w-3 h-3"></i><span>W</span>
+                        </button>
+                        <button id="spin-4d-btn" class="d5-only hidden whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="x・y・z・w の中の6面（X-Y・X-Z・Y-Z と、5次元だけの X-W・Y-W・Z-W）を回し続ける＝5次元体が4次元の形として転がる。v は触らない。4次元体は 3D の3面だけ一緒に回る（Shift+7）">
+                            <i data-lucide="box" class="w-3 h-3"></i><span>4D</span>
                         </button>
                         <button id="spin-3d-btn" class="whitespace-nowrap flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="X-Y・X-Z・Y-Z（w を含まない3面＝ふつうの3D回転）をすべて回し続ける。形は変わらず転がるだけ。立方体がどこまでついてくるかは「立方体の3D回転」で切り替え">
                             <i data-lucide="rotate-3d" class="w-3 h-3"></i><span>3D</span>
@@ -394,7 +400,7 @@
             <span class="text-slate-600">|</span>
             <button id="dim5-bar-btn" class="dim5-toggle px-2 py-0.5 rounded border transition shrink-0" title="5次元β の切替。オン＝左に超立方体、右に5次元超立方体（Shift+5）">→ 5次元β</button>
             <span class="d5-only hidden text-slate-600">|</span>
-            <span class="d5-only hidden flex items-center gap-1 shrink-0"><span class="text-[10px] text-slate-400">ドラッグ</span><button data-drag5-toggle="L" class="px-2 py-0.5 rounded border border-slate-700 transition" title="4次元体（超立方体）のドラッグ（押すと 転がす⇔せり出す）">4次元体: 転がす</button><button data-drag5-toggle="R" class="px-2 py-0.5 rounded border border-slate-700 transition" title="5次元体（5次元超立方体）のドラッグ（押すと 転がす⇔せり出す）">5次元体: 転がす</button></span>
+            <span class="d5-only hidden flex items-center gap-1 shrink-0"><span class="text-[10px] text-slate-400">ドラッグ</span><button data-drag5-toggle="L" class="px-2 py-0.5 rounded border border-slate-700 transition" title="4次元体（超立方体）のドラッグ（押すと 転がす⇔w を出す。4次元体の w は、5次元体では v）">4次元体: 転がす</button><button data-drag5-toggle="R" class="px-2 py-0.5 rounded border border-slate-700 transition" title="5次元体（5次元超立方体）のドラッグ（押すと 転がす⇔w を出す）">5次元体: 転がす</button></span>
             <span class="text-slate-600">|</span>
             <span id="proj-indicator" class="shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-bold" title="今の投影モード（遠近＝いつも奥行きあり／平行＝W の角度が付いていれば平行投影）。立方体も同じ：超立方体が w を、立方体が z を、遠近なしで落とす">投影: 遠近</span>
             <button id="persp-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition shrink-0" title="投影の切替。平行投影＝W の回転・面/辺/頂点プリセットがきれいな正多角形（既定）。遠近投影＝立方体も超立方体も奥行きが出る。平行投影を選んでいても、W の回転が0のときは遠近で表示（平行だと内と外の立方体が重なって中が見えなくなり、折りたたみも潰れて見えないため）">平行投影</button>
@@ -613,7 +619,7 @@
                     <div class="vm-row"><span class="vm-h">形</span><div class="vm-seg"><button data-vform="net" title="展開図（0%）へ（「展開する」と同じアニメ）">展開図</button><button data-vform="fold" title="組み上がり（100%）へ（「組みあげる」と同じアニメ）">組み上がり</button></div></div>
                     <div class="vm-row"><span class="vm-h">向き</span><div class="vm-seg"><button data-vdir="front" title="3D回転なし（マスの形のまま）で正面から">正面</button><button data-vdir="tilt" title="3D回転で少し斜めに（X-Y 15°・X-Z 30°・Y-Z 20°）。x が右、y が左上、z が左下に伸びて、十字架が立体に見える">斜め</button></div></div>
                     <div class="vm-row"><span class="vm-h">投影</span><div class="vm-seg"><button data-vproj="persp" title="遠近投影（w・v の向きにも遠近がつく。手前は大きく、奥は小さく）">遠近</button><button data-vproj="par" title="平行投影（w・v は落とすだけ。どの胞も同じ大きさ。軸が全部 0° のときは重なって見えなくなるので遠近のまま）">平行</button></div></div>
-                    <div class="vm-row" style="align-items:flex-start"><span class="vm-h" style="padding-top:3px">ドラッグ</span><div class="flex flex-col gap-1"><div class="flex items-center gap-1.5"><span class="vm-h" title="4次元体（超立方体）をドラッグしたとき">4次元体</span><div class="vm-seg"><button data-drag5="3d" data-side5="L" title="4次元体（超立方体）を、形をそのまま3Dで転がす（X-Z・Y-Z）。w はつぶれたままなので、展開図は x・y・z が伸びた十字架。3D回転は5次元体にも同じくかかる">転がす</button><button data-drag5="dim" data-side5="L" title="4次元体（超立方体）を X-W・Y-W で回す（4次元モードの立方体と同じ）。5次元体では X-V・Y-V になり、v がせり出す">せり出す（v）</button></div></div><div class="flex items-center gap-1.5"><span class="vm-h" title="5次元体（5次元超立方体）をドラッグしたとき">5次元体</span><div class="vm-seg"><button data-drag5="3d" data-side5="R" title="5次元体を、形をそのまま3Dで転がす（X-Z・Y-Z）。w と v はつぶれたままなので、展開図は真ん中が大きい形のまま。3D回転は4次元体（超立方体）にも同じくかかる">転がす</button><button data-drag5="dim" data-side5="R" title="5次元体を、5次元だけの X-W・Y-W で回す（4次元モードの超立方体と同じ関係）。左に無い w がせり出す。4次元体（超立方体）は動かない">せり出す（w）</button></div></div></div></div>
+                    <div class="vm-row" style="align-items:flex-start"><span class="vm-h" style="padding-top:3px">ドラッグ</span><div class="flex flex-col gap-1"><div class="flex items-center gap-1.5"><span class="vm-h" title="4次元体（超立方体）をドラッグしたとき">4次元体</span><div class="vm-seg"><button data-drag5="3d" data-side5="L" title="4次元体（超立方体）を、形をそのまま3Dで転がす（X-Z・Y-Z）。w はつぶれたままなので、展開図は x・y・z が伸びた十字架。3D回転は5次元体にも同じくかかる">転がす</button><button data-drag5="dim" data-side5="L" title="4次元体（超立方体）を X-W・Y-W で回す（4次元モードの立方体と同じ）。0° では目の方を向いてつぶれている4次元体の w が、画面の中へ出てくる（中の立方体が横へずれる）。5次元体ではこの向きが v なので、5次元体では v が出てくる">w を出す（5次元体では v）</button></div></div><div class="flex items-center gap-1.5"><span class="vm-h" title="5次元体（5次元超立方体）をドラッグしたとき">5次元体</span><div class="vm-seg"><button data-drag5="3d" data-side5="R" title="5次元体を、形をそのまま3Dで転がす（X-Z・Y-Z）。w と v はつぶれたままなので、展開図は真ん中が大きい形のまま。3D回転は4次元体（超立方体）にも同じくかかる">転がす</button><button data-drag5="dim" data-side5="R" title="5次元体を、5次元だけの X-W・Y-W で回す（4次元モードの超立方体と同じ関係）。4次元体に無い w が画面の中へ出てくる。4次元体（超立方体）は動かない">w を出す</button></div></div></div></div>
                     <div id="drag5-note" class="text-[10px] text-slate-400 leading-snug"></div>
                     <div class="vm-row"><span class="vm-h">おすすめ</span><button data-vpreset="fat" title="しまう・展開図・斜め・遠近：w をつぶして見た展開図。±W の胞が中心の手前と奥に重なって、真ん中が大きくふくらむ。4次元体（超立方体）は x・y・z の伸びた十字架">真ん中が太い展開図</button><button data-vpreset="arms" title="w を出す・展開図・斜め・平行：w を出して見た展開図。10個の超立方体でできた4次元の十字架の、8方向の腕が全部見える">腕が全部見える展開図</button></div>
                     <div class="text-[10px] text-slate-500 leading-snug">展開図は、折りたたむ向き（v）に厚みのない「4次元の十字架」（10個の超立方体）。同じ展開図を、w をつぶして見ると真ん中が太い形、w を出して見ると8方向の腕が全部見える形になります。</div>
@@ -1039,12 +1045,14 @@
             on(px, spinX || linkSpin, ['bg-purple-600/40', 'border-purple-400', 'text-purple-200']);
             on(py, spinY || linkSpin, ['bg-purple-600/40', 'border-purple-400', 'text-purple-200']);
             on(document.getElementById('solo-spin-btn'), soloSpinZW, ['bg-rose-600/40', 'border-rose-400', 'text-rose-200']);
-            on(document.getElementById('spin-all-btn'), allW(), ['bg-violet-600/40', 'border-violet-400', 'text-violet-100']);
-            on(document.getElementById('spin-w2-btn'), allW2(), ['bg-violet-600/40', 'border-violet-400', 'text-violet-100']);
+            on(document.getElementById('spin-all-btn'), allV(), ['bg-violet-600/40', 'border-violet-400', 'text-violet-100']);
+            on(document.getElementById('spin-w2-btn'), dim5 ? allV3() : allW2(), ['bg-violet-600/40', 'border-violet-400', 'text-violet-100']);
             ['xy', 'xz', 'yz'].forEach(k => on(document.querySelector('.plane-spin-btn[data-plane="' + k + '"]'),
                 { xy: spinXY, xz: spinXZ, yz: spinYZ }[k], ['bg-sky-600/40', 'border-sky-400', 'text-sky-100']));
             on(document.getElementById('spin-3d-btn'), all3D(), ['bg-sky-600/40', 'border-sky-400', 'text-sky-100']);
             on(document.getElementById('spin-6-btn'), allW() && all3D() && (!dim5 || all5()), ['bg-amber-600/40', 'border-amber-400', 'text-amber-100']);
+            on(document.getElementById('spin-w5-btn'), allW5(), ['bg-amber-600/40', 'border-amber-400', 'text-amber-100']);
+            on(document.getElementById('spin-4d-btn'), all4D(), ['bg-emerald-600/40', 'border-emerald-400', 'text-emerald-100']);
             document.querySelectorAll('.p5-spin-btn').forEach(b => on(b, { xw: spin5XW, yw: spin5YW, zw: spin5ZW, wv: spin5WV }[b.dataset.p], ['bg-amber-600/40', 'border-amber-400', 'text-amber-100']));
             on(document.getElementById('p5-spin-all'), all5(), ['bg-amber-600/40', 'border-amber-400', 'text-amber-100']);
         }
@@ -2076,6 +2084,10 @@
         let spin5XW = false, spin5YW = false, spin5ZW = false, spin5WV = false;
         const anySpin5 = () => spin5XW || spin5YW || spin5ZW || spin5WV;
         const all5 = () => spin5XW && spin5YW && spin5ZW && spin5WV;
+        const all4D = () => all3D() && spin5XW && spin5YW && spin5ZW;   // 4D＝x・y・z・w の中の6面（5次元モードの回転バー）
+        const allV = () => allW() && (!dim5 || spin5WV);       // V＝v の絡む面すべて（5次元では X-V・Y-V・Z-V・W-V の4面。4次元では W の3面）
+        const allV3 = () => allW() && !spin5WV;                // V(X,Y,Z)＝X-V・Y-V・Z-V だけ（W-V は回さない＝4次元体がそっくり追える3面）
+        const allW5 = () => spin5XW && spin5YW && spin5ZW;     // W（5次元の回転バー）＝5次元だけの X-W・Y-W・Z-W（W-V は含まない）
         const getP5 = () => [p5XW, p5YW, p5ZW, p5WV];
         function setP5(a) { p5XW = a[0]; p5YW = a[1]; p5ZW = a[2]; p5WV = a[3]; }
         // v の遠近は w より少し弱く（同じ強さだと、v と w が逆向きの2つの超立方体が同じ大きさに写って、ぴったり重なってしまう）
@@ -4106,6 +4118,7 @@
                 document.getElementById('side-2d3d').textContent = sideWord(!viewsSwapped);
                 document.getElementById('side-3d4d').textContent = sideWord(dim5 ? !viewsSwapped : viewsSwapped);   // 5次元モードでは超立方体が1つ目
                 const s5 = document.getElementById('side-4d5d'); if (s5) s5.textContent = sideWord(viewsSwapped);
+                if (window.orderDrag5) window.orderDrag5();   // ドラッグの切り替えも、画面の並び（左／上が先）と同じ順に
             }
             window.addEventListener('resize', () => { updateSideWords(); syncToggleLabels(); });
             function applyViewsSwap() {
@@ -4191,15 +4204,20 @@
             // Enter／W回転: W の絡む3面（X-W・Y-W・Z-W）を同時に ON/OFF
             function toggleAllSpins() {
                 stopCycle();
-                const target = !allW();   // どれか切なら全部ON、全部ONなら全部OFF
+                const target = !allV();   // どれか切なら全部ON、全部ONなら全部OFF
                 linkSpin = false; spinX = target; spinY = target; soloSpinZW = target;
+                if (dim5) spin5WV = target;   // 5次元モードの V は、v の絡む4面（W-V も）
                 if (anySpin()) ensureProjection();   // 回転中の投影を「優先」にそろえる
                 updateSpinBtns();
             }
             // W回転 Zなし: X-W・Y-W だけを ON/OFF（Zあり中に押したら Z-W だけ止めて Zなしへ切り替える）
             function toggleW2Spins() {
                 stopCycle();
-                if (allW2()) { linkSpin = false; spinX = false; spinY = false; }
+                if (dim5) {   // 5次元モード：V(X,Y,Z)＝X-V・Y-V・Z-V の3面（W-V は回さない。4次元体が X-W・Y-W・Z-W でそっくり追える）
+                    if (allV3()) { linkSpin = false; spinX = false; spinY = false; soloSpinZW = false; }
+                    else { linkSpin = false; spinX = true; spinY = true; soloSpinZW = true; spin5WV = false; }
+                }
+                else if (allW2()) { linkSpin = false; spinX = false; spinY = false; }
                 else { linkSpin = false; spinX = true; spinY = true; soloSpinZW = false; }
                 if (anySpin()) ensureProjection();   // 回転中の投影を「優先」にそろえる
                 updateSpinBtns();
@@ -4219,6 +4237,24 @@
                 linkSpin = false; spinX = target; spinY = target; soloSpinZW = target;
                 spinXY = target; spinXZ = target; spinYZ = target;
                 if (dim5) spin5XW = spin5YW = spin5ZW = spin5WV = target;   // 5次元モードでは10面すべて
+                if (anySpin()) ensureProjection();   // 回転中の投影を「優先」にそろえる
+                updateSpinBtns();
+            }
+            // W（5次元モードの回転バー）: 5次元だけの X-W・Y-W・Z-W を同時に ON/OFF（W-V は V の仲間なので触らない）
+            function toggleW5Spins() {
+                stopCycle();
+                const target = !allW5();
+                spin5XW = target; spin5YW = target; spin5ZW = target;
+                if (anySpin()) ensureProjection();   // 回転中の投影を「優先」にそろえる
+                updateSpinBtns();
+            }
+            // 4D（5次元モード）: X-Y・X-Z・Y-Z ＋ 5次元だけの X-W・Y-W・Z-W を同時に ON/OFF（v の絡む面は触らない）。4次元モードでは 3D と同じ
+            function toggle4DSpins() {
+                if (!dim5) { toggle3DSpins(); return; }
+                stopCycle();
+                const target = !all4D();
+                spinXY = target; spinXZ = target; spinYZ = target;
+                spin5XW = target; spin5YW = target; spin5ZW = target;
                 if (anySpin()) ensureProjection();   // 回転中の投影を「優先」にそろえる
                 updateSpinBtns();
             }
@@ -4248,7 +4284,7 @@
                 { id: 'tab_view', label: 'タブ：見え方', short: '見え方タブ', def: 'Shift+3', run: () => goTab('view') },
                 { id: 'tab_pts', label: 'タブ：点', short: '点タブ', def: 'Shift+4', run: () => goTab('pts') },
                 { id: 'tab_next', label: 'タブ：次へ（順に切り替え）', short: '次のタブ', def: 'N', run: nextTab },
-                { id: 'allSpins', label: 'W ON/OFF（X-W・Y-W・Z-W）', short: 'W', def: 'Enter', run: toggleAllSpins },
+                { id: 'allSpins', label: 'W ON/OFF（X-W・Y-W・Z-W。5次元では V＝X-V・Y-V・Z-V・W-V）', short: 'W', def: 'Enter', run: toggleAllSpins },
                 { id: 'fold', label: '組み上げる', short: '組み上げ', def: 'F', run: clickSel('#play-fold-btn') },
                 { id: 'unfold', label: '展開する', short: '展開', def: 'U', run: clickSel('#play-unfold-btn') },
                 { id: 'foldToggle', label: '組立⇔展開 トグル', short: '組立⇔展開', def: 'C', run: doFoldToggle },
@@ -4288,15 +4324,17 @@
                 { id: 'spin_xy', label: 'オート回転 X-Y', short: 'オートXY', def: '7', run: clickSel('.plane-spin-btn[data-plane="xy"]') },
                 { id: 'spin_xz', label: 'オート回転 X-Z（超立方体）', short: 'オートXZ', def: '8', run: clickSel('.plane-spin-btn[data-plane="xz"]') },
                 { id: 'spin_yz', label: 'オート回転 Y-Z（超立方体）', short: 'オートYZ', def: '9', run: clickSel('.plane-spin-btn[data-plane="yz"]') },
-                { id: 'spin_w2', label: 'W(X,Y) ON/OFF（X-W・Y-W）', short: 'W(X,Y)', def: 'Shift+Enter', run: clickSel('#spin-w2-btn') },
+                { id: 'spin_w2', label: 'W(X,Y) ON/OFF（X-W・Y-W。5次元では V(X,Y,Z)＝X-V・Y-V・Z-V）', short: 'W(X,Y)', def: 'Shift+Enter', run: clickSel('#spin-w2-btn') },
                 { id: 'spin_3d', label: '3D ON/OFF（X-Y・X-Z・Y-Z）', short: '3D', def: 'D', run: clickSel('#spin-3d-btn') },
-                { id: 'spin_6', label: '全て ON/OFF（6面すべて）', short: '全て', def: 'Shift+A', run: clickSel('#spin-6-btn') },
+                { id: 'spin_6', label: '全て ON/OFF（6面すべて。5次元では10面）', short: '全て', def: 'Shift+A', run: clickSel('#spin-6-btn') },
                 { id: 'sideSwap', label: 'パネルの左右 切替', short: 'パネル左右', def: 'B', run: () => document.getElementById('sidebar-side').click() },
                 { id: 'viewSwap', label: '立方体と超立方体の左右 入替', short: '図の左右', def: 'Shift+B', run: () => document.getElementById('swap-views-btn').click() },
                 { id: 'zwVizAll', label: 'Z-W のときの立方体の表現 全部オン・オフ', short: 'ZW表現', def: 'Q', run: clickSel('#zwviz-all') },
                 { id: 'left3d', label: '立方体の3D回転 切替（X-Yだけ⇔全部）', short: '立方体3D', def: 'Shift+D', run: clickSel('#left3d-btn') },
                 { id: 'dim5', label: '5次元β 切替（立方体×超立方体 ⇔ 超立方体×5次元超立方体）', short: '5次元β', def: 'Shift+5', run: clickSel('#dim5-btn') },
-                { id: 'spin_p5', label: 'オート回転 5次元だけの4面（5次元β）', short: 'オート5D', def: 'Shift+6', run: clickSel('#p5-spin-all') },
+                { id: 'spin_p5', label: '5次元だけの4面 ON/OFF（X-W・Y-W・Z-W・W-V。5次元β）', short: 'オート5D', def: 'Shift+6', run: clickSel('#p5-spin-all') },
+                { id: 'spin_4d', label: '4D ON/OFF（X-Y・X-Z・Y-Z＋5次元だけの X-W・Y-W・Z-W。5次元β）', short: '4D', def: 'Shift+7', run: toggle4DSpins },
+                { id: 'spin_w5', label: 'W ON/OFF（5次元だけの X-W・Y-W・Z-W。5次元β）', short: 'W(5D)', def: 'Shift+8', run: toggleW5Spins },
                 { id: 'explode', label: '分解（バラす⇔くっつける）', short: '分解', def: 'Shift+E', run: clickSel('#explode-btn') },
                 { id: 'count', label: '分解して1個ずつ数える', short: '数える', def: 'Shift+C', run: clickSel('#count-btn') }
             ];
@@ -5394,6 +5432,8 @@
             document.getElementById('spin-3d-btn').addEventListener('click', toggle3DSpins);
             // 全部盛り：6面すべてをまとめて ON/OFF
             document.getElementById('spin-6-btn').addEventListener('click', toggle6Spins);
+            document.getElementById('spin-4d-btn').addEventListener('click', toggle4DSpins);
+            document.getElementById('spin-w5-btn').addEventListener('click', toggleW5Spins);
             // 左の立方体の3D回転：X-Y だけ（標準）⇔ 全部（左右そろって転がる）
             // Z-W のときの立方体の表現のオン・オフ
             const ZWV_NAME = { tint: '色づけ', dial: 'ダイヤル', ghost: '元の輪郭', wArrow: 'w の点線矢印' };
@@ -5603,14 +5643,15 @@
                     segs.forEach(b => { const on = (b.dataset.drag5 === 'dim') === isDim(b.dataset.side5); paint(b, b.dataset.drag5, on); b.classList.toggle('on', on); });
                     togs.forEach(b => {   // 回転バー：今の状態を文字と色で（押すと切り替わる）
                         const side = b.dataset.drag5Toggle, d = isDim(side);
-                        b.textContent = (side === 'L' ? '4次元体: ' : '5次元体: ') + (d ? 'せり出す' : '転がす');
+                        b.textContent = (side === 'L' ? '4次元体: ' : '5次元体: ') + (d ? 'w を出す' : '転がす');
                         paint(b, d ? 'dim' : '3d', true);
                     });
-                    if (note) note.innerHTML =
-                        (drag5L ? '<b>4次元体（超立方体）</b>＝せり出す（X-W・Y-W。5次元体では X-V・Y-V＝<b>v がせり出す</b>。Shift＝Z-W）'
-                                : '<b>4次元体（超立方体）</b>＝転がす（形をそのまま3Dで回す＝w がつぶれた<b>十字架</b>のまま。5次元体も一緒に回る）') + '。<br>' +
-                        (drag5R ? '<b>5次元体</b>＝せり出す（5次元だけの X-W・Y-W で <b>w がせり出す</b>。4次元体は動かない。Shift＝W-V）'
-                                : '<b>5次元体</b>＝転がす（形をそのまま3Dで回す＝<b>真ん中が大きい展開図</b>のまま。4次元体も一緒に回る。Shift＝Z-W）') + '。';
+                    const parts = [(drag5L ? '<b>4次元体（超立方体）</b>＝w を出す（X-W・Y-W で、4次元体の <b>w が画面の中へ出てくる</b>。この向きは5次元体では v なので、5次元体では <b>v が出てくる</b>。Shift＝Z-W）'
+                                : '<b>4次元体（超立方体）</b>＝転がす（形をそのまま3Dで回す＝w がつぶれた<b>十字架</b>のまま。5次元体も一緒に回る）') + '。',
+                        (drag5R ? '<b>5次元体</b>＝w を出す（5次元だけの X-W・Y-W で、4次元体に無い <b>w が画面の中へ出てくる</b>。4次元体は動かない。Shift＝W-V）'
+                                : '<b>5次元体</b>＝転がす（形をそのまま3Dで回す＝<b>真ん中が大きい展開図</b>のまま。4次元体も一緒に回る。Shift＝Z-W）') + '。'];
+                    if (viewsSwapped) parts.reverse();   // 5次元体が左（上）なら、説明も5次元体から
+                    if (note) note.innerHTML = parts.join('<br>');
                 };
                 const set = (side, dim) => {
                     if (side === 'L') drag5L = dim; else drag5R = dim;
@@ -5619,7 +5660,17 @@
                 };
                 segs.forEach(b => b.addEventListener('click', () => set(b.dataset.side5, b.dataset.drag5 === 'dim')));
                 togs.forEach(b => b.addEventListener('click', () => set(b.dataset.drag5Toggle, !isDim(b.dataset.drag5Toggle))));
-                sync();
+                // 画面の並びと同じ順に：5次元体が左（縦長なら上）のときは、回転バーのボタン・マトリクスの行・説明を 5次元体 → 4次元体 の順に
+                window.orderDrag5 = () => {
+                    const first5 = viewsSwapped;
+                    const tL = document.querySelector('[data-drag5-toggle="L"]'), tR = document.querySelector('[data-drag5-toggle="R"]');
+                    if (tL && tR) { if (first5) tR.after(tL); else tL.after(tR); }
+                    const qL = document.querySelector('[data-side5="L"]'), qR = document.querySelector('[data-side5="R"]');
+                    const rL = qL && qL.closest('.flex.items-center'), rR = qR && qR.closest('.flex.items-center');
+                    if (rL && rR) { if (first5) rR.after(rL); else rL.after(rR); }
+                    sync();
+                };
+                window.orderDrag5();
             })();
             const P5_SET = { xw: v => p5XW = v, yw: v => p5YW = v, zw: v => p5ZW = v, wv: v => p5WV = v };
             Object.keys(P5_SET).forEach(k => {
@@ -5660,6 +5711,16 @@
                     b.classList.toggle('bg-slate-800/80', !dim5); b.classList.toggle('border-slate-700', !dim5); b.classList.toggle('text-slate-300', !dim5);
                 });
                 if (linkResetBtn) linkResetBtn.title = dim5 ? '回転を止めて、10面すべて（5次元だけの4面も）を0に戻す（O キーでも同じ）' : linkResetBtn.dataset.t4 || linkResetBtn.title;
+                // 回転バーの名前：5次元モードでは「W」が X-V・Y-V・Z-V を回すので V と書く（中身は同じ）
+                [['spin-all-btn', 'spin-all-text', 'W', 'V', 'v の絡む4面（X-V・Y-V・Z-V・W-V）をすべて回し続ける＝5次元体の中身が v の向きに入れ替わる5Dの回転。4次元体は X-V・Y-V・Z-V と同じ角度の X-W・Y-W・Z-W で一緒に回る（W-V は4次元体に無い）（Enter）'],
+                 ['spin-w2-btn', 'spin-w2-text', 'W(X,Y)', 'V(X,Y,Z)', 'X-V・Y-V・Z-V の3面だけを回し続ける（W-V は回さない）＝4次元体が X-W・Y-W・Z-W でそっくり同じに回る（Shift+Enter）'],
+                 ['spin-6-btn', null, '全て', '全て', '10面すべて（3D の3面・V の3面・5次元だけの4面）を同時に回し続ける（Shift+A）']
+                ].forEach(([id, tid, t4, t5, title5]) => {
+                    const b = document.getElementById(id); if (!b) return;
+                    const sp = tid && document.getElementById(tid); if (sp) sp.textContent = dim5 ? t5 : t4;
+                    if (!b.dataset.t4) b.dataset.t4 = b.title;
+                    b.title = dim5 ? title5 : b.dataset.t4;
+                });
                 syncLeft3dUI(); updateSideWords(); updateSpinBtns();
                 updateLayout();
             }
