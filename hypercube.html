@@ -120,6 +120,14 @@
         .sb-tab.active { background: rgba(124, 58, 237, 0.25); border-color: rgba(167, 139, 250, 0.5); color: #ede9fe; }
         .sb-sec { background: rgba(2, 6, 23, 0.35); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .sb-h { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #cbd5e1; margin: 0; }
+        /* ポップアップ分離：欄を切り離して浮かせる */
+        #float-layer { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+        .float-panel { position: absolute; width: min(330px, 92vw); max-height: 82vh; overflow-y: auto; overflow-x: hidden; pointer-events: auto; border-radius: 12px; box-shadow: 0 12px 44px rgba(0, 0, 0, 0.6); }
+        .float-panel > .sb-sec { margin: 0; background: rgba(4, 8, 22, 0.95); border-color: rgba(129, 140, 248, 0.55); backdrop-filter: blur(8px); }
+        .float-panel .sb-h { cursor: move; }
+        .sb-floatbtn { margin-left: 6px; flex-shrink: 0; font-size: 10px; font-weight: 400; color: #8aa0c6; cursor: pointer; white-space: nowrap; background: none; border: 0; padding: 0 2px; }
+        .sb-floatbtn:hover { color: #e2e8f0; }
+        .sb-sec.floating > .sb-h .sb-floatbtn { color: #a5b4fc; }
 
         /* ===== iPad・iPhone 向け（レスポンシブ） ===== */
         button, input, label, summary { touch-action: manipulation; }   /* ダブルタップで拡大しない */
@@ -6293,6 +6301,65 @@
                     mk('▸ 全部たたむ', () => { secs.forEach(sc => closed[sc._fold.name] = true); save(); secs.forEach(sc => sc._fold.apply()); }),
                     mk('▾ 全部ひらく', () => { closed = {}; save(); secs.forEach(sc => sc._fold.apply()); }));
                 panel.insertBefore(bar, panel.firstChild);
+            })();
+
+            // ===== ポップアップ分離：各欄に「分離」ボタン。押すと切り離して浮かせ、ドラッグで移動、「戻す」で元の場所へ。位置と状態はこのブラウザに保存 =====
+            (function setupFloatPanels() {
+                const layer = document.createElement('div'); layer.id = 'float-layer'; document.body.appendChild(layer);
+                const FKEY = 'hypercubeFloats'; let fstate = {}; try { fstate = JSON.parse(localStorage.getItem(FKEY) || '{}') || {}; } catch (_) {}
+                const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(fstate)); } catch (_) {} };
+                const homes = new Map(); let cascade = 0;
+                const clampX = (x, w) => { const ww = w.offsetWidth || 320; return Math.max(4, Math.min(window.innerWidth - ww - 4, x)); };
+                const clampY = y => Math.max(4, Math.min(window.innerHeight - 42, y));
+                const titleOf = h => [...h.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').replace(/\s+/g, ' ').trim();
+                function makeDrag(sec) {   // 見出しをつかんで浮いているパネルを動かす（浮いているときだけ・ボタンの上では動かさない）
+                    const handle = sec.querySelector(':scope > .sb-h'); let sx, sy, ox, oy, moved = false;
+                    handle.addEventListener('pointerdown', e => {
+                        moved = false;   // 新しい操作のたびにリセット（前のドラッグの判定を引きずらない）
+                        if (!sec.classList.contains('floating') || e.target.closest('button, input, select, label, a')) return;
+                        const wrap = sec._fwrap; if (!wrap) return;
+                        sx = e.clientX; sy = e.clientY; ox = parseInt(wrap.style.left) || 0; oy = parseInt(wrap.style.top) || 0;
+                        try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+                        const mv = ev => { const dx = ev.clientX - sx, dy = ev.clientY - sy; if (Math.abs(dx) + Math.abs(dy) > 3) moved = true; wrap.style.left = clampX(ox + dx, wrap) + 'px'; wrap.style.top = clampY(oy + dy) + 'px'; };
+                        const up = () => { handle.removeEventListener('pointermove', mv); handle.removeEventListener('pointerup', up); if (moved) { fstate[sec.dataset.fid] = { x: parseInt(wrap.style.left), y: parseInt(wrap.style.top) }; saveF(); } };
+                        handle.addEventListener('pointermove', mv); handle.addEventListener('pointerup', up);
+                    });
+                    handle.addEventListener('click', e => { if (moved && !e.target.closest('button, input, select, label, a')) { e.stopPropagation(); e.preventDefault(); } moved = false; }, true);   // ドラッグ直後の見出しクリック（たたむ等）だけ抑制。ボタンは通す
+                }
+                function floatSec(sec, pos) {
+                    if (sec.classList.contains('floating')) return;
+                    homes.set(sec, { parent: sec.parentNode, next: sec.nextSibling });
+                    const wrap = document.createElement('div'); wrap.className = 'float-panel';
+                    wrap.appendChild(sec); layer.appendChild(wrap);
+                    sec.classList.add('floating'); sec._fwrap = wrap; sec._fbtn.textContent = '⇲ 戻す';
+                    const fid = sec.dataset.fid;
+                    let p = pos || fstate[fid];
+                    if (!p) { p = { x: Math.round(window.innerWidth * 0.42) + (cascade % 3) * 22, y: 70 + (cascade % 6) * 28 }; cascade++; }
+                    wrap.style.left = clampX(p.x, wrap) + 'px'; wrap.style.top = clampY(p.y) + 'px';
+                    fstate[fid] = { x: parseInt(wrap.style.left), y: parseInt(wrap.style.top) }; saveF();
+                    requestRender(5);
+                }
+                function dockSec(sec) {
+                    const home = homes.get(sec); if (!home) return;
+                    sec.classList.remove('floating'); sec._fbtn.textContent = '⇱ 分離';
+                    home.parent.insertBefore(sec, home.next); if (sec._fwrap) sec._fwrap.remove(); sec._fwrap = null; homes.delete(sec);
+                    delete fstate[sec.dataset.fid]; saveF(); requestRender(5);
+                }
+                // 各タブの各欄にボタンを付ける（共有の「分解」欄は特殊なので除く）
+                document.querySelectorAll('.sb-panel').forEach(panel => {
+                    [...panel.children].forEach(sec => {
+                        if (sec.tagName !== 'SECTION' || !sec.classList.contains('sb-sec')) return;
+                        const h = sec.querySelector(':scope > .sb-h'); if (!h) return;
+                        const title = titleOf(h); if (!title || title.includes('分解')) return;
+                        sec.dataset.fid = title;
+                        const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'sb-floatbtn';
+                        btn.textContent = '⇱ 分離'; btn.title = 'この欄を切り離して浮かせる（ドラッグで移動。「戻す」で元の場所へ）';
+                        btn.addEventListener('click', e => { e.stopPropagation(); if (sec.classList.contains('floating')) dockSec(sec); else floatSec(sec); });
+                        h.appendChild(btn); sec._fbtn = btn; makeDrag(sec);
+                    });
+                });
+                // 保存されていた分離を復元
+                Object.keys(fstate).forEach(fid => { const sec = [...document.querySelectorAll('.sb-sec[data-fid]')].find(s => s.dataset.fid === fid); if (sec) floatSec(sec, fstate[fid]); });
             })();
 
             // ===== 5次元モード（β）の切替と、5次元だけの4面の操作 =====
