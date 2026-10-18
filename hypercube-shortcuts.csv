@@ -59,3 +59,5 @@ spin_4d,4D ON/OFF（X-Y・X-Z・Y-Z＋5次元だけの X-W・Y-W・Z-W。5次元
 spin_w5,W ON/OFF（5次元だけの X-W・Y-W・Z-W。5次元β）,Shift+8
 explode,分解（バラす⇔くっつける）,Shift+E
 count,分解して1個ずつ数える,Shift+C
+die,高次元サイコロを振る（頂点・辺・面・胞）,Shift+0
+numtex,お遊び：数字テクスチャ（面に数字を貼る）,Shift+9
