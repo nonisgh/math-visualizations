@@ -137,6 +137,10 @@
         #dock-right { right: 0; width: var(--dock-r); border-left: 1px solid rgba(129, 140, 248, 0.4); }
         body.sidebar-left:not(.sidebar-hidden) #dock-left { left: var(--sb); }
         body:not(.sidebar-left):not(.sidebar-hidden) #dock-right { right: var(--sb); }
+        /* メニューを非表示にしたら、端にくっつけた（ドックした）パネルも一緒に隠して描画領域を広げる。浮いているパネルは出したまま */
+        body.sidebar-hidden #dock-left, body.sidebar-hidden #dock-right { display: none; }
+        body.sidebar-hidden.dock-left-on { --dock-l: 0px; }
+        body.sidebar-hidden.dock-right-on { --dock-r: 0px; }
         .float-panel.docked { position: static !important; width: 100% !important; max-height: none !important; left: auto !important; top: auto !important; box-shadow: none; flex: 0 0 auto; }
         #dock-hint { position: fixed; top: 0; bottom: 0; z-index: 46; pointer-events: none; display: none; background: rgba(129, 140, 248, 0.16); border: 2px dashed rgba(129, 140, 248, 0.75); border-radius: 10px; box-sizing: border-box; }
 
