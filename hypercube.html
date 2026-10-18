@@ -1540,6 +1540,7 @@
         let wireframeOnly = false;
         let accurateFaces = false;   // 面透過：ON=毎フレーム奥から並べ直し＋depthWrite無効で正しく合成。OFF=今の立体感重視
         let mergedFaces3D = null;    // 正確透過モード用：全胞の面をまとめた1メッシュ（毎フレーム全三角形を深度ソート）
+        let mergedFaces5D = null;    // 5次元：全胞の面を1メッシュにして毎フレーム面単位で深度ソート（重なった胞も正しく前後合成＝真上でも色が混ざる）
         const _mTri = new THREE.Vector3();
         // 表示設定（設定画面で調整。正確モードの見た目に効く。localStorageに保存）
         let cfgFaceOpacity = 0.26;     // 面の不透明度（組み上がり時）
@@ -2391,6 +2392,7 @@
             { name: '内ヒンジ胞', color: 0xa3e635, axis: 3, sign: -1 },
             { name: '連鎖頂点胞', color: 0xa855f7, cap: true }
         ];
+        const P5_RGB = P5_CELLS.map(c => new THREE.Color(c.color));   // 胞ごとの色（5次元のまとめメッシュの頂点カラーに使う）
         // 胞1つ（超立方体）の頂点16・面24（三角形48）・辺32
         const T5_VERTS = [...Array(16)].map((_, i) => [0, 1, 2, 3].map(d => ((i >> d) & 1) ? HALF_S : -HALF_S));
         const T5_TRIS = [];
@@ -2551,6 +2553,17 @@
                 mesh.add(wire); root.add(mesh);
                 cellObjects5D.push({ geometry: g, wireGeo: wg, wire, material: m });
             });
+            {   // 5次元の面を1つにまとめたメッシュ（毎フレーム面単位で奥から並べ替え＝入れ子の胞も正しく前後合成）
+                const mg = new THREE.BufferGeometry();
+                const nVert5 = P5_CELLS.length * T5_TRIS.length;   // 10胞 × 144頂点
+                mg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nVert5 * 3), 3));
+                mg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nVert5 * 4), 4));   // RGB＋アルファ（胞ごとの濃さ・奥フェード）
+                const mm = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 1, roughness: 0.15, metalness: 0.5, side: THREE.DoubleSide, depthWrite: false });
+                mergedFaces5D = new THREE.Mesh(mg, mm);
+                mergedFaces5D.frustumCulled = false;
+                mergedFaces5D.renderOrder = -1;   // 面は線より先に（後ろに）描く＝手前の線が面に薄められず、くっきり乗る
+                root.add(mergedFaces5D);
+            }
             const ag = new THREE.Group(); ag.name = 'Axis5D';
             AXES_5D.forEach(ax => {
                 const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
@@ -2600,7 +2613,7 @@
                 cell.geometry.attributes.position.needsUpdate = true; cell.geometry.attributes.color.needsUpdate = true;
                 cell.geometry.computeVertexNormals();
                 const cdMean = cd.reduce((s, d) => s + d, 0) / cd.length, depthFade = 1 - 0.62 * sm((cdMean - dMin) / span);   // 奥の胞ほど面を薄く＝手前の腕を透かして奥の緑・青が見えにくくなる（刺さり方がはっきり）
-                cell.material.opacity = Math.min(0.97, op * cellFocus(5, ci).face * (!edgeHi.on ? 1 : EH_MID5.includes(ci) ? edgeHi.faceMid : EH_ARM5.includes(ci) ? edgeHi.faceArm : 1) * depthFade) * (1 - rhombi.t); cell.material.visible = !wireframeOnly;   // 中（±W）・腕の面はひとつ濃く
+                cell.material.opacity = Math.min(0.97, op * cellFocus(5, ci).face * (!edgeHi.on ? 1 : EH_MID5.includes(ci) ? edgeHi.faceMid : EH_ARM5.includes(ci) ? edgeHi.faceArm : 1) * depthFade) * (1 - rhombi.t); cell.material.visible = !wireframeOnly && numTex;   // 中（±W）・腕の面はひとつ濃く。ふだんは「まとめメッシュ」で描くので胞ごとの面は隠す（数字テクスチャのときだけ胞ごと）
                 const wa = cell.wireGeo.attributes.position.array, wc = cell.wireGeo.attributes.color.array;
                 for (let e = 0, k = 0; e < T5_EDGES.length; e++) {
                     const i0 = T5_EDGES[e][0], i1 = T5_EDGES[e][1], A = cv[i0], B = cv[i1], cA = ecol(cd[i0]), cB = ecol(cd[i1]);
@@ -2610,9 +2623,43 @@
                 if (cell.wire && cell.wire.parent) cell.wire.parent.visible = xpVisible(5, ci);   // 見せる胞（表だけ・裏だけ）
                 paintEdgeHi(cell, ci, cellObjects5D.length - 1, wc, EN[0], EH_MID5, EH_ARM5);   // 手前・中（±W）・腕・奥の超立方体の辺を色で強調
                 { const fe = cellFocus(5, ci).edge; if (fe !== 1) for (let k = 0; k < wc.length; k++) wc[k] *= fe; }
+                for (let e = 0, k = 0; e < T5_EDGES.length; e++) {   // 奥の線ほど薄く（深度フェード）＝手前の線が立って奥行きの手がかりになる
+                    const f0 = 1 - 0.58 * sm((cd[T5_EDGES[e][0]] - dMin) / span), f1 = 1 - 0.58 * sm((cd[T5_EDGES[e][1]] - dMin) / span);
+                    wc[k++] *= f0; wc[k++] *= f0; wc[k++] *= f0; wc[k++] *= f1; wc[k++] *= f1; wc[k++] *= f1;
+                }
                 cell.wireGeo.attributes.position.needsUpdate = true; cell.wireGeo.attributes.color.needsUpdate = true;
                 if (rhombi.t > 0 || cell._rhDim) { cell.wire.material.opacity = 0.9 * (1 - rhombi.t); cell._rhDim = rhombi.t > 0; }   // 菱形二十面体へ：線を消す
             });
+            // 5次元の面：全胞の四角形を1メッシュにまとめ、毎フレーム「全体で」遠い順に並べ替える＝重なった胞も三角形単位で正しく前後合成（真上でも色が混ざる）
+            if (mergedFaces5D) {
+                const useMerged5 = !wireframeOnly && !numTex && rhombi.t < 1;   // 数字テクスチャ・ワイヤーのみ・菱形のときは胞ごと（従来）
+                mergedFaces5D.visible = useMerged5;
+                if (useMerged5) {
+                    const quads5 = [];
+                    for (let ci = 0; ci < cellObjects5D.length; ci++) {
+                        for (let base = 0; base < T5_TRIS.length; base += 6) {
+                            let ds = 0; for (let k = 0; k < 6; k++) ds += dist[ci][T5_TRIS[base + k]];
+                            quads5.push([ci, base, ds]);
+                        }
+                    }
+                    quads5.sort((a, b) => b[2] - a[2]);   // 遠い面を先に描く
+                    const mpos = mergedFaces5D.geometry.attributes.position.array, mcol = mergedFaces5D.geometry.attributes.color.array;
+                    const aOf = ci => { const cdM = dist[ci].reduce((s, d) => s + d, 0) / dist[ci].length, df = 1 - 0.62 * sm((cdM - dMin) / span); return Math.min(0.97, op * cellFocus(5, ci).face * (!edgeHi.on ? 1 : EH_MID5.includes(ci) ? edgeHi.faceMid : EH_ARM5.includes(ci) ? edgeHi.faceArm : 1) * df) * (1 - rhombi.t) * (xpVisible(5, ci) ? 1 : 0); };
+                    const aFac = cellObjects5D.map((_, ci) => aOf(ci));
+                    let mp = 0, mc = 0;
+                    for (let qi = 0; qi < quads5.length; qi++) {
+                        const ci = quads5[qi][0], base = quads5[qi][1], cv = verts[ci], C = P5_RGB[ci], a = aFac[ci];
+                        for (let k = 0; k < 6; k++) {
+                            const idx = T5_TRIS[base + k], v = cv[idx], bt = bright(dist[ci][idx]);
+                            mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
+                            mcol[mc++] = Math.min(1, C.r * bt); mcol[mc++] = Math.min(1, C.g * bt); mcol[mc++] = Math.min(1, C.b * bt); mcol[mc++] = a;
+                        }
+                    }
+                    mergedFaces5D.geometry.attributes.position.needsUpdate = true;
+                    mergedFaces5D.geometry.attributes.color.needsUpdate = true;
+                    mergedFaces5D.geometry.computeVertexNormals();
+                }
+            }
             if (rhombiObj) {   // お試し：菱形二十面体＝5本の軸の影 E の組 (i,j) ごとに、いちばん外にある正方形（＝菱形）を表と裏の2枚拾う
                 rhombiObj.group.visible = rhombi.t > 0;
                 if (rhombi.t > 0) {
