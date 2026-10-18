@@ -878,7 +878,8 @@
                     <button id="xparent-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="立体感＝今の見た目（奥の面が濃いが立体感が強い）／正確＝毎フレーム面を奥から並べ直し透過を正しく合成（奥の面もちゃんと透ける。立体感は辺のフェードが担う）">
                         <i data-lucide="layers" class="w-3.5 h-3.5"></i>
                         <span id="xparent-text" class="text-[11px]">面透過: 立体感</span>
-                    </button></div>
+                    </button>
+                    <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button></div>
             </section>
 
             <section class="sb-sec">
@@ -1484,6 +1485,17 @@
         let cyclePhase = 0;      // 0..1 周回の進み
         let cycleBlend = 0;      // 投影の混ざり（0=遠近, 1=平行）周回中だけ使う
         let _lastT = 0;          // 実時間 dt 計測用
+        let _lastRenderT = 0;    // 省電力モードの描画間引き用（最後に描いた時刻）
+        let ecoMode = false; try { ecoMode = localStorage.getItem('hypercubeEco') === '1'; } catch (_) {}   // 省電力：回転中は約30fps＋低解像度でGPUを楽に
+        const ecoPR = () => Math.min(window.devicePixelRatio || 1, ecoMode ? 1.5 : 2);   // 省電力は解像度を 1.5 倍までに（ふだんは 2 倍まで）
+        function applyEco() {
+            [typeof renderer2D !== 'undefined' ? renderer2D : null, typeof renderer3D !== 'undefined' ? renderer3D : null, typeof renderer5D !== 'undefined' ? renderer5D : null].forEach(r => { if (r) r.setPixelRatio(ecoPR()); });
+            if (typeof onWindowResize === 'function') onWindowResize();   // 解像度変更を反映（描画バッファの作り直し）
+            const t = document.getElementById('eco-text'); if (t) t.textContent = '省電力モード: ' + (ecoMode ? 'ON' : 'OFF');
+            const b = document.getElementById('eco-btn'); if (b) { b.classList.toggle('bg-emerald-900/40', ecoMode); b.classList.toggle('border-emerald-500/50', ecoMode); b.classList.toggle('text-emerald-200', ecoMode); b.classList.toggle('bg-slate-800/80', !ecoMode); b.classList.toggle('border-slate-700', !ecoMode); b.classList.toggle('text-slate-300', !ecoMode); }
+            requestRender(30);
+        }
+        function toggleEco() { ecoMode = !ecoMode; try { localStorage.setItem('hypercubeEco', ecoMode ? '1' : '0'); } catch (_) {} applyEco(); }
 
         let enableStagger = true;
         let displayMode = 'both';
@@ -2049,6 +2061,7 @@
             buildGluePairs(); buildXpAxisLabels();   // 高次元マップ（くっついていた面の組・次元の矢印の札）
             applyNumTex();   // お遊び：数字テクスチャ（保存した状態を反映。UV もここで一度付ける）
             applyMarkCol();  // 頂点マーカーの色（指定を反映）
+            applyEco();      // 省電力モード（保存した状態の解像度を反映）
 
             updateLayout();
 
@@ -2915,25 +2928,22 @@
         //   バラしたあとの頂点を画面に写して、画面の枠（横 88%・縦 78%。上の見出しの分をあける）からはみ出す分だけ引く。
         //   画面に入る限りは引かない＝空いているところいっぱいに広げる。バラし具合 e に合わせてなめらかに
         const _xpP = new THREE.Vector3();
-        function xpFitZoom(dim, cam, scn, rootName, zBase) {
-            const e = explodeE(), vs = xpVerts[dim], root = scn && scn.getObjectByName(rootName);
-            if (e <= 0 || !vs || !root || !cam) return zBase;
-            cam.updateMatrixWorld(); root.updateMatrixWorld();
-            let mx = 0, my = 0;
-            for (const cv of vs) for (const v of cv) {
-                _xpP.set(v[0], v[1], v[2]).applyMatrix4(root.matrixWorld).project(cam);
-                if (_xpP.z < 1) { mx = Math.max(mx, Math.abs(_xpP.x)); my = Math.max(my, Math.abs(_xpP.y)); }
-            }
-            const zr = cam.zoom / zBase;   // 今のズームで測ったので、もとのズームの大きさに直す
-            const need = Math.max(mx / zr / 0.88, my / zr / 0.78, 1e-3);
-            const fit = Math.max(0.35, Math.min(1, 1 / need));
-            return zBase * (1 - e + e * fit);
+        // バラしたあとの引き具合。バラした量 e だけ「一定の割合」でズームアウトする（回転に依存しない）。
+        //   前は毎フレーム画面の輪郭に合わせていたので、回すたびにズームが動いて揺れていた。
+        //   いまは回しても倍率が変わらない＝揺れない。4次元の遠近で形が息づく（大きく/小さく写る）のはそのまま見える。
+        const XP_ZOOM_K = { 2: 2.4, 3: 1.9, 5: 2.0 };   // バラしきった(e=1)とき 1/(1+K) 倍。回転中の最大の広がりでも収まるよう多めに引く
+        function xpFitZoom(dim, zBase) {
+            const e = explodeE();
+            if (e <= 0) return zBase;
+            return zBase * Math.max(0.28, 1 / (1 + XP_ZOOM_K[dim] * e));
         }
         function applyExplodeZoom() {
             const set = (cam, z) => { if (cam && Math.abs(cam.zoom - z) > 1e-4) { cam.zoom = z; cam.updateProjectionMatrix(); } };
-            set(camera2D, xpFitZoom(2, camera2D, scene2D, 'Root2D', viewZoom2D()));
-            set(camera3D, xpFitZoom(3, camera3D, scene3D, 'Root3D', (dim5 && displayMode === 'hypercube_pip') ? 2.2 : viewZoom()));
-            set(camera5D, xpFitZoom(5, camera5D, scene5D, 'Root5D', viewZoom()));
+            const z3 = (dim5 && displayMode === 'hypercube_pip') ? 2.2 : viewZoom();
+            if (!autoFitZoom) { set(camera2D, viewZoom2D()); set(camera3D, z3); set(camera5D, viewZoom()); return; }   // 自動ズームOFF：バラしてもズームしない（今の倍率のまま＝揺れない）
+            set(camera2D, xpFitZoom(2, viewZoom2D()));
+            set(camera3D, xpFitZoom(3, z3));
+            set(camera5D, xpFitZoom(5, viewZoom()));
         }
 
         // ===== 手前と奥の胞の辺を色で強調（点タブ）=====
@@ -4212,6 +4222,8 @@
             const busy = animationMode !== 0 || axisTween !== null || cycleMode || pingPong !== null || camHome !== null || dieAnim !== null || anySpin() || autoRotateCamera || camMoved || explodeTarget !== null || xpCount.active || rhombi.anim || rhombi.pending;
             if (!busy && _renderFrames <= 0) return;
             if (_renderFrames > 0) _renderFrames--;
+            if (ecoMode && busy && (_now - _lastRenderT) < 30) return;   // 省電力：回転など連続アニメ中は約30fpsに間引く（GPU負荷を半分に。止まっているときは影響なし）
+            _lastRenderT = _now;
             // カメラを回している最中も「手前=はっきり/奥=ダーク」を毎フレーム再評価する
             //   （辺・面の濃淡はカメラ距離ベースなので、カメラ移動でも更新が要る）。描画直前に更新。
             updateMorphingGeometry(animationProgress);
@@ -6163,6 +6175,8 @@
             // 面透過モード切替：立体感（今のまま）⇔ 正確（並べ直し＋depthWrite無効）
             const numtexBtn = document.getElementById('numtex-btn');
             if (numtexBtn) numtexBtn.addEventListener('click', toggleNumTex);
+            const ecoBtn = document.getElementById('eco-btn');
+            if (ecoBtn) ecoBtn.addEventListener('click', toggleEco);
             const xparentBtn = document.getElementById('xparent-btn');
             const xparentText = document.getElementById('xparent-text');
             xparentBtn.addEventListener('click', () => {
