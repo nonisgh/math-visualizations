@@ -1486,6 +1486,7 @@
         let cycleBlend = 0;      // 投影の混ざり（0=遠近, 1=平行）周回中だけ使う
         let _lastT = 0;          // 実時間 dt 計測用
         let _lastRenderT = 0;    // 省電力モードの描画間引き用（最後に描いた時刻）
+        let _lastFitProg = -1;   // 自動ズーム：折りたたみ具合が変わったか（スライダー操作も「折りたたみ中」扱いにする）
         let ecoMode = false; try { ecoMode = localStorage.getItem('hypercubeEco') === '1'; } catch (_) {}   // 省電力：回転中は約30fps＋低解像度でGPUを楽に
         const ecoPR = () => Math.min(window.devicePixelRatio || 1, ecoMode ? 1.5 : 2);   // 省電力は解像度を 1.5 倍までに（ふだんは 2 倍まで）
         function applyEco() {
@@ -2932,7 +2933,7 @@
         // バラしたあとの引き具合。バラした量 e だけ「一定の割合」でズームアウトする（回転に依存しない）。
         //   前は毎フレーム画面の輪郭に合わせていたので、回すたびにズームが動いて揺れていた。
         //   いまは回しても倍率が変わらない＝揺れない。4次元の遠近で形が息づく（大きく/小さく写る）のはそのまま見える。
-        const XP_ZOOM_K = { 2: 2.4, 3: 1.9, 5: 2.0 };   // バラしきった(e=1)とき 1/(1+K) 倍。回転中の最大の広がりでも収まるよう多めに引く
+        const XP_ZOOM_K = { 2: 1.5, 3: 1.2, 5: 1.4 };   // バラしきった(e=1)とき 1/(1+K) 倍。引きすぎないよう控えめ（多少はみ出しても大きく見せる）
         function xpFitZoom(dim, zBase) {
             const e = explodeE();
             if (e <= 0) return zBase;
@@ -3934,32 +3935,32 @@
             }
 
             if (autoFitZoom && explodeE() < 0.01) {   // 自動ズーム（分解していないとき）。分解中のズームは applyExplodeZoom が一定倍率で担当。
-                // 賢い合わせ方：今の回転のまま画面に写して「画面占有率」を見る。帯[LO,HI]の中なら倍率を動かさない＝回転中に脈打たない・暴れない。
-                //   展開・組み立てで形が大きく変わるときや、回転ではみ出す/小さすぎるときだけ、目標の占有率へゆっくり寄せる（折りたたみ中は速く、回転中はゆっくり）。
-                const folding = animationMode !== 0;
+                // 折りたたみ具合が変わっている間（アニメ・スライダー）は「折りたたみ中」。回転だけのときと分けて扱う。
+                const folding = animationMode !== 0 || Math.abs(progress - _lastFitProg) > 1e-4;
+                _lastFitProg = progress;
+                // 左（立方体）は添えもの：昔どおり実寸で小さめに合わせる（角度0で測るので回転で倍率が変わらない＝暗くならない・暴れない）
+                const span = verts => { let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9]; verts.forEach(p => { for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], p[k]); mx[k] = Math.max(mx[k], p[k]); } }); return Math.max(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]); };
+                const savedZW = soloAngleZW, saved3 = [rotXY, rotXZ, rotYZ], savedOff = xyManualOff;
+                soloAngleZW = 0; rotXY = 0; rotXZ = 0; rotYZ = 0; xyManualOff = 0;
+                let lv = [];
+                for (let i = 0; i < 6; i++) lv = lv.concat(calculateFoldedFaceVertices2D(i, progress, 0, 0));
+                soloAngleZW = savedZW; rotXY = saved3[0]; rotXZ = saved3[1]; rotYZ = saved3[2]; xyManualOff = savedOff;
+                const r2 = scene2D.getObjectByName('Root2D'); if (r2) r2.scale.setScalar(Math.max(0.8, Math.min(1.6, 2.9 / Math.max(span(lv), 1e-3))));
+                // 右（超立方体）と5D：画面占有率で。帯[lo,hi]の中なら倍率を動かさない＝回転中に脈打たない・暴れない。
+                //   折りたたみ中は毎フレームなめらかに追従（カクつかない）、回転中は帯の外（はみ出す/小さすぎる）のときだけゆっくり直す。
                 const ease = folding ? 0.45 : 0.14;
-                const occOf = (verts, cam, root) => {
-                    cam.updateMatrixWorld(); root.updateMatrixWorld();
-                    let occ = 0;
-                    for (const v of verts) { _occV.set(v[0], v[1], v[2]).applyMatrix4(root.matrixWorld).project(cam); if (_occV.z < 1) occ = Math.max(occ, Math.abs(_occV.x), Math.abs(_occV.y)); }
-                    return occ;
-                };
+                const occOf = (verts, cam, root) => { cam.updateMatrixWorld(); root.updateMatrixWorld(); let occ = 0; for (const v of verts) { _occV.set(v[0], v[1], v[2]).applyMatrix4(root.matrixWorld).project(cam); if (_occV.z < 1) occ = Math.max(occ, Math.abs(_occV.x), Math.abs(_occV.y)); } return occ; };
                 const adjust = (root, verts, cam, lo, hi, mid) => {
                     if (!root || !cam || !verts.length) return;
-                    const occ = occOf(verts, cam, root);
-                    if (occ < 1e-4) return;
-                    if (occ > hi || occ < lo) {   // 帯の外のときだけ直す（中なら触らない）
-                        const want = Math.max(0.2, Math.min(8, root.scale.x * mid / occ));   // 占有率∝倍率。目標占有率 mid になる倍率へ
-                        root.scale.setScalar(root.scale.x + (want - root.scale.x) * ease);
-                    }
+                    const occ = occOf(verts, cam, root); if (occ < 1e-4) return;
+                    if (folding || occ > hi || occ < lo) { const want = Math.max(0.2, Math.min(8, root.scale.x * mid / occ)); root.scale.setScalar(root.scale.x + (want - root.scale.x) * ease); }
                 };
-                let lv = [], rv = [], pv = [];
-                for (let i = 0; i < 6; i++) lv = lv.concat(calculateFoldedFaceVertices2D(i, progress, linkAngleX, linkAngleY));
+                let rv = [], pv = [];
                 for (let i = 0; i < 8; i++) rv = rv.concat(calculateFoldedCellVertices3D(i, progress, linkAngleX, linkAngleY));
                 if (dim5 && scene5D) { const pbF = projBlendNow(); for (let c = 0; c < P5_CELLS.length; c++) pv = pv.concat(cellVerts5D(c, progress).map(q => project5(rotate5(q), pbF))); }
-                adjust(scene2D.getObjectByName('Root2D'), lv, camera2D, 0.42, 0.82, 0.62);   // 左（立方体）は添えものなので小さめ
-                adjust(scene3D.getObjectByName('Root3D'), rv, camera3D, 0.55, 0.9, 0.78);     // 右（超立方体）が主役
-                if (dim5) adjust(scene5D.getObjectByName('Root5D'), pv, camera5D, 0.55, 0.9, 0.78);
+                // 帯は4次元の遠近で息づく幅より広くして、ふつうの回転では倍率を動かさない（暴れない）。目標 mid を小さめにして「大きすぎ」を直す。
+                adjust(scene3D.getObjectByName('Root3D'), rv, camera3D, 0.35, 0.82, 0.5);   // 右（超立方体）が主役
+                if (dim5) adjust(scene5D.getObjectByName('Root5D'), pv, camera5D, 0.35, 0.82, 0.5);
             }
 
             updateAxisGnomon(progress);
