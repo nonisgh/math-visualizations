@@ -231,6 +231,18 @@
         @keyframes ppNextBlink { 0%, 49% { border-color: #39ff14; box-shadow: 0 0 6px #39ff14aa, inset 0 0 6px #39ff1433; } 50%, 100% { border-color: #39ff1455; box-shadow: none; } }
         #pp-slots .pp-next { border-color: #39ff14 !important; animation: ppNextBlink 0.9s step-end infinite; }
 
+        /* 4次元サイコロ：振って胞が手前に来て止まったときの FLASH（画面の中央に出目が「ドン！」と出る） */
+        .die-flash { position: absolute; inset: 0; z-index: 25; pointer-events: none; display: flex; align-items: center; justify-content: center; opacity: 0; }
+        .die-flash.go { animation: dieFlash 1.3s ease-out forwards; }
+        .die-flash .box { text-align: center; transform: scale(0.2); }
+        .die-flash.go .box { animation: dieBox 1.1s cubic-bezier(.2, 1.5, .3, 1) forwards; }
+        .die-flash .n { font-weight: 900; font-size: clamp(54px, 16vh, 150px); line-height: 1; color: #fff; text-shadow: 0 0 22px #a855f7, 0 0 55px #38bdf8, 0 0 90px #a855f7; }
+        .die-flash .sub { margin-top: 6px; font-weight: 800; font-size: clamp(14px, 2.6vh, 22px); color: #f5d0fe; text-shadow: 0 0 12px #a855f7; }
+        @keyframes dieFlash { 0% { opacity: 0; background: rgba(255,255,255,0); } 7% { opacity: 1; background: rgba(255,255,255,.55); } 26% { background: rgba(168,85,247,.16); } 82% { opacity: 1; background: rgba(168,85,247,.04); } 100% { opacity: 0; background: rgba(168,85,247,0); } }
+        @keyframes dieBox { 0% { transform: scale(.2) rotate(-28deg); } 30% { transform: scale(1.18) rotate(4deg); } 55% { transform: scale(.95) rotate(0); } 100% { transform: scale(1); } }
+        .die-result .k { color: #f0abfc; font-weight: 700; }
+        .die-result.rolling { color: #c4b5fd; }
+
         /* 分解：番号ラベルと「数える」の札（各画面の上に重ねる） */
         .xp-layer { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
         .xp-label { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 4px; padding: 2px 8px 2px 3px; border-radius: 999px;
@@ -286,6 +298,7 @@
 
         <div id="wrapper-3d4d">
             <div id="canvas-3d4d" class="w-full h-full"></div>
+            <div id="die-flash-3d" class="die-flash"><div class="box"><div class="n"></div><div class="sub"></div></div></div>
             <div id="xp-layer-3d" class="xp-layer"></div><div id="xp-badge-3d" class="xp-badge"></div>
             <div id="badge-3d4d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="box" class="w-4 h-4 text-purple-400"></i>
@@ -296,6 +309,7 @@
         <!-- 5次元β：5次元超立方体の画面 -->
         <div id="wrapper-4d5d">
             <div id="canvas-4d5d" class="w-full h-full"></div>
+            <div id="die-flash-5d" class="die-flash"><div class="box"><div class="n"></div><div class="sub"></div></div></div>
             <div id="xp-layer-5d" class="xp-layer"></div><div id="xp-badge-5d" class="xp-badge"></div>
             <div id="badge-4d5d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="hexagon" class="w-4 h-4 text-amber-400"></i>
@@ -755,6 +769,23 @@
             </section>
 
             <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="dices" class="w-3.5 h-3.5"></i>高次元サイコロ（アソビ）</h3>
+                <p class="text-[10px] text-slate-500 leading-snug">振ると超立方体が転がって、選んだ要素（頂点・辺・面・胞）のどれか1つが手前（+w＝いちばん外の大きい立体）に来て止まります。<b class="text-slate-300">どの要素を出すか＝サイコロの面数</b>です。</p>
+                <div class="flex items-center gap-1 flex-wrap text-[11px]">
+                    <span class="text-[10px] text-slate-400 shrink-0 mr-0.5">何を手前に:</span>
+                    <button data-die-kind="vertex" class="px-2 py-1 rounded-lg border transition" title="頂点を手前に（＝頂点から見た等角図の向き）。4次元体16個・5次元体32個">頂点</button>
+                    <button data-die-kind="edge" class="px-2 py-1 rounded-lg border transition" title="辺の中点を手前に。4次元体32個・5次元体80個">辺</button>
+                    <button data-die-kind="face" class="px-2 py-1 rounded-lg border transition" title="面（正方形）の中心を手前に。4次元体24個・5次元体80個">面</button>
+                    <button data-die-kind="cell" class="px-2 py-1 rounded-lg border transition" title="胞（いちばん外側のかたまり）を手前に＝胞から。4次元体8個・5次元体10個。正多胞体としての正式なフェアなサイコロ">胞</button>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap text-[11px]">
+                    <button id="die-roll" class="px-3 py-1.5 rounded-lg bg-fuchsia-900/40 border border-fuchsia-500/60 text-fuchsia-100 hover:bg-fuchsia-800/50 font-bold shadow flex items-center gap-1.5"><i data-lucide="dices" class="w-4 h-4"></i>振る！</button>
+                    <span id="die-result" class="die-result text-[11px] text-slate-400">まだ振っていません</span>
+                </div>
+                <p class="text-[10px] text-slate-500 leading-snug pt-1 border-t border-slate-800">超立方体の要素の数：<b class="text-slate-400">頂点16・辺32・面24・胞8</b>（5次元βは 頂点32・辺80・面80・胞10）。<br>「胞」はいちばん外のかたまりで、正多胞体としての正式なフェアなサイコロ。4次元のフェアなサイコロになりうる正多胞体は <b class="text-slate-400">5・8・16・24・120・600</b> 面の6種（3次元の正多面体 <b class="text-slate-400">4・6・8・12・20</b> 面の5種と同じ関係）で、これは <b class="text-slate-400">8面＝超立方体</b>。頂点・辺・面を選ぶと、その要素を手前に出す「お遊びサイコロ」になります。</p>
+            </section>
+
+            <section class="sb-sec">
                 <h3 class="sb-h"><i data-lucide="target" class="w-3.5 h-3.5"></i>軸の操作</h3>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-amber-300 shrink-0 flex items-center gap-1"><i data-lucide="target" class="w-3.5 h-3.5"></i>手前へ消す軸:</span>
@@ -864,6 +895,14 @@
                         <i data-lucide="layers" class="w-3.5 h-3.5"></i>
                         <span id="xparent-text" class="text-[11px]">面透過: 立体感</span>
                     </button></div>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="hash" class="w-3.5 h-3.5"></i>お遊び</h3>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <button id="numtex-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="立体の面に数字を貼る（サイコロの目みたいに）。立方体は6面に1〜6、超立方体は8つの胞に1〜8、5次元体は10胞に1〜10。折りたたみ・回転で数字が重なってカオスになります（Shift+9）"><i data-lucide="hash" class="w-3.5 h-3.5"></i><span id="numtex-text" class="text-[11px]">数字テクスチャ: OFF</span></button>
+                </div>
+                <p class="text-[10px] text-slate-500 leading-snug">面に数字を貼ります。<b class="text-slate-400">立方体＝1〜6のサイコロ</b>、超立方体＝8つの胞に1〜8、5次元体＝10胞に1〜10。4次元・5次元では胞が重なるので、組み上げ・回転すると数字がぐちゃっと重なってカオスに（お遊び）。「面透過」が<b class="text-slate-400">立体感</b>のときに出ます。</p>
             </section>
             </div>
             <div class="sb-panel space-y-3 hidden" data-panel="pts">
@@ -1180,7 +1219,118 @@
         const angles6 = () => [linkAngleX, linkAngleY, soloAngleZW, rotXY, rotXZ, rotYZ, p5XW, p5YW, p5ZW, p5WV];   // 10面（あとの4つは5次元だけ）
         function setAngles6(v) { linkAngleX = v[0]; linkAngleY = v[1]; soloAngleZW = v[2]; rotXY = v[3]; rotXZ = v[4]; rotYZ = v[5]; if (v.length > 6) setP5(v.slice(6)); }
         // stops＝停留点の列（度の {a,b,c,xy,xz,yz,…} を2〜4つ）。mode＝'pingpong'（A→B→C→D→C→B→A…）か 'cycle'（A→B→C→D→A…）。once＝最初の区間1回だけで止まる
+        // ===== 高次元サイコロ（アソビ）=====
+        //   超立方体（5次元βでは5次元超立方体）の、選んだ要素（頂点・辺・面・胞）のどれか1つを手前に出すサイコロ。
+        //   振ると転がって、1つの要素の中心が手前（4次元体は +w、5次元体は +v＝いちばん外の大きい立体）に来て止まる。
+        //   要素の数（＝サイコロの面数）：4次元体は 頂点16・辺32・面24・胞8、5次元体は 頂点32・辺80・面80・胞10。
+        //   「胞」はいちばん外側のかたまり（4次元体では立方体、5次元体では超立方体）＝正多胞体として正式なフェアなサイコロ。
+        //   向き付け：要素の中心ベクトル c を、手前の軸（4次元体 w／5次元体 v）へまっすぐ倒す角度を出す（alignToFront）。
+        //     w(v) に向ける回転だけで決まり、x→w,y→w,z→w（5次元は x→v,y→v,z→v,w→v）の順に1つずつ消していく。
+        //     頂点なら「頂点から」（等角図）、胞なら「胞から」になり、既存のツアーと同じ向きに揃う。
+        //   転がし：目標角度に 2π の整数倍を足して派手に回してからぴったり止める（+2π は向きを変えないので必ず正しい要素で止まる）。
+        const DIE_AXES4 = ['X', 'Y', 'Z', 'W'], DIE_AXES5 = ['X', 'Y', 'Z', 'W', 'V'];
+        const DIE_KINDS = [   // m＝要素の次元（0頂点・1辺・2面）。胞は n−1（4次元体は3、5次元体は4）
+            { id: 'vertex', label: '頂点', m: 0 },
+            { id: 'edge',   label: '辺',   m: 1 },
+            { id: 'face',   label: '面',   m: 2 },
+            { id: 'cell',   label: '胞',   m: -1 }   // -1＝ facet（n−1 次元）
+        ];
+        function kcombos(arr, k) {   // arr から k 個選ぶ組み合わせ
+            if (k === 0) return [[]]; if (k > arr.length) return [];
+            const [h, ...t] = arr;
+            return kcombos(t, k - 1).map(c => [h, ...c]).concat(kcombos(t, k));
+        }
+        // n次元超立方体の m次元要素の中心ベクトル（固定する軸＝±1、自由な軸＝0）と、札の名前（固定軸の符号を並べる）
+        function dieElements(n, m) {
+            const names = n === 5 ? DIE_AXES5 : DIE_AXES4, axes = [...Array(n).keys()], out = [];
+            for (const free of kcombos(axes, m)) {
+                const fixed = axes.filter(a => !free.includes(a)), S = 1 << fixed.length;
+                for (let s = 0; s < S; s++) {
+                    const c = new Array(n).fill(0); let lbl = '';
+                    fixed.forEach((ax, k) => { const sg = (s >> k) & 1 ? -1 : 1; c[ax] = sg; lbl += (sg > 0 ? '+' : '−') + names[ax]; });
+                    out.push({ c, label: lbl || '中心' });
+                }
+            }
+            return out;
+        }
+        // 要素の中心 c（長さ n）を手前（4次元体 w＝添字3／5次元体 v＝添字4）へまっすぐ倒す10面の角度
+        function alignToFront(c, n) {
+            const A = (o, a) => Math.atan2(o, a), H = Math.hypot;
+            if (n === 5) {
+                const a = A(c[0], c[4]), v1 = H(c[0], c[4]);   // X-V で x を v へ
+                const b = A(c[1], v1), v2 = H(c[1], v1);        // Y-V
+                const cc = A(c[2], v2), v3 = H(c[2], v2);       // Z-V
+                const wv = A(c[3], v3);                          // W-V で w を v へ
+                return [a, b, cc, 0, 0, 0, 0, 0, 0, wv];
+            }
+            const a = A(c[0], c[3]), w1 = H(c[0], c[3]);        // X-W で x を w へ
+            const b = A(c[1], w1), w2 = H(c[1], w1);            // Y-W
+            const cc = A(c[2], w2);                              // Z-W
+            return [a, b, cc, 0, 0, 0, 0, 0, 0, 0];
+        }
+        let dieAnim = null, dieLast = -1;
+        let dieKind = 'cell'; try { const k = localStorage.getItem('hypercubeDieKind'); if (k && DIE_KINDS.some(d => d.id === k)) dieKind = k; } catch (_) {}
+        function dieKindM(kind) { const K = DIE_KINDS.find(d => d.id === kind); return K.m < 0 ? (dim5 ? 4 : 3) : K.m; }
+        function dieList() { return dieElements(dim5 ? 5 : 4, dieKindM(dieKind)); }
+        function stopDie() { if (dieAnim) { dieAnim = null; } }
+        function rollDie() {
+            stopCycle();
+            linkSpin = false; soloSpinZW = false; spinX = false; spinY = false; spinXY = false; spinXZ = false; spinYZ = false; spin5XW = spin5YW = spin5ZW = spin5WV = false; updateSpinBtns();
+            const ssb = document.getElementById('solo-spin-btn'); if (ssb) ssb.classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
+            if (axisTween) { axisTween = null; if (controls3D) controls3D.enableDamping = true; if (controls5D) controls5D.enableDamping = true; }
+            camHome = null;
+            // 投影を遠近・正面へ（要素が手前に大きく出る、いちばんサイコロらしい向き）
+            cubePersp = true; applyPerspUI(); parallel4D = false; projAnim = null;
+            const front = (cam, ctl, d) => { if (!cam) return; cam.position.set(0, 0, d); cam.up.set(0, 1, 0); cam.fov = 45; cam.updateProjectionMatrix(); if (ctl) { ctl.target.set(0, 0, 0); ctl.update(); } };
+            front(camera3D, controls3D, 18);
+            if (dim5) front(camera5D, controls5D, 18);
+            const els = dieList(), n = dim5 ? 5 : 4;
+            let idx = Math.floor(Math.random() * els.length);
+            if (els.length > 1 && idx === dieLast) idx = (idx + 1 + Math.floor(Math.random() * (els.length - 1))) % els.length;   // 同じ目が続きにくく
+            dieLast = idx;
+            const base = alignToFront(els[idx].c, n), from = angles6();
+            const rnd = k => (Math.random() < 0.5 ? -1 : 1) * (k + Math.floor(Math.random() * 2));   // ±(k または k+1) 回転
+            const extra = [rnd(2), rnd(2), rnd(2), rnd(1), rnd(1), rnd(1), dim5 ? rnd(1) : 0, dim5 ? rnd(1) : 0, dim5 ? rnd(1) : 0, dim5 ? rnd(1) : 0];
+            const target = base.map((v, i) => from[i] + wrapPi(v - from[i]) + extra[i] * 2 * Math.PI);
+            dieAnim = { t: 0, dur: 1.9, from, target, idx, els, kind: dieKind };
+            setObserverCam(false);
+            const r = document.getElementById('die-result'); if (r) { r.textContent = '🎲 …'; r.className = 'die-result rolling text-[11px]'; }
+            requestRender(10);
+        }
+        function dieEase(f) { const c1 = 1.70158 * 0.6, c3 = c1 + 1; return 1 + c3 * Math.pow(f - 1, 3) + c1 * Math.pow(f - 1, 2); }   // easeOutBack 風（最後に軽く行き過ぎて戻る）
+        function stepDie(dt) {
+            if (anySpin()) { dieAnim = null; return; }   // スピンが始まったらサイコロは中止
+            const D = dieAnim; D.t += dt / D.dur;
+            const e = dieEase(Math.min(1, D.t));
+            setAngles6(D.from.map((v, i) => v + (D.target[i] - v) * e));
+            updateLinkUI(); updateMorphingGeometry(animationProgress);
+            if (D.t >= 1) { setAngles6(D.target.map(wrapPi)); dieAnim = null; dieLand(D); }
+        }
+        function dieLand(D) {
+            const el = D.els[D.idx], n = D.idx + 1, total = D.els.length;
+            const kname = DIE_KINDS.find(k => k.id === D.kind).label;
+            const r = document.getElementById('die-result');
+            if (r) { r.className = 'die-result text-[11px] text-slate-300'; r.innerHTML = '🎲 出目 <b>' + n + '</b> / ' + total + '　<span class="k">' + kname + ' ' + el.label + '</span> が手前'; }
+            const fl = document.getElementById('die-flash-' + (dim5 ? '5d' : '3d'));
+            if (fl) { fl.querySelector('.n').textContent = n; fl.querySelector('.sub').textContent = kname + ' ' + el.label; fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go'); }
+            requestRender(20);
+        }
+        // サイコロの種類（頂点・辺・面・胞）のボタンと、面数の表示を今の状態に合わせる
+        function syncDieKind() {
+            document.querySelectorAll('[data-die-kind]').forEach(b => {
+                const on = b.getAttribute('data-die-kind') === dieKind;
+                const m = dieKindM(b.getAttribute('data-die-kind')), total = dieElements(dim5 ? 5 : 4, m).length;
+                const K = DIE_KINDS.find(d => d.id === b.getAttribute('data-die-kind'));
+                b.innerHTML = K.label + '<span class="text-[9px] opacity-80 ml-0.5">' + total + '</span>';
+                b.classList.toggle('bg-fuchsia-700/50', on); b.classList.toggle('border-fuchsia-400/70', on); b.classList.toggle('text-fuchsia-100', on);
+                b.classList.toggle('bg-slate-800', !on); b.classList.toggle('border-slate-700', !on); b.classList.toggle('text-slate-300', !on);
+            });
+            const total = dieList().length, btn = document.getElementById('die-roll');
+            if (btn) btn.title = 'サイコロを振る（Shift+0）。超立方体が転がって、ランダムに1つの「' + DIE_KINDS.find(d => d.id === dieKind).label + '」（全' + total + '個＝' + total + '面サイコロ）が手前に来て止まり、出目が光ります';
+        }
+
         function startPingPong(stops, legSec, once = false, mode = 'pingpong', labels = null) {   // labels＝停留点の名前（A〜P。一覧で今の場所を囲むため）
+            stopDie();
             stopCycle();
             linkSpin = false; soloSpinZW = false; spinX = false; spinY = false; spinXY = false; spinXZ = false; spinYZ = false; spin5XW = spin5YW = spin5ZW = spin5WV = false; updateSpinBtns();
             const ssb = document.getElementById('solo-spin-btn'); if (ssb) ssb.classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
@@ -1920,6 +2070,7 @@
             build5D();   // 5次元モード（β）の画面
             buildXpLabels();   // 分解の番号ラベル
             buildGluePairs(); buildXpAxisLabels();   // 高次元マップ（くっついていた面の組・次元の矢印の札）
+            applyNumTex();   // お遊び：数字テクスチャ（保存した状態を反映。UV もここで一度付ける）
 
             updateLayout();
 
@@ -3407,6 +3558,72 @@
             const t = document.getElementById('zwd-text'); if (t) t.textContent = 'Z-W ' + deg + '°';
             const t2 = document.getElementById('zwd-sub'); if (t2) t2.textContent = 'z ' + c.toFixed(2) + '　w ' + (sn >= 0 ? '+' : '') + sn.toFixed(2);
         }
+        // ===== お遊び：数字テクスチャ（面に数字を貼る。サイコロの目みたいに。折りたたみ・回転で重なってカオスに） =====
+        //   立方体＝6面に 1〜6（本物のサイコロ）。超立方体＝8胞に 1〜8。5次元体＝10胞に 1〜10。
+        //   各胞は全部の面に自分の番号を貼る。4次元・5次元で重なると数字がぐちゃっと重なってカオスになる。
+        const _numTexCache = {};
+        function makeNumTexture(n, hexColor) {
+            const key = n + '_' + hexColor;
+            if (_numTexCache[key]) return _numTexCache[key];
+            const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+            const ctx = cv.getContext('2d');
+            const r = (hexColor >> 16) & 255, g = (hexColor >> 8) & 255, b = hexColor & 255;
+            ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.92)'; ctx.fillRect(0, 0, 128, 128);
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.font = 'bold 22px monospace';   // うっすら小さい数字を散らして「テクスチャ」感
+            for (let i = 0; i < 16; i++) ctx.fillText(String(Math.floor(Math.random() * 10)), Math.random() * 128, Math.random() * 128);
+            ctx.font = 'bold 88px "Arial Black", Arial, sans-serif';
+            ctx.lineWidth = 9; ctx.strokeStyle = 'rgba(2,6,18,0.92)'; ctx.strokeText(String(n), 64, 70);
+            ctx.fillStyle = '#ffffff'; ctx.fillText(String(n), 64, 70);
+            const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4;
+            _numTexCache[key] = tex; return tex;
+        }
+        const _cubeUVnormAxis = [2, 2, 1, 1, 0, 0];   // cubeIndices の6面グループの法線軸（z,z,y,y,x,x）
+        let _numUVdone = false;
+        function setupNumTexUVs() {   // 各ジオメトリに UV を1回だけ付ける（位置は毎フレーム書き換わるが UV は固定）
+            if (_numUVdone) return; _numUVdone = true;
+            const quadUV = [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]];   // 2つの三角形で正方形1枚
+            cellObjects3D.forEach(c => {   // 超立方体の胞（立方体。36頂点＝cubeIndices 順）
+                const uv = new Float32Array(cubeIndices.length * 2);
+                for (let t = 0; t < cubeIndices.length; t++) {
+                    const p = unitCubeVertices[cubeIndices[t]], nrm = _cubeUVnormAxis[Math.floor(t / 6)], ax = [0, 1, 2].filter(a => a !== nrm);
+                    uv[t * 2] = p[ax[0]] + 0.5; uv[t * 2 + 1] = p[ax[1]] + 0.5;   // 法線でない2軸を UV に
+                }
+                c.geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+            });
+            faceObjects2D.forEach(f => {   // 立方体の6面（正方形。6頂点＝quadIndices 順）
+                const uv = new Float32Array(12); quadUV.forEach((u, i) => { uv[i * 2] = u[0]; uv[i * 2 + 1] = u[1]; });
+                f.geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+            });
+            cellObjects5D.forEach(c => {   // 5次元体の胞（超立方体の表面。24枚の正方形＝T5_TRIS 順で6頂点ずつ）
+                const nv = c.geometry.getAttribute('position').count, uv = new Float32Array(nv * 2);
+                for (let q = 0; q < nv / 6; q++) quadUV.forEach((u, i) => { const k = (q * 6 + i) * 2; uv[k] = u[0]; uv[k + 1] = u[1]; });
+                c.geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+            });
+        }
+        let numTex = false; try { numTex = localStorage.getItem('hypercubeNumTex') === '1'; } catch (_) {}
+        function applyNumTex() {
+            setupNumTexUVs();
+            const set = (objs, colorOf) => objs.forEach((o, i) => {
+                const m = o.material; if (!m) return;
+                if (numTex) { m.map = makeNumTexture(i + 1, colorOf(i)); m.color.set(0xffffff); }   // 番号テクスチャ。色は白にして、色はテクスチャ側で付ける
+                else { m.map = null; m.color.setHex(colorOf(i)); }                                    // 元の胞の色へ戻す
+                m.needsUpdate = true;
+            });
+            set(faceObjects2D, i => faceConfigs2D[i].color);
+            set(cellObjects3D, i => cellConfigs3D[i].color);
+            set(cellObjects5D, i => P5_CELLS[i].color);
+            const t = document.getElementById('numtex-text'), b = document.getElementById('numtex-btn');
+            if (t) t.textContent = '数字テクスチャ: ' + (numTex ? 'ON' : 'OFF');
+            if (b) { b.classList.toggle('bg-fuchsia-900/40', numTex); b.classList.toggle('border-fuchsia-500/60', numTex); b.classList.toggle('text-fuchsia-200', numTex); b.classList.toggle('bg-slate-800/80', !numTex); b.classList.toggle('border-slate-700', !numTex); b.classList.toggle('text-slate-300', !numTex); }
+            requestRender(10);
+        }
+        function toggleNumTex() {
+            numTex = !numTex; try { localStorage.setItem('hypercubeNumTex', numTex ? '1' : '0'); } catch (_) {} applyNumTex();
+            // 「正確」だと右の胞はまとめメッシュで描くので数字が出ない。ONにしたら「立体感」に切り替えて必ず見えるように
+            if (numTex && accurateFaces) document.getElementById('xparent-btn').click();
+        }
+
         function updateMorphingGeometry(progress) {
             updatePinRot(progress);   // 点固定モードの整列回転を毎フレーム先に更新
             if (!dim5 && (displayMode === 'both' || displayMode === 'hypercube_pip' || displayMode === 'cube')) {
@@ -3748,6 +3965,7 @@
             }
 
             if (camHome) stepCamHome(_dt);
+            if (dieAnim) stepDie(_dt);
             if (xpAnim) {   // 分解：ボタンのアニメ（時間差・加速度つき）
                 xpAnim.t += _dt;
                 if (xpAnim.t >= xpAnim.total) { explodeRaw = xpAnim.to; xpAnim = null; explodeTarget = null; }
@@ -3938,7 +4156,7 @@
                 }
             }
             // 何も動いていなければ、ここで終わり（描き直さない＝省エネ）
-            const busy = animationMode !== 0 || axisTween !== null || cycleMode || pingPong !== null || camHome !== null || anySpin() || autoRotateCamera || camMoved || explodeTarget !== null || xpCount.active || rhombi.anim || rhombi.pending;
+            const busy = animationMode !== 0 || axisTween !== null || cycleMode || pingPong !== null || camHome !== null || dieAnim !== null || anySpin() || autoRotateCamera || camMoved || explodeTarget !== null || xpCount.active || rhombi.anim || rhombi.pending;
             if (!busy && _renderFrames <= 0) return;
             if (_renderFrames > 0) _renderFrames--;
             // カメラを回している最中も「手前=はっきり/奥=ダーク」を毎フレーム再評価する
@@ -4139,6 +4357,7 @@
         // 周回モードを止める。止めた瞬間の投影の混ざり具合を parallel4D に反映して見た目を連続させる。
         // 手動操作（スライダー・投影/視点ボタン・スピン等）の先頭で呼び、周回と手動の取り合いを防ぐ。
         function stopCycle() {
+            stopDie();        // サイコロの転がし中に手で操作したら、サイコロも止める
             stopPingPong();   // 角度を手で変える・プリセット・リセットなどでは、角度の往復も止める
             if (!cycleMode) return;
             cycleMode = false;
@@ -4536,7 +4755,9 @@
                 { id: 'spin_4d', label: '4D ON/OFF（X-Y・X-Z・Y-Z＋5次元だけの X-W・Y-W・Z-W。5次元β）', short: '4D', def: 'Shift+7', run: toggle4DSpins },
                 { id: 'spin_w5', label: 'W ON/OFF（5次元だけの X-W・Y-W・Z-W。5次元β）', short: 'W(5D)', def: 'Shift+8', run: toggleW5Spins },
                 { id: 'explode', label: '分解（バラす⇔くっつける）', short: '分解', def: 'Shift+E', run: clickSel('#explode-btn') },
-                { id: 'count', label: '分解して1個ずつ数える', short: '数える', def: 'Shift+C', run: clickSel('#count-btn') }
+                { id: 'count', label: '分解して1個ずつ数える', short: '数える', def: 'Shift+C', run: clickSel('#count-btn') },
+                { id: 'die', label: '高次元サイコロを振る（頂点・辺・面・胞）', short: 'サイコロ', def: 'Shift+0', run: () => rollDie() },
+                { id: 'numtex', label: 'お遊び：数字テクスチャ（面に数字を貼る）', short: '数字テク', def: 'Shift+9', run: () => toggleNumTex() }
             ];
             const SC_STORE = 'hypercubeShortcuts', SC_FILE = 'hypercube-shortcuts.csv';
             let keyMap = {};
@@ -5402,6 +5623,14 @@
                 ppOnceIdx = (i + 1) % q.length; syncOnceText(); updatePingPongBtn();
                 ppSt('片道：' + from + '→' + to + '（' + ppSec() + ' 秒）');
             });
+            document.getElementById('die-roll').addEventListener('click', () => rollDie());
+            document.querySelectorAll('[data-die-kind]').forEach(b => b.addEventListener('click', () => {
+                dieKind = b.getAttribute('data-die-kind'); dieLast = -1;
+                try { localStorage.setItem('hypercubeDieKind', dieKind); } catch (_) {}
+                syncDieKind();
+                const r = document.getElementById('die-result'); if (r && !dieAnim) { r.className = 'die-result text-[11px] text-slate-400'; r.textContent = '「' + DIE_KINDS.find(d => d.id === dieKind).label + '」サイコロ（全' + dieList().length + '面）。振ってください'; }
+            }));
+            syncDieKind();
             document.getElementById('pp-cam-home').addEventListener('click', () => { startCamHome(); ppSt('視点を正面へ戻しました'); });
             document.getElementById('pp-play').addEventListener('click', () => {
                 if (pingPong) { stopPingPong(); ppSt('往復を止めました'); }
@@ -5879,6 +6108,8 @@
             });
 
             // 面透過モード切替：立体感（今のまま）⇔ 正確（並べ直し＋depthWrite無効）
+            const numtexBtn = document.getElementById('numtex-btn');
+            if (numtexBtn) numtexBtn.addEventListener('click', toggleNumTex);
             const xparentBtn = document.getElementById('xparent-btn');
             const xparentText = document.getElementById('xparent-text');
             xparentBtn.addEventListener('click', () => {
@@ -6097,6 +6328,7 @@
                     b.title = dim5 ? title5 : b.dataset.t4;
                 });
                 syncLeft3dUI(); updateSideWords(); updateSpinBtns();
+                if (typeof syncDieKind === 'function') syncDieKind();   // サイコロの面数は次元で変わる
                 updateLayout();
             }
             if (linkResetBtn) linkResetBtn.dataset.t4 = linkResetBtn.title;
