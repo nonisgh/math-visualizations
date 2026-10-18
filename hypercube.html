@@ -130,6 +130,12 @@
         .sb-floatbtn { margin-left: 6px; flex-shrink: 0; font-size: 10px; font-weight: 400; color: #8aa0c6; cursor: pointer; white-space: nowrap; background: none; border: 0; padding: 0 2px; }
         .sb-floatbtn:hover { color: #e2e8f0; }
         .sb-sec.floating > .sb-h .sb-floatbtn { color: #a5b4fc; }
+        /* 説明文：ふだんはたたんで「📖 [説明]」だけ。押すと開く */
+        .expl-tg { display: inline-flex; align-items: center; gap: 3px; align-self: flex-start; font-size: 10px; line-height: 1.4; color: #8aa0c6; background: none; border: 0; padding: 0; cursor: pointer; white-space: nowrap; }
+        .expl-tg:hover { color: #e2e8f0; }
+        .expl-tg .expl-ic { flex-shrink: 0; transition: transform .15s; }
+        .expl-tg:hover .expl-ic { transform: translateY(-1px); }
+        .expl-closed { display: none !important; }
         /* 画面端にドッキングした2ペイン用のレール（幅は --dock-l/--dock-r と連動＝描画領域が自動で縮む） */
         .dock-rail { position: fixed; top: 0; bottom: 0; z-index: 44; width: 0; overflow: hidden; pointer-events: none; display: flex; flex-direction: column; gap: 8px; padding: 0; box-sizing: border-box; background: rgba(2, 5, 16, 0.92); backdrop-filter: blur(8px); }
         .dock-rail.active { pointer-events: auto; overflow-y: auto; overflow-x: hidden; padding: 8px; }
@@ -6847,6 +6853,24 @@
                 sl.addEventListener('input', e => { deep5 = parseFloat(e.target.value); if (val) val.textContent = Math.round(deep5 * 100) + '%'; try { localStorage.setItem('hypercubeDeep5b', String(deep5)); } catch (_) {} updateMorphingGeometry(animationProgress); requestRender(30); });
                 sl.addEventListener('keydown', e => e.stopPropagation());   // ショートカットのキーと取り合わない
                 sync();
+            })();
+            (function setupExplToggles() {   // パネルの説明文（小さい灰色の文）を「📖 [説明]」で開閉。中身がプログラムで変わる行（id 付き）は対象外
+                const root = document.getElementById('ui-overlay'); if (!root) return;
+                // 本のアイコン（フラットデザイン）：開いた本。左右のページを2色、まん中に綴じ目、ページに行
+                const BOOK_ICON = '<svg class="expl-ic" width="15" height="11" viewBox="0 0 16 12" aria-hidden="true">'
+                    + '<path d="M8 2.2C6.2 1 3.8 .6 1 .9v9.4c2.8-.3 5.2.1 7 1.3z" fill="#a5b4fc"/>'
+                    + '<path d="M8 2.2C9.8 1 12.2 .6 15 .9v9.4c-2.8-.3-5.2.1-7 1.3z" fill="#818cf8"/>'
+                    + '<path d="M8 2.2v9.4" stroke="#312e81" stroke-width=".9"/>'
+                    + '<path d="M3 3.6h3.2M3 5.4h3.2M3 7.2h3.2M9.8 3.6h3.2M9.8 5.4h3.2M9.8 7.2h3.2" stroke="#eef2ff" stroke-width=".75" stroke-linecap="round"/>'
+                    + '</svg>';
+                [...root.querySelectorAll('p, div')].filter(el => !el.id && /text-\[10px\]/.test(el.className) && /leading-snug/.test(el.className) && el.textContent.trim().length >= 20).forEach(el => {
+                    const b = document.createElement('button'); b.type = 'button'; b.className = 'expl-tg'; b.title = 'クリックで説明を開く／閉じる';
+                    b.innerHTML = BOOK_ICON + '<span class="expl-lb"></span>';
+                    const lb = b.querySelector('.expl-lb');
+                    const set = open => { el.classList.toggle('expl-closed', !open); lb.textContent = '[説明] ' + (open ? '▴' : '▾'); };
+                    b.addEventListener('click', e => { e.stopPropagation(); set(el.classList.contains('expl-closed')); });
+                    el.parentNode.insertBefore(b, el); set(false);
+                });
             })();
             const rhombiBtn = document.getElementById('rhombi-btn');
             rhombi.sync = () => { if (!rhombiBtn) return; rhombiBtn.textContent = rhombi.on ? '→ 5次元体に戻す' : '→ 菱形二十面体へ'; rhombiBtn.classList.toggle('on', rhombi.on); };
