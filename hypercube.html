@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>次元おりがみ｜立方体 × 超立方体</title>
-    <!-- アイコン：外と内の立方体を角でつないだ超立方体（ピンク＝1,1,1,1、水色＝−1,−1,−1,−1）。タブ用は埋め込み、ホーム画面用は PNG -->
+    <!-- アイコン：外と内の立方体を角でつないだ超立方体（ピンク＝1,1,1,1、エメラルド＝−1,−1,−1,−1）。タブ用は埋め込み、ホーム画面用は PNG -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Cdefs%3E%3ClinearGradient id=%22bg%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%23151b45%22/%3E%3Cstop offset=%221%22 stop-color=%22%23050816%22/%3E%3C/linearGradient%3E%3CradialGradient id=%22gl%22 cx=%220.52%22 cy=%220.48%22 r=%220.55%22%3E%3Cstop offset=%220%22 stop-color=%22%238b5cf6%22 stop-opacity=%220.42%22/%3E%3Cstop offset=%221%22 stop-color=%22%238b5cf6%22 stop-opacity=%220%22/%3E%3C/radialGradient%3E%3ClinearGradient id=%22ln%22 x1=%220.1%22 y1=%220.95%22 x2=%220.9%22 y2=%220.05%22%3E%3Cstop offset=%220%22 stop-color=%22%2338bdf8%22/%3E%3Cstop offset=%220.55%22 stop-color=%22%23a78bfa%22/%3E%3Cstop offset=%221%22 stop-color=%22%23f5d0fe%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22url(%23bg)%22/%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22url(%23gl)%22/%3E%3Cg fill=%22none%22 stroke=%22url(%23ln)%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M13 26L23.64 29.64M37 26L34.2 29.64M37 50L34.2 40.2M13 50L23.64 40.2M27 15L29.8 24.8M51 15L40.36 24.8M51 39L40.36 35.36M27 39L29.8 35.36%22 stroke-width=%221.15%22 opacity=%220.6%22/%3E%3Cpath d=%22M23.64 29.64L34.2 29.64M34.2 29.64L34.2 40.2M34.2 40.2L23.64 40.2M23.64 40.2L23.64 29.64M29.8 24.8L40.36 24.8M40.36 24.8L40.36 35.36M40.36 35.36L29.8 35.36M29.8 35.36L29.8 24.8M23.64 29.64L29.8 24.8M34.2 29.64L40.36 24.8M34.2 40.2L40.36 35.36M23.64 40.2L29.8 35.36%22 stroke-width=%221.5%22 opacity=%220.95%22/%3E%3Cpath d=%22M13 26L37 26M37 26L37 50M37 50L13 50M13 50L13 26M27 15L51 15M51 15L51 39M51 39L27 39M27 39L27 15M13 26L27 15M37 26L51 15M37 50L51 39M13 50L27 39%22 stroke-width=%222.3%22/%3E%3C/g%3E%3Ccircle cx=%2237%22 cy=%2226%22 r=%224.6%22 fill=%22%23ff44dd%22 opacity=%220.28%22/%3E%3Ccircle cx=%2237%22 cy=%2226%22 r=%222.6%22 fill=%22%23ff44dd%22/%3E%3Ccircle cx=%2229.8%22 cy=%2235.36%22 r=%223.6%22 fill=%22%2333e5ff%22 opacity=%220.28%22/%3E%3Ccircle cx=%2229.8%22 cy=%2235.36%22 r=%221.9%22 fill=%22%2333e5ff%22/%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="hypercube-icon.png">
     <meta name="apple-mobile-web-app-title" content="次元おりがみ">
@@ -615,7 +615,7 @@
                         <button class="vm-cell" data-vcell="v" title="X-V 45°・Y-V 35.26°・Z-V 30°。x・y・z・v の4本が同じ長さ（87%）、w はつぶれたまま。4次元体（超立方体）では、同じ角度で w がせり出す（頂点から見た形）">v を出す<small>x・y・z・v</small></button>
                         <span class="vm-h">w：出す</span>
                         <button class="vm-cell" data-vcell="w" title="5次元だけの X-W 45°・Y-W 35.26°・Z-W 30°。x・y・z・w の4本が同じ長さ（87%）、v はつぶれたまま。展開図（v の向きに厚みがない）は8方向の腕が全部見える4次元の十字架になる。4次元体（超立方体）は動かない">w を出す<small>x・y・z・w</small></button>
-                        <button class="vm-cell" data-vcell="wv" title="5次元の等角図。5本とも同じ長さ（77%）になり、ピンクと水色が真ん中で重なる。輪郭は正十角形">w と v<small>等角図</small></button>
+                        <button class="vm-cell" data-vcell="wv" title="5次元の等角図。5本とも同じ長さ（77%）になり、ピンクとエメラルドが真ん中で重なる。輪郭は正十角形">w と v<small>等角図</small></button>
                     </div>
                     <div class="vm-row"><span class="vm-h">形</span><div class="vm-seg"><button data-vform="net" title="展開図（0%）へ（「展開する」と同じアニメ）">展開図</button><button data-vform="fold" title="組み上がり（100%）へ（「組みあげる」と同じアニメ）">組み上がり</button></div></div>
                     <div class="vm-row"><span class="vm-h">向き</span><div class="vm-seg"><button data-vdir="front" title="3D回転なし（マスの形のまま）で正面から">正面</button><button data-vdir="tilt" title="3D回転で少し斜めに（X-Y 15°・X-Z 30°・Y-Z 20°）。x が右、y が左上、z が左下に伸びて、十字架が立体に見える">斜め</button></div></div>
@@ -645,7 +645,7 @@
                 </div>
                 <div class="text-[10px] text-slate-400 pt-1 border-t border-slate-800">Z-W 回転のときの表現（立方体には w が無いので、回っていることを別の形で見せる）</div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
-                    <button class="zwviz-btn px-2 py-0.5 rounded-lg border transition" data-k="tint" title="z が w へ移った分だけ、面を w＋＝ピンク・w−＝水色に染める（超立方体の既定の2点と同じ色の約束）"></button>
+                    <button class="zwviz-btn px-2 py-0.5 rounded-lg border transition" data-k="tint" title="z が w へ移った分だけ、面を w＋＝ピンク・w−＝エメラルドに染める（超立方体の既定の2点と同じ色の約束）"></button>
                     <button class="zwviz-btn px-2 py-0.5 rounded-lg border transition" data-k="dial" title="立方体の画面の右上に Z-W 平面のダイヤル。針の横（z）の長さ＝立方体に残った z、縦（w）の長さ＝w へ移った分"></button>
                     <button class="zwviz-btn px-2 py-0.5 rounded-lg border transition" data-k="ghost" title="回す前の立方体を点線で残す。縮んだ分は消えたのではなく w へ行ったと分かる"></button>
                     <button class="zwviz-btn px-2 py-0.5 rounded-lg border transition" data-k="wArrow" title="z の矢印が縮み、紫の点線の w 矢印が伸びる（w は3次元の外の向きなので、画面の左下向きに点線で描く）。座標軸が表示のとき"></button>
@@ -689,7 +689,7 @@
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <label class="flex items-center gap-1 text-slate-400">片道<input id="pp-sec" type="number" min="0.5" max="60" step="0.5" value="3" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 font-mono text-right">秒</label>
                     <button id="pp-swap" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="A と B を入れ替える">A⇄B 入替</button>
-                    <button id="pp-opposite" class="px-2 py-1 rounded bg-slate-800 border border-cyan-600/60 text-cyan-200 hover:bg-slate-700" title="B に A の正反対（全く裏返し：4次元で全部の向きを反対にした角度）を入れる。X-W−180°、180°−Y-W、Z-W−180°、3D はそのまま。5次元モードでは、5次元だけの4面の角度の符号も反対にする（5次元には全部の向きを反対にする回転が無いので、x・y・z・v を反対にして w だけそのまま＝ピンクと水色が入れ替わる）">B ← A の裏返し</button>
+                    <button id="pp-opposite" class="px-2 py-1 rounded bg-slate-800 border border-cyan-600/60 text-cyan-200 hover:bg-slate-700" title="B に A の正反対（全く裏返し：4次元で全部の向きを反対にした角度）を入れる。X-W−180°、180°−Y-W、Z-W−180°、3D はそのまま。5次元モードでは、5次元だけの4面の角度の符号も反対にする（5次元には全部の向きを反対にする回転が無いので、x・y・z・v を反対にして w だけそのまま＝ピンクとエメラルドが入れ替わる）">B ← A の裏返し</button>
                 </div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-slate-400">動き方</span>
@@ -850,7 +850,7 @@
             <div class="sb-panel space-y-3 hidden" data-panel="pts">
             <section class="sb-sec">
                 <h3 class="sb-h"><i data-lucide="highlighter" class="w-3.5 h-3.5"></i>手前と奥の辺を色で強調</h3>
-                <p class="d5-sub text-[10px] text-slate-500 leading-snug" data-d4="手前＝w が＋の側の立方体（遠近では外側の大きい立方体。ピンクの点の側。展開図では蓋）、奥＝w が−の側の立方体（中心。水色の点の側）。立方体の画面では、z の＋と−の正方形（蓋と中央）。" data-d5="超立方体は、手前＝w が＋の側の立方体（蓋）、奥＝w が−の側の立方体（中心）。5次元超立方体は、手前＝v が＋の側の超立方体（蓋）、奥＝v が−の側の超立方体（中心）。5次元では、±W の超立方体（4次元体に無い w の腕）を「中」、±X・±Y・±Z を「腕」として段階を増やせます（それぞれ色・太さ・面の濃さ）。">手前＝w が＋の側の立方体（遠近では外側の大きい立方体。ピンクの点の側。展開図では蓋）、奥＝w が−の側の立方体（中心。水色の点の側）。立方体の画面では、z の＋と−の正方形（蓋と中央）。</p>
+                <p class="d5-sub text-[10px] text-slate-500 leading-snug" data-d4="手前＝w が＋の側の立方体（遠近では外側の大きい立方体。ピンクの点の側。展開図では蓋）、奥＝w が−の側の立方体（中心。エメラルドの点の側）。立方体の画面では、z の＋と−の正方形（蓋と中央）。" data-d5="超立方体は、手前＝w が＋の側の立方体（蓋）、奥＝w が−の側の立方体（中心）。5次元超立方体は、手前＝v が＋の側の超立方体（蓋）、奥＝v が−の側の超立方体（中心）。5次元では、±W の超立方体（4次元体に無い w の腕）を「中」、±X・±Y・±Z を「腕」として段階を増やせます（それぞれ色・太さ・面の濃さ）。">手前＝w が＋の側の立方体（遠近では外側の大きい立方体。ピンクの点の側。展開図では蓋）、奥＝w が−の側の立方体（中心。エメラルドの点の側）。立方体の画面では、z の＋と−の正方形（蓋と中央）。</p>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <button id="eh-toggle" class="px-2 py-1 rounded border transition" title="手前と奥の胞の辺に色を付ける／やめる">→ 辺の強調: OFF</button>
                     <label class="flex items-center gap-1 text-slate-300" title="手前の胞の辺の色">手前<input id="eh-near" type="color" value="#ff44dd" class="w-8 h-6 bg-transparent border border-slate-700 rounded cursor-pointer"></label>
@@ -898,7 +898,9 @@
                     <label class="flex flex-col gap-0.5"><span style="color:#3ddc84">y</span><input id="pt-y" type="text" inputmode="decimal" value="0" class="pt-in w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100 font-mono text-right"></label>
                     <label class="flex flex-col gap-0.5"><span style="color:#56a8ff">z</span><input id="pt-z" type="text" inputmode="decimal" value="0" class="pt-in w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100 font-mono text-right"></label>
                     <label class="flex flex-col gap-0.5"><span style="color:#b07cff">w</span><input id="pt-w" type="text" inputmode="decimal" value="0" class="pt-in w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100 font-mono text-right"></label>
+                    <label class="d5-only hidden flex flex-col gap-0.5" title="5次元の座標。5次元モードのときだけ使う（頂点は v も ±1）"><span style="color:#fbbf24">v</span><input id="pt-v" type="text" inputmode="decimal" value="0" class="pt-in w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100 font-mono text-right"></label>
                 </div>
+                <div class="d5-only hidden flex items-center gap-1 flex-wrap text-[10px] text-slate-400"><span class="shrink-0">v を</span><button data-ptv="1" class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 font-mono" title="v を +1 に（蓋＝+v の側）">+1</button><button data-ptv="0" class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 font-mono" title="v を 0 に（真ん中）">0</button><button data-ptv="-1" class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 font-mono" title="v を −1 に（中心＝−v の側）">−1</button><span>頂点・注目点のプリセットも、この v を使います</span></div>
                 <div id="pt-preview" class="text-[10px] font-mono text-slate-400"></div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <label class="flex items-center gap-1 text-slate-400">色<input id="pt-color" type="color" value="#ffd54a" class="w-8 h-6 bg-transparent border border-slate-700 rounded cursor-pointer"></label>
@@ -912,7 +914,7 @@
                 <p class="text-[10px] text-slate-500 leading-snug">押すとその頂点に点を置きます（＋は 1、−は −1。並びは x y z w）。頂点の点は折りたたみ中も、その頂点を追いかけます。</p>
                 <div id="pt-vertex-grid" class="grid grid-cols-4 gap-1 text-[10px] font-mono"></div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
-                    <button id="pt-all-vertices" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-200 hover:bg-slate-700" title="16頂点すべてに点を置く（w が＋は暖色、−は寒色）。＋＋＋＋と−−−−は既定のピンク・水色がいるので、残りの14頂点に置きます">16頂点ぜんぶ</button>
+                    <button id="pt-all-vertices" class="d5-sub px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-200 hover:bg-slate-700" data-d4="16頂点ぜんぶ" data-d5="32頂点ぜんぶ" title="16頂点すべてに点を置く（w が＋は暖色、−は寒色）。＋＋＋＋と−−−−は既定のピンク・エメラルドがいるので、残りの14頂点に置きます">16頂点ぜんぶ</button>
                 </div>
             </section>
             <section class="sb-sec">
@@ -931,13 +933,13 @@
                     <h3 class="sb-h whitespace-nowrap"><i data-lucide="list" class="w-3.5 h-3.5"></i>置いた点 <span id="pt-count" class="text-slate-500 font-normal"></span></h3>
                     <div class="flex items-center gap-1">
                         <button id="pt-lock-all" class="whitespace-nowrap px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-amber-200 hover:bg-slate-700 text-[11px]" title="置いた点をまとめてロック／解除（ロックした点は「消す」でも「全部消す」でも消えません）">🔒 全部ロック</button>
-                        <button id="pt-clear" class="whitespace-nowrap px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px]" title="ロックしていない点を全部消す（ロックした点と既定のピンク・水色は残ります）">全部消す</button>
+                        <button id="pt-clear" class="whitespace-nowrap px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 text-[11px]" title="ロックしていない点を全部消す（ロックした点と既定のピンク・エメラルドは残ります）">全部消す</button>
                     </div>
                 </div>
                 <div id="pt-list" class="space-y-1 text-[11px]"></div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px] pt-1 border-t border-slate-800">
                     <button id="pt-labels" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700">ラベル: ON</button>
-                    <label class="flex items-center gap-1 text-slate-400" title="置いた点の大きさ（既定のピンク・水色はいつもの大きさのまま）">大きさ<input id="pt-size" type="range" min="0.25" max="1.2" step="0.05" value="0.55" class="w-20 accent-amber-400"></label>
+                    <label class="flex items-center gap-1 text-slate-400" title="置いた点の大きさ（既定のピンク・エメラルドはいつもの大きさのまま）">大きさ<input id="pt-size" type="range" min="0.25" max="1.2" step="0.05" value="0.55" class="w-20 accent-amber-400"></label>
                     <button id="pt-left" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700" title="立方体にも、対応する位置 (x, y, w) に点を出す（立方体の z は超立方体の w に対応。超立方体の z は超立方体だけの軸）。立方体には組み上がった状態のときだけ出る">立方体にも: ON</button>
                 </div>
             </section>
@@ -1349,10 +1351,10 @@
         }
         const edgeTint = v => [v, Math.min(1, v + 0.02), Math.min(1, v + 0.08)];   // 線色：わずかに青白く
         // Z-W 回転のときの立方体の表現（それぞれオン・オフ。このブラウザに保存）
-        //   tint＝w へ逃げた分を色で（w＋ピンク／w−水色）、dial＝Z-W 平面のダイヤル、ghost＝回す前の立方体の点線の輪郭、wArrow＝z の矢印が縮み w の点線矢印が伸びる
+        //   tint＝w へ逃げた分を色で（w＋ピンク／w−エメラルド）、dial＝Z-W 平面のダイヤル、ghost＝回す前の立方体の点線の輪郭、wArrow＝z の矢印が縮み w の点線矢印が伸びる
         let zwViz = { tint: true, dial: true, ghost: true, wArrow: true };
         try { const zv = JSON.parse(localStorage.getItem('hypercubeZwViz') || 'null'); if (zv) zwViz = Object.assign(zwViz, zv); } catch (_) {}
-        const ZW_TINT_POS = new THREE.Color(0xff44dd), ZW_TINT_NEG = new THREE.Color(0x33e5ff);   // 超立方体の既定の2点と同じ色の約束
+        const ZW_TINT_POS = new THREE.Color(0xff44dd), ZW_TINT_NEG = new THREE.Color(0x50c878);   // 超立方体の既定の2点と同じ色の約束
         let zwGhost = null, zwArrowLine = null, zwArrowCone = null, zwArrowLabel = null;
         let zwLink = true;   // ZW連動：ONで ZW回転(soloAngleZW)を左の立方体に「z×cos(zw)」の擬似歪みで反映（90°で平面に潰れ180°で裏返る）
         let autoFitZoom = true;   // 組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の倍率のまま固定
@@ -1535,8 +1537,8 @@
         // 等角図で中心にくる頂点（＝対角(1,1,1,1)方向の頂点＝4次元の手前）と、その反対(奥)の
         // 胞・頂点インデックスを、組み上がり(progress=1)の4D座標から一度だけ特定する。
         let nearVertId = null, farVertId = null;
-        //   同じ頂点は何個かの胞が分け合っているので、ピンク（手前）は蓋の胞（7）の頂点、水色（奥）は中心の胞（0）の頂点に決める。
-        //   こうしておくと、分解したときにピンクは蓋と、水色は中心と一緒に動く（手前と奥の辺の強調とも同じ胞）
+        //   同じ頂点は何個かの胞が分け合っているので、ピンク（手前）は蓋の胞（7）の頂点、エメラルド（奥）は中心の胞（0）の頂点に決める。
+        //   こうしておくと、分解したときにピンクは蓋と、エメラルドは中心と一緒に動く（手前と奥の辺の強調とも同じ胞）
         function findExtremeVerts() {
             let maxSum = -1e9, minSum = 1e9;
             const pick = (c, isNear) => cellVerts4D(c, 1).forEach((v, k) => {
@@ -2015,9 +2017,9 @@
         let wMarkPlus = null, wMarkMinus = null, wMarkBlend = null;   // 右：手前/奥マーカー＋重なり時の混色マーカー
         let lMarkPlus = null, lMarkMinus = null, lMarkBlend = null;   // 左・立方体：同上
         const WMARK = S * 0.5;   // 内側/外側の立方体の中心あたりに置く
-        const MARK_NEAR = 0xff44dd, MARK_FAR = 0x33e5ff, MARK_BLEND = 0x8f7bff;  // 手前=ピンク, 奥=水色, 重なり=シアン×マゼンタの混色(青紫)
-        // 既定のピンク・水色（点の一覧の先頭に固定。消せない・表示/非表示だけ）。glue＝重なったら1つの青紫にまとめる
-        let fixedMarks = { near: true, far: true, glue: true, size: 1 };   // size＝ピンク・水色（と混色の青紫）をセットで拡大縮小
+        const MARK_NEAR = 0xff44dd, MARK_FAR = 0x50c878, MARK_BLEND = 0xa886aa;  // 手前=ピンク, 奥=エメラルド（2026-10-18 に水色 0x33e5ff から変更）, 重なり=2色の中間の色
+        // 既定のピンク・エメラルド（点の一覧の先頭に固定。消せない・表示/非表示だけ）。glue＝重なったら1つの青紫にまとめる
+        let fixedMarks = { near: true, far: true, glue: true, size: 1 };   // size＝ピンク・エメラルド（と混色の青紫）をセットで拡大縮小
         try { const fm = JSON.parse(localStorage.getItem('hypercubeFixedMarks') || 'null'); if (fm) fixedMarks = Object.assign(fixedMarks, fm); } catch (_) {}
         function saveFixedMarks() { try { localStorage.setItem('hypercubeFixedMarks', JSON.stringify(fixedMarks)); } catch (_) {} }
         // 2マーカーが「画面上で重なっている」かを判定（遠近があるので画面＝NDC座標で見る）
@@ -2032,8 +2034,8 @@
         // 混色マーカーは2点の中点に置く（画面上で中央にまとまって見える）。
         // 一覧で片方を隠しているとき・「重なったら混色」OFF のときは混ぜない（見えている色のまま）。
         function applyMarkerBlend(nearObj, farObj, blendObj, camera, thr) {
-            // 重なりの乗算：水色の点が「ここは水色」の印（ステンシル）を付け、ピンクは印のないところは普通に、
-            //   印のある重なった部分だけ水色に掛け合わせて描く（ピンク×水色＝青）。重なっていない部分は元の色のまま。
+            // 重なりの乗算：エメラルドの点が「ここはエメラルド」の印（ステンシル）を付け、ピンクは印のないところは普通に、
+            //   印のある重なった部分だけエメラルドに掛け合わせて描く（ピンク×エメラルド＝青）。重なっていない部分は元の色のまま。
             //   暗い背景の上では普通の乗算だと点そのものが黒くなるので、重なった部分だけに効かせる
             const sn = fixedMarks.near, sf = fixedMarks.far, mul = !!(fixedMarks.glue && sn && sf);
             nearObj.visible = sn; farObj.visible = sf; blendObj.visible = false;   // 前の「青紫の1点にまとめる」は使わない
@@ -2190,9 +2192,9 @@
             const k = 1 - rhombi.t * (1 - RHOMBI_K), d = (v[0] * _rhU[0] + v[1] * _rhU[1] + v[2] * _rhU[2]) * (k - 1);
             return [v[0] + d * _rhU[0], v[1] + d * _rhU[1], v[2] + d * _rhU[2]];
         }
-        // ピンク＝(1,1,1,1,1) の頂点、水色＝(−1,−1,−1,−1,−1) の頂点（組み上がりで決めた 胞・頂点の番号を、折りたたみ中も追う）
+        // ピンク＝(1,1,1,1,1) の頂点、エメラルド＝(−1,−1,−1,−1,−1) の頂点（組み上がりで決めた 胞・頂点の番号を、折りたたみ中も追う）
         let p5NearId = null, p5FarId = null;
-        //   ピンクは蓋（9）の頂点、水色は中心（0）の頂点（分解したときに蓋・中心と一緒に動く）
+        //   ピンクは蓋（9）の頂点、エメラルドは中心（0）の頂点（分解したときに蓋・中心と一緒に動く）
         function findExtremeVerts5() {
             let mx = -1e9, mn = 1e9;
             const pick = (c, isNear) => cellVerts5D(c, 1).forEach((v, k) => {
@@ -2375,7 +2377,7 @@
             }
             updateFatEdges(5, cellObjects5D, scene5D, 'Root5D');   // 強調した辺の太さ
             Object.keys(ehFat[5]).forEach(side => { const F = ehFat[5][side]; if (F && (rhombi.t > 0 || F._rhDim)) { F.material.opacity = 0.95 * (1 - rhombi.t); F._rhDim = rhombi.t > 0; } });   // 菱形二十面体へ：強調した太い辺も消す
-            // 既定のピンク・水色（大きさ・表示・重なりの乗算は超立方体と共通の設定）
+            // 既定のピンク・エメラルド（大きさ・表示・重なりの乗算は超立方体と共通の設定）
             if (p5MarkPlus && p5NearId) {
                 const fk = fixedMarks.size || 1, a = verts[p5NearId.cell][p5NearId.corner], b = verts[p5FarId.cell][p5FarId.corner];
                 p5MarkPlus.scale.setScalar(fk); p5MarkMinus.scale.setScalar(fk);
@@ -2726,7 +2728,7 @@
         // ===== 手前と奥の胞の辺を色で強調（点タブ）=====
         //   手前＝折りたたみでできた次元の＋側の胞（いちばん最後の番号＝蓋）、奥＝−側の胞（番号1＝中心）。
         //   超立方体なら w＋（遠近では外側の大きい立方体）と w−、立方体なら z＋ と z− の正方形、5次元超立方体なら v＋ と v−。
-        //   既定の色は、手前の頂点の印（ピンク）・奥の頂点の印（水色）と同じ約束
+        //   既定の色は ピンクと水色（奥の頂点の印は 2026-10-18 にエメラルドに変えたが、辺の強調はユーザーの希望で水色のまま）
         const EH_DEF = { on: true, near: '#ff44dd', far: '#33e5ff', widthNear: 3, widthFar: 3, mid: '#b6ff4d', widthMid: 2, faceMid: 1.4, arm: '#aab4c4', widthArm: 1.5, faceArm: 1.15 };   // widthNear・widthFar＝手前・奥の辺の太さ（画面の px）。mid・widthMid・faceMid＝5次元の「中」（±W の超立方体）の辺の色・太さ・面の濃さ（お試し）
         let edgeHi = Object.assign({}, EH_DEF);
         try {
@@ -2950,7 +2952,7 @@
                 const sp = makeLabelSprite(ax.label, '#' + ax.color.toString(16).padStart(6, '0'));
                 group.add(sp); axisSprites.push(sp);
             });
-            // 中心点マーカー：等角図で中心にくる対角の2頂点（手前＝ピンク／奥＝水色）。
+            // 中心点マーカー：等角図で中心にくる対角の2頂点（手前＝ピンク／奥＝エメラルド）。
             wMarkPlus = makeMarker(MARK_NEAR, 0.07, 1003);
             wMarkMinus = makeMarker(MARK_FAR, 0.07, 1002);
             wMarkBlend = makeMarker(MARK_BLEND, 0.085, 1004); wMarkBlend.material.opacity = 0.8; wMarkBlend.visible = false;
@@ -2976,9 +2978,9 @@
         //   右の超立方体：4D 座標 (x,y,z,w) を、今の回転・投影で 3D に写して置く。頂点ちょうどの点は折りたたみ中もその頂点を追う。
         //   左の立方体：対応する (x, y, w) に置く（左の z は右の w に対応）。左は組み上がった状態のときだけ。
         const PT_STORE = 'hypercubePoints';
-        let userPoints = [];          // { x, y, z, w, color, label, show, lock, vid, cw, mesh3, sprite3, mesh2, sprite2 }。lock＝消せないようにロック
+        let userPoints = [];          // { x, y, z, w, v, color, label, show, lock, vid, cw, vid5, cw5, mesh3, sprite3, mesh2, sprite2, mesh5, sprite5 }。lock＝消せないようにロック。v＝5次元の座標（既定 0）
         let ptShowLabels = true, ptShowLeft = true;
-        let ptSize = 0.55;   // 置いた点の大きさ（もとの大きさに対する倍率）。既定のピンク・水色は別物なので対象外＝いつもの大きさのまま
+        let ptSize = 0.55;   // 置いた点の大きさ（もとの大きさに対する倍率）。既定のピンク・エメラルドは別物なので対象外＝いつもの大きさのまま
         // 以前「既定の2点」ボタンで置いた点（＋＋＋＋ピンク・−−−−水色・名前なし）は、固定の2点と重なるので読み込み時に省く
         function isOldPairPt(q) {
             if (q.label) return false;
@@ -2993,7 +2995,8 @@
             return Math.round(v * 1e6) / 1e6;
         }
         const fmtPt = v => (Math.round(v * 1000) / 1000).toString();
-        function ptLabelText(p) { return p.label ? p.label : '(' + [p.x, p.y, p.z, p.w].map(fmtPt).join(', ') + ')'; }
+        const ptCoords = p => [p.x, p.y, p.z, p.w].concat((dim5 || p.v) ? [p.v || 0] : []);   // 5次元モードか v が 0 でなければ v も
+        function ptLabelText(p) { return p.label ? p.label : '(' + ptCoords(p).map(fmtPt).join(', ') + ')'; }
         function makePtSprite(text, cssColor, k = 1) {
             const cv = document.createElement('canvas'); cv.width = 512; cv.height = 64;
             const ctx = cv.getContext('2d');
@@ -3030,17 +3033,42 @@
             }
             return null;
         }
-        // −1・0・1 だけでできた点の種類（0 の数で決まる）
+        // 5次元体：頂点ちょうど（5つとも ±1）なら、組み上がり時の5D座標が一致する超立方体・頂点を探す
+        function findPtVertex5(p) {
+            const c5 = [p.x, p.y, p.z, p.w, p.v || 0];
+            if (c5.some(v => Math.abs(Math.abs(v) - 1) > 1e-6)) return null;
+            const t = c5.map(v => v * HALF_S);
+            for (let c = 0; c < P5_CELLS.length; c++) {
+                const vs = cellVerts5D(c, 1);
+                for (let k = 0; k < 16; k++) if (vs[k].every((v, i) => Math.abs(v - t[i]) < 1e-6)) return { cell: c, corner: k };
+            }
+            return null;
+        }
+        // 5次元体：境界（どれかの座標が ±1）の点は、その座標が一定の超立方体の16頂点の重み（残り4軸の線形補間）で表す
+        function findPtCell5(p) {
+            const t = [p.x, p.y, p.z, p.w, p.v || 0].map(v => v * HALF_S);
+            for (let c = 0; c < P5_CELLS.length; c++) {
+                const vs = cellVerts5D(c, 1);
+                for (let a = 0; a < 5; a++) {
+                    const a0 = vs[0][a];
+                    if (!vs.every(v => Math.abs(v[a] - a0) < 1e-6) || Math.abs(t[a] - a0) > 1e-6) continue;
+                    const ws = vs.map(v => { let w = 1; for (let b = 0; b < 5; b++) if (b !== a) w *= (1 + (v[b] > 0 ? 1 : -1) * t[b] / HALF_S) / 2; return w; });
+                    return { cell: c, w: ws };
+                }
+            }
+            return null;
+        }
+        // −1・0・1 だけでできた点の種類（0 の数で決まる。5次元モードでは v も数える）
         function ptKind(p) {
-            const v = [p.x, p.y, p.z, p.w];
+            const v = [p.x, p.y, p.z, p.w].concat(dim5 ? [p.v || 0] : []);
             if (!v.every(a => a === 1 || a === 0 || a === -1)) return '';
             const z = v.filter(a => a === 0).length;
-            if (z === 1 && p.w === 0) return 'w=0断面';   // 内側と外側をつなぐ辺の中点
-            return ['頂点', '辺の中点', '面の中心', '胞の中心', '中心'][z];
+            if (!dim5 && z === 1 && p.w === 0) return 'w=0断面';   // 内側と外側をつなぐ辺の中点
+            return (dim5 ? ['頂点', '辺の中点', '面の中心', '立方体の中心', '超立方体の中心', '中心'] : ['頂点', '辺の中点', '面の中心', '胞の中心', '中心'])[z];
         }
         function disposePt(p) {
-            [p.mesh3, p.sprite3, p.mesh2, p.sprite2].forEach(o => { if (o && o.parent) o.parent.remove(o); if (o && o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } if (o && o.geometry) o.geometry.dispose(); });
-            p.mesh3 = p.sprite3 = p.mesh2 = p.sprite2 = null;
+            [p.mesh3, p.sprite3, p.mesh2, p.sprite2, p.mesh5, p.sprite5].forEach(o => { if (o && o.parent) o.parent.remove(o); if (o && o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } if (o && o.geometry) o.geometry.dispose(); });
+            p.mesh3 = p.sprite3 = p.mesh2 = p.sprite2 = p.mesh5 = p.sprite5 = null;
         }
         function buildPt(p) {
             disposePt(p);
@@ -3054,6 +3082,14 @@
             p.sprite3 = makePtSprite(ptLabelText(p), p.color, Math.max(0.6, k)); r3.add(p.sprite3);
             p.mesh2 = makeMarker(col, 0.065 * k, 1010); r2.add(p.mesh2);
             p.sprite2 = makePtSprite(ptLabelText(p), p.color, Math.max(0.6, k)); r2.add(p.sprite2);
+            // 5次元体（5次元モードのとき）
+            const r5 = scene5D && scene5D.getObjectByName('Root5D');
+            p.vid5 = findPtVertex5(p);
+            p.cw5 = p.vid5 ? null : findPtCell5(p);
+            if (r5) {
+                p.mesh5 = makeMarker(col, 0.065 * k, 1010); r5.add(p.mesh5);
+                p.sprite5 = makePtSprite(ptLabelText(p), p.color, Math.max(0.6, k)); r5.add(p.sprite5);
+            }
         }
         // 左の立方体の点の位置：左の面と同じ順に（X-Z・Y-Z → ZW の擬似歪み → 3D回転）
         function leftPtPos(x, y, z) {
@@ -3079,17 +3115,32 @@
                     for (let k = 0; k < 8; k++) { const wk = p.cw.w[k]; if (wk) for (let i = 0; i < 4; i++) p4[i] += wk * vs[k][i]; }
                 }
                 else if (folded) p4 = [p.x * HALF_S, p.y * HALF_S, p.z * HALF_S, p.w * HALF_S];
-                const showR = p.show && p4 !== null && explodeE() < 0.02;   // 分解中は隠す（境目の点はどの胞にも属するので）
+                const showR = p.show && p4 !== null && explodeE() < 0.02 && !p.v;   // 分解中は隠す（境目の点はどの胞にも属するので）。v≠0 の点は4次元体には出さない（ピンクなどと重なる）
                 p.mesh3.visible = showR; p.sprite3.visible = showR && ptShowLabels;
                 if (showR) { const q = rotated4DAxis(p4); p.mesh3.position.set(q[0], q[1], q[2]); p.sprite3.position.set(q[0] + off, q[1] + off, q[2]); }
                 // 左（立方体）：(x, y, w) の位置。組み上がった状態のときだけ
-                const showL = p.show && ptShowLeft && folded && explodeE() < 0.02;
+                const showL = p.show && ptShowLeft && folded && explodeE() < 0.02 && !p.v;   // v≠0 の点は立方体にも出さない
                 p.mesh2.visible = showL; p.sprite2.visible = showL && ptShowLabels;
                 if (showL) { const q = leftPtPos(p.x * HALF_S, p.y * HALF_S, p.w * HALF_S); p.mesh2.position.set(q[0], q[1], q[2]); p.sprite2.position.set(q[0] + off, q[1] + off, q[2]); }
+                // 5次元体（5次元モードのとき）：(x, y, z, w, v) の位置。頂点はその頂点を、境界の点は重みで追う。ほかは組み上がりのときだけ
+                if (p.mesh5) {
+                    let p5 = null;
+                    if (dim5) {
+                        if (p.vid5 && !folded) p5 = cellVerts5D(p.vid5.cell, progress)[p.vid5.corner];
+                        else if (p.cw5 && !folded) {
+                            const vs = cellVerts5D(p.cw5.cell, progress); p5 = [0, 0, 0, 0, 0];
+                            for (let k = 0; k < 16; k++) { const wk = p.cw5.w[k]; if (wk) for (let i = 0; i < 5; i++) p5[i] += wk * vs[k][i]; }
+                        }
+                        else if (folded) p5 = [p.x, p.y, p.z, p.w, p.v || 0].map(c => c * HALF_S);
+                    }
+                    const show5 = p.show && p5 !== null && explodeE() < 0.02;
+                    p.mesh5.visible = show5; p.sprite5.visible = show5 && ptShowLabels;
+                    if (show5) { const q = project5(rotate5(p5), projBlendNow()); p.mesh5.position.set(q[0], q[1], q[2]); p.sprite5.position.set(q[0] + off, q[1] + off, q[2]); }
+                }
             }
         }
         function savePts() {
-            try { localStorage.setItem(PT_STORE, JSON.stringify(userPoints.map(p => ({ x: p.x, y: p.y, z: p.z, w: p.w, color: p.color, label: p.label, show: p.show, lock: !!p.lock })))); } catch (_) {}
+            try { localStorage.setItem(PT_STORE, JSON.stringify(userPoints.map(p => ({ x: p.x, y: p.y, z: p.z, w: p.w, v: p.v || 0, color: p.color, label: p.label, show: p.show, lock: !!p.lock })))); } catch (_) {}
         }
 
         // 左・立方体の座標軸（x,y,z）を Root2D に作る。右と同じ矢印ギズモ＋小さなセリフ体ラベル。
@@ -3111,7 +3162,7 @@
                 const sp = makeLabelSprite(ax.label, '#' + ax.color.toString(16).padStart(6, '0'));
                 group.add(sp); axisSpritesL.push(sp);
             });
-            // 立方体の等角図マーカー：対角の2頂点（手前＝ピンク／奥＝水色）＋重なり時の混色
+            // 立方体の等角図マーカー：対角の2頂点（手前＝ピンク／奥＝エメラルド）＋重なり時の混色
             lMarkPlus = makeMarker(MARK_NEAR, 0.07, 1003);
             lMarkMinus = makeMarker(MARK_FAR, 0.07, 1002);
             lMarkBlend = makeMarker(MARK_BLEND, 0.085, 1004); lMarkBlend.material.opacity = 0.8; lMarkBlend.visible = false;
@@ -3132,7 +3183,7 @@
         // 立方体の (1,1,1) 方向の角（等角図の中心にくる頂点）とその反対の角を、
         // 回転前（angles=0・組み上がり）の座標で一度だけ特定する。右の findExtremeVerts と同じ考え方。
         let nearLId = null, farLId = null;
-        //   ピンク（手前）は蓋の面（5）の頂点、水色（奥）は中央の面（0）の頂点（分解したときに蓋・中央と一緒に動く）
+        //   ピンク（手前）は蓋の面（5）の頂点、エメラルド（奥）は中央の面（0）の頂点（分解したときに蓋・中央と一緒に動く）
         function findLeftExtreme() {
             let maxS = -1e9, minS = 1e9;
             const pick = (f, isNear) => calculateFoldedFaceVertices2D(f, 1, 0, 0).forEach((v, k) => {
@@ -3151,7 +3202,7 @@
         }
 
         function updateAxisGnomon(progress) {
-            updateFixedMarks(progress);   // 既定のピンク・水色は軸の表示と関係なく更新
+            updateFixedMarks(progress);   // 既定のピンク・エメラルドは軸の表示と関係なく更新
             updateLeftAxisGnomon();   // 左も先に更新（OFF時にも visible=false を確実に反映させる）
             const root3D = scene3D.getObjectByName('Root3D');
             const group = root3D && root3D.getObjectByName('Axis3D');
@@ -3181,7 +3232,7 @@
             });
         }
 
-        // 既定のピンク・水色（右＝超立方体の対角2頂点、左＝立方体の対角2頂点）を追う。
+        // 既定のピンク・エメラルド（右＝超立方体の対角2頂点、左＝立方体の対角2頂点）を追う。
         // 同じ頂点を回転中もずっと追い続けるので、「中心の点がどこへ動くか」を確認できる。軸の表示とは関係なく毎回更新。
         function updateFixedMarks(progress) {
             if (progress === undefined) progress = animationProgress;
@@ -3283,7 +3334,7 @@
             set('zwd-hand', { x2: hx.toFixed(2), y2: hy.toFixed(2) });
             set('zwd-tip', { cx: hx.toFixed(2), cy: hy.toFixed(2) });
             set('zwd-zpart', { x2: hx.toFixed(2) });                               // z に残った分（立方体の z の長さ）
-            set('zwd-wpart', { y2: hy.toFixed(2), stroke: sn >= 0 ? '#ff44dd' : '#33e5ff' });   // w へ移った分（色づけと同じ色）
+            set('zwd-wpart', { y2: hy.toFixed(2), stroke: sn >= 0 ? '#ff44dd' : '#50c878' });   // w へ移った分（色づけと同じ色）
             set('zwd-gz', { x1: hx.toFixed(2), y1: hy.toFixed(2), x2: hx.toFixed(2), y2: 0 });
             set('zwd-gw', { x1: hx.toFixed(2), y1: hy.toFixed(2), x2: 0, y2: hy.toFixed(2) });
             const deg = Math.round(a * 180 / Math.PI);
@@ -3343,7 +3394,7 @@
                 const tintOn = zwViz.tint && zwOn;
                 faceObjects2D.forEach((face, fi) => {
                     const currentVerts = faceVerts[fi];
-                    // 色づけ中は面の色を頂点の色に移す（材質は白）。w＋ほどピンク、w−ほど水色に寄せる
+                    // 色づけ中は面の色を頂点の色に移す（材質は白）。w＋ほどピンク、w−ほどエメラルドに寄せる
                     if (face.tinted !== tintOn) { face.material.color.set(tintOn ? 0xffffff : faceConfigs2D[fi].color); face.tinted = tintOn; }
                     const baseC = _zwBase.set(faceConfigs2D[fi].color);
 
@@ -3390,7 +3441,7 @@
 
                         if (colArrL) {
                             let cA = lcol(faceDist[fi][edge[0]]), cB = lcol(faceDist[fi][edge[1]]);
-                            if (tintOn) {   // 色づけ：辺も w＋ピンク／w−水色に（面が透けていても分かるように）。明るさ（奥のフェード）は保つ
+                            if (tintOn) {   // 色づけ：辺も w＋ピンク／w−エメラルドに（面が透けていても分かるように）。明るさ（奥のフェード）は保つ
                                 const tw = (c, w) => { const a = Math.min(1, Math.abs(w) / HALF_S), T = w >= 0 ? ZW_TINT_POS : ZW_TINT_NEG, L = Math.max(c[0], c[1], c[2]);
                                     return [c[0] + (T.r * L - c[0]) * a, c[1] + (T.g * L - c[1]) * a, c[2] + (T.b * L - c[2]) * a]; };
                                 cA = tw(cA, faceW[fi][edge[0]]); cB = tw(cB, faceW[fi][edge[1]]);
@@ -4592,11 +4643,13 @@
 
             // ===== 点マーカーの操作 =====
             const PT_FILE = 'hypercube-points.csv';
-            const PT_SWATCHES = ['#ffd54a', '#ff5d6c', '#3ddc84', '#56a8ff', '#b07cff', '#ff44dd', '#33e5ff', '#ffffff'];
+            const PT_SWATCHES = ['#ffd54a', '#ff5d6c', '#3ddc84', '#56a8ff', '#b07cff', '#ff44dd', '#50c878', '#ffffff'];
             const ptEl = id => document.getElementById(id);
             const ptStatus = (msg, ok) => { const el = ptEl('pt-status'); el.textContent = msg; el.className = 'text-[10px] ' + (ok === true ? 'text-emerald-300' : ok === false ? 'text-rose-300' : 'text-slate-400'); };
-            function addPt(x, y, z, w, color, label, show = true, render = true, lock = false) {
-                const p = { x: normPtValue(x), y: normPtValue(y), z: normPtValue(z), w: normPtValue(w), color: color || '#ffd54a', label: label || '', show, lock: !!lock };
+            const ptV = () => dim5 ? normPtValue(ptEl('pt-v').value) : 0;   // プリセットに使う v（5次元モードのときだけ。4次元では 0）
+            const ptListed = p => dim5 || !p.v;   // 一覧に出す点：4次元モードでは v＝0 の点だけ（5次元の点は5次元モードで）
+            function addPt(x, y, z, w, color, label, show = true, render = true, lock = false, v = 0) {
+                const p = { x: normPtValue(x), y: normPtValue(y), z: normPtValue(z), w: normPtValue(w), v: normPtValue(v), color: color || '#ffd54a', label: label || '', show, lock: !!lock };
                 userPoints.push(p); buildPt(p);
                 if (render) { savePts(); renderPtList(); updateMorphingGeometry(animationProgress); }
                 return p;
@@ -4606,11 +4659,12 @@
                 disposePt(p); userPoints = userPoints.filter(q => q !== p); savePts(); renderPtList(); updateMorphingGeometry(animationProgress); }
             function renderPtList() {
                 const list = ptEl('pt-list'); list.innerHTML = '';
-                ptEl('pt-count').textContent = '（' + (userPoints.length + 2) + '個）';
-                const allLocked = userPoints.length > 0 && userPoints.every(p => p.lock);
+                const listed = userPoints.filter(ptListed), hidden5 = userPoints.length - listed.length;
+                ptEl('pt-count').textContent = '（' + (listed.length + 2) + '個）' + (hidden5 ? ' ＋5次元の点 ' + hidden5 + '個（5次元モードで表示）' : '');
+                const allLocked = listed.length > 0 && listed.every(p => p.lock);
                 ptEl('pt-lock-all').textContent = allLocked ? '🔓 全部解除' : '🔒 全部ロック';
-                // 既定のピンク・水色（固定。消せない。表示/非表示だけ）
-                [['near', '#ff44dd', '(1, 1, 1, 1)', 'ピンク'], ['far', '#33e5ff', '(−1, −1, −1, −1)', '水色']].forEach(([key, c, xyz, nm]) => {
+                // 既定のピンク・エメラルド（固定。消せない。表示/非表示だけ）
+                [['near', '#ff44dd', '(1, 1, 1, 1)', 'ピンク'], ['far', '#50c878', '(−1, −1, −1, −1)', 'エメラルド']].forEach(([key, c, xyz, nm]) => {
                     const row = document.createElement('div');
                     row.className = 'flex items-center gap-1.5 bg-slate-900/80 border border-violet-500/30 rounded px-1.5 py-1';
                     const sw = document.createElement('span'); sw.className = 'w-6 h-5 rounded border border-slate-600 shrink-0'; sw.style.background = c; sw.title = '既定の' + nm + '（色は固定）';
@@ -4625,29 +4679,29 @@
                 const glue = document.createElement('button');
                 glue.className = 'w-full text-left px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700 text-[10px] ' + (fixedMarks.glue ? 'text-violet-200' : 'text-slate-400');
                 glue.innerHTML = '→ 重なりの乗算: <b>' + (fixedMarks.glue ? 'OFF' : 'ON') + '</b>　<span class="text-slate-500">' + (fixedMarks.glue ? 'ピンクが上に重なるだけに' : '重なった部分の色を掛け合わせる') + '</span>';
-                glue.title = 'ピンクと水色が重なった部分だけ、色を掛け合わせて（乗算）描くか。重なっていない部分は元の色のまま（片方を隠しているときは掛け合わせません）';
+                glue.title = 'ピンクとエメラルドが重なった部分だけ、色を掛け合わせて（乗算）描くか。重なっていない部分は元の色のまま（片方を隠しているときは掛け合わせません）';
                 glue.addEventListener('click', () => { fixedMarks.glue = !fixedMarks.glue; saveFixedMarks(); renderPtList(); updateMorphingGeometry(animationProgress); });
                 list.appendChild(glue);
-                // ピンク・水色の大きさ（2点セットで変わる。混色の青紫も同じ倍率）
+                // ピンク・エメラルドの大きさ（2点セットで変わる。混色の青紫も同じ倍率）
                 const szRow = document.createElement('label');
                 szRow.className = 'flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] text-slate-400';
-                szRow.title = 'ピンクと水色の大きさ（2点をセットで変えます。立方体のピンク・水色も同じ倍率）';
-                szRow.innerHTML = '<span class="shrink-0">ピンク・水色の大きさ</span>';
+                szRow.title = 'ピンクとエメラルドの大きさ（2点をセットで変えます。立方体のピンク・エメラルドも同じ倍率）';
+                szRow.innerHTML = '<span class="shrink-0">ピンク・エメラルドの大きさ</span>';
                 const sz = document.createElement('input'); sz.type = 'range'; sz.min = '0.3'; sz.max = '2'; sz.step = '0.05'; sz.value = String(fixedMarks.size || 1);
                 sz.className = 'flex-1 min-w-0 accent-fuchsia-400';
                 const szv = document.createElement('span'); szv.className = 'w-9 text-right font-mono text-slate-300 shrink-0'; szv.textContent = '×' + (fixedMarks.size || 1).toFixed(2);
                 sz.addEventListener('input', () => { fixedMarks.size = parseFloat(sz.value); szv.textContent = '×' + fixedMarks.size.toFixed(2); saveFixedMarks(); updateMorphingGeometry(animationProgress); });
                 sz.addEventListener('dblclick', () => { sz.value = '1'; sz.dispatchEvent(new Event('input', { bubbles: true })); });   // ダブルクリックで元の大きさ
                 szRow.append(sz, szv); list.appendChild(szRow);
-                if (!userPoints.length) { list.insertAdjacentHTML('beforeend', '<div class="text-[10px] text-slate-500 pt-1">ほかの点はまだありません。上で座標を入れるか、頂点のプリセットを押してください。</div>'); return; }
+                if (!listed.length) { list.insertAdjacentHTML('beforeend', '<div class="text-[10px] text-slate-500 pt-1">ほかの点はまだありません。上で座標を入れるか、頂点のプリセットを押してください。</div>'); return; }
                 const sep = document.createElement('div'); sep.className = 'border-t border-slate-800 my-1'; list.appendChild(sep);
-                userPoints.forEach(p => {
+                listed.forEach(p => {
                     const row = document.createElement('div');
                     row.className = 'flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded px-1.5 py-1';
                     const col = document.createElement('input'); col.type = 'color'; col.value = p.color; col.className = 'w-6 h-5 bg-transparent border border-slate-700 rounded cursor-pointer shrink-0'; col.title = '色を変える';
                     col.addEventListener('input', () => { p.color = col.value; buildPt(p); savePts(); updateMorphingGeometry(animationProgress); });
                     const txt = document.createElement('span'); txt.className = 'flex-1 min-w-0 break-words leading-tight font-mono text-[10px] ' + (p.show ? 'text-slate-300' : 'text-slate-500');
-                    txt.textContent = (p.label ? p.label + '  ' : '') + '(' + [p.x, p.y, p.z, p.w].map(fmtPt).join(', ') + ')' + (ptKind(p) ? '  ' + ptKind(p) : '');
+                    txt.textContent = (p.label ? p.label + '  ' : '') + '(' + ptCoords(p).map(fmtPt).join(', ') + ')' + (ptKind(p) ? '  ' + ptKind(p) : '');
                     const eye = document.createElement('button'); eye.className = 'shrink-0 whitespace-nowrap px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (p.show ? 'text-slate-200' : 'text-slate-500');
                     eye.textContent = p.show ? '→隠す' : '→表示'; eye.title = p.show ? '押すと隠す（今は表示中）' : '押すと表示する（今は隠し中）';
                     eye.addEventListener('click', () => { p.show = !p.show; savePts(); renderPtList(); updateMorphingGeometry(animationProgress); });
@@ -4662,7 +4716,8 @@
                 });
             }
             // 入力のプレビュー（変換後の値）
-            const ptPreview = () => { ptEl('pt-preview').textContent = '→ 置く位置 (' + ['pt-x', 'pt-y', 'pt-z', 'pt-w'].map(id => fmtPt(normPtValue(ptEl(id).value))).join(', ') + ')'; };
+            const ptPreview = () => { ptEl('pt-preview').textContent = '→ 置く位置 (' + ['pt-x', 'pt-y', 'pt-z', 'pt-w'].concat(dim5 ? ['pt-v'] : []).map(id => fmtPt(normPtValue(ptEl(id).value))).join(', ') + ')'; };
+            document.querySelectorAll('[data-ptv]').forEach(b => b.addEventListener('click', () => { ptEl('pt-v').value = b.dataset.ptv; ptPreview(); }));   // v の早押し（+1／0／−1）
             document.querySelectorAll('.pt-in').forEach(el => { el.addEventListener('input', ptPreview); el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ptEl('pt-add').click(); } e.stopPropagation(); }); });
             ptEl('pt-label').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ptEl('pt-add').click(); } e.stopPropagation(); });
             ptPreview();
@@ -4670,7 +4725,7 @@
             let swatchIdx = 0;
             PT_SWATCHES.forEach((c, i) => { const b = document.createElement('button'); b.className = 'w-5 h-5 rounded border border-slate-600'; b.style.background = c; b.title = c; b.addEventListener('click', () => { ptEl('pt-color').value = c; swatchIdx = i; }); ptEl('pt-swatches').appendChild(b); });
             ptEl('pt-add').addEventListener('click', () => {
-                addPt(ptEl('pt-x').value, ptEl('pt-y').value, ptEl('pt-z').value, ptEl('pt-w').value, ptEl('pt-color').value, ptEl('pt-label').value.trim());
+                addPt(ptEl('pt-x').value, ptEl('pt-y').value, ptEl('pt-z').value, ptEl('pt-w').value, ptEl('pt-color').value, ptEl('pt-label').value.trim(), true, true, false, ptV());
                 ptEl('pt-label').value = '';
                 swatchIdx = (PT_SWATCHES.indexOf(ptEl('pt-color').value) + 1) % PT_SWATCHES.length; ptEl('pt-color').value = PT_SWATCHES[swatchIdx];
                 ptStatus('点を置きました', true);
@@ -4682,13 +4737,19 @@
                 b.className = 'px-1 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700';
                 b.innerHTML = sg.map((v, k) => '<span style="color:' + ['#ff5d6c', '#3ddc84', '#56a8ff', '#b07cff'][k] + '">' + (v > 0 ? '+' : '−') + '</span>').join('');
                 b.title = '頂点 (' + sg.join(', ') + ') に点を置く（色は上の「色」）';
-                b.addEventListener('click', () => { addPt(sg[0], sg[1], sg[2], sg[3], ptEl('pt-color').value, ''); ptStatus('頂点 (' + sg.join(', ') + ') に点を置きました', true); });
+                b.addEventListener('click', () => { const v5 = ptV(); addPt(sg[0], sg[1], sg[2], sg[3], ptEl('pt-color').value, '', true, true, false, v5); ptStatus('頂点 (' + sg.concat(dim5 ? [v5] : []).join(', ') + ') に点を置きました', true); });
                 ptEl('pt-vertex-grid').appendChild(b);
             }
             ptEl('pt-all-vertices').addEventListener('click', () => {
-                for (let i = 1; i < 15; i++) { const sg = [8, 4, 2, 1].map(b => (i & b) ? -1 : 1); addPt(sg[0], sg[1], sg[2], sg[3], sg[3] > 0 ? '#ffb347' : '#56c8ff', '', true, false); }   // i=0（＋＋＋＋）と i=15（−−−−）は既定のピンク・水色
+                if (dim5) {   // 5次元：32頂点。+++++ と −−−−− は既定のピンク・エメラルド。色は v の符号（＋は暖色、−は寒色）
+                    for (let i = 1; i < 31; i++) { const sg = [16, 8, 4, 2, 1].map(b => (i & b) ? -1 : 1); addPt(sg[0], sg[1], sg[2], sg[3], sg[4] > 0 ? '#ffb347' : '#56c8ff', '', true, false, false, sg[4]); }
+                    if (!fixedMarks.near || !fixedMarks.far) { fixedMarks.near = fixedMarks.far = true; saveFixedMarks(); }
+                    savePts(); renderPtList(); updateMorphingGeometry(animationProgress); ptStatus('32頂点に点を出しました（30個を追加。+++++ と −−−−− は既定のピンク・エメラルド）', true);
+                    return;
+                }
+                for (let i = 1; i < 15; i++) { const sg = [8, 4, 2, 1].map(b => (i & b) ? -1 : 1); addPt(sg[0], sg[1], sg[2], sg[3], sg[3] > 0 ? '#ffb347' : '#56c8ff', '', true, false); }   // i=0（＋＋＋＋）と i=15（−−−−）は既定のピンク・エメラルド
                 if (!fixedMarks.near || !fixedMarks.far) { fixedMarks.near = fixedMarks.far = true; saveFixedMarks(); }
-                savePts(); renderPtList(); updateMorphingGeometry(animationProgress); ptStatus('16頂点に点を出しました（14個を追加。＋＋＋＋と−−−−は既定のピンク・水色）', true);
+                savePts(); renderPtList(); updateMorphingGeometry(animationProgress); ptStatus('16頂点に点を出しました（14個を追加。＋＋＋＋と−−−−は既定のピンク・エメラルド）', true);
             });
             // 注目点のプリセット：−1・0・1 の 81 通りから 0 の数で選ぶ。同じ座標の点があれば色だけ変える
             const AXIS_COL = ['#ff5d6c', '#3ddc84', '#56a8ff', '#b07cff'];   // x y z w
@@ -4697,10 +4758,11 @@
             const zeroCount = v => v.filter(a => a === 0).length;
             function addPresetPts(list, colorOf, name) {
                 let added = 0, recolored = 0;
+                const v5 = ptV();   // 5次元モードでは、v の入力の値の側に置く
                 list.forEach(v => {
-                    const c = colorOf(v), ex = userPoints.find(p => p.x === v[0] && p.y === v[1] && p.z === v[2] && p.w === v[3]);
+                    const c = colorOf(v), ex = userPoints.find(p => p.x === v[0] && p.y === v[1] && p.z === v[2] && p.w === v[3] && (p.v || 0) === v5);
                     if (ex) { if (ex.color !== c || !ex.show) { ex.color = c; ex.show = true; buildPt(ex); recolored++; } }
-                    else { addPt(v[0], v[1], v[2], v[3], c, '', true, false); added++; }
+                    else { addPt(v[0], v[1], v[2], v[3], c, '', true, false, false, v5); added++; }
                 });
                 savePts(); renderPtList(); updateMorphingGeometry(animationProgress);
                 ptStatus(name + '：' + added + '個 置きました' + (recolored ? '（' + recolored + '個は置いてあった点の色を変えました）' : ''), true);
@@ -4710,41 +4772,42 @@
             ptEl('pt-cell-ctr').addEventListener('click', () => addPresetPts(PT81.filter(v => zeroCount(v) === 3), v => AXIS_COL[v.findIndex(a => a !== 0)], '胞の中心'));
             ptEl('pt-w0-slice').addEventListener('click', () => addPresetPts(PT81.filter(v => v[3] === 0 && zeroCount(v) === 1), () => '#7dffcf', 'w=0 の断面'));
             ptEl('pt-clear').addEventListener('click', () => {
-                const keep = userPoints.filter(p => p.lock);
-                userPoints.filter(p => !p.lock).forEach(disposePt); userPoints = keep;
+                const keep = userPoints.filter(p => p.lock || !ptListed(p));   // ロックした点と、一覧に出ていない5次元の点は残す
+                userPoints.filter(p => !keep.includes(p)).forEach(disposePt); const nLock = keep.filter(p => p.lock && ptListed(p)).length; userPoints = keep;
                 savePts(); renderPtList(); updateMorphingGeometry(animationProgress);
-                ptStatus(keep.length ? '消しました（ロックした ' + keep.length + '個は残しました）' : '全部消しました');
+                ptStatus(nLock ? '消しました（ロックした ' + nLock + '個は残しました）' : '全部消しました');
             });
             ptEl('pt-lock-all').addEventListener('click', () => {
-                if (!userPoints.length) { ptStatus('ロックする点がありません'); return; }
-                const lockAll = !userPoints.every(p => p.lock);
-                userPoints.forEach(p => p.lock = lockAll); savePts(); renderPtList();
-                ptStatus(lockAll ? '置いた点を全部ロックしました（' + userPoints.length + '個）' : 'ロックを全部外しました', true);
+                const listed = userPoints.filter(ptListed);
+                if (!listed.length) { ptStatus('ロックする点がありません'); return; }
+                const lockAll = !listed.every(p => p.lock);
+                listed.forEach(p => p.lock = lockAll); savePts(); renderPtList();
+                ptStatus(lockAll ? '置いた点を全部ロックしました（' + listed.length + '個）' : 'ロックを全部外しました', true);
             });
             ptEl('pt-labels').addEventListener('click', () => { ptShowLabels = !ptShowLabels; ptEl('pt-labels').textContent = 'ラベル: ' + (ptShowLabels ? 'ON' : 'OFF'); try { localStorage.setItem('hypercubePtLabels', ptShowLabels ? '1' : '0'); } catch (_) {} updateMorphingGeometry(animationProgress); });
             ptEl('pt-left').addEventListener('click', () => { ptShowLeft = !ptShowLeft; ptEl('pt-left').textContent = '立方体にも: ' + (ptShowLeft ? 'ON' : 'OFF'); try { localStorage.setItem('hypercubePtLeft', ptShowLeft ? '1' : '0'); } catch (_) {} updateMorphingGeometry(animationProgress); });
-            // 点の大きさ（既定のピンク・水色は対象外）
+            // 点の大きさ（既定のピンク・エメラルドは対象外）
             try { const v = parseFloat(localStorage.getItem('hypercubePtSize')); if (isFinite(v)) ptSize = v; } catch (_) {}
             ptEl('pt-size').value = ptSize;
             ptEl('pt-size').addEventListener('input', e => {
                 ptSize = parseFloat(e.target.value); try { localStorage.setItem('hypercubePtSize', String(ptSize)); } catch (_) {}
                 userPoints.forEach(p => buildPt(p)); updateMorphingGeometry(animationProgress);
             });
-            // CSV（label,x,y,z,w,color,show）
-            const ptToCSV = () => 'label,x,y,z,w,color,show,lock\n' + userPoints.map(p => [String(p.label || '').replace(/[,\n]/g, ' '), p.x, p.y, p.z, p.w, p.color, p.show ? 1 : 0, p.lock ? 1 : 0].join(',')).join('\n') + '\n';
+            // CSV（label,x,y,z,w,color,show,lock,v。v は最後の列＝古い CSV には無くてもよい）
+            const ptToCSV = () => 'label,x,y,z,w,color,show,lock,v\n' + userPoints.map(p => [String(p.label || '').replace(/[,\n]/g, ' '), p.x, p.y, p.z, p.w, p.color, p.show ? 1 : 0, p.lock ? 1 : 0, p.v || 0].join(',')).join('\n') + '\n';
             function ptFromCSV(txt) {
                 const out = [];
                 String(txt).split(/\r?\n/).forEach(line => {
                     const c = line.split(','); if (c.length < 5 || c[0].trim().toLowerCase() === 'label') return;
-                    out.push({ label: c[0].trim(), x: c[1], y: c[2], z: c[3], w: c[4], color: (c[5] || '#ffd54a').trim(), show: (c[6] || '1').trim() !== '0', lock: (c[7] || '0').trim() === '1' });
+                    out.push({ label: c[0].trim(), x: c[1], y: c[2], z: c[3], w: c[4], color: (c[5] || '#ffd54a').trim(), show: (c[6] || '1').trim() !== '0', lock: (c[7] || '0').trim() === '1', v: (c[8] || '0').trim() });
                 });
                 return out;
             }
             function replacePts(list) {
                 const keep = userPoints.filter(p => p.lock);   // ロックした点は読み込みでも消さない
                 userPoints.filter(p => !p.lock).forEach(disposePt); userPoints = keep.slice();
-                const same = (p, q) => p.x === normPtValue(q.x) && p.y === normPtValue(q.y) && p.z === normPtValue(q.z) && p.w === normPtValue(q.w);
-                list.filter(q => !isOldPairPt(q) && !keep.some(p => same(p, q))).forEach(q => addPt(q.x, q.y, q.z, q.w, q.color, q.label, q.show, false, q.lock));
+                const same = (p, q) => p.x === normPtValue(q.x) && p.y === normPtValue(q.y) && p.z === normPtValue(q.z) && p.w === normPtValue(q.w) && (p.v || 0) === normPtValue(q.v || 0);
+                list.filter(q => !isOldPairPt(q) && !keep.some(p => same(p, q))).forEach(q => addPt(q.x, q.y, q.z, q.w, q.color, q.label, q.show, false, q.lock, q.v || 0));
                 savePts(); renderPtList(); updateMorphingGeometry(animationProgress);
                 return keep.length;
             }
@@ -4788,7 +4851,7 @@
             ptEl('pt-labels').textContent = 'ラベル: ' + (ptShowLabels ? 'ON' : 'OFF'); ptEl('pt-left').textContent = '立方体にも: ' + (ptShowLeft ? 'ON' : 'OFF');
             try {
                 const saved = JSON.parse(localStorage.getItem(PT_STORE) || '[]'), keep = saved.filter(q => !isOldPairPt(q));
-                keep.forEach(q => addPt(q.x, q.y, q.z, q.w, q.color, q.label, q.show !== false, false, q.lock));
+                keep.forEach(q => addPt(q.x, q.y, q.z, q.w, q.color, q.label, q.show !== false, false, q.lock, q.v || 0));
                 if (keep.length !== saved.length) savePts();   // 以前の「既定の2点」は固定の2点に置き換わった
             } catch (_) {}
             renderPtList(); updateMorphingGeometry(animationProgress);
@@ -4990,14 +5053,14 @@
             const EQ_B = Math.round(Math.asin(1 / Math.sqrt(3)) * 180 / Math.PI * 1000) / 1000;   // 35.264°
             const ANG_BUILTIN = [
                 { name: '1,1,1,1 が手前', sub: '今の「頂点から」', a: 45, b: EQ_B, c: 30, col: '#ff44dd' },
-                { name: '−1,−1,−1,−1 が手前', sub: '全く裏返し', a: -135, b: 180 - EQ_B, c: -150, col: '#33e5ff' },
+                { name: '−1,−1,−1,−1 が手前', sub: '全く裏返し', a: -135, b: 180 - EQ_B, c: -150, col: '#50c878' },
                 { name: '−1,−1,−1,1 が手前', sub: 'w 反転', a: -45, b: -EQ_B, c: -30, col: '#b07cff' },
                 { name: '1,1,1,−1 が手前', sub: 'w 反転の裏返し', a: 135, b: -(180 - EQ_B), c: 150, col: '#b07cff' },
-                // 5次元の等角図：5本の軸が同じ長さ（どれも 0.775 倍）に写り、(1,1,1,1,1) が画面の真ん中（z の向き）に来る＝ピンクと水色が重なる。
+                // 5次元の等角図：5本の軸が同じ長さ（どれも 0.775 倍）に写り、(1,1,1,1,1) が画面の真ん中（z の向き）に来る＝ピンクとエメラルドが重なる。
                 //   落とす2つの向き（w・v）を「正五角形の面」にとると、5本の軸が画面で正五角形に並ぶ（輪郭は正十角形）。角度は数値で求めた
                 //   ※ 4次元と違って、(1,1,1,1,1) をまるごと落とす向きにすると5本は同じ長さにならない（落とす向きが2つあるため）
                 { name: '1,1,1,1,1 が手前', sub: '5次元の等角図', a: -58.283, b: 40.386, c: -21.823, xy: -22.757, xz: 54.736, yz: 0, xw5: -27.732, yw5: 31.091, zw5: -33.447, wv5: 72, col: '#ff44dd', d5: true },
-                { name: '−1,−1,−1,−1,−1 が手前', sub: '5次元の等角図の裏返し', a: 121.717, b: 139.614, c: 158.177, xy: -22.757, xz: 54.736, yz: 0, xw5: 27.732, yw5: -31.091, zw5: 33.447, wv5: -72, col: '#33e5ff', d5: true }
+                { name: '−1,−1,−1,−1,−1 が手前', sub: '5次元の等角図の裏返し', a: 121.717, b: 139.614, c: 158.177, xy: -22.757, xz: 54.736, yz: 0, xw5: 27.732, yw5: -31.091, zw5: 33.447, wv5: -72, col: '#50c878', d5: true }
             ];
             const fmtAng = v => (Math.round((v || 0) * 100) / 100).toString();
             const angText = A => fmtAng(A.a) + '°, ' + fmtAng(A.b) + '°, ' + fmtAng(A.c) + '°' + ((A.xy || A.xz || A.yz) ? '  3D ' + fmtAng(A.xy) + '°, ' + fmtAng(A.xz) + '°, ' + fmtAng(A.yz) + '°' : '')
@@ -5113,7 +5176,7 @@
                 const A = ppSlot.A;
                 // 5次元では「全部の向きを反対」にする回転は無い（5は奇数なので、全部反対は鏡うつしになる）。
                 //   いちばん近い裏返し＝ x・y・z・v を反対にして w だけそのまま。上の3つの式に加えて、5次元だけの4面の角度の符号を反対にすると、ちょうどそうなる
-                //   （ピンクと水色の位置が入れ替わり、v の向きで裏返る。左の超立方体は今までどおり全く裏返し）
+                //   （ピンクとエメラルドの位置が入れ替わり、v の向きで裏返る。左の超立方体は今までどおり全く裏返し）
                 ppSlot.B = { a: w(A.a - 180), b: w(180 - A.b), c: w(A.c - 180), xy: A.xy || 0, xz: A.xz || 0, yz: A.yz || 0, xw5: w(-(A.xw5 || 0)), yw5: w(-(A.yw5 || 0)), zw5: w(-(A.zw5 || 0)), wv5: w(-(A.wv5 || 0)) };
                 renderPPSlots();
                 if (pingPong && !pingPong.once) startPingPong(ppSlot.A, ppSlot.B, ppSec());
@@ -5812,7 +5875,7 @@
                 try { localStorage.setItem('hypercubeDim5', dim5 ? '1' : '0'); } catch (_) {}
                 if (!dim5 && (rhombi.on || rhombi.t > 0)) { rhombi.on = false; rhombi.pending = false; rhombi.anim = false; rhombi.t = 0; if (rhombi.sync) rhombi.sync(); }   // 菱形二十面体はやめる
                 if (!dim5) spin5XW = spin5YW = spin5ZW = spin5WV = false;   // 4次元にもどすときは、5次元だけの回転を止める（角度は覚えておく）
-                applyDim5UI(); ensureProjection(); updateLinkUI(); updateMorphingGeometry(animationProgress); requestRender(30);
+                applyDim5UI(); userPoints.forEach(buildPt); renderPtList(); ptPreview(); ensureProjection(); updateLinkUI(); updateMorphingGeometry(animationProgress); requestRender(30);   // 点の一覧・ラベルも v の有り無しに合わせる
             }));
             applyDim5UI();
 
