@@ -2048,6 +2048,7 @@
             buildXpLabels();   // 分解の番号ラベル
             buildGluePairs(); buildXpAxisLabels();   // 高次元マップ（くっついていた面の組・次元の矢印の札）
             applyNumTex();   // お遊び：数字テクスチャ（保存した状態を反映。UV もここで一度付ける）
+            applyMarkCol();  // 頂点マーカーの色（指定を反映）
 
             updateLayout();
 
@@ -2216,6 +2217,22 @@
         let fixedMarks = { near: true, far: true, glue: true, size: 1 };   // size＝ピンク・エメラルド（と混色の青紫）をセットで拡大縮小
         try { const fm = JSON.parse(localStorage.getItem('hypercubeFixedMarks') || 'null'); if (fm) fixedMarks = Object.assign(fixedMarks, fm); } catch (_) {}
         function saveFixedMarks() { try { localStorage.setItem('hypercubeFixedMarks', JSON.stringify(fixedMarks)); } catch (_) {} }
+        // 頂点マーカーの色（手前＝near・奥＝far）をユーザーが指定できる。既定は上の MARK_NEAR/FAR と同じ
+        const hex6 = n => '#' + n.toString(16).padStart(6, '0');
+        let markCol = { near: hex6(MARK_NEAR), far: hex6(MARK_FAR) };
+        try { const mc = JSON.parse(localStorage.getItem('hypercubeMarkCol') || 'null'); if (mc && /^#[0-9a-fA-F]{6}$/.test(mc.near || '') && /^#[0-9a-fA-F]{6}$/.test(mc.far || '')) markCol = { near: mc.near, far: mc.far }; } catch (_) {}
+        function saveMarkCol() { try { localStorage.setItem('hypercubeMarkCol', JSON.stringify(markCol)); } catch (_) {} }
+        function blendHex(a, b) { const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); const A = p(a), B = p(b); return '#' + [0, 1, 2].map(i => Math.round((A[i] + B[i]) / 2).toString(16).padStart(2, '0')).join(''); }
+        function applyMarkCol() {   // 既存のマーカー・乗算分身・Z-W の色づけを、今の指定色に合わせる
+            const setC = (m, c) => { if (m && m.material) m.material.color.set(c); };
+            [wMarkPlus, lMarkPlus, p5MarkPlus].forEach(m => setC(m, markCol.near));
+            [wMarkMinus, lMarkMinus, p5MarkMinus].forEach(m => setC(m, markCol.far));
+            const bl = blendHex(markCol.near, markCol.far);
+            [wMarkBlend, lMarkBlend].forEach(m => setC(m, bl));
+            [wMarkPlus, lMarkPlus].forEach(m => { if (m && m._mulTwin) setC(m._mulTwin, markCol.near); });   // 重なりの乗算分身は手前の色
+            if (typeof ZW_TINT_POS !== 'undefined') { ZW_TINT_POS.set(markCol.near); ZW_TINT_NEG.set(markCol.far); }   // Z-W の色づけも同じ色の約束
+            requestRender(10);
+        }
         // 2マーカーが「画面上で重なっている」かを判定（遠近があるので画面＝NDC座標で見る）
         const _ovA = new THREE.Vector3(), _ovB = new THREE.Vector3();
         function markersOverlap(nearObj, farObj, camera, thr) {
@@ -4988,29 +5005,38 @@
                 const allLocked = listed.length > 0 && listed.every(p => p.lock);
                 ptEl('pt-lock-all').textContent = allLocked ? '🔓 全部解除' : '🔒 全部ロック';
                 // 既定のピンク・エメラルド（固定。消せない。表示/非表示だけ）
-                [['near', '#ff44dd', '(1, 1, 1, 1)', 'ピンク'], ['far', '#33e5ff', '(−1, −1, −1, −1)', '水色']].forEach(([key, c, xyz, nm]) => {
+                [['near', '(1, 1, 1, 1)', '手前'], ['far', '(−1, −1, −1, −1)', '奥']].forEach(([key, xyz, nm]) => {
                     const row = document.createElement('div');
                     row.className = 'flex items-center gap-1.5 bg-slate-900/80 border border-violet-500/30 rounded px-1.5 py-1';
-                    const sw = document.createElement('span'); sw.className = 'w-6 h-5 rounded border border-slate-600 shrink-0'; sw.style.background = c; sw.title = '既定の' + nm + '（色は固定）';
+                    const sw = document.createElement('input'); sw.type = 'color'; sw.value = markCol[key]; sw.className = 'w-6 h-5 rounded border border-slate-600 shrink-0 bg-transparent cursor-pointer p-0'; sw.title = '頂点の色（' + nm + '）。クリックで変えられます。Z-W の色づけも同じ色になります';
+                    sw.addEventListener('input', () => { markCol[key] = sw.value; saveMarkCol(); applyMarkCol(); updateMorphingGeometry(animationProgress); });
                     const txt = document.createElement('span'); txt.className = 'flex-1 min-w-0 truncate font-mono text-[10px] text-slate-200';
-                    txt.textContent = xyz + '  既定';
+                    txt.textContent = xyz + '  既定（' + nm + '）';
                     const eye = document.createElement('button'); eye.className = 'px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (fixedMarks[key] ? 'text-slate-200' : 'text-slate-500');
                     eye.textContent = fixedMarks[key] ? '→隠す' : '→表示'; eye.title = (fixedMarks[key] ? '押すと隠す' : '押すと表示する') + '（立方体の' + nm + 'も一緒）';
                     eye.addEventListener('click', () => { fixedMarks[key] = !fixedMarks[key]; saveFixedMarks(); renderPtList(); updateMorphingGeometry(animationProgress); });
-                    const lock = document.createElement('span'); lock.className = 'px-1.5 py-0.5 rounded border border-slate-800 text-slate-500 text-[10px] cursor-default'; lock.textContent = '固定'; lock.title = '既定の点なので消せません（隠すことはできます）';
+                    const lock = document.createElement('span'); lock.className = 'px-1.5 py-0.5 rounded border border-slate-800 text-slate-500 text-[10px] cursor-default'; lock.textContent = '固定'; lock.title = '既定の点なので消せません（色・表示は変えられます）';
                     row.append(sw, txt, eye, lock); list.appendChild(row);
                 });
+                {   // 頂点の色を既定（手前ピンク・奥水色）へ戻す
+                    const rb = document.createElement('button');
+                    rb.className = 'w-full text-left px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700 text-[10px] text-slate-400 hover:bg-slate-700';
+                    rb.textContent = '→ 頂点の色を戻す（手前ピンク・奥水色）';
+                    rb.title = '手前=' + hex6(MARK_NEAR) + '・奥=' + hex6(MARK_FAR) + ' に戻す';
+                    rb.addEventListener('click', () => { markCol = { near: hex6(MARK_NEAR), far: hex6(MARK_FAR) }; saveMarkCol(); applyMarkCol(); renderPtList(); updateMorphingGeometry(animationProgress); });
+                    list.appendChild(rb);
+                }
                 const glue = document.createElement('button');
                 glue.className = 'w-full text-left px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700 text-[10px] ' + (fixedMarks.glue ? 'text-violet-200' : 'text-slate-400');
-                glue.innerHTML = '→ 重なりの乗算: <b>' + (fixedMarks.glue ? 'OFF' : 'ON') + '</b>　<span class="text-slate-500">' + (fixedMarks.glue ? 'ピンクが上に重なるだけに' : '重なった部分の色を掛け合わせる') + '</span>';
-                glue.title = 'ピンクとエメラルドが重なった部分だけ、色を掛け合わせて（乗算）描くか。重なっていない部分は元の色のまま（片方を隠しているときは掛け合わせません）';
+                glue.innerHTML = '→ 重なりの乗算: <b>' + (fixedMarks.glue ? 'OFF' : 'ON') + '</b>　<span class="text-slate-500">' + (fixedMarks.glue ? '手前の色が上に重なるだけに' : '重なった部分の色を掛け合わせる') + '</span>';
+                glue.title = '手前と奥が重なった部分だけ、色を掛け合わせて（乗算）描くか。重なっていない部分は元の色のまま（片方を隠しているときは掛け合わせません）';
                 glue.addEventListener('click', () => { fixedMarks.glue = !fixedMarks.glue; saveFixedMarks(); renderPtList(); updateMorphingGeometry(animationProgress); });
                 list.appendChild(glue);
                 // ピンク・エメラルドの大きさ（2点セットで変わる。混色の青紫も同じ倍率）
                 const szRow = document.createElement('label');
                 szRow.className = 'flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] text-slate-400';
-                szRow.title = 'ピンクとエメラルドの大きさ（2点をセットで変えます。立方体のピンク・エメラルドも同じ倍率）';
-                szRow.innerHTML = '<span class="shrink-0">ピンク・エメラルドの大きさ</span>';
+                szRow.title = '手前と奥の大きさ（2点をセットで変えます。立方体の手前・奥も同じ倍率）';
+                szRow.innerHTML = '<span class="shrink-0">頂点マーカーの大きさ</span>';
                 const sz = document.createElement('input'); sz.type = 'range'; sz.min = '0.3'; sz.max = '2'; sz.step = '0.05'; sz.value = String(fixedMarks.size || 1);
                 sz.className = 'flex-1 min-w-0 accent-fuchsia-400';
                 const szv = document.createElement('span'); szv.className = 'w-9 text-right font-mono text-slate-300 shrink-0'; szv.textContent = '×' + (fixedMarks.size || 1).toFixed(2);
