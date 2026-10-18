@@ -102,17 +102,19 @@
         .mode-cube #wrapper-3d4d { display: none !important; }
 
         /* 右サイドパネル（--sb-w：パネル幅、--sb：描画領域から引く幅。パネルを閉じると 0） */
-        body { --sb-w: 360px; --sb: var(--sb-w); }
+        body { --sb-w: 360px; --sb: var(--sb-w); --dock-l: 0px; --dock-r: 0px; }
         body.sidebar-hidden { --sb: 0px; }
+        body.dock-left-on { --dock-l: min(340px, 32vw); }
+        body.dock-right-on { --dock-r: min(340px, 32vw); }
         body.sidebar-hidden #ui-overlay { display: none; }
         body.sidebar-hidden #sidebar-open { display: flex; }
-        #main-container { right: var(--sb) !important; width: auto !important; }
-        #rot-bar { left: 12px; right: calc(var(--sb) + 12px); }
+        #main-container { right: calc(var(--sb) + var(--dock-r)) !important; left: var(--dock-l) !important; width: auto !important; }
+        #rot-bar { left: calc(var(--dock-l) + 12px); right: calc(var(--sb) + var(--dock-r) + 12px); }
         #ui-overlay { right: 0; left: auto; border-width: 0 0 0 1px !important; }
         #sidebar-open { right: 12px; left: auto; }
         /* パネルを左に置くとき */
-        body.sidebar-left #main-container { right: 0 !important; left: var(--sb) !important; }
-        body.sidebar-left #rot-bar { left: calc(var(--sb) + 12px); right: 12px; }
+        body.sidebar-left #main-container { right: var(--dock-r) !important; left: calc(var(--sb) + var(--dock-l)) !important; }
+        body.sidebar-left #rot-bar { left: calc(var(--sb) + var(--dock-l) + 12px); right: calc(var(--dock-r) + 12px); }
         body.sidebar-left #ui-overlay { left: 0; right: auto; border-width: 0 1px 0 0 !important; }
         body.sidebar-left #sidebar-open { left: 12px; right: auto; }
         .sb-tab { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 8px; font-size: 11px; color: #94a3b8; border: 1px solid transparent; }
@@ -123,11 +125,20 @@
         /* ポップアップ分離：欄を切り離して浮かせる */
         #float-layer { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
         .float-panel { position: absolute; width: min(330px, 92vw); max-height: 82vh; overflow-y: auto; overflow-x: hidden; pointer-events: auto; border-radius: 12px; box-shadow: 0 12px 44px rgba(0, 0, 0, 0.6); }
-        .float-panel > .sb-sec { margin: 0; background: rgba(4, 8, 22, 0.95); border-color: rgba(129, 140, 248, 0.55); backdrop-filter: blur(8px); }
-        .float-panel .sb-h { cursor: move; }
+        .float-panel > .sb-sec { margin: 0; padding-top: 0; background: rgba(4, 8, 22, 0.95); border-color: rgba(129, 140, 248, 0.55); backdrop-filter: blur(8px); }
+        .float-panel .sb-h { cursor: move; position: sticky; top: 0; z-index: 5; margin: 0 -10px; padding: 9px 10px 7px; background: rgba(7, 11, 26, 0.98); box-shadow: 0 1px 0 rgba(129, 140, 248, 0.3); }
         .sb-floatbtn { margin-left: 6px; flex-shrink: 0; font-size: 10px; font-weight: 400; color: #8aa0c6; cursor: pointer; white-space: nowrap; background: none; border: 0; padding: 0 2px; }
         .sb-floatbtn:hover { color: #e2e8f0; }
         .sb-sec.floating > .sb-h .sb-floatbtn { color: #a5b4fc; }
+        /* 画面端にドッキングした2ペイン用のレール（幅は --dock-l/--dock-r と連動＝描画領域が自動で縮む） */
+        .dock-rail { position: fixed; top: 0; bottom: 0; z-index: 44; width: 0; overflow: hidden; pointer-events: none; display: flex; flex-direction: column; gap: 8px; padding: 0; box-sizing: border-box; background: rgba(2, 5, 16, 0.92); backdrop-filter: blur(8px); }
+        .dock-rail.active { pointer-events: auto; overflow-y: auto; overflow-x: hidden; padding: 8px; }
+        #dock-left { left: 0; width: var(--dock-l); border-right: 1px solid rgba(129, 140, 248, 0.4); }
+        #dock-right { right: 0; width: var(--dock-r); border-left: 1px solid rgba(129, 140, 248, 0.4); }
+        body.sidebar-left:not(.sidebar-hidden) #dock-left { left: var(--sb); }
+        body:not(.sidebar-left):not(.sidebar-hidden) #dock-right { right: var(--sb); }
+        .float-panel.docked { position: static !important; width: 100% !important; max-height: none !important; left: auto !important; top: auto !important; box-shadow: none; flex: 0 0 auto; }
+        #dock-hint { position: fixed; top: 0; bottom: 0; z-index: 46; pointer-events: none; display: none; background: rgba(129, 140, 248, 0.16); border: 2px dashed rgba(129, 140, 248, 0.75); border-radius: 10px; box-sizing: border-box; }
 
         /* ===== iPad・iPhone 向け（レスポンシブ） ===== */
         button, input, label, summary { touch-action: manipulation; }   /* ダブルタップで拡大しない */
@@ -394,6 +405,18 @@
                     <button id="gh-token-save" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[11px] whitespace-nowrap" title="貼り付けた鍵をこのブラウザに保存">鍵を保存</button>
                     <button id="gh-token-clear" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-400 hover:bg-slate-700 text-[11px] whitespace-nowrap" title="このブラウザから鍵を消す">鍵を消す</button>
                     <button id="gh-save-btn" class="px-2.5 py-1 rounded bg-emerald-600/40 border border-emerald-400/50 text-emerald-100 hover:bg-emerald-600/60 text-[11px] font-bold whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed" title="hypercube-shortcuts.csv を GitHub 上で書き換える">GitHub に保存</button>
+                </div>
+            </div>
+            <!-- すべてのデータをまとめて GitHub と同期（ショートカット・点・角度・往復を一度に） -->
+            <div class="mt-3 pt-2.5 border-t border-slate-800/80 text-[11px]">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <span class="font-bold text-indigo-200 flex items-center gap-1"><i data-lucide="database" class="w-3.5 h-3.5"></i>すべてのデータを一括同期</span>
+                    <span id="gh-all-status" class="text-[10px] text-slate-500"></span>
+                </div>
+                <p class="text-[10px] text-slate-500 leading-snug mt-1">ショートカット・点・角度のプリセット・角度の往復・ウィンドウ配置（分離／ドックの位置）を、まとめて GitHub へ書き込み／GitHub から読み込みます（上の鍵を使用。鍵が無くても公開ページからは読込だけできます）。読込でもロックした項目は残り、ウィンドウ配置は再読み込みで反映されます。</p>
+                <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    <button id="gh-all-load" class="px-2.5 py-1 rounded bg-sky-900/40 border border-sky-500/40 text-sky-200 hover:bg-sky-800/40 text-[11px] font-bold whitespace-nowrap flex items-center gap-1" title="ショートカット・点・角度・往復を GitHub からまとめて読み込む"><i data-lucide="cloud-download" class="w-3.5 h-3.5"></i>GitHub から一括読込</button>
+                    <button id="gh-all-save" class="px-2.5 py-1 rounded bg-emerald-600/40 border border-emerald-400/50 text-emerald-100 hover:bg-emerald-600/60 text-[11px] font-bold whitespace-nowrap flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed" title="ショートカット・点・角度・往復を GitHub へまとめて書き込む"><i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i>GitHub へ一括書込</button>
                 </div>
             </div>
         </div>
@@ -4666,7 +4689,9 @@
             document.getElementById('sidebar-open').addEventListener('click', togglePanel);
             // サイドパネルのタブ（折りたたみ／回転／見え方）。最後に開いたタブを覚えておく
             // 分解の欄は「折りたたみ」と「回転」の両方のタブに出す。中身（スライダー・ボタン）は1組だけで、開いたタブの方へ移す
+            let xpFloating = false;   // 分解の欄を分離して浮かせている間は、タブ移動でスロットへ戻さない
             function placeXp(name) {
+                if (xpFloating) return;
                 const body = document.getElementById('xp-body'), slot = document.getElementById(name === 'rot' ? 'xp-rot-slot' : 'xp-fold-slot');
                 if (body && slot && body.parentNode !== slot) slot.appendChild(body);
             }
@@ -4954,6 +4979,7 @@
                 inp.value = '';
                 inp.placeholder = t ? '鍵は保存済み（貼り直すと上書き）' : 'github_pat_… を貼り付け';
                 btn.disabled = !t;
+                const allSave = document.getElementById('gh-all-save'); if (allSave) allSave.disabled = !t;
                 document.getElementById('gh-token-clear').style.display = t ? '' : 'none';
             }
             document.getElementById('gh-token-save').addEventListener('click', () => {
@@ -5873,6 +5899,61 @@
                     const l = angFromCSV(txt); const kept = replaceAngs(l); angSt('GitHub から ' + l.length + '個 読み込みました' + angKept(kept), true);
                 } catch (e) { angSt('失敗: ' + (e && e.message ? e.message : e), false); }
             });
+
+            // ===== すべてのデータを一括で GitHub と同期（ショートカット・点・角度・往復をまとめて） =====
+            //   既存の各CSV保存・読込と同じ仕組み（contents API、鍵はこのブラウザのみ）。鍵が無くても公開ページからは読込だけできる。
+            let ghAllReload = false;   // ウィンドウ配置を読み込んだら、反映に再読み込みが必要
+            const GH_ALL = [
+                { msg: 'ショートカット', file: GH_FILE, toCSV: toCSV, apply: txt => { const fm = parseCSV(txt); keyMap = Object.assign({}, keyMap, fm); saveMap(); renderHint(); if (!document.getElementById('keycfg-overlay').classList.contains('hidden')) renderCfgList(); return Object.keys(fm).length; } },
+                { msg: '点', file: PT_FILE, toCSV: ptToCSV, apply: txt => { const l = ptFromCSV(txt); replacePts(l); return l.length; } },
+                { msg: '角度', file: ANG_FILE, toCSV: angToCSV, apply: txt => { const l = angFromCSV(txt); replaceAngs(l); return l.length; } },
+                { msg: '往復', file: PP_FILE, toCSV: ppToCSV, apply: txt => { const l = ppFromCSV(txt); replacePPs(l); return l.length; } },
+                { msg: 'ウィンドウ配置', file: 'hypercube-layout.json',
+                    toCSV: () => { try { return (localStorage.getItem('hypercubeFloats') || '{}') + '\n'; } catch (_) { return '{}\n'; } },
+                    apply: txt => { let o; try { o = JSON.parse(txt); } catch (_) { throw new Error('JSON が壊れています'); } if (!o || typeof o !== 'object') throw new Error('形式が違います'); try { localStorage.setItem('hypercubeFloats', JSON.stringify(o)); } catch (_) {} ghAllReload = true; return Object.keys(o).length; } },
+            ];
+            const ghAllSt = (msg, ok) => { const el = document.getElementById('gh-all-status'); if (!el) return; el.textContent = msg; el.className = 'text-[10px] ' + (ok === true ? 'text-emerald-300' : ok === false ? 'text-rose-300' : 'text-slate-400'); };
+            async function ghPutFile(file, csv, message) {
+                const api = 'https://api.github.com/repos/' + GH_REPO + '/contents/' + file;
+                let sha = null; const r0 = await fetch(api, { headers: ghHeaders(), cache: 'no-store' });
+                if (r0.status === 200) sha = (await r0.json()).sha; else if (r0.status !== 404) throw new Error(ghExplain(r0));
+                const bytes = new TextEncoder().encode(csv); let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+                const body = { message: message, content: btoa(bin) }; if (sha) body.sha = sha;
+                const r1 = await fetch(api, { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, ghHeaders()), body: JSON.stringify(body) });
+                if (!r1.ok) throw new Error(ghExplain(r1));
+                return await r1.json();
+            }
+            async function ghGetFile(file) {   // 鍵があれば API、無ければ公開ページから。無ければ null
+                if (ghToken()) {
+                    const r = await fetch('https://api.github.com/repos/' + GH_REPO + '/contents/' + file, { headers: ghHeaders(), cache: 'no-store' });
+                    if (r.status === 404) return null; if (!r.ok) throw new Error(ghExplain(r)); return b64ToText((await r.json()).content);
+                }
+                const r = await fetch(file, { cache: 'no-store' }); if (!r.ok) return null; return await r.text();
+            }
+            document.getElementById('gh-all-save').addEventListener('click', async () => {
+                if (!ghToken()) { ghAllSt('先に上の欄で鍵を保存してください', false); return; }
+                const b = document.getElementById('gh-all-save'); b.disabled = true; ghAllSt('一括書込中…');
+                const done = [], fail = [];
+                for (const d of GH_ALL) {
+                    try { await ghPutFile(d.file, d.toCSV(), d.file + ': すべてのデータをアプリから一括保存'); done.push(d.msg); }
+                    catch (e) { fail.push(d.msg + '（' + (e && e.message ? e.message : e) + '）'); }
+                }
+                if (fail.length) ghAllSt('書込 ' + (done.length ? done.join('・') + ' OK' : '') + '／失敗 ' + fail.join('／'), false);
+                else ghAllSt('すべて GitHub へ書き込みました（' + done.join('・') + '）。Pages 反映は1〜2分', true);
+                b.disabled = !ghToken();
+            });
+            document.getElementById('gh-all-load').addEventListener('click', async () => {
+                ghAllSt('一括読込中…'); ghAllReload = false;
+                const done = [], miss = [], fail = [];
+                for (const d of GH_ALL) {
+                    try { const txt = await ghGetFile(d.file); if (txt == null) { miss.push(d.msg); continue; } const n = d.apply(txt); done.push(d.msg + ' ' + n + '件'); }
+                    catch (e) { fail.push(d.msg + '（' + (e && e.message ? e.message : e) + '）'); }
+                }
+                const parts = []; if (done.length) parts.push('読込 ' + done.join('・')); if (miss.length) parts.push('未保存 ' + miss.join('・')); if (fail.length) parts.push('失敗 ' + fail.join('／'));
+                if (ghAllReload) parts.push('ウィンドウ配置は再読み込みで反映されます');
+                ghAllSt(parts.join(' ／ ') || '対象なし', fail.length ? false : true);
+            });
+
             // 入力欄で Enter を押しても再生
             ['anim-xw', 'anim-yw', 'anim-zw'].forEach(id => {
                 document.getElementById(id).addEventListener('keydown', e => {
@@ -6306,22 +6387,70 @@
             // ===== ポップアップ分離：各欄に「分離」ボタン。押すと切り離して浮かせ、ドラッグで移動、「戻す」で元の場所へ。位置と状態はこのブラウザに保存 =====
             (function setupFloatPanels() {
                 const layer = document.createElement('div'); layer.id = 'float-layer'; document.body.appendChild(layer);
+                // 画面左右の端にドッキングするレール（2ペイン）と、ドラッグ中のドロップ先ガイド
+                const railL = document.createElement('div'); railL.id = 'dock-left'; railL.className = 'dock-rail';
+                const railR = document.createElement('div'); railR.id = 'dock-right'; railR.className = 'dock-rail';
+                const hint = document.createElement('div'); hint.id = 'dock-hint';
+                document.body.appendChild(railL); document.body.appendChild(railR); document.body.appendChild(hint);
                 const FKEY = 'hypercubeFloats'; let fstate = {}; try { fstate = JSON.parse(localStorage.getItem(FKEY) || '{}') || {}; } catch (_) {}
                 const saveF = () => { try { localStorage.setItem(FKEY, JSON.stringify(fstate)); } catch (_) {} };
                 const homes = new Map(); let cascade = 0;
+                const SNAP = 52, DOCK_MINW = 820;   // 端から SNAP px 以内で離すとドック。狭い画面では無効
                 const clampX = (x, w) => { const ww = w.offsetWidth || 320; return Math.max(4, Math.min(window.innerWidth - ww - 4, x)); };
                 const clampY = y => Math.max(4, Math.min(window.innerHeight - 42, y));
                 const titleOf = h => [...h.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').replace(/\s+/g, ' ').trim();
-                function makeDrag(sec) {   // 見出しをつかんで浮いているパネルを動かす（浮いているときだけ・ボタンの上では動かさない）
-                    const handle = sec.querySelector(':scope > .sb-h'); let sx, sy, ox, oy, moved = false, dragging = false;
+                const fit = () => { if (typeof onWindowResize === 'function') onWindowResize(); };
+                // レールの中身の有無で、本体の描画領域を広げ／狭める（--dock-l/r がそのまま main-container の余白になる）
+                function refreshDock(side) {
+                    const rail = side === 'left' ? railL : railR;
+                    const has = !!rail.querySelector('.float-panel');
+                    rail.classList.toggle('active', has);
+                    document.body.classList.toggle('dock-' + side + '-on', has);
+                    fit(); requestRender(8);
+                }
+                function dockToEdge(sec, side) {   // 浮いているパネルを端のレールへ入れる
+                    const wrap = sec._fwrap; if (!wrap) return;
+                    wrap.classList.add('docked'); wrap.style.left = ''; wrap.style.top = '';
+                    (side === 'left' ? railL : railR).appendChild(wrap);
+                    sec._dockSide = side; fstate[sec.dataset.fid] = { dock: side }; saveF();
+                    refreshDock(side);
+                }
+                function undockFromRail(sec) {   // レールから引き出して再び浮かせる（位置は今の見た目のまま）
+                    const wrap = sec._fwrap; if (!wrap) return; const side = sec._dockSide;
+                    const r = wrap.getBoundingClientRect();
+                    wrap.classList.remove('docked'); layer.appendChild(wrap);
+                    wrap.style.left = clampX(r.left, wrap) + 'px'; wrap.style.top = clampY(r.top) + 'px';
+                    sec._dockSide = null; if (side) refreshDock(side);
+                }
+                function edgeSide(x) { if (window.innerWidth < DOCK_MINW) return null; if (x <= SNAP) return 'left'; if (x >= window.innerWidth - SNAP) return 'right'; return null; }
+                function showHint(side) {
+                    if (!side) { hint.style.display = 'none'; return; }
+                    const sbHidden = document.body.classList.contains('sidebar-hidden');
+                    const sbLeft = document.body.classList.contains('sidebar-left');
+                    const ov = document.getElementById('ui-overlay');
+                    const sbw = sbHidden ? 0 : (ov ? ov.offsetWidth : 0);
+                    const w = Math.min(340, Math.round(window.innerWidth * 0.32));
+                    hint.style.width = w + 'px'; hint.style.display = 'block';
+                    if (side === 'left') { hint.style.right = ''; hint.style.left = (sbLeft ? sbw : 0) + 'px'; }
+                    else { hint.style.left = ''; hint.style.right = (!sbLeft ? sbw : 0) + 'px'; }
+                }
+                function makeDrag(sec) {   // 見出しをつかんで動かす。端に寄せるとドック、ドックから引き出すと再び浮く
+                    const handle = sec.querySelector(':scope > .sb-h'); let sx, sy, ox, oy, cx, cy, moved = false, dragging = false;
                     handle.addEventListener('pointerdown', e => {
                         moved = false;   // 新しい操作のたびにリセット（前のドラッグの判定を引きずらない）
                         if (!sec.classList.contains('floating') || e.target.closest('button, input, select, label, a')) return;
+                        if (sec._dockSide) undockFromRail(sec);   // ドック済みなら引き出してから動かす
                         const wrap = sec._fwrap; if (!wrap) return;
-                        dragging = true; sx = e.clientX; sy = e.clientY; ox = parseInt(wrap.style.left) || 0; oy = parseInt(wrap.style.top) || 0;
+                        dragging = true; sx = cx = e.clientX; sy = cy = e.clientY; ox = parseInt(wrap.style.left) || 0; oy = parseInt(wrap.style.top) || 0;
                         // window で move/up を拾う（pointerCapture は使わない＝取りこぼしで固まらない。cancel でも必ず終わる）
-                        const mv = ev => { if (!dragging) return; const dx = ev.clientX - sx, dy = ev.clientY - sy; if (Math.abs(dx) + Math.abs(dy) > 3) moved = true; wrap.style.left = clampX(ox + dx, wrap) + 'px'; wrap.style.top = clampY(oy + dy) + 'px'; };
-                        const end = () => { dragging = false; window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end); if (moved) { fstate[sec.dataset.fid] = { x: parseInt(wrap.style.left), y: parseInt(wrap.style.top) }; saveF(); } };
+                        const mv = ev => { if (!dragging) return; cx = ev.clientX; cy = ev.clientY; const dx = cx - sx, dy = cy - sy; if (Math.abs(dx) + Math.abs(dy) > 3) moved = true; wrap.style.left = clampX(ox + dx, wrap) + 'px'; wrap.style.top = clampY(oy + dy) + 'px'; showHint(moved ? edgeSide(cx) : null); };
+                        const end = () => {
+                            dragging = false; window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end); showHint(null);
+                            if (!moved) return;
+                            const side = edgeSide(cx);
+                            if (side) dockToEdge(sec, side);
+                            else { fstate[sec.dataset.fid] = { x: parseInt(wrap.style.left), y: parseInt(wrap.style.top) }; saveF(); }
+                        };
                         window.addEventListener('pointermove', mv); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
                         e.preventDefault();
                     });
@@ -6335,16 +6464,18 @@
                     sec.classList.add('floating'); sec._fwrap = wrap; sec._fbtn.textContent = '⇲ 戻す';
                     const fid = sec.dataset.fid;
                     let p = pos || fstate[fid];
-                    if (!p) { p = { x: Math.round(window.innerWidth * 0.42) + (cascade % 3) * 22, y: 70 + (cascade % 6) * 28 }; cascade++; }
+                    if (!p || p.dock) { p = { x: Math.round(window.innerWidth * 0.42) + (cascade % 3) * 22, y: 70 + (cascade % 6) * 28 }; cascade++; }
                     wrap.style.left = clampX(p.x, wrap) + 'px'; wrap.style.top = clampY(p.y) + 'px';
                     fstate[fid] = { x: parseInt(wrap.style.left), y: parseInt(wrap.style.top) }; saveF();
                     requestRender(5);
                 }
-                function dockSec(sec) {
+                function dockSec(sec) {   // 「戻す」＝元の場所へ（浮き・ドックどちらからでも）
                     const home = homes.get(sec); if (!home) return;
+                    const side = sec._dockSide; sec._dockSide = null;
                     sec.classList.remove('floating'); sec._fbtn.textContent = '⇱ 分離';
                     home.parent.insertBefore(sec, home.next); if (sec._fwrap) sec._fwrap.remove(); sec._fwrap = null; homes.delete(sec);
-                    delete fstate[sec.dataset.fid]; saveF(); requestRender(5);
+                    delete fstate[sec.dataset.fid]; saveF();
+                    if (side) refreshDock(side); else requestRender(5);
                 }
                 // 各タブの各欄にボタンを付ける（共有の「分解」欄は特殊なので除く）
                 document.querySelectorAll('.sb-panel').forEach(panel => {
@@ -6359,8 +6490,70 @@
                         h.appendChild(btn); sec._fbtn = btn; makeDrag(sec);
                     });
                 });
-                // 保存されていた分離を復元
-                Object.keys(fstate).forEach(fid => { const sec = [...document.querySelectorAll('.sb-sec[data-fid]')].find(s => s.dataset.fid === fid); if (sec) floatSec(sec, fstate[fid]); });
+                // 「分解」欄は中身(#xp-body)が placeXp で2タブ間を移動する特殊欄。専用に分離・ドックできるようにする。
+                (function setupXpFloat() {
+                    const xpBody = document.getElementById('xp-body');
+                    const foldSlot = document.getElementById('xp-fold-slot');
+                    const foldSec = foldSlot ? foldSlot.closest('section.sb-sec') : null;
+                    const rotSec = document.getElementById('xp-rot-sec');
+                    if (!xpBody) return;
+                    let xpWrap = null, xpSec = null;
+                    const curTab = () => { const a = document.querySelector('.sb-tab.active'); return a && a.getAttribute('data-tab') === 'rot' ? 'rot' : 'fold'; };
+                    function updateXpBtns() { [foldSec, rotSec].forEach(s => { if (s && s._xpbtn) s._xpbtn.textContent = xpFloating ? '⇲ 戻す' : '⇱ 分離'; }); }
+                    function buildXpSec() {
+                        const sec = document.createElement('section'); sec.className = 'sb-sec'; sec.dataset.fid = '分解';
+                        const h = document.createElement('h3'); h.className = 'sb-h';
+                        const label = document.createElement('span'); label.textContent = '分解（どんな形でできているか）';
+                        h.appendChild(label);
+                        const back = document.createElement('button'); back.type = 'button'; back.className = 'sb-floatbtn'; back.textContent = '⇲ 戻す'; back.title = '元の場所へ戻す';
+                        back.addEventListener('click', e => { e.stopPropagation(); homeXp(); });
+                        h.appendChild(back); sec.appendChild(h);
+                        sec._fbtn = back; sec._dockSide = null; makeDrag(sec);
+                        return sec;
+                    }
+                    function floatXp(pos) {
+                        if (xpFloating) return;
+                        if (!xpSec) xpSec = buildXpSec();
+                        xpFloating = true;
+                        xpWrap = document.createElement('div'); xpWrap.className = 'float-panel';
+                        xpSec.classList.add('floating'); xpSec.appendChild(xpBody); xpWrap.appendChild(xpSec); layer.appendChild(xpWrap);
+                        xpSec._fwrap = xpWrap; xpSec._dockSide = null;
+                        let p = pos || fstate['分解'];
+                        if (!p || p.dock) { p = { x: Math.round(window.innerWidth * 0.42) + (cascade % 3) * 22, y: 70 + (cascade % 6) * 28 }; cascade++; }
+                        xpWrap.style.left = clampX(p.x, xpWrap) + 'px'; xpWrap.style.top = clampY(p.y) + 'px';
+                        fstate['分解'] = { x: parseInt(xpWrap.style.left), y: parseInt(xpWrap.style.top) }; saveF();
+                        updateXpBtns(); requestRender(5);
+                    }
+                    function homeXp() {
+                        if (!xpFloating) return;
+                        const side = xpSec ? xpSec._dockSide : null;
+                        xpFloating = false;
+                        // 先に xp-body を現タブのスロットへ繋ぎ直す（wrap を外すと getElementById で拾えなくなるので placeXp に頼らない）
+                        const slot = document.getElementById(curTab() === 'rot' ? 'xp-rot-slot' : 'xp-fold-slot');
+                        if (slot && xpBody) slot.appendChild(xpBody);
+                        if (xpSec) { xpSec._dockSide = null; xpSec.classList.remove('floating'); xpSec._fwrap = null; }
+                        if (xpWrap) { xpWrap.remove(); xpWrap = null; }
+                        delete fstate['分解']; saveF();
+                        if (side) refreshDock(side); else requestRender(5);
+                        updateXpBtns();
+                    }
+                    function addBtn(sec) {
+                        if (!sec) return; const h = sec.querySelector(':scope > .sb-h'); if (!h) return;
+                        const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'sb-floatbtn';
+                        btn.textContent = '⇱ 分離'; btn.title = 'この欄を切り離して浮かせる（「戻す」で元の場所へ・端にドックで2ペイン）';
+                        btn.addEventListener('click', e => { e.stopPropagation(); if (xpFloating) homeXp(); else floatXp(); });
+                        h.appendChild(btn); sec._xpbtn = btn;
+                    }
+                    addBtn(foldSec); addBtn(rotSec);
+                    if (fstate['分解']) { const st = fstate['分解']; floatXp(st); if (st.dock && window.innerWidth >= DOCK_MINW) dockToEdge(xpSec, st.dock); }
+                })();
+                // 保存されていた分離・ドックを復元（分解は上で処理済みなので除く）
+                Object.keys(fstate).forEach(fid => {
+                    if (fid === '分解') return;
+                    const sec = [...document.querySelectorAll('.sb-sec[data-fid]')].find(s => s.dataset.fid === fid); if (!sec) return;
+                    const st = fstate[fid]; floatSec(sec, st);
+                    if (st && st.dock && window.innerWidth >= DOCK_MINW) dockToEdge(sec, st.dock);
+                });
             })();
 
             // ===== 5次元モード（β）の切替と、5次元だけの4面の操作 =====
