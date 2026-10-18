@@ -6854,8 +6854,8 @@
                 sl.addEventListener('keydown', e => e.stopPropagation());   // ショートカットのキーと取り合わない
                 sync();
             })();
-            (function setupExplToggles() {   // パネルの説明文（小さい灰色の文）を「📖 [説明]」で開閉。中身がプログラムで変わる行（id 付き）は対象外
-                const root = document.getElementById('ui-overlay'); if (!root) return;
+            (function setupExplToggles() {   // 説明文を「[説明]」で開閉（パネル・キー設定・表示設定）。中身がプログラムで変わる行（id 付き）と一覧の中身は対象外
+                const ROOTS = ['ui-overlay', 'keycfg-overlay', 'viewcfg-overlay'].map(id => document.getElementById(id)).filter(Boolean); if (!ROOTS.length) return;
                 // 本のアイコン（フラットデザイン）：開いた本。左右のページを2色、まん中に綴じ目、ページに行
                 const BOOK_ICON = '<svg class="expl-ic" width="15" height="11" viewBox="0 0 16 12" aria-hidden="true">'
                     + '<path d="M8 2.2C6.2 1 3.8 .6 1 .9v9.4c2.8-.3 5.2.1 7 1.3z" fill="#a5b4fc"/>'
@@ -6863,8 +6863,23 @@
                     + '<path d="M8 2.2v9.4" stroke="#312e81" stroke-width=".9"/>'
                     + '<path d="M3 3.6h3.2M3 5.4h3.2M3 7.2h3.2M9.8 3.6h3.2M9.8 5.4h3.2M9.8 7.2h3.2" stroke="#eef2ff" stroke-width=".75" stroke-linecap="round"/>'
                     + '</svg>';
-                [...root.querySelectorAll('p, div')].filter(el => !el.id && /text-\[10px\]/.test(el.className) && /leading-snug/.test(el.className) && el.textContent.trim().length >= 20).forEach(el => {
+                const INTER = 'button, input, select, textarea, label, a, canvas, svg, img, kbd';
+                const txtOf = el => el.textContent.replace(/\s+/g, ' ').trim();
+                const isExpl = el => {
+                    const EXPL_IDS = ['drag5-note'];   // id 付きでも中身の文を書き換えるだけの説明（クラスは触らない）はたたむ
+                    if (el.id && !EXPL_IDS.includes(el.id)) return false;                               // 状態表示（中身がプログラムで変わる）
+                    if (EXPL_IDS.includes(el.id)) return true;
+                    if (el.closest('[id$="-list"], [id$="-slots"], button, label, a, kbd')) return false;   // 一覧の中身（作り直される）・ボタンの中
+                    if (el.querySelector(INTER)) return false;                                          // 操作部品を含む＝説明だけの文ではない
+                    if (txtOf(el).length < 25) return false;
+                    if (!/text-\[(10|11)px\]|text-xs|text-slate-(300|400|500)/.test(String(el.className))) return false;
+                    if (el.tagName === 'SPAN' && !el.parentElement.querySelector(INTER)) return false;    // 文の中の span は親の文ごとたたむ
+                    return true;
+                };
+                const found = []; ROOTS.forEach(r => r.querySelectorAll('p, div, span').forEach(el => { if (isExpl(el)) found.push(el); }));
+                found.filter(el => !found.some(o => o !== el && o.contains(el))).forEach(el => {   // いちばん外側のまとまりだけ
                     const b = document.createElement('button'); b.type = 'button'; b.className = 'expl-tg'; b.title = 'クリックで説明を開く／閉じる';
+                    ['d5-only', 'd4-only'].forEach(c => { if (el.classList.contains(c)) { b.classList.add(c); if (el.classList.contains('hidden')) b.classList.add('hidden'); } });
                     b.innerHTML = BOOK_ICON + '<span class="expl-lb"></span>';
                     const lb = b.querySelector('.expl-lb');
                     const set = open => { el.classList.toggle('expl-closed', !open); lb.textContent = '[説明] ' + (open ? '▴' : '▾'); };
