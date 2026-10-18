@@ -729,6 +729,7 @@
                     <div id="pp-ease" class="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-slate-800">
                         <button data-ease="turn" class="px-2 py-0.5 rounded-md transition" title="ほぼ一定の速さで進み、端の近くでだけ短くなめらかに折り返す（ターンの長さはスライダーで）">なめらかターン</button>
                         <button data-ease="sine" class="px-2 py-0.5 rounded-md transition" title="振り子のように行き来する（速さが sin のカーブ）。緩やかさのスライダーで、端での止まり方をもっとふわっとできる">単振動</button>
+                        <button data-ease="cradle" class="px-2 py-0.5 rounded-md transition" title="ゆりかご：端で速さも加速度も0になって、まるく向きが変わる（カクっとしない）。中央はしっかり速い（平均の2倍）＝ゆっくりでも躍動感が残る">ゆりかご</button>
                         <button data-ease="bounce" class="px-2 py-0.5 rounded-md transition" title="ボールのように端へ落ちていき、ぶつかってポンポンと弾んで止まる">バウンド</button>
                         <button data-ease="spring" class="px-2 py-0.5 rounded-md transition" title="減衰しながら揺れるばね：少し行き過ぎてから戻って落ち着き、折り返しも速さが途切れずつながる（弾みはスライダーで）">ばね</button>
                     </div>
@@ -1196,6 +1197,7 @@
         const PP_EASES = {
             turn: u => { const k = ppTurnK(); return 0.5 - Math.asin(k * Math.cos(Math.PI * u)) / (2 * Math.asin(k)); },
             sine: u => { const a = (1 - Math.cos(Math.PI * u)) / 2, b = u - Math.sin(2 * Math.PI * u) / (2 * Math.PI); return a + (b - a) * (1 - ppSineS); },   // 単振動（緩やかさで混ぜる）
+            cradle: u => u - Math.sin(2 * Math.PI * u) / (2 * Math.PI),      // ゆりかご：端で速さも加速度も0＝まるく反転（カクっとしない）。中央の速さは平均の2倍でしっかり速い
             bounce: u => {                                                   // バウンド：端に落ちてぶつかり、3回弾んで止まる
                 const n1 = 7.5625, d1 = 2.75;
                 if (u < 1 / d1) return n1 * u * u;
