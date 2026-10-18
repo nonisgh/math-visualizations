@@ -6,7 +6,7 @@ tab_rot,タブ：回転,Shift+2
 tab_view,タブ：見え方,Shift+3
 tab_pts,タブ：点,Shift+4
 tab_next,タブ：次へ（順に切り替え）,N
-allSpins,W ON/OFF（X-W・Y-W・Z-W）,Enter
+allSpins,W ON/OFF（X-W・Y-W・Z-W。5次元では V＝X-V・Y-V・Z-V・W-V）,Enter
 fold,組み上げる,F
 unfold,展開する,U
 foldToggle,組立⇔展開 トグル,C
@@ -46,14 +46,16 @@ spin_zw,オート回転 Z-W,6
 spin_xy,オート回転 X-Y,7
 spin_xz,オート回転 X-Z（超立方体）,8
 spin_yz,オート回転 Y-Z（超立方体）,9
-spin_w2,W(X、Y) ON/OFF（X-W・Y-W）,Shift+Enter
+spin_w2,W(X、Y) ON/OFF（X-W・Y-W。5次元では V(X、Y、Z)＝X-V・Y-V・Z-V）,Shift+Enter
 spin_3d,3D ON/OFF（X-Y・X-Z・Y-Z）,D
-spin_6,全て ON/OFF（6面すべて）,Shift+A
+spin_6,全て ON/OFF（6面すべて。5次元では10面）,Shift+A
 sideSwap,パネルの左右 切替,B
 viewSwap,立方体と超立方体の左右 入替,Shift+B
 zwVizAll,Z-W のときの立方体の表現 全部オン・オフ,Q
 left3d,立方体の3D回転 切替（X-Yだけ⇔全部）,Shift+D
 dim5,5次元β 切替（立方体×超立方体 ⇔ 超立方体×5次元超立方体）,Shift+5
-spin_p5,オート回転 5次元だけの4面（5次元β）,Shift+6
+spin_p5,5次元だけの4面 ON/OFF（X-W・Y-W・Z-W・W-V。5次元β）,Shift+6
+spin_4d,4D ON/OFF（X-Y・X-Z・Y-Z＋5次元だけの X-W・Y-W・Z-W。5次元β）,Shift+7
+spin_w5,W ON/OFF（5次元だけの X-W・Y-W・Z-W。5次元β）,Shift+8
 explode,分解（バラす⇔くっつける）,Shift+E
 count,分解して1個ずつ数える,Shift+C
