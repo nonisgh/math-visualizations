@@ -2629,9 +2629,13 @@
                 paintEdgeHi(cell, ci, cellObjects5D.length - 1, wc, EN[0], EH_MID5, EH_ARM5);   // 手前・中（±W）・腕・奥の超立方体の辺を色で強調
                 { const fe = cellFocus(5, ci).edge; if (fe !== 1) for (let k = 0; k < wc.length; k++) wc[k] *= fe; }
                 for (let e = 0, k = 0; e < T5_EDGES.length; e++) {   // 奥の線ほど薄く（深度フェード）＝手前の線が立って奥行きの手がかりになる
-                    const n0 = 0.5 + 0.5 * nestOf(ci, T5_EDGES[e][0]), n1 = 0.5 + 0.5 * nestOf(ci, T5_EDGES[e][1]);   // 入れ子の深さ（w）：内側ほど暗く＝入れ子が3Dに読める
-                    const f0 = (1 - 0.58 * sm((cd[T5_EDGES[e][0]] - dMin) / span)) * n0, f1 = (1 - 0.58 * sm((cd[T5_EDGES[e][1]] - dMin) / span)) * n1;
-                    wc[k++] *= f0; wc[k++] *= f0; wc[k++] *= f0; wc[k++] *= f1; wc[k++] *= f1; wc[k++] *= f1;
+                    // 奥の線は黒へ落とさず「薄いグレー」へ寄せる（暗い背景に溶けない）。入れ子の深さ（w）は内側ほど少し暗く＝3Dに読める
+                    const WG = 0.44;   // 奥の線の色（薄いグレー）
+                    const t0 = sm((cd[T5_EDGES[e][0]] - dMin) / span), t1 = sm((cd[T5_EDGES[e][1]] - dMin) / span);
+                    const n0 = 0.68 + 0.32 * nestOf(ci, T5_EDGES[e][0]), n1 = 0.68 + 0.32 * nestOf(ci, T5_EDGES[e][1]);
+                    const g0 = 0.8 * t0, g1 = 0.8 * t1;   // 奥へ行くほどグレーの割合を増やす
+                    for (let c = 0; c < 3; c++, k++) wc[k] = (wc[k] * (1 - g0) + WG * g0) * n0;
+                    for (let c = 0; c < 3; c++, k++) wc[k] = (wc[k] * (1 - g1) + WG * g1) * n1;
                 }
                 cell.wireGeo.attributes.position.needsUpdate = true; cell.wireGeo.attributes.color.needsUpdate = true;
                 if (rhombi.t > 0 || cell._rhDim) { cell.wire.material.opacity = 0.9 * (1 - rhombi.t); cell._rhDim = rhombi.t > 0; }   // 菱形二十面体へ：線を消す
@@ -2650,7 +2654,7 @@
                     }
                     quads5.sort((a, b) => b[2] - a[2]);   // 遠い面を先に描く
                     const mpos = mergedFaces5D.geometry.attributes.position.array, mcol = mergedFaces5D.geometry.attributes.color.array;
-                    const seeThru5 = 0.6 + 0.4 * progress;   // 展開図ほど面を薄く＝各4次元体の中（入れ子の超立方体）が透けて見える。組み上がりは従来どおり
+                    const seeThru5 = 0.75 + 0.25 * progress;   // 展開図でも面は濃いめ（中の入れ子は陰影で読む）＝各4次元体の中（入れ子の超立方体）が透けて見える。組み上がりは従来どおり
                     const aOf = ci => { const cdM = dist[ci].reduce((s, d) => s + d, 0) / dist[ci].length, df = 1 - 0.62 * sm((cdM - dMin) / span); return Math.min(0.97, seeThru5 * op * cellFocus(5, ci).face * (!edgeHi.on ? 1 : EH_MID5.includes(ci) ? edgeHi.faceMid : EH_ARM5.includes(ci) ? edgeHi.faceArm : 1) * df) * (1 - rhombi.t) * (xpVisible(5, ci) ? 1 : 0); };
                     const aFac = cellObjects5D.map((_, ci) => aOf(ci));
                     let mp = 0, mc = 0;
