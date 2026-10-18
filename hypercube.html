@@ -4772,11 +4772,10 @@
             });
 
             // --- キーボードショートカット ---
-            // Space: 表示を「どっちも」⇄「超立方体のみ」でトグル
-            // X    : 操作パネルを隠す／出す（隠すと空いた領域に立体を大きく表示）
+            // 表示トグル（既定 1 キー）：どっちも → 右上ミニ（大きい方＋右上に小さい方）→ 大きい方だけ → どっちも
+            //   ボタンの文字は syncToggleLabels（キーを押したあとに走る）が「次はこうなる」にそろえる
             function toggleBothMode() {
-                displayMode = (displayMode === 'both') ? 'hypercube' : 'both';
-                displayText.innerText = (displayMode === 'both') ? "表示: どっちも" : "表示: 超立方体のみ";
+                displayMode = displayMode === 'both' ? 'hypercube_pip' : displayMode === 'hypercube_pip' ? 'hypercube' : 'both';
                 updateLayout();
                 updateMorphingGeometry(animationProgress);
             }
@@ -4896,7 +4895,7 @@
 
             // --- ショートカット：アクション登録表（label=設定画面の表示名, short=ヒント用の短縮名, def=既定キー） ---
             const SHORTCUT_ACTIONS = [
-                { id: 'both', label: '表示トグル（どっちも⇔超立方体のみ）', short: '表示トグル', def: '1', run: toggleBothMode },
+                { id: 'both', label: '表示トグル（どっちも→右上ミニ→大きい方だけ）', short: '表示トグル', def: '1', run: toggleBothMode },
                 { id: 'panel', label: '操作パネル 表示/非表示', short: '操作パネル', def: 'Space', run: togglePanel },
                 { id: 'tab_fold', label: 'タブ：折りたたみ', short: '折りたたみタブ', def: 'Shift+1', run: () => goTab('fold') },
                 { id: 'tab_rot', label: 'タブ：回転', short: '回転タブ', def: 'Shift+2', run: () => goTab('rot') },
