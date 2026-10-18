@@ -2547,7 +2547,7 @@
                 const wg = new THREE.BufferGeometry();
                 wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(T5_EDGES.length * 6), 3));
                 const wc = new Float32Array(T5_EDGES.length * 6); wc.fill(1); wg.setAttribute('color', new THREE.BufferAttribute(wc, 3));
-                const wire = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ transparent: true, opacity: 0.9, vertexColors: true }));
+                const wire = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ transparent: true, opacity: 0.9, vertexColors: true, depthWrite: false }));   // 線が奥行きを書くと後ろの面が深度テストで捨てられ、真正面で色が合成されない→書かない
                 mesh.add(wire); root.add(mesh);
                 cellObjects5D.push({ geometry: g, wireGeo: wg, wire, material: m });
             });
