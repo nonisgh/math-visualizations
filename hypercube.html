@@ -227,6 +227,9 @@
         .vm-row > button { padding: 2px 8px; border-radius: 8px; border: 1px solid #334155; background: rgba(30, 41, 59, 0.8); color: #cbd5e1; }
         .vm-row > button:hover, .vm-seg button:hover { background: #334155; }
         .vm-row > button.on { background: rgba(217, 119, 6, 0.35); border-color: rgba(251, 191, 36, 0.7); color: #fef3c7; }
+        /* 角度の往復：いま向かっている停留点の行を、蛍光緑の枠で点滅させる（「ここへ向かっているよ」） */
+        @keyframes ppNextBlink { 0%, 49% { border-color: #39ff14; box-shadow: 0 0 6px #39ff14aa, inset 0 0 6px #39ff1433; } 50%, 100% { border-color: #39ff1455; box-shadow: none; } }
+        #pp-slots .pp-next { border-color: #39ff14 !important; animation: ppNextBlink 0.9s step-end infinite; }
 
         /* 分解：番号ラベルと「数える」の札（各画面の上に重ねる） */
         .xp-layer { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
@@ -687,11 +690,25 @@
                 <p class="text-[10px] text-slate-500 leading-snug">A と B（さらに C・D。最大4つ）の角度を決めて、その間をアニメで行ったり来たりします。「ぐるっと」にすると A→B→C→D→A… と一方向に回ります。「胞→面→辺→頂点」で4つの見方を A〜D に入れると、形が変わっていくローテーションになります。動き方は「なめらかターン」（ほぼ一定の速さで進み、端でなめらかに折り返す）・「単振動」（振り子のように、速さが sin のカーブ）・「バウンド」（端で弾む）・「ばね」（減衰しながら揺れるばね。少し行き過ぎて戻り、折り返しもなめらか）から選べます。「▶ A→B」は片道を1回だけ再生し、押すたびに A→B と B→A が入れ替わります。<b class="text-slate-300">再生中はドラッグで視点（カメラ）を回せる</b>ので、回っている図形を外から眺められます（「視点を正面へ」で戻す）。スライダー・プリセット・リセット・スピンで止まります。</p>
                 <div id="pp-slots" class="space-y-1 text-[11px]"></div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
-                    <label class="flex items-center gap-1 text-slate-400">片道<input id="pp-sec" type="number" min="0.5" max="60" step="0.5" value="3" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 font-mono text-right">秒</label>
+                    <label class="flex items-center gap-1 text-slate-400">1区間<input id="pp-sec" type="number" min="0.1" max="60" step="0.1" value="3" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-100 font-mono text-right">秒</label>
                     <button id="pp-swap" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="A〜D の並びを逆にする（A⇄B 入替。4つなら D→C→B→A の順に）">並びを逆に</button>
                     <button id="pp-opposite" class="px-2 py-1 rounded bg-slate-800 border border-cyan-600/60 text-cyan-200 hover:bg-slate-700" title="B に A の正反対（全く裏返し：4次元で全部の向きを反対にした角度）を入れる。X-W−180°、180°−Y-W、Z-W−180°、3D はそのまま。5次元モードでは、5次元だけの4面の角度の符号も反対にする（5次元には全部の向きを反対にする回転が無いので、x・y・z・v を反対にして w だけそのまま＝ピンクとエメラルドが入れ替わる）">B ← A の裏返し</button>
                     <button id="pp-cfev" class="px-2 py-1 rounded bg-slate-800 border border-amber-500/50 text-amber-200 hover:bg-slate-700" title="A〜D に、超立方体の4つの見方（胞から・面から・辺から・頂点から）を入れる。往復なら 胞→面→辺→頂点→辺→面→胞…、ぐるっとなら 胞→面→辺→頂点→胞… と形が変わっていく">胞→面→辺→頂点</button>
                     <button id="pp-mode" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="動く順番：往復（A→B→C→D→C→B→A…）か、ぐるっと（A→B→C→D→A…）。A と B だけなら同じ">→ ぐるっと回る</button>
+                </div>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <span class="text-[10px] text-slate-400 shrink-0">頂点だけ入れ替わる一周</span>
+                    <div id="pp-sym-planes" class="flex items-center gap-1 flex-wrap" title="90°ずつ回す面。いくつでも選べる（選んだ面が同時に 90° ずつ回る）。X-W はどんな角度からでも形が変わらない。ほかの面は、それより前の面（X-W → Y-W → Z-W → X-Y → X-Z → Y-Z の順）のうち軸を共有するものが 0°・90°・180°・270° のときだけ形が変わらない"></div>
+                    <button id="pp-sym-w3" class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-300 hover:bg-slate-700" title="X-W・Y-W・Z-W の3面を選ぶ">W の3面</button>
+                    <button id="pp-sym-3d" class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-300 hover:bg-slate-700" title="X-Y・X-Z・Y-Z の3面を選ぶ">3D の3面</button>
+                    <button id="pp-sym" class="px-2 py-1 rounded bg-slate-800 border border-violet-500/50 text-violet-200 hover:bg-slate-700" title="今の角度を A にして、選んだ面（いくつでも。同時に回る）を 90°・180°・270° 回した角度を B・C・D に入れる。4つとも形は同じで、頂点（と胞）だけが入れ替わる。動き方は「ぐるっと」にして、同じ向きに一周する">→ 0°・90°・180°・270° を A〜D に</button>
+                </div>
+                <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
+                    <span class="text-[10px] text-slate-400 shrink-0">ツアー（停留点は最大16）</span>
+                    <button id="pp-tour-v16" class="px-2 py-1 rounded bg-slate-800 border border-amber-500/50 text-amber-200 hover:bg-slate-700" title="16個の頂点を順にめぐる。各停留点は「頂点から」の向き（頂点が手前の真ん中に来る）で、となりの頂点へ移る順（グレイコード）に並ぶ。形は同じで、手前の頂点だけが入れ替わる">16頂点ツアー</button>
+                    <button id="pp-tour-c8" class="px-2 py-1 rounded bg-slate-800 border border-amber-500/50 text-amber-200 hover:bg-slate-700" title="8個の胞を順に手前へ。各停留点は「胞から」の向き（その胞が手前＝遠近では外側の大きい立方体）。+w・+x・+y・+z・−w・−x・−y・−z の順">8つの胞ツアー</button>
+                    <button id="pp-tour-back" class="px-2 py-1 rounded bg-slate-800 border border-amber-500/50 text-amber-200 hover:bg-slate-700" title="胞→面→辺→頂点 のあと、裏返し（−1,−1,−1,−1 が手前の側）の 頂点→辺→面→胞 を通って一周する8つ">胞→面→辺→頂点→裏側（8つ）</button>
+                    <button id="pp-marks-clear" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="再生で手前に来た頂点に、通った順の番号を付けた印（橙）が残る。これを全部消す">→ 通過した印を消す</button>
                 </div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-slate-400">動き方</span>
@@ -707,7 +724,7 @@
                     <input id="pp-sine" type="range" min="0" max="1" step="0.01" class="flex-1 min-w-0 accent-fuchsia-400">
                     <span class="shrink-0 text-slate-500">単振動</span>
                 </label>
-                <label id="pp-spring-row" class="flex items-center gap-1.5 text-[10px] text-slate-400" title="ばねの弾み。左ほど行き過ぎが小さく落ち着いた動き、右ほど大きく弾む">
+                <label id="pp-spring-row" class="flex items-center gap-1.5 text-[10px] text-slate-400" title="ばねの弾み。左ほど行き過ぎが小さく落ち着いた動き、右ほど大きく弾む 区間が3秒より短いときは、短いほど減衰を弱めて、びょん！が同じくらい感じられるようにしています">
                     <span class="shrink-0">弾み</span><span class="shrink-0 text-slate-500">小さく</span>
                     <input id="pp-spring" type="range" min="0" max="1" step="0.01" class="flex-1 min-w-0 accent-fuchsia-400">
                     <span class="shrink-0 text-slate-500">大きく</span>
@@ -785,7 +802,7 @@
                 <button data-proj="vertex" class="proj-btn px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-200 transition" title="視線 (1,1,1,1)/2。X-W=45°・Y-W=35.26°・Z-W=30°。4軸が対等＝等角図。外殻は菱形十二面体（距離2に6頂点＋距離√3に8頂点）になり、対角の2頂点は中心に重なる">頂点から（等角図）</button>
                 <button id="cycle-btn" class="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" title="胞→面→辺→頂点 を自動で滑らかに周回する"><i data-lucide="rotate-cw" class="w-3 h-3"></i><span>周回</span></button>
                 <label class="flex items-center gap-1 text-slate-400 shrink-0" title="一周にかける秒数">
-                    <input id="cycle-sec" type="number" min="2" max="120" step="1" value="12" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-amber-200 text-[11px]">秒/周
+                    <input id="cycle-sec" type="number" min="2" max="120" step="0.1" value="12" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-amber-200 text-[11px]">秒/周
                 </label>
                 <span id="proj-note" class="text-[10px] text-slate-400"></span>
             </div>
@@ -1163,7 +1180,7 @@
         const angles6 = () => [linkAngleX, linkAngleY, soloAngleZW, rotXY, rotXZ, rotYZ, p5XW, p5YW, p5ZW, p5WV];   // 10面（あとの4つは5次元だけ）
         function setAngles6(v) { linkAngleX = v[0]; linkAngleY = v[1]; soloAngleZW = v[2]; rotXY = v[3]; rotXZ = v[4]; rotYZ = v[5]; if (v.length > 6) setP5(v.slice(6)); }
         // stops＝停留点の列（度の {a,b,c,xy,xz,yz,…} を2〜4つ）。mode＝'pingpong'（A→B→C→D→C→B→A…）か 'cycle'（A→B→C→D→A…）。once＝最初の区間1回だけで止まる
-        function startPingPong(stops, legSec, once = false, mode = 'pingpong') {
+        function startPingPong(stops, legSec, once = false, mode = 'pingpong', labels = null) {   // labels＝停留点の名前（A〜P。一覧で今の場所を囲むため）
             stopCycle();
             linkSpin = false; soloSpinZW = false; spinX = false; spinY = false; spinXY = false; spinXZ = false; spinYZ = false; spin5XW = spin5YW = spin5ZW = spin5WV = false; updateSpinBtns();
             const ssb = document.getElementById('solo-spin-btn'); if (ssb) ssb.classList.remove('bg-rose-600/40', 'border-rose-400', 'text-rose-200');
@@ -1177,8 +1194,8 @@
             for (let i = 0; i < n; i++) seq.push(i);
             if (!(mode === 'cycle' && n > 2)) for (let i = n - 2; i >= 1; i--) seq.push(i);   // 往復：端で折り返す（2つなら A→B→A）
             pingPong = {
-                from: cur, A: a.map((v, i) => cur[i] + wrapPi(v - cur[i])), pts, seq, mode,
-                legSec: Math.max(0.3, legSec || 3), t: 0, intro: atStart ? 0 : 0.8, pj0, pj1: (!cubePersp && turned) ? 1 : 0, off0: xyManualOff, once
+                from: cur, A: a.map((v, i) => cur[i] + wrapPi(v - cur[i])), pts, seq, mode, labels,
+                legSec: Math.max(0.1, legSec || 3), t: 0, intro: atStart ? 0 : 0.8, pj0, pj1: (!cubePersp && turned) ? 1 : 0, off0: xyManualOff, once
             };
             projAnim = pj0;
             setObserverCam(true);   // 再生中は、ドラッグで見ている人のカメラ（視点）を回せる
@@ -1251,12 +1268,14 @@
                 const place = (k, f) => { const [p0, p1] = leg(k); setAngles6(p0.map((v, i) => wrapPi(v + wrapPi(p1[i] - v) * f))); };
                 const endAt = k => { const [, p1] = leg(k); setAngles6(p1.map(wrapPi)); };
                 if (ppEase === 'spring') {   // ばね：前の区間の終わりの位置と速さから続ける
-                    const zeta = 0.85 - 0.55 * ppSpringS, omega = 4 / (0.85 * P.legSec * zeta);
+                    // 減衰比 ζ：弾みのスライダーで 0.85〜0.30。区間が短い（3秒未満）ほど減衰を弱めて、行き過ぎを大きく・何回か弾ませる
+                    //   ＝「びょん！」が、区間が長くても短くても同じくらい感じられるように（2026-10-18、ユーザーの案）。ω は減衰の包みが区間のうちに落ち着く強さのまま
+                    const zeta = Math.max(0.12, (0.85 - 0.55 * ppSpringS) * Math.min(1, Math.sqrt(P.legSec / 3))), omega = 4 / (0.85 * P.legSec * zeta);
                     let f, v;
                     if (P.once) {   // 1区間だけ：出発に止まった状態から始め、落ち着いたら次の停留点にぴったり置いて止める
                         [f, v] = springLeg(0, 0, 1, Math.max(0, u) * P.legSec, zeta, omega);
                         if (u >= 1 && ((Math.abs(f - 1) < 0.002 && Math.abs(v) < 0.02) || u >= 1.6)) {
-                            endAt(0); stopPingPong(); updateLinkUI(); updateMorphingGeometry(animationProgress);
+                            endAt(0); tourMarkStop(P.pts[1]); stopPingPong(); updateLinkUI(); updateMorphingGeometry(animationProgress);
                             return;
                         }
                         place(0, f);
@@ -1269,20 +1288,53 @@
                             P.sp = { k: kk, x0: turn ? 1 - r[0] : r[0] - 1, v0: turn ? -r[1] : r[1], zeta };
                         }
                         [f, v] = springLeg(P.sp.x0, P.sp.v0, 1, (u - k) * P.legSec, zeta, omega);
-                        place(k, f);
+                        tourPass(P, k); place(k, f);
                     }
                     updateLinkUI(); updateMorphingGeometry(animationProgress);
                     return;
                 }
                 const ease = PP_EASES[ppEase] || PP_EASES.sine;
                 if (P.once && u >= 1) {   // 1区間だけ：終点にぴったり置いて止める
-                    endAt(0); stopPingPong(); updateLinkUI(); updateMorphingGeometry(animationProgress);
+                    endAt(0); tourMarkStop(P.pts[1]); stopPingPong(); updateLinkUI(); updateMorphingGeometry(animationProgress);
                     return;
                 }
                 const k = Math.floor(u), fr = u - k;
-                place(k, ease(fr));   // 区間ごとに、選んだ動き方で
+                tourPass(P, k); place(k, ease(fr));   // 区間ごとに、選んだ動き方で
             }
             updateLinkUI(); updateMorphingGeometry(animationProgress);
+        }
+        // 往復・ツアーで通過した頂点の印（手前に来た頂点に、通った順の番号を付けて残す。「通過した印を消す」で消す）
+        const tourMarks = { list: [], objs: [], sync: null };   // list: { v: [sx,sy,sz,sw], n: 通った順 }
+        function tourMarksClear() { tourMarks.objs.forEach(o => { [o.mesh, o.sprite].forEach(m => { if (m.parent) m.parent.remove(m); }); }); tourMarks.objs = []; tourMarks.list = []; if (tourMarks.sync) tourMarks.sync(); requestRender(10); }
+        function frontVertexOf(ang) {   // その角度（ラジアン10個）で、手前（+w）にただ1つ来る頂点。無ければ null（胞から などは8個が並ぶ）
+            const rp = (q, i, j, t) => { const C = Math.cos(t), S = Math.sin(t), x = q[i] * C - q[j] * S, y = q[i] * S + q[j] * C; q[i] = x; q[j] = y; };
+            let best = null, bw = -1e9, second = -1e9;
+            for (let i = 0; i < 16; i++) {
+                const v = [0, 1, 2, 3].map(k => ((i >> k) & 1) ? -1 : 1), q = v.map(c => c * HALF_S);
+                rp(q, 0, 3, ang[0]); rp(q, 1, 3, ang[1]); rp(q, 2, 3, ang[2]);
+                if (q[3] > bw) { second = bw; bw = q[3]; best = v; } else if (q[3] > second) second = q[3];
+            }
+            return (bw > 0.9 * S && bw - second > 0.05 * S) ? best : null;
+        }
+        function tourMarkStop(ang) {   // 停留点に着いた：手前の頂点に印を付ける（同じ頂点は1回だけ）
+            const v = frontVertexOf(ang); if (!v) return;
+            if (tourMarks.list.some(m => m.v.every((c, i) => c === v[i]))) return;
+            tourMarks.list.push({ v, n: tourMarks.list.length + 1 });
+            if (tourMarks.sync) tourMarks.sync();
+        }
+        function tourPass(P, k) { if (P.lastK === k) return; P.lastK = k; tourMarkStop(P.pts[P.seq[((k % P.seq.length) + P.seq.length) % P.seq.length]]); }
+        function updateTourMarks(progress) {
+            const r3 = scene3D && scene3D.getObjectByName('Root3D'); if (!r3) return;
+            while (tourMarks.objs.length < tourMarks.list.length) {   // 足りない印を作る
+                const m = tourMarks.list[tourMarks.objs.length];
+                const mesh = makeMarker(new THREE.Color(0xffb020), 0.05, 1006), sprite = makePtSprite(String(m.n), '#ffd166', 0.55);
+                r3.add(mesh, sprite); tourMarks.objs.push({ mesh, sprite });
+            }
+            const show = progress >= 0.999 && explodeE() < 0.02;
+            tourMarks.objs.forEach((o, i) => {
+                const m = tourMarks.list[i]; o.mesh.visible = show; o.sprite.visible = show;
+                if (show) { const q = rotated4DAxis(m.v.map(c => c * HALF_S)); o.mesh.position.set(q[0], q[1], q[2]); o.sprite.position.set(q[0] + 0.06, q[1] + 0.06, q[2]); }
+            });
         }
         let ppOnceText = 'A→B';   // 片道ボタンの文字（UI が並びから決める）
         let ppMode = 'pingpong';   // 'pingpong'＝往復、'cycle'＝ぐるっと（このブラウザに覚える）
@@ -3183,7 +3235,7 @@
             root2D.add(lMarkPlus, lMarkMinus, lMarkBlend);
             // Z-W のときの w の点線矢印（紫）
             { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-              zwArrowLine = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xb07cff, dashSize: 0.1, gapSize: 0.07, transparent: true, opacity: 0.95, depthTest: false }));
+              zwArrowLine = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xb07cff, dashSize: 0.05, gapSize: 0.035, transparent: true, opacity: 0.95, depthTest: false }));
               zwArrowLine.renderOrder = 1000; zwArrowLine.visible = false;
               zwArrowCone = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.17, 16), new THREE.MeshBasicMaterial({ color: 0xb07cff, transparent: true, opacity: 0.9, depthTest: false }));
               zwArrowCone.renderOrder = 1000; zwArrowCone.visible = false;
@@ -3326,7 +3378,7 @@
             const r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r2) return;
             if (!zwGhost) {
                 const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6 * 4 * 2 * 3), 3));
-                zwGhost = new THREE.LineSegments(g, new THREE.LineDashedMaterial({ color: 0xcbd5e1, dashSize: 0.09, gapSize: 0.07, transparent: true, opacity: 0.55, depthTest: false }));
+                zwGhost = new THREE.LineSegments(g, new THREE.LineDashedMaterial({ color: 0xcbd5e1, dashSize: 0.04, gapSize: 0.03, transparent: true, opacity: 0.55, depthTest: false }));
                 zwGhost.renderOrder = 999; r2.add(zwGhost);
             }
             const on = visible && zwViz.ghost && zwOn;
@@ -3641,6 +3693,7 @@
 
             updateAxisGnomon(progress);
             updateUserPoints(progress);   // 置いた点も今の回転・投影・折りたたみに合わせる
+            updateTourMarks(progress);   // 通過した頂点の印
 
             document.getElementById('unfold-slider').value = progress;
             const percent = Math.round(progress * 100);
@@ -5128,10 +5181,28 @@
             const PP_STORE = 'hypercubeAnglePairs', PP_FILE = 'hypercube-angle-pairs.csv';
             const D3 = v => Math.round(wrapPi(v) * 180 / Math.PI * 100) / 100;
             const nowAng = () => ({ a: D3(linkAngleX), b: D3(linkAngleY), c: D3(soloAngleZW), xy: D3(rotXY), xz: D3(rotXZ), yz: D3(rotYZ), xw5: D3(p5XW), yw5: D3(p5YW), zw5: D3(p5ZW), wv5: D3(p5WV) });
-            const ppSlot = { A: { a: 0, b: 0, c: 0, xy: 0, xz: 0, yz: 0 }, B: Object.assign({}, ANG_BUILTIN[0]), C: null, D: null };   // C・D は「なし」から
+            const PP_SLOTS = 'ABCDEFGHIJKLMNOP'.split('');   // 停留点は最大16
+            const ppSlot = { A: { a: 0, b: 0, c: 0, xy: 0, xz: 0, yz: 0 }, B: Object.assign({}, ANG_BUILTIN[0]) };   // C 以降は「なし」から
+            PP_SLOTS.slice(2).forEach(k => ppSlot[k] = null);
             PP_ALL.forEach(k => ppSlot.B[k] = ppSlot.B[k] || 0); ppSlot.B = Object.fromEntries(PP_ALL.map(k => [k, ppSlot.B[k]]));
-            const PP_SLOTS = ['A', 'B', 'C', 'D'];
             const ppStops = () => PP_SLOTS.filter(k => ppSlot[k]);   // 使っている停留点の名前（順に）
+            const PP_TAG_COL = ['text-fuchsia-300', 'text-cyan-300', 'text-amber-300', 'text-emerald-300', 'text-sky-300', 'text-rose-300', 'text-lime-300', 'text-violet-300'];
+            function ppRemove(key) {   // 停留点を外して、後ろを詰める（A・B は外せない）
+                const i = PP_SLOTS.indexOf(key); if (i < 2) return;
+                for (let j = i; j < PP_SLOTS.length - 1; j++) ppSlot[PP_SLOTS[j]] = ppSlot[PP_SLOTS[j + 1]];
+                ppSlot[PP_SLOTS[PP_SLOTS.length - 1]] = null;
+            }
+            // 停留点の列を A から順に入れる（足りない面は 0）。ツアーのプリセット用
+            const marksBtn = document.getElementById('pp-marks-clear');
+            tourMarks.sync = () => { if (marksBtn) marksBtn.textContent = '→ 通過した印を消す' + (tourMarks.list.length ? '（' + tourMarks.list.length + '個）' : ''); };
+            if (marksBtn) marksBtn.addEventListener('click', () => { tourMarksClear(); ppSt('通過した印を消しました'); });
+            tourMarks.sync();
+            function ppFill(list, mode) {
+                tourMarksClear();   // 新しいツアーを入れたら、通過した印は消す
+                PP_SLOTS.forEach((k, i) => ppSlot[k] = list[i] ? Object.assign(Object.fromEntries(PP_ALL.map(q => [q, 0])), list[i]) : null);
+                ppMode = mode || 'cycle'; try { localStorage.setItem('hypercubePPMode', ppMode); } catch (_) {}
+                renderPPSlots(); if (pingPong && !pingPong.once) startPingPong(ppStopAngles(), ppSec(), false, ppMode, ppStops());
+            }
             const ppStopAngles = () => ppStops().map(k => ppSlot[k]);
             let ppOnceIdx = 0;   // 片道ボタン：次に進む区間の番号
             const ppSeqNames = () => { const st = ppStops(), n = st.length, seq = st.slice(); if (!(ppMode === 'cycle' && n > 2)) for (let i = n - 2; i >= 1; i--) seq.push(st[i]); return seq; };
@@ -5142,10 +5213,11 @@
                 const box = document.getElementById('pp-slots'); box.innerHTML = '';
                 ppOnceIdx = 0; syncOnceText(); updatePingPongBtn();   // 停留点が変わったら、片道は最初の区間から
                 const mb = document.getElementById('pp-mode'); if (mb) { mb.textContent = ppMode === 'cycle' ? '→ 往復に戻す' : '→ ぐるっと回る'; mb.classList.toggle('text-amber-200', ppMode === 'cycle'); mb.classList.toggle('border-amber-500/50', ppMode === 'cycle'); }
-                PP_SLOTS.forEach(key => {
+                const firstEmpty = PP_SLOTS.findIndex(k => !ppSlot[k]);   // 使っている停留点と、次の空き1行だけ出す
+                PP_SLOTS.filter((k, i) => ppSlot[k] || i === firstEmpty).forEach(key => {
                     const row = document.createElement('div');
-                    row.className = 'flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded px-1.5 py-1' + (ppSlot[key] ? '' : ' opacity-70');
-                    const tag = document.createElement('span'); tag.className = 'shrink-0 w-5 text-center font-bold ' + ({ A: 'text-fuchsia-300', B: 'text-cyan-300', C: 'text-amber-300', D: 'text-emerald-300' }[key]); tag.textContent = key;
+                    row.className = 'flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded px-1.5 py-1' + (ppSlot[key] ? '' : ' opacity-70'); row.dataset.slot = key;
+                    const tag = document.createElement('span'); tag.className = 'shrink-0 w-5 text-center font-bold ' + PP_TAG_COL[PP_SLOTS.indexOf(key) % PP_TAG_COL.length]; tag.textContent = key;
                     const txt = document.createElement('span'); txt.className = 'flex-1 min-w-0 font-mono text-[10px] leading-tight break-words ' + (ppSlot[key] ? 'text-slate-300' : 'text-slate-500'); txt.textContent = ppSlot[key] ? angText(ppSlot[key]) : '（なし。「今の角度」か「角度から…」で入れると、停留点が増えます）';
                     const now = document.createElement('button'); now.className = 'shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-200 hover:bg-slate-700'; now.textContent = '今の角度';
                     now.title = key + ' に今の角度（X-W・Y-W・Z-W・X-Y・X-Z・Y-Z）を入れる';
@@ -5160,14 +5232,27 @@
                         if (P) { ppSlot[key] = pick6(P); renderPPSlots(); ppSt(key + ' に「' + (P.name || '') + '」を入れました'); }
                     });
                     row.append(tag, txt, now, sel);
-                    if (key === 'C' || key === 'D') {   // C・D は外せる
-                        const x = document.createElement('button'); x.className = 'shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (ppSlot[key] ? 'text-rose-300' : 'text-slate-600 cursor-not-allowed'); x.textContent = '×'; x.title = key + ' を外す';
-                        x.addEventListener('click', () => { if (!ppSlot[key]) return; ppSlot[key] = null; renderPPSlots(); if (pingPong && !pingPong.once) startPingPong(ppStopAngles(), ppSec(), false, ppMode); ppSt(key + ' を外しました'); });
+                    if (key !== 'A' && key !== 'B') {   // C 以降は外せる（後ろが詰まる）
+                        const x = document.createElement('button'); x.className = 'shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] ' + (ppSlot[key] ? 'text-rose-300' : 'text-slate-600 cursor-not-allowed'); x.textContent = '×'; x.title = key + ' を外す（後ろの停留点が前に詰まる）';
+                        x.addEventListener('click', () => { if (!ppSlot[key]) return; ppRemove(key); renderPPSlots(); if (pingPong && !pingPong.once) startPingPong(ppStopAngles(), ppSec(), false, ppMode, ppStops()); ppSt(key + ' を外しました'); });
                         row.appendChild(x);
                     }
                     box.appendChild(row);
                 });
             }
+            // 一覧の中で今どこか：いま向かっている停留点の行を蛍光緑の枠で点滅させる（頂点の印とは別。再生が止まると消える）
+            function ppCurrent() {
+                const P = pingPong; if (!P || !P.labels) return { cur: null, next: null };
+                const L = P.seq.length;
+                if (P.t < P.intro) return { cur: null, next: P.labels[P.seq[0]] };   // まず A へ寄せている
+                const k = Math.max(0, Math.floor((P.t - P.intro) / P.legSec));
+                return { cur: P.labels[P.seq[k % L]], next: P.labels[P.seq[(k + 1) % L]] };
+            }
+            function syncPPCurrent() {
+                const { cur, next } = ppCurrent();
+                document.querySelectorAll('#pp-slots [data-slot]').forEach(row => row.classList.toggle('pp-next', row.dataset.slot === next));
+            }
+            setInterval(syncPPCurrent, 120);
             const ppSec = () => { const v = parseFloat(document.getElementById('pp-sec').value); return isFinite(v) && v > 0 ? v : 3; };
             document.getElementById('pp-sec').addEventListener('keydown', e => e.stopPropagation());
             // 動き方の切り替え（再生中でもすぐ効く）
@@ -5197,18 +5282,104 @@
             syncEaseUI();
             document.getElementById('pp-swap').addEventListener('click', () => {   // 並びを逆に（使っている停留点だけ）
                 const st = ppStops(), vals = st.map(k => ppSlot[k]).reverse(); st.forEach((k, i) => ppSlot[k] = vals[i]);
-                renderPPSlots(); if (pingPong && !pingPong.once) startPingPong(ppStopAngles(), ppSec(), false, ppMode); ppSt('並びを逆にしました：' + st.join('→'));
+                renderPPSlots(); if (pingPong && !pingPong.once) startPingPong(ppStopAngles(), ppSec(), false, ppMode, ppStops()); ppSt('並びを逆にしました：' + st.join('→'));
             });
             // 胞→面→辺→頂点：超立方体の4つの見方を A〜D に（3D回転と5次元だけの4面は 0）
             document.getElementById('pp-cfev').addEventListener('click', () => {
                 const deg = v => Math.round(v * 180 / Math.PI * 1000) / 1000;
-                [['A', 'cell'], ['B', 'face'], ['C', 'edge'], ['D', 'vertex']].forEach(([key, nm]) => { const P = PROJ_PRESETS[nm]; ppSlot[key] = Object.fromEntries(PP_ALL.map(k => [k, 0])); ppSlot[key].a = deg(P.a); ppSlot[key].b = deg(P.b); ppSlot[key].c = deg(P.c); });
-                renderPPSlots(); if (pingPong && !pingPong.once) startPingPong(ppStopAngles(), ppSec(), false, ppMode);
+                ppFill(['cell', 'face', 'edge', 'vertex'].map(nm => { const P = PROJ_PRESETS[nm]; return { a: deg(P.a), b: deg(P.b), c: deg(P.c) }; }), ppMode);   // A〜D だけの列にする（E 以降は消える）
                 ppSt('A〜D に 胞→面→辺→頂点 を入れました（' + (ppMode === 'cycle' ? '胞→面→辺→頂点→胞…' : '胞→面→辺→頂点→辺→面→胞…') + '）', true);
+            });
+            // 頂点だけ入れ替わる一周：1つの面の角度だけ 90° ずつ足す（ほかの面は今の角度のまま）。どの面でも 90° は超立方体の対称な回転なので、4つとも形は同じ
+            const PP_PLANES = [['a', 'X-W'], ['b', 'Y-W'], ['c', 'Z-W'], ['xy', 'X-Y'], ['xz', 'X-Z'], ['yz', 'Y-Z']], PP_PLANES5 = [['xw5', 'X-W（5次元だけ）'], ['yw5', 'Y-W（5次元だけ）'], ['zw5', 'Z-W（5次元だけ）'], ['wv5', 'W-V（5次元だけ）']];
+            let ppSymSel = new Set(['a']);   // 選んでいる面（複数。このブラウザに覚える）
+            try { const v = JSON.parse(localStorage.getItem('hypercubePPSymPlanes') || 'null'); if (Array.isArray(v) && v.length) ppSymSel = new Set(v); } catch (_) {}
+            const saveSymSel = () => { try { localStorage.setItem('hypercubePPSymPlanes', JSON.stringify([...ppSymSel])); } catch (_) {} };
+            const symPlanesNow = () => PP_PLANES.concat(dim5 ? PP_PLANES5 : []);   // 今のモードで選べる面
+            function renderSymPlanes() {
+                const box = document.getElementById('pp-sym-planes'); if (!box) return;
+                box.innerHTML = '';
+                symPlanesNow().forEach(([k, nm]) => {
+                    const on = ppSymSel.has(k), b = document.createElement('button');
+                    b.className = 'px-1.5 py-0.5 rounded border text-[10px] font-mono ' + (on ? 'bg-violet-600/40 border-violet-400/60 text-violet-100' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700');
+                    b.textContent = nm + (dim5 && ['a', 'b', 'c'].includes(k) ? '/' + nm.replace('W', 'V') : ''); b.dataset.plane = k;
+                    b.title = (on ? '押すと外す' : '押すと足す') + (dim5 && ['a', 'b', 'c'].includes(k) ? '（4次元体では ' + nm + '、5次元体では ' + nm.replace('W', 'V') + '）' : '');
+                    b.addEventListener('click', () => { if (on && ppSymSel.size === 1) return; if (on) ppSymSel.delete(k); else ppSymSel.add(k); saveSymSel(); renderSymPlanes(); });
+                    box.appendChild(b);
+                });
+            }
+            document.getElementById('pp-sym-w3').addEventListener('click', () => { ppSymSel = new Set(['a', 'b', 'c']); saveSymSel(); renderSymPlanes(); });
+            document.getElementById('pp-sym-3d').addEventListener('click', () => { ppSymSel = new Set(['xy', 'xz', 'yz']); saveSymSel(); renderSymPlanes(); });
+            document.getElementById('pp-sym').addEventListener('click', () => {
+                const allowed = symPlanesNow().map(([k]) => k), sel = [...ppSymSel].filter(k => allowed.includes(k));
+                if (!sel.length) { ppSt('回す面を1つ以上選んでください', false); return; }
+                const name = Object.fromEntries(PP_PLANES.concat(PP_PLANES5)), nm = sel.map(k => name[k]).join('・');
+                const w = v => { let x = ((v + 180) % 360 + 360) % 360 - 180; if (x <= -180) x += 360; return Math.round(x * 100) / 100; };
+                const base = nowAng();
+                // 形が変わらないのは、90° の回転を「物体の側（いちばん内側）」に送り込めるとき。角度は X-W → Y-W → Z-W →（5次元の4面）→ X-Y → X-Z → Y-Z の順にかかる。
+                //   選んだ面の 90° を、それより前の面を外側から順にくぐらせる：軸を共有しない面と同じ面は素通り（順番を入れ替えられる）。共有する面が 0°・90°・180°・270° なら通れる
+                //   （90°・270° なら、共有している軸がその面のもう一方の軸に移る）。共有する面がそれ以外の角度なら形が変わる（bad）。X-W はいつでも大丈夫。
+                //   何面か同時に回すときも、面ごとにこの条件を満たせばよい（ほかの選んだ面に足す 90° の倍数は、条件に効かない）
+                function symBad(order, axes, k) {
+                    if (!(k in axes)) return [];
+                    let cur = axes[k].slice(); const bad = [], earlier = order.slice(0, order.indexOf(k));
+                    for (let i = earlier.length - 1; i >= 0; i--) {
+                        const q = earlier[i], ax = axes[q], shared = ax.filter(x => cur.includes(x));
+                        if (!shared.length || shared.length === 2) continue;   // 軸を共有しない面と、同じ面は、順番を入れ替えられる（角度は何でもよい）
+                        const v = Math.abs(base[q] || 0), r90 = v % 90;
+                        if (Math.min(r90, 90 - r90) > 0.5) { bad.push(q); continue; }
+                        if (Math.round(v / 90) % 2 === 1) { const sh = shared[0], other = ax.find(x => x !== sh); cur = cur.map(x => x === sh ? other : x); }
+                    }
+                    return bad;
+                }
+                const AX4 = { a: ['x', 'w'], b: ['y', 'w'], c: ['z', 'w'], xy: ['x', 'y'], xz: ['x', 'z'], yz: ['y', 'z'] };                       // 4次元体（超立方体）
+                const AX5 = { a: ['x', 'v'], b: ['y', 'v'], c: ['z', 'v'], xw5: ['x', 'w'], yw5: ['y', 'w'], zw5: ['z', 'w'], wv5: ['w', 'v'], xy: ['x', 'y'], xz: ['x', 'z'], yz: ['y', 'z'] };   // 5次元体
+                const bad = [...new Set(sel.flatMap(k => symBad(['a', 'b', 'c', 'xy', 'xz', 'yz'], AX4, k).concat(dim5 ? symBad(['a', 'b', 'c'].concat(PP_KEYS5, ['xy', 'xz', 'yz']), AX5, k) : [])))];
+                window._symBad = { symBad, AX4, AX5 };   // 確かめる用
+                ppFill([0, 1, 2, 3].map(i => { const S = Object.assign({}, base); sel.forEach(k => { S[k] = w((base[k] || 0) + 90 * i); }); return S; }), 'cycle');   // A〜D だけの列（E 以降は消える）。ぐるっとで一周
+                if (bad.length) ppSt('A〜D に、' + nm + ' を 0°・90°・180°・270° 回した角度を入れました。ただし今の ' + bad.map(q => name[q]).join('・') + ' が 0°・90°・180°・270° でないので、4つの形は少し違います（同じ形にするには X-W だけにするか、先に ' + bad.map(q => name[q]).join('・') + ' を 0° か 90° の倍数に）', false);
+                else ppSt('A〜D に、' + nm + ' を同時に 0°・90°・180°・270° 回した角度を入れました（4つとも同じ形で、頂点だけが入れ替わる。「ぐるっと」で一周）', true);
+            });
+            renderSymPlanes();
+            // ツアー：16頂点（各頂点が手前の真ん中に来る「頂点から」の向き。X-W＝atan2(sx, sw)、Y-W＝sy·35.264°、Z-W＝sz·30°）、8つの胞、裏側まで
+            const wrapDeg = v => { let x = ((v + 180) % 360 + 360) % 360 - 180; if (x <= -180) x += 360; return Math.round(x * 1000) / 1000; };
+            // 頂点 v=(sx,sy,sz,sw) が手前の真ん中に来て、しかも形が「頂点から」(45°,35.264°,30°) とぴったり同じになる角度。
+            //   X-W・Y-W・Z-W は v を +w に向ける角度（X-W＝atan2(sx,sw)、Y-W＝sy·35.264°、Z-W＝sz·30°）。それだけだと sy や sz が − の頂点は鏡うつしの向きになるので、
+            //   超立方体の対称な回転 S（v を (1,1,1,1) に移す。符号の反転が奇数個なら x と y も入れ替えて回転にする）で R0·S を作り、
+            //   それに合う3D回転（X-Y・X-Z・Y-Z）を decomposeRot3D で求めて足す。R0·S は R0 と同じ形なので、16個とも同じ形で頂点だけが入れ替わる
+            const vertexView = (sx, sy, sz, sw) => {
+                const RD = Math.PI / 180, a = Math.atan2(sx, sw), b = sy * 35.264 * RD, c = sz * 30 * RD;
+                const rp = (q, i, j, t) => { const C = Math.cos(t), S = Math.sin(t), x = q[i] * C - q[j] * S, y = q[i] * S + q[j] * C; q[i] = x; q[j] = y; };
+                const R4 = (q, A, B, Cc) => { q = q.slice(); rp(q, 0, 3, A); rp(q, 1, 3, B); rp(q, 2, 3, Cc); return q; };
+                const R4inv = (q, A, B, Cc) => { q = q.slice(); rp(q, 2, 3, -Cc); rp(q, 1, 3, -B); rp(q, 0, 3, -A); return q; };
+                const odd = [sx, sy, sz, sw].filter(v => v < 0).length % 2 === 1;
+                const Sfn = q => odd ? [sy * q[1], sx * q[0], sz * q[2], sw * q[3]] : [sx * q[0], sy * q[1], sz * q[2], sw * q[3]];
+                const R0 = q => R4(q, EQUI_A, EQUI_B, EQUI_C);
+                // 3D回転 M = R0·S·R4(a,b,c)^-1 の列（x・y・z の基本ベクトルの行き先）
+                const cols = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]].map(e => R0(Sfn(R4inv(e, a, b, c))).slice(0, 3));
+                const [xy, xz, yz] = decomposeRot3D(cols, [0, 0, 0]);
+                return { a: wrapDeg(a / RD), b: wrapDeg(b / RD), c: wrapDeg(c / RD), xy: wrapDeg(xy / RD), xz: wrapDeg(xz / RD), yz: wrapDeg(yz / RD) };
+            };
+            document.getElementById('pp-tour-v16').addEventListener('click', () => {
+                const list = [];   // グレイコード順：となりの頂点へ（1つの符号だけ変わる）。最後から最初へも1つだけ
+                for (let i = 0; i < 16; i++) { const g = i ^ (i >> 1); list.push(vertexView(...[8, 4, 2, 1].map(bit => (g & bit) ? -1 : 1))); }
+                ppFill(list, 'cycle');
+                ppSt('16頂点ツアー：A〜P に16個の頂点（となりの頂点へ順に）を入れました。各停留点は「頂点から」の向きで、手前の頂点だけが入れ替わります（ぐるっとで一周）', true);
+            });
+            document.getElementById('pp-tour-c8').addEventListener('click', () => {
+                ppFill([{ a: 0 }, { a: 90 }, { b: 90 }, { c: 90 }, { a: 180 }, { a: -90 }, { b: -90 }, { c: -90 }], 'cycle');   // +w・+x・+y・+z・−w・−x・−y・−z が手前
+                ppSt('8つの胞ツアー：A〜H に、8個の胞が順に手前に来る「胞から」の向きを入れました（+w・+x・+y・+z・−w・−x・−y・−z。ぐるっとで一周）', true);
+            });
+            document.getElementById('pp-tour-back').addEventListener('click', () => {
+                const deg = v => Math.round(v * 180 / Math.PI * 1000) / 1000;
+                const four = ['cell', 'face', 'edge', 'vertex'].map(nm => ({ a: deg(PROJ_PRESETS[nm].a), b: deg(PROJ_PRESETS[nm].b), c: deg(PROJ_PRESETS[nm].c) }));
+                const opp = A => ({ a: wrapDeg(A.a - 180), b: wrapDeg(180 - A.b), c: wrapDeg(A.c - 180) });   // 全く裏返し
+                ppFill(four.concat(four.slice().reverse().map(opp)), 'cycle');
+                ppSt('A〜H に 胞→面→辺→頂点→（裏返しの）頂点→辺→面→胞 を入れました。表から裏へ抜けて一周します（ぐるっと）', true);
             });
             document.getElementById('pp-mode').addEventListener('click', () => {
                 ppMode = ppMode === 'cycle' ? 'pingpong' : 'cycle'; try { localStorage.setItem('hypercubePPMode', ppMode); } catch (_) {}
-                renderPPSlots(); if (pingPong && !pingPong.once) startPingPong(ppStopAngles(), ppSec(), false, ppMode);
+                renderPPSlots(); if (pingPong && !pingPong.once) startPingPong(ppStopAngles(), ppSec(), false, ppMode, ppStops());
                 ppSt(ppMode === 'cycle' ? 'ぐるっと：' + ppStops().join('→') + '→' + ppStops()[0] + '…' : '往復：' + ppSeqNames().join('→') + '→' + ppStops()[0] + '…');
             });
             // B に A の正反対（全く裏返し＝4次元で全部の向きを反対に）を入れる。
@@ -5221,20 +5392,20 @@
                 //   （ピンクとエメラルドの位置が入れ替わり、v の向きで裏返る。左の超立方体は今までどおり全く裏返し）
                 ppSlot.B = { a: w(A.a - 180), b: w(180 - A.b), c: w(A.c - 180), xy: A.xy || 0, xz: A.xz || 0, yz: A.yz || 0, xw5: w(-(A.xw5 || 0)), yw5: w(-(A.yw5 || 0)), zw5: w(-(A.zw5 || 0)), wv5: w(-(A.wv5 || 0)) };
                 renderPPSlots();
-                if (pingPong && !pingPong.once) startPingPong(ppStopAngles(), ppSec(), false, ppMode);
+                if (pingPong && !pingPong.once) startPingPong(ppStopAngles(), ppSec(), false, ppMode, ppStops());
                 ppSt('B に A の正反対（全く裏返し）を入れました');
             });
             document.getElementById('pp-once').addEventListener('click', () => {   // 並びの次の区間を1回だけ
                 const q = ppSeqNames(); if (q.length < 2) return;
                 const i = ppOnceIdx % q.length, from = q[i], to = q[(i + 1) % q.length];
-                startPingPong([ppSlot[from], ppSlot[to]], ppSec(), true);
+                startPingPong([ppSlot[from], ppSlot[to]], ppSec(), true, 'pingpong', [from, to]);
                 ppOnceIdx = (i + 1) % q.length; syncOnceText(); updatePingPongBtn();
                 ppSt('片道：' + from + '→' + to + '（' + ppSec() + ' 秒）');
             });
             document.getElementById('pp-cam-home').addEventListener('click', () => { startCamHome(); ppSt('視点を正面へ戻しました'); });
             document.getElementById('pp-play').addEventListener('click', () => {
                 if (pingPong) { stopPingPong(); ppSt('往復を止めました'); }
-                else { startPingPong(ppStopAngles(), ppSec(), false, ppMode); ppSt((ppMode === 'cycle' && ppStops().length > 2 ? 'ぐるっと：' : '往復中：') + ppStops().join(ppMode === 'cycle' && ppStops().length > 2 ? '→' : ' ⇄ ') + '（1区間 ' + ppSec() + ' 秒）。ドラッグで視点を回せます'); }
+                else { startPingPong(ppStopAngles(), ppSec(), false, ppMode, ppStops()); ppSt((ppMode === 'cycle' && ppStops().length > 2 ? 'ぐるっと：' : '往復中：') + ppStops().join(ppMode === 'cycle' && ppStops().length > 2 ? '→' : ' ⇄ ') + '（1区間 ' + ppSec() + ' 秒）。ドラッグで視点を回せます'); }
             });
             // 保存した往復（このブラウザに自動保存。ロックで消せないようにできる）
             let ppPairs = [];
@@ -5249,15 +5420,16 @@
                     const go = document.createElement('button'); go.className = 'flex-1 min-w-0 text-left leading-tight hover:text-amber-200';
                     go.innerHTML = '<div class="text-[11px] text-slate-200 break-words"></div><div class="font-mono text-[9px] text-slate-500 break-words"></div>';
                     const camNote = P.cam ? (isFrontView(P.cam) ? '・視点：正面' : '・視点あり') : '';
-                    const stopsOf = Q => [['A', Q.A], ['B', Q.B], ['C', Q.C], ['D', Q.D]].filter(([, v]) => v);
-                    go.children[0].textContent = P.name + '（1区間 ' + (P.sec || 3) + ' 秒' + (P.mode === 'cycle' && stopsOf(P).length > 2 ? '・ぐるっと' : '') + camNote + '）';
-                    go.children[1].textContent = stopsOf(P).map(([k, v]) => k + ' ' + angText(v)).join(P.mode === 'cycle' && stopsOf(P).length > 2 ? ' → ' : ' ⇄ ');
+                    const stopsOf = Q => PP_SLOTS.map(k => [k, Q[k]]).filter(([, v]) => v);
+                    const st = stopsOf(P), sep = P.mode === 'cycle' && st.length > 2 ? ' → ' : ' ⇄ ';
+                    go.children[0].textContent = P.name + '（' + st.length + '個・1区間 ' + (P.sec || 3) + ' 秒' + (P.mode === 'cycle' && st.length > 2 ? '・ぐるっと' : '') + camNote + '）';
+                    go.children[1].textContent = (st.length > 4 ? st.slice(0, 2).concat([null], st.slice(-1)) : st).map(e => e ? e[0] + ' ' + angText(e[1]) : '…').join(sep);
                     go.title = '押すと A・B に入れて往復を始める' + (P.cam ? '（保存した視点へカメラも移る）' : '');
                     go.addEventListener('click', () => {
-                        ppSlot.A = pick6(P.A); ppSlot.B = pick6(P.B); ppSlot.C = P.C ? pick6(P.C) : null; ppSlot.D = P.D ? pick6(P.D) : null;
+                        PP_SLOTS.forEach(k => ppSlot[k] = P[k] ? pick6(P[k]) : null);
                         ppMode = P.mode === 'cycle' ? 'cycle' : 'pingpong'; try { localStorage.setItem('hypercubePPMode', ppMode); } catch (_) {}
                         document.getElementById('pp-sec').value = P.sec || 3; renderPPSlots();
-                        startPingPong(ppStopAngles(), ppSec(), false, ppMode);
+                        startPingPong(ppStopAngles(), ppSec(), false, ppMode, ppStops());
                         if (P.cam) startCamTo(P.cam);   // 保存した視点へ
                         ppSt('往復中：' + P.name + (P.cam ? '（保存した視点）' : ''));
                     });
@@ -5265,7 +5437,7 @@
                     ow.title = P.lock ? 'ロック中なので上書きできません' : '今の A・B・片道の秒数・視点（カメラ）で、この往復を上書き保存する（名前はそのまま）';
                     ow.addEventListener('click', () => {
                         if (P.lock) { ppSt('ロック中なので上書きできません（→🔓 を押すと外せます）', false); return; }
-                        P.A = pick6(ppSlot.A); P.B = pick6(ppSlot.B); P.C = ppSlot.C ? pick6(ppSlot.C) : undefined; P.D = ppSlot.D ? pick6(ppSlot.D) : undefined; P.mode = ppMode; P.sec = ppSec(); P.cam = camViewNow();
+                        PP_SLOTS.forEach(k => P[k] = ppSlot[k] ? pick6(ppSlot[k]) : undefined); P.mode = ppMode; P.sec = ppSec(); P.cam = camViewNow();
                         savePP(); renderPPList(); ppSt('「' + P.name + '」を上書きしました（' + (isFrontView(P.cam) ? '視点は正面' : '今の視点も保存') + '）', true);
                     });
                     const lk = document.createElement('button'); lk.className = 'shrink-0 whitespace-nowrap px-1 py-0.5 rounded border text-[11px] leading-none ' + (P.lock ? 'bg-amber-900/40 border-amber-500/50' : 'bg-slate-800 border-slate-700 opacity-50 hover:opacity-100');
@@ -5279,7 +5451,8 @@
             }
             document.getElementById('pp-save').addEventListener('click', () => {
                 const nm = document.getElementById('pp-name').value.trim();
-                const P = { name: nm || ('往復 ' + (ppPairs.length + 1)), A: pick6(ppSlot.A), B: pick6(ppSlot.B), C: ppSlot.C ? pick6(ppSlot.C) : undefined, D: ppSlot.D ? pick6(ppSlot.D) : undefined, mode: ppMode, sec: ppSec(), lock: false, cam: camViewNow() };
+                const P = { name: nm || ('往復 ' + (ppPairs.length + 1)), mode: ppMode, sec: ppSec(), lock: false, cam: camViewNow() };
+                PP_SLOTS.forEach(k => P[k] = ppSlot[k] ? pick6(ppSlot[k]) : undefined);
                 ppPairs.push(P); savePP(); renderPPList(); document.getElementById('pp-name').value = '';
                 ppSt('往復を保存しました：' + P.name + (isFrontView(P.cam) ? '' : '（今の視点も保存）'), true);
             });
@@ -5289,8 +5462,11 @@
             const camCols = v => v ? [].concat(v.p3, v.u3, v.p2, v.u2, [isFinite(v.f3) ? v.f3 : '', isFinite(v.f2) ? v.f2 : '']) : Array(14).fill('');
             // 5次元だけの4面は、いちばん後ろに足す（a_xw5…b_wv5。前の形の CSV もそのまま読める）
             // C・D（無ければ空）と動き方。いちばん後ろの列なので、前の CSV もそのまま読める
-            const ppExtraCols = P => [].concat(PP_KEYS.map(k => P.C ? (P.C[k] || 0) : ''), PP_KEYS.map(k => P.D ? (P.D[k] || 0) : ''), PP_KEYS5.map(k => P.C ? (P.C[k] || 0) : ''), PP_KEYS5.map(k => P.D ? (P.D[k] || 0) : ''), [P.mode === 'cycle' ? 'cycle' : 'pingpong']);
-            const ppToCSV = () => 'name,a_xw,a_yw,a_zw,a_xy,a_xz,a_yz,b_xw,b_yw,b_zw,b_xy,b_xz,b_yz,sec,lock,' + PP_CAM_COLS + ',a_xw5,a_yw5,a_zw5,a_wv5,b_xw5,b_yw5,b_zw5,b_wv5,c_xw,c_yw,c_zw,c_xy,c_xz,c_yz,d_xw,d_yw,d_zw,d_xy,d_xz,d_yz,c_xw5,c_yw5,c_zw5,c_wv5,d_xw5,d_yw5,d_zw5,d_wv5,mode\n' + ppPairs.map(P => [String(P.name || '').replace(/[,\n]/g, ' ')].concat(PP_KEYS.map(k => P.A[k] || 0), PP_KEYS.map(k => P.B[k] || 0), [P.sec || 3, P.lock ? 1 : 0], camCols(P.cam), PP_KEYS5.map(k => P.A[k] || 0), PP_KEYS5.map(k => P.B[k] || 0)).concat(ppExtraCols(P)).join(',')).join('\n') + '\n';
+            const PP_MORE = PP_SLOTS.slice(4);   // E〜P
+            const PP_HDR16 = PP_MORE.map(k => PP_KEYS.concat(PP_KEYS5).map(q => k.toLowerCase() + '_' + q).join(',')).join(',');
+            const ppExtraCols = P => [].concat(PP_KEYS.map(k => P.C ? (P.C[k] || 0) : ''), PP_KEYS.map(k => P.D ? (P.D[k] || 0) : ''), PP_KEYS5.map(k => P.C ? (P.C[k] || 0) : ''), PP_KEYS5.map(k => P.D ? (P.D[k] || 0) : ''), [P.mode === 'cycle' ? 'cycle' : 'pingpong'],
+                ...PP_MORE.map(k => PP_KEYS.concat(PP_KEYS5).map(q => P[k] ? (P[k][q] || 0) : '')));
+            const ppToCSV = () => 'name,a_xw,a_yw,a_zw,a_xy,a_xz,a_yz,b_xw,b_yw,b_zw,b_xy,b_xz,b_yz,sec,lock,' + PP_CAM_COLS + ',a_xw5,a_yw5,a_zw5,a_wv5,b_xw5,b_yw5,b_zw5,b_wv5,c_xw,c_yw,c_zw,c_xy,c_xz,c_yz,d_xw,d_yw,d_zw,d_xy,d_xz,d_yz,c_xw5,c_yw5,c_zw5,c_wv5,d_xw5,d_yw5,d_zw5,d_wv5,mode,' + PP_HDR16 + '\n' + ppPairs.map(P => [String(P.name || '').replace(/[,\n]/g, ' ')].concat(PP_KEYS.map(k => P.A[k] || 0), PP_KEYS.map(k => P.B[k] || 0), [P.sec || 3, P.lock ? 1 : 0], camCols(P.cam), PP_KEYS5.map(k => P.A[k] || 0), PP_KEYS5.map(k => P.B[k] || 0)).concat(ppExtraCols(P)).join(',')).join('\n') + '\n';
             function ppFromCSV(txt) {
                 const out = [], num = v => { const n = parseFloat(v); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
                 String(txt).split(/\r?\n/).forEach(line => {
@@ -5304,7 +5480,9 @@
                     // C・D（37〜48 と 49〜56。空なら無し）と動き方（57）
                     const stop = (i6, i4) => { if (!PP_KEYS.every((k, i) => isFinite(parseFloat(c[i6 + i])))) return undefined; const S = {}; PP_KEYS.forEach((k, i) => S[k] = num(c[i6 + i])); PP_KEYS5.forEach((k, i) => S[k] = num(c[i4 + i])); return S; };
                     const C = stop(37, 49), D = stop(43, 53), mode = (c[57] || '').trim() === 'cycle' ? 'cycle' : 'pingpong';
-                    out.push({ name: c[0].trim() || '往復', A, B, C, D, mode, sec: isFinite(sec) && sec > 0 ? sec : 3, lock: (c[14] || '0').trim() === '1', cam });
+                    const row = { name: c[0].trim() || '往復', A, B, C, D, mode, sec: isFinite(sec) && sec > 0 ? sec : 3, lock: (c[14] || '0').trim() === '1', cam };
+                    PP_MORE.forEach((k, i) => { row[k] = stop(58 + 10 * i, 58 + 10 * i + 6); });   // E〜P（無ければ無し）
+                    out.push(row);
                 });
                 return out;
             }
@@ -5312,7 +5490,7 @@
                 const keep = ppPairs.filter(P => P.lock);
                 const same6 = (x, y) => PP_ALL.every(k => Math.abs((x[k] || 0) - (y[k] || 0)) < 0.005);
                 const sameOpt = (x, y) => (!x && !y) || (x && y && same6(x, y));
-                ppPairs = keep.concat(list.filter(Q => !keep.some(P => same6(P.A, Q.A) && same6(P.B, Q.B) && sameOpt(P.C, Q.C) && sameOpt(P.D, Q.D))));
+                ppPairs = keep.concat(list.filter(Q => !keep.some(P => PP_SLOTS.every(k => sameOpt(P[k], Q[k])))));
                 savePP(); renderPPList();
                 return keep.length;
             }
@@ -5927,7 +6105,7 @@
                 try { localStorage.setItem('hypercubeDim5', dim5 ? '1' : '0'); } catch (_) {}
                 if (!dim5 && (rhombi.on || rhombi.t > 0)) { rhombi.on = false; rhombi.pending = false; rhombi.anim = false; rhombi.t = 0; if (rhombi.sync) rhombi.sync(); }   // 菱形二十面体はやめる
                 if (!dim5) spin5XW = spin5YW = spin5ZW = spin5WV = false;   // 4次元にもどすときは、5次元だけの回転を止める（角度は覚えておく）
-                applyDim5UI(); userPoints.forEach(buildPt); renderPtList(); ptPreview(); ensureProjection(); updateLinkUI(); updateMorphingGeometry(animationProgress); requestRender(30);   // 点の一覧・ラベルも v の有り無しに合わせる
+                applyDim5UI(); userPoints.forEach(buildPt); renderPtList(); ptPreview(); if (typeof renderSymPlanes === 'function') renderSymPlanes(); ensureProjection(); updateLinkUI(); updateMorphingGeometry(animationProgress); requestRender(30);   // 点の一覧・ラベルも v の有り無しに合わせる
             }));
             applyDim5UI();
 
