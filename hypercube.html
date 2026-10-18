@@ -2928,6 +2928,7 @@
         //   バラしたあとの頂点を画面に写して、画面の枠（横 88%・縦 78%。上の見出しの分をあける）からはみ出す分だけ引く。
         //   画面に入る限りは引かない＝空いているところいっぱいに広げる。バラし具合 e に合わせてなめらかに
         const _xpP = new THREE.Vector3();
+        const _occV = new THREE.Vector3();   // 自動ズームの画面占有率の計算用
         // バラしたあとの引き具合。バラした量 e だけ「一定の割合」でズームアウトする（回転に依存しない）。
         //   前は毎フレーム画面の輪郭に合わせていたので、回すたびにズームが動いて揺れていた。
         //   いまは回しても倍率が変わらない＝揺れない。4次元の遠近で形が息づく（大きく/小さく写る）のはそのまま見える。
@@ -3932,44 +3933,33 @@
                 }
             }
 
-            if (autoFitZoom) {   // 自動ズームON時のみ。OFFなら倍率を触らない＝今の大きさのまま折りたたみを確認できる。
-                // 組み上がるほど形が小さくなるので、実寸を測って拡大率を合わせる。
-                // 左右で縮み方が違う（等角図だと右の投影が大きい）ので、ペインごとに別々に合わせる。
-                const span = verts => {
-                    let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
-                    verts.forEach(p3 => { for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], p3[k]); mx[k] = Math.max(mx[k], p3[k]); } });
-                    return Math.max(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]);
+            if (autoFitZoom && explodeE() < 0.01) {   // 自動ズーム（分解していないとき）。分解中のズームは applyExplodeZoom が一定倍率で担当。
+                // 賢い合わせ方：今の回転のまま画面に写して「画面占有率」を見る。帯[LO,HI]の中なら倍率を動かさない＝回転中に脈打たない・暴れない。
+                //   展開・組み立てで形が大きく変わるときや、回転ではみ出す/小さすぎるときだけ、目標の占有率へゆっくり寄せる（折りたたみ中は速く、回転中はゆっくり）。
+                const folding = animationMode !== 0;
+                const ease = folding ? 0.45 : 0.14;
+                const occOf = (verts, cam, root) => {
+                    cam.updateMatrixWorld(); root.updateMatrixWorld();
+                    let occ = 0;
+                    for (const v of verts) { _occV.set(v[0], v[1], v[2]).applyMatrix4(root.matrixWorld).project(cam); if (_occV.z < 1) occ = Math.max(occ, Math.abs(_occV.x), Math.abs(_occV.y)); }
+                    return occ;
                 };
-                // 主役は右の超立方体。左の立方体は添えものなので小さめに収める
-                const fitL = e => Math.max(0.8, Math.min(1.6, 2.9 / Math.max(e, 1e-3)));
-                // 平行投影（面・辺・頂点）は実角度で測ると小さく収まりがちなので、大きめに合わせて胞とそろえる。
-                // プリセット移行中(projAnim)は、遠近基準(3.8)と平行基準(4.7)を blend して段差なくつなぐ。
-                const inPreset = projAnim !== null;
-                const bigR = parallel4D || cycleMode || inPreset;
-                const tR = inPreset ? (3.8 + (4.7 - 3.8) * projAnim) : (bigR ? 4.7 : 3.8);
-                const fitR = e => Math.max(0.85, Math.min(bigR ? 4.2 : 3.0, tR / Math.max(e, 1e-3)));
-                // 投影プリセット(平行投影)や移行中は実際の角度で測る。通常視点では角度0の素形で測る（回転で倍率不変）。
-                const useAng = parallel4D || cycleMode || inPreset;
-                const fAX = useAng ? linkAngleX : 0, fAY = useAng ? linkAngleY : 0;
-                const savedZW = soloAngleZW, saved3 = [rotXY, rotXZ, rotYZ], savedOff = xyManualOff;
-                if (!useAng) soloAngleZW = 0;
-                rotXY = 0; rotXZ = 0; rotYZ = 0; xyManualOff = 0;   // 3D回転は形の大きさを変えないので、外して測る（回転中にズームが脈打たない）
-                let lv = [], rv = [];
-                for (let i = 0; i < 6; i++) lv = lv.concat(calculateFoldedFaceVertices2D(i, progress, fAX, fAY));
-                for (let i = 0; i < 8; i++) rv = rv.concat(calculateFoldedCellVertices3D(i, progress, fAX, fAY));
-                let pv = [];   // 5次元超立方体も同じ決め方で測る
-                if (dim5 && scene5D) {
-                    const sLX = linkAngleX, sLY = linkAngleY, s5 = getP5();
-                    linkAngleX = fAX; linkAngleY = fAY; if (!useAng) setP5([0, 0, 0, 0]);
-                    const pbF = projBlendNow();
-                    for (let c = 0; c < P5_CELLS.length; c++) pv = pv.concat(cellVerts5D(c, progress).map(q => project5(rotate5(q), pbF)));
-                    linkAngleX = sLX; linkAngleY = sLY; setP5(s5);
-                }
-                soloAngleZW = savedZW; rotXY = saved3[0]; rotXZ = saved3[1]; rotYZ = saved3[2]; xyManualOff = savedOff;
-                const r2 = scene2D.getObjectByName("Root2D"), r3 = scene3D.getObjectByName("Root3D");
-                if (r2) r2.scale.setScalar(fitL(span(lv)));
-                if (r3) r3.scale.setScalar(fitR(span(rv)));
-                const r5 = pv.length && scene5D.getObjectByName('Root5D'); if (r5) r5.scale.setScalar(fitR(span(pv)));
+                const adjust = (root, verts, cam, lo, hi, mid) => {
+                    if (!root || !cam || !verts.length) return;
+                    const occ = occOf(verts, cam, root);
+                    if (occ < 1e-4) return;
+                    if (occ > hi || occ < lo) {   // 帯の外のときだけ直す（中なら触らない）
+                        const want = Math.max(0.2, Math.min(8, root.scale.x * mid / occ));   // 占有率∝倍率。目標占有率 mid になる倍率へ
+                        root.scale.setScalar(root.scale.x + (want - root.scale.x) * ease);
+                    }
+                };
+                let lv = [], rv = [], pv = [];
+                for (let i = 0; i < 6; i++) lv = lv.concat(calculateFoldedFaceVertices2D(i, progress, linkAngleX, linkAngleY));
+                for (let i = 0; i < 8; i++) rv = rv.concat(calculateFoldedCellVertices3D(i, progress, linkAngleX, linkAngleY));
+                if (dim5 && scene5D) { const pbF = projBlendNow(); for (let c = 0; c < P5_CELLS.length; c++) pv = pv.concat(cellVerts5D(c, progress).map(q => project5(rotate5(q), pbF))); }
+                adjust(scene2D.getObjectByName('Root2D'), lv, camera2D, 0.42, 0.82, 0.62);   // 左（立方体）は添えものなので小さめ
+                adjust(scene3D.getObjectByName('Root3D'), rv, camera3D, 0.55, 0.9, 0.78);     // 右（超立方体）が主役
+                if (dim5) adjust(scene5D.getObjectByName('Root5D'), pv, camera5D, 0.55, 0.9, 0.78);
             }
 
             updateAxisGnomon(progress);
