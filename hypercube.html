@@ -6313,16 +6313,17 @@
                 const clampY = y => Math.max(4, Math.min(window.innerHeight - 42, y));
                 const titleOf = h => [...h.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').replace(/\s+/g, ' ').trim();
                 function makeDrag(sec) {   // 見出しをつかんで浮いているパネルを動かす（浮いているときだけ・ボタンの上では動かさない）
-                    const handle = sec.querySelector(':scope > .sb-h'); let sx, sy, ox, oy, moved = false;
+                    const handle = sec.querySelector(':scope > .sb-h'); let sx, sy, ox, oy, moved = false, dragging = false;
                     handle.addEventListener('pointerdown', e => {
                         moved = false;   // 新しい操作のたびにリセット（前のドラッグの判定を引きずらない）
                         if (!sec.classList.contains('floating') || e.target.closest('button, input, select, label, a')) return;
                         const wrap = sec._fwrap; if (!wrap) return;
-                        sx = e.clientX; sy = e.clientY; ox = parseInt(wrap.style.left) || 0; oy = parseInt(wrap.style.top) || 0;
-                        try { handle.setPointerCapture(e.pointerId); } catch (_) {}
-                        const mv = ev => { const dx = ev.clientX - sx, dy = ev.clientY - sy; if (Math.abs(dx) + Math.abs(dy) > 3) moved = true; wrap.style.left = clampX(ox + dx, wrap) + 'px'; wrap.style.top = clampY(oy + dy) + 'px'; };
-                        const up = () => { handle.removeEventListener('pointermove', mv); handle.removeEventListener('pointerup', up); if (moved) { fstate[sec.dataset.fid] = { x: parseInt(wrap.style.left), y: parseInt(wrap.style.top) }; saveF(); } };
-                        handle.addEventListener('pointermove', mv); handle.addEventListener('pointerup', up);
+                        dragging = true; sx = e.clientX; sy = e.clientY; ox = parseInt(wrap.style.left) || 0; oy = parseInt(wrap.style.top) || 0;
+                        // window で move/up を拾う（pointerCapture は使わない＝取りこぼしで固まらない。cancel でも必ず終わる）
+                        const mv = ev => { if (!dragging) return; const dx = ev.clientX - sx, dy = ev.clientY - sy; if (Math.abs(dx) + Math.abs(dy) > 3) moved = true; wrap.style.left = clampX(ox + dx, wrap) + 'px'; wrap.style.top = clampY(oy + dy) + 'px'; };
+                        const end = () => { dragging = false; window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end); if (moved) { fstate[sec.dataset.fid] = { x: parseInt(wrap.style.left), y: parseInt(wrap.style.top) }; saveF(); } };
+                        window.addEventListener('pointermove', mv); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+                        e.preventDefault();
                     });
                     handle.addEventListener('click', e => { if (moved && !e.target.closest('button, input, select, label, a')) { e.stopPropagation(); e.preventDefault(); } moved = false; }, true);   // ドラッグ直後の見出しクリック（たたむ等）だけ抑制。ボタンは通す
                 }
