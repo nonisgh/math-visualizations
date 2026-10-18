@@ -2593,14 +2593,19 @@
             if (!scene5D || !camera3D) return;
             const root = scene5D.getObjectByName('Root5D'); if (root) root.updateMatrixWorld();
             const pb = projBlendNow(), mat = root ? root.matrixWorld : null, camP = camera3D.position;
-            const verts = cellObjects5D.map((_, ci) => cellVerts5D(ci, progress).map(q => project5(rotate5(q), pb)));
+            const verts5 = cellObjects5D.map((_, ci) => cellVerts5D(ci, progress).map(q => rotate5(q)));   // 回したあとの5D座標（w＝入れ子の深さ）
+            const verts = verts5.map(cv => cv.map(p => project5(p, pb)));
             applyExplode(5, verts, progress);   // 分解：10個の超立方体を1個ずつ離す
             let dMin = 1e9, dMax = -1e9;
             const dist = verts.map(cv => cv.map(v => { _p5v.set(v[0], v[1], v[2]); if (mat) _p5v.applyMatrix4(mat); const d = _p5v.distanceTo(camP); if (d < dMin) dMin = d; if (d > dMax) dMax = d; return d; }));
             const span = Math.max(dMax - dMin, 1e-3), sm = t => t * t * (3 - 2 * t);
-            const FAR_DIM = cfgFarDim / (1 + (cfgFlatContrast - 1) * (1 - progress)), NB = cfgNearBright;
+            // 入れ子の深さ＝4次元目 w（カメラ距離だけだと正面で変化が出ず単調）。0＝w−側（内側・4次元の奥）、1＝w＋側（外側・手前）
+            let wMin = 1e9, wMax = -1e9; verts5.forEach(cv => cv.forEach(p => { if (p[3] < wMin) wMin = p[3]; if (p[3] > wMax) wMax = p[3]; })); const wSpan = Math.max(wMax - wMin, 1e-3);
+            const nestOf = (ci, i) => sm((verts5[ci][i][3] - wMin) / wSpan);
+            const farBase5 = cfgFarDim / (1 + (cfgFlatContrast - 1) * (1 - progress)), NB = cfgNearBright;
+            const FAR_DIM = farBase5 + (NB - farBase5) * 0.4;   // 5次元は十字が広く奥まで届くので遠方の減光を4割持ち上げる＝周辺も明るく（ライティングの範囲を広げる）
             const bright = d => NB - (NB - FAR_DIM) * sm((d - dMin) / span);
-            const op = Math.min(0.75, netOpacity(cfgFaceOpacity, progress) * 0.7);   // 胞が多いので超立方体より薄め。展開図ほど濃く
+            const op = Math.min(0.75, netOpacity(cfgFaceOpacity, progress) * 0.85);   // 胞が多いので超立方体より少し薄め（まとめメッシュで正しく合成されるので控えめに）。展開図ほど濃く
             const EN = edgeTint(cfgEdgeNear), EF = edgeTint(cfgEdgeFar);
             const ecol = d => { const t = sm((d - dMin) / span); return [EN[0] + (EF[0] - EN[0]) * t, EN[1] + (EF[1] - EN[1]) * t, EN[2] + (EF[2] - EN[2]) * t]; };
             cellObjects5D.forEach((cell, ci) => {
@@ -2624,7 +2629,8 @@
                 paintEdgeHi(cell, ci, cellObjects5D.length - 1, wc, EN[0], EH_MID5, EH_ARM5);   // 手前・中（±W）・腕・奥の超立方体の辺を色で強調
                 { const fe = cellFocus(5, ci).edge; if (fe !== 1) for (let k = 0; k < wc.length; k++) wc[k] *= fe; }
                 for (let e = 0, k = 0; e < T5_EDGES.length; e++) {   // 奥の線ほど薄く（深度フェード）＝手前の線が立って奥行きの手がかりになる
-                    const f0 = 1 - 0.58 * sm((cd[T5_EDGES[e][0]] - dMin) / span), f1 = 1 - 0.58 * sm((cd[T5_EDGES[e][1]] - dMin) / span);
+                    const n0 = 0.5 + 0.5 * nestOf(ci, T5_EDGES[e][0]), n1 = 0.5 + 0.5 * nestOf(ci, T5_EDGES[e][1]);   // 入れ子の深さ（w）：内側ほど暗く＝入れ子が3Dに読める
+                    const f0 = (1 - 0.58 * sm((cd[T5_EDGES[e][0]] - dMin) / span)) * n0, f1 = (1 - 0.58 * sm((cd[T5_EDGES[e][1]] - dMin) / span)) * n1;
                     wc[k++] *= f0; wc[k++] *= f0; wc[k++] *= f0; wc[k++] *= f1; wc[k++] *= f1; wc[k++] *= f1;
                 }
                 cell.wireGeo.attributes.position.needsUpdate = true; cell.wireGeo.attributes.color.needsUpdate = true;
@@ -2644,13 +2650,14 @@
                     }
                     quads5.sort((a, b) => b[2] - a[2]);   // 遠い面を先に描く
                     const mpos = mergedFaces5D.geometry.attributes.position.array, mcol = mergedFaces5D.geometry.attributes.color.array;
-                    const aOf = ci => { const cdM = dist[ci].reduce((s, d) => s + d, 0) / dist[ci].length, df = 1 - 0.62 * sm((cdM - dMin) / span); return Math.min(0.97, op * cellFocus(5, ci).face * (!edgeHi.on ? 1 : EH_MID5.includes(ci) ? edgeHi.faceMid : EH_ARM5.includes(ci) ? edgeHi.faceArm : 1) * df) * (1 - rhombi.t) * (xpVisible(5, ci) ? 1 : 0); };
+                    const seeThru5 = 0.6 + 0.4 * progress;   // 展開図ほど面を薄く＝各4次元体の中（入れ子の超立方体）が透けて見える。組み上がりは従来どおり
+                    const aOf = ci => { const cdM = dist[ci].reduce((s, d) => s + d, 0) / dist[ci].length, df = 1 - 0.62 * sm((cdM - dMin) / span); return Math.min(0.97, seeThru5 * op * cellFocus(5, ci).face * (!edgeHi.on ? 1 : EH_MID5.includes(ci) ? edgeHi.faceMid : EH_ARM5.includes(ci) ? edgeHi.faceArm : 1) * df) * (1 - rhombi.t) * (xpVisible(5, ci) ? 1 : 0); };
                     const aFac = cellObjects5D.map((_, ci) => aOf(ci));
                     let mp = 0, mc = 0;
                     for (let qi = 0; qi < quads5.length; qi++) {
                         const ci = quads5[qi][0], base = quads5[qi][1], cv = verts[ci], C = P5_RGB[ci], a = aFac[ci];
                         for (let k = 0; k < 6; k++) {
-                            const idx = T5_TRIS[base + k], v = cv[idx], bt = bright(dist[ci][idx]);
+                            const idx = T5_TRIS[base + k], v = cv[idx], bt = bright(dist[ci][idx]) * (0.72 + 0.28 * nestOf(ci, idx));   // 面にも入れ子の濃淡を軽く（内側ほど少し暗く）
                             mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
                             mcol[mc++] = Math.min(1, C.r * bt); mcol[mc++] = Math.min(1, C.g * bt); mcol[mc++] = Math.min(1, C.b * bt); mcol[mc++] = a;
                         }
