@@ -226,6 +226,7 @@
         .vm-seg button.on { background: rgba(14, 116, 144, 0.45); color: #e0f2fe; }
         .vm-row > button { padding: 2px 8px; border-radius: 8px; border: 1px solid #334155; background: rgba(30, 41, 59, 0.8); color: #cbd5e1; }
         .vm-row > button:hover, .vm-seg button:hover { background: #334155; }
+        .vm-row > button.on { background: rgba(217, 119, 6, 0.35); border-color: rgba(251, 191, 36, 0.7); color: #fef3c7; }
 
         /* 分解：番号ラベルと「数える」の札（各画面の上に重ねる） */
         .xp-layer { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
@@ -622,6 +623,7 @@
                     <div class="vm-row" style="align-items:flex-start"><span class="vm-h" style="padding-top:3px">ドラッグ</span><div class="flex flex-col gap-1"><div class="flex items-center gap-1.5"><span class="vm-h" title="4次元体（超立方体）をドラッグしたとき">4次元体</span><div class="vm-seg"><button data-drag5="3d" data-side5="L" title="4次元体（超立方体）を、形をそのまま3Dで転がす（X-Z・Y-Z）。w はつぶれたままなので、展開図は x・y・z が伸びた十字架。3D回転は5次元体にも同じくかかる">転がす</button><button data-drag5="dim" data-side5="L" title="4次元体（超立方体）を X-W・Y-W で回す（4次元モードの立方体と同じ）。0° では目の方を向いてつぶれている4次元体の w が、画面の中へ出てくる（中の立方体が横へずれる）。5次元体ではこの向きが v なので、5次元体では v が出てくる">w を出す（5次元体では v）</button></div></div><div class="flex items-center gap-1.5"><span class="vm-h" title="5次元体（5次元超立方体）をドラッグしたとき">5次元体</span><div class="vm-seg"><button data-drag5="3d" data-side5="R" title="5次元体を、形をそのまま3Dで転がす（X-Z・Y-Z）。w と v はつぶれたままなので、展開図は真ん中が大きい形のまま。3D回転は4次元体（超立方体）にも同じくかかる">転がす</button><button data-drag5="dim" data-side5="R" title="5次元体を、5次元だけの X-W・Y-W で回す（4次元モードの超立方体と同じ関係）。4次元体に無い w が画面の中へ出てくる。4次元体（超立方体）は動かない">w を出す</button></div></div></div></div>
                     <div id="drag5-note" class="text-[10px] text-slate-400 leading-snug"></div>
                     <div class="vm-row"><span class="vm-h">おすすめ</span><button data-vpreset="fat" title="しまう・展開図・斜め・遠近：w をつぶして見た展開図。±W の胞が中心の手前と奥に重なって、真ん中が大きくふくらむ。4次元体（超立方体）は x・y・z の伸びた十字架">真ん中が太い展開図</button><button data-vpreset="arms" title="w を出す・展開図・斜め・平行：w を出して見た展開図。10個の超立方体でできた4次元の十字架の、8方向の腕が全部見える">腕が全部見える展開図</button></div>
+                    <div class="vm-row"><span class="vm-h">お試し</span><button id="rhombi-btn" title="5次元体の影を菱形二十面体に変形する（お試し）。「w と v（等角図）」・組み上がり・平行投影へ回してから、写した形を5回対称の軸に沿って 1/√2 に縮め（軸の影の傾き 54.7°→63.4°＝黄金菱形）、中の線を消して凸包の20枚の菱形だけを残す。カメラは少し上から。もう一度押すと5次元体に戻る">→ 菱形二十面体へ</button></div>
                     <div class="text-[10px] text-slate-500 leading-snug">展開図は、折りたたむ向き（v）に厚みのない「4次元の十字架」（10個の超立方体）。同じ展開図を、w をつぶして見ると真ん中が太い形、w を出して見ると8方向の腕が全部見える形になります。</div>
                     <label class="flex items-center gap-2 text-[10px] text-slate-400" title="選んだせり出し方の途中で止める（0%＝しまった形、100%＝せり出した形）"><span class="shrink-0">せり出し具合</span><input id="seri-slider" type="range" min="0" max="100" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400 border border-slate-700"><span id="seri-val" class="w-10 text-right font-mono text-amber-200 shrink-0">0%</span></label>
                     <div id="seri-hold" class="text-[10px] leading-snug text-slate-500"></div>
@@ -848,11 +850,13 @@
             <div class="sb-panel space-y-3 hidden" data-panel="pts">
             <section class="sb-sec">
                 <h3 class="sb-h"><i data-lucide="highlighter" class="w-3.5 h-3.5"></i>手前と奥の辺を色で強調</h3>
-                <p class="d5-sub text-[10px] text-slate-500 leading-snug" data-d4="手前＝w が＋の側の立方体（遠近では外側の大きい立方体。ピンクの点の側。展開図では蓋）、奥＝w が−の側の立方体（中心。水色の点の側）。立方体の画面では、z の＋と−の正方形（蓋と中央）。" data-d5="超立方体は、手前＝w が＋の側の立方体（蓋）、奥＝w が−の側の立方体（中心）。5次元超立方体は、手前＝v が＋の側の超立方体（蓋）、奥＝v が−の側の超立方体（中心）。">手前＝w が＋の側の立方体（遠近では外側の大きい立方体。ピンクの点の側。展開図では蓋）、奥＝w が−の側の立方体（中心。水色の点の側）。立方体の画面では、z の＋と−の正方形（蓋と中央）。</p>
+                <p class="d5-sub text-[10px] text-slate-500 leading-snug" data-d4="手前＝w が＋の側の立方体（遠近では外側の大きい立方体。ピンクの点の側。展開図では蓋）、奥＝w が−の側の立方体（中心。水色の点の側）。立方体の画面では、z の＋と−の正方形（蓋と中央）。" data-d5="超立方体は、手前＝w が＋の側の立方体（蓋）、奥＝w が−の側の立方体（中心）。5次元超立方体は、手前＝v が＋の側の超立方体（蓋）、奥＝v が−の側の超立方体（中心）。5次元では、±W の超立方体（4次元体に無い w の腕）を「中」、±X・±Y・±Z を「腕」として段階を増やせます（それぞれ色・太さ・面の濃さ）。">手前＝w が＋の側の立方体（遠近では外側の大きい立方体。ピンクの点の側。展開図では蓋）、奥＝w が−の側の立方体（中心。水色の点の側）。立方体の画面では、z の＋と−の正方形（蓋と中央）。</p>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <button id="eh-toggle" class="px-2 py-1 rounded border transition" title="手前と奥の胞の辺に色を付ける／やめる">→ 辺の強調: OFF</button>
                     <label class="flex items-center gap-1 text-slate-300" title="手前の胞の辺の色">手前<input id="eh-near" type="color" value="#ff44dd" class="w-8 h-6 bg-transparent border border-slate-700 rounded cursor-pointer"></label>
                     <label class="flex items-center gap-1 text-slate-300" title="奥の胞の辺の色">奥<input id="eh-far" type="color" value="#33e5ff" class="w-8 h-6 bg-transparent border border-slate-700 rounded cursor-pointer"></label>
+                    <label class="d5-only hidden flex items-center gap-1 text-slate-300" title="中の胞（±W の超立方体＝4次元体に無い w の腕）の辺の色。5次元だけ">中<input id="eh-mid" type="color" value="#b6ff4d" class="w-8 h-6 bg-transparent border border-slate-700 rounded cursor-pointer"></label>
+                    <label class="d5-only hidden flex items-center gap-1 text-slate-300" title="腕の胞（±X・±Y・±Z の超立方体）の辺の色。グレーで一段階おくと立体感が出る。5次元だけ">腕<input id="eh-arm" type="color" value="#aab4c4" class="w-8 h-6 bg-transparent border border-slate-700 rounded cursor-pointer"></label>
                     <button id="eh-reset" class="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700" title="ピンクと水色に戻す">色を戻す</button>
                 </div>
                 <label class="flex items-center gap-2 text-[11px] text-slate-300" title="手前の胞の辺の太さ（画面の上でのピクセル。1＝ほかの辺と同じ細さ）">
@@ -864,6 +868,26 @@
                     <span class="shrink-0 w-16">奥の太さ</span>
                     <input id="eh-width-far" type="range" min="1" max="8" step="0.5" value="3" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-slate-700">
                     <span id="eh-width-far-val" class="w-10 text-right font-mono text-cyan-200 shrink-0">3px</span>
+                </label>
+                <label class="d5-only hidden flex items-center gap-2 text-[11px] text-slate-300" title="中の胞（±W）の辺の太さ（画面の上でのピクセル。1＝ほかの辺と同じ細さ）">
+                    <span class="shrink-0 w-16">中の太さ</span>
+                    <input id="eh-width-mid" type="range" min="1" max="8" step="0.5" value="2" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-400 border border-slate-700">
+                    <span id="eh-width-mid-val" class="w-10 text-right font-mono text-pink-200 shrink-0">3px</span>
+                </label>
+                <label class="d5-only hidden flex items-center gap-2 text-[11px] text-slate-300" title="中の胞（±W）の面の濃さ（ほかの胞の何倍か。1＝同じ）">
+                    <span class="shrink-0 w-16">中の面の濃さ</span>
+                    <input id="eh-face-mid" type="range" min="1" max="2" step="0.1" value="1.4" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-400 border border-slate-700">
+                    <span id="eh-face-mid-val" class="w-10 text-right font-mono text-pink-200 shrink-0">×1.4</span>
+                </label>
+                <label class="d5-only hidden flex items-center gap-2 text-[11px] text-slate-300" title="腕の胞（±X・±Y・±Z）の辺の太さ（画面の上でのピクセル。1＝ほかの辺と同じ細さ）">
+                    <span class="shrink-0 w-16">腕の太さ</span>
+                    <input id="eh-width-arm" type="range" min="1" max="8" step="0.5" value="1.5" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-400 border border-slate-700">
+                    <span id="eh-width-arm-val" class="w-10 text-right font-mono text-pink-200 shrink-0">1.5px</span>
+                </label>
+                <label class="d5-only hidden flex items-center gap-2 text-[11px] text-slate-300" title="腕の胞（±X・±Y・±Z）の面の濃さ（ほかの胞の何倍か。1＝同じ）">
+                    <span class="shrink-0 w-16">腕の面の濃さ</span>
+                    <input id="eh-face-arm" type="range" min="1" max="2" step="0.1" value="1.15" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-400 border border-slate-700">
+                    <span id="eh-face-arm-val" class="w-10 text-right font-mono text-pink-200 shrink-0">×1.15</span>
                 </label>
             </section>
             <section class="sb-sec">
@@ -1790,7 +1814,7 @@
                     if (Math.hypot(e.clientX - c.x, e.clientY - c.y) > 12 && Math.hypot(rx - c.x, ry - c.y) > 12)
                         twist3D(-wrapPi(Math.atan2(e.clientY - c.y, e.clientX - c.x) - Math.atan2(ry - c.y, rx - c.x)));
                 }
-                else if (dim5 && drag5L) {   // 5次元モード：4次元モードの立方体と同じ＝X-W・Y-W（5次元体では X-V・Y-V＝v がせり出す）
+                else if (dim5 && drag5L && rhombi.t <= 0) {   // 5次元モード：4次元モードの立方体と同じ＝X-W・Y-W（5次元体では X-V・Y-V＝v がせり出す）
                     linkAngleX = wrapPi(linkAngleX + dx * 0.01); linkAngleY = wrapPi(linkAngleY + dy * 0.01);
                 }
                 else turn3D(dx * 0.01, dy * 0.01);   // 右へドラッグ＝手前の面が右へ、下へドラッグ＝手前の面が下へ
@@ -2155,7 +2179,16 @@
                 const sw = CAMERA_W / (CAMERA_W - Math.min(Math.max(w, -CAMERA_W + 0.5), CAMERA_W - 0.5)), k2 = 1 + (sw - 1) * (1 - pb);
                 x *= k2; y *= k2; z *= k2;
             }
-            return [x, y, z];
+            return rhombiSquash([x, y, z]);
+        }
+        // お試し：写したあとの3Dで、(1,1,1,1,1) の影の向き（5回対称の軸）に沿って縮める（rhombi.t が 0 なら何もしない）
+        let _rhU = null, _rhKey = '';
+        function rhombiSquash(v) {
+            if (rhombi.t <= 0) return v;
+            const key = angles6().map(a => a.toFixed(5)).join(',');
+            if (key !== _rhKey) { _rhKey = key; const q = rotate5([1, 1, 1, 1, 1]); const l = Math.hypot(q[0], q[1], q[2]) || 1; _rhU = [q[0] / l, q[1] / l, q[2] / l]; }
+            const k = 1 - rhombi.t * (1 - RHOMBI_K), d = (v[0] * _rhU[0] + v[1] * _rhU[1] + v[2] * _rhU[2]) * (k - 1);
+            return [v[0] + d * _rhU[0], v[1] + d * _rhU[1], v[2] + d * _rhU[2]];
         }
         // ピンク＝(1,1,1,1,1) の頂点、水色＝(−1,−1,−1,−1,−1) の頂点（組み上がりで決めた 胞・頂点の番号を、折りたたみ中も追う）
         let p5NearId = null, p5FarId = null;
@@ -2177,6 +2210,10 @@
             { v: [0, 0, 0, 0, 1], color: 0xfbbf24, label: 'v' }
         ];
         let axis5 = [], p5MarkPlus = null, p5MarkMinus = null;
+        // お試し：菱形二十面体。t＝0 が5次元体の影、1 が菱形二十面体（視線方向に 1/√2 に縮めて、中の線を消す）
+        let rhombiObj = null;   // 凸包の20枚の菱形と辺（build5D で作る）
+        const rhombi = { on: false, t: 0, anim: false, pending: false, sync: null };
+        const RHOMBI_K = Math.SQRT1_2;   // 5本の軸の影の傾き 54.7°（tan＝√2）を、黄金菱形の 63.4°（tan＝2）にする縮め率
         function shapeCenterOnScreen5() {
             const r = scene5D.getObjectByName('Root5D'), rect = renderer5D.domElement.getBoundingClientRect();
             const q = new THREE.Vector3(); if (r) q.setFromMatrixPosition(r.matrixWorld); if (camera5D) q.project(camera5D);
@@ -2216,7 +2253,7 @@
                 if (!drag || ptrs.size !== 1) return;
                 stopCycle();
                 const dx = e.clientX - rx, dy = e.clientY - ry;
-                if (e.shiftKey) {
+                if (e.shiftKey && rhombi.t <= 0) {
                     if (drag5R) p5WV = wrapPi(p5WV + dx * 0.01);   // 4次元モードの超立方体の Shift（Z-W＝左に無い z と最後の w）と同じ：左に無い w と最後の v
                     else soloAngleZW = wrapPi(soloAngleZW + dx * 0.01);
                 }
@@ -2224,7 +2261,7 @@
                     const c = shapeCenterOnScreen5();
                     if (Math.hypot(e.clientX - c.x, e.clientY - c.y) > 12 && Math.hypot(rx - c.x, ry - c.y) > 12)
                         twist3D(-wrapPi(Math.atan2(e.clientY - c.y, e.clientX - c.x) - Math.atan2(ry - c.y, rx - c.x)));
-                } else if (drag5R) {   // 4次元モードの超立方体（X-Z・Y-Z＝左に無い z が傾く）と同じ：左に無い w がせり出す。+w の端がドラッグの向きへ
+                } else if (drag5R && rhombi.t <= 0) {   // 4次元モードの超立方体（X-Z・Y-Z＝左に無い z が傾く）と同じ：左に無い w がせり出す。+w の端がドラッグの向きへ
                     p5XW = wrapPi(p5XW - dx * 0.01); p5YW = wrapPi(p5YW + dy * 0.01);
                 } else turn3D(dx * 0.01, dy * 0.01);
                 rx = e.clientX; ry = e.clientY;
@@ -2261,6 +2298,15 @@
                 ag.add(line, cone, sprite); axis5.push({ line, cone, sprite });
             });
             root.add(ag);
+            {   // お試し：菱形二十面体（凸包の20枚の菱形と辺）。update5D で毎フレーム組み立てる
+                const rg = new THREE.Group(); rg.name = 'Rhombi5D'; rg.visible = false;
+                const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(20 * 6 * 3), 3));
+                const c = new Float32Array(20 * 6 * 3); c.fill(1); g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+                const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, transparent: true, opacity: 0, roughness: 0.35, metalness: 0.25, side: THREE.FrontSide, depthWrite: false }));
+                const eg = new THREE.BufferGeometry(); eg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(20 * 4 * 6), 3));
+                const edge = new THREE.LineSegments(eg, new THREE.LineBasicMaterial({ color: 0xfef3c7, transparent: true, opacity: 0 }));
+                rg.add(mesh, edge); root.add(rg); rhombiObj = { group: rg, mesh, edge };
+            }
             p5MarkPlus = makeMarker(MARK_NEAR, 0.07, 1003); p5MarkMinus = makeMarker(MARK_FAR, 0.07, 1002);
             root.add(p5MarkPlus, p5MarkMinus);
             findExtremeVerts5();
@@ -2291,7 +2337,7 @@
                 }
                 cell.geometry.attributes.position.needsUpdate = true; cell.geometry.attributes.color.needsUpdate = true;
                 cell.geometry.computeVertexNormals();
-                cell.material.opacity = Math.min(0.97, op * cellFocus(5, ci).face); cell.material.visible = !wireframeOnly;
+                cell.material.opacity = Math.min(0.97, op * cellFocus(5, ci).face * (!edgeHi.on ? 1 : EH_MID5.includes(ci) ? edgeHi.faceMid : EH_ARM5.includes(ci) ? edgeHi.faceArm : 1)) * (1 - rhombi.t); cell.material.visible = !wireframeOnly;   // 中（±W）・腕の面はひとつ濃く
                 const wa = cell.wireGeo.attributes.position.array, wc = cell.wireGeo.attributes.color.array;
                 for (let e = 0, k = 0; e < T5_EDGES.length; e++) {
                     const i0 = T5_EDGES[e][0], i1 = T5_EDGES[e][1], A = cv[i0], B = cv[i1], cA = ecol(cd[i0]), cB = ecol(cd[i1]);
@@ -2299,11 +2345,36 @@
                     wa[k] = B[0]; wc[k++] = cB[0]; wa[k] = B[1]; wc[k++] = cB[1]; wa[k] = B[2]; wc[k++] = cB[2];
                 }
                 if (cell.wire && cell.wire.parent) cell.wire.parent.visible = xpVisible(5, ci);   // 見せる胞（表だけ・裏だけ）
-                paintEdgeHi(cell, ci, cellObjects5D.length - 1, wc, EN[0]);   // 手前と奥の超立方体の辺を色で強調
+                paintEdgeHi(cell, ci, cellObjects5D.length - 1, wc, EN[0], EH_MID5, EH_ARM5);   // 手前・中（±W）・腕・奥の超立方体の辺を色で強調
                 { const fe = cellFocus(5, ci).edge; if (fe !== 1) for (let k = 0; k < wc.length; k++) wc[k] *= fe; }
                 cell.wireGeo.attributes.position.needsUpdate = true; cell.wireGeo.attributes.color.needsUpdate = true;
+                if (rhombi.t > 0 || cell._rhDim) { cell.wire.material.opacity = 0.9 * (1 - rhombi.t); cell._rhDim = rhombi.t > 0; }   // 菱形二十面体へ：線を消す
             });
+            if (rhombiObj) {   // お試し：菱形二十面体＝5本の軸の影 E の組 (i,j) ごとに、いちばん外にある正方形（＝菱形）を表と裏の2枚拾う
+                rhombiObj.group.visible = rhombi.t > 0;
+                if (rhombi.t > 0) {
+                    const E = [0, 1, 2, 3, 4].map(i => project5(rotate5([0, 1, 2, 3, 4].map(k => k === i ? 1 : 0)), pb));
+                    const H = HALF_S, pa = rhombiObj.mesh.geometry.attributes.position.array, ca = rhombiObj.mesh.geometry.attributes.color.array, ea = rhombiObj.edge.geometry.attributes.position.array;
+                    let m = 0, q = 0;
+                    const put = (v, col) => { pa[m] = v[0]; ca[m++] = col[0]; pa[m] = v[1]; ca[m++] = col[1]; pa[m] = v[2]; ca[m++] = col[2]; };
+                    for (let i = 0; i < 5; i++) for (let j = i + 1; j < 5; j++) for (const sg of [1, -1]) {
+                        const a = E[i], b = E[j];
+                        const d = [sg * (a[1] * b[2] - a[2] * b[1]), sg * (a[2] * b[0] - a[0] * b[2]), sg * (a[0] * b[1] - a[1] * b[0])];   // この菱形の外向き
+                        const base = [0, 0, 0];   // 残り3本の軸は、外向きに合わせて ± を決める（いちばん外の正方形）
+                        for (let k = 0; k < 5; k++) if (k !== i && k !== j) { const sk = (d[0] * E[k][0] + d[1] * E[k][1] + d[2] * E[k][2]) >= 0 ? 1 : -1; for (let t = 0; t < 3; t++) base[t] += sk * H * E[k][t]; }
+                        const c = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([si, sj]) => [0, 1, 2].map(t => base[t] + H * (si * a[t] + sj * b[t])));
+                        const col = (j - i === 1 || j - i === 4) ? [1, 0.86, 0.45] : [0.98, 0.64, 0.3];   // となりの軸どうしの菱形／1つ飛ばしの菱形
+                        if (sg > 0) { put(c[0], col); put(c[1], col); put(c[2], col); put(c[0], col); put(c[2], col); put(c[3], col); }   // 三角形の向きを外向きに（表だけ描く）
+                        else { put(c[0], col); put(c[3], col); put(c[2], col); put(c[0], col); put(c[2], col); put(c[1], col); }
+                        for (let t = 0; t < 4; t++) { const A = c[t], B = c[(t + 1) % 4]; ea[q++] = A[0]; ea[q++] = A[1]; ea[q++] = A[2]; ea[q++] = B[0]; ea[q++] = B[1]; ea[q++] = B[2]; }
+                    }
+                    rhombiObj.mesh.geometry.attributes.position.needsUpdate = true; rhombiObj.mesh.geometry.attributes.color.needsUpdate = true; rhombiObj.mesh.geometry.computeVertexNormals();
+                    rhombiObj.edge.geometry.attributes.position.needsUpdate = true;
+                    rhombiObj.mesh.material.opacity = 0.6 * rhombi.t; rhombiObj.edge.material.opacity = rhombi.t;
+                }
+            }
             updateFatEdges(5, cellObjects5D, scene5D, 'Root5D');   // 強調した辺の太さ
+            Object.keys(ehFat[5]).forEach(side => { const F = ehFat[5][side]; if (F && (rhombi.t > 0 || F._rhDim)) { F.material.opacity = 0.95 * (1 - rhombi.t); F._rhDim = rhombi.t > 0; } });   // 菱形二十面体へ：強調した太い辺も消す
             // 既定のピンク・水色（大きさ・表示・重なりの乗算は超立方体と共通の設定）
             if (p5MarkPlus && p5NearId) {
                 const fk = fixedMarks.size || 1, a = verts[p5NearId.cell][p5NearId.corner], b = verts[p5FarId.cell][p5FarId.corner];
@@ -2656,16 +2727,16 @@
         //   手前＝折りたたみでできた次元の＋側の胞（いちばん最後の番号＝蓋）、奥＝−側の胞（番号1＝中心）。
         //   超立方体なら w＋（遠近では外側の大きい立方体）と w−、立方体なら z＋ と z− の正方形、5次元超立方体なら v＋ と v−。
         //   既定の色は、手前の頂点の印（ピンク）・奥の頂点の印（水色）と同じ約束
-        const EH_DEF = { on: true, near: '#ff44dd', far: '#33e5ff', widthNear: 3, widthFar: 3 };   // widthNear・widthFar＝手前・奥の辺の太さ（画面の px）
+        const EH_DEF = { on: true, near: '#ff44dd', far: '#33e5ff', widthNear: 3, widthFar: 3, mid: '#b6ff4d', widthMid: 2, faceMid: 1.4, arm: '#aab4c4', widthArm: 1.5, faceArm: 1.15 };   // widthNear・widthFar＝手前・奥の辺の太さ（画面の px）。mid・widthMid・faceMid＝5次元の「中」（±W の超立方体）の辺の色・太さ・面の濃さ（お試し）
         let edgeHi = Object.assign({}, EH_DEF);
         try {
             const v = JSON.parse(localStorage.getItem('hypercubeEdgeHi') || 'null');
             if (v) { if (isFinite(v.width) && v.widthNear === undefined) { v.widthNear = v.width; v.widthFar = v.width; } delete v.width; edgeHi = Object.assign(edgeHi, v); }   // 前の「太さ」1つは両方へ
         } catch (_) {}
-        const _ehN = new THREE.Color(), _ehF = new THREE.Color();
+        const _ehN = new THREE.Color(), _ehF = new THREE.Color(), _ehM = new THREE.Color(), _ehA = new THREE.Color();
         // 胞 i の辺の色（頂点ごとの RGB の並び arr）を強調の色に塗りかえる。奥にある辺ほど少し暗くして立体感は残す
-        function paintEdgeHi(obj, i, last, arr, base) {
-            const H = !edgeHi.on ? null : i === last ? _ehN.set(edgeHi.near) : i === 0 ? _ehF.set(edgeHi.far) : null;
+        function paintEdgeHi(obj, i, last, arr, base, mids, arms) {   // mids＝「中」として塗る胞の番号（5次元の ±W）、arms＝「腕」（5次元の ±X・±Y・±Z）
+            const H = !edgeHi.on ? null : i === last ? _ehN.set(edgeHi.near) : i === 0 ? _ehF.set(edgeHi.far) : (mids && mids.includes(i)) ? _ehM.set(edgeHi.mid) : (arms && arms.includes(i)) ? _ehA.set(edgeHi.arm) : null;
             if (obj && obj.wire) obj.wire.renderOrder = H ? 3 : 0;   // 強調した辺は、となりの胞と重なる辺より後に描く（色が混ざらないように）
             if (!H || !arr) return;
             const b = Math.max(base, 1e-3);
@@ -2677,16 +2748,20 @@
 
         // 強調した辺の太さ：手前と奥の胞の辺を、太い線（画面の上でのピクセル幅）で描き重ねる。
         //   位置と色は、その胞のふつうの線と同じ（分解・数える・奥の暗さもそのまま効く）。太さ 1 のときはふつうの線だけ
-        const ehFat = { 2: {}, 3: {}, 5: {} };   // 画面ごとに { near: 手前の太い線, far: 奥の太い線 }
+        const ehFat = { 2: {}, 3: {}, 5: {} };   // 画面ごとに { near: 手前の太い線, far: 奥の太い線, midA・midB: 5次元の ±W }
+        const EH_MID5 = [7, 8];   // 5次元の「中」＝+W・−W の超立方体（P5_CELLS の番号）
+        const EH_ARM5 = [1, 2, 3, 4, 5, 6];   // 5次元の「腕」＝±Y・±X・±Z の超立方体（グレーの段階。立体感のため）
         const EH_BOX = { 2: 'canvas-2d3d', 3: 'canvas-3d4d', 5: 'canvas-4d5d' };
         function setFatResolution() {
             [2, 3, 5].forEach(dim => { const box = document.getElementById(EH_BOX[dim]); if (!box || box.clientWidth <= 0) return;
-                ['near', 'far'].forEach(side => { const F = ehFat[dim][side]; if (F) F.material.resolution.set(box.clientWidth, box.clientHeight); }); });
+                Object.keys(ehFat[dim]).forEach(side => { const F = ehFat[dim][side]; if (F) F.material.resolution.set(box.clientWidth, box.clientHeight); }); });
         }
         function updateFatEdges(dim, objs, scn, rootName) {
             const root = scn && scn.getObjectByName(rootName);
             const can = !!(root && edgeHi.on && THREE.LineSegments2 && THREE.LineMaterial);
-            [['near', objs.length - 1, edgeHi.widthNear], ['far', 0, edgeHi.widthFar]].forEach(([side, i, width]) => {   // 手前＝最後の番号（蓋）、奥＝番号1（中心）
+            const sides = [['near', objs.length - 1, edgeHi.widthNear], ['far', 0, edgeHi.widthFar]];   // 手前＝最後の番号（蓋）、奥＝番号1（中心）
+            if (dim === 5) { sides.push(['midA', EH_MID5[0], edgeHi.widthMid], ['midB', EH_MID5[1], edgeHi.widthMid]); EH_ARM5.forEach(i => sides.push(['arm' + i, i, edgeHi.widthArm])); }   // 5次元：中（±W）と腕
+            sides.forEach(([side, i, width]) => {
                 let F = ehFat[dim][side];
                 if (!can || !(width > 1.01) || !objs[i] || !xpVisible(dim, i)) { if (F) F.visible = false; return; }
                 if (!F) {
@@ -3561,6 +3636,12 @@
                 syncExplodeUI(); updateMorphingGeometry(animationProgress);
             }
             stepXpCount(_dt);
+            // お試し：菱形二十面体へ。回し終わって組み上がったら変形を始める（1.6秒）。戻すときは逆
+            if (rhombi.pending && !axisTween && !xpAnim && animationMode === 0 && animationProgress >= 0.999) { rhombi.pending = false; rhombi.anim = true; }
+            if (rhombi.anim) {
+                rhombi.t += (rhombi.on ? 1 : -1) * _dt / 1.6;
+                if (rhombi.t >= 1) { rhombi.t = 1; rhombi.anim = false; requestRender(5); } else if (rhombi.t <= 0) { rhombi.t = 0; rhombi.anim = false; requestRender(5); }   // 止まったあと、ぴったりの値で描き直す
+            }
             applyExplodeZoom();
             if (pingPong) {
                 // スピンや、角度を動かす移行アニメが始まったら往復は止める（同じ角度を取り合わない）
@@ -3739,7 +3820,7 @@
                 }
             }
             // 何も動いていなければ、ここで終わり（描き直さない＝省エネ）
-            const busy = animationMode !== 0 || axisTween !== null || cycleMode || pingPong !== null || camHome !== null || anySpin() || autoRotateCamera || camMoved || explodeTarget !== null || xpCount.active;
+            const busy = animationMode !== 0 || axisTween !== null || cycleMode || pingPong !== null || camHome !== null || anySpin() || autoRotateCamera || camMoved || explodeTarget !== null || xpCount.active || rhombi.anim || rhombi.pending;
             if (!busy && _renderFrames <= 0) return;
             if (_renderFrames > 0) _renderFrames--;
             // カメラを回している最中も「手前=はっきり/奥=ダーク」を毎フレーム再評価する
@@ -3776,6 +3857,7 @@
             stopCycle();
             if (!only) {
                 cubePersp = true; applyPerspUI();   // 全部のリセットは、いつも遠近投影に戻す
+                if (rhombi.on || rhombi.t > 0) { rhombi.on = false; rhombi.pending = false; rhombi.anim = true; if (rhombi.sync) rhombi.sync(); }   // 菱形二十面体は解除
                 if (controls2D && camera2D) { controls2D.target.set(0, 0, 0); camera2D.position.set(0, 0, CAM2D_D(_lastPbL)); camera2D.up.set(0, 1, 0); camera2D.lookAt(0, 0, 0); }   // 立方体の画面の位置（パン）も元へ
             }
             const z = k => (!only || only === k);
@@ -5728,6 +5810,7 @@
             document.querySelectorAll('.dim5-toggle').forEach(b => b.addEventListener('click', () => {
                 dim5 = !dim5;
                 try { localStorage.setItem('hypercubeDim5', dim5 ? '1' : '0'); } catch (_) {}
+                if (!dim5 && (rhombi.on || rhombi.t > 0)) { rhombi.on = false; rhombi.pending = false; rhombi.anim = false; rhombi.t = 0; if (rhombi.sync) rhombi.sync(); }   // 菱形二十面体はやめる
                 if (!dim5) spin5XW = spin5YW = spin5ZW = spin5WV = false;   // 4次元にもどすときは、5次元だけの回転を止める（角度は覚えておく）
                 applyDim5UI(); ensureProjection(); updateLinkUI(); updateMorphingGeometry(animationProgress); requestRender(30);
             }));
@@ -5799,6 +5882,23 @@
             document.querySelectorAll('[data-vdir]').forEach(b => b.addEventListener('click', () => viewGo({ dir: b.dataset.vdir })));
             document.querySelectorAll('[data-vform]').forEach(b => b.addEventListener('click', () => viewGo({ form: b.dataset.vform })));
             document.querySelectorAll('[data-vproj]').forEach(b => b.addEventListener('click', () => viewGo({ proj: b.dataset.vproj })));
+            // お試し：5次元体 → 菱形二十面体。まず「w と v」・組み上がり・平行・正面へ回し、カメラを少し上から（視線方向の縮みが見えるように）。
+            //   回し終わったら animate() が rhombi.t を 0→1 に進める（縮め＝rhombiSquash、面と線の消え方＝update5D）
+            const rhombiBtn = document.getElementById('rhombi-btn');
+            rhombi.sync = () => { if (!rhombiBtn) return; rhombiBtn.textContent = rhombi.on ? '→ 5次元体に戻す' : '→ 菱形二十面体へ'; rhombiBtn.classList.toggle('on', rhombi.on); };
+            if (rhombiBtn) rhombiBtn.addEventListener('click', () => {
+                rhombi.on = !rhombi.on; rhombi.sync();
+                if (rhombi.on) {
+                    unexplode();
+                    viewGo({ cell: 'wv', dir: 'front', form: 'fold', proj: 'par', cam: true });
+                    // カメラ：5回対称の軸（画面の奥行き z）が縦に見えるよう up を z にし、鏡の面（軸の影の方位は 36°の倍数）の中から、少し上（20°）から見る＝左右対称に写る
+                    camera3D.up.set(0, 0, 1);
+                    if (axisTween && axisTween.cam) { const ph = 108 * Math.PI / 180, el = 20 * Math.PI / 180; axisTween.cam.p1 = new THREE.Vector3(46 * Math.cos(el) * Math.cos(ph), 46 * Math.cos(el) * Math.sin(ph), 46 * Math.sin(el)); }
+                    rhombi.pending = true; rhombi.anim = false;
+                } else { rhombi.pending = false; rhombi.anim = true; viewGo({ dir: 'front', cam: true }); }   // 戻す：カメラも正面へ（up も y に戻る）
+                requestRender(30);
+            });
+            rhombi.sync();
             const VM_PRESET = {
                 fat: { cell: 'none', dir: 'tilt', form: 'net', proj: 'persp', cam: true },   // 真ん中が太い展開図（w をつぶして見る）
                 arms: { cell: 'w', dir: 'tilt', form: 'net', proj: 'par', cam: true }        // 腕が全部見える展開図（w を出して見る）
@@ -5898,8 +5998,9 @@
                 ehBtn.textContent = '→ 辺の強調: ' + (edgeHi.on ? 'OFF' : 'ON');   // 押すとこうなる
                 ehBtn.classList.toggle('bg-fuchsia-900/40', edgeHi.on); ehBtn.classList.toggle('border-fuchsia-400/60', edgeHi.on); ehBtn.classList.toggle('text-fuchsia-100', edgeHi.on);
                 ehBtn.classList.toggle('bg-slate-800', !edgeHi.on); ehBtn.classList.toggle('border-slate-700', !edgeHi.on); ehBtn.classList.toggle('text-slate-400', !edgeHi.on);
-                ehNear.value = edgeHi.near; ehFar.value = edgeHi.far;
-                [['near', edgeHi.widthNear], ['far', edgeHi.widthFar]].forEach(([side, w]) => {
+                ehNear.value = edgeHi.near; ehFar.value = edgeHi.far; const ehMidEl = document.getElementById('eh-mid'); if (ehMidEl) ehMidEl.value = edgeHi.mid; const ehArmEl = document.getElementById('eh-arm'); if (ehArmEl) ehArmEl.value = edgeHi.arm;
+                [['eh-face-mid', edgeHi.faceMid], ['eh-face-arm', edgeHi.faceArm]].forEach(([id, f]) => { const sl = document.getElementById(id), v = document.getElementById(id + '-val'); if (sl && document.activeElement !== sl) sl.value = f; if (v) v.textContent = '×' + (+f).toFixed(2).replace(/0$/, ''); });
+                [['near', edgeHi.widthNear], ['far', edgeHi.widthFar], ['mid', edgeHi.widthMid], ['arm', edgeHi.widthArm]].forEach(([side, w]) => {
                     const sl = document.getElementById('eh-width-' + side); if (sl && document.activeElement !== sl) sl.value = w;
                     document.getElementById('eh-width-' + side + '-val').textContent = (+w).toFixed(1).replace(/\.0$/, '') + 'px';
                 });
@@ -5908,8 +6009,10 @@
             ehBtn.addEventListener('click', () => { edgeHi.on = !edgeHi.on; ehApply(); });
             ehNear.addEventListener('input', () => { edgeHi.near = ehNear.value; edgeHi.on = true; ehApply(); });   // 色を選んだら強調もオンに
             ehFar.addEventListener('input', () => { edgeHi.far = ehFar.value; edgeHi.on = true; ehApply(); });
-            document.getElementById('eh-reset').addEventListener('click', () => { edgeHi.near = EH_DEF.near; edgeHi.far = EH_DEF.far; ehApply(); });
-            [['near', 'widthNear'], ['far', 'widthFar']].forEach(([side, key]) => {
+            [['eh-mid', 'mid'], ['eh-arm', 'arm']].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.addEventListener('input', () => { edgeHi[key] = el.value; edgeHi.on = true; ehApply(); }); });
+            [['eh-face-mid', 'faceMid'], ['eh-face-arm', 'faceArm']].forEach(([id, key]) => { const sl = document.getElementById(id); if (sl) { sl.addEventListener('input', e => { edgeHi[key] = parseFloat(e.target.value); edgeHi.on = true; ehApply(); }); sl.addEventListener('keydown', e => e.stopPropagation()); } });
+            document.getElementById('eh-reset').addEventListener('click', () => { edgeHi.near = EH_DEF.near; edgeHi.far = EH_DEF.far; edgeHi.mid = EH_DEF.mid; edgeHi.arm = EH_DEF.arm; ehApply(); });
+            [['near', 'widthNear'], ['far', 'widthFar'], ['mid', 'widthMid'], ['arm', 'widthArm']].forEach(([side, key]) => {
                 const sl = document.getElementById('eh-width-' + side);
                 sl.addEventListener('input', e => { edgeHi[key] = parseFloat(e.target.value); edgeHi.on = true; ehApply(); });   // 太さを変えたら強調もオンに
                 sl.addEventListener('keydown', e => e.stopPropagation());
