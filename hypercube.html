@@ -723,7 +723,6 @@
                     <button id="pp-tour-v16" class="px-2 py-1 rounded bg-slate-800 border border-amber-500/50 text-amber-200 hover:bg-slate-700" title="16個の頂点を順にめぐる。各停留点は「頂点から」の向き（頂点が手前の真ん中に来る）で、となりの頂点へ移る順（グレイコード）に並ぶ。形は同じで、手前の頂点だけが入れ替わる">16頂点ツアー</button>
                     <button id="pp-tour-c8" class="px-2 py-1 rounded bg-slate-800 border border-amber-500/50 text-amber-200 hover:bg-slate-700" title="8個の胞を順に手前へ。各停留点は「胞から」の向き（その胞が手前＝遠近では外側の大きい立方体）。+w・+x・+y・+z・−w・−x・−y・−z の順">8つの胞ツアー</button>
                     <button id="pp-tour-back" class="px-2 py-1 rounded bg-slate-800 border border-amber-500/50 text-amber-200 hover:bg-slate-700" title="胞→面→辺→頂点 のあと、裏返し（−1,−1,−1,−1 が手前の側）の 頂点→辺→面→胞 を通って一周する8つ">胞→面→辺→頂点→裏側（8つ）</button>
-                    <button id="pp-marks-clear" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="再生で手前に来た頂点に、通った順の番号を付けた印（橙）が残る。これを全部消す">→ 通過した印を消す</button>
                 </div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-slate-400">動き方</span>
@@ -1434,7 +1433,7 @@
                     if (P.once) {   // 1区間だけ：出発に止まった状態から始め、落ち着いたら次の停留点にぴったり置いて止める
                         [f, v] = springLeg(0, 0, 1, Math.max(0, u) * P.legSec, zeta, omega);
                         if (u >= 1 && ((Math.abs(f - 1) < 0.002 && Math.abs(v) < 0.02) || u >= 1.6)) {
-                            endAt(0); tourMarkStop(P.pts[1]); stopPingPong(); updateLinkUI(); updateMorphingGeometry(animationProgress);
+                            endAt(0); stopPingPong(); updateLinkUI(); updateMorphingGeometry(animationProgress);
                             return;
                         }
                         place(0, f);
@@ -1447,53 +1446,20 @@
                             P.sp = { k: kk, x0: turn ? 1 - r[0] : r[0] - 1, v0: turn ? -r[1] : r[1], zeta };
                         }
                         [f, v] = springLeg(P.sp.x0, P.sp.v0, 1, (u - k) * P.legSec, zeta, omega);
-                        tourPass(P, k); place(k, f);
+                        place(k, f);
                     }
                     updateLinkUI(); updateMorphingGeometry(animationProgress);
                     return;
                 }
                 const ease = PP_EASES[ppEase] || PP_EASES.sine;
                 if (P.once && u >= 1) {   // 1区間だけ：終点にぴったり置いて止める
-                    endAt(0); tourMarkStop(P.pts[1]); stopPingPong(); updateLinkUI(); updateMorphingGeometry(animationProgress);
+                    endAt(0); stopPingPong(); updateLinkUI(); updateMorphingGeometry(animationProgress);
                     return;
                 }
                 const k = Math.floor(u), fr = u - k;
-                tourPass(P, k); place(k, ease(fr));   // 区間ごとに、選んだ動き方で
+                place(k, ease(fr));   // 区間ごとに、選んだ動き方で
             }
             updateLinkUI(); updateMorphingGeometry(animationProgress);
-        }
-        // 往復・ツアーで通過した頂点の印（手前に来た頂点に、通った順の番号を付けて残す。「通過した印を消す」で消す）
-        const tourMarks = { list: [], objs: [], sync: null };   // list: { v: [sx,sy,sz,sw], n: 通った順 }
-        function tourMarksClear() { tourMarks.objs.forEach(o => { [o.mesh, o.sprite].forEach(m => { if (m.parent) m.parent.remove(m); }); }); tourMarks.objs = []; tourMarks.list = []; if (tourMarks.sync) tourMarks.sync(); requestRender(10); }
-        function frontVertexOf(ang) {   // その角度（ラジアン10個）で、手前（+w）にただ1つ来る頂点。無ければ null（胞から などは8個が並ぶ）
-            const rp = (q, i, j, t) => { const C = Math.cos(t), S = Math.sin(t), x = q[i] * C - q[j] * S, y = q[i] * S + q[j] * C; q[i] = x; q[j] = y; };
-            let best = null, bw = -1e9, second = -1e9;
-            for (let i = 0; i < 16; i++) {
-                const v = [0, 1, 2, 3].map(k => ((i >> k) & 1) ? -1 : 1), q = v.map(c => c * HALF_S);
-                rp(q, 0, 3, ang[0]); rp(q, 1, 3, ang[1]); rp(q, 2, 3, ang[2]);
-                if (q[3] > bw) { second = bw; bw = q[3]; best = v; } else if (q[3] > second) second = q[3];
-            }
-            return (bw > 0.9 * S && bw - second > 0.05 * S) ? best : null;
-        }
-        function tourMarkStop(ang) {   // 停留点に着いた：手前の頂点に印を付ける（同じ頂点は1回だけ）
-            const v = frontVertexOf(ang); if (!v) return;
-            if (tourMarks.list.some(m => m.v.every((c, i) => c === v[i]))) return;
-            tourMarks.list.push({ v, n: tourMarks.list.length + 1 });
-            if (tourMarks.sync) tourMarks.sync();
-        }
-        function tourPass(P, k) { if (P.lastK === k) return; P.lastK = k; tourMarkStop(P.pts[P.seq[((k % P.seq.length) + P.seq.length) % P.seq.length]]); }
-        function updateTourMarks(progress) {
-            const r3 = scene3D && scene3D.getObjectByName('Root3D'); if (!r3) return;
-            while (tourMarks.objs.length < tourMarks.list.length) {   // 足りない印を作る
-                const m = tourMarks.list[tourMarks.objs.length];
-                const mesh = makeMarker(new THREE.Color(0xffb020), 0.05, 1006), sprite = makePtSprite(String(m.n), '#ffd166', 0.55);
-                r3.add(mesh, sprite); tourMarks.objs.push({ mesh, sprite });
-            }
-            const show = progress >= 0.999 && explodeE() < 0.02;
-            tourMarks.objs.forEach((o, i) => {
-                const m = tourMarks.list[i]; o.mesh.visible = show; o.sprite.visible = show;
-                if (show) { const q = rotated4DAxis(m.v.map(c => c * HALF_S)); o.mesh.position.set(q[0], q[1], q[2]); o.sprite.position.set(q[0] + 0.06, q[1] + 0.06, q[2]); }
-            });
         }
         let ppOnceText = 'A→B';   // 片道ボタンの文字（UI が並びから決める）
         let ppMode = 'pingpong';   // 'pingpong'＝往復、'cycle'＝ぐるっと（このブラウザに覚える）
@@ -3975,7 +3941,6 @@
 
             updateAxisGnomon(progress);
             updateUserPoints(progress);   // 置いた点も今の回転・投影・折りたたみに合わせる
-            updateTourMarks(progress);   // 通過した頂点の印
 
             document.getElementById('unfold-slider').value = progress;
             const percent = Math.round(progress * 100);
@@ -5479,12 +5444,7 @@
                 ppSlot[PP_SLOTS[PP_SLOTS.length - 1]] = null;
             }
             // 停留点の列を A から順に入れる（足りない面は 0）。ツアーのプリセット用
-            const marksBtn = document.getElementById('pp-marks-clear');
-            tourMarks.sync = () => { if (marksBtn) marksBtn.textContent = '→ 通過した印を消す' + (tourMarks.list.length ? '（' + tourMarks.list.length + '個）' : ''); };
-            if (marksBtn) marksBtn.addEventListener('click', () => { tourMarksClear(); ppSt('通過した印を消しました'); });
-            tourMarks.sync();
             function ppFill(list, mode) {
-                tourMarksClear();   // 新しいツアーを入れたら、通過した印は消す
                 PP_SLOTS.forEach((k, i) => ppSlot[k] = list[i] ? Object.assign(Object.fromEntries(PP_ALL.map(q => [q, 0])), list[i]) : null);
                 ppMode = mode || 'cycle'; try { localStorage.setItem('hypercubePPMode', ppMode); } catch (_) {}
                 renderPPSlots(); if (pingPong && !pingPong.once) startPingPong(ppStopAngles(), ppSec(), false, ppMode, ppStops());
