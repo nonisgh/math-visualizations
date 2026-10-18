@@ -675,7 +675,7 @@
                     <div class="vm-row"><span class="vm-h">投影</span><div class="vm-seg"><button data-vproj="persp" title="遠近投影（w・v の向きにも遠近がつく。手前は大きく、奥は小さく）">遠近</button><button data-vproj="par" title="平行投影（w・v は落とすだけ。どの胞も同じ大きさ。軸が全部 0° のときは重なって見えなくなるので遠近のまま）">平行</button></div></div>
                     <div class="vm-row" style="align-items:flex-start"><span class="vm-h" style="padding-top:3px">ドラッグ</span><div class="flex flex-col gap-1"><div class="flex items-center gap-1.5"><span class="vm-h" title="4次元体（超立方体）をドラッグしたとき">4次元体</span><div class="vm-seg"><button data-drag5="3d" data-side5="L" title="4次元体（超立方体）を、形をそのまま3Dで転がす（X-Z・Y-Z）。w はつぶれたままなので、展開図は x・y・z が伸びた十字架。3D回転は5次元体にも同じくかかる">転がす</button><button data-drag5="dim" data-side5="L" title="4次元体（超立方体）を X-W・Y-W で回す（4次元モードの立方体と同じ）。0° では目の方を向いてつぶれている4次元体の w が、画面の中へ出てくる（中の立方体が横へずれる）。5次元体ではこの向きが v なので、5次元体では v が出てくる">w を出す（5次元体では v）</button></div></div><div class="flex items-center gap-1.5"><span class="vm-h" title="5次元体（5次元超立方体）をドラッグしたとき">5次元体</span><div class="vm-seg"><button data-drag5="3d" data-side5="R" title="5次元体を、形をそのまま3Dで転がす（X-Z・Y-Z）。w と v はつぶれたままなので、展開図は真ん中が大きい形のまま。3D回転は4次元体（超立方体）にも同じくかかる">転がす</button><button data-drag5="dim" data-side5="R" title="5次元体を、5次元だけの X-W・Y-W で回す（4次元モードの超立方体と同じ関係）。4次元体に無い w が画面の中へ出てくる。4次元体（超立方体）は動かない">w を出す</button></div></div></div></div>
                     <div id="drag5-note" class="text-[10px] text-slate-400 leading-snug"></div>
-                    <div class="vm-row"><span class="vm-h">おすすめ</span><button data-vpreset="fat" title="3D展開＝同じ展開図（4次元の十字架）を、w の腕2本を奥に畳んで、3次元の十字架のように見る。しまう・展開図・斜め・遠近。±W の胞が中心の手前と奥に重なって、真ん中が大きくふくらむ。4次元体（超立方体）は x・y・z の伸びた十字架">3D展開</button><button data-vpreset="arms" title="4D展開＝展開図を4次元の形のまま見る。w を出す・展開図・斜め・平行。10個の超立方体でできた4次元の十字架の、8方向の腕が全部見える">4D展開</button><button data-vpreset="onept" title="1点重なり（仮設）＝等角図「w と v」・正面・組み上がり・平行投影を一発で。5本の軸が同じ長さ（77%）になり、ピンク（手前の頂点）とエメラルド（奥の頂点）が真ん中で1点に重なる。輪郭は正十角形">1点重なり</button><button data-vpreset="anyang" title="どこでも重なる（B プラン）＝(1,1,1,1,1) の方向を投影でつぶす向き（4次元の等角図と同じ仕組み）。手前と奥の頂点が3Dの原点に重なるので、ドラッグでどの角度から回しても1点のまま。そのかわり軸の長さは x・y・z が82%、w・v が71%（5本をそろえることは3次元では不可能）。「1点重なり」は5本とも77%だが、真正面からしか重ならない">どこでも重なる</button></div>
+                    <div class="vm-row"><span class="vm-h">おすすめ</span><button data-vpreset="fat" title="3D展開＝同じ展開図（4次元の十字架）を、w の腕2本を奥に畳んで、3次元の十字架のように見る。しまう・展開図・斜め・遠近。±W の胞が中心の手前と奥に重なって、真ん中が大きくふくらむ。4次元体（超立方体）は x・y・z の伸びた十字架">3D展開</button><button data-vpreset="arms" title="4D展開＝展開図を4次元の形のまま見る。w を出す・展開図・斜め・平行。10個の超立方体でできた4次元の十字架の、8方向の腕が全部見える">4D展開</button><button data-vpreset="onept" title="5D等角図＝等角図「w と v」・正面・組み上がり・平行投影を一発で。5本の軸が同じ長さ（77%）になり、ピンク（手前の頂点）とエメラルド（奥の頂点）が真ん中で1点に重なる。輪郭は正十角形">5D等角図</button><button data-vpreset="anyang" title="六角柱＝5次元立方体を「立方体(x,y,z) × 正方形(w,v)」と見て、それぞれを対角線の方向から見た形。上から見ると正六角形、横から見ると四角。(1,1,1,1,1) の方向を投影でつぶす向き（4次元の等角図と同じ仕組み）。手前と奥の頂点が3Dの原点に重なるので、ドラッグでどの角度から回しても1点のまま。そのかわり軸の長さは x・y・z が82%、w・v が71%（5本をそろえることは3次元では不可能）。「5D等角図」は5本とも77%だが、真正面からしか重ならない">六角柱</button></div>
                     <div class="vm-row"><span class="vm-h">光</span><button id="light5-btn" title="4Dライト（お試し）。5次元空間に固定した光で、各胞（超立方体）の向きごとに明るさを変える。X-W・W-V など4次元・5次元の回転で光の当たる胞が入れ替わるので、3Dの形が同じでも『回っている』ことが光で分かる">→ 4Dライト: OFF</button></div>
                     <div class="vm-row"><span class="vm-h">お試し</span><button id="rhombi-btn" title="5次元体の影を菱形二十面体に変形する（お試し）。「w と v（等角図）」・組み上がり・平行投影へ回してから、写した形を5回対称の軸に沿って 1/√2 に縮め（軸の影の傾き 54.7°→63.4°＝黄金菱形）、中の線を消して凸包の20枚の菱形だけを残す。カメラは少し上から。もう一度押すと5次元体に戻る">→ 菱形二十面体へ</button></div>
                     <div class="text-[10px] text-slate-500 leading-snug">展開図は、折りたたむ向き（v）に厚みのない「4次元の十字架」（10個の超立方体）。同じ展開図を、w をつぶして3次元の十字架のように見るのが「3D展開」（真ん中が太い形）、w を出して4次元の形のまま見るのが「4D展開」（8方向の腕が全部見える）です。</div>
@@ -2759,7 +2759,7 @@
             wv: { name: 'w と v をせり出す（5次元の等角図）', T: { a: -58.283, b: 40.386, c: -21.823, xy: -22.757, xz: 54.736, yz: 0, xw5: -27.732, yw5: 31.091, zw5: -33.447, wv5: 72 } },
             // B プラン：(1,1,1,1,1) の方向を投影でつぶす（4次元の等角図と同じ仕組み）＝手前と奥の頂点が3Dの原点に重なり、どの角度から回しても1点のまま。
             //   つぶす2つめの向きは (−2,−2,−2,3,3) 方向（数値で求めた）。5本を同じ長さにはできないので、x・y・z が82%、w・v が71%（ばらつきが最小）
-            diag: { name: '対角線をつぶす（どこから見ても重なる）', T: { a: 90, b: 45, c: 35.26439, xy: -144, xz: -18, yz: -42, xw5: -45, yw5: 0, zw5: 0, wv5: 8.53428 } }
+            diag: { name: '六角柱（立方体×正方形を対角線から。どこから見ても重なる）', T: { a: 90, b: 45, c: 35.26439, xy: -144, xz: -18, yz: -42, xw5: -45, yw5: 0, zw5: 0, wv5: 8.53428 } }
         };
         let seriPath = 'wv';
         // せり出したら、その形（道のり k・具合 t）を覚えて固定する。リセット・補正でも 0° ではなくこの形へ戻す。「→ しまう」で解除
@@ -5535,7 +5535,7 @@
                 //   ※ 4次元と違って、(1,1,1,1,1) をまるごと落とす向きにすると5本は同じ長さにならない（落とす向きが2つあるため）
                 { name: '1,1,1,1,1 が手前', sub: '5次元の等角図', a: -58.283, b: 40.386, c: -21.823, xy: -22.757, xz: 54.736, yz: 0, xw5: -27.732, yw5: 31.091, zw5: -33.447, wv5: 72, col: '#ff44dd', d5: true },
                 // B プラン：対角線 (1,1,1,1,1) をつぶす向き。手前と奥の頂点はどの3D回転でも原点で重なる（軸は x・y・z 82%、w・v 71%）
-                { name: '対角線をつぶす', sub: 'どこから見ても重なる', a: 90, b: 45, c: 35.26439, xy: -144, xz: -18, yz: -42, xw5: -45, yw5: 0, zw5: 0, wv5: 8.53428, col: '#b07cff', d5: true },
+                { name: '六角柱', sub: '立方体×正方形を対角線から（どこから見ても重なる）', a: 90, b: 45, c: 35.26439, xy: -144, xz: -18, yz: -42, xw5: -45, yw5: 0, zw5: 0, wv5: 8.53428, col: '#b07cff', d5: true },
                 { name: '−1,−1,−1,−1,−1 が手前', sub: '5次元の等角図の裏返し', a: 121.717, b: 139.614, c: 158.177, xy: -22.757, xz: 54.736, yz: 0, xw5: 27.732, yw5: -31.091, zw5: 33.447, wv5: -72, col: '#33e5ff', d5: true }
             ];
             const fmtAng = v => (Math.round((v || 0) * 100) / 100).toString();
@@ -6841,8 +6841,8 @@
             const VM_PRESET = {
                 fat: { cell: 'none', dir: 'tilt', form: 'net', proj: 'persp', cam: true },   // 3D展開（w をつぶして見る＝真ん中が太い）
                 arms: { cell: 'w', dir: 'tilt', form: 'net', proj: 'par', cam: true },       // 4D展開（w を出して見る＝腕が全部見える）
-                onept: { cell: 'wv', dir: 'front', form: 'fold', proj: 'par', cam: true },   // 1点重なり（仮設）：等角図・正面・組み上がり・平行＝手前と奥の頂点が真ん中で1点に重なる
-                anyang: { cell: 'diag', dir: 'front', form: 'fold', proj: 'par', cam: true }  // どこでも重なる（B プラン）：対角線をつぶす向き＝回しても手前と奥が1点のまま
+                onept: { cell: 'wv', dir: 'front', form: 'fold', proj: 'par', cam: true },   // 5D等角図：等角図・正面・組み上がり・平行＝手前と奥の頂点が真ん中で1点に重なる
+                anyang: { cell: 'diag', dir: 'front', form: 'fold', proj: 'par', cam: true }  // 六角柱（B プラン）：対角線をつぶす向き＝回しても手前と奥が1点のまま
             };
             document.querySelectorAll('[data-vpreset]').forEach(b => b.addEventListener('click', () => { unexplode(); viewGo(VM_PRESET[b.dataset.vpreset]); }));
             setInterval(() => { if (dim5) syncMatrix(); }, 400);   // リセット・ドラッグ・アニメのあとも色を合わせる（描き直しはしない）
