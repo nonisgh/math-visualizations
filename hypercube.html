@@ -931,7 +931,24 @@
                         <i data-lucide="layers" class="w-3.5 h-3.5"></i>
                         <span id="xparent-text" class="text-[11px]">面透過: 立体感</span>
                     </button>
+                    <button id="deep4-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="奥を濃く（4次元・お試し）：超立方体の胞の色は変えずに、濃さだけを変える。奥の胞（内側の立方体＝−w）ほど濃く、手前の胞（外側の立方体）ほど薄く＝裏側が透けて見やすい。面透過の「正確」「立体感」どちらにも効く">
+                        <i data-lucide="layers-3" class="w-3.5 h-3.5"></i>
+                        <span id="deep4-text" class="text-[11px]">→ 奥を濃く(4D): ON</span>
+                    </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button></div>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="palette" class="w-3.5 h-3.5"></i>胞の色（パレット）</h3>
+                <div id="pal-grid" class="grid gap-1 text-[11px]" style="grid-template-columns:auto 1fr 1fr"></div>
+                <div class="flex items-center gap-1.5 flex-wrap mt-1.5" id="pal-swatches"></div>
+                <div class="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400">
+                    <label class="flex items-center gap-1" title="選んでいる枠の色を、好きな色にする">好きな色<input id="pal-custom" type="color" class="w-7 h-5 bg-transparent border border-slate-600 rounded cursor-pointer"></label>
+                    <button id="pal-pair" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="選んでいる枠の色を、同じ軸の反対側（＋と−）にも入れる">±をそろえる</button>
+                    <button id="pal-reset" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="パレットを最初の色（軸の色）に戻す">既定に戻す</button>
+                </div>
+                <div class="flex items-center gap-2 mt-1.5"><button id="pal-comp" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="補色モード：−の色を、＋の色の補色（色相を反対に回した色）に自動で決める。−の枠は選べなくなる">→ 補色モード: ON</button><button id="pal-comp-center" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="中心だけ補色：中心の色を、その図形の蓋の色の補色にする（立方体＝+Z の補色、超立方体＝+W の補色、5次元＝+V の補色）。ほかの −はパレットのまま">→ 中心だけ補色: ON</button></div>
+                <div class="text-[10px] text-slate-500 leading-snug mt-1">枠を選んでから、下の色を押すと変わります。4次元モードでは「4D（超立方体）」と「3D（立方体の面）」、5次元モードでは「5D（5次元体）」と「4D（超立方体）」の列が出ます。各面・胞は向いている方向の色になります（中心と蓋は、3D は ±Z、4D は ±W、5D は ±V）。中心の色もこの表の「中心」の枠で決めます。下の色は色相ごとに 濃・標準・薄 の3段なので、縦に並んだ2つで ±の濃淡ペアが作れます。</div>
             </section>
 
             <section class="sb-sec">
@@ -2422,10 +2439,45 @@
             { name: '連鎖頂点胞', color: 0xf59e0b, cap: true }   // 5次元の中心と蓋は琥珀（v 軸の色に合わせる）
         ];
         const P5_RGB = P5_CELLS.map(c => new THREE.Color(c.color));   // 胞ごとの色（5次元のまとめメッシュの頂点カラーに使う）
+        // 胞の色のパレット（3D・4D・5D × ±X〜±V。このブラウザに保存）。各面・胞は向いている方向の色になる：
+        //   3D＝立方体の面（±X・±Y・中心−z/蓋+z）、4D＝超立方体の胞（±X・±Y・±Z・中心−w/蓋+w）、5D＝5次元超立方体の胞（±X・±Y・±Z・±W・中心−v/蓋+v）
+        //   表は、4次元モードでは 4D・3D の2列、5次元モードでは 5D・4D の2列を出す
+        const PAL_KEYS = ['px', 'nx', 'py', 'ny', 'pz', 'nz', 'pw', 'nw', 'pv', 'nv'];
+        const PAL_DEF = {
+            d3: { px: 0xf43f5e, nx: 0xf43f5e, py: 0x10b981, ny: 0x10b981, pz: 0x0284c7, nz: 0x0284c7, pw: 0x9333ea, nw: 0x9333ea, pv: 0xf59e0b, nv: 0xf59e0b },
+            d4: { px: 0xf43f5e, nx: 0xf43f5e, py: 0x10b981, ny: 0x10b981, pz: 0x38bdf8, nz: 0x38bdf8, pw: 0x9333ea, nw: 0x9333ea, pv: 0xf59e0b, nv: 0xf59e0b },
+            d5: { px: 0xf43f5e, nx: 0xf43f5e, py: 0x10b981, ny: 0x10b981, pz: 0x38bdf8, nz: 0x38bdf8, pw: 0xa855f7, nw: 0xa855f7, pv: 0xf59e0b, nv: 0xf59e0b }
+        };
+        const PAL_DS = ['d3', 'd4', 'd5'];
+        let palRebuild = null, palBuiltFor = null;   // パレットの表を作り直す（4次元⇔5次元モードの切り替えで列が変わる）
+        const palCopy = P => ({ d3: Object.assign({}, P.d3), d4: Object.assign({}, P.d4), d5: Object.assign({}, P.d5) });
+        let cellPal = palCopy(PAL_DEF);
+        try { const o = JSON.parse(localStorage.getItem('hypercubeCellPalette2') || 'null'); if (o) PAL_DS.forEach(d => { if (o[d]) PAL_KEYS.forEach(k => { if (/^#?[0-9a-f]{6}$/i.test(String(o[d][k]))) cellPal[d][k] = parseInt(String(o[d][k]).replace('#', ''), 16); }); }); } catch (_) {}
+        // 補色モード：＋の色から −の色を補色（色相を 180° 回す）に自動で決める。
+        let palComp = false; try { palComp = localStorage.getItem('hypercubePalComp') === '1'; } catch (_) {}
+        // 中心だけ補色：中心の色を、その図形の蓋の色の補色にする（ほかの −はパレットのまま）
+        let palCompCenter = false; try { palCompCenter = localStorage.getItem('hypercubePalCompCenter') === '1'; } catch (_) {}
+        const _palC = new THREE.Color(), _palH = {};
+        function compHex(v) { _palC.setHex(v).getHSL(_palH); _palC.setHSL((_palH.h + 0.5) % 1, _palH.s, _palH.l); return _palC.getHex(); }
+        function effPal(d) {   // 実際に使うパレット（補色モードなら −は＋の補色）
+            const P = Object.assign({}, cellPal[d]);
+            if (palComp) ['x', 'y', 'z', 'w', 'v'].forEach(a => { P['n' + a] = compHex(P['p' + a]); });
+            return P;
+        }
+        const PAL_SLOTS = { 2: ['nz', 'py', 'ny', 'px', 'nx', 'pz'], 3: ['nw', 'py', 'ny', 'px', 'nx', 'pz', 'nz', 'pw'], 5: ['nv', 'py', 'ny', 'px', 'nx', 'pz', 'nz', 'pw', 'nw', 'pv'] };   // 面・胞の番号 → パレットのどの色か
+        function setCenterColors() {   // 色の表（設定・頂点カラー用の色）だけを書き換える。材質やラベルへの反映は applyCenterColor
+            const EP = { 2: effPal('d3'), 3: effPal('d4'), 5: effPal('d5') };
+            const put = (arr, dim) => arr.forEach((c, i) => { const E = EP[dim], S = PAL_SLOTS[dim]; c.color = i !== 0 ? E[S[i]] : palCompCenter ? compHex(E[S[S.length - 1]]) : E[S[0]]; });
+            put(faceConfigs2D, 2); put(cellConfigs3D, 3); put(P5_CELLS, 5);
+            cellConfigs3D.forEach((c, i) => CELL_RGB[i].setHex(c.color)); P5_CELLS.forEach((c, i) => P5_RGB[i].setHex(c.color));
+        }
+        setCenterColors();
         // 4Dライト（お試し）：5次元空間に固定した光。各胞の外向き法線（5D）を今の回転で回し、光との内積で胞ごとの明るさを決める
         //   ＝3Dの影が同じでも X-W・W-V で回すと光の当たる胞が入れ替わる（4次元・5次元で回っていることが光で分かる）
         let light5On = false; try { light5On = localStorage.getItem('hypercubeLight5') === '1'; } catch (_) {}
         // 奥の胞を濃く（0〜1）：胞ごとの奥行きで、奥ほど色を濃く（鮮やか・少し暗く）、面を薄くしすぎない＝正面図でも入れ子が奥へ沈んで見える。0＝従来どおり
+        // 奥を濃く（4D・お試し）：超立方体の胞の色は変えず、濃さ（不透明度）だけを奥ほど濃く・手前ほど薄く。既定は OFF
+        let deep4On = false; try { deep4On = localStorage.getItem('hypercubeDeep4') === '1'; } catch (_) {}
         let deep5 = 0.5; try { const v = parseFloat(localStorage.getItem('hypercubeDeep5b')); if (isFinite(v)) deep5 = Math.max(0, Math.min(1, v)); } catch (_) {}   // 目盛り 0〜1。効きは 2 倍（50%＝以前の最大）
         // 入れ子の内側を濃く（0〜1）：各4次元体の中で、見かけ上いちばん縮んで見える面（＝入れ子の内側の立方体）ほど色を濃く・面を少し不透明に。「奥の胞を濃く」に掛け合わせる
         let inner5 = 0.5; try { const v = parseFloat(localStorage.getItem('hypercubeInner5c')); if (isFinite(v)) inner5 = Math.max(0, Math.min(1, v)); } catch (_) {}
@@ -3045,6 +3097,13 @@
                     el.title = xpNameOf(dim, i); layer.appendChild(el); xpLabelEls[dim].push(el);
                 });
             });
+        }
+        function applyCenterColor() {   // 面・胞の色（パレット・補色）を、材質・分解ラベルの丸・画面に反映
+            setCenterColors();
+            try { applyFaceDecor(); } catch (_) {}
+            [2, 3, 5].forEach(dim => (xpLabelEls[dim] || []).forEach((el, i) => { const n = el.querySelector('.num'); if (n) n.style.background = '#' + xpColorOf(dim, i).toString(16).padStart(6, '0'); }));
+            try { updateMorphingGeometry(animationProgress); } catch (_) {}
+            requestRender(30);
         }
         const _xpV = new THREE.Vector3();
         // 立体のラベル（分解の欄のボタン）：バラしていないときも各立体の中心に小さな札を出す（このブラウザに覚える）
@@ -4067,6 +4126,30 @@
                     const t = sm((d - zMin) / zSpan);   // 0=手前, 1=奥
                     return [E_NEAR[0] + (E_FAR[0] - E_NEAR[0]) * t, E_NEAR[1] + (E_FAR[1] - E_NEAR[1]) * t, E_NEAR[2] + (E_FAR[2] - E_NEAR[2]) * t];
                 };
+                // 奥を濃く（4D・お試し）：色は変えず濃さだけ。奥行き＝「見かけの縮み」＝log(カメラからの距離) − log(w の遠近の倍率)。
+                //   超立方体の内側の立方体（−w）は小さく写る＝奥。手前の胞 ×0.55 〜 奥の胞 ×1.6、さらに内側の面ほど少し濃く（×1〜1.5）。
+                let dA4 = null, tIn4 = null, fCol4 = null;
+                // 展開図のあいだは効かせない：折りたたみ具合で効きを 0（展開図）→ 1（組み上がり）へなめらかに（半分折れたあたりから効き始める）
+                const kF4 = deep4On ? sm(Math.max(0, Math.min(1, (progress - 0.35) / 0.65))) : 0;
+                if (kF4 > 0) {
+                    const pb4 = projBlendNow();
+                    const vDep4 = cellVerts.map((cv, ci) => cv.map((v, j) => {
+                        const sw = CAMERA_W / (CAMERA_W - Math.min(Math.max(v[3] || 0, -CAMERA_W + 0.5), CAMERA_W - 0.5));
+                        return Math.log(Math.max(cellDist[ci][j], 1e-6)) - Math.log(1 + (sw - 1) * (1 - pb4));
+                    }));
+                    const cDep4 = vDep4.map(a => a.reduce((t, x) => t + x, 0) / a.length), cLo4 = Math.min(...cDep4), cSp4 = Math.max(Math.max(...cDep4) - cLo4, 1e-6);
+                    dA4 = cDep4.map(m => 1 + (0.55 + 1.05 * sm((m - cLo4) / cSp4) - 1) * kF4);
+                    const fDep4 = cellVerts.map((_, ci) => [0, 1, 2, 3, 4, 5].map(q => { let t = 0; for (let k = 0; k < 6; k++) t += vDep4[ci][cubeIndices[q * 6 + k]]; return t / 6; }));
+                    let fLo4 = 1e9, fHi4 = -1e9; fDep4.forEach(a => a.forEach(x => { if (x < fLo4) fLo4 = x; if (x > fHi4) fHi4 = x; }));
+                    tIn4 = fDep4.map(a => a.map(x => kF4 * sm(Math.max(0, Math.min(1, (x - fLo4) / Math.max(fHi4 - fLo4, 1e-6))))));
+                    // 色のトーン（5次元の「奥の胞を濃く」「入れ子の内側を濃く」と同じ式・同じ強さ＝目盛り 50%）：
+                    //   奥の胞ほど鮮やか・少し暗く（彩度 1+0.8t・明るさ 1−0.35t）、さらに内側の面ほど深い色（彩度 1+t・明るさ max(0.18, 1−0.45t)、t＝1.875×内側）。暗くする向きなので、明るくはならない
+                    const satDk = (C, sat, dk) => { const Y = 0.299 * C.r + 0.587 * C.g + 0.114 * C.b, f = c => Math.max(0, Math.min(1, (Y + (c - Y) * sat) * dk)); return { r: f(C.r), g: f(C.g), b: f(C.b) }; };
+                    fCol4 = CELL_RGB.slice(0, cellVerts.length).map((C0, ci) => {
+                        const t = kF4 * sm((cDep4[ci] - cLo4) / cSp4), C1 = satDk(C0, 1 + 0.8 * t, 1 - 0.35 * t);
+                        return tIn4[ci].map(x => { const ti = 1.875 * x; return ti > 0 ? satDk(C1, 1 + ti, Math.max(0.18, 1 - 0.45 * ti)) : C1; });
+                    });
+                }
 
                 cellObjects3D.forEach((cell, ci) => {
                     const currentVerts = cellVerts[ci];
@@ -4083,11 +4166,15 @@
                         posArr[ptr++] = v[0];
                         posArr[ptr++] = v[1];
                         posArr[ptr++] = v[2];
-                        if (fcolArr) { const bt = brightOf(cellDist[ci][vIdx]); fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; }   // 奥ほど暗く＝立体感・コントラスト
+                        if (fcolArr) {   // 奥ほど暗く＝立体感・コントラスト
+                            const bt = brightOf(cellDist[ci][vIdx]);
+                            if (fCol4) { const C0 = CELL_RGB[ci], C1 = fCol4[ci][(i / 6) | 0]; fcolArr[fcp++] = bt * (C1.r + 0.02) / (C0.r + 0.02); fcolArr[fcp++] = bt * (C1.g + 0.02) / (C0.g + 0.02); fcolArr[fcp++] = bt * (C1.b + 0.02) / (C0.b + 0.02); }   // 奥を濃く：材質の色に対する深い色の比
+                            else { fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; }
+                        }
                     }
                     posAttr.needsUpdate = true;
                     if (fcolAttr) fcolAttr.needsUpdate = true;
-                    cell.material.opacity = Math.min(0.97, faceOpacity * cellFocus(3, ci).face) * (diePips ? 0.55 : 1);   // 展開図は濃いめ／組み上がりは薄め。玉モードはシースルー（手前の面が読める）
+                    cell.material.opacity = Math.min(0.97, faceOpacity * cellFocus(3, ci).face * (dA4 ? dA4[ci] * (1 + 0.5 * tIn4[ci].reduce((t, x) => t + x, 0) / 6) : 1)) * (diePips ? 0.55 : 1);   // 展開図は濃いめ／組み上がりは薄め。玉モードはシースルー（手前の面が読める）
                     cell.geometry.computeVertexNormals();
 
                     const wireAttr = cell.wireGeo.attributes.position;
@@ -4145,14 +4232,14 @@
                     const mcol = mergedFaces3D.geometry.attributes.color.array;
                     let mp = 0, mc = 0;
                     for (let qi = 0; qi < quads.length; qi++) {
-                        const ci = quads[qi][0], base = quads[qi][1], cv = cellVerts[ci], C = CELL_RGB[ci];
+                        const ci = quads[qi][0], base = quads[qi][1], cv = cellVerts[ci], C = fCol4 ? fCol4[ci][base / 6] : CELL_RGB[ci];   // 奥を濃く：深い色のトーン
                         const fcen = [0, 0, 0];
                         for (let k = 0; k < 6; k++) { const v = cv[cubeIndices[base + k]]; fcen[0] += v[0] / 6; fcen[1] += v[1] / 6; fcen[2] += v[2] / 6; }
                         const [qa, qs, qg] = faceShade(cv[cubeIndices[base]], cv[cubeIndices[base + 1]], cv[cubeIndices[base + 2]], fcen, cellCtr[ci], camL, backA, lightL, cfgFaceShade);
                         for (let k = 0; k < 6; k++) {   // 面の2三角形を連続で書く＝斜線が出ない
                             const idx = cubeIndices[base + k], v = cv[idx], bt = brightOf(cellDist[ci][idx]) * qs;   // 奥行きの明暗 × 面の向きの陰影
                             mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
-                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = xpVisible(3, ci) ? Math.min(1, qa * cellFocus(3, ci).face) : 0;   // 奥ほど暗く＝遠近感。裏向きの面は透明に
+                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = xpVisible(3, ci) ? (dA4 ? Math.min(Math.max(1, 0.97 / Math.max(faceOpacity, 1e-3)), qa * cellFocus(3, ci).face * dA4[ci] * (1 + 0.5 * tIn4[ci][base / 6])) : Math.min(1, qa * cellFocus(3, ci).face)) : 0;   // 奥ほど暗く＝遠近感。裏向きの面は透明に
                         }
                     }
                     mergedFaces3D.geometry.attributes.position.needsUpdate = true;
@@ -6515,6 +6602,66 @@
             if (numtexBtn) numtexBtn.addEventListener('click', toggleNumTex);
             const ecoBtn = document.getElementById('eco-btn');
             if (ecoBtn) ecoBtn.addEventListener('click', toggleEco);
+            (function setupPalette() {   // 胞の色のパレット（行 ±X〜±V × 列 4D・5D）
+                const grid = document.getElementById('pal-grid'), sw = document.getElementById('pal-swatches'); if (!grid || !sw) return;
+                // 色候補：色相ごとに 濃・標準・薄 の3段（縦に並ぶ3つで ±の濃淡ペアが作れる）。標準の段に、今使っている色と黄緑 #a3e635
+                const SW_HUES = [['赤', '#be123c', '#f43f5e', '#fda4af'], ['橙', '#c2410c', '#f97316', '#fdba74'], ['琥珀', '#b45309', '#f59e0b', '#fcd34d'], ['黄', '#a16207', '#facc15', '#fde047'],
+                    ['黄緑', '#4d7c0f', '#a3e635', '#bef264'], ['緑', '#047857', '#10b981', '#6ee7b7'], ['青緑', '#0f766e', '#2dd4bf', '#99f6e4'], ['水色', '#0369a1', '#38bdf8', '#7dd3fc'],
+                    ['青', '#1d4ed8', '#3b82f6', '#93c5fd'], ['藍', '#4338ca', '#6366f1', '#a5b4fc'], ['紫', '#7e22ce', '#a855f7', '#d8b4fe'], ['桃', '#be185d', '#ec4899', '#f9a8d4'], ['灰', '#334155', '#94a3b8', '#f1f5f9']];
+                const ROWS = [['px', '+X'], ['nx', '−X'], ['py', '+Y'], ['ny', '−Y'], ['pz', '+Z'], ['nz', '−Z'], ['pw', '+W'], ['nw', '−W'], ['pv', '+V'], ['nv', '−V']];
+                const NOTE = { d3: { pz: '蓋', nz: '中心' }, d4: { pw: '蓋', nw: '中心' }, d5: { pv: '蓋', nv: '中心' } };
+                const USED = { d3: k => 'xyz'.includes(k[1]), d4: k => k[1] !== 'v', d5: () => true };
+                const COLS = { d3: '3D（立方体の面）', d4: '4D（超立方体）', d5: '5D（5次元体）' };
+                const hex = v => '#' + v.toString(16).padStart(6, '0');
+                let sel = { d: 'd4', k: 'px' }, cols = [], btns = {};
+                function build() {   // 4次元モード＝4D・3D、5次元モード＝5D・4D
+                    cols = dim5 ? ['d5', 'd4'] : ['d4', 'd3']; btns = {}; cols.forEach(d => { btns[d] = {}; });
+                    if (!cols.includes(sel.d) || !USED[sel.d](sel.k)) sel = { d: cols[0], k: 'px' };
+                    grid.style.gridTemplateColumns = 'auto 1fr 1fr'; grid.innerHTML = '';
+                    [''].concat(cols.map(d => COLS[d])).forEach(t => { const h = document.createElement('span'); h.className = 'text-[10px] text-slate-400 font-bold text-center'; h.textContent = t; grid.appendChild(h); });
+                    ROWS.forEach(([k, L]) => {
+                        if (!cols.some(d => USED[d](k))) return;   // どちらの列でも使わない行は出さない
+                        const h = document.createElement('span'); h.className = 'self-center font-bold text-slate-300 pr-1'; h.textContent = L; grid.appendChild(h);
+                        cols.forEach(d => {
+                            const b = document.createElement('button');
+                            if (!USED[d](k)) { b.disabled = true; b.className = 'px-1.5 py-0.5 rounded border border-slate-800 text-slate-600 text-[10px]'; b.textContent = '（使わない）'; grid.appendChild(b); return; }
+                            b.className = 'flex items-center gap-1.5 px-1.5 py-0.5 rounded border border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300 text-left';
+                            b.innerHTML = '<span class="inline-block w-4 h-4 rounded-sm border border-white/20 shrink-0"></span><small class="text-slate-500 truncate">' + ((NOTE[d] || {})[k] || '') + '</small>';
+                            b.title = d.slice(1) + 'D の ' + L + ((NOTE[d] || {})[k] ? '（' + NOTE[d][k] + '）' : '');
+                            b.addEventListener('click', () => { sel = { d, k }; paint(); });
+                            btns[d][k] = b; grid.appendChild(b);
+                        });
+                    });
+                    palBuiltFor = dim5;
+                }
+                palRebuild = () => { build(); paint(); };
+                build();
+                sw.className = 'grid gap-0.5 mt-1.5'; sw.style.gridTemplateColumns = 'repeat(' + SW_HUES.length + ', minmax(0, 1fr))';
+                [1, 2, 3].forEach(r => SW_HUES.forEach(h => { const c = h[r], b = document.createElement('button'); b.className = 'h-4 rounded-sm border border-white/15 hover:scale-110 transition'; b.style.background = c; b.title = h[0] + '（' + ['濃', '標準', '薄'][r - 1] + '）' + c; b.addEventListener('click', () => setSel(parseInt(c.slice(1), 16))); sw.appendChild(b); }));
+                const save = () => { try { const o = { d3: {}, d4: {}, d5: {} }; PAL_DS.forEach(d => PAL_KEYS.forEach(k => { o[d][k] = hex(cellPal[d][k]); })); localStorage.setItem('hypercubeCellPalette2', JSON.stringify(o)); } catch (_) {} };
+                function paint() {
+                    if (palComp && sel.k[0] === 'n') sel = { d: sel.d, k: 'p' + sel.k[1] };   // 補色モードでは −は自動なので ＋を選ぶ
+                    cols.forEach(d => { const E = effPal(d); for (const k in btns[d]) { const b = btns[d][k], auto = palComp && k[0] === 'n'; b.firstChild.style.background = hex(E[k]); b.disabled = auto; b.style.opacity = auto ? '0.75' : ''; b.style.cursor = auto ? 'default' : ''; const on = sel.d === d && sel.k === k; b.style.outline = on ? '2px solid #fde68a' : (auto ? '1px dashed #64748b' : 'none'); b.style.outlineOffset = '1px'; } });
+                    const cc = document.getElementById('pal-comp-center'); if (cc) { cc.textContent = '→ 中心だけ補色: ' + (palCompCenter ? 'OFF' : 'ON'); ['bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200'].forEach(c => cc.classList.toggle(c, palCompCenter)); ['bg-slate-800', 'border-slate-600', 'text-slate-300'].forEach(c => cc.classList.toggle(c, !palCompCenter)); }
+                    const cb = document.getElementById('pal-comp'); if (cb) { cb.textContent = '→ 補色モード: ' + (palComp ? 'OFF' : 'ON'); ['bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200'].forEach(c => cb.classList.toggle(c, palComp)); ['bg-slate-800', 'border-slate-600', 'text-slate-300'].forEach(c => cb.classList.toggle(c, !palComp)); }
+                    const ci = document.getElementById('pal-custom'); if (ci) ci.value = hex(cellPal[sel.d][sel.k]);
+                }
+                const after = () => { save(); paint(); applyCenterColor(); };
+                function setSel(v) { cellPal[sel.d][sel.k] = v; after(); }
+                const ci = document.getElementById('pal-custom'); if (ci) ci.addEventListener('input', e => setSel(parseInt(e.target.value.slice(1), 16)));
+                const pr = document.getElementById('pal-pair'); if (pr) pr.addEventListener('click', () => { const o = (sel.k[0] === 'p' ? 'n' : 'p') + sel.k[1]; cellPal[sel.d][o] = cellPal[sel.d][sel.k]; after(); });
+                const rs = document.getElementById('pal-reset'); if (rs) rs.addEventListener('click', () => { cellPal = palCopy(PAL_DEF); after(); });
+                const cct = document.getElementById('pal-comp-center'); if (cct) cct.addEventListener('click', () => { palCompCenter = !palCompCenter; try { localStorage.setItem('hypercubePalCompCenter', palCompCenter ? '1' : '0'); } catch (_) {} paint(); applyCenterColor(); });
+                const cbt = document.getElementById('pal-comp'); if (cbt) cbt.addEventListener('click', () => { palComp = !palComp; try { localStorage.setItem('hypercubePalComp', palComp ? '1' : '0'); } catch (_) {} paint(); applyCenterColor(); });
+                paint();
+            })();
+            applyCenterColor();   // パレットの色を材質とラベルに反映（起動時）
+            (function setupDeep4() {   // 奥を濃く（4D・お試し）の ON/OFF
+                const b = document.getElementById('deep4-btn'); if (!b) return;
+                const paint = () => { const on = deep4On; ['bg-violet-900/40', 'border-violet-500/50', 'text-violet-200'].forEach(c => b.classList.toggle(c, on)); ['bg-slate-800/80', 'border-slate-700', 'text-slate-400'].forEach(c => b.classList.toggle(c, !on)); };
+                b.addEventListener('click', () => { deep4On = !deep4On; try { localStorage.setItem('hypercubeDeep4', deep4On ? '1' : '0'); } catch (_) {} paint(); updateMorphingGeometry(animationProgress); requestRender(30); });
+                paint();
+            })();
             const xparentBtn = document.getElementById('xparent-btn');
             const xparentText = document.getElementById('xparent-text');
             xparentBtn.addEventListener('click', () => {
@@ -6594,6 +6741,8 @@
                 set('axis-text', NEXT + (showAxes ? '座標軸: OFF' : '座標軸: ON (X赤 Y緑 Z青 W紫)'));
                 set('pin-text', NEXT + (pinVertex ? '点固定: OFF' : '点固定: ON'));
                 set('xparent-text', NEXT + (accurateFaces ? '面透過: 立体感' : '面透過: 正確'));
+                set('deep4-text', NEXT + (deep4On ? '奥を濃く(4D): OFF' : '奥を濃く(4D): ON'));
+                if (palRebuild && palBuiltFor !== dim5) palRebuild();   // 4次元⇔5次元でパレットの列を入れ替える
                 set('persp-mode-btn', NEXT + (cubePersp ? '平行投影' : '遠近投影'));
                 set('face-cam-btn', NEXT + (presetFaceCamera ? 'カメラ正対: OFF' : 'カメラ正対: ON'));
                 set('left3d-btn', NEXT + (leftFull3D ? 'X-Y だけ' : '全部'));
