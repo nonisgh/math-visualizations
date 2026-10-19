@@ -1,0 +1,21 @@
+{
+ "app": "hypercube",
+ "kind": "colors",
+ "v": 1,
+ "data": {
+  "hypercubeCellPalette2": "{\"d3\":{\"px\":\"#f43f5e\",\"nx\":\"#f43f5e\",\"py\":\"#10b981\",\"ny\":\"#10b981\",\"pz\":\"#0284c7\",\"nz\":\"#0284c7\",\"pw\":\"#9333ea\",\"nw\":\"#9333ea\",\"pv\":\"#f59e0b\",\"nv\":\"#f59e0b\"},\"d4\":{\"px\":\"#f43f5e\",\"nx\":\"#f43f5e\",\"py\":\"#10b981\",\"ny\":\"#10b981\",\"pz\":\"#38bdf8\",\"nz\":\"#38bdf8\",\"pw\":\"#9333ea\",\"nw\":\"#f59e0b\",\"pv\":\"#f59e0b\",\"nv\":\"#f59e0b\"},\"d5\":{\"px\":\"#f43f5e\",\"nx\":\"#f43f5e\",\"py\":\"#10b981\",\"ny\":\"#10b981\",\"pz\":\"#38bdf8\",\"nz\":\"#38bdf8\",\"pw\":\"#a855f7\",\"nw\":\"#a855f7\",\"pv\":\"#f59e0b\",\"nv\":\"#f59e0b\"}}",
+  "hypercubePalComp": "0",
+  "hypercubePalCompCenter": "0",
+  "hypercubeFixedMarks": "{\"near\":true,\"far\":true,\"glue\":true,\"size\":0.65}",
+  "hypercubeEdgeHi": "{\"on\":false,\"near\":\"#ff44dd\",\"far\":\"#50c878\",\"widthNear\":1.5,\"widthFar\":1.5,\"mid\":\"#b6ff4d\",\"widthMid\":2,\"faceMid\":1.4,\"arm\":\"#aab4c4\",\"widthArm\":1.5,\"faceArm\":1.15}",
+  "hypercubeViewCfg": "{\"op\":0.26,\"net\":0.85,\"far\":0.6,\"nb\":1.25,\"fc\":1.4,\"en\":0.8,\"ef\":0.3,\"cw\":4.5,\"bf\":0.12,\"sh\":0.6}",
+  "hypercubeDeep4": "1",
+  "hypercubeShine": "1",
+  "hypercubeLight5": "0",
+  "hypercubeZoomFit": "{\"net\":0.62,\"asm\":0.5,\"xp\":0.91}",
+  "hypercubePanPadPos": "{\"2\":{\"x\":0.5706461717045497,\"y\":0.8773262023925781},\"3\":{\"x\":0.47222945979140213,\"y\":0.919586181640625},\"5\":{\"x\":0.5798260441011701,\"y\":0.9089525222778321}}",
+  "hypercubeEco": "0",
+  "hypercubeNumTex": "0",
+  "hypercubeDiePips": "0"
+ }
+}
