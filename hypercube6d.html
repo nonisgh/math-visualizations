@@ -101,6 +101,10 @@
         .badge { position: absolute; top: 12px; left: 12px; pointer-events: none; padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; z-index: 10; background: rgba(15, 23, 42, 0.85); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); max-width: calc(100% - 24px); }
         body.sidebar-hidden .badge { left: 100px; }   /* 左上の「パネル」ボタンと重ならないように */
         .badge small { display: block; font-size: 10px; font-weight: 400; color: #94a3b8; }
+        .seg { display: inline-flex; border: 1px solid #334155; border-radius: 9px; overflow: hidden; }   /* 2択の切り替え（出発の形など） */
+        .seg button { padding: 3px 9px; font-size: 11px; color: #94a3b8; background: rgba(30, 41, 59, 0.8); }
+        .seg button + button { border-left: 1px solid #334155; }
+        .seg button.on { background: rgba(124, 58, 237, 0.35); color: #ede9fe; }
         .note { font-size: 10px; color: #64748b; line-height: 1.5; }
         .stat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 10px; color: #94a3b8; }
         .stat div { background: rgba(15, 23, 42, 0.6); border: 1px solid #1e293b; border-radius: 8px; padding: 3px 6px; }
@@ -195,7 +199,7 @@
                     <div class="sl-row"><span>遠近 V</span><input id="dV" type="range" min="4.5" max="20" step="0.1" value="9.8"><output id="dVO"></output></div>
                     <div class="sl-row"><span>遠近 U</span><input id="dU" type="range" min="4.5" max="24" step="0.1" value="13.7"><output id="dUO"></output></div>
                     <div class="flex flex-wrap gap-1.5">
-                        <button class="tbtn" data-act="face"><span>面: ON</span></button><button class="tbtn" data-act="wire"><span>線: ON</span></button><button class="tbtn" data-act="label"><span>ラベル: ON</span></button><button class="tbtn" data-act="axes"><span>座標軸: ON</span></button><button class="tbtn" data-act="cam"><span>自動で中央に: ON</span></button>
+                        <button class="tbtn" data-act="face"><span>面: ON</span></button><button class="tbtn" data-act="wire"><span>線: ON</span></button><button class="tbtn" data-act="label"><span>ラベル: ON</span></button><button class="tbtn" data-act="axes"><span>座標軸: ON</span></button><button class="tbtn" data-act="cam"><span>自動で中央に: ON</span></button><button class="tbtn" data-act="hiq" title="解像度を2倍まで上げる（くっきり・重い）。OFF は1.5倍まで（軽い）"><span>高画質: OFF</span></button>
                     </div>
                     <p class="note">遠近の数字が小さいほど、その向きの奥行きが強く出ます（入れ子の箱＝角瓶の形がはっきりする）。</p>
                 </section>
@@ -291,14 +295,18 @@ function project(q, out, k) {
 // ---- three.js ----
 const view = $('view'), scene = new THREE.Scene();
 const cam = new THREE.PerspectiveCamera(45, 1, 0.1, 200); cam.position.set(9, 7, 15);
-const ren = new THREE.WebGLRenderer({ antialias: true, alpha: true }); ren.setPixelRatio(Math.min(devicePixelRatio, 2)); view.appendChild(ren.domElement);
+let hiQ = false; try { hiQ = localStorage.getItem('hexeractHiQ') === '1'; } catch (_) {}   // 高画質：解像度を2倍まで（ふだんは1.5倍まで＝軽い）
+const ren = new THREE.WebGLRenderer({ antialias: true, alpha: true }); ren.setPixelRatio(Math.min(devicePixelRatio, hiQ ? 2 : 1.5)); view.appendChild(ren.domElement);
 const ctl = new THREE.OrbitControls(cam, ren.domElement); ctl.enableDamping = true; ctl.dampingFactor = 0.07;
 scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 const dl = new THREE.DirectionalLight(0xffffff, 0.8); dl.position.set(6, 10, 8); scene.add(dl);
-function onWindowResize() { const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return; ren.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+function onWindowResize() { const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return; ren.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); requestRender(10); }   // 大きさが変わったら描き直す
 addEventListener('resize', onWindowResize);
 if (window.ResizeObserver) new ResizeObserver(onWindowResize).observe(view);
-function requestRender() {}
+// 止まっているときは計算も描画もしない：動き・操作・カメラの慣性があるときだけ描く。操作のあとは少しのあいだ描き続ける（真ん中そろえ等がなじむまで）
+let _rf = 90;
+function requestRender(n = 30) { _rf = Math.max(_rf, n); }
+['input', 'change', 'click', 'keydown', 'wheel', 'pointerdown', 'pointermove', 'resize'].forEach(ev => addEventListener(ev, e => { if (ev !== 'pointermove' || e.buttons) requestRender(60); }, true));
 let _zfKick = 0;
 const root = new THREE.Group(); scene.add(root);
 CELLS.forEach(C => {
@@ -351,6 +359,7 @@ const CE = []; for (let i = 0; i < 8; i++) for (let j = 0; j < 3; j++) { const k
 const CQ = []; for (let j = 0; j < 3; j++) for (const sb of [0, 1]) { const a = (j + 1) % 3, b = (j + 2) % 3, base = sb << j; CQ.push([base, base | (1 << a), base | (1 << a) | (1 << b), base | (1 << b)]); }
 const cubeLine = (() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(160 * 12 * 6), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(160 * 12 * 6), 3)); const m = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95 })); m.frustumCulled = false; m.visible = false; root.add(m); return m; })();
 const cubeFace = (() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(160 * 6 * 6 * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(160 * 6 * 6 * 3), 3)); const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false })); m.frustumCulled = false; m.visible = false; root.add(m); return m; })();
+const _ec = new THREE.Color(), _fc = new THREE.Color(), _white = new THREE.Color(1, 1, 1), _want = new THREE.Vector3();   // 使い回し（毎フレーム作らない）
 const _c6 = [0, 0, 0, 0, 0, 0], _c3 = [0, 0, 0], camFront = new THREE.Vector3(0, 3.4, 24);
 function updateCubes() {
     const on = cubeT > 0; cubeLine.visible = on && wireOn; cubeFace.visible = on && faceOn; if (!on) return;
@@ -369,15 +378,15 @@ function updateCubes() {
         const counted = countK >= 0 && qi <= countK, now = countOn && qi === Math.floor(countK);
         const lit = now ? 1 : counted ? 0.35 : 0;
         for (const [a, b, j] of CE) {
-            const c = new THREE.Color(AXHEX[Q.g.F[j]]); if (lit) c.lerp(new THREE.Color(1, 1, 1), lit);
+            const c = _ec.copy(EDGE_COL[Q.g.F[j]]); if (lit) c.lerp(_white, lit);
             for (const vi of [a, b]) { pa[lp] = Q.pos[vi * 3]; pa[lp + 1] = Q.pos[vi * 3 + 1]; pa[lp + 2] = Q.pos[vi * 3 + 2]; ca[lp] = c.r; ca[lp + 1] = c.g; ca[lp + 2] = c.b; lp += 3; }
         }
-        const fcCol = Q.g.col.clone().multiplyScalar(now ? 2.2 : counted ? 1.3 : 1);
+        const fcCol = _fc.copy(Q.g.col).multiplyScalar(now ? 2.2 : counted ? 1.3 : 1);
         for (const q of CQ) for (const vi of [q[0], q[1], q[2], q[0], q[2], q[3]]) { fa[fp] = Q.pos[vi * 3]; fa[fp + 1] = Q.pos[vi * 3 + 1]; fa[fp + 2] = Q.pos[vi * 3 + 2]; fc[fp] = fcCol.r; fc[fp + 1] = fcCol.g; fc[fp + 2] = fcCol.b; fp += 3; }
     });
     cubeLine.geometry.attributes.position.needsUpdate = true; cubeLine.geometry.attributes.color.needsUpdate = true;
     cubeFace.geometry.attributes.position.needsUpdate = true; cubeFace.geometry.attributes.color.needsUpdate = true;
-    if (autoCenter) { centerNow.lerp(new THREE.Vector3(-(x0 + x1) / 2, -(y0 + y1) / 2, -(z0 + z1) / 2), 0.12); root.position.copy(centerNow); }
+    if (autoCenter) { centerNow.lerp(_want.set(-(x0 + x1) / 2, -(y0 + y1) / 2, -(z0 + z1) / 2), 0.12); root.position.copy(centerNow); }
 }
 
 // ---- 多段階分離（結晶ばらし） ----
@@ -414,10 +423,12 @@ const crysG = new THREE.Group(); scene.add(crysG);
 CR_LEVELS[0].pieces.forEach(P => { const a = P.c.findIndex(x => x !== 0); P.cell = CELLS.find(C => C.a === a && C.s === P.c[a]); });
 const toLocal = (wx, wy, wz, out) => { const r = crysG.rotation.y, cs = Math.cos(-r), sn = Math.sin(-r); out[0] = wx * cs + wz * sn; out[1] = wy; out[2] = -wx * sn + wz * cs; return out; };
 // 展開図から：5次元立方体 P の、いまの展開図での頂点（crysG の座標）と、その重心
-function netVerts(P) {
-    const C = P.cell, out = [], cen = [0, 0, 0], n = P.v6.length;
-    for (let i = 0; i < n; i++) { const v = toLocal(C.pos[i * 3] + root.position.x, C.pos[i * 3 + 1] + root.position.y, C.pos[i * 3 + 2] + root.position.z, [0, 0, 0]); out.push(v); cen[0] += v[0] / n; cen[1] += v[1] / n; cen[2] += v[2] / n; }
-    return { out, cen };
+function netVerts(P) {   // 結果は部品ごとに使い回す（毎フレーム作らない）
+    const C = P.cell, n = P.v6.length;
+    if (!P._nv) P._nv = { out: Array.from({ length: n }, () => [0, 0, 0]), cen: [0, 0, 0] };
+    const { out, cen } = P._nv; cen[0] = cen[1] = cen[2] = 0;
+    for (let i = 0; i < n; i++) { const v = toLocal(C.pos[i * 3] + root.position.x, C.pos[i * 3 + 1] + root.position.y, C.pos[i * 3 + 2] + root.position.z, out[i]); cen[0] += v[0] / n; cen[1] += v[1] / n; cen[2] += v[2] / n; }
+    return P._nv;
 }
 // ---- 連鎖ばらし：割れた部品が、自分の面（1つ下の次元の部品）へ次々に割れていく木 ----
 //   5次元立方体 12個 → それぞれ10個の超立方体（120）→ それぞれ8個の立方体（960）。となりと共有する面も、それぞれから出る。
@@ -484,12 +495,12 @@ function updateChain() {
     }
     for (const n of CH2) {   // 親の面にぴったり重なった位置から、親から見た向きへ
         const P0 = n.parent, t0 = chS2(P0), u = ez((T - t0) / 1.3), f = P0.S + G[1] * u;
-        n.c3 = [0, 1, 2].map(j => P0.c3[j] + f * (n.p.Pc[j] - P0.p.Pc[j])); n.S = P0.S + (SS[1] - P0.S) * u;
+        for (let j = 0; j < 3; j++) n.c3[j] = P0.c3[j] + f * (n.p.Pc[j] - P0.p.Pc[j]); n.S = P0.S + (SS[1] - P0.S) * u;
         if (T > t0 && T <= chS3(n)) draw(n.p, n.c3, n.S);
     }
     for (const n of CH3) {
         const P0 = n.parent, t0 = chS3(P0), u = ez((T - t0) / 1.1), f = P0.S + G[2] * u;
-        n.c3 = [0, 1, 2].map(j => P0.c3[j] + f * (n.p.Pc[j] - P0.p.Pc[j])); n.S = P0.S + (SS[2] - P0.S) * u;
+        for (let j = 0; j < 3; j++) n.c3[j] = P0.c3[j] + f * (n.p.Pc[j] - P0.p.Pc[j]); n.S = P0.S + (SS[2] - P0.S) * u;
         if (T > t0) draw(n.p, n.c3, n.S);
     }
     chainLine.geometry.setDrawRange(0, lp / 3); chainFace.geometry.setDrawRange(0, fp / 3);
@@ -694,7 +705,7 @@ const rotRows = ROT.map(([n, i, j], k) => {
 const setTxt = (sp, t) => { if (sp && sp.textContent !== t && sp.dataset.swRaw !== t) sp.textContent = t; };
 function syncButtons() {
     const sw = (act, name, on) => document.querySelectorAll(`[data-act="${act}"] span:not(.ios-sw)`).forEach(sp => setTxt(sp, name + ': ' + (on ? 'ON' : 'OFF')));
-    sw('loop', '往復', loop); sw('spin', '6D回転', spin); sw('label', 'ラベル', labelOn); sw('stagger', '時間差', stagger); sw('face', '面', faceOn); sw('wire', '線', wireOn); sw('cam', '自動で中央に', autoCenter); sw('axes', '座標軸', axesOn); sw('cubes', '立方体まで', cubeMode); sw('autoExp', '自動で離す', expTarget > 0); sw('crys', '結晶ばらし', crys.active && !crys.chain); sw('chain', '連鎖ばらし', crys.active && crys.chain);
+    sw('loop', '往復', loop); sw('spin', '6D回転', spin); sw('label', 'ラベル', labelOn); sw('stagger', '時間差', stagger); sw('face', '面', faceOn); sw('wire', '線', wireOn); sw('cam', '自動で中央に', autoCenter); sw('hiq', '高画質', hiQ); sw('axes', '座標軸', axesOn); sw('cubes', '立方体まで', cubeMode); sw('autoExp', '自動で離す', expTarget > 0); sw('crys', '結晶ばらし', crys.active && !crys.chain); sw('chain', '連鎖ばらし', crys.active && crys.chain);
 }
 function crysStart() {   // 始めるとき：出発の形を決めて、展開図からなら展開図へ・組み上がりからなら組み上げる
     if (crys.m <= 0) { crys.from = crysFromSel; crys.ex0 = explode; expTarget = null; }
@@ -725,6 +736,7 @@ const ACT = {
     crysPrev: () => { if (!crys.active) return; crys.auto = false; crys.target = Math.max(0, Math.ceil(crys.e - 1e-6) - 1); },
     cubes: () => { if (crys.active) ACT.crys(); cubeMode = !cubeMode; if (cubeMode && fold < 0.999) { foldTarget = 1; loop = false; } if (!cubeMode) { countOn = false; countK = -1; $('cube-count').style.display = 'none'; } },
     count: () => { if (!cubeMode) ACT.cubes(); countOn = true; countK = -1; const cc = $('cube-count'); cc.className = ''; cc.style.display = 'block'; cc.querySelector('.n').textContent = '0'; cc.querySelector('.t').textContent = '/ 160 個の立方体'; },
+    hiq: () => { hiQ = !hiQ; try { localStorage.setItem('hexeractHiQ', hiQ ? '1' : '0'); } catch (_) {} ren.setPixelRatio(Math.min(devicePixelRatio, hiQ ? 2 : 1.5)); onWindowResize(); },
     rot0: () => { ang.fill(0); spin = false; rotRows.forEach(r => { r.r.value = 0; r.o.textContent = '0°'; }); },
 };
 document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => { ACT[b.dataset.act](); syncButtons(); }));
@@ -1032,10 +1044,10 @@ addEventListener('keydown', e => {
 })();
 
 // ---- 描画ループ ----
-let tPrev = performance.now();
+let tPrev = performance.now(), lastDraw = 0;
 (function loop_() {
     requestAnimationFrame(loop_);
-    const now = performance.now(), dt = Math.min(0.05, (now - tPrev) / 1000); tPrev = now;
+    const now = performance.now(), dt = Math.min(0.1, (now - tPrev) / 1000); tPrev = now;   // 重くて1コマが長いときも、0.1秒までは時間どおり進める（0.05だと20fps未満でスローになっていた）
     if (foldTarget !== null) {
         const step = dt * 0.45 * spd;
         fold += Math.sign(foldTarget - fold) * Math.min(step, Math.abs(foldTarget - fold));
@@ -1043,7 +1055,7 @@ let tPrev = performance.now();
         FOLD.e.value = fold; FOLD.show();
     }
     if (spin) {
-        const R = [0.69, 0.51, 0.39, 0.57, 0.33, 0.21];   // 速さの比をずらして同じ姿勢に戻りにくく（いちばん速い面で1周 約9秒）
+        const R = [1.24, 0.92, 0.70, 1.03, 0.59, 0.38];   // 速さの比をずらして同じ姿勢に戻りにくく（いちばん速い面で1周 約5秒）
         ang.forEach((a, k) => { ang[k] = a + R[k] * dt * rspd; const d = Math.round(((ang[k] * 180 / Math.PI) % 360 + 540) % 360 - 180); rotRows[k].r.value = d; rotRows[k].o.textContent = d + '°'; });
     }
     // 立方体まで：組み上がってから飛び出す。戻すときは立方体が元の位置へ帰ってから、ペンテラクトの表示に戻る
@@ -1094,7 +1106,13 @@ let tPrev = performance.now();
         if (Math.floor(countK) !== prev) { cc.querySelector('.n').textContent = n; cc.classList.remove('pop'); void cc.offsetWidth; cc.classList.add('pop'); }
         if (countK >= 159) { countOn = false; cc.querySelector('.n').textContent = '160個！'; cc.querySelector('.t').textContent = '20通りの向き × 8個'; cc.classList.remove('pop'); void cc.offsetWidth; cc.classList.add('done'); setTimeout(() => { if (!countOn) { cc.style.display = 'none'; countK = -1; } }, 3200); }
     }
-    update(); ctl.update(); ren.render(scene, cam); updateLabels();
+    if (ctl.update()) requestRender(2);   // カメラの慣性で動いている間も描く
+    const busy = foldTarget !== null || spin || expTarget !== null || (cubeMode ? cubeT < 1 : cubeT > 0) || countOn || (crysVis() && (crysMoving || (crys.active && crys.from !== 'net')));
+    if (busy) requestRender(30);
+    if (_rf <= 0) return;                     // 止まっている：描かない（GPU も CPU も休む）
+    if (now - lastDraw < 15.5) return;        // 120Hz の画面でも、描くのは最大60fps
+    lastDraw = now; _rf--;
+    update(); ren.render(scene, cam); updateLabels();
 })();
 syncButtons(); onWindowResize();
 if (window.lucide) lucide.createIcons();

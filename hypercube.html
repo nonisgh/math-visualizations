@@ -4592,8 +4592,11 @@
             const _dt = _lastT ? Math.min(0.1, (_now - _lastT) / 1000) : 0;
             _lastT = _now;
 
-            const baseStep = 0.005 * animSpeedMultiplier;
-            const loopStep = 0.004 * animSpeedMultiplier;
+            // 1コマあたりの量は「120コマ/秒（Chrome・120Hz の画面）」のときの値。経過時間を掛けて、何コマ/秒でも同じ速さにする
+            //   （以前は1コマごとに決まった量だったので、Safari など 60コマ/秒では半分の速さになっていた）
+            const _k = _dt * 120;
+            const baseStep = 0.005 * animSpeedMultiplier * _k;
+            const loopStep = 0.004 * animSpeedMultiplier * _k;
 
             if (cycleMode) {
                 // 胞→面→辺→頂点→(胞) を等間隔4区間で周回。各区間は smootherstep で緩急をつけ、
@@ -4743,30 +4746,30 @@
             }
 
             if (soloSpinZW) {
-                soloAngleZW = wrapPi(soloAngleZW + 0.007 * animSpeedMultiplier);
+                soloAngleZW = wrapPi(soloAngleZW + 0.007 * animSpeedMultiplier * _k);
                 updateLinkUI();
                 _geoDirty = true;
             }
 
             if (spinXY || spinXZ || spinYZ) {   // 超立方体の3D回転（X-Y は左も一緒）
-                if (spinXY) rotXY = wrapPi(rotXY + 0.0045 * animSpeedMultiplier);
-                if (spinXZ) rotXZ = wrapPi(rotXZ + 0.0053 * animSpeedMultiplier);
-                if (spinYZ) rotYZ = wrapPi(rotYZ + 0.0031 * animSpeedMultiplier);   // 速さをずらして同じ姿勢に戻りにくくする
+                if (spinXY) rotXY = wrapPi(rotXY + 0.0045 * animSpeedMultiplier * _k);
+                if (spinXZ) rotXZ = wrapPi(rotXZ + 0.0053 * animSpeedMultiplier * _k);
+                if (spinYZ) rotYZ = wrapPi(rotYZ + 0.0031 * animSpeedMultiplier * _k);   // 速さをずらして同じ姿勢に戻りにくくする
                 updateLinkUI();
                 _geoDirty = true;
             }
 
             if (dim5 && anySpin5()) {   // 5次元だけの4面（速さをずらして同じ姿勢に戻りにくくする）
-                if (spin5XW) p5XW = wrapPi(p5XW + 0.0052 * animSpeedMultiplier);
-                if (spin5YW) p5YW = wrapPi(p5YW + 0.0041 * animSpeedMultiplier);
-                if (spin5ZW) p5ZW = wrapPi(p5ZW + 0.0033 * animSpeedMultiplier);
-                if (spin5WV) p5WV = wrapPi(p5WV + 0.0061 * animSpeedMultiplier);
+                if (spin5XW) p5XW = wrapPi(p5XW + 0.0052 * animSpeedMultiplier * _k);
+                if (spin5YW) p5YW = wrapPi(p5YW + 0.0041 * animSpeedMultiplier * _k);
+                if (spin5ZW) p5ZW = wrapPi(p5ZW + 0.0033 * animSpeedMultiplier * _k);
+                if (spin5WV) p5WV = wrapPi(p5WV + 0.0061 * animSpeedMultiplier * _k);
                 updateLinkUI(); _geoDirty = true;
             }
 
             if (linkSpin || spinX || spinY) {   // XY連動＝両方、個別ボタン＝それぞれ
-                if (linkSpin || spinX) linkAngleX += 0.006 * animSpeedMultiplier;
-                if (linkSpin || spinY) linkAngleY += 0.0037 * animSpeedMultiplier;   // 速さの比をずらして、同じ姿勢に戻りにくくする
+                if (linkSpin || spinX) linkAngleX += 0.006 * animSpeedMultiplier * _k;
+                if (linkSpin || spinY) linkAngleY += 0.0037 * animSpeedMultiplier * _k;   // 速さの比をずらして、同じ姿勢に戻りにくくする
                 if (linkAngleX > Math.PI) linkAngleX -= 2 * Math.PI;
                 if (linkAngleY > Math.PI) linkAngleY -= 2 * Math.PI;
                 updateLinkUI();
@@ -4777,10 +4780,10 @@
                 const root2D = scene2D.getObjectByName("Root2D");
                 const root3D = scene3D.getObjectByName("Root3D");
                 if (root2D && root3D) {
-                    root2D.rotation.y += 0.003;
-                    root2D.rotation.x += 0.001;
-                    root3D.rotation.y += 0.003;
-                    root3D.rotation.x += 0.001;
+                    root2D.rotation.y += 0.003 * _k;
+                    root2D.rotation.x += 0.001 * _k;
+                    root3D.rotation.y += 0.003 * _k;
+                    root3D.rotation.x += 0.001 * _k;
                     const r5 = scene5D && scene5D.getObjectByName('Root5D'); if (r5) r5.rotation.copy(root3D.rotation);
                 }
             }

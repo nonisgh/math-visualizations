@@ -871,7 +871,7 @@ addEventListener('keydown', e => {
 let tPrev = performance.now(), fN = 0;
 (function loop() {
     requestAnimationFrame(loop);
-    const now = performance.now(), dt = Math.min(0.05, (now - tPrev) / 1000); tPrev = now; fN++;
+    const now = performance.now(), dt = Math.min(0.1, (now - tPrev) / 1000); tPrev = now; fN++;
     if (!paused) {
         if (auto.some(Boolean)) { auto.forEach((a, k) => { if (a) ang[k] += 0.6 * dt * rspd * RATE[k]; }); if (fN % 6 === 0) syncRot(); }
         if (scanV) { tScanV += dt * 0.45 * spd; v0 = B * 0.92 * Math.sin(tScanV); V0.e.value = v0; V0.show(); }

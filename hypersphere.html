@@ -1882,11 +1882,12 @@ addEventListener('keyup', e => { if (e.code === 'Space' && e.target && e.target.
   }
   function frame() {
     if (!running) return;
-    const tg = PRESETS[st.preset], al = 0.12; let moved = 0;
+    const now = performance.now(), k = Math.min(0.1, (now - (frame._t || now)) / 1000) * 120; frame._t = now;   // 120コマ/秒のときの量を基準に
+    const tg = PRESETS[st.preset], al = 1 - Math.pow(0.88, k); let moved = 0;
     st.n.forEach((x, k) => { moved += Math.abs(tg.n[k] - x); st.n[k] = x + (tg.n[k] - x) * al; });
     st.e.forEach((e, i) => e.forEach((x, k) => { moved += Math.abs(tg.e[i][k] - x); e[k] = x + (tg.e[i][k] - x) * al; }));
     if (moved > 1e-5) orth();
-    if (st.demo) st.demo.a += 0.012;
+    if (st.demo) st.demo.a += 0.012 * k;
     update(); ctl.update(); ren.render(scn, cam); requestAnimationFrame(frame);
   }
   function open() { document.body.classList.add('learning'); build(); resize(); running = true; frame(); }
@@ -2014,8 +2015,10 @@ function syncPanel() {
 // ---------------- ループ ----------------
 (function loop() {
   requestAnimationFrame(loop);
+  // 1コマあたりの量は「120コマ/秒」のときの値。経過時間を掛けて、何コマ/秒でも同じ速さに（Safari など 60コマ/秒で半分の速さにならない）
+  const _now = performance.now(), _k = Math.min(0.1, (_now - (loop._t || _now)) / 1000) * 120; loop._t = _now;
   if (demo) {
-    const d = 0.012 * spd;
+    const d = 0.012 * spd * _k;
     if (axis === 'mix') { pitch = norm(pitch + d); roll = norm(roll + d * 0.67); }
     else if (axis === 'xw') roll = norm(roll + d);
     else if (axis === 'ob') obT = norm(obT + d);
@@ -2026,17 +2029,22 @@ function syncPanel() {
     update();
     if (axis === 'dbl') pushDblTrail();
   }
-  if (rlOn && ++rlTick % 2 === 0) { for (let k = 0, m = Math.max(1, Math.round(spd)); k < m; k++) addRL(); if (rlN >= MAXRL) { rlOn = false; $('bRL').classList.remove('on'); } updatePath(); refreshUI(); }
-  if (randPlay) { addFoot(4); if (++randTick % 15 === 0 && footLast) { pathPhi = footLast.ph; pathLam = footLast.lam; pathT = footLast.t; } updatePath(); refreshUI(); }
-  if (pathPlay && (pathOn || allOn || curveOn)) { pathT = (pathT + 0.015 * spd) % TAU; updatePath(); refreshUI(); }
-  if (cutSpin) { cutAng = (cutAng + 0.012 * spd) % TAU; syncPanel(); }
+  if (rlOn && (rlTick += _k) >= 2) { rlTick %= 2; for (let k = 0, m = Math.max(1, Math.round(spd)); k < m; k++) addRL(); if (rlN >= MAXRL) { rlOn = false; $('bRL').classList.remove('on'); } updatePath(); refreshUI(); }
+  if (randPlay) {
+    loop._fa = (loop._fa || 0) + _k; const nf = Math.floor(loop._fa); loop._fa -= nf; if (nf) addFoot(4 * nf);   // 120コマ/秒で1コマ4点のペース
+    randTick += _k; if (randTick >= 15) { randTick -= 15; if (footLast) { pathPhi = footLast.ph; pathLam = footLast.lam; pathT = footLast.t; } }
+    updatePath(); refreshUI();
+  }
+  if (pathPlay && (pathOn || allOn || curveOn)) { pathT = (pathT + 0.015 * spd * _k) % TAU; updatePath(); refreshUI(); }
+  if (cutSpin) { cutAng = (cutAng + 0.012 * spd * _k) % TAU; syncPanel(); }
   else if (cutGoal !== null) {
     const d = cutGoal - cutAng;
-    if (Math.abs(d) < 0.004) { cutAng = ((cutGoal % TAU) + TAU) % TAU; cutGoal = null; } else cutAng += d * 0.18;
+    if (Math.abs(d) < 0.004) { cutAng = ((cutGoal % TAU) + TAU) % TAU; cutGoal = null; } else cutAng += d * (1 - Math.pow(0.82, _k));
     syncPanel();
   }
   cutU.uCutMode.value = wedgeOn && cutRef !== 'orig' ? (cutRef === 'screen' ? 1 : 2) : 0; cutU.uCutC.value = cutAng; cutU.uCutH.value = cutW / 2;
   cL.updateMatrixWorld(); ctrL.set(0, 0, 0).applyMatrix4(cL.matrixWorldInverse);   // 左の球の中心（視点座標）
+  controls.autoRotateSpeed = 2.0 * _k;   // 自動回転も経過時間どおりに（OrbitControls は1回の update で一定角度回すため）
   controls.update(); cR.updateMatrixWorld();
   cutU.uCtr.value.set(0, 0, 0).applyMatrix4(cR.matrixWorldInverse);   // 球の中心の視点座標（画面基準の切り欠き用）
   renderDof(rL, rL2, sL, cL); renderDof(rR, rR2, sR, cR);

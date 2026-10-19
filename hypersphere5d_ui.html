@@ -581,9 +581,9 @@ $('sidebar-open').addEventListener('click', () => { document.body.classList.remo
 let fpsV = 60, tPrev = performance.now(), fN = 0;
 (function loop() {
     requestAnimationFrame(loop);
-    const now = performance.now(); fpsV += (1000 / Math.max(1, now - tPrev) - fpsV) * 0.1; tPrev = now;
+    const now = performance.now(), k = Math.min(0.1, (now - tPrev) / 1000) * 120; fpsV += (1000 / Math.max(1, now - tPrev) - fpsV) * 0.1; tPrev = now;   // k：120コマ/秒のときの量を基準に、経過時間どおり進める
     if (++fN % 20 === 0) $('fps').textContent = fpsV.toFixed(0) + ' fps';
-    if (auto.some(Boolean)) { auto.forEach((a, k) => { if (a) ang[k] = norm(ang[k] + 0.01 * spd * RATE[k]); }); update(); if (fN % 6 === 0) sync(); }
+    if (auto.some(Boolean)) { auto.forEach((a, i) => { if (a) ang[i] = norm(ang[i] + 0.01 * spd * RATE[i] * k); }); update(); if (fN % 6 === 0) sync(); }
     ctl.update(); ren.render(scene, cam);
 })();
 onWindowResize(); update(); sync();
