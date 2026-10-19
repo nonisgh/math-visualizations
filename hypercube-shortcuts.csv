@@ -1,5 +1,5 @@
 id,label,key
-both,表示トグル（どっちも⇔超立方体のみ）,1
+both,表示トグル（どっちも→右上ミニ→大きい方だけ）,1
 panel,操作パネル 表示/非表示,Space
 tab_fold,タブ：折りたたみ,Shift+1
 tab_rot,タブ：回転,Shift+2
