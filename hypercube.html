@@ -32,9 +32,7 @@
         }
 
         .glass-panel {
-            background: rgba(15, 23, 42, 0.88);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: rgba(15, 23, 42, 0.93);   /* 背景ぼかし（blur 20px）は外して少し濃く＝3Dが動くたびのぼかし計算をなくして軽く */
             border: 1px solid rgba(255, 255, 255, 0.12);
         }
 
@@ -125,7 +123,7 @@
         /* ポップアップ分離：欄を切り離して浮かせる */
         #float-layer { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
         .float-panel { position: absolute; width: min(330px, 92vw); max-height: 82vh; overflow-y: auto; overflow-x: hidden; pointer-events: auto; border-radius: 12px; box-shadow: 0 12px 44px rgba(0, 0, 0, 0.6); }
-        .float-panel > .sb-sec { margin: 0; padding-top: 0; background: rgba(4, 8, 22, 0.95); border-color: rgba(129, 140, 248, 0.55); backdrop-filter: blur(8px); }
+        .float-panel > .sb-sec { margin: 0; padding-top: 0; background: rgba(4, 8, 22, 0.96); border-color: rgba(129, 140, 248, 0.55); }   /* 背景ぼかしは外した（ほぼ不透明なので見た目は同じ・3Dが動くたびのぼかし計算をなくして軽く） */
         .float-panel .sb-h { cursor: move; position: sticky; top: 0; z-index: 5; margin: 0 -10px; padding: 9px 10px 7px; background: rgba(7, 11, 26, 0.98); box-shadow: 0 1px 0 rgba(129, 140, 248, 0.3); }
         .sb-floatbtn { margin-left: 6px; flex-shrink: 0; font-size: 10px; font-weight: 400; color: #8aa0c6; cursor: pointer; white-space: nowrap; background: none; border: 0; padding: 0 2px; }
         .sb-floatbtn:hover { color: #e2e8f0; }
@@ -137,7 +135,7 @@
         .expl-tg:hover .expl-ic { transform: translateY(-1px); }
         .expl-closed { display: none !important; }
         /* 画面端にドッキングした2ペイン用のレール（幅は --dock-l/--dock-r と連動＝描画領域が自動で縮む） */
-        .dock-rail { position: fixed; top: 0; bottom: 0; z-index: 44; width: 0; overflow: hidden; pointer-events: none; display: flex; flex-direction: column; gap: 8px; padding: 0; box-sizing: border-box; background: rgba(2, 5, 16, 0.92); backdrop-filter: blur(8px); }
+        .dock-rail { position: fixed; top: 0; bottom: 0; z-index: 44; width: 0; overflow: hidden; pointer-events: none; display: flex; flex-direction: column; gap: 8px; padding: 0; box-sizing: border-box; background: rgba(2, 5, 16, 0.95); }
         .dock-rail.active { pointer-events: auto; overflow-y: auto; overflow-x: hidden; padding: 8px; }
         #dock-left { left: 0; width: var(--dock-l); border-right: 1px solid rgba(129, 140, 248, 0.4); }
         #dock-right { right: 0; width: var(--dock-r); border-left: 1px solid rgba(129, 140, 248, 0.4); }
@@ -263,7 +261,7 @@
         #axlen-5d { top: 64px; right: 12px; }
         /* 移動パッド：画面の左下。ドラッグで画面の中身をつかんで動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す */
         .pan-pad { position: absolute; left: 12px; top: 50%; margin-top: -23px; width: 46px; height: 46px; border-radius: 50%; z-index: 25; cursor: grab; touch-action: none; user-select: none;
-            background: rgba(15, 23, 42, 0.78); border: 1px solid #475569; color: #94a3b8; display: grid; place-items: center; backdrop-filter: blur(4px); transition: border-color .15s, color .15s; }
+            background: rgba(15, 23, 42, 0.78); border: 1px solid #475569; color: #94a3b8; display: grid; place-items: center; transition: border-color .15s, color .15s; }
         .pan-pad:hover { border-color: #a855f7; color: #e9d5ff; }
         .pan-pad.dragging { cursor: grabbing; border-color: #a855f7; color: #e9d5ff; background: rgba(59, 29, 92, 0.85); }
         .pan-pad.moving { cursor: move; border-color: #facc15; color: #fef08a; border-style: dashed; }   /* Shift＋ドラッグでパッド自体を動かしているとき */
@@ -345,12 +343,12 @@
             <div id="canvas-2d3d" class="w-full h-full"></div>
             <div id="xp-layer-2d" class="xp-layer"></div><div id="xp-badge-2d" class="xp-badge"></div>
             <div class="pan-pad" data-pan="2" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す。Shift＋ドラッグでパッド自体を動かす（Shift＋ダブルクリックで元の場所へ）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
-            <div id="badge-2d3d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-cyan-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-cyan-300 shadow-lg flex items-center gap-2 z-10">
+            <div id="badge-2d3d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/85 border border-cyan-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-cyan-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="square" class="w-4 h-4 text-cyan-400"></i>
                 <span><em id="side-2d3d" class="not-italic">左</em>: 2D展開図 → 立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = z。そこへ倒すと、ただ立方体が回る</span></span>
             </div>
             <!-- Z-W 平面のダイヤル（立方体の画面の右上）。横＝z、縦＝w。針の z 方向の長さ＝立方体に残った z、w 方向＝w へ移った分 -->
-            <div id="zw-dial" class="hidden absolute pointer-events-none z-10 bg-slate-900/80 backdrop-blur border border-slate-700 rounded-xl px-2 pt-1 pb-1.5 text-center" title="Z-W 平面">
+            <div id="zw-dial" class="hidden absolute pointer-events-none z-10 bg-slate-900/85 border border-slate-700 rounded-xl px-2 pt-1 pb-1.5 text-center" title="Z-W 平面">
                 <svg width="92" height="92" viewBox="-46 -46 92 92">
                     <circle r="34" fill="none" stroke="#334155" stroke-width="1"/>
                     <line x1="-42" y1="0" x2="42" y2="0" stroke="#56a8ff" stroke-width="1" opacity="0.6"/>
@@ -377,7 +375,7 @@
             <div id="xp-layer-3d" class="xp-layer"></div><div id="xp-badge-3d" class="xp-badge"></div>
             <div class="pan-pad" data-pan="3" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す。Shift＋ドラッグでパッド自体を動かす（Shift＋ダブルクリックで元の場所へ）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
             <!-- 4次元：3D に出ている軸の長さ（平行投影で見える長さ）。w は 0° では落とす向きなので 0%。X-W・Y-W・Z-W で回すと出てくる。つぶす（お遊び）と減る -->
-            <div id="axlen-4d" class="absolute pointer-events-none z-10 bg-slate-900/80 backdrop-blur border border-slate-700 rounded-xl px-2.5 py-1.5" title="4本の軸が 3D にどれだけ出ているか（もとの長さを 100%）">
+            <div id="axlen-4d" class="absolute pointer-events-none z-10 bg-slate-900/85 border border-slate-700 rounded-xl px-2.5 py-1.5" title="4本の軸が 3D にどれだけ出ているか（もとの長さを 100%）">
                 <div class="text-[10px] font-bold text-slate-300 mb-0.5">3D に出ている軸の長さ</div>
                 <div class="flex items-center gap-1.5 text-[10px] font-mono leading-tight"><b class="w-2 italic" style="color:#ff5d6c">x</b><span class="block w-20 h-1.5 rounded bg-slate-800 overflow-hidden"><span id="axl4-x" class="block h-full rounded" style="width:100%;background:#ff5d6c"></span></span><span id="axl4-x-t" class="w-9 text-right text-slate-300">100%</span></div>
                 <div class="flex items-center gap-1.5 text-[10px] font-mono leading-tight"><b class="w-2 italic" style="color:#3ddc84">y</b><span class="block w-20 h-1.5 rounded bg-slate-800 overflow-hidden"><span id="axl4-y" class="block h-full rounded" style="width:100%;background:#3ddc84"></span></span><span id="axl4-y-t" class="w-9 text-right text-slate-300">100%</span></div>
@@ -385,7 +383,7 @@
                 <div class="flex items-center gap-1.5 text-[10px] font-mono leading-tight"><b class="w-2 italic" style="color:#b07cff">w</b><span class="block w-20 h-1.5 rounded bg-slate-800 overflow-hidden"><span id="axl4-w" class="block h-full rounded" style="width:100%;background:#b07cff"></span></span><span id="axl4-w-t" class="w-9 text-right text-slate-300">100%</span></div>
             </div>
 
-            <div id="badge-3d4d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-300 shadow-lg flex items-center gap-2 z-10">
+            <div id="badge-3d4d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/85 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="box" class="w-4 h-4 text-purple-400"></i>
                 <span><em id="side-3d4d" class="not-italic">右</em>: 3D展開図 → 超立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = w。そこへ倒すと、影が裏返って見える</span></span>
             </div>
@@ -397,12 +395,12 @@
             <div id="die-flash-5d" class="die-flash"><div class="box"><img class="pip" alt="" style="display:none"><div class="n"></div><div class="sub"></div></div></div>
             <div id="xp-layer-5d" class="xp-layer"></div><div id="xp-badge-5d" class="xp-badge"></div>
             <div class="pan-pad" data-pan="5" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す。Shift＋ドラッグでパッド自体を動かす（Shift＋ダブルクリックで元の場所へ）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
-            <div id="badge-4d5d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 shadow-lg flex items-center gap-2 z-10">
+            <div id="badge-4d5d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/85 border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="hexagon" class="w-4 h-4 text-amber-400"></i>
                 <span><em id="side-4d5d" class="not-italic">右</em>: 4D展開図 → 5次元超立方体（β）<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = v。v と w の2段で 3D に写す</span></span>
             </div>
             <!-- 3D に出ている軸の長さ（平行投影で見える長さ）。0° では w と v は落とす向きなので 0%。せり出すと伸びる -->
-            <div id="axlen-5d" class="absolute pointer-events-none z-10 bg-slate-900/80 backdrop-blur border border-slate-700 rounded-xl px-2.5 py-1.5" title="5本の軸が 3D にどれだけ出ているか（もとの長さを 100%）">
+            <div id="axlen-5d" class="absolute pointer-events-none z-10 bg-slate-900/85 border border-slate-700 rounded-xl px-2.5 py-1.5" title="5本の軸が 3D にどれだけ出ているか（もとの長さを 100%）">
                 <div class="text-[10px] font-bold text-slate-300 mb-0.5">3D に出ている軸の長さ</div>
                 <div class="flex items-center gap-1.5 text-[10px] font-mono leading-tight"><b class="w-2 italic" style="color:#ff5d6c">x</b><span class="block w-20 h-1.5 rounded bg-slate-800 overflow-hidden"><span id="axl-x" class="block h-full rounded" style="width:100%;background:#ff5d6c"></span></span><span id="axl-x-t" class="w-9 text-right text-slate-300">100%</span></div>
                 <div class="flex items-center gap-1.5 text-[10px] font-mono leading-tight"><b class="w-2 italic" style="color:#3ddc84">y</b><span class="block w-20 h-1.5 rounded bg-slate-800 overflow-hidden"><span id="axl-y" class="block h-full rounded" style="width:100%;background:#3ddc84"></span></span><span id="axl-y-t" class="w-9 text-right text-slate-300">100%</span></div>
@@ -4570,6 +4568,7 @@
 
         function animate() {
             requestAnimationFrame(animate);
+            let _geoDirty = false;   // 形を計算し直す必要があるか。各アニメは印だけ付け、計算は描く直前に1回だけ（以前は1フレームに2〜3回）
 
             // 実時間の経過（秒）。タブ非表示などの大ジャンプは 0.1s で頭打ち。
             const _now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -4593,7 +4592,7 @@
                 soloAngleZW = A.c + (B.c - A.c) * f;
                 cycleBlend = A.par + (B.par - A.par) * f;
                 updateLinkUI();
-                updateMorphingGeometry(animationProgress);
+                _geoDirty = true;
             }
 
             if (camHome) stepCamHome(_dt);
@@ -4601,7 +4600,7 @@
             if (xpAnim) {   // 分解：ボタンのアニメ（時間差・加速度つき）
                 xpAnim.t += _dt;
                 if (xpAnim.t >= xpAnim.total) { explodeRaw = xpAnim.to; xpAnim = null; explodeTarget = null; }
-                syncExplodeUI(); updateMorphingGeometry(animationProgress);
+                syncExplodeUI(); _geoDirty = true;
             }
             stepXpCount(_dt);
             // お試し：菱形二十面体へ。回し終わって組み上がったら変形を始める（1.6秒）。戻すときは逆
@@ -4625,14 +4624,14 @@
                     animationMode = 0;
                     ensureProjection();   // 組み上がったら投影を見直す
                 }
-                updateMorphingGeometry(animationProgress);
+                _geoDirty = true;
             } else if (animationMode === -1) {
                 animationProgress -= baseStep;
                 if (animationProgress <= 0.0) {
                     animationProgress = 0.0;
                     animationMode = 0;
                 }
-                updateMorphingGeometry(animationProgress);
+                _geoDirty = true;
             } else if (animationMode === 2) {
                 animationProgress += loopStep * loopDirection;
                 if (animationProgress >= 1.0) {
@@ -4642,7 +4641,7 @@
                     animationProgress = 0.0;
                     loopDirection = 1;
                 }
-                updateMorphingGeometry(animationProgress);
+                _geoDirty = true;
             }
 
             if (axisTween) {
@@ -4723,13 +4722,13 @@
                     if (cb) cb();
                 }
                 updateLinkUI();
-                updateMorphingGeometry(animationProgress);
+                _geoDirty = true;
             }
 
             if (soloSpinZW) {
                 soloAngleZW = wrapPi(soloAngleZW + 0.007 * animSpeedMultiplier);
                 updateLinkUI();
-                updateMorphingGeometry(animationProgress);
+                _geoDirty = true;
             }
 
             if (spinXY || spinXZ || spinYZ) {   // 超立方体の3D回転（X-Y は左も一緒）
@@ -4737,7 +4736,7 @@
                 if (spinXZ) rotXZ = wrapPi(rotXZ + 0.0053 * animSpeedMultiplier);
                 if (spinYZ) rotYZ = wrapPi(rotYZ + 0.0031 * animSpeedMultiplier);   // 速さをずらして同じ姿勢に戻りにくくする
                 updateLinkUI();
-                updateMorphingGeometry(animationProgress);
+                _geoDirty = true;
             }
 
             if (dim5 && anySpin5()) {   // 5次元だけの4面（速さをずらして同じ姿勢に戻りにくくする）
@@ -4745,7 +4744,7 @@
                 if (spin5YW) p5YW = wrapPi(p5YW + 0.0041 * animSpeedMultiplier);
                 if (spin5ZW) p5ZW = wrapPi(p5ZW + 0.0033 * animSpeedMultiplier);
                 if (spin5WV) p5WV = wrapPi(p5WV + 0.0061 * animSpeedMultiplier);
-                updateLinkUI(); updateMorphingGeometry(animationProgress);
+                updateLinkUI(); _geoDirty = true;
             }
 
             if (linkSpin || spinX || spinY) {   // XY連動＝両方、個別ボタン＝それぞれ
@@ -4754,7 +4753,7 @@
                 if (linkAngleX > Math.PI) linkAngleX -= 2 * Math.PI;
                 if (linkAngleY > Math.PI) linkAngleY -= 2 * Math.PI;
                 updateLinkUI();
-                updateMorphingGeometry(animationProgress);
+                _geoDirty = true;
             }
 
             if (autoRotateCamera) {
@@ -4788,7 +4787,7 @@
             }
             // 何も動いていなければ、ここで終わり（描き直さない＝省エネ）
             const busy = animationMode !== 0 || axisTween !== null || cycleMode || pingPong !== null || camHome !== null || dieAnim !== null || anySpin() || autoRotateCamera || camMoved || explodeTarget !== null || xpCount.active || rhombi.anim || rhombi.pending;
-            if (!busy && _renderFrames <= 0) return;
+            if (!busy && _renderFrames <= 0) { if (_geoDirty) updateMorphingGeometry(animationProgress); return; }   // 描かなくても、止まった瞬間の形（メーター等）は合わせておく
             if (_renderFrames > 0) _renderFrames--;
             if (ecoMode && busy && (_now - _lastRenderT) < 30) return;   // 省電力：回転など連続アニメ中は約30fpsに間引く（GPU負荷を半分に。止まっているときは影響なし）
             _lastRenderT = _now;
