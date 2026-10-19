@@ -483,6 +483,32 @@
                     <button id="gh-all-save" class="px-2.5 py-1 rounded bg-emerald-600/40 border border-emerald-400/50 text-emerald-100 hover:bg-emerald-600/60 text-[11px] font-bold whitespace-nowrap flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed" title="ショートカット・点・角度・往復を GitHub へまとめて書き込む"><i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i>GitHub へ一括書込</button>
                 </div>
             </div>
+            <!-- 画面の状態と設定を、シークレット Gist へ定期的に同期（gist だけの権限の鍵。リポジトリ用の鍵とは別） -->
+            <div class="mt-3 pt-2.5 border-t border-slate-800/80 text-[11px]">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <span class="font-bold text-fuchsia-200 flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>画面の状態を Gist に自動同期</span>
+                    <span id="gist-st" class="text-[10px] text-slate-500"></span>
+                </div>
+                <p class="text-[10px] text-slate-500 leading-snug mt-1">画面の状態（表示・折りたたみ・回転・カメラ）と、スイッチ・色などの設定を、シークレット Gist（URL を知っている人だけが見られ、一覧には出ない）へ定期的に上げます。別の端末でも同じ鍵と Gist ID を入れておくと、開いた時に新しい方の状態にそろいます。鍵は <b>gist の権限だけ</b>のものを使ってください（<a href="https://github.com/settings/tokens/new?scopes=gist&amp;description=jigen-origami-gist-sync" target="_blank" rel="noopener" class="text-sky-300 underline">ここで作れます</a>）。鍵はこのブラウザにだけ保存され、HTML や Gist には入りません。</p>
+                <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    <input id="gist-token" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…（gist だけの鍵）を貼り付け" class="flex-1 min-w-[160px] bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 text-[11px]">
+                    <button id="gist-token-save" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[11px] whitespace-nowrap">鍵を保存</button>
+                    <button id="gist-token-clear" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-400 hover:bg-slate-700 text-[11px] whitespace-nowrap">鍵を消す</button>
+                </div>
+                <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    <input id="gist-id" type="text" autocomplete="off" spellcheck="false" placeholder="Gist ID（空なら最初の同期で新しく作る）" class="flex-1 min-w-[160px] bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 text-[11px] font-mono">
+                    <button id="gist-id-save" class="px-2 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[11px] whitespace-nowrap" title="別の端末で作った Gist の ID を入れると、その Gist と同期します">ID を保存</button>
+                    <a id="gist-open" href="#" target="_blank" rel="noopener" class="hidden text-sky-300 underline text-[11px] whitespace-nowrap">Gist を開く ↗</a>
+                </div>
+                <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    <button id="gist-auto" class="px-2.5 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[11px] font-bold whitespace-nowrap">自動同期: OFF</button>
+                    <select id="gist-every" class="bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-[11px]" title="変わった時に上げる間隔">
+                        <option value="30">30 秒ごと</option><option value="60">1 分ごと</option><option value="300">5 分ごと</option>
+                    </select>
+                    <button id="gist-now" class="px-2.5 py-1 rounded bg-emerald-600/40 border border-emerald-400/50 text-emerald-100 hover:bg-emerald-600/60 text-[11px] font-bold whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed">今すぐ上げる</button>
+                    <button id="gist-load" class="px-2.5 py-1 rounded bg-sky-900/40 border border-sky-500/40 text-sky-200 hover:bg-sky-800/40 text-[11px] font-bold whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed">Gist から読み込む</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -7909,10 +7935,218 @@
             }
         }
 
+        // ===== 画面の状態をそのまま覚える（3 秒ごと＋閉じる時）。次に開いた時に同じ画面へ戻す =====
+        //   表示モード（どっちも／右上ミニ／大きい方だけ）・パネルの開閉・折りたたみの進み・速さ・ループ・回転の角度（6面＋5次元の4面）・
+        //   回し続けている面・分解・投影・自動ズーム・カメラ（左と右）。スイッチ類の設定はそれぞれ前から保存されている
+        const SESSION_STORE = 'hypercubeSession';
+        let _sessionLast = '';
+        function sessionSnapshot() {
+            const r5 = v => +(+v).toFixed(5);
+            const cam = (c, ctl) => (c && ctl) ? { p: c.position.toArray().map(r5), t: ctl.target.toArray().map(r5), z: r5(c.zoom) } : null;
+            return {
+                v: 1,
+                displayMode, panelHidden, leftFull3D,
+                prog: r5(animationProgress), speed: animSpeedMultiplier, loop: animationMode === 2,
+                ang: [linkAngleX, linkAngleY, soloAngleZW, rotXY, rotXZ, rotYZ, p5XW, p5YW, p5ZW, p5WV].map(r5),
+                spins: { linkSpin, soloSpinZW, spinX, spinY, spinXY, spinXZ, spinYZ, spin5XW, spin5YW, spin5ZW, spin5WV },
+                explode: r5(explodeRaw), cubePersp, parallel4D, autoFitZoom,
+                cam2: cam(camera2D, controls2D), cam3: cam(camera3D, controls3D),
+            };
+        }
+        function saveSession() {
+            if (_sessionLast === '__skip__') return;   // Gist の状態に入れかえて読み直すところ
+            try {
+                const j = JSON.stringify(sessionSnapshot());
+                if (j === _sessionLast) return;   // 変わっていなければ書かない
+                localStorage.setItem(SESSION_STORE, j); _sessionLast = j;
+            } catch (_) { /* 保存できない環境では何もしない */ }
+        }
+        function restoreSession() {
+            let s = null;
+            try { s = JSON.parse(localStorage.getItem(SESSION_STORE) || 'null'); } catch (_) { s = null; }
+            if (!s || s.v !== 1) return;
+            try {
+                const click = id => { const b = document.getElementById(id); if (b) b.click(); };
+                // 表示モード・パネル・立方体の3D回転：ボタンを押して合わせる（ボタンの文字もそろう）
+                for (let i = 0; i < 4 && s.displayMode && displayMode !== s.displayMode; i++) click('display-mode-btn');
+                if (!!s.panelHidden !== panelHidden) click('sidebar-close');
+                if (!!s.leftFull3D !== leftFull3D) click('left3d-btn');
+                for (let i = 0; i < 4 && s.speed && animSpeedMultiplier !== s.speed; i++) click('speed-btn');
+                if (typeof s.autoFitZoom === 'boolean' && s.autoFitZoom !== autoFitZoom) click('zoom-btn');
+                // 折りたたみの進み・ループ
+                animationMode = 0;
+                if (isFinite(s.prog)) { animationProgress = Math.max(0, Math.min(1, s.prog)); const sl = document.getElementById('unfold-slider'); if (sl) sl.value = animationProgress; }
+                if (s.loop) click('loop-btn');
+                // 回転の角度と、回し続けている面
+                if (Array.isArray(s.ang) && s.ang.length >= 6 && s.ang.every(isFinite)) setAngles6(s.ang);
+                if (s.spins) {
+                    const p = s.spins;
+                    linkSpin = !!p.linkSpin; soloSpinZW = !!p.soloSpinZW; spinX = !!p.spinX; spinY = !!p.spinY;
+                    spinXY = !!p.spinXY; spinXZ = !!p.spinXZ; spinYZ = !!p.spinYZ;
+                    if (dim5) { spin5XW = !!p.spin5XW; spin5YW = !!p.spin5YW; spin5ZW = !!p.spin5ZW; spin5WV = !!p.spin5WV; }
+                    updateSpinBtns(); if (typeof updateLinkUI === 'function') updateLinkUI();
+                }
+                // 分解・投影
+                if (isFinite(s.explode)) { setExplodeRaw(s.explode); if (typeof syncExplodeUI === 'function') syncExplodeUI(); }
+                if (typeof s.cubePersp === 'boolean') { cubePersp = s.cubePersp; applyPerspUI(); }
+                parallel4D = !!s.parallel4D; projAnim = null;
+                // カメラ（左と右）。起動時のカメラの動きや自動ズームに上書きされないように
+                camHome = null; _lastFitProg = animationProgress;
+                const setCam = (c, ctl, d) => {
+                    if (!c || !ctl || !d || !Array.isArray(d.p) || !Array.isArray(d.t)) return;
+                    c.position.fromArray(d.p); ctl.target.fromArray(d.t);
+                    if (isFinite(d.z) && d.z > 0) c.zoom = d.z;
+                    c.updateProjectionMatrix(); ctl.update();
+                };
+                setCam(camera2D, controls2D, s.cam2); setCam(camera3D, controls3D, s.cam3);
+                updateMorphingGeometry(animationProgress);
+                requestRender(60);
+            } catch (e) { console.warn('前回の画面を戻せませんでした', e); }
+            _sessionLast = JSON.stringify(sessionSnapshot());
+        }
+
+        // ===== シークレット Gist へ定期的に同期（画面の状態＋次元おりがみの設定ぜんぶ） =====
+        //   鍵（gist だけの権限）と Gist ID はこのブラウザにだけ保存。上げるのは hypercube で始まる保存（鍵・同期の記録は除く）
+        //   開いた時：自動同期が ON で、Gist の方が新しければ、その状態に入れかえて 1 回だけ読み直す
+        const GIST = {
+            TOKEN: 'hypercubeGistToken', ID: 'hypercubeGistId', AUTO: 'hypercubeGistAuto', EVERY: 'hypercubeGistEvery',
+            LOCAL_AT: 'hypercubeGistLocalAt', UP_AT: 'hypercubeGistUpAt', FILE: 'hypercube-state.json',
+        };
+        const gistGet = k => { try { return localStorage.getItem(k) || ''; } catch (_) { return ''; } };
+        const gistSet = (k, v) => { try { if (v === null || v === '') localStorage.removeItem(k); else localStorage.setItem(k, String(v)); } catch (_) {} };
+        const gistSkip = k => k === 'hypercubeGithubToken' || k.startsWith('hypercubeGist');
+        function gistData() {   // 上げる中身（キー順にそろえて、変わったかを文字列で比べられるように）
+            const o = {};
+            try { Object.keys(localStorage).filter(k => k.startsWith('hypercube') && !gistSkip(k)).sort().forEach(k => { o[k] = localStorage.getItem(k); }); } catch (_) {}
+            return o;
+        }
+        let gistLastData = '', gistTimer = null, gistBusy = false;
+        function gistStatus(msg, ok) {
+            const el = document.getElementById('gist-st'); if (!el) return;
+            el.textContent = msg;
+            el.className = 'text-[10px] ' + (ok === true ? 'text-emerald-300' : ok === false ? 'text-rose-300' : 'text-slate-400');
+        }
+        const gistHeaders = () => ({ 'Authorization': 'Bearer ' + gistGet(GIST.TOKEN), 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' });
+        const gistExplain = r => r.status === 401 ? '鍵が無効です（期限切れ・貼り間違い）' : r.status === 403 ? '鍵に gist の権限がありません' : r.status === 404 ? 'Gist が見つかりません（ID 違い・別のアカウント）' : 'HTTP ' + r.status;
+        async function gistUpload(force) {
+            if (gistBusy || !gistGet(GIST.TOKEN)) return;
+            saveSession();   // 今の画面を先に覚えてから
+            const data = gistData(), dataStr = JSON.stringify(data);
+            if (dataStr !== gistLastData) { gistSet(GIST.LOCAL_AT, Date.now()); }
+            if (!force && dataStr === gistLastData && gistGet(GIST.UP_AT)) return;   // 変わっていなければ上げない
+            gistBusy = true;
+            try {
+                const savedAt = +gistGet(GIST.LOCAL_AT) || Date.now();
+                const content = JSON.stringify({ app: 'hypercube', kind: 'state', v: 1, savedAt, data }, null, 1);
+                const id = gistGet(GIST.ID);
+                const body = { description: '次元おりがみ：画面の状態と設定（自動同期）', files: { [GIST.FILE]: { content } } };
+                let r;
+                if (id) r = await fetch('https://api.github.com/gists/' + encodeURIComponent(id), { method: 'PATCH', headers: Object.assign({ 'Content-Type': 'application/json' }, gistHeaders()), body: JSON.stringify(body) });
+                else r = await fetch('https://api.github.com/gists', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, gistHeaders()), body: JSON.stringify(Object.assign({ public: false }, body)) });
+                if (!r.ok) throw new Error(gistExplain(r));
+                const j = await r.json();
+                if (!id && j && j.id) gistSet(GIST.ID, j.id);
+                gistLastData = dataStr;
+                gistSet(GIST.UP_AT, Date.now());
+                gistStatus('上げました ' + new Date().toLocaleTimeString('ja-JP'), true);
+                gistRenderUI();
+            } catch (e) { gistStatus('上げられませんでした：' + (e && e.message ? e.message : e), false); }
+            gistBusy = false;
+        }
+        async function gistFetch() {   // Gist の中身（無ければ null）
+            const id = gistGet(GIST.ID);
+            if (!id || !gistGet(GIST.TOKEN)) return null;
+            const r = await fetch('https://api.github.com/gists/' + encodeURIComponent(id), { headers: gistHeaders(), cache: 'no-store' });
+            if (!r.ok) throw new Error(gistExplain(r));
+            const g = await r.json(), f = g && g.files && g.files[GIST.FILE];
+            if (!f) return null;
+            let txt = f.content;
+            if (f.truncated && f.raw_url) txt = await (await fetch(f.raw_url, { cache: 'no-store' })).text();
+            const o = JSON.parse(txt);
+            if (!o || o.app !== 'hypercube' || !o.data || typeof o.data !== 'object') throw new Error('形式が違います');
+            return o;
+        }
+        function gistApply(o) {   // Gist の状態をこのブラウザに入れて、読み直す
+            Object.keys(o.data).forEach(k => { if (k.startsWith('hypercube') && !gistSkip(k) && typeof o.data[k] === 'string') { try { localStorage.setItem(k, o.data[k]); } catch (_) {} } });
+            gistSet(GIST.LOCAL_AT, o.savedAt || Date.now());
+            try { sessionStorage.setItem('hypercubeGistApplied', '1'); } catch (_) {}
+            _sessionLast = '__skip__';   // 読み直すまで今の画面で上書きしない
+            location.reload();
+        }
+        function gistRenderUI() {
+            const t = gistGet(GIST.TOKEN), id = gistGet(GIST.ID), auto = gistGet(GIST.AUTO) === '1';
+            const inp = document.getElementById('gist-token'); if (!inp) return;
+            inp.value = ''; inp.placeholder = t ? '鍵は保存済み（貼り直すと上書き）' : 'ghp_…（gist だけの鍵）を貼り付け';
+            document.getElementById('gist-token-clear').style.display = t ? '' : 'none';
+            const idInp = document.getElementById('gist-id'); if (document.activeElement !== idInp) idInp.value = id;
+            const open = document.getElementById('gist-open'); open.classList.toggle('hidden', !id); if (id) open.href = 'https://gist.github.com/' + encodeURIComponent(id);
+            const ab = document.getElementById('gist-auto');
+            ab.textContent = '自動同期: ' + (auto ? 'ON' : 'OFF');
+            ab.classList.toggle('bg-fuchsia-900/40', auto); ab.classList.toggle('border-fuchsia-400/60', auto); ab.classList.toggle('text-fuchsia-100', auto);
+            ab.classList.toggle('bg-slate-800', !auto); ab.classList.toggle('border-slate-600', !auto); ab.classList.toggle('text-slate-300', !auto);
+            document.getElementById('gist-every').value = gistGet(GIST.EVERY) || '60';
+            document.getElementById('gist-now').disabled = !t;
+            document.getElementById('gist-load').disabled = !t || !id;
+        }
+        function gistSchedule() {
+            clearInterval(gistTimer); gistTimer = null;
+            if (gistGet(GIST.AUTO) !== '1' || !gistGet(GIST.TOKEN)) return;
+            const sec = Math.max(30, +gistGet(GIST.EVERY) || 60);
+            gistTimer = setInterval(() => gistUpload(false), sec * 1000);
+        }
+        function setupGistSync() {
+            if (!document.getElementById('gist-token')) return;
+            gistLastData = '';
+            document.getElementById('gist-token-save').addEventListener('click', () => {
+                const v = document.getElementById('gist-token').value.trim();
+                if (!v) { gistStatus('鍵を貼り付けてから押してください', false); return; }
+                gistSet(GIST.TOKEN, v); gistRenderUI(); gistSchedule(); gistStatus('鍵をこのブラウザに保存しました', true);
+            });
+            document.getElementById('gist-token-clear').addEventListener('click', () => { gistSet(GIST.TOKEN, null); gistRenderUI(); gistSchedule(); gistStatus('鍵を消しました'); });
+            document.getElementById('gist-id-save').addEventListener('click', () => {
+                const v = document.getElementById('gist-id').value.trim().replace(/^https?:\/\/gist\.github\.com\/(?:[^/]+\/)?/, '').replace(/[^0-9a-fA-F]/g, '');
+                gistSet(GIST.ID, v); gistRenderUI(); gistStatus(v ? 'Gist ID を保存しました' : 'Gist ID を消しました（次の同期で新しく作ります）', true);
+            });
+            document.getElementById('gist-auto').addEventListener('click', () => {
+                const on = gistGet(GIST.AUTO) !== '1';
+                gistSet(GIST.AUTO, on ? '1' : null); gistRenderUI(); gistSchedule();
+                if (on) { if (gistGet(GIST.TOKEN)) gistUpload(true); else gistStatus('先に鍵を保存してください', false); }
+            });
+            document.getElementById('gist-every').addEventListener('change', e => { gistSet(GIST.EVERY, e.target.value); gistSchedule(); });
+            document.getElementById('gist-now').addEventListener('click', () => gistUpload(true));
+            document.getElementById('gist-load').addEventListener('click', async () => {
+                try {
+                    gistStatus('Gist から読み込み中…');
+                    const o = await gistFetch();
+                    if (!o) { gistStatus('Gist にまだ状態がありません', false); return; }
+                    if (!confirm('Gist の状態（' + new Date(o.savedAt).toLocaleString('ja-JP') + '）に入れかえて、読み直しますか？')) { gistStatus(''); return; }
+                    gistApply(o);
+                } catch (e) { gistStatus('読み込めませんでした：' + (e && e.message ? e.message : e), false); }
+            });
+            gistRenderUI(); gistSchedule();
+            // 閉じる・隠れる時にも、変わっていれば上げる
+            document.addEventListener('visibilitychange', () => { if (document.hidden && gistGet(GIST.AUTO) === '1') gistUpload(false); });
+            // 開いた時：Gist の方が新しければ、そちらに合わせる（読み直しは 1 回だけ）
+            let applied = false; try { applied = sessionStorage.getItem('hypercubeGistApplied') === '1'; sessionStorage.removeItem('hypercubeGistApplied'); } catch (_) {}
+            if (applied) { gistLastData = JSON.stringify(gistData()); gistStatus('Gist の新しい状態に合わせました', true); return; }
+            if (gistGet(GIST.AUTO) === '1' && gistGet(GIST.TOKEN) && gistGet(GIST.ID)) {
+                gistFetch().then(o => {
+                    const localAt = +gistGet(GIST.LOCAL_AT) || 0;
+                    if (o && o.savedAt > localAt + 2000) { gistStatus('Gist の方が新しいので合わせます…'); gistApply(o); }
+                    else { gistLastData = o ? JSON.stringify(o.data) : ''; gistStatus('同期しています（' + (Math.max(30, +gistGet(GIST.EVERY) || 60)) + ' 秒ごと）', true); }
+                }).catch(e => gistStatus('Gist を確かめられませんでした：' + (e && e.message ? e.message : e), false));
+            }
+        }
+
         window.onload = () => {
             initScenes();
             setupUIEventListeners();
             document.getElementById('xparent-btn').click();   // 起動時は「面透過: 正確」を既定にする（ボタン表示・面の設定もそろう）
+            restoreSession();   // 前回の画面に戻す
+            setupGistSync();    // シークレット Gist との同期
+            setInterval(saveSession, 3000);   // 3 秒ごとに覚える（変わった時だけ書く）
+            window.addEventListener('pagehide', saveSession);
+            document.addEventListener('visibilitychange', () => { if (document.hidden) saveSession(); });
             animate();
         };
     </script>
