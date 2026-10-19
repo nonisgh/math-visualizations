@@ -935,6 +935,10 @@
                         <i data-lucide="layers-3" class="w-3.5 h-3.5"></i>
                         <span id="deep4-text" class="text-[11px]">→ 奥を濃く(4D): ON</span>
                     </button>
+                    <button id="shine-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="照り返しライト：白い光を見ている人の左上に置いて、面をつやつやにする。面の向きごとに明るさと照り返しが変わるので、立体感と胞の並び（どっちを向いている胞か）が分かりやすい。立方体・超立方体・5次元体のすべてに効く">
+                        <i data-lucide="sun" class="w-3.5 h-3.5"></i>
+                        <span id="shine-text" class="text-[11px]">→ 照り返しライト: ON</span>
+                    </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button></div>
             </section>
 
@@ -2120,7 +2124,8 @@
 
             [scene2D, scene3D].forEach(s => {
                 const ambient = new THREE.AmbientLight(0xffffff, 0.9);
-                s.add(ambient);
+                s.add(ambient); shineAmbients.push(ambient);
+                if (s === scene2D) addShineLight(s, () => camera2D, () => controls2D && controls2D.target); else addShineLight(s, () => camera3D, () => controls3D && controls3D.target);
                 const dir1 = new THREE.DirectionalLight(0x38bdf8, 1.4);
                 dir1.position.set(15, 22, 18);
                 dir1.castShadow = true;
@@ -2500,6 +2505,39 @@
         const T5_EDGES = [];
         for (let v = 0; v < 16; v++) for (let d = 0; d < 4; d++) if (!(v & (1 << d))) T5_EDGES.push([v, v | (1 << d)]);
         let cellObjects5D = [];
+        // 照り返しライト（モード）：白い点光源を「見ている人の左上・少し手前」に置き、面をつやつやにして照り返しを強くする。
+        //   面の向きごとに明るさと照り返しが変わるので、立体感と胞の並び（どっちを向いている胞か）が分かりやすい。既定 OFF
+        let shineOn = false; try { shineOn = localStorage.getItem('hypercubeShine') === '1'; } catch (_) {}
+        const shineLights = [], shineAmbients = [];   // { light, scene, cam:()=>camera, tgt:()=>Vector3 } / AmbientLight
+        const _shR = new THREE.Vector3(), _shU = new THREE.Vector3(), _shT = new THREE.Vector3();
+        function addShineLight(scene, camFn, tgtFn) {
+            const L = new THREE.PointLight(0xffffff, 2.6, 0); L.visible = shineOn; scene.add(L);
+            shineLights.push({ light: L, cam: camFn, tgt: tgtFn });
+        }
+        function updateShineLights() {   // 描く直前に、光をカメラから見た左上へ（回してもいつも照り返しが見える）
+            if (!shineOn) return;
+            shineLights.forEach(o => {
+                const cam = o.cam(); if (!cam) return;
+                const t = o.tgt ? o.tgt() : null; _shT.set(0, 0, 0); if (t) _shT.copy(t);
+                const D = cam.position.distanceTo(_shT) || 10;
+                _shR.set(1, 0, 0).applyQuaternion(cam.quaternion); _shU.set(0, 1, 0).applyQuaternion(cam.quaternion);
+                o.light.position.copy(_shT).addScaledVector(cam.position.clone().sub(_shT), 0.55).addScaledVector(_shU, D * 0.42).addScaledVector(_shR, -D * 0.32);
+            });
+        }
+        function applyShine() {   // 光の ON/OFF と、面の材質のつや（ざらつき・金属っぽさ）
+            shineLights.forEach(o => { o.light.visible = shineOn; });
+            shineAmbients.forEach(a => { a.intensity = shineOn ? 0.4 : 0.9; });
+            const mats = [];
+            cellObjects3D.forEach(c => mats.push(c.material)); faceObjects2D.forEach(f => mats.push(f.material)); cellObjects5D.forEach(c => c.material && mats.push(c.material));
+            if (mergedFaces3D) mats.push(mergedFaces3D.material); if (mergedFaces5D) mats.push(mergedFaces5D.material);
+            mats.forEach(m => {
+                if (!m || m.roughness === undefined) return;
+                if (m.userData.shine0 === undefined) m.userData.shine0 = [m.roughness, m.metalness];
+                const [r0, m0] = m.userData.shine0;
+                m.roughness = shineOn ? 0.07 : r0; m.metalness = shineOn ? 0.05 : m0;   // つるつる・金属感少なめ＝白い照り返しがはっきり出る
+            });
+            requestRender(30);
+        }
         // 折りたたみ後の胞の16頂点の5D座標 (x,y,z,w,v)（回転の前。v は中心補正済み）。超立方体の cellVerts4D を1次元上げたもの
         function cellVerts5D(ci, progress) {
             let a1, a2;
@@ -2635,7 +2673,7 @@
             const end = e => { ptrs.delete(e.pointerId); ptPos.delete(e.pointerId); twistAng = null; drag = false; };
             el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
 
-            scene5D.add(new THREE.AmbientLight(0xffffff, 0.9));
+            { const a5 = new THREE.AmbientLight(0xffffff, 0.9); scene5D.add(a5); shineAmbients.push(a5); addShineLight(scene5D, () => camera5D, () => controls3D && controls3D.target); }
             const d1 = new THREE.DirectionalLight(0x38bdf8, 1.4); d1.position.set(15, 22, 18); scene5D.add(d1);
             const d2 = new THREE.DirectionalLight(0xa855f7, 0.9); d2.position.set(-15, -12, -15); scene5D.add(d2);
 
@@ -4577,6 +4615,7 @@
             // カメラを回している最中も「手前=はっきり/奥=ダーク」を毎フレーム再評価する
             //   （辺・面の濃淡はカメラ距離ベースなので、カメラ移動でも更新が要る）。描画直前に更新。
             updateMorphingGeometry(animationProgress);
+            updateShineLights();   // 照り返しライトの位置（カメラの左上）
             if (show2D) renderer2D.render(scene2D, camera2D);
             if (show3D) renderer3D.render(scene3D, camera3D);
             if (show5D) {   // 視点は超立方体のカメラを写す（画面の縦横比だけ別）
@@ -6656,6 +6695,12 @@
                 paint();
             })();
             applyCenterColor();   // パレットの色を材質とラベルに反映（起動時）
+            (function setupShine() {   // 照り返しライト の ON/OFF
+                const b = document.getElementById('shine-btn'); if (!b) return;
+                const paint = () => { const on = shineOn; ['bg-yellow-900/40', 'border-yellow-500/50', 'text-yellow-200'].forEach(c => b.classList.toggle(c, on)); ['bg-slate-800/80', 'border-slate-700', 'text-slate-400'].forEach(c => b.classList.toggle(c, !on)); };
+                b.addEventListener('click', () => { shineOn = !shineOn; try { localStorage.setItem('hypercubeShine', shineOn ? '1' : '0'); } catch (_) {} paint(); applyShine(); });
+                paint(); applyShine();
+            })();
             (function setupDeep4() {   // 奥を濃く（4D・お試し）の ON/OFF
                 const b = document.getElementById('deep4-btn'); if (!b) return;
                 const paint = () => { const on = deep4On; ['bg-violet-900/40', 'border-violet-500/50', 'text-violet-200'].forEach(c => b.classList.toggle(c, on)); ['bg-slate-800/80', 'border-slate-700', 'text-slate-400'].forEach(c => b.classList.toggle(c, !on)); };
@@ -6742,6 +6787,7 @@
                 set('pin-text', NEXT + (pinVertex ? '点固定: OFF' : '点固定: ON'));
                 set('xparent-text', NEXT + (accurateFaces ? '面透過: 立体感' : '面透過: 正確'));
                 set('deep4-text', NEXT + (deep4On ? '奥を濃く(4D): OFF' : '奥を濃く(4D): ON'));
+                set('shine-text', NEXT + (shineOn ? '照り返しライト: OFF' : '照り返しライト: ON'));
                 if (palRebuild && palBuiltFor !== dim5) palRebuild();   // 4次元⇔5次元でパレットの列を入れ替える
                 set('persp-mode-btn', NEXT + (cubePersp ? '平行投影' : '遠近投影'));
                 set('face-cam-btn', NEXT + (presetFaceCamera ? 'カメラ正対: OFF' : 'カメラ正対: ON'));
