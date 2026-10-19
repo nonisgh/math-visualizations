@@ -155,8 +155,12 @@
         .float-stack.multi > .fs-grip { display: flex; align-items: center; gap: 6px; position: sticky; top: 0; z-index: 6; height: 24px; flex: 0 0 auto; box-sizing: border-box; cursor: move; user-select: none; font-size: 10px; color: #a5b4fc; padding: 0 8px; margin: 0 -4px; background: rgba(30, 27, 75, 0.96); border-bottom: 1px solid rgba(129, 140, 248, 0.35); }
         .float-stack.multi .float-panel .sb-h { top: 24px; }
         .fs-grip .fs-dots { font-size: 13px; letter-spacing: -1px; }
-        .fs-grip .sb-floatbtn { margin-left: auto; }
+        .fs-grip .fs-fold { margin-left: auto; }
         .float-stack.joining { opacity: 0.55; }
+        .float-stack.collapsed > .float-panel { display: none; }   /* まとめてたたむ：つまみだけ残す */
+        .float-stack.collapsed { padding-bottom: 0; }
+        .float-stack.collapsed > .fs-grip { margin-bottom: 0; border-bottom: 0; border-radius: 11px; }
+        .fs-grip .fs-count { color: #8aa0c6; }
         #dock-ins { position: fixed; z-index: 47; height: 4px; border-radius: 2px; background: #a5b4fc; box-shadow: 0 0 10px rgba(165, 180, 252, 0.9); pointer-events: none; display: none; }
         #dock-hint { position: fixed; top: 0; bottom: 0; z-index: 46; pointer-events: none; display: none; background: rgba(129, 140, 248, 0.16); border: 2px dashed rgba(129, 140, 248, 0.75); border-radius: 10px; box-sizing: border-box; }
 
@@ -7157,7 +7161,7 @@
                 function save() {   // 今の並び（DOM）をそのまま保存
                     if (restoring) return;
                     const ids = c => wrapsIn(c).map(w => w._sec.dataset.fid);
-                    const L = { v: 2, stacks: [...layer.querySelectorAll(':scope > .float-stack')].map(st => ({ x: parseInt(st.style.left) || 0, y: parseInt(st.style.top) || 0, ids: ids(st) })).filter(s => s.ids.length), left: ids(railL), right: ids(railR) };
+                    const L = { v: 2, stacks: [...layer.querySelectorAll(':scope > .float-stack')].map(st => ({ x: parseInt(st.style.left) || 0, y: parseInt(st.style.top) || 0, ids: ids(st), ...(st.classList.contains('collapsed') ? { collapsed: true } : {}) })).filter(s => s.ids.length), left: ids(railL), right: ids(railR) };
                     try { localStorage.setItem(FKEY, JSON.stringify(L)); } catch (_) {}
                 }
                 // レールの中身の有無で、本体の描画領域を広げ／狭める（--dock-l/r がそのまま main-container の余白になる）
@@ -7175,13 +7179,19 @@
                     const n = wrapsIn(c).length;
                     if (!n) { c.remove(); return; }
                     c.classList.toggle('multi', n > 1);
+                    if (n < 2) c.classList.remove('collapsed');   // つまみが無いとひらけないので、1枚ならたたまない
+                    syncFold(c);
                     c.style.left = clampX(parseInt(c.style.left) || 0, c) + 'px';
                     requestRender(5);
                 }
                 function newStack(x, y) {   // 浮いているグループ（縦に連結したパネルの入れ物）
                     const st = document.createElement('div'); st.className = 'float-stack';
                     const grip = document.createElement('div'); grip.className = 'fs-grip'; grip.title = 'つかんでグループごと移動（端に寄せるとドック、ほかのパネルに重ねると連結）';
-                    grip.innerHTML = '<span class="fs-dots">⠿</span><span>まとめて移動</span>';
+                    grip.innerHTML = '<span class="fs-dots">⠿</span><span>まとめて移動</span><span class="fs-count"></span>';
+                    const fold = document.createElement('button'); fold.type = 'button'; fold.className = 'sb-floatbtn fs-fold'; fold.title = 'グループをまとめてたたむ／ひらく（つまみのダブルクリックでも）';
+                    fold.addEventListener('click', e => { e.stopPropagation(); toggleFold(st); });
+                    grip.addEventListener('dblclick', e => { if (e.target.closest('button')) return; toggleFold(st); });
+                    grip.appendChild(fold);
                     const all = document.createElement('button'); all.type = 'button'; all.className = 'sb-floatbtn'; all.textContent = '⇲ 全部戻す'; all.title = 'このグループのパネルを全部元の場所へ';
                     all.addEventListener('click', e => { e.stopPropagation(); wrapsIn(st).forEach(w => homeOf(w._sec)()); });
                     grip.appendChild(all); st.appendChild(grip);
@@ -7189,6 +7199,16 @@
                     st.style.left = clampX(x, st) + 'px'; st.style.top = clampY(y) + 'px';
                     grip.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; dragStack(st, e); });
                     return st;
+                }
+                function syncFold(st) {   // たたみボタンの文字と、たたんでいるときの枚数
+                    const b = st.querySelector(':scope > .fs-grip .fs-fold'), cnt = st.querySelector(':scope > .fs-grip .fs-count'); if (!b) return;
+                    const col = st.classList.contains('collapsed');
+                    b.textContent = col ? '▸ ひらく' : '▾ たたむ';
+                    if (cnt) cnt.textContent = col ? '（' + wrapsIn(st).length + '枚）' : '';
+                }
+                function toggleFold(st, on) {   // グループをまとめてたたむ（つまみだけ残す）／ひらく
+                    st.classList.toggle('collapsed', on === undefined ? !st.classList.contains('collapsed') : on);
+                    syncFold(st); st.style.top = clampY(parseInt(st.style.top) || 0) + 'px'; save(); requestRender(5);
                 }
                 function insertWrap(wrap, c, index) {   // 入れ物 c の index 番目（上から）に差し込む
                     const items = wrapsIn(c).filter(w => w !== wrap);
@@ -7216,6 +7236,7 @@
                 function showIns(t) {   // 差し込み位置の線（グループやレールの、パネルとパネルの間）
                     if (!t || !t.c || !wrapsIn(t.c).length) { insLine.style.display = 'none'; return; }
                     const items = wrapsIn(t.c), cr = t.c.getBoundingClientRect();
+                    if (t.c.classList.contains('collapsed')) { insLine.style.left = (cr.left + 6) + 'px'; insLine.style.width = Math.max(40, cr.width - 12) + 'px'; insLine.style.top = (cr.bottom - 2) + 'px'; insLine.style.display = 'block'; return; }
                     const y = t.index < items.length ? items[t.index].getBoundingClientRect().top - 4 : items[items.length - 1].getBoundingClientRect().bottom + 4;
                     insLine.style.left = (cr.left + 6) + 'px'; insLine.style.width = Math.max(40, cr.width - 12) + 'px';
                     insLine.style.top = (Math.max(cr.top, Math.min(cr.bottom, y)) - 2) + 'px'; insLine.style.display = 'block';
@@ -7380,7 +7401,7 @@
                         if (wide) { const rail = side === 'left' ? railL : railR; fill(rail, ids); tidy(rail); }
                         else { const p = defaultPos(), st = newStack(p.x, p.y); fill(st, ids); tidy(st); }   // 狭い画面ではドックせず、浮かせて出す
                     });
-                    (L.stacks || []).forEach(s => { const p = (Number.isFinite(s.x) && Number.isFinite(s.y)) ? s : defaultPos(); const st = newStack(p.x, p.y); fill(st, s.ids); tidy(st); });
+                    (L.stacks || []).forEach(s => { const p = (Number.isFinite(s.x) && Number.isFinite(s.y)) ? s : defaultPos(); const st = newStack(p.x, p.y); fill(st, s.ids); if (s.collapsed) st.classList.add('collapsed'); tidy(st); });
                     restoring = false;
                 })();
             })();
