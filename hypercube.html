@@ -240,6 +240,12 @@
         /* 5次元の見え方マトリクス（行＝w、列＝v のつぶす／出す）と、形・向き・投影の選択 */
         .vm-grid { display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px; font-size: 11px; }
         .vm-h { font-size: 10px; color: #94a3b8; align-self: center; white-space: nowrap; }
+        /* ON/OFF の切り替えボタンは iPhone 風のスイッチで見せる（緑＝ON、灰＝OFF）。文字は名前だけ */
+        .ios-sw { position: relative; display: inline-block; width: 28px; height: 16px; border-radius: 9px; background: #475569; transition: background .2s; flex-shrink: 0; margin-left: 6px; vertical-align: middle; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
+        .ios-sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.45); transition: transform .2s; }
+        .ios-sw.on { background: #34c759; }
+        .ios-sw.on::after { transform: translateX(12px); }
+        button.has-sw { display: inline-flex; align-items: center; }
         .vm-grid > .vm-col { text-align: center; }
         .vm-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 5px 4px; border-radius: 8px;
             background: rgba(30, 41, 59, 0.8); border: 1px solid #334155; color: #cbd5e1; transition: background 0.15s, border-color 0.15s, color 0.15s; }
@@ -5451,7 +5457,8 @@
                 }
                 const glue = document.createElement('button');
                 glue.className = 'w-full text-left px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700 text-[10px] ' + (fixedMarks.glue ? 'text-violet-200' : 'text-slate-400');
-                glue.innerHTML = '→ 重なりの乗算: <b>' + (fixedMarks.glue ? 'OFF' : 'ON') + '</b>　<span class="text-slate-500">' + (fixedMarks.glue ? '手前の色が上に重なるだけに' : '重なった部分の色を掛け合わせる') + '</span>';
+                glue.innerHTML = '<span class="flex-1">重なりの乗算 <span class="text-slate-500">' + (fixedMarks.glue ? '重なった部分の色を掛け合わせる' : '手前の色が上に重なるだけ') + '</span></span><span class="ios-sw' + (fixedMarks.glue ? ' on' : '') + '"></span>';   // iPhone 風スイッチ（今の状態）
+                glue.classList.add('has-sw', 'flex', 'items-center', 'justify-between');
                 glue.title = '手前と奥が重なった部分だけ、色を掛け合わせて（乗算）描くか。重なっていない部分は元の色のまま（片方を隠しているときは掛け合わせません）';
                 glue.addEventListener('click', () => { fixedMarks.glue = !fixedMarks.glue; saveFixedMarks(); renderPtList(); updateMorphingGeometry(animationProgress); });
                 list.appendChild(glue);
@@ -6796,8 +6803,33 @@
             const DISPLAY_LABEL4 = { both: '表示: どっちも', hypercube_pip: '表示: 超立方体(右上ミニ)', hypercube: '表示: 超立方体のみ', cube: '表示: 立方体のみ' };
             const DISPLAY_LABEL5 = { both: '表示: どっちも', hypercube_pip: '表示: 5次元(右上に超立方体)', hypercube: '表示: 5次元超立方体のみ', cube: '表示: 超立方体のみ' };
             const DISPLAY_NEXT = { both: 'hypercube_pip', hypercube_pip: 'hypercube', hypercube: 'cube', cube: 'both' };   // 表示ボタンを押したときの順
+            // --- ON/OFF の切り替えボタンを iPhone 風スイッチに：ボタンの文字が「… : ON/OFF」なら、名前だけにしてスイッチを付ける ---
+            //   「→ 名前: ON」は押すと ON になる＝今は OFF、矢印なしの「名前: ON」は今 ON。各ボタンの処理が文字を書き直しても、見張って付け直す
+            const SW_RE = /^(→\s*)?(.+?)\s*[:：]?\s*(ON|OFF)\b/;
+            function switchifyButton(btn) {
+                if (!btn || btn.tagName !== 'BUTTON') return;
+                const spans = [...btn.querySelectorAll('span')].filter(x => x.children.length === 0 && !x.classList.contains('ios-sw'));
+                let tgt = spans.find(x => SW_RE.test(x.textContent.trim())) || null;
+                if (!tgt && btn.querySelectorAll('span:not(.ios-sw), i, svg').length === 0 && SW_RE.test(btn.textContent.trim())) tgt = btn;
+                if (!tgt) return;
+                const raw = tgt.textContent.trim(), m = raw.match(SW_RE); if (!m) return;
+                const on = m[1] ? m[3] === 'OFF' : m[3] === 'ON', name = m[2].trim();
+                tgt.dataset.swRaw = raw;
+                if (tgt === btn) { btn.textContent = ''; const l = document.createElement('span'); l.className = 'sw-label'; l.textContent = name; btn.appendChild(l); }
+                else tgt.textContent = name;
+                let sw = btn.querySelector(':scope > .ios-sw'); if (!sw) { sw = document.createElement('span'); sw.className = 'ios-sw'; btn.appendChild(sw); }
+                sw.classList.toggle('on', on); btn.classList.add('has-sw'); btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            }
+            function switchifyAll() { document.querySelectorAll('button').forEach(switchifyButton); }
+            (function watchSwitches() {
+                const pend = new Set(); let tm = null;
+                new MutationObserver(ms => {
+                    ms.forEach(m => { const n = m.target.nodeType === 3 ? m.target.parentElement : m.target; const b = n && n.closest && n.closest('button'); if (b) pend.add(b); });
+                    if (pend.size && !tm) tm = setTimeout(() => { tm = null; const l = [...pend]; pend.clear(); l.forEach(switchifyButton); }, 0);
+                }).observe(document.body, { childList: true, characterData: true, subtree: true });
+            })();
             function syncToggleLabels() {
-                const set = (id, t) => { const el = document.getElementById(id); if (el && el.textContent !== t) el.textContent = t; };
+                const set = (id, t) => { const el = document.getElementById(id); if (el && el.textContent !== t && el.dataset.swRaw !== t) el.textContent = t; };
                 set('speed-text', NEXT + '速度: ' + speeds[(speeds.indexOf(animSpeedMultiplier) + 1) % speeds.length].toFixed(1) + 'x');
                 set('stagger-text', NEXT + (enableStagger ? '時間差: OFF (同時)' : '時間差: ON'));
                 set('zoom-text', NEXT + (autoFitZoom ? '自動ズーム: OFF' : '自動ズーム: ON'));
@@ -6823,7 +6855,7 @@
             const syncLabelsSoon = () => setTimeout(syncToggleLabels, 0);   // 各ボタンの処理が終わってから
             document.addEventListener('click', syncLabelsSoon, true);
             document.addEventListener('keydown', syncLabelsSoon, true);
-            setTimeout(syncToggleLabels, 0);   // 起動時（保存した設定を戻したあと）
+            setTimeout(() => { syncToggleLabels(); switchifyAll(); }, 0);   // 起動時（保存した設定を戻したあと）。ON/OFF ボタンをスイッチに
 
             // ===== 回転タブ：各欄の見出しを押すと、その欄をたたむ／ひらく（このブラウザに覚える） =====
             (function setupFoldableSections() {
