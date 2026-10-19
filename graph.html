@@ -85,6 +85,10 @@
     .hsel { align-items: center; flex-wrap: wrap; max-width: calc(100% - 70px); }
     .hsel .hlab { font-size: 11px; color: var(--faint); margin-right: 2px; }
     .hsel .hsep { width: 6px; }
+    #rsel input[type=range] { width: 140px; accent-color: #56a8ff; }
+    #rsel .rotv { min-width: 38px; font: 500 12px ui-monospace, Menlo, monospace; color: #93c5fd; }
+    #rsel #rotSpin.on { border-color: #56a8ff; color: #dbeafe; background: rgba(30, 64, 175, 0.55); }
+    .trace.low { top: 56px; }
     .hsel .h4 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-basis: 100%; margin-top: 4px; }
     .hsel .h4[hidden] { display: none; }
     .hsel .h4 label { display: flex; align-items: center; gap: 4px; font: 500 11px ui-monospace, Menlo, monospace; color: var(--muted); }
@@ -355,7 +359,12 @@
                 <button type="button" id="h4spin">回す</button>
             </span>
         </div>
+        <div class="hsel" id="rsel" hidden>
+            <span class="hlab">x の向き</span><input type="range" id="rotA" min="0" max="360" step="1"><span class="rotv" id="rotV">0°</span>
+            <button type="button" data-ra="0">実軸 0°</button><button type="button" data-ra="90">虚軸 90°</button><button type="button" data-ra="180">180°</button><button type="button" id="rotSpin">回す</button>
+        </div>
         <div class="gbtns">
+            <button type="button" id="rotBtn" title="x を複素数の向きに回す（普通のグラフのまま 4 次元を見る）">∠</button>
             <button type="button" id="modeBtn" title="複素数平面に切り替え">ℂ</button>
             <button type="button" id="d3Btn" title="3D：床を x の複素数平面、高さを y に">3D</button>
             <button type="button" id="colorBtn" title="色分けの表示切替" hidden>◐</button>
@@ -1128,6 +1137,8 @@ let view = { cx: 0, cy: 0, scale: 40 };
 let pendingFits = [];
 let activeId = null;
 let traceX = null;
+let xRot = { on: false, a: 0, spin: false };   // 普通のグラフで x を複素数の向き x = t·e^{iα} に回す（α は度）
+let rotTween = null, rotFlash = 0, rotLast = 0;
 let traceZ = null;
 let mode = 'r';               // 'r' = 実数グラフ, 'c' = 複素数平面
 let viewC = { cx: 0, cy: 0, scale: 40 };
@@ -1327,6 +1338,10 @@ const PRESETS = [
       params: {}, fit: { w: 26, h: 5 } },
     { name: 'eˣ の展開を階乗で書くと：1 + x + x²/2! + x³/3! + …', exprs: ['e^x', '1 + x', '1 + x + x^2/2!', '1 + x + x^2/2! + x^3/3!', '1 + x + x^2/2! + x^3/3! + x^4/4!'],
       params: {}, fit: { w: 16, h: 14, cy: 4 } },
+    { name: '普通のグラフで 4 次元：y = x² の x を虚軸へ回す（90° で下向きの放物線）', exprs: ['y=x^2'],
+      params: {}, fit: { w: 10, h: 8 }, fitC: { w: 5, h: 5 }, xrot: { on: true, a: 0, spin: true } },
+    { name: '普通のグラフで 4 次元：y = x² + 1（90° で解 ±i が x 軸と交わる）', exprs: ['y=x^2+1'],
+      params: {}, fit: { w: 8, h: 8 }, fitC: { w: 4, h: 4 }, xrot: { on: true, a: 0, spin: true } },
     { name: '4次元を無理やり：y = x²（4 本の軸を回して歪ませる）', exprs: ['y=x^2'],
       params: {}, fit: { w: 8, h: 8 }, fitC: { w: 5, h: 5 }, mode: '3d', d3: { R: 1.6, h: '4d', th: 0, ph: 35, pk: 60, spin: true } },
     { name: '4D：y = x² + 1（虚数解 ±i）', exprs: ['y=x^2+1'],
@@ -2038,17 +2053,36 @@ function drawReal() {
     ctx.beginPath();
     const hasX = ay >= 0 && ay <= H_, hasY = ax >= 0 && ax <= W_;
     const ayp = Math.round(ay) + 0.5, axp = Math.round(ax) + 0.5;
-    if (hasX) { ctx.moveTo(0, ayp); ctx.lineTo(W_, ayp); }
+    const rot = xRot.on, ra = xRot.a * Math.PI / 180, rc = Math.cos(ra), rs = Math.sin(ra);
+    const xAxisPath = () => { ctx.moveTo(0, ayp); ctx.lineTo(W_, ayp); ctx.moveTo(W_ - 9, ayp - 4); ctx.lineTo(W_ - 3, ayp); ctx.lineTo(W_ - 9, ayp + 4); };
+    if (hasX && !rot) xAxisPath();
     if (hasY) { ctx.moveTo(axp, 0); ctx.lineTo(axp, H_); }
     // 軸の先に小さな矢じり
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    if (hasX) { ctx.moveTo(W_ - 9, ayp - 4); ctx.lineTo(W_ - 3, ayp); ctx.lineTo(W_ - 9, ayp + 4); }
     if (hasY) { ctx.moveTo(axp - 4, 9); ctx.lineTo(axp, 3); ctx.lineTo(axp + 4, 9); }
     ctx.stroke();
+    if (hasX && rot) {
+        // 横軸は x = t·e^{iα}：実軸（灰）が消えていき、虚軸（青）が現れる
+        ctx.save();
+        ctx.beginPath(); xAxisPath();
+        ctx.globalAlpha = rc * rc; ctx.strokeStyle = '#526077'; ctx.stroke();
+        ctx.globalAlpha = rs * rs; ctx.strokeStyle = '#56a8ff'; ctx.lineWidth = 1.3; ctx.stroke();
+        ctx.restore();
+    }
     ctx.save();
     ctx.font = 'italic 500 14px "Times New Roman", serif';
     ctx.fillStyle = '#8391a7';
-    if (hasX) { ctx.textAlign = 'right'; ctx.textBaseline = ay > H_ - 24 ? 'bottom' : 'top'; ctx.fillText('x', W_ - 6, ay > H_ - 24 ? ay - 6 : ay + 6); }
+    if (hasX) {
+        ctx.textAlign = 'right'; ctx.textBaseline = ay > H_ - 24 ? 'bottom' : 'top';
+        const lyx = ay > H_ - 24 ? ay - 6 : ay + 6;
+        if (!rot) ctx.fillText('x', W_ - 6, lyx);
+        else {
+            const A = Math.round(((xRot.a % 360) + 360) % 360);
+            const name = A === 0 ? 'x' : A === 180 ? 'x = −t' : A === 90 ? 'x = t i' : A === 270 ? 'x = −t i' : `x = t·e^{i${A}°}`;
+            ctx.fillStyle = rs * rs > 0.5 ? '#93c5fd' : '#8391a7';
+            ctx.fillText(name, W_ - 6, lyx);
+        }
+    }
     if (hasY) { ctx.textAlign = ax > W_ - 24 ? 'right' : 'left'; ctx.textBaseline = 'top'; ctx.fillText('y', ax > W_ - 24 ? ax - 9 : ax + 9, 3); }
     ctx.restore();
 
@@ -2057,9 +2091,12 @@ function drawReal() {
     ctx.fillStyle = '#64748b';
     const ly = Math.min(H_ - 15, Math.max(3, ay + 4));
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const A90 = xRot.on ? Math.round(((xRot.a % 360) + 360) % 360) : 0;
     for (let x = Math.ceil(x0 / step) * step; x <= x1; x += step) {
         if (Math.abs(x) < step * 1e-6) continue;
-        ctx.fillText(fmtTick(x, step), sx(x), ly);
+        // 虚軸の向き（90°・270°）の時は目盛りを 2i のように
+        const tx = A90 === 90 ? fmtTick(x, step) + 'i' : A90 === 270 ? fmtTick(-x, step) + 'i' : A90 === 180 ? fmtTick(-x, step) : fmtTick(x, step);
+        ctx.fillText(tx.replace(/^1i$/, 'i').replace(/^−1i$/, '−i'), sx(x), ly);
     }
     const left = ax < 40;
     const lx = left ? 4 : Math.min(W_ - 4, ax - 5);
@@ -2076,6 +2113,8 @@ function drawReal() {
     // グラフ
     const env = paramEnv();
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    traceEl.classList.toggle('low', rot);
+    if (rot) { drawRotCurves(env, sx, sy, x0, x1, sc); return; }
     const N = Math.ceil(W_);
     exprs.forEach(ex => {
         if (!ex.visible || !ex.fn) return;
@@ -2212,6 +2251,124 @@ function drawReal() {
     } else {
         traceEl.hidden = true;
     }
+}
+
+// ================= 普通のグラフのまま 4 次元：x を複素数の向き x = t·e^{iα} に回す =================
+// 横軸は t（実軸を α だけ回した直線の上の位置）、縦は y の実部（実線）と虚部（点線）
+// α = 90° にすると、y = x² の「虚軸の上に隠れた下向きの放物線」がそのまま普通のグラフとして出る
+function rotStep() {
+    const now = performance.now();
+    if (rotTween) {
+        const T = rotTween, u = Math.min(1, (now - T.t0) / T.dur), e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+        xRot.a = T.from + (T.to - T.from) * e;
+        if (u >= 1) { rotTween = null; xRot.a = ((T.to % 360) + 360) % 360; rotFlash = now; save(); }
+        syncRotUI(); requestDraw();
+    } else if (xRot.spin) {
+        const dt = rotLast ? Math.min(0.1, (now - rotLast) / 1000) : 0;
+        xRot.a = (xRot.a + 30 * dt) % 360;
+        rotLast = now;
+        syncRotUI(); requestDraw();
+    }
+    if (!xRot.spin) rotLast = 0;
+}
+function rotFlashAmt() {
+    if (!rotFlash) return 0;
+    const t = (performance.now() - rotFlash) / 1600;
+    if (t >= 1) { rotFlash = 0; return 0; }
+    requestDraw();
+    return Math.pow(1 - t, 1.5) * (0.6 + 0.4 * Math.cos(t * Math.PI * 6));
+}
+function drawRotCurves(env, sx, sy, x0, x1, sc) {
+    rotStep();
+    const a = xRot.a * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+    const cenv = { z: null, y: C(0), p: env, loop: {} };
+    const N = Math.ceil(W_), fl = rotFlashAmt();
+    const rows = exprs.filter(ex => ex.visible && ex.cfn && ex.kind === 'fn');
+    rows.forEach(ex => {
+        const re = new Float64Array(N + 1), im = new Float64Array(N + 1);
+        for (let i = 0; i <= N; i++) {
+            const t = x0 + i / sc;
+            cenv.z = C(t * ca, t * sa); cenv.loop = {};
+            const v = ex.cfn(cenv);
+            re[i] = v.re; im[i] = v.im;
+        }
+        const path = (arr, skip) => {
+            ctx.beginPath();
+            let pen = false, prev = 0;
+            for (let i = 0; i <= N; i++) {
+                const y = arr[i];
+                if (!isFinite(y) || (skip && skip(i))) { pen = false; continue; }
+                let py = sy(y);
+                if (pen && ((prev < -H_ && py > 2 * H_) || (prev > 2 * H_ && py < -H_))) pen = false;
+                prev = py;
+                py = Math.max(-1e4, Math.min(H_ + 1e4, py));
+                if (pen) ctx.lineTo(i, py); else ctx.moveTo(i, py);
+                pen = true;
+            }
+        };
+        // 虚部（点線）：0 の所は描かない
+        ctx.save();
+        path(im, i => Math.abs(im[i]) <= 1e-9 * (1 + Math.abs(re[i])));
+        ctx.setLineDash([5, 5]); ctx.globalAlpha = 0.75;
+        ctx.strokeStyle = ex.color; ctx.lineWidth = Math.max(1, lineW * 0.8); ctx.stroke();
+        ctx.restore();
+        // 実部（実線）
+        path(re);
+        glowStrokeFlash(ex.color, fl);
+    });
+
+    // 解のうち、いまの向きの直線の上にあるもの（α = 90° で ±i などが現れる）
+    const tags = [], marks = markSet();
+    if (showPts) rows.forEach(ex => {
+        (ex.roots || []).forEach(r => {
+            const t = r.re * ca + r.im * sa, perp = -r.re * sa + r.im * ca;
+            if (Math.abs(perp) > 1e-6 * (1 + cabs(r))) return;
+            const px = sx(t), py = sy(0);
+            if (px < -6 || px > W_ + 6 || py < -6 || py > H_ + 6) return;
+            marks.add(px, py, ex.color);
+            if (cabs(r) > 1e-9) tags.push({ x: px, y: py - 12, align: 'center', text: fmtC(r.re, r.im), color: ex.color });
+        });
+        cenv.z = C(0); cenv.loop = {};
+        const v = ex.cfn(cenv), px = sx(0), py = sy(v.re);
+        if (isFinite(v.re) && Math.abs(v.im) <= 1e-9 * (1 + Math.abs(v.re)) && py > -6 && py < H_ + 6 && px > -6 && px < W_ + 6) {
+            marks.add(px, py, ex.color);
+            if (Math.abs(v.re) * sc >= 1) tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtShort(v.re), color: ex.color });
+        }
+    });
+    marks.draw();
+    tagLabels(tags);
+
+    // トレース：x（複素数）と y（複素数）
+    if (traceX !== null) {
+        const px = sx(traceX);
+        ctx.strokeStyle = 'rgba(148,163,184,0.5)'; ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H_); ctx.stroke(); ctx.setLineDash([]);
+        const xz = C(traceX * ca, traceX * sa);
+        let html = `<div style="color:#94a3b8">x = ${fmtCv(xz)}</div>`;
+        rows.forEach(ex => {
+            cenv.z = xz; cenv.loop = {};
+            const v = ex.cfn(cenv);
+            html += `<div><i style="background:${ex.color}"></i>${exprs.indexOf(ex) + 1}: ${fmtCv(v)}</div>`;
+            const py = sy(v.re);
+            if (isFinite(py) && py > -10 && py < H_ + 10) {
+                ctx.fillStyle = ex.color; ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#030712'; ctx.lineWidth = 1.5; ctx.stroke();
+            }
+        });
+        traceEl.innerHTML = html; traceEl.hidden = false;
+    } else traceEl.hidden = true;
+
+    legendEl.innerHTML = `横軸＝x = t·e<sup>iα</sup>（α = ${Math.round(xRot.a)}°：0° 実軸 → 90° 虚軸）　実線＝y の実部　点線＝y の虚部　●＝この向きの上にある解`;
+    legendEl.hidden = false;
+}
+function syncRotUI() {
+    $('#rotBtn').hidden = mode !== 'r';
+    $('#rotBtn').classList.toggle('on', xRot.on);
+    $('#rsel').hidden = mode !== 'r' || !xRot.on;
+    if (document.activeElement !== $('#rotA')) $('#rotA').value = Math.round(((xRot.a % 360) + 360) % 360);
+    $('#rotV').textContent = Math.round(((xRot.a % 360) + 360) % 360) + '°';
+    $('#rotSpin').classList.toggle('on', xRot.spin);
+    $('#rotSpin').textContent = xRot.spin ? '止める' : '回す';
 }
 
 // ================= 複素数平面 =================
@@ -2917,6 +3074,7 @@ function syncModeUI() {
     $('#h4').hidden = d3.h !== '4d';
     sync4UI();
     $('#colorBtn').hidden = mode !== 'c';
+    syncRotUI();
     $('#colorBtn').classList.toggle('on', colorOn);
 }
 function setMode(m) {
@@ -2935,6 +3093,16 @@ document.querySelectorAll('#hsel button[data-t]').forEach(b => b.addEventListene
     const k = b.dataset.t; d3[k] = d3[k] === false; syncModeUI(); requestDraw(); save();
 }));
 $('#colorBtn').addEventListener('click', () => { colorOn = !colorOn; syncModeUI(); requestDraw(); save(); });
+$('#rotBtn').addEventListener('click', () => { xRot.on = !xRot.on; if (!xRot.on) { xRot.spin = false; rotTween = null; } syncRotUI(); requestDraw(); save(); });
+$('#rotA').addEventListener('input', () => { rotTween = null; xRot.a = +$('#rotA').value; syncRotUI(); requestDraw(); saveSoon(); });
+document.querySelectorAll('#rsel button[data-ra]').forEach(b => b.addEventListener('click', () => {
+    const to = +b.dataset.ra, from = ((xRot.a % 360) + 360) % 360;
+    let d = to - from; if (d > 180) d -= 360; if (d < -180) d += 360;   // 近い方へ回る
+    xRot.spin = false;
+    rotTween = { from, to: from + d, t0: performance.now(), dur: 1100 + Math.abs(d) * 6 };
+    syncRotUI(); requestDraw();
+}));
+$('#rotSpin').addEventListener('click', () => { xRot.spin = !xRot.spin; rotTween = null; rotLast = 0; syncRotUI(); requestDraw(); save(); });
 function sync4UI() {
     if (document.activeElement !== $('#h4th')) $('#h4th').value = Math.round(((d3.th % 360) + 360) % 360);
     if (document.activeElement !== $('#h4ph')) $('#h4ph').value = Math.round(((d3.ph % 360) + 360) % 360);
@@ -3093,6 +3261,7 @@ function loadPreset(p) {
     applyFit(p.fit, 'r');
     if (p.fitC) applyFit(p.fitC, 'c');
     Object.assign(d3, { R: 6, yaw: -0.65, pitch: 0.5, h: 're' }, p.d3 || {});   // 曲面・床のオンオフはそのまま
+    xRot = { on: false, a: 0, spin: false, ...(p.xrot || {}) };
     setMode(p.mode || 'r');
 }
 
@@ -3103,7 +3272,7 @@ function save() {
     try {
         localStorage.setItem(STORE, JSON.stringify({
             exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible, ...(e.deg ? { deg: true } : {}) })),
-            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, styleVer: 2,
+            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, styleVer: 2, xRot,
         }));
     } catch (_) { /* 保存できない環境では何もしない */ }
 }
@@ -3125,6 +3294,7 @@ function load() {
     // styleVer 2 より前の保存（太い線が既定だった頃）の太さは使わず、新しい細い既定にする
     if (data.styleVer >= 2 && isFinite(data.lineW)) lineW = Math.min(6, Math.max(0.5, data.lineW));
     if (data.showPts === false) showPts = false;
+    if (data.xRot && isFinite(data.xRot.a)) xRot = { on: !!data.xRot.on, a: +data.xRot.a, spin: !!data.xRot.spin };
     if (data.colorOn === false) colorOn = false;
     if (data.kbOn === false) {
         kbOn = false;
