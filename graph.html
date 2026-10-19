@@ -347,6 +347,7 @@
         <div class="hsel" id="hsel" hidden>
             <span class="hlab">高さ</span><button type="button" data-h="re">Re y</button><button type="button" data-h="im">Im y</button><button type="button" data-h="abs">|y|</button><button type="button" data-h="4d" title="4次元のまま回して、4本目の軸の遠近で歪ませて立体に落とす">4D</button>
             <span class="hsep"></span><button type="button" data-t="surf">曲面</button><button type="button" data-t="floor">床</button>
+            <span class="hsep"></span><button type="button" id="viewRe" title="Re x の方向を正面に（x が実数の普通のグラフ）">正面</button><button type="button" id="viewIm" title="90° 回して Im x の方向を正面に（x が純虚数の所に隠れたグラフ）">90° 回す</button>
             <span class="h4" id="h4" hidden>
                 <label>θ<input type="range" id="h4th" min="0" max="360" step="1"></label>
                 <label>φ<input type="range" id="h4ph" min="0" max="360" step="1"></label>
@@ -2367,6 +2368,50 @@ function drawComplex() {
 }
 
 // ================= 3D（床 = x の複素数平面、高さ = y） =================
+// ---------- 3D・4D の視点を滑らかに動かす（正面 ⇔ 90°）と、隠れたグラフ（緑）を光らせる ----------
+let camTween = null, greenFlash = 0;
+function startCamTween(to, flash) {
+    const from = { yaw: d3.yaw, pitch: d3.pitch, th: d3.th, ph: d3.ph };
+    // 角度は近い方へ回る
+    const near = (a, b, full) => b + Math.round((a - b) / full) * full;
+    to = { ...to };
+    to.yaw = near(from.yaw, to.yaw, Math.PI * 2);
+    if (to.th !== undefined) to.th = near(from.th, to.th, 360);
+    if (to.ph !== undefined) to.ph = near(from.ph, to.ph, 360);
+    camTween = { from, to, t0: performance.now(), dur: 1300, flash };
+    d3.spin = false; sync4UI();
+    requestDraw();
+}
+function stepCamTween() {
+    if (!camTween) return;
+    const T = camTween, u = Math.min(1, (performance.now() - T.t0) / T.dur), e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+    for (const k in T.to) d3[k] = T.from[k] + (T.to[k] - T.from[k]) * e;
+    if (u >= 1) {
+        camTween = null;
+        if (T.flash) greenFlash = performance.now();
+        sync4UI(); save();
+    }
+    requestDraw();
+}
+// 0〜1：光らせる強さ（1.6 秒で消える）
+function flashAmt() {
+    if (!greenFlash) return 0;
+    const t = (performance.now() - greenFlash) / 1600;
+    if (t >= 1) { greenFlash = 0; return 0; }
+    requestDraw();
+    return Math.pow(1 - t, 1.5) * (0.6 + 0.4 * Math.cos(t * Math.PI * 6));
+}
+function glowStrokeFlash(color, f) {
+    if (f > 0) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.35 * f; ctx.lineWidth = lineW + 16 * f; ctx.stroke();
+        ctx.globalAlpha = 0.6 * f; ctx.lineWidth = lineW + 6 * f; ctx.stroke();
+        ctx.restore();
+    }
+    glowStroke(color);
+}
+
 // ================= 4D：(Re x, Im x, Re y, Im y) を 4 次元のまま回して、4 本目の軸の遠近で歪ませて立体に =================
 // 1. y 平面の中で回す（θ：Re y ↔ Im y）
 // 2. Im x と（回した）Im y の間で回す（φ：床の奥行きと 4 本目の軸を混ぜる）
@@ -2483,6 +2528,33 @@ function draw4D(ex, f) {
         ctx.fill(); ctx.stroke();
     }
 
+    // 緑：x が複素数でも y が実数になる所（Im y = 0）。y = x² なら虚軸の上の下向きの放物線
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    const gp = (ka, kb, ia, ja, ib, jb) => {
+        const ca = Vi[ka], cb = Vi[kb], t = ca / (ca - cb);
+        const A = -1 + 2 * (ia + (ib - ia) * t) / N, B = -1 + 2 * (ja + (jb - ja) * t) / N;
+        const U = (Ur[ka] + (Ur[kb] - Ur[ka]) * t) / Yr;
+        return Math.abs(U) < CLIP && Math.abs(B) > 0.6 / N ? P4(A, B, U, 0) : null;   // 実軸の上は黄色で描く
+    };
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const k0 = j * n1 + i, k1 = k0 + 1, k2 = k0 + n1 + 1, k3 = k0 + n1;
+        const c0 = Vi[k0], c1 = Vi[k1], c2 = Vi[k2], c3 = Vi[k3];
+        if (!(isFinite(c0) && isFinite(c1) && isFinite(c2) && isFinite(c3))) continue;
+        const ps = [];
+        if ((c0 > 0) !== (c1 > 0)) ps.push(gp(k0, k1, i, j, i + 1, j));
+        if ((c1 > 0) !== (c2 > 0)) ps.push(gp(k1, k2, i + 1, j, i + 1, j + 1));
+        if ((c3 > 0) !== (c2 > 0)) ps.push(gp(k3, k2, i, j + 1, i + 1, j + 1));
+        if ((c0 > 0) !== (c3 > 0)) ps.push(gp(k0, k3, i, j, i, j + 1));
+        for (let m = 0; m + 1 < ps.length; m += 2) {
+            const a = ps[m], b = ps[m + 1];
+            if (a && b) { ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); }
+        }
+    }
+    glowStrokeFlash('#4ade80', flashAmt());
+    ctx.restore();
+
     // x が実数の所（普通のグラフ）：y が複素数になる所もそのまま 4D で
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -2519,7 +2591,7 @@ function draw4D(ex, f) {
 
     const n = exprs.indexOf(ex) + 1;
     legendEl.innerHTML = `<i style="background:${ex.color}"></i>式 ${n}　4D：x と y の 4 本の軸を 4 次元で回転（θ・φ）＋遠近で歪ませる` +
-        `　色＝4 本目の軸（<span style="color:#60a5fa">青−</span>・白0・<span style="color:#fb923c">橙+</span>）　<span style="color:#fde047">黄＝x が実数の所</span>`;
+        `　色＝4 本目の軸（<span style="color:#60a5fa">青−</span>・白0・<span style="color:#fb923c">橙+</span>）　<span style="color:#fde047">黄＝x が実数の所</span>　<span style="color:#4ade80">緑＝x が複素数でも y が実数の所</span>`;
     legendEl.hidden = false;
 }
 
@@ -2544,6 +2616,7 @@ function draw3D() {
     ctx.fillStyle = '#030712';
     ctx.fillRect(0, 0, W_, H_);
     traceEl.hidden = true;
+    stepCamTween();
     const ex = colorTarget();
     if (d3.h === '4d') {
         const f4 = !ex || !ex.cfn ? null : ex.kind === 'implicit' ? solveLinearY(ex.cfn) : ex.cfn;
@@ -2725,7 +2798,9 @@ function draw3D() {
                 if (Math.abs(A[1]) < CLIP && Math.abs(B[1]) < CLIP) line(A, B);
             }
         }
-        ctx.stroke();
+        const gf = flashAmt();
+        if (gf > 0) { ctx.save(); ctx.shadowBlur = 0; glowStrokeFlash(HIDDEN_C, gf); ctx.restore(); }
+        else ctx.stroke();
     }
     if (mode3 === 're') {
         // 実軸の上（x が実数）を細かく計算して、普通のグラフとして描く
@@ -2870,6 +2945,10 @@ function sync4UI() {
 [['#h4th', 'th'], ['#h4ph', 'ph'], ['#h4pk', 'pk']].forEach(([id, k]) => $(id).addEventListener('input', () => {
     d3[k] = +$(id).value; requestDraw(); saveSoon();
 }));
+// 正面：Re x を横に（普通のグラフ）　90°：Im x を横に（隠れたグラフ）。4D の時は θ・φ を 0 に戻して、Im x を本当の奥行きの軸にする
+const viewTo = yaw => startCamTween({ yaw, pitch: 0.12, ...(d3.h === '4d' ? { th: 0, ph: 0 } : {}) }, yaw !== 0);
+$('#viewRe').addEventListener('click', () => viewTo(0));
+$('#viewIm').addEventListener('click', () => viewTo(Math.PI / 2));   // Im x のプラスが右に来る向き
 $('#h4spin').addEventListener('click', () => { d3.spin = !d3.spin; d4Last = 0; sync4UI(); requestDraw(); save(); });
 
 canvas.addEventListener('wheel', e => {
