@@ -533,7 +533,14 @@
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
                         <span id="zoom-text" class="text-[11px]">自動ズーム: ON</span>
-                    </button></div>
+                    </button>
+                    <button id="zoomfit-toggle" class="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-[11px]" title="自動ズームの大きさを決める（展開図・組み上がり・分解）">大きさ ▾</button></div>
+                <div id="zoomfit-panel" class="hidden mt-2 space-y-1.5 text-[10px] text-slate-400">
+                    <label class="flex items-center gap-2" title="展開図のとき：上の見出しと下の回転バーを除いた空きに対して、展開図を何%の大きさにするか（縦か横のきつい方で決まる）。空きの真ん中に寄せる。既定85%"><span class="w-16 shrink-0">展開図</span><input id="zf-net" type="range" min="0.5" max="1" step="0.01" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="zf-net-val" class="w-9 text-right font-mono text-violet-200 shrink-0"></span></label>
+                    <label class="flex items-center gap-2" title="組み上がりのとき：形のいちばん外が、画面の中心から端までの何%に来るか。既定50%。回しているだけのときは、少しはみ出す／小さくなるまで大きさを変えない"><span class="w-16 shrink-0">組み上がり</span><input id="zf-asm" type="range" min="0.25" max="0.85" step="0.01" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="zf-asm-val" class="w-9 text-right font-mono text-violet-200 shrink-0"></span></label>
+                    <label class="flex items-center gap-2" title="分解（バラす）のとき：いちばん遠い胞の中心が、画面の中心から端までの何%に来るか。既定86%（下の回転バーに胞の中心が隠れない）。胞そのものは少しはみ出してもよい"><span class="w-16 shrink-0">分解</span><input id="zf-xp" type="range" min="0.5" max="1" step="0.01" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="zf-xp-val" class="w-9 text-right font-mono text-violet-200 shrink-0"></span></label>
+                    <div class="flex justify-end"><button id="zf-reset" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700">既定に戻す</button></div>
+                </div>
             </section>
 
             <section class="sb-sec">
@@ -1609,6 +1616,11 @@
         const ZW_TINT_POS = new THREE.Color(0xff44dd), ZW_TINT_NEG = new THREE.Color(0x33e5ff);   // 超立方体の既定の2点と同じ色の約束
         let zwGhost = null, zwArrowLine = null, zwArrowCone = null, zwArrowLabel = null;
         let zwLink = true;   // ZW連動：ONで ZW回転(soloAngleZW)を左の立方体に「z×cos(zw)」の擬似歪みで反映（90°で平面に潰れ180°で裏返る）
+        // 自動ズームの大きさ（設定・このブラウザに保存）。展開図＝見出しと回転バーを除いた空きの何%／組み上がり＝画面の何%（中心から端までを100%）／分解＝胞の中心が画面の何%まで
+        const ZF_DEF = { net: 0.85, asm: 0.5, xp: 0.86 };
+        let zoomFit = Object.assign({}, ZF_DEF);
+        try { const z = JSON.parse(localStorage.getItem('hypercubeZoomFit') || 'null'); if (z) for (const k in ZF_DEF) if (isFinite(z[k])) zoomFit[k] = +z[k]; } catch (_) {}
+        let _zfKick = 0;   // 設定を動かした直後の数十フレームは「折りたたみ中」と同じく毎フレーム追従させる
         let autoFitZoom = true;   // 組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の倍率のまま固定
         let panelHidden = false;  // X キーで操作パネルを隠し、立体を大きく表示する
         let lastPreset = 'iso';   // 最後に設定したカメラプリセット（パネル切替時に再適用）
@@ -3096,6 +3108,14 @@
         //   画面に入る限りは引かない＝空いているところいっぱいに広げる。バラし具合 e に合わせてなめらかに
         const _xpP = new THREE.Vector3();
         const _occV = new THREE.Vector3();   // 自動ズームの画面占有率の計算用
+        // 展開図の自動ズームで、図形を「置ける範囲の真ん中」へずらす（カメラのビューオフセット＝画面上の平行移動。NDC 単位で sx 右・sy 上）
+        function setNetShift(cam, sx, sy) {
+            if (!cam) return;
+            if (Math.abs(sx) < 1e-4 && Math.abs(sy) < 1e-4) { if (cam.userData.netSh) { cam.userData.netSh = null; cam.clearViewOffset(); } return; }
+            const H = 1000, W = H * (cam.aspect || 1);   // setViewOffset は縦横比を W/H に書き換えるので、今の縦横比のままの大きさで渡す
+            cam.userData.netSh = [sx, sy]; cam.setViewOffset(W, H, -sx * W / 2, sy * H / 2, W, H);
+        }
+        function relaxNetShift(cam, k) { const sh = cam && cam.userData.netSh; if (sh) setNetShift(cam, sh[0] * (1 - k), sh[1] * (1 - k)); }
         // バラしたあとの引き具合。バラした量 e だけ「一定の割合」でズームアウトする（回転に依存しない）。
         //   前は毎フレーム画面の輪郭に合わせていたので、回すたびにズームが動いて揺れていた。
         //   いまは回しても倍率が変わらない＝揺れない。4次元の遠近で形が息づく（大きく/小さく写る）のはそのまま見える。
@@ -3121,7 +3141,7 @@
             if (!cam || !(R > 1e-6)) return zBase * Math.max(0.28, 1 / (1 + XP_ZOOM_K[dim] * e));   // 測れないときは従来の一定倍率
             const D = ctl && ctl.target ? cam.position.distanceTo(ctl.target) : cam.position.length();
             const half = D * Math.tan(cam.fov * Math.PI / 360) * Math.min(1, cam.aspect || 1);   // 倍率1のとき、注視点の距離で画面の端までの長さ（縦横の短い方）
-            return Math.min(zBase, Math.max(zBase * 0.2, 0.86 * half / R));   // 86%＝下の回転バーに胞の中心が隠れない余裕
+            return Math.min(zBase, Math.max(zBase * 0.2, zoomFit.xp * half / R));   // 胞の中心が画面の何%まで（設定。既定86%＝下の回転バーに胞の中心が隠れない余裕）
         }
         function applyExplodeZoom() {
             const set = (cam, z) => { if (cam && Math.abs(cam.zoom - z) > 1e-4) { cam.zoom = z; cam.updateProjectionMatrix(); } };
@@ -4142,7 +4162,8 @@
 
             if (autoFitZoom && explodeE() < 0.01) {   // 自動ズーム（分解していないとき）。分解中のズームは applyExplodeZoom が一定倍率で担当。
                 // 折りたたみ具合が変わっている間（アニメ・スライダー）は「折りたたみ中」。回転だけのときと分けて扱う。
-                const folding = animationMode !== 0 || Math.abs(progress - _lastFitProg) > 1e-4;
+                const folding = animationMode !== 0 || Math.abs(progress - _lastFitProg) > 1e-4 || _zfKick > 0;
+                if (_zfKick > 0) _zfKick--;
                 _lastFitProg = progress;
                 // 左（立方体）は添えもの：昔どおり実寸で小さめに合わせる（角度0で測るので回転で倍率が変わらない＝暗くならない・暴れない）
                 const span = verts => { let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9]; verts.forEach(p => { for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], p[k]); mx[k] = Math.max(mx[k], p[k]); } }); return Math.max(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]); };
@@ -4151,23 +4172,67 @@
                 let lv = [];
                 for (let i = 0; i < 6; i++) lv = lv.concat(calculateFoldedFaceVertices2D(i, progress, 0, 0));
                 soloAngleZW = savedZW; rotXY = saved3[0]; rotXZ = saved3[1]; rotYZ = saved3[2]; xyManualOff = savedOff;
-                const r2 = scene2D.getObjectByName('Root2D'); if (r2) r2.scale.setScalar(Math.max(0.8, Math.min(1.6, 2.9 / Math.max(span(lv), 1e-3))));
+                const sAsm2 = Math.max(0.8, Math.min(1.6, 2.9 / Math.max(span(lv), 1e-3))) * (zoomFit.asm / ZF_DEF.asm);   // 組み上がりの大きさの設定に比例
                 // 右（超立方体）と5D：画面占有率で。帯[lo,hi]の中なら倍率を動かさない＝回転中に脈打たない・暴れない。
                 //   折りたたみ中は毎フレームなめらかに追従（カクつかない）、回転中は帯の外（はみ出す/小さすぎる）のときだけゆっくり直す。
                 const ease = folding ? 0.45 : 0.14;
+                // 展開図（progress≈0）は、まわりの余白に合わせて大きく：上の見出しと下の回転バーを除いた空きに、はみ出さない最大（NET_MID）まで。
+                //   wN＝展開図らしさ（progress 0 で 1 → 0.3 以上で 0）。組み上がりは今までどおり（占有率 0.5 目標）。
+                const wN = 1 - smootherstep(Math.min(1, Math.max(0, progress) / 0.3)), NET_MID = zoomFit.net, NET_LO = zoomFit.net * 0.85;   // 置ける範囲の何%か（設定。既定85%）。回すだけのときはその0.85倍を切るまで据え置き
+                const freeNdc = el => {   // その画面で、図形を置ける範囲（NDC：中心0〜端1）。見出し・回転バーにかかる分を引く
+                    if (!el) return null; const cr = el.getBoundingClientRect(); if (cr.height < 20 || cr.width < 20) return null;
+                    let t = 0, b = 0;
+                    for (const id of ['badge-2d3d', 'badge-3d4d', 'badge-4d5d', 'rot-bar']) {
+                        const o = document.getElementById(id); if (!o || o.offsetParent === null) continue;
+                        const r = o.getBoundingClientRect(); if (r.height < 2 || r.bottom <= cr.top || r.top >= cr.bottom || r.right <= cr.left || r.left >= cr.right) continue;
+                        if ((r.top + r.bottom) / 2 < cr.top + cr.height / 2) t = Math.max(t, r.bottom - cr.top); else b = Math.max(b, cr.bottom - r.top);
+                    }
+                    const ky = 2 / cr.height, kx = 2 / cr.width;
+                    return { top: Math.max(0.3, 1 - (t + 8) * ky), bot: Math.max(0.3, 1 - (b + 8) * ky), side: Math.max(0.3, 1 - 12 * kx) };
+                };
+                // 展開図より：置ける範囲いっぱい（NET_MID）になる倍率と、置ける範囲の真ん中に来るような画面上のずらし（カメラのビューオフセット）。
+                //   展開図は回転の中心（真ん中の面・胞）に対して上下が非対称なので、ずらさないと片側だけ余白が残る。
+                //   折りたたみ中は毎フレーム追従。回しているだけのときは、はみ出した／余白が大きすぎるときだけ直す。
+                const netFit = (root, verts, cam, el, asmScale) => {
+                    const fr = wN > 0 && cam ? freeNdc(el) : null; if (!fr || !root || !verts.length) return false;
+                    cam.updateMatrixWorld(); root.updateMatrixWorld();
+                    const sh = cam.userData.netSh || [0, 0]; let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+                    for (const v of verts) {
+                        _occV.set(v[0], v[1], v[2]).applyMatrix4(root.matrixWorld).project(cam);
+                        if (_occV.z < 1) { const x = _occV.x - sh[0], y = _occV.y - sh[1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+                    }
+                    if (!(x1 > x0) || !(y1 > y0)) return false;
+                    const fitv = Math.max((x1 - x0) / (2 * fr.side), (y1 - y0) / (fr.top + fr.bot)), k = NET_MID / fitv;
+                    const over = x0 + sh[0] < -fr.side || x1 + sh[0] > fr.side || y0 + sh[1] < -fr.bot || y1 + sh[1] > fr.top;
+                    if (!(folding || over || fitv < NET_LO)) return true;
+                    const sc = root.scale.x, want = Math.max(0.2, Math.min(8, asmScale(sc) * (1 - wN) + sc * k * wN));
+                    root.scale.setScalar(sc + (want - sc) * ease);
+                    const tx = -(x0 + x1) / 2 * k * wN, ty = ((fr.top - fr.bot) / 2 - (y0 + y1) / 2 * k) * wN;
+                    setNetShift(cam, sh[0] + (tx - sh[0]) * ease, sh[1] + (ty - sh[1]) * ease);
+                    return true;
+                };
+                const r2 = scene2D.getObjectByName('Root2D');
+                if (r2) {   // 左（立方体）：組み上がりは実寸の式、展開図は余白に合わせる（あいだは混ぜる）
+                    const pv2 = [];
+                    if (wN > 0) faceObjects2D.forEach(f => { const a = f.geometry.attributes.position.array; for (let k = 0; k < a.length; k += 3) pv2.push([a[k], a[k + 1], a[k + 2]]); });
+                    if (!netFit(r2, pv2, camera2D, renderer2D && renderer2D.domElement, () => sAsm2)) { r2.scale.setScalar(sAsm2); relaxNetShift(camera2D, ease); }
+                }
                 const occOf = (verts, cam, root) => { cam.updateMatrixWorld(); root.updateMatrixWorld(); let occ = 0; for (const v of verts) { _occV.set(v[0], v[1], v[2]).applyMatrix4(root.matrixWorld).project(cam); if (_occV.z < 1) occ = Math.max(occ, Math.abs(_occV.x), Math.abs(_occV.y)); } return occ; };
-                const adjust = (root, verts, cam, lo, hi, mid) => {
+                const adjust = (root, verts, cam, lo, hi, mid, el) => {
                     if (!root || !cam || !verts.length) return;
                     const occ = occOf(verts, cam, root); if (occ < 1e-4) return;
+                    if (netFit(root, verts, cam, el, sc => sc * mid / occ)) return;   // 展開図より
+                    relaxNetShift(cam, ease);   // 組み上がり：ずらしは戻す
                     if (folding || occ > hi || occ < lo) { const want = Math.max(0.2, Math.min(8, root.scale.x * mid / occ)); root.scale.setScalar(root.scale.x + (want - root.scale.x) * ease); }
                 };
                 let rv = [], pv = [];
                 for (let i = 0; i < 8; i++) rv = rv.concat(calculateFoldedCellVertices3D(i, progress, linkAngleX, linkAngleY));
                 if (dim5 && scene5D) { const pbF = projBlendNow(); for (let c = 0; c < P5_CELLS.length; c++) pv = pv.concat(cellVerts5D(c, progress).map(q => project5(rotate5(q), pbF))); }
                 // 帯は4次元の遠近で息づく幅より広くして、ふつうの回転では倍率を動かさない（暴れない）。目標 mid を小さめにして「大きすぎ」を直す。
-                adjust(scene3D.getObjectByName('Root3D'), rv, camera3D, 0.35, 0.82, 0.5);   // 右（超立方体）が主役
-                if (dim5 && scene5D) adjust(scene5D.getObjectByName('Root5D'), pv, camera5D, 0.35, 0.82, 0.5);
-            }
+                const aM = zoomFit.asm, aLo = aM * 0.7, aHi = Math.min(0.95, aM * 1.64);   // 組み上がり：目標（設定。既定50%）と、回すだけのときに据え置く帯
+                adjust(scene3D.getObjectByName('Root3D'), rv, camera3D, aLo, aHi, aM, renderer3D && renderer3D.domElement);   // 右（超立方体）が主役
+                if (dim5 && scene5D) adjust(scene5D.getObjectByName('Root5D'), pv, camera5D, aLo, aHi, aM, renderer5D && renderer5D.domElement);
+                        } else [camera2D, camera3D, camera5D].forEach(c => relaxNetShift(c, 0.25));   // バラし中・自動ズームOFF：展開図のずらしは戻す
 
             updateAxisGnomon(progress);
             updateUserPoints(progress);   // 置いた点も今の回転・投影・折りたたみに合わせる
@@ -5503,6 +5568,21 @@
                 }
                 updateMorphingGeometry(animationProgress);
             });
+
+            (function setupZoomFit() {   // 自動ズームの大きさ（展開図・組み上がり・分解）
+                const panel = document.getElementById('zoomfit-panel'), tog = document.getElementById('zoomfit-toggle'); if (!panel || !tog) return;
+                tog.addEventListener('click', () => { const open = panel.classList.toggle('hidden') === false; tog.textContent = open ? '大きさ ▴' : '大きさ ▾'; });
+                const ids = [['zf-net', 'net'], ['zf-asm', 'asm'], ['zf-xp', 'xp']];
+                const sync = () => ids.forEach(([id, k]) => { const sl = document.getElementById(id), v = document.getElementById(id + '-val'); if (sl) sl.value = String(zoomFit[k]); if (v) v.textContent = Math.round(zoomFit[k] * 100) + '%'; });
+                const changed = () => {
+                    try { localStorage.setItem('hypercubeZoomFit', JSON.stringify(zoomFit)); } catch (_) {}
+                    xpHold[2] = xpHold[3] = xpHold[5] = null; _zfKick = 40;   // 分解の倍率を決め直す・しばらく毎フレーム追従
+                    sync(); updateMorphingGeometry(animationProgress); requestRender(60);
+                };
+                ids.forEach(([id, k]) => { const sl = document.getElementById(id); if (sl) sl.addEventListener('input', e => { zoomFit[k] = parseFloat(e.target.value); changed(); }); });
+                const rs = document.getElementById('zf-reset'); if (rs) rs.addEventListener('click', () => { zoomFit = Object.assign({}, ZF_DEF); changed(); });
+                sync();
+            })();
 
             const axisBtn = document.getElementById('axis-btn');
             const axisText = document.getElementById('axis-text');
