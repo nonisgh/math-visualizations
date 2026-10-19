@@ -139,6 +139,14 @@
     }
     .expand[hidden] { display: none; }
     .exmath { overflow-x: auto; color: #cbd5e1; }
+    .exmode { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 3px; }
+    .exmode[hidden] { display: none; }
+    .exmode button {
+        height: 22px; padding: 0 9px; border-radius: 6px; cursor: pointer; font-size: 11px;
+        border: 1px solid var(--line); background: transparent; color: var(--faint);
+    }
+    .exmode button.on { color: var(--c); border-color: color-mix(in srgb, var(--c) 70%, transparent); background: color-mix(in srgb, var(--c) 12%, transparent); }
+    .exnote { margin-left: 6px; font: 500 11px ui-monospace, Menlo, monospace; color: var(--faint); }
     .exmath math { font-size: 1.02rem; padding: 2px 0; }
     .exadd {
         margin-top: 4px; height: 24px; padding: 0 10px; border-radius: 7px; cursor: pointer;
@@ -819,6 +827,55 @@ function expandSum(ast, env) {
     }
     return terms;
 }
+// x についての次数（多項式でなければ null）
+function termDeg(n) {
+    switch (n.t) {
+        case 'num': return 0;
+        case 'var': return n.name === 'x' ? 1 : n.name === 'y' ? null : 0;
+        case 'neg': return termDeg(n.a);
+        case 'fact': return termDeg(n.a) === 0 ? 0 : null;
+        case 'pow': {
+            const db = termDeg(n.b), de = termDeg(n.e), ev = numOf(n.e);
+            if (db === null || de === null) return null;
+            if (db === 0) return de === 0 ? 0 : null;
+            return isIntV(ev) && ev >= 0 ? db * ev : null;
+        }
+        case 'bin': {
+            const l = termDeg(n.l), r = termDeg(n.r);
+            if (l === null || r === null) return null;
+            if (n.op === '*') return l + r;
+            if (n.op === '/') return r === 0 ? l : null;
+            return Math.max(l, r);
+        }
+        case 'call': return n.args.every(a => termDeg(a) === 0) ? 0 : null;
+        case 'sum': return allFree(n).has('x') || allFree(n).has('y') ? null : 0;
+    }
+    return null;
+}
+// 次数 D 以下の項だけを書き出す（次数が D を超えた所で止める）
+function expandDeg(ast, env, D) {
+    let a;
+    try { a = Math.ceil(compile(ast.from)(env) - 1e-9); } catch (_) { return null; }
+    if (!isFinite(a)) return null;
+    const terms = [];
+    for (let k = a; k < a + 400; k++) {
+        const t = simp(subst(ast.body, ast.v, k)), d = termDeg(t);
+        if (d === null) return null;
+        if (d > D) break;
+        if (numOf(t) !== 0) terms.push({ t, k, d });
+    }
+    return terms;
+}
+// 次数モードの式：パラメータが変わった時だけ多項式を作り直す
+function getPoly(ex, env) {
+    const S = ex.sum, D = Math.floor(+env[S.dName] + 1e-9);
+    const key = D + ',' + S.used.map(v => env[v]).join(',');
+    if (S.poly && S.poly.key === key) return S.poly;
+    const list = expandDeg(S.ast, env, D) || [];
+    const ast = termsToAst(list.map(o => o.t));
+    S.poly = { key, D, list, terms: list.map(o => o.t), f: compile(ast), cf: compileC(ast) };
+    return S.poly;
+}
 function termsToAst(terms) {
     if (!terms.length) return NUM(0);
     return terms.slice(1).reduce((acc, t) => t.t === 'neg'
@@ -1085,30 +1142,47 @@ function glowStroke(color) {
     ctx.strokeStyle = color; ctx.lineWidth = lineW; ctx.stroke();
 }
 // 交点の印：照準のような形（ほのかな光＋細いリング＋中心の点＋四方の小さな目盛り）
-function reticle(x, y, cl, cr, center) {
+// cols が複数の時（何本ものグラフが同じ点を通る）はリングをその色で等分し、光と中心は白っぽく
+function reticle(x, y, cols) {
+    const n = cols.length, one = n === 1;
     ctx.save();
     ctx.shadowBlur = 0;
     const g = ctx.createRadialGradient(x, y, 0, x, y, 12);
-    g.addColorStop(0, hexA(cl, 0.32)); g.addColorStop(1, hexA(cl, 0));
+    g.addColorStop(0, one ? hexA(cols[0], 0.32) : 'rgba(226,232,240,0.22)');
+    g.addColorStop(1, one ? hexA(cols[0], 0) : 'rgba(226,232,240,0)');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(x, y, 4.2, 0, Math.PI * 2);
     ctx.fillStyle = '#030712'; ctx.fill();
     ctx.lineWidth = 1.3;
-    ctx.beginPath(); ctx.arc(x, y, 4.2, Math.PI / 2, Math.PI * 3 / 2); ctx.strokeStyle = cl; ctx.stroke();
-    ctx.beginPath(); ctx.arc(x, y, 4.2, -Math.PI / 2, Math.PI / 2); ctx.strokeStyle = cr; ctx.stroke();
+    cols.forEach((c, i) => {
+        const a0 = Math.PI / 2 + Math.PI * 2 * i / n, a1 = Math.PI / 2 + Math.PI * 2 * (i + 1) / n;
+        ctx.beginPath(); ctx.arc(x, y, 4.2, a0, a1); ctx.strokeStyle = c; ctx.stroke();
+    });
     ctx.lineWidth = 1.1; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(x - 6.8, y); ctx.lineTo(x - 9.3, y); ctx.strokeStyle = cl; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x + 6.8, y); ctx.lineTo(x + 9.3, y); ctx.strokeStyle = cr; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 6.8, y); ctx.lineTo(x - 9.3, y); ctx.strokeStyle = cols[0]; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 6.8, y); ctx.lineTo(x + 9.3, y); ctx.strokeStyle = cols[n - 1]; ctx.stroke();
     ctx.globalAlpha = 0.55; ctx.strokeStyle = '#e2e8f0';
     ctx.beginPath(); ctx.moveTo(x, y - 6.8); ctx.lineTo(x, y - 9.3); ctx.moveTo(x, y + 6.8); ctx.lineTo(x, y + 9.3); ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fillStyle = center || cl; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fillStyle = one ? cols[0] : '#f1f5f9'; ctx.fill();
     ctx.restore();
 }
-function ringDot(x, y, color) { reticle(x, y, color, color); }
-// グラフどうしの交点：左半分と右半分をそれぞれのグラフの色に
-function pairDot(x, y, ca, cb) { reticle(x, y, ca, cb, '#f1f5f9'); }
+function ringDot(x, y, color) { reticle(x, y, [color]); }
+// 同じ場所の印は1つにまとめる（原点のように何本も重なる所で、印と光が何重にもならないように）
+function markSet() {
+    const list = [];
+    return {
+        list,
+        add(px, py, ...cols) {
+            let m = list.find(o => Math.hypot(o.px - px, o.py - py) < 3);
+            if (!m) { m = { px, py, cols: [] }; list.push(m); }
+            cols.forEach(c => { if (!m.cols.includes(c)) m.cols.push(c); });
+            return m;
+        },
+        draw() { list.forEach(m => reticle(m.px, m.py, m.cols)); },
+    };
+}
 // 印の横の小さな数字（重なる所は出さない）
 function tagLabels(list) {
     if (!list.length || list.length > 24) return;
@@ -1137,6 +1211,16 @@ const fmtShort = v => {
     return String(+v.toPrecision(4)).replace('-', '−');
 };
 
+// [a, b] の中でいちばん桁の少ない数（0 があれば 0）
+function simplestIn(a, b) {
+    if (a <= 0 && 0 <= b) return 0;
+    const mid = (a + b) / 2;
+    for (let d = Math.floor(Math.log10(Math.max(Math.abs(a), Math.abs(b)))) + 1; d > -16; d--) {
+        const st = Math.pow(10, d), lo = Math.ceil(a / st), hi = Math.floor(b / st);
+        if (lo <= hi) return Math.min(hi, Math.max(lo, Math.round(mid / st))) * st;
+    }
+    return mid;
+}
 // 見えている範囲で h(x) = 0 になる x を探す（符号の変わり目＋接する所）
 // mag(x) は計算に出てくる値の大きさ。差がその 1e-10 倍より小さい所は「計算誤差の範囲で重なっている」とみなす
 function realZeros(h, mag, x0, x1, M) {
@@ -1173,12 +1257,13 @@ function realZeros(h, mag, x0, x1, M) {
             while (j + 1 <= M && tiny[j + 1]) j++;
             const L = Math.max(0, k - 1), R = Math.min(M, j + 1);
             let xr;
-            if (j - k <= 1 && ok(hs[L]) && ok(hs[R]) && !tiny[L] && !tiny[R] && (hs[L] > 0) !== (hs[R] > 0)) xr = bisect(xs[L], xs[R], hs[L]);
-            else if (j - k <= 1) xr = golden(xs[L], xs[R]);
-            else {
-                // 長く重なっている所は、両側で上下が入れ替わる（本当に交差している）時だけ1点
-                xr = (ok(hs[L]) && ok(hs[R]) && !tiny[L] && !tiny[R] && (hs[L] > 0) !== (hs[R] > 0)) ? (xs[k] + xs[j]) / 2 : null;
-            }
+            const flip = ok(hs[L]) && ok(hs[R]) && !tiny[L] && !tiny[R] && (hs[L] > 0) !== (hs[R] > 0);
+            // 2点以上続けて重なっている時は、二分法だと誤差の中で迷うので「区間の中でいちばん簡単な数」（0・整数・小数の少ない数）を使う
+            // 例：sin(x) と x − x³/3! + x⁵/5! は原点のまわりでほぼ重なり、二分法だと −0.0086 のようにずれる
+            const simple = j > k ? simplestIn(xs[k], xs[j]) : null;
+            const simpleOk = simple !== null && Math.abs(h(simple)) <= noise(simple);
+            if (j - k <= 1) xr = simpleOk ? simple : flip ? bisect(xs[L], xs[R], hs[L]) : golden(xs[L], xs[R]);
+            else xr = flip ? (simpleOk ? simple : (xs[k] + xs[j]) / 2) : null;   // 長く重なっている所は、上下が入れ替わる時だけ1点
             if (xr !== null) out.push(xr);
             k = j + 1;
             continue;
@@ -1199,7 +1284,16 @@ function realZeros(h, mag, x0, x1, M) {
         }
         k++;
     }
-    return out;
+    // 見つけた点を、そばの「簡単な数」に寄せる（そこでも差が誤差の範囲なら）。−2e-8 のような誤差の中の値を 0 にする
+    const dx = (x1 - x0) / M;
+    return out.map(xr => {
+        if (Math.abs(h(0)) <= noise(0) && Math.abs(xr) <= dx) return 0;
+        for (let d = Math.floor(Math.log10(dx)); d > Math.log10(dx) - 7; d--) {
+            const st = Math.pow(10, d), c = Math.round(xr / st) * st;
+            if (Math.abs(c - xr) <= dx && Math.abs(h(c)) <= noise(c)) return c;
+        }
+        return xr;
+    });
 }
 let nextId = 1;
 let kbOn = true;
@@ -1213,6 +1307,8 @@ let W_ = 0, H_ = 0, dpr = 1;
 const PRESETS = [
     { name: 'sin のマクローリン展開', exprs: ['sin(x)', 'Σ(k=0,n,(-1)^k x^(2k+1)/(2k+1)!)'],
       params: { n: { v: 3, min: 0, max: 15, step: 1 } }, fit: { w: 26, h: 5 } },
+    { name: 'sin の展開を次数で指定（d 次の項まで）', exprs: ['sin(x)', 'Σ(k=0,n,(-1)^k x^(2k+1)/(2k+1)!)'], deg: [1],
+      params: { d: { v: 7, min: 0, max: 30, step: 1 } }, fit: { w: 26, h: 5 } },
     { name: 'sin の展開を階乗で書くと：x − x³/3! + x⁵/5! − …', exprs: ['sin(x)', 'x', 'x - x^3/3!', 'x - x^3/3! + x^5/5!', 'x - x^3/3! + x^5/5! - x^7/7!', 'x - x^3/3! + x^5/5! - x^7/7! + x^9/9!'],
       params: {}, fit: { w: 26, h: 5 } },
     { name: 'cos の展開を階乗で書くと：1 − x²/2! + x⁴/4! − …', exprs: ['cos(x)', '1 - x^2/2!', '1 - x^2/2! + x^4/4!', '1 - x^2/2! + x^4/4! - x^6/6!', '1 - x^2/2! + x^4/4! - x^6/6! + x^8/8!'],
@@ -1252,10 +1348,10 @@ const PRESETS = [
 ];
 
 // ---------- 式の管理 ----------
-function newExpr(text = '', color, visible = true) {
+function newExpr(text = '', color, visible = true, deg = false) {
     const used = exprs.map(e => e.color);
     color = color || COLORS.find(c => !used.includes(c)) || COLORS[exprs.length % COLORS.length];
-    const ex = { id: nextId++, text, color, visible };
+    const ex = { id: nextId++, text, color, visible, deg };
     analyze(ex);
     return ex;
 }
@@ -1310,15 +1406,32 @@ function analyze(ex) {
                 kind = allFree(ast).has('y') ? 'implicit' : 'eqx';
             }
         }
-        const cf = compileC(ast);
-        ex.kind = kind;
-        ex.cfn = cf;
-        ex.free = [...freeVars(ast)];
-        ex.math = math;
         if (kind === 'fn' && ast.t === 'sum' && ast.kind === 'sum') {
             const used = [...freeVars(ast.body)].filter(v => v !== ast.v);
             ex.sum = { ast, from: compile(ast.from), to: compile(ast.to), used };
+            // 最初の数項が x の多項式なら「次数で指定」を選べる
+            const env0 = paramEnv();
+            let a0 = NaN;
+            try { a0 = Math.ceil(ex.sum.from(env0) - 1e-9); } catch (_) { /* 下で判定 */ }
+            ex.sum.canDeg = isFinite(a0) && [0, 1, 2, 3].every(j => termDeg(simp(subst(ast.body, ast.v, a0 + j))) !== null);
+            const all = allFree(ast);
+            ex.sum.dName = ['d', 'm', 'j', 'D'].find(v => !all.has(v) && v !== ast.v) || 'd';
+            if (!ex.sum.canDeg) ex.deg = false;
         }
+        let cf = compileC(ast);
+        ex.kind = kind;
+        ex.free = [...freeVars(ast)];
+        if (ex.sum && ex.deg) {
+            // 次数モード：Σ の上の端（n）の代わりに次数 d で切る
+            const S = ex.sum, dn = S.dName;
+            if (!params[dn]) params[dn] = { v: 7, min: 0, max: 30, step: 1 };
+            ex.free = [...new Set([...freeVars(ast.from), ...S.used, dn])].filter(v => v !== ast.v);
+            cf = c => getPoly(ex, c.p).cf(c);
+            const sumM = `<mrow><munderover><mo>∑</mo><mrow><mi>${ast.v}</mi><mo>=</mo>${toMathML(ast.from)}</mrow><mi>∞</mi></munderover>${W(ast.body, 2)}</mrow>`;
+            math = sumM;
+        }
+        ex.cfn = cf;
+        ex.math = math;
         if (kind === 'implicit') ex.F = compile(ast);
         else if (kind === 'fn') {
             if (allFree(ast).has('i')) {
@@ -1327,7 +1440,8 @@ function analyze(ex) {
                     const v = cf({ z: C(env.x), y: C(0), p: env, loop: {} });
                     return Math.abs(v.im) <= 1e-9 * (1 + Math.abs(v.re)) ? v.re : NaN;
                 };
-            } else ex.fn = compile(ast);
+            } else if (ex.sum && ex.deg) ex.fn = env => getPoly(ex, env).f(env);
+            else ex.fn = compile(ast);
         }
     } catch (e) {
         ex.fn = ex.F = ex.cfn = null; ex.kind = ''; ex.free = []; ex.math = ''; ex.sum = null;
@@ -1376,7 +1490,7 @@ function renderList() {
         row.innerHTML =
             `<button class="sw" type="button" title="表示／非表示">${i + 1}</button>` +
             `<div class="ebody"><input class="ein" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="式を入力（例: sin(x)）">` +
-            `<div class="preview"></div><div class="expand" hidden><div class="exmath"></div><button class="exadd" type="button" title="書き出した式を新しい行に追加">＋ この形で式に追加</button></div><div class="sol" title="複素数平面で見る"></div><div class="err"></div></div>` +
+            `<div class="preview"></div><div class="expand" hidden><div class="exmode" hidden><button type="button" data-m="n"></button><button type="button" data-m="d">次数で指定</button><span class="exnote"></span></div><div class="exmath"></div><button class="exadd" type="button" title="書き出した式を新しい行に追加">＋ この形で式に追加</button></div><div class="sol" title="複素数平面で見る"></div><div class="err"></div></div>` +
             `<button class="del" type="button" title="削除">×</button>`;
         const inp = row.querySelector('.ein');
         inp.value = ex.text;
@@ -1390,9 +1504,10 @@ function renderList() {
             ex.visible = !ex.visible; refreshRow(ex); save(); requestDraw();
         });
         row.querySelector('.del').addEventListener('click', () => removeExpr(ex.id));
+        row.querySelectorAll('.exmode button').forEach(b => b.addEventListener('click', () => setDegMode(ex, b.dataset.m === 'd')));
         row.querySelector('.exadd').addEventListener('click', () => {
             if (!ex.sum) return;
-            const terms = expandSum(ex.sum.ast, paramEnv());
+            const terms = ex.deg ? getPoly(ex, paramEnv()).terms : expandSum(ex.sum.ast, paramEnv());
             if (terms) addAfter(ex.id, 'y=' + toSrc(termsToAst(terms)));
         });
         row.querySelector('.sol').addEventListener('click', () => {
@@ -1419,21 +1534,67 @@ function refreshRow(ex) {
     ex.expKey = null; refreshExpand(ex);
 }
 
+// n で指定 ⇔ 次数で指定。切り替えてもグラフが変わらないように、相手側の値を合わせる
+function setDegMode(ex, on) {
+    if (!ex.sum || !ex.sum.canDeg || !!ex.deg === on) return;
+    const S = ex.sum, env = paramEnv();
+    if (on) {
+        const terms = expandSum(S.ast, env) || [];
+        const ds = terms.map(termDeg).filter(d => d !== null);
+        const D = ds.length ? Math.max(...ds) : 0;
+        const old = params[S.dName];
+        params[S.dName] = { v: D, min: old ? Math.min(old.min, D) : 0, max: Math.max(old ? old.max : 30, D), step: 1 };
+    } else if (S.ast.to.t === 'var' && params[S.ast.to.name]) {
+        const P = getPoly(ex, env), last = P.list[P.list.length - 1];
+        if (last) {
+            const q = params[S.ast.to.name];
+            q.v = last.k;
+            if (q.v > q.max) q.max = q.v;
+            if (q.v < q.min) q.min = q.v;
+        }
+    }
+    ex.deg = on;
+    S.poly = null;
+    analyze(ex);
+    refreshRow(ex);
+    usedParams = null;
+    syncParams(); save(); requestDraw(); scheduleRoots(150);
+}
+
 // Σ の式の下に「いまの n で書き出した形」を出す（n を動かすと一緒に伸び縮み）
 function refreshExpand(ex) {
     const r = ex.row;
     if (!r) return;
     const box = r.querySelector('.expand');
     if (!ex.sum) { box.hidden = true; ex.expKey = null; return; }
-    const env = paramEnv();
-    let a, b;
-    try { a = Math.ceil(ex.sum.from(env) - 1e-9); b = Math.floor(ex.sum.to(env) + 1e-9); } catch (_) { a = b = NaN; }
-    const key = `${a},${b},${ex.sum.used.map(v => env[v]).join(',')}`;
-    if (key === ex.expKey) return;
+    const env = paramEnv(), S = ex.sum;
+    let key, terms, note = '';
+    if (ex.deg) {
+        const P = getPoly(ex, env);
+        key = 'd' + P.key;
+        if (key === ex.expKey) return;
+        terms = P.terms;
+        const last = P.list[P.list.length - 1];
+        note = last ? `${S.dName} = ${P.D}　→　${S.ast.v} = ${P.list[0].k} 〜 ${last.k} の ${P.list.length} 項` : `${S.dName} = ${P.D}　→　項なし`;
+    } else {
+        let a, b;
+        try { a = Math.ceil(S.from(env) - 1e-9); b = Math.floor(S.to(env) + 1e-9); } catch (_) { a = b = NaN; }
+        key = `${a},${b},${S.used.map(v => env[v]).join(',')}`;
+        if (key === ex.expKey) return;
+        terms = expandSum(S.ast, env);
+        if (terms && S.canDeg) {
+            const ds = terms.map(termDeg).filter(d => d !== null);
+            if (ds.length) note = `${Math.max(...ds)} 次の多項式`;
+        }
+    }
     ex.expKey = key;
-    const terms = expandSum(ex.sum.ast, env);
     if (!terms) { box.hidden = true; return; }
     box.hidden = false;
+    const md = box.querySelector('.exmode');
+    md.hidden = !S.canDeg;
+    md.querySelector('[data-m=n]').textContent = `${toSrc(S.ast.to)} で指定`;
+    md.querySelectorAll('button').forEach(b => b.classList.toggle('on', (b.dataset.m === 'd') === !!ex.deg));
+    md.querySelector('.exnote').textContent = note;
     box.querySelector('.exmath').innerHTML =
         `<math><mstyle displaystyle="true"><mo>=</mo>${termsToMathML(terms)}</mstyle></math>`;
 }
@@ -1935,26 +2096,26 @@ function drawReal() {
     });
 
     // 軸との交点に印：x 軸（実数の解）と y 軸（x = 0 の値）
-    const tags = [];
+    const tags = [], marks = markSet();
     exprs.forEach(ex => {
         if (!showPts || !ex.visible) return;
         (ex.roots || []).forEach(r => {
             if (Math.abs(r.im) > 1e-6 * (1 + Math.abs(r.re))) return;
             const px = sx(r.re), py = sy(0);
             if (px < -6 || px > W_ + 6 || py < -6 || py > H_ + 6) return;
-            ringDot(px, py, ex.color);
+            marks.add(px, py, ex.color);
             if (Math.abs(r.re) > 1e-9) tags.push({ x: px, y: py - 12, align: 'center', text: fmtShort(r.re), color: ex.color });
         });
         if (ex.kind === 'fn' && ex.fn) {
             env.x = 0;
             const y = ex.fn(env), px = sx(0), py = sy(y);
             if (!isFinite(y) || px < -6 || px > W_ + 6 || py < -6 || py > H_ + 6) return;
-            if (Math.abs(y) * sc < 1 && ex.roots && ex.roots.some(r => Math.abs(r.re) < 1e-6 && Math.abs(r.im) < 1e-6)) return;   // 原点はもう印がある
-            ringDot(px, py, ex.color);
+            marks.add(px, py, ex.color);
+            if (Math.abs(y) * sc < 1) return;   // 原点：値のラベルは要らない
             tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtShort(y), color: ex.color });
         }
     });
-    tagLabels(tags);
+
 
     // グラフどうしの交点（y=f(x) どうし、y=f(x) と陰関数）
     const rows = showPts ? exprs.filter(e => e.visible && ((e.kind === 'fn' && e.fn) || (e.kind === 'implicit' && e.F))) : [];
@@ -1980,14 +2141,17 @@ function drawReal() {
             inter.push({ x, y, px, py, ca: A.color, cb: B.color });
         });
     }
-    inter.forEach(o => pairDot(o.px, o.py, o.ca, o.cb));
-    if (inter.length && inter.length <= 16) {
+    inter.forEach(o => marks.add(o.px, o.py, o.ca, o.cb));
+    marks.draw();
+    tagLabels(tags);
+    const interU = inter.filter((o, i) => inter.findIndex(q => Math.hypot(q.px - o.px, q.py - o.py) < 3) === i);   // 同じ点のラベルは1つだけ
+    if (interU.length && interU.length <= 16) {
         ctx.save();
         ctx.font = '600 11px ui-monospace, Menlo, monospace';
         ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
         ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 4;
         ctx.fillStyle = '#e2e8f0';
-        inter.forEach(o => ctx.fillText(`(${fmtShort(o.x)}, ${fmtShort(o.y)})`, o.px + dotR() + 4, o.py - 3));
+        interU.forEach(o => ctx.fillText(`(${fmtShort(o.x)}, ${fmtShort(o.y)})`, o.px + dotR() + 4, o.py - 3));
         ctx.restore();
     }
 
@@ -2621,8 +2785,8 @@ presetSel.addEventListener('change', () => {
 function loadPreset(p) {
     playing.clear();
     exprs = [];
-    p.exprs.forEach(t => exprs.push(newExpr(t)));
     for (const k in p.params) params[k] = { ...p.params[k] };
+    p.exprs.forEach((t, i) => exprs.push(newExpr(t, undefined, true, !!(p.deg && p.deg.includes(i)))));
     activeId = exprs[exprs.length - 1].id;
     traceX = null;
     usedParams = null;   // スライダー欄を必ず作り直す
@@ -2640,7 +2804,7 @@ function save() {
     clearTimeout(saveTimer); saveTimer = null;
     try {
         localStorage.setItem(STORE, JSON.stringify({
-            exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible })),
+            exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible, ...(e.deg ? { deg: true } : {}) })),
             params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, styleVer: 2,
         }));
     } catch (_) { /* 保存できない環境では何もしない */ }
@@ -2654,7 +2818,7 @@ function load() {
     try { data = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (_) { data = null; }
     if (!data || !Array.isArray(data.exprs) || !data.exprs.length) return false;
     params = data.params || {};
-    exprs = data.exprs.map(e => newExpr(String(e.text || ''), e.color, e.visible !== false));
+    exprs = data.exprs.map(e => newExpr(String(e.text || ''), e.color, e.visible !== false, e.deg === true));
     if (data.view && isFinite(data.view.scale)) view = data.view;
     if (data.kbTab && KB[data.kbTab]) kbTab = data.kbTab;
     if (data.viewC && isFinite(data.viewC.scale)) viewC = data.viewC;
@@ -2693,7 +2857,7 @@ function snapshot() {
     const ps = {};
     usedParams.forEach(k => { ps[k] = { v: params[k].v, min: params[k].min, max: params[k].max, step: params[k].step }; });
     return {
-        exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible })),
+        exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible, ...(e.deg ? { deg: true } : {}) })),
         params: ps, view: { cx: view.cx, cy: view.cy, scale: view.scale },
         mode, viewC: { cx: viewC.cx, cy: viewC.cy, scale: viewC.scale }, d3: { ...d3 },
     };
@@ -2707,7 +2871,7 @@ function hasUnsavedWork() {
 function restore(d) {
     playing.clear();
     exprs = [];
-    (d.exprs || []).forEach(e => exprs.push(newExpr(String(e.text || ''), e.color, e.visible !== false)));
+    (d.exprs || []).forEach(e => exprs.push(newExpr(String(e.text || ''), e.color, e.visible !== false, e.deg === true)));
     if (!exprs.length) exprs.push(newExpr('y='));
     for (const k in (d.params || {})) params[k] = { ...d.params[k] };
     if (d.view && isFinite(d.view.scale)) view = { ...d.view };
