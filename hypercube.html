@@ -1021,7 +1021,7 @@
                         <span id="panpad-text" class="text-[11px]">→ 移動パッド: OFF</span>
                     </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button>
-                    <div id="texfont-group" class="flex items-center gap-1 pl-2.5 pr-1 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前（x y z w v）の書体。セリフ＝数学の教科書・論文と同じ TeX の斜体（Computer Modern。ネットから読み込み、オフラインのときは Georgia の斜体）。サンセリフ＝飾りのないまっすぐな字（3D ソフト風）"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px] mr-0.5">軸の書体</span><button type="button" data-texfont="serif" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">セリフ</button><button type="button" data-texfont="sans" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">サンセリフ</button></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="テスト機能：6次元立方体（頂点 64・辺 192）を別の小さな窓に描くだけ。6次元の回転＋3段の遠近で 3D に写す。ほかの画面・設定には影響しない（保存もしない）"><i data-lucide="flask-conical" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体（テスト）: OFF</span></button></div>
+                    <div id="texfont-group" class="flex items-center gap-1 pl-2.5 pr-1 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前（x y z w v）の書体。セリフ＝数学の教科書・論文と同じ TeX の斜体（Computer Modern。ネットから読み込み、オフラインのときは Georgia の斜体）。サンセリフ＝飾りのないまっすぐな字（3D ソフト風）"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px] mr-0.5">軸の書体</span><button type="button" data-texfont="serif" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">セリフ</button><button type="button" data-texfont="sans" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">サンセリフ</button></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="テスト機能：6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。ほかの画面・設定には影響しない（保存もしない）"><i data-lucide="flask-conical" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体（テスト）: OFF</span></button></div>
                 <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
@@ -8058,7 +8058,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-0851';
+        const APP_BUILD = '20261020-0859';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
@@ -8352,82 +8352,199 @@
         };
     </script>
 <script>
-// ==== テスト：6次元立方体を描くだけ（見え方の「6次元立方体（テスト）」）====
-//   ほかの画面とは別の小さな窓に、6次元立方体（頂点 64・辺 192）を 6次元の回転＋3段の遠近（6→5→4→3）で描く。
-//   辺の色＝その辺が伸びる向きの軸の色（x 赤・y 緑・z 青・w 紫・v 黄・u 青緑）。窓を開いている間だけ動く。設定は保存しない
+// ==== テスト：6次元立方体（見え方の「6次元立方体（テスト）」）====
+//   4D・5D と同じ方式：12 個の胞（5次元立方体）の展開図を、u の向きへ折りたたんで 6次元立方体にする。
+//   中心（−U）＋ ±X・±Y・±Z・±W・±V のヒンジ胞 10 個＋蓋（+U、+Y の胞の先）。折りたたみは本体と同じ 2 段（時間差あり）。
+//   6次元の回転 → 遠近 3 段（u → v → w。u がいちばん弱い）→ 3D。面は半透明で、毎フレーム奥から並べて重ねる（奥の胞ほど濃く）。
+//   軸 x y z w v u は矢じりと名前つき（同じ回転・遠近で写す）。色はお試し（胞＝向きの軸の色、中心と蓋は u の青緑）。設定は保存しない
 (function hex6Test() {
     const btn = document.getElementById('hex6-btn'); if (!btn || typeof THREE === 'undefined') return;
-    const N = 6, H = 0.5, PK = 0.7, DP = 2.4;
-    const COL = [0xff5d6c, 0x3ddc84, 0x56a8ff, 0xb07cff, 0xfbbf24, 0x2dd4bf], NAMES = 'xyzwvu';
-    const V = []; for (let i = 0; i < 64; i++) { const p = []; for (let k = 0; k < N; k++) p.push((i >> k) & 1 ? H : -H); V.push(p); }
-    const E = []; for (let i = 0; i < 64; i++) for (let k = 0; k < N; k++) { const j = i ^ (1 << k); if (j > i) E.push([i, j, k]); }   // 192 本
-    // 回す面（2 本の軸の組）と速さ（rad/秒）。x・y・z だけの面はカメラで回せるので、w・v・u が入る面を回す
-    const SPIN = [[0, 3, 0.50], [1, 4, 0.41], [2, 5, 0.33], [3, 4, 0.23], [3, 5, 0.17], [4, 5, 0.29]];
-    const ang = SPIN.map(() => 0);
-    let on = false, paused = false, panel = null, renderer = null, scene, camera, controls, lines, dots, raf = 0, last = 0, fitted = false;
-    const P = new Float32Array(64 * 3), Q = new Float32Array(64), q = new Float64Array(N);
-    function project() {
-        for (let i = 0; i < 64; i++) {
-            for (let k = 0; k < N; k++) q[k] = V[i][k];
-            SPIN.forEach(([a, b], s) => { const c = Math.cos(ang[s]), sn = Math.sin(ang[s]), x = q[a], y = q[b]; q[a] = c * x - sn * y; q[b] = sn * x + c * y; });
-            let depth = 0;
-            for (let m = N - 1; m >= 3; m--) { const k = 1 / Math.max(0.25, 1 - PK * q[m] / DP); for (let t = 0; t < m; t++) q[t] *= k; depth += q[m]; }
-            P[i * 3] = q[0]; P[i * 3 + 1] = q[1]; P[i * 3 + 2] = q[2]; Q[i] = depth;
+    const HS = typeof HALF_S !== 'undefined' ? HALF_S : 0.9, SS = HS * 2;
+    const AX = ['x', 'y', 'z', 'w', 'v', 'u'];
+    const AXC = [0xff5d6c, 0x3ddc84, 0x56a8ff, 0xb07cff, 0xfbbf24, 0x2dd4bf];   // 軸の色
+    const CELLC = [0xf43f5e, 0x10b981, 0x38bdf8, 0xa855f7, 0xf59e0b];          // ±X〜±V の胞の色
+    const CU = 0x2dd4bf;                                                        // 中心・蓋（u）
+    const CELLS = [{ color: CU }];
+    for (let k = 0; k < 5; k++) [1, -1].forEach(sg => CELLS.push({ color: CELLC[k], axis: k, sign: sg }));
+    CELLS.push({ color: CU, cap: true });                                       // 12 個
+    // 胞 1 つ（5次元立方体）：頂点 32・正方形 80（三角形 160）・辺 80
+    const CV = [...Array(32)].map((_, i) => [0, 1, 2, 3, 4].map(d => ((i >> d) & 1) ? HS : -HS));
+    const TRI = [];
+    for (let i = 0; i < 5; i++) for (let j = i + 1; j < 5; j++) {
+        const o = [0, 1, 2, 3, 4].filter(d => d !== i && d !== j);
+        for (let m = 0; m < 8; m++) {
+            const b = ((m & 1) << o[0]) | (((m >> 1) & 1) << o[1]) | (((m >> 2) & 1) << o[2]);
+            TRI.push(b, b | (1 << i), b | (1 << i) | (1 << j), b, b | (1 << i) | (1 << j), b | (1 << j));
         }
     }
-    function fill() {
-        project();
-        const lp = lines.geometry.attributes.position.array, lc = lines.geometry.attributes.color.array, tmp = new THREE.Color();
-        E.forEach(([i, j, k], e) => {
-            for (let t = 0; t < 3; t++) { lp[e * 6 + t] = P[i * 3 + t]; lp[e * 6 + 3 + t] = P[j * 3 + t]; }
-            tmp.setHex(COL[k]);
-            [i, j].forEach((v, h) => { const b = Math.max(0.28, Math.min(1, 0.65 + 0.35 * Q[v])); lc[e * 6 + h * 3] = tmp.r * b; lc[e * 6 + h * 3 + 1] = tmp.g * b; lc[e * 6 + h * 3 + 2] = tmp.b * b; });
+    const EDG = []; for (let v = 0; v < 32; v++) for (let d = 0; d < 5; d++) if (!(v & (1 << d))) EDG.push([v, v | (1 << d)]);
+    const NQ = TRI.length / 6;                  // 80
+    // 回す面（2 本の軸の組）と速さ（rad/秒）。u・v・w が入る面
+    const SPIN = [[0, 5, 0.31], [1, 5, 0.23], [3, 4, 0.19], [2, 5, 0.13], [0, 3, 0.11], [4, 5, 0.17]];
+    const ang = SPIN.map(() => 0);
+    let on = false, paused = false, panel = null, renderer = null, scene, camera, controls, root, faces, wires, axes = [], raf = 0, last = 0;
+    let fold = 1, playing = false, playDir = -1, hold = 0, userZoom = false, camDist = 0;
+    const smooth = t => (typeof smootherstep === 'function' ? smootherstep(t) : t * t * (3 - 2 * t));
+    function cellVerts6(ci, pr) {   // 折りたたみ後の 32 頂点の 6D 座標（回転の前）。cellVerts5D を 1 次元上げたもの
+        const st = typeof enableStagger === 'undefined' || enableStagger;
+        let a1, a2;
+        if (st) { a1 = smooth(Math.min(1, pr / 0.60)) * (Math.PI / 2); a2 = smooth(Math.max(0, (pr - 0.45) / 0.55)) * (Math.PI / 2); }
+        else { const t = smooth(pr); a1 = t * (Math.PI / 2); a2 = a1; }
+        const PIV = HS * (a1 / (Math.PI / 2)), cell = CELLS[ci];
+        return CV.map(q => {
+            const c = q.slice(); let u = 0;
+            if (cell.cap) { const l = c[1] + HS, y1 = HS + SS * Math.cos(a1), u1 = SS * Math.sin(a1), t = a1 + a2; c[1] = y1 + l * Math.cos(t); u = u1 + l * Math.sin(t); }
+            else if (cell.axis !== undefined) {
+                const k = cell.axis;
+                if (cell.sign > 0) { const l = c[k] + HS; c[k] = HS + l * Math.cos(a1); u = l * Math.sin(a1); }
+                else { const l = c[k] - HS; c[k] = -HS + l * Math.cos(a1); u = -l * Math.sin(a1); }
+            }
+            c.push(u - PIV); return c;
         });
-        lines.geometry.attributes.position.needsUpdate = true; lines.geometry.attributes.color.needsUpdate = true;
-        dots.geometry.attributes.position.array.set(P); dots.geometry.attributes.position.needsUpdate = true;
+    }
+    function rot6(p) {
+        for (let s = 0; s < SPIN.length; s++) { const a = SPIN[s][0], b = SPIN[s][1], c = Math.cos(ang[s]), sn = Math.sin(ang[s]), x = p[a], y = p[b]; p[a] = c * x - sn * y; p[b] = sn * x + c * y; }
+        return p;
+    }
+    const CW = () => (typeof CAMERA_W !== 'undefined' ? CAMERA_W : 4.5);
+    function proj6(p) {   // u → v → w の順に遠近（u は v よりさらに弱く）。返り値 [x, y, z, 見かけの縮み]
+        let x = p[0], y = p[1], z = p[2], w = p[3], v = p[4];
+        const cl = (a, D) => Math.min(Math.max(a, -D + 0.5), D - 0.5);
+        const DU = CW() * 1.9, su = DU / (DU - cl(p[5], DU)); x *= su; y *= su; z *= su; w *= su; v *= su;
+        const DV = CW() * 1.4, sv = DV / (DV - cl(v, DV)); x *= sv; y *= sv; z *= sv; w *= sv;
+        const DW = CW(), sw = DW / (DW - cl(w, DW)); x *= sw; y *= sw; z *= sw;
+        return [x, y, z, su * sv * sw];
+    }
+    const P = CELLS.map(() => new Float32Array(32 * 3)), K = CELLS.map(() => new Float32Array(32));
+    const quads = []; for (let ci = 0; ci < CELLS.length; ci++) for (let q = 0; q < NQ; q++) quads.push([ci, q * 6, 0, 0]);
+    const RGB = CELLS.map(c => new THREE.Color(c.color)), _v = new THREE.Vector3();
+    function fill() {
+        let rMax = 0;
+        CELLS.forEach((_, ci) => {
+            const vs = cellVerts6(ci, fold);
+            for (let i = 0; i < 32; i++) { const r = proj6(rot6(vs[i].slice())); P[ci][i * 3] = r[0]; P[ci][i * 3 + 1] = r[1]; P[ci][i * 3 + 2] = r[2]; K[ci][i] = r[3]; rMax = Math.max(rMax, Math.hypot(r[0], r[1], r[2])); }
+        });
+        // 面：カメラからの距離で奥から並べる。胞ごとの「見かけの縮み」で、奥（小さく写る）の胞ほど濃く
+        const cam = camera.position;
+        const cK = K.map(a => a.reduce((s, x) => s + x, 0) / 32), kLo = Math.min(...cK), kSp = Math.max(Math.max(...cK) - kLo, 1e-6);
+        for (const q of quads) {
+            const ci = q[0], b = q[1], pp = P[ci]; let d = 0;
+            for (let k = 0; k < 6; k++) { const i = TRI[b + k] * 3; d += (pp[i] - cam.x) ** 2 + (pp[i + 1] - cam.y) ** 2 + (pp[i + 2] - cam.z) ** 2; }
+            q[2] = d;
+        }
+        quads.sort((a, b) => b[2] - a[2]);
+        const mp = faces.geometry.attributes.position.array, mc = faces.geometry.attributes.color.array;
+        const seeThru = 0.75 + 0.25 * fold;
+        let o = 0, oc = 0;
+        for (const q of quads) {
+            const ci = q[0], b = q[1], pp = P[ci], C = RGB[ci];
+            const deep = 1 - (cK[ci] - kLo) / kSp;                   // 0＝手前（大きく写る）〜1＝奥
+            const a = Math.min(0.9, 0.16 * seeThru * (0.55 + 1.1 * deep));
+            for (let k = 0; k < 6; k++) { const i = TRI[b + k] * 3; mp[o++] = pp[i]; mp[o++] = pp[i + 1]; mp[o++] = pp[i + 2]; mc[oc++] = C.r; mc[oc++] = C.g; mc[oc++] = C.b; mc[oc++] = a; }
+        }
+        faces.geometry.attributes.position.needsUpdate = true; faces.geometry.attributes.color.needsUpdate = true;
+        faces.geometry.computeVertexNormals();
+        // 辺：胞の色を少し明るく。奥の胞は少し暗く
+        const wp = wires.geometry.attributes.position.array, wc = wires.geometry.attributes.color.array; let e = 0;
+        CELLS.forEach((_, ci) => {
+            const pp = P[ci], C = RGB[ci], br = 0.55 + 0.45 * ((cK[ci] - kLo) / kSp);
+            EDG.forEach(([i, j]) => {
+                for (const v of [i, j]) { wp[e] = pp[v * 3]; wp[e + 1] = pp[v * 3 + 1]; wp[e + 2] = pp[v * 3 + 2]; wc[e] = Math.min(1, (C.r * 0.75 + 0.25) * br); wc[e + 1] = Math.min(1, (C.g * 0.75 + 0.25) * br); wc[e + 2] = Math.min(1, (C.b * 0.75 + 0.25) * br); e += 3; }
+            });
+        });
+        wires.geometry.attributes.position.needsUpdate = true; wires.geometry.attributes.color.needsUpdate = true;
+        // 軸：原点 → 各軸の先（同じ回転・遠近）。長さは図の外まで
+        const L = SS * (1.15 + 1.1 * (1 - fold));
+        axes.forEach((A, k) => {
+            const e6 = [0, 0, 0, 0, 0, 0]; e6[k] = L; const t = proj6(rot6(e6)), o3 = proj6(rot6([0, 0, 0, 0, 0, 0]));
+            const pa = A.line.geometry.attributes.position.array; pa[0] = o3[0]; pa[1] = o3[1]; pa[2] = o3[2]; pa[3] = t[0]; pa[4] = t[1]; pa[5] = t[2]; A.line.geometry.attributes.position.needsUpdate = true;
+            _v.set(t[0] - o3[0], t[1] - o3[1], t[2] - o3[2]); const len = _v.length();
+            A.cone.visible = A.sprite.visible = len > 0.08;
+            if (len > 1e-6) { _v.normalize(); A.cone.position.set(t[0], t[1], t[2]); A.cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), _v); }
+            A.sprite.position.set(o3[0] + (t[0] - o3[0]) * 1.13, o3[1] + (t[1] - o3[1]) * 1.13 + 0.02, o3[2] + (t[2] - o3[2]) * 1.13);
+            rMax = Math.max(rMax, Math.hypot(t[0], t[1], t[2]) * 1.13);
+        });
+        return rMax;
     }
     function build() {
         panel = document.createElement('div'); panel.id = 'hex6-panel';
-        panel.style.cssText = 'position:fixed;left:50%;top:64px;transform:translateX(-50%);width:min(560px,94vw);height:min(560px,64vh);z-index:10000;background:#030712;border:1px solid #2dd4bf66;border-radius:14px;box-shadow:0 10px 40px #000a;display:flex;flex-direction:column;overflow:hidden';
-        const legend = NAMES.split('').map((n, k) => '<span style="color:#' + COL[k].toString(16).padStart(6, '0') + ';font:italic 600 13px Georgia,serif">' + n + '</span>').join(' ');
+        panel.style.cssText = 'position:fixed;left:50%;top:56px;transform:translateX(-50%);width:min(680px,96vw);height:min(640px,72vh);z-index:10000;background:#030712;border:1px solid #2dd4bf66;border-radius:14px;box-shadow:0 10px 40px #000a;display:flex;flex-direction:column;overflow:hidden';
+        const legend = AX.map((n, k) => '<span style="color:#' + AXC[k].toString(16).padStart(6, '0') + ';font:italic 600 13px Georgia,serif">' + n + '</span>').join(' ');
+        const B = 'padding:2px 8px;border:1px solid #334155;border-radius:8px;background:#0f172a;color:#cbd5e1;white-space:nowrap';
         panel.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid #1e293b;color:#cbd5e1;font-size:12px">'
-            + '<b style="color:#5eead4">6次元立方体</b><span style="color:#64748b">テスト・描くだけ｜頂点 64・辺 192</span><span style="margin-left:auto">' + legend + '</span>'
-            + '<button type="button" id="hex6-pause" style="padding:2px 8px;border:1px solid #334155;border-radius:8px;background:#0f172a;color:#cbd5e1">止める</button>'
-            + '<button type="button" id="hex6-close" style="padding:2px 8px;border:1px solid #334155;border-radius:8px;background:#0f172a;color:#cbd5e1">✕</button></div>'
+            + '<b style="color:#5eead4;white-space:nowrap">6次元立方体</b><span style="color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">テスト｜胞 12（5次元立方体）</span><span style="margin-left:auto;white-space:nowrap">' + legend + '</span>'
+            + '<button type="button" id="hex6-pause" style="' + B + '">止める</button><button type="button" id="hex6-close" style="' + B + '">✕</button></div>'
             + '<div id="hex6-view" style="flex:1;position:relative;min-height:0"></div>'
-            + '<div style="padding:4px 12px 6px;color:#64748b;font-size:11px">辺の色＝伸びる向きの軸。回しているのは w・v・u が入る 6 つの面（x‑w・y‑v・z‑u・w‑v・w‑u・v‑u）。ドラッグでカメラ、ピンチ・ホイールで寄る</div>';
+            + '<div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-top:1px solid #1e293b;color:#94a3b8;font-size:12px">'
+            + '<span style="white-space:nowrap">展開図</span><input type="range" id="hex6-fold" min="0" max="1" step="0.001" value="1" style="flex:1;accent-color:#2dd4bf"><span style="white-space:nowrap">6次元立方体</span>'
+            + '<button type="button" id="hex6-play" style="' + B + '">▶ 折る</button></div>'
+            + '<div style="padding:0 12px 6px;color:#64748b;font-size:11px">胞の色＝向きの軸（中心 −U・蓋 +U は青緑）。回しているのは u・v・w が入る 6 面。ドラッグでカメラ、ピンチ・ホイールで寄る</div>';
         document.body.appendChild(panel);
         panel.querySelector('#hex6-close').onclick = () => setOn(false);
         panel.querySelector('#hex6-pause').onclick = e => { paused = !paused; e.target.textContent = paused ? '回す' : '止める'; };
+        const fs = panel.querySelector('#hex6-fold'), pb = panel.querySelector('#hex6-play');
+        fs.oninput = () => { fold = +fs.value; playing = false; pb.textContent = '▶ 折る'; };
+        pb.onclick = () => { playing = !playing; pb.textContent = playing ? '■ 止める' : '▶ 折る'; if (playing) { playDir = fold > 0.5 ? -1 : 1; hold = 0; } };
         const view = panel.querySelector('#hex6-view');
         renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setClearColor(0x030712, 1);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         view.appendChild(renderer.domElement); renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;touch-action:none';
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(40, 1, 0.05, 100); camera.position.set(1.35, 0.95, 2.45);
-        if (THREE.OrbitControls) { controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.enablePan = false; }
+        scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x030712, 0.012);
+        camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000); camera.position.set(4.5, 3.4, 9.5);
+        if (THREE.OrbitControls) { controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.08; controls.enablePan = false; renderer.domElement.addEventListener('wheel', () => { userZoom = true; }, { passive: true }); renderer.domElement.addEventListener('touchstart', e => { if (e.touches.length > 1) userZoom = true; }, { passive: true }); }
         camera.lookAt(0, 0, 0);
-        const lg = new THREE.BufferGeometry();
-        lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(E.length * 6), 3));
-        lg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(E.length * 6), 3));
-        lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
-        const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(64 * 3), 3));
-        dots = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xe2e8f0, size: 0.035, transparent: true, opacity: 0.85, depthWrite: false }));
-        scene.add(lines, dots);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+        const d1 = new THREE.DirectionalLight(0x38bdf8, 1.4); d1.position.set(15, 22, 18); scene.add(d1);
+        const d2 = new THREE.DirectionalLight(0xa855f7, 0.9); d2.position.set(-15, -12, -15); scene.add(d2);
+        root = new THREE.Group(); scene.add(root);
+        const nV = quads.length * 6;
+        const fg = new THREE.BufferGeometry();
+        fg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nV * 3), 3));
+        fg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nV * 4), 4));
+        faces = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 1, roughness: 0.15, metalness: 0.5, side: THREE.DoubleSide, depthWrite: false }));
+        faces.frustumCulled = false; faces.renderOrder = -1;
+        const nE = CELLS.length * EDG.length * 2, wg = new THREE.BufferGeometry();
+        wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nE * 3), 3));
+        wg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nE * 3), 3));
+        wires = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false }));
+        wires.frustumCulled = false;
+        root.add(faces, wires);
+        AX.forEach((n, k) => {
+            const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+            const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: AXC[k], transparent: true, opacity: 0.95, depthTest: false })); line.renderOrder = 1000; line.frustumCulled = false;
+            const cone = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.24, 16), new THREE.MeshBasicMaterial({ color: AXC[k], transparent: true, opacity: 0.98, depthTest: false })); cone.renderOrder = 1000;
+            let sprite;
+            if (typeof makeLabelSprite === 'function') { sprite = makeLabelSprite(n, '#' + AXC[k].toString(16).padStart(6, '0')); sprite.onBeforeRender = () => {}; sprite.scale.set(0.62, 0.62, 0.62); }
+            else sprite = new THREE.Object3D();
+            root.add(line, cone, sprite); axes.push({ line, cone, sprite });
+        });
         fill();
     }
     function resize() {
         const v = panel && panel.querySelector('#hex6-view'); if (!v || !renderer) return;
-        const w = Math.max(1, v.clientWidth), h = Math.max(1, v.clientHeight);
-        if (renderer.domElement.width !== Math.round(w * renderer.getPixelRatio()) || renderer.domElement.height !== Math.round(h * renderer.getPixelRatio())) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
-            if (!fitted) { fitted = true; camera.position.setLength(4.6 / Math.min(1, camera.aspect)); } }   // 最初だけ：縦長の画面でも図が入る距離に
+        const w = Math.max(1, v.clientWidth), h = Math.max(1, v.clientHeight), pr = renderer.getPixelRatio();
+        if (renderer.domElement.width !== Math.round(w * pr) || renderer.domElement.height !== Math.round(h * pr)) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
     }
     function loop(t) {
         if (!on) return;
         raf = requestAnimationFrame(loop);
         const dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t;
-        if (!paused) { SPIN.forEach((s, i) => { ang[i] += s[2] * dt; }); fill(); }
-        resize(); if (controls) controls.update();
+        if (!paused) SPIN.forEach((s, i) => { ang[i] += s[2] * dt; });
+        if (playing) {
+            if (hold > 0) hold -= dt;
+            else { fold = Math.max(0, Math.min(1, fold + playDir * dt / 3.2)); if (fold <= 0 || fold >= 1) { playDir = -playDir; hold = 1.2; } }
+            const fs = panel.querySelector('#hex6-fold'); if (fs) fs.value = fold;
+        }
+        resize();
+        const r = fill();
+        if (!userZoom) {   // 図の大きさに合わせて、カメラの距離をゆっくり合わせる（ホイール・ピンチで寄ったら止める）
+            const want = (r * 1.08) / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) / Math.min(1, camera.aspect);
+            camDist = camDist ? camDist + (want - camDist) * Math.min(1, dt * 2.5) : want;
+            camera.position.setLength(camDist);
+        }
+        if (controls) controls.update();
+        const cd = camera.position.length();   // 軸の名前・矢じりは、カメラが引いても画面の上で同じくらいの大きさに
+        axes.forEach(A => { A.sprite.scale.setScalar(0.075 * cd); A.cone.scale.setScalar(cd / 9); });
         renderer.render(scene, camera);
     }
     function setOn(v) {
@@ -8437,7 +8554,7 @@
         else { cancelAnimationFrame(raf); if (panel) panel.style.display = 'none'; }
     }
     btn.addEventListener('click', () => setOn(!on));
-    window.hex6Test = { setOn, get on() { return on; }, edges: E.length };
+    window.hex6Test = { setOn, get on() { return on; }, cells: CELLS.length, quads: quads.length, edges: CELLS.length * EDG.length, setFold: f => { fold = f; }, get fold() { return fold; } };
 })();
 </script>
 </body>
