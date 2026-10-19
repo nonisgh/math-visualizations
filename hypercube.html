@@ -844,11 +844,12 @@
                 <h3 class="sb-h"><i data-lucide="target" class="w-3.5 h-3.5"></i>軸の操作</h3>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-amber-300 shrink-0 flex items-center gap-1"><i data-lucide="target" class="w-3.5 h-3.5"></i>手前へ消す軸:</span>
-                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#b07cff" data-axis="w" title="W を手前（視線方向）へ。既定の胞から。見える3軸は X,Y,Z">W</button>
-                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#ff5d6c" data-axis="x" title="X を中心の一点へ消す。見える3軸は Y,Z,W">X</button>
-                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#3ddc84" data-axis="y" title="Y を中心の一点へ消す。見える3軸は X,Z,W">Y</button>
-                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#56a8ff" data-axis="z" title="Z を中心の一点へ消す。見える3軸は X,Y,W">Z</button>
-                    <span class="text-[10px] text-slate-500">選んだ軸を視線方向へ送り一点に消す。超立方体は4軸とも対等なのでどれも同じ入れ子に見える</span>
+                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#b07cff" data-axis="w" title="W を手前（視線方向）へ。既定の胞から。見える3軸は X,Y,Z" data-t4="W を手前（視線方向）へ。既定の胞から。見える3軸は X,Y,Z" data-t5="W を手前（v の向き）へ送る＝W-V を90°。見える3軸は X,Y,Z（w・v はどちらも視線の向き）">W</button>
+                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#ff5d6c" data-axis="x" title="X を中心の一点へ消す。見える3軸は Y,Z,W" data-t4="X を中心の一点へ消す。見える3軸は Y,Z,W" data-t5="X を手前（v の向き）へ送って一点に消す＝X-V を90°。見える3軸は Y,Z,V">X</button>
+                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#3ddc84" data-axis="y" title="Y を中心の一点へ消す。見える3軸は X,Z,W" data-t4="Y を中心の一点へ消す。見える3軸は X,Z,W" data-t5="Y を手前（v の向き）へ送って一点に消す＝Y-V を90°。見える3軸は X,Z,V">Y</button>
+                    <button class="vanish-btn px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#56a8ff" data-axis="z" title="Z を中心の一点へ消す。見える3軸は X,Y,W" data-t4="Z を中心の一点へ消す。見える3軸は X,Y,W" data-t5="Z を手前（v の向き）へ送って一点に消す＝Z-V を90°。見える3軸は X,Y,V">Z</button>
+                    <button class="vanish-btn d5-only hidden px-2 py-0.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 transition font-bold" style="color:#fbbf24" data-axis="v" title="V（5次元目）を手前（視線方向）へ。既定の胞から（角度を全部0に）。見える3軸は X,Y,Z">V</button>
+                    <span class="d5-sub text-[10px] text-slate-500" data-d4="選んだ軸を視線方向へ送り一点に消す。超立方体は4軸とも対等なのでどれも同じ入れ子に見える" data-d5="選んだ軸を視線方向（5次元目 v の遠近の向き）へ送り一点に消す。5次元は5軸とも対等なので、どれを選んでも同じ入れ子に見える（もう1本は w の向きでつぶれる）">選んだ軸を視線方向へ送り一点に消す。超立方体は4軸とも対等なのでどれも同じ入れ子に見える</span>
                 </div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-amber-300 shrink-0 flex items-center gap-1"><i data-lucide="rotate-3d" class="w-3.5 h-3.5"></i>90°ずつ回す:</span>
@@ -911,9 +912,10 @@
 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">            <span class="sr-only" title="どの軸を画面に垂直（正面の奥行き）に据えるか。既定は Z（今の正面図）。X/Y はその軸が正面を向くようカメラが回り込み、W は Z-W を90°回して W を奥行きに出す">垂直軸:</span>
             <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-sky-900/50 border-sky-400/60" style="color:#56a8ff" data-axis="z" title="Z を画面に垂直（＝今の正面図）。既定">Z</button>
             <span class="text-[9px] text-slate-500 shrink-0 -ml-1">(既定)</span>
-            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" data-axis="w" style="color:#b07cff" title="W を画面に垂直（奥行き）へ。Z-W を90°回して W を奥へ出す">W</button>
+            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" data-axis="w" style="color:#b07cff" title="W を画面に垂直（奥行き）へ。Z-W を90°回して W を奥へ出す" data-t4="W を画面に垂直（奥行き）へ。Z-W を90°回して W を奥へ出す" data-t5="W を画面に垂直へ。今の向きで W が 3D に出ていなければ（既定では w・v はつぶれている）正面のまま">W</button>
             <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 hover:bg-slate-700" style="color:#ff5d6c" data-axis="x" title="X を画面に垂直へ。横から覗く向きへカメラが回り込む">X</button>
-            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 hover:bg-slate-700" style="color:#3ddc84" data-axis="y" title="Y を画面に垂直へ。真上から覗く向きへカメラが回り込む">Y</button></div>
+            <button class="screen-axis-btn px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 hover:bg-slate-700" style="color:#3ddc84" data-axis="y" title="Y を画面に垂直へ。真上から覗く向きへカメラが回り込む">Y</button>
+            <button class="screen-axis-btn d5-only hidden px-2 py-0.5 rounded border transition shrink-0 font-bold bg-slate-800 border-slate-700 hover:bg-slate-700" style="color:#fbbf24" data-axis="v" title="V（5次元目）を画面に垂直へ。今の向きで V が 3D に出ていなければ（既定では w・v はつぶれている）正面のまま">V</button></div>
             </section>
 
             <section class="sb-sec">
@@ -1699,6 +1701,12 @@
         let showAxes = true;      // X/Y/Z/W 座標軸（右・超立方体）を重ねて表示するか（初期状態＝ON）
         let pinVertex = false;    // 点固定モード：投影後の3Dを再回転し、中心の対角2頂点を画面上で重ねる
         let presetFaceCamera = true;   // プリセット移行時にカメラも正面へ向ける（ONできれいな正多角形）
+        // 軸の、今の回転での 3D の向き（4次元＝超立方体の回転、5次元＝5次元体の回転）。垂直軸ボタンが使う
+        function axisDir3(axis) {
+            if (dim5) { const B = { x: 0, y: 1, z: 2, w: 3, v: 4 }[axis]; if (B === undefined) return [0, 0, 1]; const q = [0, 0, 0, 0, 0]; q[B] = 1; const r = rotate5(q); return [r[0], r[1], r[2]]; }
+            const B4 = { x: [1, 0, 0, 0], y: [0, 1, 0, 0], z: [0, 0, 1, 0], w: [0, 0, 0, 1] }[axis]; if (!B4) return [0, 0, 1];
+            return rotated4DAxis(B4);
+        }
         let screenAxis = 'z';          // 画面に垂直に立てる軸（Z=既定）。回転アニメ中もこの軸を立て続ける
         let projAnim = null;           // プリセット移行中の投影ブレンド（0=遠近, 1=平行）。nullで非移行
         let cubePersp = true;          // 投影モード：true＝遠近投影（既定。起動・リセット・初期化はいつも遠近）、false＝平行投影（W の角度が付いていれば平行）
@@ -4603,8 +4611,7 @@
                     camera3D.updateProjectionMatrix();
                 }
                 if (axisTween.trackAxis && screenAxis !== 'z') {   // 移行中ずっと：選んだ軸を画面に垂直に立て続ける（4D回転と同時に3D回り込み）
-                    const BASIS = { x: [1, 0, 0, 0], y: [0, 1, 0, 0], z: [0, 0, 1, 0], w: [0, 0, 0, 1] }[screenAxis];
-                    const d3 = rotated4DAxis(BASIS);
+                    const d3 = axisDir3(screenAxis);   // 4次元／5次元の今の回転での向き
                     const dir = new THREE.Vector3(d3[0], d3[1], d3[2]);
                     if (dir.lengthSq() > 1e-6) {   // 軸がつぶれている瞬間はカメラ据え置き
                         dir.normalize();
@@ -4902,6 +4909,8 @@
             else if (which === 'y') ty = q;
             else if (which === 'z') tz = q;
             axisTween = { fx: linkAngleX, fy: linkAngleY, fz: soloAngleZW, tx, ty, tz, t: 0, dur: 0.6, f3: [rotXY, rotXZ, rotYZ], t3: [0, 0, 0], alignXY: true };   // 3D回転は0へ（どの状態からでも同じ見え方に）
+            // 5次元：視線方向は 5次元目 v（遠近の向き）。X/Y/Z は X-V・Y-V・Z-V を90°（上の tx・ty・tz）、W は W-V を90°、V は全部0（既定の胞から）。5次元だけの4面はほかを0へ
+            if (dim5) { const t5 = [0, 0, 0, which === 'w' ? q : 0]; axisTween.f5 = getP5(); axisTween.t5 = getP5().map((v, i) => v + wrapPi(t5[i] - v)); }
         }
 
         // 周回モードを止める。止めた瞬間の投影の混ざり具合を parallel4D に反映して見た目を連続させる。
@@ -5285,6 +5294,7 @@
                 { id: 'vanish_x', label: '手前へ消す軸 X', short: '消すX', def: 'Shift+X', run: clickSel('.vanish-btn[data-axis="x"]') },
                 { id: 'vanish_y', label: '手前へ消す軸 Y', short: '消すY', def: 'Shift+Y', run: clickSel('.vanish-btn[data-axis="y"]') },
                 { id: 'vanish_z', label: '手前へ消す軸 Z', short: '消すZ', def: 'Shift+Z', run: clickSel('.vanish-btn[data-axis="z"]') },
+                { id: 'vanish_v', label: '手前へ消す軸 V（5次元）', short: '消すV', def: '', run: clickSel('.vanish-btn[data-axis="v"]') },
                 { id: 'step_xw', label: '90°回す X-W', short: '90°XW', def: 'X', run: clickSel('.step90-btn[data-plane="x"]') },
                 { id: 'step_yw', label: '90°回す Y-W', short: '90°YW', def: 'Y', run: clickSel('.step90-btn[data-plane="y"]') },
                 { id: 'step_zw', label: '90°回す Z-W', short: '90°ZW', def: 'Z', run: clickSel('.step90-btn[data-plane="z"]') },
@@ -6565,8 +6575,7 @@
                 // 4D回転（X-W/Y-W/Z-W）はそのまま保持する。
                 // 今の投影で、選んだ軸が3Dモデル上でどの向きに出ているかを rotated4DAxis で求め、
                 // その向きからカメラで覗く＝その軸が画面に垂直（視線方向）になる。
-                const BASIS = { x: [1, 0, 0, 0], y: [0, 1, 0, 0], z: [0, 0, 1, 0], w: [0, 0, 0, 1] }[axis];
-                const d3 = rotated4DAxis(BASIS);
+                const d3 = axisDir3(axis);   // 4次元は超立方体、5次元は5次元体の今の回転で
                 let dir = new THREE.Vector3(d3[0], d3[1], d3[2]);
                 if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);   // 軸がつぶれている（例：胞のW）→正面にフォールバック
                 dir.normalize();
@@ -7296,6 +7305,8 @@
                 const cs = document.getElementById('cube-rot-sec'); if (cs) cs.classList.toggle('hidden', dim5);   // 立方体の欄は5次元モードでは使わない
                 document.querySelectorAll('.d5-sub').forEach(el => el.textContent = dim5 ? el.dataset.d5 : el.dataset.d4);
                 document.querySelectorAll('.d5-only').forEach(el => el.classList.toggle('hidden', !dim5));
+                document.querySelectorAll('[data-t5]').forEach(el => { el.title = dim5 ? el.dataset.t5 : el.dataset.t4; });   // ボタンの説明を4次元／5次元で入れ替え
+                if (!dim5 && screenAxis === 'v') screenAxis = 'z';   // 4次元に V は無い
                 document.querySelectorAll('.dim5-toggle').forEach(b => {
                     b.classList.toggle('bg-amber-900/40', dim5); b.classList.toggle('border-amber-500/50', dim5); b.classList.toggle('text-amber-200', dim5);
                     b.classList.toggle('bg-slate-800/80', !dim5); b.classList.toggle('border-slate-700', !dim5); b.classList.toggle('text-slate-300', !dim5);
