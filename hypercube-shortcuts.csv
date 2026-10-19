@@ -37,9 +37,14 @@ vanish_w,手前へ消す軸 W,W
 vanish_x,手前へ消す軸 X,Shift+X
 vanish_y,手前へ消す軸 Y,Shift+Y
 vanish_z,手前へ消す軸 Z,Shift+Z
+vanish_v,手前へ消す軸 V（5次元）,
 step_xw,90°回す X-W,X
 step_yw,90°回す Y-W,Y
 step_zw,90°回す Z-W,Z
+step_wv5,90°回す W-V（5次元）,
+step_xw5,90°回す X-W（5次元だけの面）,
+step_yw5,90°回す Y-W（5次元だけの面）,
+step_zw5,90°回す Z-W（5次元だけの面）,
 spin_xw,オート回転 X-W,4
 spin_yw,オート回転 Y-W,5
 spin_zw,オート回転 Z-W,6
