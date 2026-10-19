@@ -5218,7 +5218,7 @@
 
             const speedBtn = document.getElementById('speed-btn');
             const speedText = document.getElementById('speed-text');
-            const speeds = [0.5, 1.0, 1.5, 2.0];
+            const speeds = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0];   // 3x・4x は荒ぶらせたい時用（2026-10-20）
             speedBtn.addEventListener('click', () => {
                 const currentIndex = speeds.indexOf(animSpeedMultiplier);
                 const nextIndex = (currentIndex + 1) % speeds.length;
@@ -7994,7 +7994,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-0804';
+        const APP_BUILD = '20261020-0814';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
@@ -8042,7 +8042,7 @@
                 for (let i = 0; i < 4 && s.displayMode && displayMode !== s.displayMode; i++) click('display-mode-btn');
                 if (!!s.panelHidden !== panelHidden) click('sidebar-close');
                 if (!!s.leftFull3D !== leftFull3D) click('left3d-btn');
-                for (let i = 0; i < 4 && s.speed && animSpeedMultiplier !== s.speed; i++) click('speed-btn');
+                for (let i = 0; i < 8 && s.speed && animSpeedMultiplier !== s.speed; i++) click('speed-btn');   // 速さの段（0.5〜4x）を押して合わせる
                 if (typeof s.autoFitZoom === 'boolean' && s.autoFitZoom !== autoFitZoom) click('zoom-btn');
                 // スイッチ（線だけ・面透過・座標軸・点固定・時間差）：ボタンを押して合わせる
                 if (typeof s.wire === 'boolean' && s.wire !== wireframeOnly) click(s.wire ? 'view-wire-btn' : 'view-mesh-btn');
