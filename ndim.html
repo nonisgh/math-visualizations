@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>n次元ビューア</title>
+<link rel="icon" type="image/svg+xml" href="icons/hypercube6d.svg">
+<link rel="apple-touch-icon" href="icons/hypercube6d-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#030712">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegmentsGeometry.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
+<style>
+    :root {
+        --bg: #030712; --card: rgba(9, 14, 28, 0.9); --line: #1e293b; --text: #e2e8f0; --muted: #94a3b8; --faint: #64748b;
+        --lime: #a3e635; --purple: #b07cff;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, 'Hiragino Sans', sans-serif; overflow: hidden; }
+    #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+    #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+    .lab { position: absolute; transform: translate(-50%, -50%); font: 700 13px Inter, system-ui, sans-serif; white-space: nowrap; text-shadow: 0 0 6px #000, 0 0 2px #000; }
+
+    .top { position: fixed; left: 14px; top: 12px; display: flex; align-items: baseline; gap: 12px; z-index: 2; padding-top: env(safe-area-inset-top); }
+    .back { color: var(--faint); text-decoration: none; font-size: 13px; }
+    .back:hover { color: var(--text); }
+    h1 { margin: 0; font-size: 17px; font-weight: 700; }
+    h1 b { color: var(--lime); font-size: 22px; margin-right: 2px; }
+    .hud { position: fixed; left: 14px; top: 44px; font: 500 12px ui-monospace, 'SF Mono', Menlo, monospace; color: var(--muted); z-index: 2; line-height: 1.6; pointer-events: none; }
+
+    .panel-btn { position: fixed; right: 12px; top: 12px; width: 40px; height: 40px; border-radius: 12px; z-index: 4; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 18px; cursor: pointer; }
+    .panel {
+        position: fixed; right: 12px; top: 60px; bottom: 12px; width: 318px; overflow-y: auto; z-index: 3;
+        background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 2px 14px 12px;
+        backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    }
+    .panel[hidden] { display: none; }
+    .panel section { padding: 11px 0; border-bottom: 1px solid var(--line); }
+    .panel section:last-child { border-bottom: 0; }
+    .panel h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+    .btn { height: 30px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; padding: 0 10px; }
+    .btn:hover { color: var(--text); border-color: #334155; }
+    .btn.on { color: #ecfccb; border-color: var(--lime); background: rgba(63, 98, 18, 0.45); }
+    .seg { display: flex; gap: 4px; flex-wrap: wrap; }
+    .row { display: flex; align-items: center; gap: 8px; margin-top: 7px; font-size: 12px; color: var(--muted); }
+    .row input[type=range] { flex: 1; accent-color: var(--lime); }
+    .row .v { font: 500 12px ui-monospace, Menlo, monospace; color: var(--text); min-width: 40px; text-align: right; }
+
+    .dim { display: flex; align-items: center; gap: 10px; }
+    .dim .btn { width: 40px; height: 40px; font-size: 20px; padding: 0; }
+    .dim .num { font: 800 34px Inter, system-ui, sans-serif; color: var(--lime); min-width: 46px; text-align: center; }
+    .dim .unit { font-size: 13px; color: var(--muted); }
+
+    .map { display: grid; gap: 3px; margin-top: 4px; }
+    .map .hd { font: 700 12px Inter, sans-serif; text-align: center; align-self: center; }
+    .map .cell {
+        aspect-ratio: 1; border-radius: 6px; border: 1px solid transparent; cursor: pointer; position: relative;
+        display: flex; align-items: center; justify-content: center; font: 600 9px ui-monospace, Menlo, monospace; color: rgba(226, 232, 240, 0.7);
+    }
+    .map .cell.t3 { background: rgba(71, 85, 105, 0.45); }
+    .map .cell.tv { background: rgba(124, 58, 237, 0.32); }
+    .map .cell.th { background: rgba(13, 148, 136, 0.28); }
+    .map .cell:hover { border-color: #475569; }
+    .map .cell.sel { border-color: var(--lime); }
+    .map .cell.spin::after {
+        content: ''; position: absolute; inset: 22%; border-radius: 50%; border: 2px solid var(--lime); border-right-color: transparent;
+        animation: rot 1s linear infinite;
+    }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    .key { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 7px; font-size: 11px; color: var(--muted); }
+    .key i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+    .axes { display: flex; flex-wrap: wrap; gap: 5px; }
+    .axchip { font: 700 13px Inter, sans-serif; border-radius: 999px; padding: 3px 11px; border: 1px solid currentColor; background: transparent; cursor: pointer; transition: opacity 0.2s; }
+    .axchip.hid { opacity: 0.38; border-style: dashed; }
+    .note { font-size: 11px; color: var(--faint); margin-top: 6px; line-height: 1.55; }
+    .fv { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .fv td { padding: 2px 0; }
+    .fv td:last-child { text-align: right; font: 600 12px ui-monospace, Menlo, monospace; color: var(--text); }
+    .fv tr.tot td { border-top: 1px solid var(--line); }
+    .saved { font: 500 11px ui-monospace, Menlo, monospace; color: var(--faint); }
+    .saved.flash { color: var(--lime); }
+    input[type=file] { display: none; }
+    @media (max-width: 760px) {
+        .panel { left: 12px; right: 12px; width: auto; top: auto; max-height: 58vh; }
+        .panel-btn { top: auto; bottom: 12px; }
+    }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="labels"></div>
+<div class="top">
+    <a class="back" href="index.html">← 一覧</a>
+    <h1><b id="nBig">5</b>次元ビューア</h1>
+</div>
+<div class="hud" id="hud"></div>
+<button class="panel-btn" id="panelBtn" type="button" title="パネルの表示／非表示">⚙</button>
+<aside class="panel" id="panel">
+    <section>
+        <h3>次元</h3>
+        <div class="dim">
+            <button class="btn" id="nMinus" type="button" title="1 つ下の次元へ">−</button>
+            <span class="num" id="nNum">5</span><span class="unit">次元</span>
+            <button class="btn" id="nPlus" type="button" title="1 つ上の次元へ">＋</button>
+        </div>
+        <div class="row"><input type="range" id="nRange" min="3" max="10" step="1"></div>
+        <div class="seg" id="shapes" style="margin-top:8px">
+            <button class="btn" type="button" data-sh="cube">超立方体</button>
+            <button class="btn" type="button" data-sh="simplex">正単体</button>
+            <button class="btn" type="button" data-sh="cross">正軸体</button>
+            <button class="btn" type="button" data-sh="sphere">超球</button>
+        </div>
+    </section>
+    <section>
+        <h3>回転面マップ <span class="seg"><button class="btn" id="spinAll" type="button">回す</button><button class="btn" id="randSpin" type="button" title="いくつかの面を選んで回す">おまかせ</button><button class="btn" id="resetAng" type="button" title="全部の角度を 0 に戻す">整列</button></span></h3>
+        <div class="map" id="map"></div>
+        <div class="key"><span><i style="background:rgba(71,85,105,.8)"></i>3D の回転</span><span><i style="background:rgba(124,58,237,.65)"></i>軸が消える回転</span><span><i style="background:rgba(13,148,136,.6)"></i>見えない所の回転</span></div>
+        <div class="row"><span id="selName" style="min-width:58px">x–w</span><input type="range" id="selAng" min="0" max="360" step="1"><span class="v" id="selAngV"></span></div>
+        <div class="row">速さ<input type="range" id="speed" min="0.1" max="3" step="0.05"><span class="v" id="speedV"></span></div>
+        <div class="note">マスを押すと、その 2 本の軸の面で回ります（もう一度押すと止まる）。見えている軸は x・y・z の 3 本で、残りは遠近（近いほど大きい）で写しています。</div>
+    </section>
+    <section>
+        <h3>軸 <span class="note" style="margin:0">押すとその軸が見える所へ回ってくる</span></h3>
+        <div class="axes" id="axes"></div>
+    </section>
+    <section id="netSec">
+        <h3>展開図 <span class="seg"><button class="btn" id="netOn" type="button">展開図にする</button></span></h3>
+        <div class="row">開き具合<input type="range" id="fold" min="0" max="1" step="0.001"><span class="v" id="foldV"></span></div>
+        <div class="row"><button class="btn" id="foldPlay" type="button">折りたたむ ▶</button><button class="btn" id="seqBtn" type="button" title="腕を 1 本ずつ順番に折る">順番に</button></div>
+        <div class="note" id="netNote"></div>
+    </section>
+    <section>
+        <h3>表示</h3>
+        <div class="seg" id="shows">
+            <button class="btn" type="button" data-s="edges">辺</button>
+            <button class="btn" type="button" data-s="verts">頂点</button>
+            <button class="btn" type="button" data-s="faces">面</button>
+            <button class="btn" type="button" data-s="axes">軸</button>
+            <button class="btn" type="button" data-s="labels">軸の名前</button>
+        </div>
+        <div class="row">遠近<input type="range" id="persp" min="0" max="1" step="0.01"><span class="v" id="perspV"></span></div>
+        <div class="row">線の太さ<input type="range" id="lw" min="0.5" max="5" step="0.1"><span class="v" id="lwV"></span></div>
+    </section>
+    <section>
+        <h3>数 <span class="note" style="margin:0" id="fvShape"></span></h3>
+        <table class="fv" id="fv"></table>
+        <div class="note" id="fvNote"></div>
+    </section>
+    <section>
+        <h3>保存 <span class="saved" id="saved">自動保存 —</span></h3>
+        <div class="seg">
+            <button class="btn" id="copyUrl" type="button">URL をコピー</button>
+            <button class="btn" id="exportBtn" type="button">ファイルに書き出す</button>
+            <button class="btn" id="importBtn" type="button">読み込む</button>
+            <button class="btn" id="resetAll" type="button">最初に戻す</button>
+        </div>
+        <input type="file" id="importFile" accept="application/json,.json">
+        <div class="note">回転・次元・カメラの位置まで、変えるたびにこのブラウザに自動で保存し、次に開いた時にそのまま戻ります。ファイルに書き出しておくと、別のブラウザや別の Mac でも続きから見られます。</div>
+    </section>
+</aside>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+
+// ================================================================
+// n 次元ビューア：n 次元の形を n 次元のまま回し、4 本目から先の軸は 1 本ずつ遠近（近いほど大きい）で写して 3D に
+// 軸の色は次元おりがみと同じ並び（x 赤・y 緑・z 青・w 紫・v 黄・u 青緑）の続き
+// ================================================================
+const AX = [
+    { n: 'x', c: '#ff5d6c' }, { n: 'y', c: '#3ddc84' }, { n: 'z', c: '#56a8ff' }, { n: 'w', c: '#b07cff' },
+    { n: 'v', c: '#fbbf24' }, { n: 'u', c: '#2dd4bf' }, { n: 't', c: '#f472b6' }, { n: 's', c: '#a3e635' },
+    { n: 'r', c: '#fb923c' }, { n: 'q', c: '#e2e8f0' },
+];
+const NMIN = 3, NMAX = 10;
+const AXC = AX.map(a => new THREE.Color(a.c));
+const STORE = 'ndim.v1';
+const DEF = () => ({
+    n: 5, shape: 'cube', ang: {}, spin: { '0-3': true, '1-4': true }, spinOn: true, speed: 1, sel: '0-3',
+    pk: 0.45, lw: 1.8, net: false, fold: 1, seq: false,
+    show: { edges: true, verts: true, faces: false, axes: true, labels: true }, cam: null,
+});
+let S = DEF();
+const key = (i, j) => `${Math.min(i, j)}-${Math.max(i, j)}`;
+const planes = n => { const p = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) p.push([i, j]); return p; };
+
+// ---------- three.js ----------
+const canvas = $('#cv');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setClearColor(0x030712, 1);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 200);
+const CAM0 = new THREE.Vector3(2.6, 1.8, 4.2);
+camera.position.copy(CAM0);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.09;
+controls.minDistance = 0.8; controls.maxDistance = 40;
+
+const lineMats = [];
+function lineMat(opts) {
+    const m = new THREE.LineMaterial({ vertexColors: true, transparent: true, depthWrite: false, ...opts });
+    lineMats.push(m);
+    return m;
+}
+const mats = {
+    edges: lineMat({ linewidth: S.lw, opacity: 0.95 }),
+    axes: lineMat({ linewidth: 2.4, opacity: 1 }),
+    faces: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.075, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+    verts: new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false }),
+};
+const objs = {};
+function drop(k) { if (objs[k]) { scene.remove(objs[k]); objs[k].geometry.dispose(); objs[k] = null; } }
+
+// 軸の矢じり（10 本ぶん用意して、使う分だけ出す）
+const cones = AX.map(a => {
+    const m = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.17, 18), new THREE.MeshBasicMaterial({ color: a.c, transparent: true, depthTest: false, depthWrite: false }));
+    m.frustumCulled = false; m.renderOrder = 6; m.visible = false;
+    scene.add(m);
+    return m;
+});
+const originDot = new THREE.Mesh(new THREE.SphereGeometry(0.028, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }));
+originDot.renderOrder = 7; scene.add(originDot);
+
+// ================================================================
+// 形（n 次元の頂点・辺・面）
+// ================================================================
+let G = null;   // { n, nv, V: Float64Array(nv*n), E: [a,b,...], ec: colors per endpoint, F: tri idx, fc: colors per tri corner, kind }
+function mixCol(a, b, t = 0.5) { return [a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t]; }
+const WHITE = new THREE.Color('#e2e8f0');
+function buildShape(n, shape) {
+    const V = [], E = [], ec = [], F = [], fc = [];
+    const addV = v => { V.push(...v); return V.length / n - 1; };
+    const edge = (a, b, ca, cb = ca) => { E.push(a, b); ec.push(...ca, ...cb); };
+    if (shape === 'cube') {
+        const nv = 1 << n, sc = 1 / Math.sqrt(n);
+        for (let i = 0; i < nv; i++) { const v = []; for (let k = 0; k < n; k++) v.push(((i >> k) & 1 ? 1 : -1) * sc); addV(v); }
+        for (let i = 0; i < nv; i++) for (let k = 0; k < n; k++) if (!((i >> k) & 1)) { const c = [AXC[k].r, AXC[k].g, AXC[k].b]; edge(i, i | (1 << k), c); }
+        // 2 次元の面（正方形）：軸 a, b の向きに広がる
+        for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+            const c = mixCol(AXC[a], AXC[b]);
+            for (let i = 0; i < nv; i++) {
+                if ((i >> a) & 1 || (i >> b) & 1) continue;
+                const p = i, q = i | (1 << a), r = i | (1 << a) | (1 << b), s = i | (1 << b);
+                F.push(p, q, r, p, r, s); for (let t = 0; t < 6; t++) fc.push(...c);
+            }
+        }
+    } else if (shape === 'simplex') {
+        // 正単体：n+1 個の頂点（e_0 … e_{n-1} と、(1−√(n+1))/n·(1,…,1)）を、重心を原点に・半径 1 に
+        const pts = [];
+        for (let i = 0; i < n; i++) { const v = new Array(n).fill(0); v[i] = 1; pts.push(v); }
+        pts.push(new Array(n).fill((1 - Math.sqrt(n + 1)) / n));
+        const cen = new Array(n).fill(0); pts.forEach(p => p.forEach((x, k) => { cen[k] += x / (n + 1); }));
+        const r = Math.hypot(...pts[0].map((x, k) => x - cen[k]));
+        pts.forEach(p => addV(p.map((x, k) => (x - cen[k]) / r)));
+        const vc = i => { const c = i < n ? AXC[i] : WHITE; return [c.r, c.g, c.b]; };
+        for (let a = 0; a <= n; a++) for (let b = a + 1; b <= n; b++) edge(a, b, vc(a), vc(b));
+        for (let a = 0; a <= n; a++) for (let b = a + 1; b <= n; b++) for (let c = b + 1; c <= n; c++) { F.push(a, b, c); fc.push(...vc(a), ...vc(b), ...vc(c)); }
+    } else if (shape === 'cross') {
+        // 正軸体：±e_k（2n 個）、向かい合う 2 点以外は全部つながる
+        for (let k = 0; k < n; k++) for (const s of [1, -1]) { const v = new Array(n).fill(0); v[k] = s; addV(v); }
+        const vc = i => { const c = AXC[i >> 1]; return [c.r, c.g, c.b]; };
+        const nv = 2 * n;
+        for (let a = 0; a < nv; a++) for (let b = a + 1; b < nv; b++) if ((a >> 1) !== (b >> 1)) edge(a, b, vc(a), vc(b));
+        for (let a = 0; a < nv; a++) for (let b = a + 1; b < nv; b++) for (let c = b + 1; c < nv; c++)
+            if ((a >> 1) !== (b >> 1) && (b >> 1) !== (c >> 1) && (a >> 1) !== (c >> 1)) { F.push(a, b, c); fc.push(...vc(a), ...vc(b), ...vc(c)); }
+    } else {
+        // 超球：座標面ごとの大円（n(n−1)/2 本）＋表面の点
+        const M = 96;
+        for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+            const c = mixCol(AXC[a], AXC[b]), base = V.length / n;
+            for (let m = 0; m < M; m++) { const v = new Array(n).fill(0), t = 2 * Math.PI * m / M; v[a] = Math.cos(t); v[b] = Math.sin(t); addV(v); }
+            for (let m = 0; m < M; m++) edge(base + m, base + (m + 1) % M, c);
+        }
+        const rnd = mulberry(7 + n);
+        const cloud = Math.min(2500, 300 * n);
+        for (let m = 0; m < cloud; m++) {
+            const v = []; for (let k = 0; k < n; k++) v.push(gauss(rnd));
+            const l = Math.hypot(...v) || 1; addV(v.map(x => x / l));
+        }
+    }
+    return { n, shape, nv: V.length / n, V: Float64Array.from(V), E, ec, F, fc };
+}
+function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(2 * Math.PI * r()); }
+
+// ---------- 超立方体の展開図：真ん中（最後の軸の −1 側）・まわりの腕 2(n−1) 本・腕 x の先にふた ----------
+let NET = null;
+function buildNet(n) {
+    const N = n - 1, m = n - 1, nl = 1 << m, sc = 1 / Math.sqrt(n);
+    const fac = [{ kind: 'center' }];
+    for (let k = 0; k < N; k++) for (const sg of [1, -1]) fac.push({ kind: 'arm', k, sg });
+    fac.push({ kind: 'cap' });
+    fac.forEach(f => { const fixed = f.kind === 'arm' ? f.k : N; f.free = []; for (let j = 0; j < n; j++) if (j !== fixed) f.free.push(j); });
+    const E = [], ec = [];
+    fac.forEach((f, fi) => {
+        const off = fi * nl;
+        for (let v = 0; v < nl; v++) for (let b = 0; b < m; b++) if (!((v >> b) & 1)) {
+            const ax = f.free[b], c = AXC[ax];
+            E.push(off + v, off + (v | (1 << b))); ec.push(c.r, c.g, c.b, c.r, c.g, c.b);
+        }
+    });
+    return { n, N, nl, sc, fac, E, ec, nv: fac.length * nl, V: new Float64Array(fac.length * nl * n) };
+}
+function netPositions(net, f, seq) {
+    const { n, N, nl, sc, fac, V } = net, T = N + 1;
+    const prog = k => seq ? cl01(f * T - k) : f;          // 腕 k（0 … N−1）とふた（N）の折れ具合
+    const phiOf = k => (1 - prog(k)) * Math.PI / 2;        // 0 = 折りたたみ済み、90° = 平ら
+    const phi0 = phiOf(0), psi = (1 - prog(N)) * Math.PI / 2;
+    fac.forEach((F, fi) => {
+        const off = fi * nl;
+        for (let v = 0; v < nl; v++) {
+            const L = new Array(n).fill(0);
+            F.free.forEach((ax, b) => { L[ax] = (v >> b) & 1 ? 1 : -1; });
+            const x = L.slice();
+            if (F.kind === 'center') x[N] = -1;
+            else if (F.kind === 'arm') {
+                const s = L[N], ph = phiOf(F.k);
+                x[F.k] = F.sg * (1 + (s + 1) * Math.sin(ph));
+                x[N] = -1 + (s + 1) * Math.cos(ph);
+            } else {
+                const c = L[0], al = phi0 + psi;
+                const h0 = 1 + 2 * Math.sin(phi0), hN = -1 + 2 * Math.cos(phi0);
+                x[0] = h0 - (1 - c) * Math.cos(al);
+                x[N] = hN + (1 - c) * Math.sin(al);
+            }
+            for (let k = 0; k < n; k++) V[(off + v) * n + k] = x[k] * sc;
+        }
+    });
+}
+const cl01 = x => Math.max(0, Math.min(1, x));
+
+// ================================================================
+// 回転（n×n）と投影（n 次元 → 3 次元、4 本目から先は 1 本ずつ遠近）
+// ================================================================
+let Rm = new Float64Array(9), RN = 3;
+let axisScale = new Float64Array(NMAX).fill(1);   // 次元を変える時に、新しい軸を 0 から伸ばす／消える軸を縮める
+function buildRot(n) {
+    RN = n; Rm = new Float64Array(n * n);
+    for (let i = 0; i < n; i++) Rm[i * n + i] = 1;
+    planes(n).forEach(([i, j]) => {
+        const a = (S.ang[key(i, j)] || 0) * Math.PI / 180;
+        if (!a) return;
+        const c = Math.cos(a), s = Math.sin(a);
+        for (let col = 0; col < n; col++) {
+            const p = Rm[i * n + col], q = Rm[j * n + col];
+            Rm[i * n + col] = c * p - s * q; Rm[j * n + col] = s * p + c * q;
+        }
+    });
+}
+const DPERS = 2.4;
+const qbuf = new Float64Array(NMAX);
+function proj(Vsrc, idx, n, out, o) {
+    for (let r = 0; r < n; r++) {
+        let s = 0;
+        for (let c = 0; c < n; c++) s += Rm[r * n + c] * Vsrc[idx * n + c] * axisScale[c];
+        qbuf[r] = s;
+    }
+    for (let m = n - 1; m >= 3; m--) {
+        const k = 1 / Math.max(0.25, 1 - S.pk * qbuf[m] / DPERS);
+        for (let t = 0; t < m; t++) qbuf[t] *= k;
+    }
+    out[o] = qbuf[0]; out[o + 1] = qbuf[1]; out[o + 2] = qbuf[2];
+    return n > 3 ? qbuf[3] : 0;
+}
+// 軸 k が見えている割合（4 本目から先に回った分だけ消える）
+function axisFade(k) {
+    let h = 0;
+    for (let m = 3; m < RN; m++) h += Rm[m * RN + k] * Rm[m * RN + k];
+    return Math.max(0, 1 - h) * axisScale[k];
+}
+
+// ---------- 画面用の物を作る（形が変わった時） ----------
+let P3 = null;   // 投影した頂点（nv*3）
+function makeObjects() {
+    const src = S.net && S.shape === 'cube' ? NET : G;
+    ['edges', 'faces', 'verts'].forEach(drop);
+    P3 = new Float32Array(src.nv * 3);
+    // 辺
+    {
+        const g = new THREE.LineSegmentsGeometry();
+        g.setPositions(new Float32Array(src.E.length * 3));
+        g.setColors(Float32Array.from(src.ec));
+        objs.edges = new THREE.LineSegments2(g, mats.edges);
+        objs.edges.frustumCulled = false; objs.edges.renderOrder = 3;
+        objs.edges.userData.baseCol = Float32Array.from(src.ec);
+        scene.add(objs.edges);
+    }
+    // 面（超立方体・正単体・正軸体、展開図の時は出さない）
+    if (src.F && src.F.length) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(src.F.length * 3), 3));
+        g.setAttribute('color', new THREE.BufferAttribute(Float32Array.from(src.fc), 3));
+        objs.faces = new THREE.Mesh(g, mats.faces); objs.faces.frustumCulled = false; objs.faces.renderOrder = 1;
+        scene.add(objs.faces);
+    }
+    // 頂点
+    {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(src.nv * 3), 3));
+        const col = new Float32Array(src.nv * 3);
+        for (let i = 0; i < src.nv; i++) col.set(S.shape === 'sphere' ? [0.75, 0.82, 0.9] : [0.95, 0.97, 1], i * 3);
+        g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        objs.verts = new THREE.Points(g, mats.verts); objs.verts.frustumCulled = false; objs.verts.renderOrder = 4;
+        scene.add(objs.verts);
+    }
+    // 軸
+    drop('axes');
+    {
+        const g = new THREE.LineSegmentsGeometry();
+        g.setPositions(new Float32Array(NMAX * 6));
+        g.setColors(new Float32Array(NMAX * 6));
+        objs.axes = new THREE.LineSegments2(g, mats.axes); objs.axes.frustumCulled = false; objs.axes.renderOrder = 5;
+        scene.add(objs.axes);
+    }
+    applyShow();
+}
+function applyShow() {
+    if (objs.edges) objs.edges.visible = S.show.edges;
+    if (objs.faces) objs.faces.visible = S.show.faces && !(S.net && S.shape === 'cube');
+    if (objs.verts) objs.verts.visible = S.show.verts || S.shape === 'sphere';
+    if (objs.axes) objs.axes.visible = S.show.axes;
+    originDot.visible = S.show.axes;
+    mats.verts.size = S.shape === 'sphere' ? 2.2 : 5;
+    mats.edges.linewidth = S.lw;
+    requestRender();
+}
+
+// ---------- 毎回の投影と更新 ----------
+const _up = new THREE.Vector3(0, 1, 0), tmp3 = new Float32Array(3);
+const axEnd = new Float64Array(NMAX);
+function updateGeometry(flash) {
+    const src = S.net && S.shape === 'cube' ? NET : G;
+    if (!src) return;
+    const n = src.n;
+    if (S.net && S.shape === 'cube') netPositions(NET, S.fold, S.seq);
+    for (let i = 0; i < src.nv; i++) proj(src.V, i, n, P3, i * 3);
+    // 辺
+    {
+        const ib = objs.edges.geometry.attributes.instanceStart.data, a = ib.array, E = src.E;
+        for (let e = 0; e < E.length / 2; e++) {
+            const p = E[2 * e] * 3, q = E[2 * e + 1] * 3, o = e * 6;
+            a[o] = P3[p]; a[o + 1] = P3[p + 1]; a[o + 2] = P3[p + 2]; a[o + 3] = P3[q]; a[o + 4] = P3[q + 1]; a[o + 5] = P3[q + 2];
+        }
+        ib.needsUpdate = true;
+        const cb = objs.edges.geometry.attributes.instanceColorStart.data, base = objs.edges.userData.baseCol, k = 1 + flash * 0.9;
+        for (let i = 0; i < base.length; i++) cb.array[i] = Math.min(1, base[i] * k);
+        cb.needsUpdate = true;
+    }
+    if (objs.faces && objs.faces.visible) {
+        const pa = objs.faces.geometry.attributes.position, F = src.F;
+        for (let i = 0; i < F.length; i++) { const p = F[i] * 3; pa.array[i * 3] = P3[p]; pa.array[i * 3 + 1] = P3[p + 1]; pa.array[i * 3 + 2] = P3[p + 2]; }
+        pa.needsUpdate = true;
+    }
+    if (objs.verts && objs.verts.visible) { const pa = objs.verts.geometry.attributes.position; pa.array.set(P3); pa.needsUpdate = true; }
+    // 軸（−1.5 〜 +1.5、4 本目から先に回るほど暗く・細い矢じり）
+    {
+        const ib = objs.axes.geometry.attributes.instanceStart.data, cb = objs.axes.geometry.attributes.instanceColorStart.data;
+        const unit = new Float64Array(NMAX * NMAX);
+        for (let k = 0; k < NMAX; k++) {
+            const o = k * 6;
+            if (k >= n) { ib.array.fill(0, o, o + 6); cb.array.fill(0, o, o + 6); cones[k].visible = false; continue; }
+            const L = 1.45;
+            for (let c = 0; c < n; c++) unit[c] = c === k ? -L : 0;
+            proj(unit, 0, n, tmp3, 0); ib.array[o] = tmp3[0]; ib.array[o + 1] = tmp3[1]; ib.array[o + 2] = tmp3[2];
+            unit[k] = L; proj(unit, 0, n, tmp3, 0); ib.array[o + 3] = tmp3[0]; ib.array[o + 4] = tmp3[1]; ib.array[o + 5] = tmp3[2];
+            const fade = axisFade(k), br = 0.12 + 0.88 * fade, c = AXC[k];
+            cb.array.set([c.r * br, c.g * br, c.b * br, c.r * br, c.g * br, c.b * br], o);
+            // 矢じり
+            const tip = new THREE.Vector3(tmp3[0], tmp3[1], tmp3[2]);
+            unit[k] = L - 0.17; proj(unit, 0, n, tmp3, 0);
+            const back = new THREE.Vector3(tmp3[0], tmp3[1], tmp3[2]), dir = tip.clone().sub(back), len = dir.length();
+            const cone = cones[k];
+            cone.visible = S.show.axes && len > 1e-4;
+            if (cone.visible) {
+                cone.position.copy(tip).addScaledVector(dir, -0.5);
+                cone.quaternion.setFromUnitVectors(_up, dir.normalize());
+                const w = 0.35 + 0.65 * fade;
+                cone.scale.set(w, len / 0.17, w);
+                cone.material.opacity = 0.15 + 0.85 * fade;
+            }
+            axEnd[k] = fade;
+            labelPos[k] = [ib.array[o + 3] * 1.09, ib.array[o + 4] * 1.09, ib.array[o + 5] * 1.09];
+        }
+        ib.needsUpdate = true; cb.needsUpdate = true;
+    }
+}
+const labelPos = [];
+
+// ---------- 軸の名前（HTML） ----------
+const labelsEl = $('#labels'), labEls = AX.map(a => { const d = document.createElement('div'); d.className = 'lab'; d.textContent = a.n; d.style.color = a.c; labelsEl.appendChild(d); return d; });
+function updateLabels() {
+    const W = canvas.clientWidth, H = canvas.clientHeight, n = G ? G.n : 3;
+    labEls.forEach((d, k) => {
+        if (k >= n || !S.show.axes || !S.show.labels || !labelPos[k]) { d.style.display = 'none'; return; }
+        const p = new THREE.Vector3(...labelPos[k]).project(camera);
+        if (p.z > 1 || p.z < -1) { d.style.display = 'none'; return; }
+        const f = axEnd[k];
+        d.style.display = '';
+        d.style.left = ((p.x + 1) / 2 * W) + 'px';
+        d.style.top = ((1 - p.y) / 2 * H) + 'px';
+        d.style.opacity = (0.12 + 0.88 * f).toFixed(2);
+        d.style.fontSize = (11 + 5 * f).toFixed(1) + 'px';
+    });
+}
+
+// ================================================================
+// 描画ループ（必要な時だけ・時間基準）
+// ================================================================
+let needRender = true, lastT = 0, tween = null, flashT = 0, dimAnim = null, foldAnim = null, camTween = null;
+const requestRender = () => { needRender = true; };
+controls.addEventListener('change', () => { requestRender(); saveSoon(); });
+const ease = u => u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(dpr);
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+    lineMats.forEach(m => m.resolution.set(window.innerWidth, window.innerHeight));
+    requestRender();
+}
+window.addEventListener('resize', resize);
+
+function frame(t) {
+    requestAnimationFrame(frame);
+    const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
+    lastT = t;
+    let anim = false;
+    const n = G ? G.n : 3;
+    // 自動回転
+    if (S.spinOn) {
+        let any = false;
+        planes(n).forEach(([i, j], idx) => {
+            const k = key(i, j);
+            if (!S.spin[k]) return;
+            any = true;
+            S.ang[k] = ((S.ang[k] || 0) + 24 * S.speed * (0.7 + 0.6 * ((idx * 0.618) % 1)) * dt) % 360;
+        });
+        if (any) { anim = true; syncSelAngle(); saveSpinSoon(); }
+    }
+    // 角度の動き（整列・軸を見せる）
+    if (tween) {
+        const u = Math.min(1, (performance.now() - tween.t0) / tween.dur), e = ease(u);
+        for (const k in tween.to) S.ang[k] = tween.from[k] + (tween.to[k] - tween.from[k]) * e;
+        if (u >= 1) { tween = null; flashT = performance.now(); save(); }
+        syncSelAngle(); anim = true;
+    }
+    // 次元の切り替え（新しい軸が伸びる／消える軸が縮む）
+    if (dimAnim) {
+        const u = Math.min(1, (performance.now() - dimAnim.t0) / dimAnim.dur), e = ease(u);
+        dimAnim.axes.forEach(k => { axisScale[k] = dimAnim.up ? e : 1 - e; });
+        if (u >= 1) {
+            const d = dimAnim; dimAnim = null;
+            axisScale.fill(1);
+            if (!d.up) setShape(d.to);
+            flashT = performance.now();
+        }
+        anim = true;
+    }
+    // 展開図の折りたたみ
+    if (foldAnim) {
+        const u = Math.min(1, (performance.now() - foldAnim.t0) / foldAnim.dur);
+        S.fold = foldAnim.from + (foldAnim.to - foldAnim.from) * (S.seq ? u : ease(u));
+        if (u >= 1) { S.fold = foldAnim.to; foldAnim = null; flashT = performance.now(); syncFold(); save(); }
+        syncFold(); anim = true;
+    }
+    if (camTween) {
+        const u = Math.min(1, (performance.now() - camTween.t0) / camTween.dur);
+        camera.position.lerpVectors(camTween.from, camTween.to, ease(u));
+        if (u >= 1) { camTween = null; save(); }
+        anim = true;
+    }
+    let fl = 0;
+    if (flashT) {
+        const u = (performance.now() - flashT) / 1500;
+        if (u >= 1) flashT = 0;
+        else { fl = Math.pow(1 - u, 1.4) * (0.6 + 0.4 * Math.cos(u * Math.PI * 7)); anim = true; }
+    }
+    mats.edges.linewidth = S.lw * (1 + fl * 0.9);
+    if (controls.update()) anim = true;
+    if (anim || needRender) {
+        buildRot(n);
+        updateGeometry(fl);
+        renderer.render(scene, camera);
+        updateLabels();
+        needRender = false;
+    }
+}
+
+// ================================================================
+// 次元・形の切り替え
+// ================================================================
+function setShape(n, shape = S.shape) {
+    S.n = n; S.shape = shape;
+    G = buildShape(n, shape);
+    NET = shape === 'cube' ? buildNet(n) : null;
+    // 使えない面（今の次元にない軸）の角度・回転は消す
+    for (const k in S.ang) { const [i, j] = k.split('-').map(Number); if (j >= n) delete S.ang[k]; }
+    for (const k in S.spin) { const [i, j] = k.split('-').map(Number); if (j >= n) delete S.spin[k]; }
+    if (!S.sel || +S.sel.split('-')[1] >= n) S.sel = key(0, Math.min(3, n - 1));
+    makeObjects();
+    renderUI();
+    requestRender(); save();
+}
+function changeDim(to) {
+    to = Math.max(NMIN, Math.min(NMAX, to));
+    const from = G.n;
+    if (to === from || dimAnim) return;
+    if (to > from) {
+        // 先に高い次元の形を作り、新しい軸の向きを 0 から伸ばす
+        const add = []; for (let k = from; k < to; k++) add.push(k);
+        add.forEach(k => { axisScale[k] = 0; });
+        setShape(to);
+        dimAnim = { up: true, axes: add, t0: performance.now(), dur: 1300 };
+    } else {
+        // 消える軸を縮めてから、低い次元の形に切り替える
+        const rem = []; for (let k = to; k < from; k++) rem.push(k);
+        dimAnim = { up: false, axes: rem, to, t0: performance.now(), dur: 1100 };
+    }
+    syncDim(to);
+}
+
+// ================================================================
+// UI
+// ================================================================
+function syncDim(n) {
+    $('#nNum').textContent = n; $('#nBig').textContent = n; $('#nRange').value = n;
+    document.title = `${n}次元ビューア`;
+}
+function planeType(i, j) { return j < 3 ? 't3' : i < 3 ? 'tv' : 'th'; }
+function renderMap() {
+    const n = G.n, el = $('#map');
+    el.style.gridTemplateColumns = `18px repeat(${n - 1}, 1fr)`;
+    let h = '<div></div>';
+    for (let j = 1; j < n; j++) h += `<div class="hd" style="color:${AX[j].c}">${AX[j].n}</div>`;
+    for (let i = 0; i < n - 1; i++) {
+        h += `<div class="hd" style="color:${AX[i].c}">${AX[i].n}</div>`;
+        for (let j = 1; j < n; j++) {
+            if (j <= i) { h += '<div></div>'; continue; }
+            const k = key(i, j);
+            h += `<div class="cell ${planeType(i, j)}${S.spin[k] ? ' spin' : ''}${S.sel === k ? ' sel' : ''}" data-k="${k}" title="${AX[i].n}–${AX[j].n} の面"></div>`;
+        }
+    }
+    el.innerHTML = h;
+    el.querySelectorAll('.cell').forEach(c => c.addEventListener('click', () => {
+        const k = c.dataset.k;
+        S.sel = k;
+        S.spin[k] = !S.spin[k];
+        if (S.spin[k]) S.spinOn = true;
+        tween = null;
+        renderMap(); syncSel(); syncSpinBtn(); save();
+    }));
+}
+function syncSel() {
+    const [i, j] = S.sel.split('-').map(Number);
+    $('#selName').innerHTML = `<b style="color:${AX[i].c}">${AX[i].n}</b>–<b style="color:${AX[j].c}">${AX[j].n}</b>`;
+    syncSelAngle();
+}
+function syncSelAngle() {
+    const v = Math.round((((S.ang[S.sel] || 0) % 360) + 360) % 360);
+    if (document.activeElement !== $('#selAng')) $('#selAng').value = v;
+    $('#selAngV').textContent = v + '°';
+}
+function syncSpinBtn() {
+    $('#spinAll').textContent = S.spinOn ? '止める' : '回す';
+    $('#spinAll').classList.toggle('on', S.spinOn);
+}
+function renderAxes() {
+    const n = G.n;
+    $('#axes').innerHTML = AX.slice(0, n).map((a, k) => `<button class="axchip" type="button" data-k="${k}" style="color:${a.c}">${a.n}</button>`).join('');
+    $('#axes').querySelectorAll('.axchip').forEach(b => b.addEventListener('click', () => showAxis(+b.dataset.k)));
+}
+function syncAxisChips() {
+    $('#axes').querySelectorAll('.axchip').forEach(b => b.classList.toggle('hid', axisFade(+b.dataset.k) < 0.5));
+}
+// 軸 k を見える所（z の位置）へ回してくる：他の角度は 0 に、z–k の面だけ 90°
+function showAxis(k) {
+    const to = {};
+    planes(G.n).forEach(([i, j]) => { to[key(i, j)] = 0; });
+    if (k >= 3) to[key(2, k)] = 90;
+    S.spinOn = false; syncSpinBtn();
+    startTween(to);
+}
+function startTween(to) {
+    const from = {}, dest = {};
+    for (const k in to) {
+        from[k] = S.ang[k] || 0;
+        const d = ((to[k] - from[k]) % 360 + 540) % 360 - 180;   // 近い方へ回る
+        dest[k] = from[k] + d;
+    }
+    tween = { from, to: dest, t0: performance.now(), dur: 1400 };
+    requestRender();
+}
+function syncFold() {
+    $('#fold').value = S.fold; $('#foldV').textContent = Math.round((1 - S.fold) * 100) + '%';
+    $('#foldPlay').textContent = S.fold > 0.5 ? '開く ▶' : '折りたたむ ▶';
+}
+function renderNet() {
+    const ok = S.shape === 'cube';
+    $('#netSec').style.display = ok ? '' : 'none';
+    $('#netOn').classList.toggle('on', S.net);
+    $('#netOn').textContent = S.net ? '展開図をやめる' : '展開図にする';
+    $('#seqBtn').classList.toggle('on', S.seq);
+    if (ok && G) {
+        const n = G.n;
+        $('#netNote').innerHTML = `${n} 次元の立方体の展開図は、${n - 1} 次元の立方体 <b>${2 * n}</b> 個。真ん中に 1 個、まわりに腕が ${2 * (n - 1)} 本、x の腕の先にふたが 1 個。` +
+            `平らな時は ${n - 1} 次元の中にあり、最後の軸 <b style="color:${AX[n - 1].c}">${AX[n - 1].n}</b> の向きに折りたたむと ${n} 次元の立方体になります。`;
+    }
+    syncFold();
+}
+// 頂点・辺・面…の数（f ベクトル）
+const C = (a, b) => { if (b < 0 || b > a) return 0; let r = 1; for (let i = 1; i <= b; i++) r = r * (a - b + i) / i; return Math.round(r); };
+const KN = ['頂点', '辺', '面', '胞'];
+function renderFv() {
+    const n = G.n, sh = S.shape;
+    const names = { cube: '超立方体', simplex: '正単体', cross: '正軸体', sphere: '超球' };
+    $('#fvShape').textContent = `${n} 次元の${names[sh]}`;
+    if (sh === 'sphere') {
+        $('#fv').innerHTML = `<tr><td>座標面の大円</td><td>${C(n, 2)}</td></tr><tr><td>表面の次元</td><td>${n - 1}</td></tr>`;
+        $('#fvNote').textContent = `${n} 次元の球の表面は ${n - 1} 次元。座標の 2 本ずつで切った大円が ${C(n, 2)} 本（＝回転面の数と同じ）。`;
+        return;
+    }
+    const f = k => sh === 'cube' ? C(n, k) * Math.pow(2, n - k) : sh === 'simplex' ? C(n + 1, k + 1) : Math.pow(2, k + 1) * C(n, k + 1);
+    let h = '';
+    for (let k = 0; k < n; k++) h += `<tr><td>${k} 次元の部分${k < 4 ? `（${KN[k]}）` : ''}</td><td>${f(k).toLocaleString()}</td></tr>`;
+    $('#fv').innerHTML = h;
+    $('#fvNote').innerHTML = sh === 'cube' ? 'k 次元の部分の数 ＝ C(n, k)·2<sup>n−k</sup>（頂点 2<sup>n</sup>、辺 n·2<sup>n−1</sup>）'
+        : sh === 'simplex' ? 'k 次元の部分の数 ＝ C(n+1, k+1)（どの 2 点も辺でつながる）'
+        : 'k 次元の部分の数 ＝ 2<sup>k+1</sup>·C(n, k+1)（超立方体と頂点・面が入れかわった形）';
+}
+function renderShows() {
+    document.querySelectorAll('#shapes .btn').forEach(b => b.classList.toggle('on', b.dataset.sh === S.shape));
+    document.querySelectorAll('#shows .btn').forEach(b => b.classList.toggle('on', !!S.show[b.dataset.s]));
+    $('#speed').value = S.speed; $('#speedV').textContent = S.speed.toFixed(2);
+    $('#persp').value = S.pk; $('#perspV').textContent = S.pk.toFixed(2);
+    $('#lw').value = S.lw; $('#lwV').textContent = S.lw.toFixed(1);
+}
+function renderHud() {
+    const n = G.n, np = C(n, 2);
+    $('#hud').innerHTML = `回転面 ${np} 枚（3D の回転 3・軸が消える回転 ${3 * Math.max(0, n - 3)}・見えない所の回転 ${C(Math.max(0, n - 3), 2)}）<br>遠近の段 ${Math.max(0, n - 3)} 段（${n > 3 ? AX.slice(3, n).map(a => a.n).reverse().join(' → ') + ' の順に写す' : 'なし'}）`;
+}
+function renderUI() {
+    syncDim(G.n); renderMap(); syncSel(); syncSpinBtn(); renderAxes(); renderNet(); renderFv(); renderShows(); renderHud();
+}
+
+// ---------- 保存（変えるたびに自動で） ----------
+let saveTimer = null, spinSaveT = 0;
+function save() {
+    clearTimeout(saveTimer); saveTimer = null;
+    S.cam = { p: camera.position.toArray().map(v => +v.toFixed(4)), t: controls.target.toArray().map(v => +v.toFixed(4)) };
+    try {
+        localStorage.setItem(STORE, JSON.stringify(S));
+        const el = $('#saved'), d = new Date();
+        el.textContent = `自動保存 ${d.toLocaleTimeString('ja-JP')}`;
+        el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 400);
+    } catch (_) { $('#saved').textContent = '保存できません（プライベートブラウズなど）'; }
+}
+const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(save, 250); };
+function saveSpinSoon() { const now = performance.now(); if (now - spinSaveT > 1000) { spinSaveT = now; save(); } }   // 回っている間も 1 秒ごとに角度を保存
+window.addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+function loadState(d) {
+    const base = DEF();
+    S = { ...base, ...d, show: { ...base.show, ...(d.show || {}) }, ang: { ...(d.ang || {}) }, spin: { ...(d.spin || {}) } };
+    S.n = Math.max(NMIN, Math.min(NMAX, +S.n || 5));
+    if (!['cube', 'simplex', 'cross', 'sphere'].includes(S.shape)) S.shape = 'cube';
+    if (S.cam && S.cam.p && S.cam.t) { camera.position.fromArray(S.cam.p); controls.target.fromArray(S.cam.t); }
+}
+function readStore() { try { return JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (_) { return null; } }
+function readHash() {
+    const h = location.hash.slice(1);
+    if (!h.startsWith('s=')) return null;
+    try { return JSON.parse(decodeURIComponent(h.slice(2))); } catch (_) { return null; }
+}
+
+// ---------- ボタン ----------
+$('#nMinus').addEventListener('click', () => changeDim(G.n - 1));
+$('#nPlus').addEventListener('click', () => changeDim(G.n + 1));
+$('#nRange').addEventListener('change', e => changeDim(+e.target.value));
+document.querySelectorAll('#shapes .btn').forEach(b => b.addEventListener('click', () => { if (dimAnim) return; setShape(G.n, b.dataset.sh); flashT = performance.now(); }));
+$('#spinAll').addEventListener('click', () => { S.spinOn = !S.spinOn; tween = null; syncSpinBtn(); save(); });
+$('#randSpin').addEventListener('click', () => {
+    const ps = planes(G.n).filter(([i, j]) => j >= 3);   // 軸が消える回転・見えない所の回転から選ぶ
+    S.spin = {};
+    for (let m = 0; m < Math.min(3, ps.length); m++) S.spin[key(...ps[Math.floor(Math.random() * ps.length)])] = true;
+    S.spinOn = true; tween = null;
+    renderMap(); syncSpinBtn(); save();
+});
+$('#resetAng').addEventListener('click', () => { const to = {}; for (const k in S.ang) to[k] = 0; S.spinOn = false; syncSpinBtn(); startTween(to); });
+$('#selAng').addEventListener('input', e => { tween = null; S.ang[S.sel] = +e.target.value; syncSelAngle(); requestRender(); saveSoon(); });
+$('#speed').addEventListener('input', e => { S.speed = +e.target.value; $('#speedV').textContent = S.speed.toFixed(2); saveSoon(); });
+$('#persp').addEventListener('input', e => { S.pk = +e.target.value; $('#perspV').textContent = S.pk.toFixed(2); requestRender(); saveSoon(); });
+$('#lw').addEventListener('input', e => { S.lw = +e.target.value; $('#lwV').textContent = S.lw.toFixed(1); requestRender(); saveSoon(); });
+document.querySelectorAll('#shows .btn').forEach(b => b.addEventListener('click', () => { S.show[b.dataset.s] = !S.show[b.dataset.s]; renderShows(); applyShow(); save(); }));
+$('#netOn').addEventListener('click', () => {
+    S.net = !S.net;
+    if (S.net && S.fold > 0.999) { S.fold = 1; foldAnim = { from: 1, to: 0, t0: performance.now(), dur: S.seq ? 900 * G.n : 2200 }; }
+    // 展開図は大きく広がるので、カメラを引いて全体が入るように
+    const d = camera.position.distanceTo(controls.target), want = S.net ? 9 : 5;
+    if ((S.net && d < want) || (!S.net && d > want)) camTween = { from: camera.position.clone(), to: controls.target.clone().add(camera.position.clone().sub(controls.target).setLength(want)), t0: performance.now(), dur: 1200 };
+    makeObjects(); renderNet(); save();
+});
+$('#fold').addEventListener('input', e => { foldAnim = null; S.fold = +e.target.value; syncFold(); requestRender(); saveSoon(); });
+$('#foldPlay').addEventListener('click', () => {
+    if (!S.net) { S.net = true; makeObjects(); renderNet(); }
+    const to = S.fold > 0.5 ? 0 : 1;
+    foldAnim = { from: S.fold, to, t0: performance.now(), dur: S.seq ? 900 * G.n : 2200 };
+});
+$('#seqBtn').addEventListener('click', () => { S.seq = !S.seq; renderNet(); requestRender(); save(); });
+$('#panelBtn').addEventListener('click', () => { $('#panel').hidden = !$('#panel').hidden; });
+$('#copyUrl').addEventListener('click', async () => {
+    save();
+    const s = { n: S.n, shape: S.shape, ang: Object.fromEntries(Object.entries(S.ang).map(([k, v]) => [k, Math.round(v)])), spin: S.spin, spinOn: S.spinOn, net: S.net, fold: +S.fold.toFixed(3), seq: S.seq, pk: S.pk };
+    const url = location.href.split('#')[0] + '#s=' + encodeURIComponent(JSON.stringify(s));
+    try { await navigator.clipboard.writeText(url); $('#saved').textContent = 'URL をコピーしました'; }
+    catch (_) { prompt('この URL をコピーしてください', url); }
+});
+$('#exportBtn').addEventListener('click', () => {
+    save();
+    const d = new Date(), pad = v => String(v).padStart(2, '0');
+    const name = `ndim_${S.n}次元_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' }));
+    a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
+$('#importBtn').addEventListener('click', () => $('#importFile').click());
+$('#importFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try { loadState(JSON.parse(await f.text())); setShape(S.n, S.shape); flashT = performance.now(); }
+    catch (_) { alert('読み込めないファイルです'); }
+});
+$('#resetAll').addEventListener('click', () => {
+    if (!confirm('最初の状態に戻しますか？（いまの状態は消えます）')) return;
+    S = DEF(); camera.position.copy(CAM0); controls.target.set(0, 0, 0);
+    setShape(S.n, S.shape);
+});
+// 軸のボタンの濃さ（見えているか）をときどき更新
+setInterval(() => { if (G) syncAxisChips(); }, 300);
+
+// ---------- 開始 ----------
+const fromHash = readHash(), stored = readStore();
+if (fromHash) loadState({ ...(stored || {}), ...fromHash, cam: null });
+else if (stored) loadState(stored);
+if (window.innerWidth <= 760) $('#panel').hidden = true;
+resize();
+setShape(S.n, S.shape);
+if (fromHash) try { history.replaceState(null, '', location.pathname); } catch (_) { /* 何もしない */ }
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

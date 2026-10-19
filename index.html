@@ -345,7 +345,7 @@
     <section>
         <div class="sec-head">
             <h2>立方体の仲間</h2>
-            <span class="path">正方形 → 立方体 → 超立方体 → 5次元超立方体 → 6次元立方体</span>
+            <span class="path">正方形 → 立方体 → 超立方体 → 5次元超立方体 → 6次元立方体 → n次元</span>
         </div>
         <div class="grid">
             <a class="card" href="hypercube.html" style="--accent: var(--d4);">
@@ -369,6 +369,19 @@
                     <div class="meta">
                         <div class="dims"><span class="dim d5">5D</span><span class="dim d6">6D</span></div>
                         <span class="file">hypercube6d.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
+
+            <a class="card" href="ndim.html" style="--accent: var(--d4);">
+                <div class="thumb"><svg data-thumb="cube7" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>n次元ビューア</h3><span class="new">NEW</span></div>
+                    <div class="sub">3〜10 次元を、数字ひとつで切り替え</div>
+                    <p>次元の数を変えるだけで、超立方体・正単体・正軸体・超球を n 次元のまま回します。回転面マップで「軸が消える回転」を選び、超立方体の展開図も n 次元のまま折りたたみ。回転やカメラの位置まで自動で保存。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d3">3D</span><span class="dim d4">…</span><span class="dim d6">10D</span></div>
+                        <span class="file">ndim.html <span class="arrow">→</span></span>
                     </div>
                 </div>
             </a>
@@ -518,6 +531,7 @@
                 case 'cube4':   drawCube(svg, 4, 43, 1.1); break;
                 case 'cube5':   drawCube(svg, 5, 44, 0.7); break;
                 case 'cube6':   drawCube(svg, 6, 45, 0.45); break;
+                case 'cube7':   drawCube(svg, 7, 45, 0.3); break;
                 case 'sphere4':
                     drawSphere(svg, 40, [[40, 12, 0, 0.7], [12, 40, 0, 0.7], [40, 26, 0, 0.35], [26, 40, 0, 0.35]]);
                     break;
