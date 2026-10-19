@@ -146,7 +146,8 @@
             <button class="btn" type="button" data-s="real">黄の線</button>
             <button class="btn" type="button" data-s="green">緑の線</button>
         </div>
-        <div class="row">範囲<input type="range" id="range" min="0.5" max="12" step="0.1"><span class="v" id="rangeV"></span></div>
+        <div class="row"><button class="btn lime" id="infBtn" type="button" title="x の平面全体を円盤に、y の高さも縮めて、無限の遠くまで全部を 1 つの形に">∞ 無限まで見せる</button></div>
+        <div class="row"><span id="rangeL">範囲</span><input type="range" id="range" min="0.5" max="12" step="0.1"><span class="v" id="rangeV"></span></div>
         <div class="row">歪み<input type="range" id="persp" min="0" max="1" step="0.01"><span class="v" id="perspV"></span></div>
     </section>
 </aside>
@@ -937,6 +938,10 @@ const PRESETS = [
     { name: 'sin の展開（n を動かすと解が増える）', e: 'Σ(k=0,n,(-1)^k x^(2k+1)/(2k+1)!)', params: { n: { v: 6, min: 0, max: 15, step: 1 } }, R: 7, spin: ['yw'] },
     { name: 'y = eˣ（解はない）', e: 'e^x', R: 2.5, spin: ['zw'] },
     { name: 'y = 1/x（x = 0 で無限大）', e: '1/x', R: 2, spin: ['zw'] },
+    { name: '∞ y = x³ − 2x + 4 を無限の果てまで', e: 'x^3-2x+4', inf: true, spin: ['zw'] },
+    { name: '∞ y = x⁵ − 1 を無限の果てまで（遠くでは x⁵ の 5 枚の羽）', e: 'x^5-1', inf: true, spin: ['yw'] },
+    { name: '∞ y = 1/(x² + 1)（±i で無限大に飛ぶ極）', e: '1/(x^2+1)', inf: true, spin: ['zw'] },
+    { name: '∞ y = sin x を無限の果てまで（解が無限にある）', e: 'sin(x)', inf: true, R: 6, spin: ['zw'] },
 ];
 
 // ---------- 状態 ----------
@@ -944,7 +949,7 @@ const S = {
     expr: 'x^2', params: {}, R: 2, pk: 0.55,
     ang: { xw: 0, yw: 0, zw: 0, xz: 0 },
     spin: { xw: false, yw: false, zw: true, xz: false }, spinOn: true, speed: 1,
-    color: 'w', look: 'neon', show: { surf: true, grid: true, floor: true, axes: true, real: true, green: true },
+    color: 'w', look: 'neon', inf: false, show: { surf: true, grid: true, floor: true, axes: true, real: true, green: true },
 };
 function save() {
     try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (_) { /* 保存できない環境では何もしない */ }
@@ -1244,54 +1249,106 @@ function defaultParam(name) {
 
 // ---------- 面・線・解を作り直す ----------
 let Yr = 1, roots = [], hotRoot = -1;
+// x（複素数）⇔ 床の上の位置 [a, b]
+// 四角：−R〜R をそのまま −1〜1 に。無限：平面全体を半径 1 の円盤に縮める（|x| = R/2 が半径の半分、円盤の縁が無限の遠く）
+const infC = () => S.R / 2;
+function xToDisp(x) {
+    if (!S.inf) return [x.re / S.R, x.im / S.R];
+    const m = cabs(x);
+    if (!(m > 0)) return [0, 0];
+    const rho = m / (infC() + m);
+    return [x.re / m * rho, x.im / m * rho];
+}
+function dispToX(a, b) {
+    if (!S.inf) return C(a * S.R, b * S.R);
+    const rho = Math.hypot(a, b);
+    if (!(rho > 0)) return C(0);
+    const m = infC() * rho / (1 - rho);
+    return C(a / rho * m, b / rho * m);
+}
+
 function rebuild(fitR) {
     if (!cur) return;
-    const env = paramEnv(), R = S.R, N = 96, n1 = N + 1;
+    const env = paramEnv(), R = S.R, inf = !!S.inf;
     const cenv = { z: null, y: C(0), p: env, loop: {} };
     const ev = z => { cenv.z = z; cenv.loop = {}; return cur.cf(cenv); };
 
-    // 解（範囲より広めに探して、範囲を合わせる時に使う）
-    roots = findRoots(cur.cf, env, { x0: -R, x1: R, y0: -R, y1: R }, 350).filter(r => cabs(r) < 60);
+    // 解（範囲より広めに探す）
+    const sr = inf ? Math.max(R, 10) : R;
+    roots = findRoots(cur.cf, env, { x0: -sr, x1: sr, y0: -sr, y1: sr }, 350).filter(r => cabs(r) < (inf ? 1e4 : 60));
     if (fitR) {
-        const m = roots.reduce((a, r) => Math.max(a, Math.abs(r.re), Math.abs(r.im)), 0);
-        if (m > 0) { S.R = Math.min(12, Math.max(1.2, Math.ceil(m * 1.35 * 10) / 10)); }
+        const m = roots.filter(r => cabs(r) < 60).reduce((a, r) => Math.max(a, Math.abs(r.re), Math.abs(r.im)), 0);
+        // 四角：解が全部入る広さ。無限：いちばん遠い解が半径のおよそ半分に来る広さ
+        if (m > 0) S.R = Math.min(12, Math.max(1.2, Math.ceil(m * (inf ? 2 : 1.35) * 10) / 10));
         syncUI();
         return rebuild(false);
     }
 
-    const re = new Float64Array(n1 * n1), im = new Float64Array(n1 * n1);
-    for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) {
-        const v = ev(C(-R + 2 * R * i / N, -R + 2 * R * j / N));
-        re[j * n1 + i] = v.re; im[j * n1 + i] = v.im;
+    // ---- 床の上のサンプル点と、面のつながり（四角の格子 / 同心円と放射状） ----
+    const Ad = [], Bd = [], quads = [], polys = [];
+    let realEps;
+    if (!inf) {
+        const N = 96, n1 = N + 1;
+        for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) { Ad.push(-1 + 2 * i / N); Bd.push(-1 + 2 * j / N); }
+        for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const a = j * n1 + i; quads.push(a, a + 1, a + n1 + 1, a + n1); }
+        for (let t = 0; t <= N; t += N / 12) {
+            polys.push(Array.from({ length: n1 }, (_, i) => t * n1 + i));
+            polys.push(Array.from({ length: n1 }, (_, j) => j * n1 + t));
+        }
+        realEps = 0.6 / N;
+    } else {
+        const Nr = 72, Nt = 144;
+        for (let ir = 0; ir <= Nr; ir++) for (let it = 0; it < Nt; it++) {
+            const rho = 0.994 * ir / Nr, th = 2 * Math.PI * it / Nt;
+            Ad.push(rho * Math.cos(th)); Bd.push(rho * Math.sin(th));
+        }
+        const K = (ir, it) => ir * Nt + (it % Nt);
+        for (let ir = 0; ir < Nr; ir++) for (let it = 0; it < Nt; it++) quads.push(K(ir, it), K(ir, it + 1), K(ir + 1, it + 1), K(ir + 1, it));
+        for (let ir = 9; ir <= Nr; ir += 9) polys.push(Array.from({ length: Nt + 1 }, (_, it) => K(ir, it)));
+        for (let it = 0; it < Nt; it += Nt / 12) polys.push(Array.from({ length: Nr + 1 }, (_, ir) => K(ir, it)));
+        realEps = 0.003;
     }
-    const mags = [];
-    for (let k = 0; k < re.length; k++) { const m = Math.hypot(re[k], im[k]); if (isFinite(m)) mags.push(m); }
-    mags.sort((a, b) => a - b);
-    Yr = Math.max(1e-9, (mags.length ? mags[Math.floor(mags.length * 0.9)] : 1) * 1.1);
+    const n = Ad.length;
+    const re = new Float64Array(n), im = new Float64Array(n);
+    for (let k = 0; k < n; k++) { const v = ev(dispToX(Ad[k], Bd[k])); re[k] = v.re; im[k] = v.im; }
 
-    const A = i => -1 + 2 * i / N, B = j => -1 + 2 * j / N;
-    const okv = k => isFinite(re[k]) && isFinite(im[k]) && Math.abs(re[k] / Yr) < CLIP && Math.abs(im[k] / Yr) < CLIP;
-    const P4 = (a, b, u, v) => [a, u, -b, v];
+    // ---- 高さ：四角は Yr で割って大きすぎる所を切る。無限は |y| を縮めて、どこまで大きくても有限の高さに ----
+    const mags = [];
+    for (let k = 0; k < n; k++) { const m = Math.hypot(re[k], im[k]); if (isFinite(m)) mags.push(m); }
+    mags.sort((a, b) => a - b);
+    const pct = q => mags.length ? mags[Math.floor(mags.length * q)] : 1;
+    Yr = Math.max(1e-9, inf ? pct(0.35) : pct(0.9) * 1.1);
+    const H = 1.35;
+    const scaleY = (r, i) => {
+        if (!isFinite(r) || !isFinite(i)) return null;
+        if (inf) { const f = H / (Yr + Math.hypot(r, i)); return [r * f, i * f]; }
+        const u = r / Yr, v = i / Yr;
+        return Math.abs(u) < CLIP && Math.abs(v) < CLIP ? [u, v] : null;
+    };
     const cl = v => Math.max(-CLIP * 1.2, Math.min(CLIP * 1.2, isFinite(v) ? v : 0));
+    const Uu = new Float64Array(n), Vv = new Float64Array(n), OK = new Uint8Array(n);
+    for (let k = 0; k < n; k++) {
+        const s = scaleY(re[k], im[k]);
+        if (s) { Uu[k] = s[0]; Vv[k] = s[1]; OK[k] = 1; }
+        else { Uu[k] = cl(re[k] / Yr); Vv[k] = cl(im[k] / Yr); }
+    }
+    const P4 = (a, b, u, v) => [a, u, -b, v];
+    const auxOf = k => {
+        const m = Math.hypot(re[k], im[k]);
+        return [m > 0 ? re[k] / m : 1, m > 0 ? im[k] / m : 0, m > 0 && isFinite(m) ? Math.log(m) : -20, OK[k]];
+    };
 
     // 曲面
-    const p4 = new Float32Array(n1 * n1 * 4), aux = new Float32Array(n1 * n1 * 4);
-    for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) {
-        const k = j * n1 + i, u = re[k] / Yr, v = im[k] / Yr, m = Math.hypot(re[k], im[k]);
-        p4.set(P4(A(i), B(j), cl(u), cl(v)), k * 4);
-        aux.set([m > 0 ? re[k] / m : 1, m > 0 ? im[k] / m : 0, m > 0 && isFinite(m) ? Math.log(m) : -20, okv(k) ? 1 : 0], k * 4);
-    }
+    const p4 = new Float32Array(n * 4), aux = new Float32Array(n * 4);
+    for (let k = 0; k < n; k++) { p4.set(P4(Ad[k], Bd[k], Uu[k], Vv[k]), k * 4); aux.set(auxOf(k), k * 4); }
     const idx = [];
-    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-        const a = j * n1 + i, b = a + 1, c = a + n1 + 1, d = a + n1;
-        idx.push(a, b, c, a, c, d);
-    }
+    for (let q = 0; q < quads.length; q += 4) { const [a, b, c, d] = quads.slice(q, q + 4); idx.push(a, b, c, a, c, d); }
     dropObj('surf');
     {
         const g = new THREE.BufferGeometry();
         g.setAttribute('p4', new THREE.BufferAttribute(p4, 4));
         g.setAttribute('aux', new THREE.BufferAttribute(aux, 4));
-        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n1 * n1 * 3), 3));
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
         g.setIndex(idx);
         objs.surf = new THREE.Mesh(g, surfMats[S.look === 'solid' ? 'solid' : 'neon']); objs.surf.frustumCulled = false;
         scene.add(objs.surf);
@@ -1315,20 +1372,16 @@ function rebuild(fitR) {
         }, mats[key], THREE.LineSegments, order);
     };
 
-    // 曲面の上の格子（Re x・Im x が一定の線）
-    const gp4 = [], gok = [], gaux = [], gs = N / 12;
-    const gv = k => {
-        const u = re[k] / Yr, v = im[k] / Yr, m = Math.hypot(re[k], im[k]);
-        return [m > 0 ? re[k] / m : 1, m > 0 ? im[k] / m : 0, m > 0 && isFinite(m) ? Math.log(m) : -20, 0];
-    };
-    const gseg = (ia, ja, ib, jb) => {
-        const ka = ja * n1 + ia, kb = jb * n1 + ib;
-        gp4.push(...P4(A(ia), B(ja), cl(re[ka] / Yr), cl(im[ka] / Yr)), ...P4(A(ib), B(jb), cl(re[kb] / Yr), cl(im[kb] / Yr)));
-        gok.push(okv(ka) ? 1 : 0, okv(kb) ? 1 : 0);
-        gaux.push(...gv(ka), ...gv(kb));
-    };
-    for (let j = 0; j <= N; j += gs) for (let i = 0; i < N; i++) gseg(i, j, i + 1, j);
-    for (let i = 0; i <= N; i += gs) for (let j = 0; j < N; j++) gseg(i, j, i, j + 1);
+    // 曲面の上の格子（四角：Re x・Im x が一定の線、無限：|x| が一定の円と放射状の線）
+    const gp4 = [], gok = [], gaux = [];
+    polys.forEach(poly => {
+        for (let m = 0; m + 1 < poly.length; m++) {
+            const ka = poly[m], kb = poly[m + 1];
+            gp4.push(...P4(Ad[ka], Bd[ka], Uu[ka], Vv[ka]), ...P4(Ad[kb], Bd[kb], Uu[kb], Vv[kb]));
+            gok.push(OK[ka], OK[kb]);
+            gaux.push(...auxOf(ka), ...auxOf(kb));
+        }
+    });
     dropObj('grid');
     objs.grid = mk({
         p4: new THREE.BufferAttribute(new Float32Array(gp4), 4),
@@ -1337,20 +1390,35 @@ function rebuild(fitR) {
     }, gridMat, THREE.LineSegments, 2);
 
     // 床（x の複素数平面、y = 0）
-    const F = segs(), st = niceStep(R / 3);
-    for (let t = Math.ceil(-R / st) * st; t <= R + 1e-9; t += st) {
-        push(F, P4(t / R, -1, 0, 0), P4(t / R, 1, 0, 0));
-        push(F, P4(-1, t / R, 0, 0), P4(1, t / R, 0, 0));
+    const F = segs();
+    if (!inf) {
+        const st = niceStep(R / 3);
+        for (let t = Math.ceil(-R / st) * st; t <= R + 1e-9; t += st) {
+            push(F, P4(t / R, -1, 0, 0), P4(t / R, 1, 0, 0));
+            push(F, P4(-1, t / R, 0, 0), P4(1, t / R, 0, 0));
+        }
+    } else {
+        // |x| = c/4, c/2, c, 2c, 4c, 8c, 16c の円と、いちばん外の円（無限の遠く）、30° ごとの放射状の線
+        const c = infC();
+        [0.25, 0.5, 1, 2, 4, 8, 16, Infinity].forEach(f => {
+            const rho = f === Infinity ? 0.999 : f / (1 + f);
+            for (let s = 0; s < 96; s++) {
+                const t0 = 2 * Math.PI * s / 96, t1 = 2 * Math.PI * (s + 1) / 96;
+                push(F, P4(rho * Math.cos(t0), rho * Math.sin(t0), 0, 0), P4(rho * Math.cos(t1), rho * Math.sin(t1), 0, 0));
+            }
+        });
+        for (let s = 0; s < 12; s++) { const t = Math.PI * s / 6; push(F, P4(0, 0, 0, 0), P4(0.999 * Math.cos(t), 0.999 * Math.sin(t), 0, 0)); }
+        void c;
     }
     put('floor', F, 1);
 
     // 黄：x が実数の所（細かく）
-    const Y = segs(), M = 600;
+    const Y = segs(), M = 800;
     let prev = null;
     for (let m = 0; m <= M; m++) {
-        const a = -1 + 2 * m / M, v = ev(C(a * R, 0)), u = v.re / Yr, w = v.im / Yr;
-        const ok = isFinite(u) && isFinite(w) && Math.abs(u) < CLIP && Math.abs(w) < CLIP;
-        const p = ok ? P4(a, 0, u, w) : null;
+        const a = inf ? -0.997 + 1.994 * m / M : -1 + 2 * m / M;
+        const v = ev(dispToX(a, 0)), s = scaleY(v.re, v.im);
+        const p = s ? P4(a, 0, s[0], s[1]) : null;
         if (p && prev) push(Y, prev, p);
         prev = p;
     }
@@ -1358,31 +1426,29 @@ function rebuild(fitR) {
 
     // 緑：x が複素数でも y が実数になる所（Im y = 0）
     const Gr = segs();
-    const gp = (ka, kb, ia, ja, ib, jb) => {
+    const gp = (ka, kb) => {
         const ca = im[ka], cb = im[kb], t = ca / (ca - cb);
-        const a = A(ia + (ib - ia) * t), b = B(ja + (jb - ja) * t), u = (re[ka] + (re[kb] - re[ka]) * t) / Yr;
-        return Math.abs(u) < CLIP && Math.abs(b) > 0.6 / N ? P4(a, b, u, 0) : null;
+        const a = Ad[ka] + (Ad[kb] - Ad[ka]) * t, b = Bd[ka] + (Bd[kb] - Bd[ka]) * t, u = Uu[ka] + (Uu[kb] - Uu[ka]) * t;
+        return Math.abs(b) > realEps ? P4(a, b, u, 0) : null;   // 実軸の上は黄色で描く
     };
-    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-        const k0 = j * n1 + i, k1 = k0 + 1, k2 = k0 + n1 + 1, k3 = k0 + n1;
-        const c0 = im[k0], c1 = im[k1], c2 = im[k2], c3 = im[k3];
-        if (!(isFinite(c0) && isFinite(c1) && isFinite(c2) && isFinite(c3))) continue;
-        if (!(okv(k0) && okv(k1) && okv(k2) && okv(k3))) continue;
+    for (let q = 0; q < quads.length; q += 4) {
+        const ks = quads.slice(q, q + 4);
+        if (!ks.every(k => OK[k] && isFinite(im[k]))) continue;
         const ps = [];
-        if ((c0 > 0) !== (c1 > 0)) ps.push(gp(k0, k1, i, j, i + 1, j));
-        if ((c1 > 0) !== (c2 > 0)) ps.push(gp(k1, k2, i + 1, j, i + 1, j + 1));
-        if ((c3 > 0) !== (c2 > 0)) ps.push(gp(k3, k2, i, j + 1, i + 1, j + 1));
-        if ((c0 > 0) !== (c3 > 0)) ps.push(gp(k0, k3, i, j, i, j + 1));
+        for (let e = 0; e < 4; e++) {
+            const ka = ks[e], kb = ks[(e + 1) % 4];
+            if ((im[ka] > 0) !== (im[kb] > 0)) ps.push(gp(ka, kb));
+        }
         for (let m = 0; m + 1 < ps.length; m += 2) if (ps[m] && ps[m + 1]) push(Gr, ps[m], ps[m + 1]);
     }
     put('green', Gr, 3);
 
-    // 解
+    // 解（無限の時は全部、四角の時は範囲の中だけ）
     dropObj('roots');
-    const vis = roots.filter(r => Math.abs(r.re) <= R * 1.0001 && Math.abs(r.im) <= R * 1.0001);
+    const vis = inf ? roots.slice() : roots.filter(r => Math.abs(r.re) <= R * 1.0001 && Math.abs(r.im) <= R * 1.0001);
     if (vis.length) {
         const rp = new Float32Array(vis.length * 4), ri = new Float32Array(vis.length);
-        vis.forEach((r, i) => { rp.set(P4(r.re / R, r.im / R, 0, 0), i * 4); ri[i] = i; });
+        vis.forEach((r, i) => { const [a, b] = xToDisp(r); rp.set(P4(a, b, 0, 0), i * 4); ri[i] = i; });
         objs.roots = mk({ p4: new THREE.BufferAttribute(rp, 4), idx: new THREE.BufferAttribute(ri, 1) }, rootMat, THREE.Points, 10);
     }
     visRoots = vis;
@@ -1429,7 +1495,8 @@ function updateLabels() {
         const fade = 1 - Math.min(1, dw * dw);
         items.push({ cls: 'lab', text: a.t, color: a.c, v: r.v, op: 0.1 + 0.9 * fade, scale: 0.75 + 0.35 * fade });
     });
-    visRoots.forEach((r, i) => items.push({ cls: 'lab root' + (i === hotRoot ? ' hot' : ''), text: fmtR(r.re, r.im), v: proj4([r.re / S.R, 0, -r.im / S.R, 0]).v, op: 1 }));
+    visRoots.forEach((r, i) => items.push({ cls: 'lab root' + (i === hotRoot ? ' hot' : ''), text: fmtR(r.re, r.im), v: (([a, b]) => proj4([a, 0, -b, 0]).v)(xToDisp(r)), op: 1 }));
+    if (S.inf && S.show.floor) items.push({ cls: 'lab', text: '∞', color: '#94a3b8', v: proj4([0.76, 0, 0.76, 0]).v, op: 0.9, scale: 1.4 });
     while (labPool.length < items.length) { const d = document.createElement('div'); labelsEl.appendChild(d); labPool.push(d); }
     const placed = [];   // 解のラベルが重なる時は後のものを隠す（軸を消すと解が 1 か所に集まるため）
     labPool.forEach((d, i) => {
@@ -1544,7 +1611,7 @@ function renderViews() {
     }));
 }
 function renderRootChips() {
-    $('#rootCount').textContent = roots.length ? `${visRoots.length} 個` + (roots.length > visRoots.length ? `（範囲の外に ${roots.length - visRoots.length} 個）` : '') : 'なし';
+    $('#rootCount').textContent = roots.length ? `${visRoots.length} 個` + (roots.length > visRoots.length ? `（範囲の外に ${roots.length - visRoots.length} 個。∞ で全部）` : '') : 'なし';
     $('#roots').innerHTML = visRoots.map((r, i) => `<span class="chip" data-i="${i}" title="${fmtC(r.re, r.im)}">${fmtR(r.re, r.im)}</span>`).join('');
     document.querySelectorAll('#roots .chip').forEach(c => c.addEventListener('click', () => {
         hotRoot = +c.dataset.i;
@@ -1592,6 +1659,9 @@ function syncUI() {
     $('#spinAll').classList.toggle('on', S.spinOn);
     $('#speed').value = S.speed; $('#speedV').textContent = S.speed.toFixed(2);
     $('#range').value = S.R; $('#rangeV').textContent = S.R.toFixed(1);
+    $('#infBtn').classList.toggle('on', !!S.inf);
+    $('#rangeL').textContent = S.inf ? '縮み方' : '範囲';
+    $('#range').title = S.inf ? '|x| = この値の半分が、円盤の半径の半分の所に来る' : 'x の実部・虚部をこの値まで表示';
     $('#persp').value = S.pk; $('#perspV').textContent = S.pk.toFixed(2);
     document.querySelectorAll('#colors .btn').forEach(b => b.classList.toggle('on', b.dataset.c === S.color));
     document.querySelectorAll('#looks .btn').forEach(b => b.classList.toggle('on', b.dataset.l === (S.look === 'solid' ? 'solid' : 'neon')));
@@ -1604,6 +1674,7 @@ function legendText() {
         : '色＝いま消えている 4 本目の軸（<span style="color:#22d3ee">シアン−</span>・<span style="color:#a3e635">ライム0</span>・<span style="color:#f472b6">マゼンタ+</span>）')
         : S.color === 'arg' ? '色＝y の向き（偏角、虹色が一周）、明るさの縞＝|y| が 2 倍ごと' : '色＝|y| の大きさ（暗いほど 0 に近い）';
     return `<i style="color:var(--rex)">Re x</i>・<i style="color:var(--imx)">Im x</i>・<i style="color:var(--rey)">Re y</i>・<i style="color:var(--imy)">Im y</i> の 4 本の軸を 4 次元のまま回し、4 本目の向きに回った軸は薄く消えます。　${c}　` +
+        (S.inf ? '<b style="color:#d9f99d">∞ 無限まで：</b>床（x の平面全体）を円盤に縮め、円盤の縁が無限の遠く。高さも |y| を縮めて、どこまで大きくても有限に。　' : '') +
         `<span style="color:#fde047">黄＝x が実数</span>　<span style="color:#4ade80">緑＝y が実数</span>　<span style="color:var(--lime)">●＝解（y = 0）</span>`;
 }
 
@@ -1643,6 +1714,7 @@ function loadPreset(p) {
     for (const k in S.spin) S.spin[k] = (p.spin || []).includes(k);
     S.spinOn = true;
     S.ang = { xw: 0, yw: 0, zw: 0, xz: 0 };
+    S.inf = !!p.inf;
     $('#expr').value = p.e;
     if (p.R) { S.R = p.R; setExpr(p.e, false); } else setExpr(p.e, true);
     syncUI();
@@ -1658,6 +1730,7 @@ $('#speed').addEventListener('input', e => { S.speed = +e.target.value; $('#spee
 $('#range').addEventListener('input', e => { S.R = +e.target.value; $('#rangeV').textContent = S.R.toFixed(1); scheduleRebuild(false); saveSoon(); });
 $('#persp').addEventListener('input', e => { S.pk = +e.target.value; $('#perspV').textContent = S.pk.toFixed(2); requestRender(); saveSoon(); });
 $('#fitRoots').addEventListener('click', () => rebuild(true));
+$('#infBtn').addEventListener('click', () => { S.inf = !S.inf; rebuild(true); syncUI(); save(); });
 document.querySelectorAll('#colors .btn').forEach(b => b.addEventListener('click', () => { S.color = b.dataset.c; syncUI(); save(); }));
 document.querySelectorAll('#looks .btn').forEach(b => b.addEventListener('click', () => { S.look = b.dataset.l; syncUI(); save(); }));
 document.querySelectorAll('#shows .btn').forEach(b => b.addEventListener('click', () => { S.show[b.dataset.s] = !S.show[b.dataset.s]; syncUI(); save(); }));
