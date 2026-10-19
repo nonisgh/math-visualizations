@@ -85,6 +85,11 @@
     .hsel { align-items: center; flex-wrap: wrap; max-width: calc(100% - 70px); }
     .hsel .hlab { font-size: 11px; color: var(--faint); margin-right: 2px; }
     .hsel .hsep { width: 6px; }
+    .hsel .h4 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-basis: 100%; margin-top: 4px; }
+    .hsel .h4[hidden] { display: none; }
+    .hsel .h4 label { display: flex; align-items: center; gap: 4px; font: 500 11px ui-monospace, Menlo, monospace; color: var(--muted); }
+    .hsel .h4 input[type=range] { width: 84px; accent-color: #b07cff; }
+    .hsel .h4 #h4spin.on { border-color: #b07cff; color: #e9d5ff; background: rgba(76, 29, 149, 0.6); }
     .hsel button[data-t].on { border-color: #4ade80; color: #bbf7d0; background: rgba(20, 83, 45, 0.6); }
     .legend {
         position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - 20px);
@@ -340,8 +345,14 @@
         <div class="trace" id="trace" hidden></div>
         <div class="legend" id="legend" hidden></div>
         <div class="hsel" id="hsel" hidden>
-            <span class="hlab">高さ</span><button type="button" data-h="re">Re y</button><button type="button" data-h="im">Im y</button><button type="button" data-h="abs">|y|</button>
+            <span class="hlab">高さ</span><button type="button" data-h="re">Re y</button><button type="button" data-h="im">Im y</button><button type="button" data-h="abs">|y|</button><button type="button" data-h="4d" title="4次元のまま回して、4本目の軸の遠近で歪ませて立体に落とす">4D</button>
             <span class="hsep"></span><button type="button" data-t="surf">曲面</button><button type="button" data-t="floor">床</button>
+            <span class="h4" id="h4" hidden>
+                <label>θ<input type="range" id="h4th" min="0" max="360" step="1"></label>
+                <label>φ<input type="range" id="h4ph" min="0" max="360" step="1"></label>
+                <label>歪み<input type="range" id="h4pk" min="0" max="100" step="1"></label>
+                <button type="button" id="h4spin">回す</button>
+            </span>
         </div>
         <div class="gbtns">
             <button type="button" id="modeBtn" title="複素数平面に切り替え">ℂ</button>
@@ -1120,7 +1131,7 @@ let traceZ = null;
 let mode = 'r';               // 'r' = 実数グラフ, 'c' = 複素数平面
 let viewC = { cx: 0, cy: 0, scale: 40 };
 let colorOn = true;
-let d3 = { R: 6, yaw: -0.65, pitch: 0.5, h: 're', surf: true, floor: true };   // 3D 表示：範囲・回転・高さの種類
+let d3 = { R: 6, yaw: -0.65, pitch: 0.5, h: 're', surf: true, floor: true, th: 0, ph: 35, pk: 60, spin: false };   // th・ph・pk・spin は 4D 表示の回転角（度）・歪み・自動回転   // 3D 表示：範囲・回転・高さの種類
 let d3Scale = { key: '', Yr: 1 };
 let lineW = 1.5;   // 線の太さ（全体）。細めが既定
 let showPts = true;   // 交点（解・グラフどうしの交点）を表示するか
@@ -1315,6 +1326,22 @@ const PRESETS = [
       params: {}, fit: { w: 26, h: 5 } },
     { name: 'eˣ の展開を階乗で書くと：1 + x + x²/2! + x³/3! + …', exprs: ['e^x', '1 + x', '1 + x + x^2/2!', '1 + x + x^2/2! + x^3/3!', '1 + x + x^2/2! + x^3/3! + x^4/4!'],
       params: {}, fit: { w: 16, h: 14, cy: 4 } },
+    { name: '4次元を無理やり：y = x²（4 本の軸を回して歪ませる）', exprs: ['y=x^2'],
+      params: {}, fit: { w: 8, h: 8 }, fitC: { w: 5, h: 5 }, mode: '3d', d3: { R: 1.6, h: '4d', th: 0, ph: 35, pk: 60, spin: true } },
+    { name: '4D：y = x² + 1（虚数解 ±i）', exprs: ['y=x^2+1'],
+      params: {}, fit: { w: 8, h: 8, cy: 2 }, fitC: { w: 4, h: 4 }, mode: '3d', d3: { R: 2, h: '4d', th: 0, ph: 35, pk: 60, spin: true } },
+    { name: '4D：y = x² + 4（虚数解 ±2i）', exprs: ['y=x^2+4'],
+      params: {}, fit: { w: 10, h: 16, cy: 5 }, fitC: { w: 6, h: 6 }, mode: '3d', d3: { R: 3, h: '4d', th: 0, ph: 35, pk: 60, spin: true } },
+    { name: '4D：y = x² − 2x + 5（複素数解 1 ± 2i）', exprs: ['y=x^2-2x+5'],
+      params: {}, fit: { w: 10, h: 16, cy: 6 }, fitC: { w: 6, h: 6, cx: 1 }, mode: '3d', d3: { R: 3, h: '4d', th: 0, ph: 35, pk: 60, spin: true } },
+    { name: '4D：y = x³ + x（解 0 と ±i）', exprs: ['y=x^3+x'],
+      params: {}, fit: { w: 6, h: 8 }, fitC: { w: 3.4, h: 3.4 }, mode: '3d', d3: { R: 1.8, h: '4d', th: 0, ph: 35, pk: 60, spin: true } },
+    { name: '4D：y = x³ − 1（1 の 3 乗根：1 と −½ ± (√3/2)i）', exprs: ['y=x^3-1'],
+      params: {}, fit: { w: 6, h: 8 }, fitC: { w: 3.4, h: 3.4 }, mode: '3d', d3: { R: 1.6, h: '4d', th: 0, ph: 35, pk: 60, spin: true } },
+    { name: '4D：y = x³ − 2x + 4（解 −2 と 1 ± i）', exprs: ['y=x^3-2x+4'],
+      params: {}, fit: { w: 10, h: 16, cy: 2 }, fitC: { w: 6, h: 5 }, mode: '3d', d3: { R: 2.6, h: '4d', th: 0, ph: 35, pk: 60, spin: true } },
+    { name: '4D：y = x² − 2ix − 2（係数も複素数：解 ±1 + i）', exprs: ['y=x^2-2ix-2'],
+      params: {}, fit: { w: 8, h: 8 }, fitC: { w: 5, h: 5, cy: 1 }, mode: '3d', d3: { R: 2.2, h: '4d', th: 0, ph: 35, pk: 60, spin: true } },
     { name: '4次元を3Dで：y = x² + 25（x も y も複素数）', exprs: ['y=x^2+25'],
       params: {}, fit: { w: 16, h: 70, cy: 10 }, fitC: { w: 14, h: 14 }, mode: '3d', d3: { R: 7 } },
     { name: '3Dで：y = sin(x)（虚軸方向へは sinh・cosh で増える）', exprs: ['y=sin(x)'],
@@ -2340,11 +2367,188 @@ function drawComplex() {
 }
 
 // ================= 3D（床 = x の複素数平面、高さ = y） =================
+// ================= 4D：(Re x, Im x, Re y, Im y) を 4 次元のまま回して、4 本目の軸の遠近で歪ませて立体に =================
+// 1. y 平面の中で回す（θ：Re y ↔ Im y）
+// 2. Im x と（回した）Im y の間で回す（φ：床の奥行きと 4 本目の軸を混ぜる）
+// 3. 残った 4 本目の軸 w の遠近で拡大・縮小（近い所は大きく、遠い所は小さく＝歪み）。色も w
+let d4Last = 0;
+const AX4 = { rex: '#ff5d6c', imx: '#56a8ff', rey: '#3ddc84', imy: '#b07cff' };
+function draw4D(ex, f) {
+    // 自動回転（時間基準・144Hz 基準の速さ）
+    const now = performance.now();
+    if (d3.spin) {
+        const dt = d4Last ? Math.min(0.1, (now - d4Last) / 1000) : 0;
+        d3.th = (d3.th + 24 * dt) % 360;
+        d3.ph = (d3.ph + 15 * dt) % 360;
+        d4Last = now;
+        sync4UI();
+        requestDraw();
+    } else d4Last = 0;
+
+    const R = d3.R, N = 44, n1 = N + 1;
+    const cyw = Math.cos(d3.yaw), syw = Math.sin(d3.yaw), cp = Math.cos(d3.pitch), sp = Math.sin(d3.pitch);
+    const S = Math.min(W_, H_) * 0.3, Dd = 5;
+    const proj = (X, Y, Z) => {
+        const x1 = X * cyw - Z * syw, z1 = X * syw + Z * cyw;
+        const y2 = Y * cp - z1 * sp, d = z1 * cp + Y * sp;
+        const k = Dd / (Dd - d);
+        return [W_ / 2 + x1 * S * k, H_ * 0.56 - y2 * S * k, d];
+    };
+    const th = d3.th * Math.PI / 180, ph = d3.ph * Math.PI / 180, pk = d3.pk / 100;
+    const ct = Math.cos(th), st = Math.sin(th), cph = Math.cos(ph), sph = Math.sin(ph);
+    // 4D 点 (A=Re x, B=Im x, U=Re y, V=Im y)（どれも −1〜1 くらいに縮めた値）→ [X, Y, Z, w]
+    const map4 = (A, B, U, V) => {
+        const U1 = U * ct - V * st, V1 = U * st + V * ct;
+        const B2 = B * cph - V1 * sph, w = B * sph + V1 * cph;
+        const den = 1 - pk * w / 2.6;
+        if (!(den > 0.25)) return null;
+        const k = 1 / den;
+        return [A * k, U1 * k, -B2 * k, w];
+    };
+    const P4 = (A, B, U, V) => { const m = map4(A, B, U, V); if (!m) return null; const p = proj(m[0], m[1], m[2]); p.push(m[3]); return p; };
+    const seg = (a, b) => { const p = P4(...a), q = P4(...b); if (!p || !q) return; ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); };
+
+    // 値を格子点で計算
+    const env = { z: null, y: C(0), p: paramEnv(), loop: {} };
+    const Ur = new Float64Array(n1 * n1), Vi = new Float64Array(n1 * n1);
+    for (let j = 0; j < n1; j++) {
+        const b = -R + 2 * R * j / N;
+        for (let i = 0; i < n1; i++) {
+            env.z = C(-R + 2 * R * i / N, b); env.loop = {};
+            const v = f(env);
+            Ur[j * n1 + i] = v.re; Vi[j * n1 + i] = v.im;
+        }
+    }
+    const key = [ex.id, ex.text, R, '4d'].join('|');
+    if (d3Scale.key !== key) {
+        const arr = [];
+        for (let k = 0; k < Ur.length; k++) { const m = Math.hypot(Ur[k], Vi[k]); if (isFinite(m)) arr.push(m); }
+        arr.sort((p, q) => p - q);
+        const p93 = arr.length ? arr[Math.floor(arr.length * 0.93)] : 1;
+        d3Scale = { key, Yr: Math.max(p93 * 1.1, 1e-9) };
+    }
+    const Yr = d3Scale.Yr, CLIP = 1.6;
+
+    // 頂点：4D → 3D（歪み）→ 画面
+    const W3 = [], PX = new Float64Array(n1 * n1), PY = new Float64Array(n1 * n1), PD = new Float64Array(n1 * n1), PW = new Float64Array(n1 * n1);
+    for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) {
+        const k = j * n1 + i, U = Ur[k] / Yr, V = Vi[k] / Yr;
+        const m = (isFinite(U) && isFinite(V) && Math.abs(U) < CLIP && Math.abs(V) < CLIP) ? map4(-1 + 2 * i / N, -1 + 2 * j / N, U, V) : null;
+        W3[k] = m;
+        if (m) { const p = proj(m[0], m[1], m[2]); PX[k] = p[0]; PY[k] = p[1]; PD[k] = p[2]; PW[k] = m[3]; }
+    }
+
+    // 床（Re x・Im x の平面も 4D で回るので、傾いたり縮んだりする）
+    if (d3.floor) {
+        const step = niceStep(R / 3);
+        ctx.lineWidth = 1; ctx.strokeStyle = '#1a2438';
+        ctx.beginPath();
+        for (let t = Math.ceil(-R / step) * step; t <= R + 1e-9; t += step) {
+            seg([t / R, -1, 0, 0], [t / R, 1, 0, 0]);
+            seg([-1, t / R, 0, 0], [1, t / R, 0, 0]);
+        }
+        ctx.stroke();
+    }
+    // 4 本の軸（色は次元おりがみと同じ並び）
+    const axes = [['Re x', AX4.rex, [1.2, 0, 0, 0]], ['Im x', AX4.imx, [0, 1.2, 0, 0]], ['Re y', AX4.rey, [0, 0, 1.45, 0]], ['Im y', AX4.imy, [0, 0, 0, 1.45]]];
+    ctx.lineWidth = 1.2;
+    axes.forEach(([, c, e]) => {
+        ctx.strokeStyle = hexA(c, 0.55);
+        ctx.beginPath(); seg(e.map(v => -v), e); ctx.stroke();
+    });
+
+    // 曲面
+    const L = [-0.35, 0.85, 0.4], Ln = Math.hypot(...L);
+    const quads = [];
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const k0 = j * n1 + i, k1 = k0 + 1, k2 = k0 + n1 + 1, k3 = k0 + n1;
+        const a = W3[k0], b = W3[k1], c = W3[k2], d = W3[k3];
+        if (!a || !b || !c || !d) continue;
+        // 対角線どうしの外積で法線
+        const ux = c[0] - a[0], uy = c[1] - a[1], uz = c[2] - a[2], vx = d[0] - b[0], vy = d[1] - b[1], vz = d[2] - b[2];
+        const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, nl = Math.hypot(nx, ny, nz) || 1;
+        const shade = 0.5 + 0.5 * Math.abs((nx * L[0] + ny * L[1] + nz * L[2]) / (nl * Ln));
+        const w = (PW[k0] + PW[k1] + PW[k2] + PW[k3]) / 4;
+        const t = Math.tanh(w * 1.6), base = [0.89, 0.91, 0.94], m = t > 0 ? [0.98, 0.55, 0.20] : [0.15, 0.55, 0.98], u = Math.abs(t);
+        const col = base.map((v, q) => ((v + (m[q] - v) * u) * shade * 255) | 0);
+        quads.push([(PD[k0] + PD[k1] + PD[k2] + PD[k3]) / 4, k0, k1, k2, k3, `rgb(${col[0]},${col[1]},${col[2]})`]);
+    }
+    quads.sort((p, q) => p[0] - q[0]);
+    ctx.lineWidth = 0.7; ctx.lineJoin = 'round';
+    if (d3.surf) for (const q of quads) {
+        ctx.beginPath();
+        ctx.moveTo(PX[q[1]], PY[q[1]]); ctx.lineTo(PX[q[2]], PY[q[2]]); ctx.lineTo(PX[q[3]], PY[q[3]]); ctx.lineTo(PX[q[4]], PY[q[4]]);
+        ctx.closePath();
+        ctx.fillStyle = q[5]; ctx.strokeStyle = q[5];
+        ctx.fill(); ctx.stroke();
+    }
+
+    // x が実数の所（普通のグラフ）：y が複素数になる所もそのまま 4D で
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    let pen = false;
+    for (let m = 0; m <= 400; m++) {
+        const A = -1 + 2 * m / 400;
+        env.z = C(A * R, 0); env.loop = {};
+        const v = f(env), U = v.re / Yr, V = v.im / Yr;
+        const p = (isFinite(U) && isFinite(V) && Math.abs(U) < CLIP && Math.abs(V) < CLIP) ? P4(A, 0, U, V) : null;
+        if (!p) { pen = false; continue; }
+        if (pen) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]);
+        pen = true;
+    }
+    glowStroke('#fde047');
+    ctx.restore();
+
+    // 軸の名前
+    ctx.save();
+    ctx.font = '700 12px Inter, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+    axes.forEach(([name, c, e]) => {
+        const p = P4(...e.map(v => v * 1.1));
+        if (p) { ctx.fillStyle = c; ctx.fillText(name, p[0], p[1]); }
+    });
+    ctx.restore();
+
+    // 解（y = 0）
+    if (showPts && ex.roots) ex.roots.forEach(r => {
+        if (Math.abs(r.re) > R || Math.abs(r.im) > R) return;
+        const p = P4(r.re / R, r.im / R, 0, 0);
+        if (p) ringDot(p[0], p[1], ex.color);
+    });
+
+    const n = exprs.indexOf(ex) + 1;
+    legendEl.innerHTML = `<i style="background:${ex.color}"></i>式 ${n}　4D：x と y の 4 本の軸を 4 次元で回転（θ・φ）＋遠近で歪ませる` +
+        `　色＝4 本目の軸（<span style="color:#60a5fa">青−</span>・白0・<span style="color:#fb923c">橙+</span>）　<span style="color:#fde047">黄＝x が実数の所</span>`;
+    legendEl.hidden = false;
+}
+
+// F(x, y) = 0 が y について1次（F = a(x)·y + b(x)）なら、y = −b/a を返す関数にする。そうでなければ null
+function solveLinearY(cfn) {
+    const pe = paramEnv();
+    const at = (z, y) => cfn({ z, y, p: pe, loop: {} });
+    for (const z of [C(0.37, 0.21), C(-1.3, 0.8), C(2.1, -1.7)]) {
+        const f0 = at(z, C(0)), f1 = at(z, C(1)), a = csub(f1, f0);
+        for (const y of [C(2.5), C(-0.7, 1.9)]) {
+            const want = cadd(f0, cmul(a, y)), got = at(z, y);
+            if (!(cabs(csub(want, got)) <= 1e-9 * (1 + cabs(want)))) return null;
+        }
+    }
+    return env => {
+        const z = env.z, f0 = cfn({ z, y: C(0), p: env.p, loop: {} }), f1 = cfn({ z, y: C(1), p: env.p, loop: {} });
+        const v = cdiv(C(-f0.re, -f0.im), csub(f1, f0));
+        return v;
+    };
+}
 function draw3D() {
     ctx.fillStyle = '#030712';
     ctx.fillRect(0, 0, W_, H_);
     traceEl.hidden = true;
     const ex = colorTarget();
+    if (d3.h === '4d') {
+        const f4 = !ex || !ex.cfn ? null : ex.kind === 'implicit' ? solveLinearY(ex.cfn) : ex.cfn;
+        if (f4) { draw4D(ex, f4); return; }
+    }
     const R = d3.R, N = 48, n1 = N + 1;
     const cyw = Math.cos(d3.yaw), syw = Math.sin(d3.yaw), cp = Math.cos(d3.pitch), sp = Math.sin(d3.pitch);
     const S = Math.min(W_, H_) * 0.33, Dd = 5;
@@ -2392,10 +2596,12 @@ function draw3D() {
     label('Re x', [1.28, 0, 0], '#e2e8f0');
     label('Im x', [0, 0, -1.3], '#e2e8f0');
 
-    const ok = ex && ex.cfn && ex.kind !== 'implicit';
+    // y+25=x^2 のように y について1次の式は、y = … に解いてから描く
+    const fC = !ex || !ex.cfn ? null : ex.kind === 'implicit' ? solveLinearY(ex.cfn) : ex.cfn;
+    const ok = !!fC;
     if (!ok) {
         legendEl.innerHTML = ex && ex.kind === 'implicit'
-            ? '3D は y = … の形の式（または x だけの方程式）で表示します'
+            ? '3D は y = … の形に直せる式（y について1次の式、または x だけの方程式）で表示します'
             : '式を入力すると、ここに立体で表示します';
         legendEl.hidden = false;
         return;
@@ -2410,7 +2616,7 @@ function draw3D() {
         for (let i = 0; i < n1; i++) {
             const a = -R + 2 * R * i / N;
             env.z = C(a, b); env.loop = {};
-            const v = ex.cfn(env), k = j * n1 + i;
+            const v = fC(env), k = j * n1 + i;
             if (mode3 === 're') { Hv[k] = v.re; Cv[k] = v.im; }
             else if (mode3 === 'im') { Hv[k] = v.im; Cv[k] = v.re; }
             else { Hv[k] = Math.hypot(v.re, v.im); Cv[k] = Math.atan2(v.im, v.re); }
@@ -2530,7 +2736,7 @@ function draw3D() {
         for (let m = 0; m <= M; m++) {
             const a = -R + 2 * R * m / M;
             env.z = C(a, 0); env.loop = {};
-            const v = ex.cfn(env);
+            const v = fC(env);
             const Y = v.re / Yr;
             const ok = isFinite(Y) && Math.abs(Y) < CLIP && Math.abs(v.im) <= 1e-9 * (1 + Math.abs(v.re));
             if (!ok) { pen = false; continue; }
@@ -2633,6 +2839,8 @@ function syncModeUI() {
     $('#hsel').hidden = mode !== '3d';
     document.querySelectorAll('#hsel button[data-h]').forEach(b => b.classList.toggle('on', b.dataset.h === d3.h));
     document.querySelectorAll('#hsel button[data-t]').forEach(b => b.classList.toggle('on', d3[b.dataset.t] !== false));
+    $('#h4').hidden = d3.h !== '4d';
+    sync4UI();
     $('#colorBtn').hidden = mode !== 'c';
     $('#colorBtn').classList.toggle('on', colorOn);
 }
@@ -2652,6 +2860,17 @@ document.querySelectorAll('#hsel button[data-t]').forEach(b => b.addEventListene
     const k = b.dataset.t; d3[k] = d3[k] === false; syncModeUI(); requestDraw(); save();
 }));
 $('#colorBtn').addEventListener('click', () => { colorOn = !colorOn; syncModeUI(); requestDraw(); save(); });
+function sync4UI() {
+    if (document.activeElement !== $('#h4th')) $('#h4th').value = Math.round(((d3.th % 360) + 360) % 360);
+    if (document.activeElement !== $('#h4ph')) $('#h4ph').value = Math.round(((d3.ph % 360) + 360) % 360);
+    $('#h4pk').value = d3.pk;
+    $('#h4spin').classList.toggle('on', !!d3.spin);
+    $('#h4spin').textContent = d3.spin ? '止める' : '回す';
+}
+[['#h4th', 'th'], ['#h4ph', 'ph'], ['#h4pk', 'pk']].forEach(([id, k]) => $(id).addEventListener('input', () => {
+    d3[k] = +$(id).value; requestDraw(); saveSoon();
+}));
+$('#h4spin').addEventListener('click', () => { d3.spin = !d3.spin; d4Last = 0; sync4UI(); requestDraw(); save(); });
 
 canvas.addEventListener('wheel', e => {
     e.preventDefault();
