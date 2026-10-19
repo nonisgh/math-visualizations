@@ -1055,11 +1055,11 @@
                 </div>
                 <div class="flex items-center gap-2 mt-1.5"><button id="pal-comp" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="補色モード：−の色を、＋の色の補色（色相を反対に回した色）に自動で決める。−の枠は選べなくなる">→ 補色モード: ON</button><button id="pal-comp-center" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="中心だけ補色：中心の色を、その図形の蓋の色の補色にする（立方体＝+Z の補色、超立方体＝+W の補色、5次元＝+V の補色）。ほかの −はパレットのまま">→ 中心だけ補色: ON</button></div>
                 <div class="flex items-center gap-2 mt-1.5 flex-wrap text-[11px]">
-                    <button id="axis-sync" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="軸の色と同期：選んだ側（＋側か−側）の面・胞を、その軸の色（x 赤・y 緑・z 青・w 紫・v 黄）にする。反対側はパレットのまま">→ 軸の色と同期: ON</button>
-                    <span class="text-[10px] text-slate-400">軸の色にする側</span>
+                    <button id="axis-sync" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="軸の色を立体に合わせる：ON にすると、x・y・z・w・v の座標軸（線・矢じり・名前）の色が、下で選んだ側の立体の色になる。例：＋側で、パレットの +X を茶色にすると x 軸も茶色。立体の色は変わらない">→ 軸の色を立体に合わせる: ON</button>
+                    <span class="text-[10px] text-slate-400">合わせる立体</span>
                     <span class="flex gap-1">
-                        <button data-axsync-side="plus" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="＋側（+X・+Y・+Z・+W・+V、蓋）の面・胞を軸の色に">＋側</button>
-                        <button data-axsync-side="minus" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="−側（−X・−Y・−Z・−W・−V、中心）の面・胞を軸の色に">−側</button>
+                        <button data-axsync-side="plus" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="x 軸＝+X、y 軸＝+Y、z 軸＝+Z、w 軸＝+W（蓋）、v 軸＝+V の立体の色にする">＋側（+X など）</button>
+                        <button data-axsync-side="minus" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="x 軸＝−X、y 軸＝−Y、z 軸＝−Z、w 軸＝−W（中心）、v 軸＝−V の立体の色にする">−側（−X など）</button>
                     </span>
                 </div>
                 <div class="text-[10px] text-slate-500 leading-snug mt-1">枠を選んでから、下の色を押すと変わります。4次元モードでは「4D（超立方体）」と「3D（立方体の面）」、5次元モードでは「5D（5次元体）」と「4D（超立方体）」の列が出ます。各面・胞は向いている方向の色になります（中心と蓋は、3D は ±Z、4D は ±W、5D は ±V）。中心の色もこの表の「中心」の枠で決めます。下の色は色相ごとに 濃・標準・薄 の3段なので、縦に並んだ2つで ±の濃淡ペアが作れます。</div>
@@ -2588,21 +2588,17 @@
         let palComp = false; try { palComp = localStorage.getItem('hypercubePalComp') === '1'; } catch (_) {}
         // 中心だけ補色：中心の色を、その図形の蓋の色の補色にする（ほかの −はパレットのまま）
         let palCompCenter = false; try { palCompCenter = localStorage.getItem('hypercubePalCompCenter') === '1'; } catch (_) {}
-        // 軸の色と同期：ON で、選んだ側（plus＝＋側／minus＝−側）の面・胞を、その軸の色（x 赤・y 緑・z 青・w 紫・v 黄）にする。反対側はパレットのまま
-        //   左の立方体の面・超立方体の胞・5次元の胞のすべて（中心＝−の一番外の軸、蓋＝＋の一番外の軸も、その側なら軸の色）
+        // 軸の色を立体に合わせる：ON で、x・y・z・w・v の座標軸（線・矢じり・名前）の色を、選んだ側（plus＝＋側／minus＝−側）の立体（胞・面）の色にそろえる。
+        //   例：＋側で、パレットの +X を茶色にすると x 軸も茶色。立体の色は変えない（パレットのまま）。左の立方体・超立方体・5次元の軸それぞれ、自分の画面の立体の色に合わせる
         let axisSync = { on: false, side: 'plus' };
         try { const o = JSON.parse(localStorage.getItem('hypercubeAxisSync') || 'null'); if (o) axisSync = { on: !!o.on, side: o.side === 'minus' ? 'minus' : 'plus' }; } catch (_) {}
-        const AXIS_HEX = { x: 0xff5d6c, y: 0x3ddc84, z: 0x56a8ff, w: 0xb07cff, v: 0xfbbf24 };   // 座標軸と同じ色
+        const AXIS_HEX = { x: 0xff5d6c, y: 0x3ddc84, z: 0x56a8ff, w: 0xb07cff, v: 0xfbbf24 };   // 座標軸のいつもの色（OFF の時）
         const axisSyncPre = () => axisSync.side === 'minus' ? 'n' : 'p';
         const _palC = new THREE.Color(), _palH = {};
         function compHex(v) { _palC.setHex(v).getHSL(_palH); _palC.setHSL((_palH.h + 0.5) % 1, _palH.s, _palH.l); return _palC.getHex(); }
         function effPal(d) {   // 実際に使うパレット（補色モードなら −は＋の補色）
             const P = Object.assign({}, cellPal[d]);
             if (palComp) ['x', 'y', 'z', 'w', 'v'].forEach(a => { P['n' + a] = compHex(P['p' + a]); });
-            if (axisSync.on) {   // 軸の色と同期：選んだ側を軸の色に（＋側で補色モードなら、−はその補色）
-                const pre = axisSyncPre();
-                ['x', 'y', 'z', 'w', 'v'].forEach(a => { P[pre + a] = AXIS_HEX[a]; if (palComp && pre === 'p') P['n' + a] = compHex(AXIS_HEX[a]); });
-            }
             return P;
         }
         const PAL_SLOTS = { 2: ['nz', 'py', 'ny', 'px', 'nx', 'pz'], 3: ['nw', 'py', 'ny', 'px', 'nx', 'pz', 'nz', 'pw'], 5: ['nv', 'py', 'ny', 'px', 'nx', 'pz', 'nz', 'pw', 'nw', 'pv'] };   // 面・胞の番号 → パレットのどの色か
@@ -2871,6 +2867,7 @@
                 ag.add(line, cone, sprite); axis5.push({ line, cone, sprite });
             });
             root.add(ag);
+            try { applyAxisColors(); } catch (_) {}   // 軸の色を立体に合わせている時
             {   // お試し：菱形二十面体（凸包の20枚の菱形と辺）。update5D で毎フレーム組み立てる
                 const rg = new THREE.Group(); rg.name = 'Rhombi5D'; rg.visible = false;
                 const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(20 * 6 * 3), 3));
@@ -3312,8 +3309,42 @@
                 });
             });
         }
+        // 軸の色：OFF ならいつもの色、ON なら選んだ側の立体の色（左＝3D の面のパレット、超立方体＝4D、5次元＝5D）
+        function axisColorFor(d, letter, defHex) {
+            if (!axisSync.on) return defHex;
+            const v = effPal(d)[axisSyncPre() + letter];
+            return isFinite(v) ? v : defHex;
+        }
+        function recolorLabel(sp, css) {   // 軸の名前の札（キャンバスの字）を、その色で描き直す
+            if (!sp || !sp.material || !sp.material.map) return;
+            const L = _labelSprites.find(o => o.tex === sp.material.map); if (!L || L.cssColor === css) return;
+            L.cssColor = css; drawLabel(L.cv, L.text, css); L.tex.needsUpdate = true;
+        }
+        const _hex6 = v => '#' + (v >>> 0).toString(16).padStart(6, '0');
+        function applyAxisColors() {
+            const paint = (line, cone, sprite, hex) => {
+                if (line && line.material) line.material.color.setHex(hex);
+                if (cone && cone.material) cone.material.color.setHex(hex);
+                if (sprite) recolorLabel(sprite, _hex6(hex));
+            };
+            AXES_4D.forEach((ax, i) => paint(axisLines[i], axisCones[i], axisSprites[i], axisColorFor('d4', ax.label, ax.color)));
+            AXES_3D.forEach((ax, i) => paint(axisLinesL[i], axisConesL[i], axisSpritesL[i], axisColorFor('d3', ax.label, ax.color)));
+            AXES_5D.forEach((ax, i) => { const o = axis5[i]; if (o) paint(o.line, o.cone, o.sprite, axisColorFor('d5', ax.label, ax.color)); });
+            // 左の立方体の w の点線矢印は、超立方体の w と同じ色
+            const w4 = axisColorFor('d4', 'w', 0xb07cff);
+            if (zwArrowLine) paint(zwArrowLine, zwArrowCone, zwArrowLabel, w4);
+            // 右上の「3D に出ている軸の長さ」の色もそろえる
+            [['axl4-', AXES_4D, 'd4'], ['axl-', AXES_5D, 'd5']].forEach(([pre, AX, d]) => AX.forEach(ax => {
+                const bar = document.getElementById(pre + ax.label); if (!bar) return;
+                const css = _hex6(axisColorFor(d, ax.label, ax.color));
+                bar.style.background = css;
+                const row = bar.parentElement && bar.parentElement.parentElement, b = row && row.querySelector('b'); if (b) b.style.color = css;
+            }));
+            if (typeof requestRender === 'function') requestRender(10);
+        }
         function applyCenterColor() {   // 面・胞の色（パレット・補色）を、材質・分解ラベルの丸・画面に反映
             setCenterColors();
+            try { applyAxisColors(); } catch (_) {}   // 軸の色を立体に合わせている時は、軸も
             try { applyFaceDecor(); } catch (_) {}
             [2, 3, 5].forEach(dim => (xpLabelEls[dim] || []).forEach((el, i) => { const n = el.querySelector('.num'); if (n) n.style.background = '#' + xpColorOf(dim, i).toString(16).padStart(6, '0'); }));
             try { updateMorphingGeometry(animationProgress); } catch (_) {}
@@ -7023,11 +7054,10 @@
                 const save = () => { try { const o = { d3: {}, d4: {}, d5: {} }; PAL_DS.forEach(d => PAL_KEYS.forEach(k => { o[d][k] = hex(cellPal[d][k]); })); localStorage.setItem('hypercubeCellPalette2', JSON.stringify(o)); } catch (_) {} };
                 function paint() {
                     if (palComp && sel.k[0] === 'n') sel = { d: sel.d, k: 'p' + sel.k[1] };   // 補色モードでは −は自動なので ＋を選ぶ
-                    if (axisSync.on && sel.k[0] === axisSyncPre()) sel = { d: sel.d, k: (axisSyncPre() === 'p' ? 'n' : 'p') + sel.k[1] };   // 軸の色と同期している側は自動なので反対側を選ぶ
                     const asb = document.getElementById('axis-sync');
-                    if (asb) { asb.textContent = '→ 軸の色と同期: ' + (axisSync.on ? 'OFF' : 'ON'); ['bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200'].forEach(c => asb.classList.toggle(c, axisSync.on)); ['bg-slate-800', 'border-slate-600', 'text-slate-300'].forEach(c => asb.classList.toggle(c, !axisSync.on)); }
+                    if (asb) { asb.textContent = '→ 軸の色を立体に合わせる: ' + (axisSync.on ? 'OFF' : 'ON'); ['bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200'].forEach(c => asb.classList.toggle(c, axisSync.on)); ['bg-slate-800', 'border-slate-600', 'text-slate-300'].forEach(c => asb.classList.toggle(c, !axisSync.on)); }
                     document.querySelectorAll('[data-axsync-side]').forEach(b => { const on = b.dataset.axsyncSide === axisSync.side; ['bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200'].forEach(c => b.classList.toggle(c, on)); ['bg-slate-800', 'border-slate-600', 'text-slate-300'].forEach(c => b.classList.toggle(c, !on)); b.style.opacity = axisSync.on ? '' : '0.6'; });
-                    cols.forEach(d => { const E = effPal(d); for (const k in btns[d]) { const b = btns[d][k], auto = (palComp && k[0] === 'n') || (axisSync.on && k[0] === axisSyncPre()); b.firstChild.style.background = hex(E[k]); b.disabled = auto; b.style.opacity = auto ? '0.75' : ''; b.style.cursor = auto ? 'default' : ''; const on = sel.d === d && sel.k === k; b.style.outline = on ? '2px solid #fde68a' : (auto ? '1px dashed #64748b' : 'none'); b.style.outlineOffset = '1px'; } });
+                    cols.forEach(d => { const E = effPal(d); for (const k in btns[d]) { const b = btns[d][k], auto = palComp && k[0] === 'n'; b.firstChild.style.background = hex(E[k]); b.disabled = auto; b.style.opacity = auto ? '0.75' : ''; b.style.cursor = auto ? 'default' : ''; const on = sel.d === d && sel.k === k; b.style.outline = on ? '2px solid #fde68a' : (auto ? '1px dashed #64748b' : 'none'); b.style.outlineOffset = '1px'; } });
                     const cc = document.getElementById('pal-comp-center'); if (cc) { cc.textContent = '→ 中心だけ補色: ' + (palCompCenter ? 'OFF' : 'ON'); ['bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200'].forEach(c => cc.classList.toggle(c, palCompCenter)); ['bg-slate-800', 'border-slate-600', 'text-slate-300'].forEach(c => cc.classList.toggle(c, !palCompCenter)); }
                     const cb = document.getElementById('pal-comp'); if (cb) { cb.textContent = '→ 補色モード: ' + (palComp ? 'OFF' : 'ON'); ['bg-cyan-900/40', 'border-cyan-500/50', 'text-cyan-200'].forEach(c => cb.classList.toggle(c, palComp)); ['bg-slate-800', 'border-slate-600', 'text-slate-300'].forEach(c => cb.classList.toggle(c, !palComp)); }
                     const ci = document.getElementById('pal-custom'); if (ci) ci.value = hex(cellPal[sel.d][sel.k]);
@@ -8019,7 +8049,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-0818';
+        const APP_BUILD = '20261020-0825';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
