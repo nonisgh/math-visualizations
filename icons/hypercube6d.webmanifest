@@ -1,0 +1,26 @@
+{
+ "name": "6次元立方体の展開図",
+ "short_name": "6次元立方体",
+ "start_url": "../hypercube6d.html",
+ "scope": "../",
+ "display": "standalone",
+ "background_color": "#030712",
+ "theme_color": "#030712",
+ "icons": [
+  {
+   "src": "hypercube6d-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "hypercube6d-180.png",
+   "sizes": "180x180",
+   "type": "image/png"
+  },
+  {
+   "src": "hypercube6d.svg",
+   "sizes": "any",
+   "type": "image/svg+xml"
+  }
+ ]
+}

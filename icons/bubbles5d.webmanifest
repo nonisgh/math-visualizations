@@ -1,0 +1,26 @@
+{
+ "name": "5次元球とシャボン玉",
+ "short_name": "5次元シャボン玉",
+ "start_url": "../hypersphere5d_bubbles.html",
+ "scope": "../",
+ "display": "standalone",
+ "background_color": "#030712",
+ "theme_color": "#030712",
+ "icons": [
+  {
+   "src": "bubbles5d-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "bubbles5d-180.png",
+   "sizes": "180x180",
+   "type": "image/png"
+  },
+  {
+   "src": "bubbles5d.svg",
+   "sizes": "any",
+   "type": "image/svg+xml"
+  }
+ ]
+}

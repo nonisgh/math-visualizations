@@ -1,0 +1,26 @@
+{
+ "name": "3D / 4D 超球",
+ "short_name": "超球",
+ "start_url": "../hypersphere.html",
+ "scope": "../",
+ "display": "standalone",
+ "background_color": "#030712",
+ "theme_color": "#030712",
+ "icons": [
+  {
+   "src": "hypersphere-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "hypersphere-180.png",
+   "sizes": "180x180",
+   "type": "image/png"
+  },
+  {
+   "src": "hypersphere.svg",
+   "sizes": "any",
+   "type": "image/svg+xml"
+  }
+ ]
+}
