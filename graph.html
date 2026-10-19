@@ -74,7 +74,11 @@
     .gbtns button:hover { border-color: var(--d2); }
     .gbtns button.on { border-color: var(--d5); color: #d8b4fe; background: rgba(76, 29, 149, 0.55); }
     .gbtns button[hidden] { display: none; }
-    .gbtns #d3Btn { font: 800 12px 'Inter', sans-serif; }
+    .gbtns #d3Btn, .gbtns #d4Btn { font: 800 12px 'Inter', sans-serif; }
+    .gbtns { z-index: 2; }
+    /* 4D（three.js の graph4d.html をグラフの場所にはめ込む） */
+    #g4 { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; opacity: 0; pointer-events: none; transition: opacity 0.35s; z-index: 1; background: transparent; }
+    #g4.on { opacity: 1; pointer-events: auto; }
     .hsel { position: absolute; left: 10px; top: 10px; display: flex; gap: 4px; }
     .hsel[hidden] { display: none; }
     .hsel button {
@@ -351,7 +355,7 @@
         <div class="hsel" id="hsel" hidden>
             <span class="hlab">高さ</span><button type="button" data-h="re">Re y</button><button type="button" data-h="im">Im y</button><button type="button" data-h="abs">|y|</button><button type="button" data-h="4d" title="4次元のまま回して、4本目の軸の遠近で歪ませて立体に落とす">4D</button>
             <span class="hsep"></span><button type="button" data-t="surf">曲面</button><button type="button" data-t="floor">床</button>
-            <span class="hsep"></span><button type="button" id="viewRe" title="Re x の方向を正面に（x が実数の普通のグラフ）">正面</button><button type="button" id="viewIm" title="90° 回して Im x の方向を正面に（x が純虚数の所に隠れたグラフ）">90° 回す</button><button type="button" class="open4d" title="three.js の 4D ビューで開く（4 本の軸を回して消す・複素数の解を全部見る）">4D ビュー ↗</button>
+            <span class="hsep"></span><button type="button" id="viewRe" title="Re x の方向を正面に（x が実数の普通のグラフ）">正面</button><button type="button" id="viewIm" title="90° 回して Im x の方向を正面に（x が純虚数の所に隠れたグラフ）">90° 回す</button><button type="button" class="open4d" title="ここで 4D に広げる（4 本の軸を回して消す・複素数の解を全部見る）">4D に広げる</button>
             <span class="h4" id="h4" hidden>
                 <label>θ<input type="range" id="h4th" min="0" max="360" step="1"></label>
                 <label>φ<input type="range" id="h4ph" min="0" max="360" step="1"></label>
@@ -361,12 +365,13 @@
         </div>
         <div class="hsel" id="rsel" hidden>
             <span class="hlab">x の向き</span><input type="range" id="rotA" min="0" max="360" step="1"><span class="rotv" id="rotV">0°</span>
-            <button type="button" data-ra="0">実軸 0°</button><button type="button" data-ra="90">虚軸 90°</button><button type="button" data-ra="180">180°</button><button type="button" id="rotSpin">回す</button><button type="button" class="open4d" title="three.js の 4D ビューで開く（4 本の軸を回して消す・複素数の解を全部見る）">4D ビュー ↗</button>
+            <button type="button" data-ra="0">実軸 0°</button><button type="button" data-ra="90">虚軸 90°</button><button type="button" data-ra="180">180°</button><button type="button" id="rotSpin">回す</button><button type="button" class="open4d" title="ここで 4D に広げる（4 本の軸を回して消す・複素数の解を全部見る）">4D に広げる</button>
         </div>
         <div class="gbtns">
             <button type="button" id="rotBtn" title="x を複素数の向きに回す（普通のグラフのまま 4 次元を見る）">∠</button>
             <button type="button" id="modeBtn" title="複素数平面に切り替え">ℂ</button>
             <button type="button" id="d3Btn" title="3D：床を x の複素数平面、高さを y に">3D</button>
+            <button type="button" id="d4Btn" title="4D：普通のグラフを、x も y も複素数の 4 次元の面に広げる（three.js）">4D</button>
             <button type="button" id="colorBtn" title="色分けの表示切替" hidden>◐</button>
             <button type="button" id="zin" title="拡大">＋</button>
             <button type="button" id="zout" title="縮小">−</button>
@@ -394,7 +399,7 @@
                 x 以外の文字（n, a など）は自動でスライダーになります。<b>y</b> は縦の座標、<b>i</b> は虚数単位です。<br>
                 <code>y+25=x^2</code> のように = を使った式や、<code>x^2+y^2=r</code> のような陰関数も描けます（先頭の <code>y=</code> は付けたままでも OK、X・Y の大文字も可）。<br>
                 各式の下に「解」を複素数まで表示します。右上の <b>ℂ</b> で複素数平面に切り替えると、解の位置と値の色分けが見られます（解の行をタップでも移動）。<br>
-                <b>4D ビュー ↗</b>（3D・∠ の時の上のボタン）で、three.js の 4D ビューが開きます。4 本の軸を 4 次元のまま回して消したり、複素数の解を全部光る点で見られます。<br>
+                右上の <b>4D</b> で、普通のグラフがそのまま 4 次元の面に広がります（x も y も複素数、three.js）。式やスライダーを変えると 4D もすぐ変わります。左上の ⚙ で、4 本の軸を回して消す・解の一覧・蛍光・∞ など。もう一度 <b>4D</b> を押すと、面をたたんで普通のグラフに戻ります。<br>
                 <b>3D</b> は x と y を両方複素数にした4次元を、床＝x（実軸・虚軸）、高さ＝y の実部、色＝y の虚部で表示します。<span style="color:#fde047">黄＝普通のグラフ</span>、<span style="color:#4ade80">緑＝x が複素数でも y が実数になる所</span>、●＝解（グラフと同じ色）。上のボタンで曲面・床をオンオフ、ドラッグで回転、ホイール／ピンチで範囲を変更。<br>
                 Σ は <code>Σ(k=0,n, 式)</code>、階乗は <code>(2k+1)!</code>、× は省略できます（<code>2x</code>, <code>3sin(x)</code>）。<br>
                 ^ を打たなくても、1 文字の変数のすぐ後の数字は指数になります（<code>x2</code> → x²、<code>3x2-2x</code> → 3x²−2x、<code>a10</code> → a¹⁰）。ただし <b>e と i は除く</b>（<code>e2</code> は e×2、<code>i2</code> は i×2）、小数も除く（<code>x2.5</code> は x×2.5）。指数が式の時は今まで通り <code>x^(2k+1)</code>、<code>e^x</code>。<br>
@@ -1353,6 +1358,10 @@ const PRESETS = [
       params: {}, fit: { w: 26, h: 5 } },
     { name: 'eˣ の展開を階乗で書くと：1 + x + x²/2! + x³/3! + …', exprs: ['e^x', '1 + x', '1 + x + x^2/2!', '1 + x + x^2/2! + x^3/3!', '1 + x + x^2/2! + x^3/3! + x^4/4!'],
       params: {}, fit: { w: 16, h: 14, cy: 4 } },
+    { name: 'オイラーの公式 e^(ix) = cos x + i sin x（実線＝実部が cos、点線＝虚部が sin に重なる）', exprs: ['y=cos(x)', 'y=sin(x)', 'y=e^(ix)'],
+      params: {}, fit: { w: 16, h: 5 }, fitC: { w: 8, h: 8 }, xrot: { on: true, a: 0, spin: false } },
+    { name: 'オイラーの等式 e^(iπ) + 1 = 0（y = e^(ix) + 1 の解が π, −π, 3π …）', exprs: ['y=e^(ix)+1'],
+      params: {}, fit: { w: 22, h: 6 }, fitC: { w: 14, h: 8 }, xrot: { on: true, a: 0, spin: false } },
     { name: '普通のグラフで 4 次元：y = x² の x を虚軸へ回す（90° で下向きの放物線）', exprs: ['y=x^2'],
       params: {}, fit: { w: 10, h: 8 }, fitC: { w: 5, h: 5 }, xrot: { on: true, a: 0, spin: true } },
     { name: '普通のグラフで 4 次元：y = x² + 1（90° で解 ±i が x 軸と交わる）', exprs: ['y=x^2+1'],
@@ -2031,6 +2040,7 @@ function draw() {
     exprs.forEach(refreshExpand);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (mode === 'c') drawComplex(); else if (mode === '3d') draw3D(); else { legendEl.hidden = true; drawReal(); }
+    if (mode === '4d') g4Send();
 }
 
 function drawReal() {
@@ -3083,6 +3093,8 @@ function fitRootsC(ex) {
 function syncModeUI() {
     $('#modeBtn').classList.toggle('on', mode === 'c');
     $('#d3Btn').classList.toggle('on', mode === '3d');
+    $('#d4Btn').classList.toggle('on', mode === '4d');
+    ['#zin', '#zout', '#zhome'].forEach(id => { $(id).hidden = mode === '4d'; });
     $('#hsel').hidden = mode !== '3d';
     document.querySelectorAll('#hsel button[data-h]').forEach(b => b.classList.toggle('on', b.dataset.h === d3.h));
     document.querySelectorAll('#hsel button[data-t]').forEach(b => b.classList.toggle('on', d3[b.dataset.t] !== false));
@@ -3093,7 +3105,9 @@ function syncModeUI() {
     $('#colorBtn').classList.toggle('on', colorOn);
 }
 function setMode(m) {
+    if (m !== '4d' && g4) { g4.classList.remove('on'); g4Leaving = false; }
     mode = m;
+    if (m === '4d') { g4Frame(); if (g4Ready) g4Unfold(); }
     traceX = null; traceZ = null;
     syncModeUI();
     scheduleRoots(0);
@@ -3101,6 +3115,12 @@ function setMode(m) {
 }
 $('#modeBtn').addEventListener('click', () => setMode(mode === 'c' ? 'r' : 'c'));
 $('#d3Btn').addEventListener('click', () => setMode(mode === '3d' ? 'r' : '3d'));
+// 4D：もう一度押すと、面をたたんで普通のグラフに戻る
+$('#d4Btn').addEventListener('click', () => {
+    if (mode !== '4d') { setMode('4d'); return; }
+    if (g4 && g4Ready && !g4Leaving) { g4Leaving = true; g4.contentWindow.postMessage({ type: 'fold' }, '*'); }
+    else setMode('r');
+});
 document.querySelectorAll('#hsel button[data-h]').forEach(b => b.addEventListener('click', () => {
     d3.h = b.dataset.h; syncModeUI(); requestDraw(); save();
 }));
@@ -3109,14 +3129,44 @@ document.querySelectorAll('#hsel button[data-t]').forEach(b => b.addEventListene
 }));
 $('#colorBtn').addEventListener('click', () => { colorOn = !colorOn; syncModeUI(); requestDraw(); save(); });
 // three.js の 4D ビュー（graph4d.html）へ、いま選んでいる式とパラメータを渡して開く
-document.querySelectorAll('.open4d').forEach(b => b.addEventListener('click', () => {
+// ---------- 4D：three.js の graph4d.html をグラフの場所にはめ込み、いまの式とパラメータを送り続ける ----------
+let g4 = null, g4Ready = false, g4Last = '', g4Leaving = false;
+function g4Frame() {
+    if (!g4) {
+        g4 = document.createElement('iframe');
+        g4.id = 'g4'; g4.title = '4D'; g4.src = 'graph4d.html?embed=1';
+        canvas.insertAdjacentElement('afterend', g4);
+    }
+    return g4;
+}
+function g4Payload() {
     const ex = colorTarget() || exprs.find(e => e.visible && !isBlank(e.text));
-    if (!ex) return;
+    if (!ex) return null;
     const used = {};
-    (ex.free || []).forEach(n => { if (params[n]) used[n] = params[n]; });
-    save();
-    location.href = 'graph4d.html#e=' + encodeURIComponent(ex.text) + (Object.keys(used).length ? '&p=' + encodeURIComponent(JSON.stringify(used)) : '');
-}));
+    (ex.free || []).forEach(n => { if (params[n]) used[n] = { ...params[n] }; });
+    return { expr: ex.text, params: used };
+}
+function g4Send(extra) {
+    if (!g4 || !g4Ready) return;
+    const p = g4Payload();
+    if (!p) return;
+    const key = JSON.stringify(p);
+    if (!extra && key === g4Last) return;
+    g4Last = key;
+    g4.contentWindow.postMessage({ type: 'set', ...p, ...(extra || {}) }, '*');
+}
+// 普通のグラフ（いまの表示範囲）とぴったり同じ見え方から、4D に広げる
+function g4Unfold() {
+    g4Send({ unfold: true, view: { cx: view.cx, cy: view.cy, w: W_ / 2 / view.scale, h: H_ / 2 / view.scale } });
+    g4.classList.add('on');
+}
+window.addEventListener('message', e => {
+    if (!g4 || e.source !== g4.contentWindow) return;
+    const m = e.data || {};
+    if (m.type === 'ready') { g4Ready = true; if (mode === '4d') g4Unfold(); }
+    else if (m.type === 'folded' && g4Leaving) { g4Leaving = false; setMode('r'); }
+});
+document.querySelectorAll('.open4d').forEach(b => b.addEventListener('click', () => setMode('4d')));
 $('#rotBtn').addEventListener('click', () => { xRot.on = !xRot.on; if (!xRot.on) { xRot.spin = false; rotTween = null; } syncRotUI(); requestDraw(); save(); });
 $('#rotA').addEventListener('input', () => { rotTween = null; xRot.a = +$('#rotA').value; syncRotUI(); requestDraw(); saveSoon(); });
 document.querySelectorAll('#rsel button[data-ra]').forEach(b => b.addEventListener('click', () => {

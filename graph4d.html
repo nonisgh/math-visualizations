@@ -86,6 +86,15 @@
         font-size: 11.5px; color: var(--muted); line-height: 1.6; pointer-events: none;
     }
     .legend i { font-style: normal; font-weight: 700; }
+    /* グラフ電卓の中にはめ込んだ時（?embed=1） */
+    body.embed .top { display: none; }
+    body.embed .panel-btn { left: 10px; right: auto; top: 10px; bottom: auto; }
+    body.embed .panel { left: 10px; right: auto; top: 58px; bottom: 10px; width: 290px; max-height: none; }
+    body.embed .legend { left: 10px; right: 64px; bottom: 8px; top: auto; max-width: none; font-size: 10.5px; padding: 4px 8px; }
+    body.embed .err { top: 12px; left: 60px; }
+    body.embed #paramSec { display: none !important; }
+    .popout { display: none; }
+    body.embed .popout { display: inline-flex; align-items: center; text-decoration: none; }
     @media (max-width: 760px) {
         .panel { left: 12px; right: 12px; width: auto; top: auto; max-height: 55vh; }
         .legend { max-width: calc(100% - 76px); font-size: 10.5px; }
@@ -105,6 +114,9 @@
 <div class="err" id="err" hidden></div>
 <button class="panel-btn" id="panelBtn" type="button" title="パネルの表示／非表示">⚙</button>
 <aside class="panel" id="panel">
+    <section class="popout" style="border-bottom:0;padding-bottom:0">
+        <a class="btn popout" id="popout" href="graph4d.html" target="_blank" rel="noopener">別ページで大きく開く ↗</a>
+    </section>
     <section>
         <h3>4 次元の回転 <button class="btn" id="spinAll" type="button">回す</button></h3>
         <div id="planes"></div>
@@ -907,7 +919,10 @@ function niceStep(raw) {
 // 解の値は短く（小数 3 桁）。チップにのせたら詳しい値
 const fmt3 = v => { if (Math.abs(v - Math.round(v)) < 1e-9) v = Math.round(v); let s = String(+v.toFixed(3)); if (s === '-0') s = '0'; return s.replace('-', '−'); };
 const fmtR = (re, im) => fmtComplex(re, im, fmt3);
-const STORE = 'graph4d.v1';
+const cl01 = x => Math.max(0, Math.min(1, x));
+const EMBED = new URLSearchParams(location.search).has('embed');   // グラフ電卓の中にはめ込まれている
+if (EMBED) document.body.classList.add('embed');
+const STORE = EMBED ? 'graph4d.embed.v1' : 'graph4d.v1';
 const CLIP = 1.8;   // これより大きい値（Yr で割った後）は切る
 const PLANES = [
     { k: 'zw', a: 2, b: 3, name: 'Im x ↔ Im y', sub: 'Im x が消えて Im y が現れる', rate: 1.0 },
@@ -924,6 +939,8 @@ const VIEWS = [
     { k: 'diag', name: '斜めの 4D', sub: '全部の軸が少しずつ', ang: { xw: 25, yw: 35, zw: 45, xz: 0 }, cam: 'side' },
 ];
 const PRESETS = [
+    { name: 'オイラーの公式 y = e^(ix)（x が実数の所は Re x の軸のまわりのらせん：cos x + i sin x）', e: 'e^(ix)', R: 6.3, yFix: 1.2, ang: { zw: 90 }, spin: [] },
+    { name: 'オイラーの等式 e^(iπ) + 1 = 0（y = e^(ix) + 1 の解が ±π, ±3π …）', e: 'e^(ix)+1', R: 10, yFix: 2.2, ang: { zw: 90 }, spin: [] },
     { name: 'y = x²（Im x を消すと下向きの放物線）', e: 'x^2', view: 'base', spin: ['zw'] },
     { name: 'y = x² + 1（解 ±i）', e: 'x^2+1', spin: ['zw'] },
     { name: 'y = x² − 2x + 5（解 1 ± 2i）', e: 'x^2-2x+5', spin: ['zw'] },
@@ -949,7 +966,7 @@ const S = {
     expr: 'x^2', params: {}, R: 2, pk: 0.55,
     ang: { xw: 0, yw: 0, zw: 0, xz: 0 },
     spin: { xw: false, yw: false, zw: true, xz: false }, spinOn: true, speed: 1,
-    color: 'w', look: 'neon', inf: false, show: { surf: true, grid: true, floor: true, axes: true, real: true, green: true },
+    color: 'w', look: 'neon', inf: false, grow: 1, yLock: false, yBlend: 1, yFix: 0, show: { surf: true, grid: true, floor: true, axes: true, real: true, green: true },
 };
 function save() {
     try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (_) { /* 保存できない環境では何もしない */ }
@@ -1267,16 +1284,17 @@ function dispToX(a, b) {
     return C(a / rho * m, b / rho * m);
 }
 
-function rebuild(fitR) {
+function rebuild(fitR, opt = {}) {
     if (!cur) return;
-    const env = paramEnv(), R = S.R, inf = !!S.inf;
+    const env = paramEnv(), R = S.R, G = Math.max(0, Math.min(1, S.grow ?? 1)), inf = !!S.inf && G >= 1;
     const cenv = { z: null, y: C(0), p: env, loop: {} };
     const ev = z => { cenv.z = z; cenv.loop = {}; return cur.cf(cenv); };
 
     // 解（範囲より広めに探す）
     const sr = inf ? Math.max(R, 10) : R;
-    roots = findRoots(cur.cf, env, { x0: -sr, x1: sr, y0: -sr, y1: sr }, 350).filter(r => cabs(r) < (inf ? 1e4 : 60));
+    if (!opt.noRoots) roots = findRoots(cur.cf, env, { x0: -sr, x1: sr, y0: -sr, y1: sr }, 350).filter(r => cabs(r) < (inf ? 1e4 : 60));
     if (fitR) {
+        S.yLock = false; S.yFix = 0;
         const m = roots.filter(r => cabs(r) < 60).reduce((a, r) => Math.max(a, Math.abs(r.re), Math.abs(r.im)), 0);
         // 四角：解が全部入る広さ。無限：いちばん遠い解が半径のおよそ半分に来る広さ
         if (m > 0) S.R = Math.min(12, Math.max(1.2, Math.ceil(m * (inf ? 2 : 1.35) * 10) / 10));
@@ -1288,8 +1306,9 @@ function rebuild(fitR) {
     const Ad = [], Bd = [], quads = [], polys = [];
     let realEps;
     if (!inf) {
-        const N = 96, n1 = N + 1;
-        for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) { Ad.push(-1 + 2 * i / N); Bd.push(-1 + 2 * j / N); }
+        // G < 1 の時（広がる途中）は Im x の向きを G 倍に縮める：G = 0 で x が実数の線（普通のグラフ）だけになる
+        const N = G < 1 ? 60 : 96, n1 = N + 1;
+        for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) { Ad.push(-1 + 2 * i / N); Bd.push((-1 + 2 * j / N) * G); }
         for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const a = j * n1 + i; quads.push(a, a + 1, a + n1 + 1, a + n1); }
         for (let t = 0; t <= N; t += N / 12) {
             polys.push(Array.from({ length: n1 }, (_, i) => t * n1 + i));
@@ -1318,6 +1337,9 @@ function rebuild(fitR) {
     mags.sort((a, b) => a - b);
     const pct = q => mags.length ? mags[Math.floor(mags.length * q)] : 1;
     Yr = Math.max(1e-9, inf ? pct(0.35) : pct(0.9) * 1.1);
+    // グラフ電卓と同じ縮尺（x と y を同じ倍率 → Yr = R）から、見やすい自動の縮尺へ yBlend で少しずつ移す
+    if (S.yLock && !inf) { const yb = cl01(S.yBlend ?? 1); Yr = Math.exp((1 - yb) * Math.log(R) + yb * Math.log(Yr)); }
+    else if (S.yFix && !inf) Yr = S.yFix;
     const H = 1.35;
     const scaleY = (r, i) => {
         if (!isFinite(r) || !isFinite(i)) return null;
@@ -1394,8 +1416,8 @@ function rebuild(fitR) {
     if (!inf) {
         const st = niceStep(R / 3);
         for (let t = Math.ceil(-R / st) * st; t <= R + 1e-9; t += st) {
-            push(F, P4(t / R, -1, 0, 0), P4(t / R, 1, 0, 0));
-            push(F, P4(-1, t / R, 0, 0), P4(1, t / R, 0, 0));
+            if (G > 0.01) push(F, P4(t / R, -G, 0, 0), P4(t / R, G, 0, 0));
+            if (Math.abs(t / R) <= G + 1e-9) push(F, P4(-1, t / R, 0, 0), P4(1, t / R, 0, 0));
         }
     } else {
         // |x| = c/4, c/2, c, 2c, 4c, 8c, 16c の円と、いちばん外の円（無限の遠く）、30° ごとの放射状の線
@@ -1445,14 +1467,14 @@ function rebuild(fitR) {
 
     // 解（無限の時は全部、四角の時は範囲の中だけ）
     dropObj('roots');
-    const vis = inf ? roots.slice() : roots.filter(r => Math.abs(r.re) <= R * 1.0001 && Math.abs(r.im) <= R * 1.0001);
+    const vis = opt.noRoots ? [] : inf ? roots.slice() : roots.filter(r => Math.abs(r.re) <= R * 1.0001 && Math.abs(r.im) <= R * 1.0001);
     if (vis.length) {
         const rp = new Float32Array(vis.length * 4), ri = new Float32Array(vis.length);
         vis.forEach((r, i) => { const [a, b] = xToDisp(r); rp.set(P4(a, b, 0, 0), i * 4); ri[i] = i; });
         objs.roots = mk({ p4: new THREE.BufferAttribute(rp, 4), idx: new THREE.BufferAttribute(ri, 1) }, rootMat, THREE.Points, 10);
     }
     visRoots = vis;
-    renderRootChips();
+    if (!opt.noRoots) renderRootChips();
     applyShow();
     requestRender();
 }
@@ -1543,6 +1565,58 @@ function startTween(ang, cam) {
     S.spinOn = false; syncUI();
     requestRender();
 }
+// ---------- グラフ電卓の中で：普通のグラフ ⇔ 4D に広がる・たたむ ----------
+// 正面のカメラ：グラフ電卓のいまの表示（中心 cx, cy、横の半分 w）とぴったり同じ見え方
+let unf = null, lastView = null;
+function frontCam(v) {
+    const Yr0 = S.yLock ? S.R : Yr;
+    const T = new THREE.Vector3(v.cx / S.R, v.cy / Yr0, 0);
+    const D = (v.w / S.R) / (Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
+    return { tgt: T, cam: T.clone().add(new THREE.Vector3(0, 0, D)) };
+}
+function startUnfold(v) {
+    lastView = v;
+    S.inf = false; S.yLock = true; S.yBlend = 0; S.yFix = 0;
+    S.R = Math.max(0.5, Math.abs(v.cx) + v.w);
+    S.ang = { xw: 0, yw: 0, zw: 0, xz: 0 }; S.spinOn = false; tween = null;
+    S.grow = 0;
+    rebuild(false, { noRoots: true });
+    const f = frontCam(v);
+    camera.position.copy(f.cam); controls.target.copy(f.tgt); camera.lookAt(f.tgt);
+    unf = { dir: 1, t0: performance.now(), dur: 2800, camA: f.cam.clone(), tgtA: f.tgt.clone(), camB: CAM_SIDE.clone(), tgtB: new THREE.Vector3() };
+    syncUI(); requestRender();
+}
+function startFold() {
+    if (!lastView || !cur) { parent.postMessage({ type: 'folded' }, '*'); return; }
+    S.spinOn = false; tween = null; S.inf = false;
+    S.yFix = 0;
+    if (!S.yLock) { S.yLock = true; S.yBlend = 1; S.R = Math.max(0.5, Math.abs(lastView.cx) + lastView.w); rebuild(false); }
+    const f = frontCam(lastView);
+    unf = { dir: -1, t0: performance.now(), dur: 2200, camA: camera.position.clone(), tgtA: controls.target.clone(), camB: f.cam, tgtB: f.tgt, angFrom: { ...S.ang } };
+    syncUI();
+}
+function stepUnfold() {
+    const u = Math.min(1, (performance.now() - unf.t0) / unf.dur);
+    let uc, g;
+    if (unf.dir > 0) { uc = ease(cl01(u / 0.45)); g = ease(cl01((u - 0.3) / 0.7)); }
+    else {
+        g = 1 - ease(cl01(u / 0.65)); uc = ease(cl01((u - 0.45) / 0.55));
+        const ea = ease(cl01(u / 0.5));
+        for (const k in unf.angFrom) { const d = ((0 - unf.angFrom[k]) % 360 + 540) % 360 - 180; S.ang[k] = unf.angFrom[k] + d * ea; }
+        syncAngles();
+    }
+    camera.position.lerpVectors(unf.camA, unf.camB, uc);
+    controls.target.lerpVectors(unf.tgtA, unf.tgtB, uc);
+    camera.lookAt(controls.target);
+    if (Math.abs(g - S.grow) > 0.004 || u >= 1) { S.grow = g; S.yBlend = g; rebuild(false, { noRoots: g < 0.999 }); }
+    if (u >= 1) {
+        const dir = unf.dir;
+        unf = null;
+        if (dir > 0) { S.grow = 1; S.yBlend = 1; rebuild(false); flashT = performance.now(); }
+        else parent.postMessage({ type: 'folded' }, '*');
+        save();
+    }
+}
 function frame(t) {
     requestAnimationFrame(frame);
     const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
@@ -1561,6 +1635,7 @@ function frame(t) {
         syncAngles();
         anim = true;
     }
+    if (unf) { stepUnfold(); anim = true; }
     let fl = 0;
     if (flashT) {
         const u = (performance.now() - flashT) / 1700;
@@ -1697,6 +1772,7 @@ function setExpr(text, fitR = true) {
     save(); writeHash();
 }
 function writeHash() {
+    if (EMBED) return;
     const used = {};
     (cur ? cur.free : []).forEach(n => { used[n] = S.params[n]; });
     const h = 'e=' + encodeURIComponent(S.expr) + (Object.keys(used).length ? '&p=' + encodeURIComponent(JSON.stringify(used)) : '');
@@ -1713,8 +1789,9 @@ function loadPreset(p) {
     S.params = { ...S.params, ...(p.params || {}) };
     for (const k in S.spin) S.spin[k] = (p.spin || []).includes(k);
     S.spinOn = true;
-    S.ang = { xw: 0, yw: 0, zw: 0, xz: 0 };
+    S.ang = { xw: 0, yw: 0, zw: 0, xz: 0, ...(p.ang || {}) };
     S.inf = !!p.inf;
+    S.yFix = p.yFix || 0;   // 高さの縮尺を固定する例（e^(ix) のように虚軸の向きに急に大きくなる式で、らせんが小さくならないように）
     $('#expr').value = p.e;
     if (p.R) { S.R = p.R; setExpr(p.e, false); } else setExpr(p.e, true);
     syncUI();
@@ -1740,8 +1817,34 @@ if (window.innerWidth <= 760) $('#panel').hidden = true;
 // ---------- 開始 ----------
 renderPlanes();
 renderViews();
+if (EMBED) {
+    // グラフ電卓から式が届くのを待つ
+    load();
+    S.grow = 1;
+    $('#panel').hidden = true;
+    resize(); syncUI();
+    window.addEventListener('message', e => {
+        if (e.source !== window.parent) return;
+        const m = e.data || {};
+        if (m.type === 'set') {
+            if (m.params) for (const k in m.params) S.params[k] = { ...m.params[k] };
+            if (m.expr !== S.expr || !cur) {
+                S.expr = m.expr;
+                try { cur = analyzeExpr(m.expr); $('#err').hidden = true; }
+                catch (er) { $('#err').hidden = false; $('#err').textContent = er.isParse ? er.message : '式を読み取れません'; return; }
+            }
+            $('#popout').href = 'graph4d.html#e=' + encodeURIComponent(S.expr);
+            if (m.unfold && m.view) { startUnfold(m.view); return; }
+            if (!unf) scheduleRebuild(false);
+        } else if (m.type === 'fold') startFold();
+    });
+    parent.postMessage({ type: 'ready' }, '*');
+    requestAnimationFrame(frame);
+    return;
+}
 const fromHash = readHash();
 if (!fromHash) load();
+S.grow = 1; S.yLock = false;
 resize();
 syncUI();
 $('#expr').value = S.expr;
