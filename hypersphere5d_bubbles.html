@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>5次元球とシャボン玉｜次元おりがみ UI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
+        body { font-family: 'Noto Sans JP', 'Inter', sans-serif; background-color: #030712; color: #f3f4f6; overflow: hidden; }
+        .glass-panel { background: rgba(15, 23, 42, 0.93); border: 1px solid rgba(255, 255, 255, 0.12); }
+        body { --sb-w: 340px; --sb: var(--sb-w); --dock-l: 0px; --dock-r: 0px; }
+        body.sidebar-hidden { --sb: 0px; }
+        body.dock-left-on { --dock-l: min(340px, 32vw); }
+        body.dock-right-on { --dock-r: min(340px, 32vw); }
+        body.sidebar-hidden #ui-overlay { display: none; }
+        #sidebar-open { display: none; }
+        body.sidebar-hidden #sidebar-open { display: flex; }
+        #main-container { position: absolute; top: 0; bottom: 0; right: var(--dock-r); left: calc(var(--sb) + var(--dock-l)); display: flex; }
+        #main-container > .pane { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; }
+        #main-container > .pane.off { display: none; }
+        #main-container > .pane + .pane { border-left: 1px solid #1e293b; }
+        @media (orientation: portrait) and (max-width: 1100px) { #main-container { flex-direction: column; } #main-container > .pane + .pane { border-left: 0; border-top: 1px solid #1e293b; } }
+        #rot-bar { left: calc(var(--sb) + var(--dock-l) + 12px); right: calc(var(--dock-r) + 12px); }
+        #ui-overlay { left: 0; right: auto; border-width: 0 1px 0 0 !important; }
+        #sidebar-open { left: 12px; }
+        .sb-sec { background: rgba(2, 6, 23, 0.35); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .sb-h { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #cbd5e1; margin: 0; }
+        /* ポップアップ分離：欄を切り離して浮かせる */
+        #float-layer { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+        .float-panel { position: absolute; width: min(330px, 92vw); max-height: 82vh; overflow-y: auto; overflow-x: hidden; pointer-events: auto; border-radius: 12px; box-shadow: 0 12px 44px rgba(0, 0, 0, 0.6); }
+        .float-panel > .sb-sec { margin: 0; padding-top: 0; background: rgba(4, 8, 22, 0.96); border-color: rgba(129, 140, 248, 0.55); }   /* 背景ぼかしは外した（ほぼ不透明なので見た目は同じ・3Dが動くたびのぼかし計算をなくして軽く） */
+        .float-panel .sb-h { cursor: move; position: sticky; top: 0; z-index: 5; margin: 0 -10px; padding: 9px 10px 7px; background: rgba(7, 11, 26, 0.98); box-shadow: 0 1px 0 rgba(129, 140, 248, 0.3); }
+        .sb-floatbtn { margin-left: 6px; flex-shrink: 0; font-size: 10px; font-weight: 400; color: #8aa0c6; cursor: pointer; white-space: nowrap; background: none; border: 0; padding: 0 2px; }
+        .sb-floatbtn:hover { color: #e2e8f0; }
+        .sb-sec.floating > .sb-h .sb-floatbtn { color: #a5b4fc; }
+        /* 説明文：ふだんはたたんで「📖 [説明]」だけ。押すと開く */
+        .expl-tg { display: inline-flex; align-items: center; gap: 3px; align-self: flex-start; font-size: 10px; line-height: 1.4; color: #8aa0c6; background: none; border: 0; padding: 0; cursor: pointer; white-space: nowrap; }
+        .expl-tg:hover { color: #e2e8f0; }
+        .expl-tg .expl-ic { flex-shrink: 0; transition: transform .15s; }
+        .expl-tg:hover .expl-ic { transform: translateY(-1px); }
+        .expl-closed { display: none !important; }
+        /* 画面端にドッキングした2ペイン用のレール（幅は --dock-l/--dock-r と連動＝描画領域が自動で縮む） */
+        .dock-rail { position: fixed; top: 0; bottom: 0; z-index: 44; width: 0; overflow: hidden; pointer-events: none; display: flex; flex-direction: column; gap: 8px; padding: 0; box-sizing: border-box; background: rgba(2, 5, 16, 0.95); }
+        .dock-rail.active { pointer-events: auto; overflow-y: auto; overflow-x: hidden; padding: 8px; }
+        #dock-left { left: 0; width: var(--dock-l); border-right: 1px solid rgba(129, 140, 248, 0.4); }
+        #dock-right { right: 0; width: var(--dock-r); border-left: 1px solid rgba(129, 140, 248, 0.4); }
+        body.sidebar-left:not(.sidebar-hidden) #dock-left { left: var(--sb); }
+        body:not(.sidebar-left):not(.sidebar-hidden) #dock-right { right: var(--sb); }
+        /* メニューを非表示にしたら、端にくっつけた（ドックした）パネルも一緒に隠して描画領域を広げる。浮いているパネルは出したまま */
+        body.sidebar-hidden #dock-left, body.sidebar-hidden #dock-right { display: none; }
+        body.sidebar-hidden.dock-left-on { --dock-l: 0px; }
+        body.sidebar-hidden.dock-right-on { --dock-r: 0px; }
+        .float-panel.docked { position: static !important; width: 100% !important; max-height: none !important; left: auto !important; top: auto !important; box-shadow: none; flex: 0 0 auto; overflow: visible; }   /* スクロールは入れ物（グループ・レール）側で。見出しの固定もそこ基準 */
+        /* 分離パネルの連結（Photoshop 風）：浮いているグループ＝縦に連結したパネルの入れ物。2枚以上で「まとめて移動」のつまみ */
+        .float-stack { position: absolute; width: min(330px, 92vw); max-height: 82vh; overflow-y: auto; overflow-x: hidden; pointer-events: auto; border-radius: 12px; box-shadow: 0 12px 44px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; gap: 6px; }
+        .float-stack > .fs-grip { display: none; }
+        .float-stack.multi { background: rgba(4, 8, 22, 0.55); border: 1px solid rgba(129, 140, 248, 0.35); padding: 0 4px 4px; }
+        .float-stack.multi > .fs-grip { display: flex; align-items: center; gap: 6px; position: sticky; top: 0; z-index: 6; height: 24px; flex: 0 0 auto; box-sizing: border-box; cursor: move; user-select: none; font-size: 10px; color: #a5b4fc; padding: 0 8px; margin: 0 -4px; background: rgba(30, 27, 75, 0.96); border-bottom: 1px solid rgba(129, 140, 248, 0.35); }
+        .float-stack.multi .float-panel .sb-h { top: 24px; }
+        .fs-grip .fs-dots { font-size: 13px; letter-spacing: -1px; }
+        .fs-grip .fs-fold { margin-left: auto; }
+        .float-stack.joining { opacity: 0.55; }
+        .float-stack.collapsed > .float-panel { display: none; }   /* まとめてたたむ：つまみだけ残す */
+        .float-stack.collapsed { padding-bottom: 0; }
+        .float-stack.collapsed > .fs-grip { margin-bottom: 0; border-bottom: 0; border-radius: 11px; }
+        .fs-grip .fs-count { color: #8aa0c6; }
+        .sb-panel > .sb-sec[data-fid] > .sb-h, .sb-h.xp-drag { cursor: grab; user-select: none; }   /* メニューの欄も見出しをつかんでドラッグで分離 */
+        .sb-panel > .sb-sec[data-fid] > .sb-h button, .sb-h.xp-drag button { cursor: pointer; }
+        /* タブでまとめる：見出しの代わりにタブ。選んだ1枚だけ表示 */
+        .float-stack.tabbed > .float-panel:not(.tab-on) { display: none; }
+        .float-stack.tabbed > .float-panel > .sb-sec > .sb-h { display: none; }
+        .float-stack.tabbed > .float-panel > .sb-sec { padding-top: 10px; border-top-left-radius: 0; border-top-right-radius: 0; }
+        .float-stack.tabbed { gap: 0; }
+        .float-stack > .fs-tabs { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 3px; position: sticky; top: 24px; z-index: 6; margin: 4px -4px 0; padding: 4px 6px 0; background: rgba(7, 11, 26, 0.98); border-bottom: 1px solid rgba(167, 139, 250, 0.55); }
+        .float-stack.collapsed > .fs-tabs { display: none; }
+        .fs-tab { font-size: 11px; line-height: 1.2; padding: 5px 10px; border-radius: 7px 7px 0 0; color: #94a3b8; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(71, 85, 105, 0.7); border-bottom: 0; cursor: pointer; user-select: none; touch-action: none; }
+        .fs-tab:hover { color: #e2e8f0; }
+        .fs-tab.on { color: #ede9fe; background: rgba(76, 29, 149, 0.6); border-color: rgba(167, 139, 250, 0.75); }
+        .fs-tabs .fs-tab-back { margin-left: auto; align-self: center; }
+        #dock-ins { position: fixed; z-index: 47; height: 4px; border-radius: 2px; background: #a5b4fc; box-shadow: 0 0 10px rgba(165, 180, 252, 0.9); pointer-events: none; display: none; }
+        #dock-hint { position: fixed; top: 0; bottom: 0; z-index: 46; pointer-events: none; display: none; background: rgba(129, 140, 248, 0.16); border: 2px dashed rgba(129, 140, 248, 0.75); border-radius: 10px; box-sizing: border-box; }
+        .ios-sw { position: relative; display: inline-block; width: 30px; height: 16px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; box-sizing: border-box; transition: background .2s, border-color .2s; flex-shrink: 0; margin-left: 7px; vertical-align: middle; }
+        .ios-sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 8px; height: 8px; background: #64748b; transform: rotate(45deg); transition: left .2s, background .2s; }
+        .ios-sw.on { border-color: #a855f7; background: #3b1d5c; }
+        .ios-sw.on::after { left: 17px; background: #e9d5ff; }
+        button.has-sw { display: inline-flex; align-items: center; }
+        .sl-row { display: grid; grid-template-columns: 74px 1fr 40px; align-items: center; gap: 6px; font-size: 11px; color: #cbd5e1; }
+        .sl-row output { text-align: right; font-family: ui-monospace, Menlo, monospace; color: #94a3b8; font-size: 10px; }
+        .pl-row { display: grid; grid-template-columns: 40px 1fr 36px auto; align-items: center; gap: 6px; font-size: 11px; }
+        .pl-name { font-weight: 700; font-family: ui-monospace, Menlo, monospace; }
+        .pl-deg { text-align: right; font-family: ui-monospace, Menlo, monospace; color: #94a3b8; font-size: 10px; }
+        .pl-row button { padding: 1px 6px; border-radius: 7px; border: 1px solid #334155; background: rgba(30, 41, 59, 0.8); color: #cbd5e1; font-size: 10px; }
+        input[type=range] { accent-color: #a855f7; width: 100%; }
+        .tbtn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 9px; border: 1px solid #334155; background: rgba(30, 41, 59, 0.8); color: #cbd5e1; font-size: 11px; white-space: nowrap; }
+        .tbtn:hover { background: #334155; }
+        .tbtn.on { background: rgba(124, 58, 237, 0.35); border-color: rgba(167, 139, 250, 0.7); color: #ede9fe; }
+        .tbtn.go { background: rgba(8, 145, 178, 0.3); border-color: rgba(34, 211, 238, 0.6); color: #cffafe; }
+        .seg { display: inline-flex; border: 1px solid #334155; border-radius: 9px; overflow: hidden; }
+        .seg button { padding: 3px 9px; font-size: 11px; color: #94a3b8; background: rgba(30, 41, 59, 0.8); }
+        .seg button.on { background: rgba(124, 58, 237, 0.35); color: #ede9fe; }
+        .badge { position: absolute; top: 10px; left: 10px; right: 10px; pointer-events: none; padding: 5px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 7px; z-index: 10; background: rgba(15, 23, 42, 0.85); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); width: max-content; max-width: calc(100% - 20px); }
+        .badge small { display: block; font-size: 10px; font-weight: 400; color: #94a3b8; }
+        .counter { position: absolute; top: 62px; left: 10px; pointer-events: none; padding: 4px 9px; border-radius: 11px; font-size: 10px; z-index: 10; background: rgba(15, 23, 42, 0.85); border: 1px solid #334155; font-family: ui-monospace, Menlo, monospace; color: #cbd5e1; line-height: 1.5; }
+        .counter b { color: #fff; }
+        .counter.pulse { animation: cpulse .5s ease-out; }
+        @keyframes cpulse { 0% { box-shadow: 0 0 0 0 var(--pc, rgba(34, 211, 238, 0.9)); } 100% { box-shadow: 0 0 0 14px rgba(0, 0, 0, 0); } }
+        .pop { position: absolute; pointer-events: none; z-index: 12; font-weight: 900; font-size: 15px; color: #fff; transform: translate(-50%, -50%); text-shadow: 0 0 10px var(--c), 0 0 22px var(--c); animation: popup 0.9s ease-out forwards; white-space: nowrap; }
+        @keyframes popup { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.4); } 20% { opacity: 1; transform: translate(-50%, -70%) scale(1.25); } 100% { opacity: 0; transform: translate(-50%, -160%) scale(1); } }
+        .note { font-size: 10px; color: #64748b; line-height: 1.5; }
+        .bub-only { }
+        body.mode-sphere .bub-only { display: none !important; }
+        body.mode-bubbles .sph-only { display: none !important; }
+    </style>
+</head>
+<body class="w-full h-screen relative select-none overflow-hidden sidebar-left mode-sphere">
+    <div id="main-container">
+        <div class="pane" id="pane3">
+            <div class="badge border border-cyan-500/30 text-cyan-300"><i data-lucide="box" class="w-4 h-4 shrink-0"></i><div>3次元の世界<small>4次元の世界を w = w₀ で切った断面</small></div></div>
+            <div class="counter" id="cnt3"></div>
+        </div>
+        <div class="pane" id="pane4">
+            <div class="badge border border-purple-500/30 text-purple-300"><i data-lucide="orbit" class="w-4 h-4 shrink-0"></i><div>4次元の世界<small>5次元を v = v₀ で切った断面。水色＝3次元の世界</small></div></div>
+            <div class="counter" id="cnt4"></div>
+        </div>
+        <div class="pane" id="pane5">
+            <div class="badge border border-amber-500/30 text-amber-300"><i data-lucide="globe" class="w-4 h-4 shrink-0"></i><div>5次元空間<small>v と w の2段の遠近で 3D に写す。紫＝4次元の世界</small></div></div>
+            <div class="counter" id="cnt5"></div>
+        </div>
+    </div>
+
+    <div id="rot-bar" class="absolute bottom-3 z-30 pointer-events-none flex justify-center">
+        <div class="glass-panel rounded-xl px-2.5 py-1.5 pointer-events-auto shadow-xl flex items-center gap-1.5 text-[11px] flex-wrap justify-center">
+            <div class="seg" title="モード"><button data-mode="sphere" class="on">5次元球</button><button data-mode="bubbles">シャボン玉</button></div>
+            <button class="tbtn" data-act="pause" title="止める／動かす（Space）"><span class="pause-lb">一時停止</span></button>
+            <button class="tbtn bub-only" data-act="respawn" title="泡を作り直す（R）">作り直す</button>
+            <button class="tbtn go" data-act="demo" title="1つの泡を v の向きにだけゆっくり動かして、4次元・3次元の世界を通り抜けさせる（D）">1つだけ通過</button>
+            <button class="tbtn" data-act="scanV" title="v₀（4次元の世界の位置）を自動で往復させる"><span>v₀ 往復: OFF</span></button>
+            <button class="tbtn" data-act="flash" title="泡が現れたときの光（FLASH）"><span>FLASH: ON</span></button>
+        </div>
+    </div>
+
+    <button id="sidebar-open" class="absolute top-3 z-30 items-center gap-1 px-2 py-1 rounded-lg glass-panel text-[11px] text-slate-300" title="パネルを開く"><i data-lucide="panel-left-open" class="w-3.5 h-3.5"></i>パネル</button>
+
+    <aside id="ui-overlay" class="absolute top-0 h-full z-30 glass-panel flex flex-col pointer-events-auto" style="width: var(--sb-w);">
+        <div class="flex items-center justify-between px-3 pt-2.5 pb-2 border-b border-slate-800">
+            <span class="text-[12px] font-bold text-slate-200 flex items-center gap-1.5"><i data-lucide="globe" class="w-4 h-4 text-amber-300"></i>5次元球とシャボン玉</span>
+            <button id="sidebar-close" class="text-slate-400 hover:text-slate-200 px-1.5 py-0.5 rounded hover:bg-slate-800 text-[11px] flex items-center gap-1" title="パネルを閉じて図を広く（P）"><i data-lucide="panel-left-close" class="w-3.5 h-3.5"></i>閉じる</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-3 py-2.5">
+            <div class="sb-panel space-y-3">
+                <section class="sb-sec">
+                    <h3 class="sb-h"><i data-lucide="shapes" class="w-3.5 h-3.5"></i>モード</h3>
+                    <div class="seg"><button data-mode="sphere" class="on" title="大きな5次元球を1つ。回して、断面を動かして中身を見る">5次元球</button><button data-mode="bubbles" title="小さな5次元の泡がたくさん漂い、4次元・3次元の世界を通り抜ける">シャボン玉</button></div>
+                    <div class="flex flex-wrap gap-1.5 items-center text-[11px] text-slate-300"><span>画面</span>
+                        <button class="tbtn on" data-pane="3">3次元</button><button class="tbtn on" data-pane="4">4次元</button><button class="tbtn on" data-pane="5">5次元</button>
+                    </div>
+                </section>
+                <section class="sb-sec bub-only">
+                    <h3 class="sb-h"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>泡（5次元の球）</h3>
+                    <div class="sl-row"><span>泡の数</span><input id="nB" type="range" min="1" max="10" step="1" value="6"><output id="nBO"></output></div>
+                    <div class="sl-row"><span>大きさ</span><input id="sz" type="range" min="0.5" max="1.3" step="0.05" value="0.9"><output id="szO"></output></div>
+                    <div class="sl-row"><span>速さ</span><input id="spd" type="range" min="0" max="3" step="0.1" value="1"><output id="spdO"></output></div>
+                    <div class="flex items-center gap-2 text-[11px] text-slate-300"><span>動き</span>
+                        <div class="seg" id="mv-seg"><button data-mv="free" class="on" title="x・y・z・w・v の5方向に自由に漂う">5方向に自由</button><button data-mv="vw" title="w と v の向きにだけ動く＝3次元の世界では、その場でふくらんで、しぼんで、消える">w・v だけ</button></div>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5"><button class="tbtn" data-act="respawn">作り直す</button><button class="tbtn go" data-act="demo">1つだけ通過</button></div>
+                </section>
+                <section class="sb-sec">
+                    <h3 class="sb-h"><i data-lucide="scan-line" class="w-3.5 h-3.5"></i>断面（私たちの世界の位置）</h3>
+                    <div class="sl-row"><span>v₀（4次元）</span><input id="v0" type="range" min="-1.6" max="1.6" step="0.01" value="0"><output id="v0O"></output></div>
+                    <div class="sl-row"><span>w₀（3次元）</span><input id="w0" type="range" min="-1.6" max="1.6" step="0.01" value="0"><output id="w0O"></output></div>
+                    <div class="flex flex-wrap gap-1.5"><button class="tbtn" data-act="scanV"><span>v₀ 往復: OFF</span></button><button class="tbtn" data-act="scanW"><span>w₀ 往復: OFF</span></button></div>
+                    <p class="note">5次元空間を v = v₀ で切ると4次元の世界、それをさらに w = w₀ で切ると3次元の世界。往復を ON にすると、断面が動いて中身が順に見えます。</p>
+                </section>
+                <section class="sb-sec">
+                    <h3 class="sb-h"><i data-lucide="rotate-3d" class="w-3.5 h-3.5"></i>回転（7つの面）</h3>
+                    <div id="pl-rows" class="flex flex-col gap-1.5"></div>
+                    <div class="sl-row"><span>回る速さ</span><input id="rs" type="range" min="0.2" max="3" step="0.1" value="1"><output id="rsO"></output></div>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button class="tbtn" data-preset="all">全部</button><button class="tbtn" data-preset="w">W系</button><button class="tbtn" data-preset="v">V系</button><button class="tbtn" data-preset="dbl">ダブル回転</button><button class="tbtn" data-preset="stop">停止</button><button class="tbtn" data-preset="reset">リセット</button>
+                    </div>
+                    <p class="note">5次元空間の見え方を回します（泡や断面の位置は変わりません）。4次元の世界の画面は、このうち X-W・Y-W・Z-W だけで回ります。</p>
+                </section>
+                <section class="sb-sec">
+                    <h3 class="sb-h"><i data-lucide="eye" class="w-3.5 h-3.5"></i>見え方</h3>
+                    <div class="sl-row"><span>遠近 V</span><input id="camV" type="range" min="3.5" max="9" step="0.1" value="5.5"><output id="camVO"></output></div>
+                    <div class="sl-row"><span>遠近 W</span><input id="camW" type="range" min="3.5" max="9" step="0.1" value="5.5"><output id="camWO"></output></div>
+                    <div class="sl-row"><span>4D カメラ</span><input id="camW4" type="range" min="3.4" max="9" step="0.1" value="5"><output id="camW4O"></output></div>
+                    <div class="sl-row sph-only"><span>v の層</span><input id="nM" type="range" min="3" max="15" step="2" value="7"><output id="nMO"></output></div>
+                    <div class="sl-row sph-only"><span>w の層</span><input id="nN" type="range" min="3" max="15" step="2" value="9"><output id="nNO"></output></div>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button class="tbtn" data-act="face"><span>面: ON</span></button>
+                        <button class="tbtn" data-act="back"><span>裏を暗く: ON</span></button>
+                        <button class="tbtn" data-act="box"><span>箱: ON</span></button>
+                        <button class="tbtn" data-act="flash"><span>FLASH: ON</span></button>
+                    </div>
+                    <p class="note">箱は、5次元＝ペンテラクト（琥珀）、4次元＝超立方体（紫）、3次元＝立方体（水色）。白く光る殻が、いま3次元の世界を通っている断面です。</p>
+                </section>
+                <section class="sb-sec">
+                    <h3 class="sb-h"><i data-lucide="book-open" class="w-3.5 h-3.5"></i>どういうこと？</h3>
+                    <p class="note">5次元の球を「4次元の世界」で切ると、断面は4次元の球（超球）。それを「3次元の世界」で切ると、ふつうの球。<br>泡が通り抜けると、4次元の世界には超球が、3次元の世界には球が、何もない所から現れてふくらみ、しぼんで消えます。次元を1つずつ下りていく「はしご」を、左から 3次元・4次元・5次元 と並べてあります。</p>
+                </section>
+            </div>
+        </div>
+    </aside>
+
+<script>
+// ===== 5次元球とシャボン玉 =====
+// 5次元空間の箱 [-B, B]⁵ に5次元の球（泡）がある。4次元の世界＝ v = v₀ の断面、3次元の世界＝そのうえ w = w₀ の断面。
+//   5次元の画面：泡＝S⁴ を (v, w) で輪切りした殻（3D の球）を重ね、7面で回して、v → w の2段の遠近で写す（もとの 5次元球アプリと同じ写し方）
+//   4次元の画面：断面の超球＝ w の高さごとの殻を重ね、X-W・Y-W・Z-W で回して +w から遠近で写す（超球アプリの描画エンジン）
+//   どちらも、面は半透明＋縁の影、4Dの裏側は暗く（超球アプリのシェーダー）
+const B = 1.6, SC = 1.0, TAU = Math.PI * 2, MIN_TH = 0.12, R5 = 1.3;
+const $ = id => document.getElementById(id);
+const AXC = { x: '#ff5d6c', y: '#3ddc84', z: '#56a8ff', w: '#b07cff', v: '#fbbf24' }, AX = ['x', 'y', 'z', 'w', 'v'];
+const PL = [['X-W', 0, 3], ['Y-W', 1, 3], ['Z-W', 2, 3], ['X-V', 0, 4], ['Y-V', 1, 4], ['Z-V', 2, 4], ['W-V', 3, 4]];
+const RATE = [1, 0.77, 0.61, 0.53, 0.43, 0.37, 0.29];
+const ang = PL.map(() => 0), auto = PL.map(() => false);
+let mode = 'sphere', nB = 6, sizeK = 0.9, spd = 1, rspd = 1, moveMode = 'free', v0 = 0, w0 = 0;
+let camV = 5.5, camW = 5.5, camW4 = 5, nM = 7, nN = 9;
+let paused = false, flashOn = true, faceOn = true, backOn = true, boxOn = true, scanV = false, scanW = false, tScanV = 0, tScanW = 0;
+let demo = false, cnt = { in4: 0, in3: 0 };
+
+// ---- three.js：3つの画面（3次元・4次元・5次元） ----
+function makeScene() {
+    const s = new THREE.Scene();
+    s.add(new THREE.AmbientLight(0xffffff, 0.95));
+    const d1 = new THREE.DirectionalLight(0xffffff, 1.2); d1.position.set(5, 12, 8); s.add(d1);
+    const d2 = new THREE.DirectionalLight(0x38bdf8, 0.8); d2.position.set(-8, -5, -6); s.add(d2);
+    return s;
+}
+const P = {};
+['3', '4', '5'].forEach(k => {
+    const pane = $('pane' + k), scene = makeScene(), cam = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    cam.position.set(5.6, 4.0, 8.8);
+    const ren = new THREE.WebGLRenderer({ antialias: true, alpha: true }); ren.setPixelRatio(Math.min(devicePixelRatio, 2)); pane.appendChild(ren.domElement);
+    const ctl = new THREE.OrbitControls(cam, ren.domElement); ctl.enableDamping = true; ctl.dampingFactor = 0.06;
+    P[k] = { pane, scene, cam, ren, ctl };
+});
+// 3つの画面のカメラは同じ向き（x・y・z は共通）。どれを回しても全部ついてくる
+let syncing = false;
+Object.values(P).forEach(A => A.ctl.addEventListener('change', () => {
+    if (syncing) return; syncing = true;
+    Object.values(P).forEach(Bp => { if (Bp === A) return; Bp.cam.position.copy(A.cam.position); Bp.cam.up.copy(A.cam.up); Bp.ctl.target.copy(A.ctl.target); Bp.ctl.update(); });
+    syncing = false;
+}));
+function onWindowResize() { Object.values(P).forEach(({ pane, ren, cam }) => { const w = pane.clientWidth, h = pane.clientHeight; if (!w || !h) return; ren.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); }); }
+addEventListener('resize', onWindowResize);
+if (window.ResizeObserver) { const ro = new ResizeObserver(onWindowResize); Object.values(P).forEach(p => ro.observe(p.pane)); }
+function requestRender() {}   // 毎フレーム描くので何もしない（パネル部品との互換用）
+let _zfKick = 0;
+
+// ---- 超球アプリの描画エンジン（移植）：4Dの裏側を暗く・縁の影 ----
+const uBack = { value: 0.6 }, uShade = { value: 0.55 };
+const backFrag = f => 'varying float vFace;\nuniform float uBack;\n' + f.replace('#include <fog_fragment>',
+    '#include <fog_fragment>\n float bk = (1.0 - smoothstep(-0.1, 0.05, vFace)) * uBack;\n float gr = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(gr), 0.4 * bk) * (1.0 - 0.5 * bk);');
+function addBack(sh) {
+    sh.uniforms.uBack = uBack;
+    sh.vertexShader = 'varying float vFace;\nattribute float aF4;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vFace = aF4;');
+    sh.fragmentShader = backFrag(sh.fragmentShader);
+}
+function addRim(sh) {
+    sh.uniforms.uShade = uShade;
+    sh.fragmentShader = 'uniform float uShade;\n' + sh.fragmentShader.replace('#include <dithering_fragment>',
+        '#include <dithering_fragment>\n float rimK = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition)));\n gl_FragColor.rgb *= 1.0 - uShade * pow(rimK, 1.6);');
+}
+function shellGeo(ws = 18, hs = 12) {
+    const g = new THREE.SphereGeometry(1, ws, hs);
+    g.setAttribute('aF4', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count), 1));
+    return { geo: g, base: Float32Array.from(g.attributes.position.array) };
+}
+function shellMeshes(parent, col, ws, hs) {   // 殻1枚＝面（半透明・縁の影・裏を暗く）＋線
+    const { geo, base } = shellGeo(ws, hs);
+    const solid = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, transparent: true, opacity: 0.14, roughness: 0.2, metalness: 0.3, side: THREE.DoubleSide, depthWrite: false }));
+    solid.material.onBeforeCompile = sh => { addRim(sh); addBack(sh); };
+    const wire = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(1.3), wireframe: true, transparent: true, opacity: 0.3, depthWrite: false }));
+    wire.material.onBeforeCompile = addBack;
+    [solid, wire].forEach(o => { o.frustumCulled = false; parent.add(o); });
+    return { geo, base, solid, wire };
+}
+function cutMesh(parent, col) {   // 3次元の世界を通っている殻（白く光る線）
+    const { geo, base } = shellGeo(22, 14);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col.clone().lerp(new THREE.Color(1, 1, 1), 0.55), wireframe: true, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }));
+    mesh.material.onBeforeCompile = addBack; mesh.frustumCulled = false; mesh.visible = false; parent.add(mesh);
+    return { geo, base, mesh };
+}
+
+// ---- 回転と写し方 ----
+let rot7 = [], rot3 = [];
+function mkRot() { rot7 = PL.map(([, i, j], k) => [i, j, Math.cos(ang[k]), Math.sin(ang[k])]); rot3 = rot7.slice(0, 3); }
+function rotN(v, S) { for (const [i, j, c, s] of S) { const t = v[i] * c - v[j] * s; v[j] = v[i] * s + v[j] * c; v[i] = t; } return v; }
+// 5次元：回して、v → w の2段の遠近（もとの 5次元球アプリと同じ式）。戻り値は w の段の奥行き w1
+function proj5(v, out, k) {
+    rotN(v, rot7);
+    const s1 = camV / Math.max(0.6, camV - v[4]), w1 = v[3] * s1, s2 = camW / Math.max(0.6, camW - w1) * s1 * SC;
+    out[k] = v[0] * s2; out[k + 1] = v[1] * s2; out[k + 2] = v[2] * s2; return w1;
+}
+// 4次元：X-W・Y-W・Z-W で回して、+w から遠近（超球アプリと同じ式）。戻り値は w′
+function proj4(v, out, k) {
+    rotN(v, rot3);
+    const s = camW4 / Math.max(0.6, camW4 - v[3]) * SC;
+    out[k] = v[0] * s; out[k + 1] = v[1] * s; out[k + 2] = v[2] * s; return v[3];
+}
+const _o = [0, 0, 0];
+
+// ---- 箱：5次元＝ペンテラクト、4次元＝超立方体、3次元＝立方体 ----
+const edgesOf = n => { const E = []; for (let a = 0; a < (1 << n); a++) for (let k = 0; k < n; k++) { const b = a ^ (1 << k); if (a < b) E.push([a, b]); } return E; };
+const E3 = edgesOf(3), E4 = edgesOf(4), E5 = edgesOf(5);
+const bt = (a, k) => (a >> k & 1) ? B : -B;
+function lineObj(scene, n, color, op) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 6), 3)); const m = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity: op })); m.frustumCulled = false; scene.add(m); return m; }
+const BX = {
+    p5: lineObj(P[5].scene, E5.length, 0xfbbf24, 0.16), t5: lineObj(P[5].scene, E4.length, 0xa855f7, 0.55), c5: lineObj(P[5].scene, E3.length, 0x22d3ee, 0.9),
+    t4: lineObj(P[4].scene, E4.length, 0xa855f7, 0.35), c4: lineObj(P[4].scene, E3.length, 0x22d3ee, 0.9),
+    c3: lineObj(P[3].scene, E3.length, 0x22d3ee, 0.55),
+};
+const grid3 = new THREE.GridHelper(B * 2 * SC, 8, 0x1e3a5f, 0x13233b); grid3.position.y = -B * SC; P[3].scene.add(grid3);
+function fillBox(obj, E, corner, projFn) {
+    const a = obj.geometry.attributes.position.array; let k = 0;
+    for (const [p, q] of E) for (const c of [p, q]) { projFn(corner(c), _o, 0); a[k++] = _o[0]; a[k++] = _o[1]; a[k++] = _o[2]; }
+    obj.geometry.attributes.position.needsUpdate = true; obj.visible = boxOn;
+}
+function updateBoxes() {
+    fillBox(BX.p5, E5, c => [bt(c, 0), bt(c, 1), bt(c, 2), bt(c, 3), bt(c, 4)], proj5);
+    fillBox(BX.t5, E4, c => [bt(c, 0), bt(c, 1), bt(c, 2), bt(c, 3), v0], proj5);
+    fillBox(BX.c5, E3, c => [bt(c, 0), bt(c, 1), bt(c, 2), w0, v0], proj5);
+    fillBox(BX.t4, E4, c => [bt(c, 0), bt(c, 1), bt(c, 2), bt(c, 3)], proj4);
+    fillBox(BX.c4, E3, c => [bt(c, 0), bt(c, 1), bt(c, 2), w0], proj4);
+    fillBox(BX.c3, E3, c => [bt(c, 0), bt(c, 1), bt(c, 2)], (v, o) => { o[0] = v[0] * SC; o[1] = v[1] * SC; o[2] = v[2] * SC; });
+}
+
+// ---- FLASH（光の輪＋「ぽんっ！」） ----
+const mkTex = draw => { const cv = document.createElement('canvas'); cv.width = cv.height = 128; draw(cv.getContext('2d')); return new THREE.CanvasTexture(cv); };
+const ringTex = mkTex(x => { const g = x.createRadialGradient(64, 64, 20, 64, 64, 62); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.62, 'rgba(255,255,255,0)'); g.addColorStop(0.8, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); });
+const glowTex = mkTex(x => { const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.25, 'rgba(255,255,255,0.6)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); });
+const flashes = [];
+function spawnFlash(scene, pos, color, kind) {
+    const mk = map => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, color, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending })); s.position.copy(pos); s.renderOrder = 20; scene.add(s); return s; };
+    flashes.push({ sp: mk(ringTex), gl: mk(glowTex), t: 0, kind, scene });
+}
+function stepFlashes(dt) {
+    for (let i = flashes.length - 1; i >= 0; i--) {
+        const F = flashes[i]; F.t += dt; const T = F.kind === 'in' ? 0.75 : 0.5, u = F.t / T;
+        if (u >= 1) { F.scene.remove(F.sp, F.gl); F.sp.material.dispose(); F.gl.material.dispose(); flashes.splice(i, 1); continue; }
+        const big = F.kind === 'in' ? 2.6 : 1.2;
+        F.sp.scale.setScalar(0.1 + big * Math.sqrt(u)); F.sp.material.opacity = 1 - u;
+        F.gl.scale.setScalar((F.kind === 'in' ? 1.1 : 0.6) * (1 - u * 0.5)); F.gl.material.opacity = (1 - u) * (1 - u);
+    }
+}
+function popLabel(k, pos, text, color) {
+    const A = P[k]; if (A.pane.classList.contains('off')) return;
+    const p = pos.clone().project(A.cam); if (p.z > 1) return;
+    const el = document.createElement('div'); el.className = 'pop'; el.textContent = text; el.style.setProperty('--c', color);
+    el.style.left = ((p.x + 1) / 2 * A.pane.clientWidth) + 'px'; el.style.top = ((1 - p.y) / 2 * A.pane.clientHeight) + 'px';
+    A.pane.appendChild(el); setTimeout(() => el.remove(), 950);
+}
+
+// ---- 泡（5次元の球）。「5次元球」モードは、原点に大きな泡が1つ ----
+const bubbles = [];
+const rnd = (a, b) => a + Math.random() * (b - a);
+function disposeObj(o) { o.traverse(n => { if (n.geometry) n.geometry.dispose(); if (n.material) n.material.dispose(); }); }
+function makeBubble(i, o = {}) {
+    const big = !!o.big, hue = big ? 0 : (i * 0.137 + 0.55) % 1, rho = o.rho || (big ? R5 : sizeK * rnd(0.8, 1.1));
+    const c = o.c || [0, 1, 2].map(() => rnd(-B + rho * 0.6, B - rho * 0.6) * 0.85).concat([rnd(-B, B), rnd(-B, B)]);
+    let vel = o.vel || [0, 1, 2, 3, 4].map(() => rnd(-1, 1));
+    if (!o.vel) { const l = Math.hypot(...vel) || 1; vel = vel.map(x => x / l * rnd(0.25, 0.45)); if (moveMode === 'vw') vel = [0, 0, 0, vel[3], vel[4]]; }
+    const col = new THREE.Color().setHSL(big ? 0.12 : hue, 0.9, 0.55);
+    const M = big ? nM : 3, N = big ? nN : 5;
+    // 5次元の画面：(ψ, θ) ごとの殻。v = ρcosψ、w = ρsinψcosθ、半径 ρsinψsinθ（もとの 5次元球アプリと同じ輪切り）
+    const g5 = new THREE.Group(); P[5].scene.add(g5);
+    const s5 = [];
+    for (let j = 0; j < M; j++) for (let ii = 0; ii < N; ii++) {
+        const psi = (j + 0.5) / M * Math.PI, th = (ii + 0.5) / N * Math.PI;
+        const lc = big ? new THREE.Color().setHSL(0.85 * psi / Math.PI, 0.9, 0.45 + 0.2 * Math.sin(th)) : new THREE.Color().setHSL((hue + 0.1 * (psi / Math.PI - 0.5) + 1) % 1, 0.95, 0.48 + 0.15 * Math.sin(th));
+        const sm = shellMeshes(g5, lc, big ? 18 : 14, big ? 12 : 9);
+        s5.push({ ...sm, r: Math.sin(psi) * Math.sin(th), w: Math.sin(psi) * Math.cos(th), v: Math.cos(psi) });
+    }
+    const cut5 = cutMesh(g5, col);
+    // 4次元の画面：断面の超球（w の高さごとの殻。超球アプリの「緯度の殻」）
+    const g4 = new THREE.Group(); g4.visible = false; P[4].scene.add(g4);
+    const nS4 = big ? 11 : 7, s4 = [];
+    for (let k = 0; k < nS4; k++) {
+        const th = MIN_TH + k / (nS4 - 1) * (Math.PI - 2 * MIN_TH);
+        const lc = new THREE.Color().setHSL(((big ? 0.62 : hue) + 0.14 * (k / (nS4 - 1) - 0.5) + 1) % 1, 0.95, 0.5 + 0.12 * Math.sin(th));
+        s4.push({ ...shellMeshes(g4, lc, 18, 12), th });
+    }
+    const cut4 = cutMesh(g4, col);
+    // 3次元の画面：ふつうの球
+    const g3 = new THREE.Group(); g3.visible = false; P[3].scene.add(g3);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 24), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.25, transparent: true, opacity: 0.42, roughness: 0.15, metalness: 0.3, depthWrite: false }));
+    ball.material.onBeforeCompile = addRim;
+    g3.add(ball, new THREE.Mesh(ball.geometry, new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(1.35), wireframe: true, transparent: true, opacity: 0.3 })));
+    if (big) [cut5, cut4].forEach(C => C.mesh.material.opacity = 0.45);   // 大きな5次元球では、断面の白い殻を控えめに（超球を隠さない）
+    return { big, hue, col, rho, c, vel, g5, s5, cut5, g4, s4, cut4, g3, ball, in4: false, in3: false, pulse: 0, fresh: true };
+}
+function applyOp() {   // 殻が多いほど1枚を薄く（真っ白にならないように）
+    bubbles.forEach(b => {
+        const e5 = Math.max(0.04, 0.16 * Math.min(1, Math.sqrt(40 / b.s5.length))), w5 = Math.max(0.08, 0.34 * Math.min(1, Math.sqrt(40 / b.s5.length)));
+        b.s5.forEach(S => { S.solid.material.opacity = e5; S.wire.material.opacity = w5; S.solid.visible = faceOn; });
+        b.s4.forEach(S => { S.solid.material.opacity = 0.15; S.wire.material.opacity = 0.32; S.solid.visible = faceOn; });
+    });
+}
+function clearBubbles() { bubbles.forEach(b => { [[5, b.g5], [4, b.g4], [3, b.g3]].forEach(([k, g]) => { P[k].scene.remove(g); disposeObj(g); }); }); bubbles.length = 0; }
+function respawn() {
+    demo = false; clearBubbles();
+    if (mode === 'sphere') bubbles.push(makeBubble(0, { big: true, c: [0, 0, 0, 0, 0], vel: [0, 0, 0, 0, 0] }));
+    else for (let i = 0; i < nB; i++) bubbles.push(makeBubble(i));
+    cnt = { in4: 0, in3: 0 }; applyOp(); syncCounters();
+}
+function startDemo() {   // 1つの泡を v の向きにだけゆっくり通す（3次元の世界のど真ん中で）
+    if (mode !== 'bubbles') setMode('bubbles');
+    clearBubbles();
+    const rho = Math.max(0.8, sizeK);
+    bubbles.push(makeBubble(0, { rho, c: [0, 0, 0, w0, v0 - rho - 0.25], vel: [0, 0, 0, 0, 0.22] }));
+    demo = true; cnt = { in4: 0, in3: 0 }; applyOp(); syncCounters();
+}
+
+// ---- 1フレーム ----
+const p5 = [0, 0, 0, 0, 0], p4 = [0, 0, 0, 0], cc = [0, 0, 0, 0, 0], tmp = new THREE.Vector3();
+function updateBubble(b, dt) {
+    if (!paused && !b.big) {
+        for (let k = 0; k < 5; k++) {
+            b.c[k] += b.vel[k] * dt * spd;
+            const lim = k >= 3 ? B : B - b.rho * 0.6;   // w・v は箱いっぱい（断面を通り抜けさせる）
+            if (b.c[k] > lim) { b.c[k] = lim; b.vel[k] = -Math.abs(b.vel[k]); }
+            if (b.c[k] < -lim) { b.c[k] = -lim; b.vel[k] = Math.abs(b.vel[k]); }
+        }
+    }
+    const c = b.c, rho = b.rho;
+    // 5次元の画面
+    if (!P[5].pane.classList.contains('off')) {
+        for (let k = 0; k < 5; k++) cc[k] = c[k]; rotN(cc, rot7);
+        const s1c = camV / Math.max(0.6, camV - cc[4]), w1c = cc[3] * s1c, rp = Math.max(1e-3, rho * s1c), dC = Math.max(0.3, camW - w1c);
+        const fill5 = (S, r, wOff, vOff) => {
+            const pa = S.geo.attributes.position, a = pa.array, fc = S.geo.attributes.aF4.array, bs = S.base;
+            for (let k = 0; k < a.length; k += 3) {
+                p5[0] = c[0] + bs[k] * r; p5[1] = c[1] + bs[k + 1] * r; p5[2] = c[2] + bs[k + 2] * r; p5[3] = c[3] + wOff; p5[4] = c[4] + vOff;
+                const w1 = proj5(p5, a, k);
+                fc[k / 3] = ((w1 - w1c) - rp * rp / dC) / rp;   // 超球アプリの表裏の式を、5次元の2段目（w）に当てはめた
+            }
+            pa.needsUpdate = true; S.geo.attributes.aF4.needsUpdate = true; S.geo.computeVertexNormals();
+        };
+        for (const S of b.s5) fill5(S, S.r * rho, S.w * rho, S.v * rho);
+        b._fill5 = fill5;
+    }
+    // 断面との交わり
+    const dv = v0 - c[4], in4 = Math.abs(dv) < rho, r4 = in4 ? Math.sqrt(rho * rho - dv * dv) : 0;
+    const dw = w0 - c[3], in3 = in4 && Math.abs(dw) < r4, r3 = in3 ? Math.sqrt(r4 * r4 - dw * dw) : 0;
+    b.cut5.mesh.visible = in3 && !P[5].pane.classList.contains('off');
+    if (b.cut5.mesh.visible) b._fill5(b.cut5, Math.max(r3, 0.005), dw, dv);
+    // 4次元の画面：断面の超球（中心 c の x・y・z・w、半径 r4）
+    b.g4.visible = in4;
+    if (in4 && !P[4].pane.classList.contains('off')) {
+        const c4r = rotN([c[0], c[1], c[2], c[3]], rot3), dC4 = Math.max(0.3, camW4 - c4r[3]);
+        const fill4 = (S, r, wOff) => {
+            const pa = S.geo.attributes.position, a = pa.array, fc = S.geo.attributes.aF4.array, bs = S.base;
+            for (let k = 0; k < a.length; k += 3) {
+                p4[0] = c[0] + bs[k] * r; p4[1] = c[1] + bs[k + 1] * r; p4[2] = c[2] + bs[k + 2] * r; p4[3] = c[3] + wOff;
+                const w = proj4(p4, a, k);
+                fc[k / 3] = ((w - c4r[3]) - r4 * r4 / dC4) / Math.max(1e-3, r4);   // 超球アプリの表裏の式（中心のずれに合わせて）
+            }
+            pa.needsUpdate = true; S.geo.attributes.aF4.needsUpdate = true; S.geo.computeVertexNormals();
+        };
+        for (const S of b.s4) fill4(S, Math.max(0.004, r4 * Math.sin(S.th)), r4 * Math.cos(S.th));
+        b.cut4.mesh.visible = in3; if (in3) fill4(b.cut4, Math.max(r3, 0.005), dw);
+    }
+    // 3次元の画面
+    b.g3.visible = in3;
+    if (in3) { b.g3.position.set(c[0] * SC, c[1] * SC, c[2] * SC); b.g3.scale.setScalar(Math.max(r3, 0.01) * SC); }
+    // 出現・消滅の FLASH（作った直後の1フレームは、最初からいる泡を光らせない）
+    if (b.fresh) { b.fresh = false; b.in4 = in4; b.in3 = in3; syncCounters(); }
+    if (in4 !== b.in4) {
+        b.in4 = in4;
+        if (in4) cnt.in4++;
+        if (flashOn && !b.big) { proj4([c[0], c[1], c[2], c[3]], _o, 0); tmp.set(_o[0], _o[1], _o[2]); spawnFlash(P[4].scene, tmp, b.col, in4 ? 'in' : 'out'); if (in4) popLabel('4', tmp, 'ぽんっ！', '#c084fc'); }
+        syncCounters(in4 ? '4' : null);
+    }
+    if (in3 !== b.in3) {
+        b.in3 = in3;
+        if (in3) { cnt.in3++; b.pulse = 1; }
+        if (flashOn && !b.big) { tmp.set(c[0] * SC, c[1] * SC, c[2] * SC); spawnFlash(P[3].scene, tmp, b.col, in3 ? 'in' : 'out'); if (in3) popLabel('3', tmp, 'ぽんっ！', '#' + b.col.getHexString()); }
+        syncCounters(in3 ? '3' : null);
+    }
+    if (b.pulse > 0) { b.pulse = Math.max(0, b.pulse - dt * 2.2); b.ball.material.emissiveIntensity = 0.25 + 1.6 * b.pulse; }
+}
+function syncCounters(pulse) {
+    const n3 = bubbles.filter(b => b.in3).length, n4 = bubbles.filter(b => b.in4).length, tot = bubbles.length;
+    if (mode === 'sphere') {
+        const b = bubbles[0], dv = b ? v0 - b.c[4] : 0, r4 = b && Math.abs(dv) < b.rho ? Math.sqrt(b.rho * b.rho - dv * dv) : 0, dw = b ? w0 - b.c[3] : 0, r3 = r4 > Math.abs(dw) ? Math.sqrt(r4 * r4 - dw * dw) : 0;
+        $('cnt3').innerHTML = `断面の球の半径 <b>${r3.toFixed(2)}</b>`;
+        $('cnt4').innerHTML = `断面の超球の半径 <b>${r4.toFixed(2)}</b>`;
+    } else {
+        $('cnt3').innerHTML = `3次元の世界の泡 <b>${n3}</b> / ${tot}<br>出現 ${cnt.in3}`;
+        $('cnt4').innerHTML = `4次元の世界の泡 <b>${n4}</b> / ${tot}<br>出現 ${cnt.in4}`;
+    }
+    $('cnt5').innerHTML = `v₀ = <b>${v0.toFixed(2)}</b>　w₀ = <b>${w0.toFixed(2)}</b>`;
+    if (pulse && flashOn) { const el = $('cnt' + pulse); el.style.setProperty('--pc', pulse === '4' ? 'rgba(192,132,252,0.9)' : 'rgba(34,211,238,0.9)'); el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); }
+}
+
+// ---- UI ----
+const D2R = Math.PI / 180, deg = a => Math.round(((a / D2R) % 360 + 540) % 360 - 180) + '°';
+const rows = PL.map(([n, i, j], k) => {
+    const d = document.createElement('div'); d.className = 'pl-row';
+    d.innerHTML = `<span class="pl-name"><span style="color:${AXC[AX[i]]}">${n[0]}</span>-<span style="color:${AXC[AX[j]]}">${n[2]}</span></span><input type="range" min="-180" max="180" step="1" value="0"><span class="pl-deg"></span><button title="${n} を自動で回す"><span>自動: OFF</span></button>`;
+    $('pl-rows').appendChild(d);
+    const rg = d.querySelector('input'), o = d.querySelector('.pl-deg'), b = d.querySelector('button');
+    rg.addEventListener('input', () => { ang[k] = +rg.value * D2R; syncRot(); });
+    b.addEventListener('click', () => { auto[k] = !auto[k]; syncRot(); });
+    return { rg, o, b };
+});
+const setTxt = (sp, t) => { if (sp && sp.textContent !== t && sp.dataset.swRaw !== t) sp.textContent = t; };
+function syncRot() {
+    rows.forEach((r, k) => { const dv = deg(ang[k]); if (document.activeElement !== r.rg) r.rg.value = parseInt(dv); r.o.textContent = dv; setTxt(r.b.querySelector('span:not(.ios-sw)'), '自動: ' + (auto[k] ? 'ON' : 'OFF')); });
+    const cur = auto.every(a => a) ? 'all' : auto.every((a, k) => a === (k < 3)) ? 'w' : auto.every((a, k) => a === (k >= 3 && k < 6)) ? 'v' : auto.every((a, k) => a === (k === 0 || k === 4)) ? 'dbl' : '';
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('on', b.dataset.preset === cur));
+}
+const PRESET = { all: () => true, w: k => k < 3, v: k => k >= 3 && k < 6, dbl: k => k === 0 || k === 4, stop: () => false };
+document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => { const p = b.dataset.preset; if (p === 'reset') { ang.fill(0); auto.fill(false); } else auto.forEach((_, k) => auto[k] = PRESET[p](k)); syncRot(); }));
+const bind = (id, f, fmt) => { const e = $(id), o = $(id + 'O'); const show = () => o.textContent = fmt ? fmt(+e.value) : e.value; e.addEventListener('input', () => { f(+e.value); show(); }); show(); return { e, show }; };
+bind('nB', v => { nB = v; if (mode === 'bubbles') respawn(); });
+bind('sz', v => { sizeK = v; if (mode === 'bubbles') respawn(); });
+bind('spd', v => spd = v); bind('rs', v => rspd = v);
+const V0 = bind('v0', v => { v0 = v; scanV = false; syncButtons(); syncCounters(); }, v => v.toFixed(2));
+const W0 = bind('w0', v => { w0 = v; scanW = false; syncButtons(); syncCounters(); }, v => v.toFixed(2));
+bind('camV', v => camV = v, v => v.toFixed(1)); bind('camW', v => camW = v, v => v.toFixed(1)); bind('camW4', v => camW4 = v, v => v.toFixed(1));
+bind('nM', v => { nM = v; if (mode === 'sphere') respawn(); }); bind('nN', v => { nN = v; if (mode === 'sphere') respawn(); });
+document.querySelectorAll('#mv-seg button').forEach(b => b.addEventListener('click', () => {
+    moveMode = b.dataset.mv; document.querySelectorAll('#mv-seg button').forEach(x => x.classList.toggle('on', x === b));
+    bubbles.forEach(q => { if (q.big) return; if (moveMode === 'vw') q.vel = [0, 0, 0, q.vel[3] || 0.3, q.vel[4] || 0.3]; else q.vel = q.vel.map((x, k) => k < 3 ? rnd(-0.35, 0.35) : x); });
+}));
+function setMode(m) {
+    mode = m; document.body.classList.toggle('mode-sphere', m === 'sphere'); document.body.classList.toggle('mode-bubbles', m === 'bubbles');
+    document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+    respawn();
+}
+document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+document.querySelectorAll('[data-pane]').forEach(b => b.addEventListener('click', () => {
+    const p = P[b.dataset.pane].pane, on = !p.classList.contains('off');
+    if (on && document.querySelectorAll('#main-container > .pane:not(.off)').length <= 1) return;   // 最低1つは出す
+    p.classList.toggle('off', on); b.classList.toggle('on', !on); onWindowResize();
+}));
+function syncButtons() {
+    document.querySelectorAll('.pause-lb').forEach(s => s.textContent = paused ? '▶ 動かす' : '一時停止');
+    const sw = (act, name, on) => document.querySelectorAll(`[data-act="${act}"] span:not(.ios-sw)`).forEach(sp => setTxt(sp, name + ': ' + (on ? 'ON' : 'OFF')));
+    sw('scanV', 'v₀ 往復', scanV); sw('scanW', 'w₀ 往復', scanW); sw('flash', 'FLASH', flashOn); sw('face', '面', faceOn); sw('back', '裏を暗く', backOn); sw('box', '箱', boxOn);
+}
+const ACT = {
+    pause: () => paused = !paused, respawn, demo: startDemo,
+    scanV: () => { scanV = !scanV; tScanV = Math.asin(Math.max(-1, Math.min(1, v0 / (B * 0.92)))); },
+    scanW: () => { scanW = !scanW; tScanW = Math.asin(Math.max(-1, Math.min(1, w0 / (B * 0.92)))); },
+    flash: () => flashOn = !flashOn, face: () => { faceOn = !faceOn; applyOp(); },
+    back: () => { backOn = !backOn; uBack.value = backOn ? 0.6 : 0; }, box: () => boxOn = !boxOn,
+};
+document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => { ACT[b.dataset.act](); syncButtons(); }));
+$('sidebar-close').addEventListener('click', () => { document.body.classList.add('sidebar-hidden'); onWindowResize(); });
+$('sidebar-open').addEventListener('click', () => { document.body.classList.remove('sidebar-hidden'); onWindowResize(); });
+addEventListener('keydown', e => {
+    if (e.target.closest('input, textarea, select') || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase(), m = { ' ': 'pause', r: 'respawn', d: 'demo', v: 'scanV', w: 'scanW', f: 'flash' };
+    if (m[k]) { e.preventDefault(); ACT[m[k]](); syncButtons(); }
+    else if (k === 'p') { document.body.classList.toggle('sidebar-hidden'); onWindowResize(); }
+    else if (k === '1') setMode('sphere'); else if (k === '2') setMode('bubbles');
+});
+
+// ===== 次元おりがみの UI 部品（ON/OFF スイッチ・パネルの分離／連結／タブ／ドック）＝ hypercube.html から移植 =====
+(function () {
+            const SW_RE = /^(→\s*)?(.+?)\s*[:：]?\s*(ON|OFF)\b/;
+            function switchifyButton(btn) {
+                if (!btn || btn.tagName !== 'BUTTON') return;
+                const spans = [...btn.querySelectorAll('span')].filter(x => x.children.length === 0 && !x.classList.contains('ios-sw'));
+                let tgt = spans.find(x => SW_RE.test(x.textContent.trim())) || null;
+                if (!tgt && btn.querySelectorAll('span:not(.ios-sw), i, svg').length === 0 && SW_RE.test(btn.textContent.trim())) tgt = btn;
+                if (!tgt) return;
+                const raw = tgt.textContent.trim(), m = raw.match(SW_RE); if (!m) return;
+                const on = m[1] ? m[3] === 'OFF' : m[3] === 'ON', name = m[2].trim();
+                tgt.dataset.swRaw = raw;
+                if (tgt === btn) { btn.textContent = ''; const l = document.createElement('span'); l.className = 'sw-label'; l.textContent = name; btn.appendChild(l); }
+                else tgt.textContent = name;
+                let sw = btn.querySelector(':scope > .ios-sw'); if (!sw) { sw = document.createElement('span'); sw.className = 'ios-sw'; btn.appendChild(sw); }
+                sw.classList.toggle('on', on); btn.classList.add('has-sw'); btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            }
+            function switchifyAll() { document.querySelectorAll('button').forEach(switchifyButton); }
+            (function watchSwitches() {
+                const pend = new Set(); let tm = null;
+                new MutationObserver(ms => {
+                    ms.forEach(m => { const n = m.target.nodeType === 3 ? m.target.parentElement : m.target; const b = n && n.closest && n.closest('button'); if (b) pend.add(b); });
+                    if (pend.size && !tm) tm = setTimeout(() => { tm = null; const l = [...pend]; pend.clear(); l.forEach(switchifyButton); }, 0);
+                }).observe(document.body, { childList: true, characterData: true, subtree: true });
+            })();
+            setTimeout(switchifyAll, 0);
+            (function setupFloatPanels() {
+                const layer = document.createElement('div'); layer.id = 'float-layer'; document.body.appendChild(layer);
+                // 画面左右の端にドッキングするレール（2ペイン）と、ドラッグ中のドロップ先ガイド（端の帯／差し込み線）
+                const railL = document.createElement('div'); railL.id = 'dock-left'; railL.className = 'dock-rail'; railL._side = 'left';
+                const railR = document.createElement('div'); railR.id = 'dock-right'; railR.className = 'dock-rail'; railR._side = 'right';
+                const hint = document.createElement('div'); hint.id = 'dock-hint';
+                const insLine = document.createElement('div'); insLine.id = 'dock-ins';
+                document.body.appendChild(railL); document.body.appendChild(railR); document.body.appendChild(hint); document.body.appendChild(insLine);
+                // 保存形式：{ v:2, stacks:[{x,y,ids:[…]}], left:[…], right:[…] }（ids は欄の名前。上から順）。昔の形式 {欄名:{x,y}|{dock}} も読める
+                const FKEY = 'sphere5dBubblesFloats';   // 次元おりがみとは別に保存
+                let layout0 = null; try { layout0 = JSON.parse(localStorage.getItem(FKEY) || '{}') || {}; } catch (_) { layout0 = {}; }
+                const homes = new Map(); let cascade = 0;
+                const SNAP = 52, DOCK_MINW = 820;   // 端から SNAP px 以内で離すとドック。狭い画面では無効
+                const clampX = (x, el) => { const ww = el.offsetWidth || 330; return Math.max(4, Math.min(window.innerWidth - ww - 4, x)); };
+                const clampY = y => Math.max(4, Math.min(window.innerHeight - 42, y));
+                const titleOf = h => [...h.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').replace(/\s+/g, ' ').trim();
+                const fit = () => { if (typeof onWindowResize === 'function') onWindowResize(); };
+                const wrapsIn = c => [...c.querySelectorAll(':scope > .float-panel')];
+                const isRail = c => c === railL || c === railR;
+                let restoring = false;
+                function save() {   // 今の並び（DOM）をそのまま保存
+                    if (restoring) return;
+                    const ids = c => wrapsIn(c).map(w => w._sec.dataset.fid);
+                    const L = { v: 2, stacks: [...layer.querySelectorAll(':scope > .float-stack')].map(st => ({ x: parseInt(st.style.left) || 0, y: parseInt(st.style.top) || 0, ids: ids(st), ...(st.classList.contains('collapsed') ? { collapsed: true } : {}), ...(st.classList.contains('tabbed') ? { tabs: true, active: st._active } : {}) })).filter(s => s.ids.length), left: ids(railL), right: ids(railR) };
+                    try { localStorage.setItem(FKEY, JSON.stringify(L)); } catch (_) {}
+                }
+                // レールの中身の有無で、本体の描画領域を広げ／狭める（--dock-l/r がそのまま main-container の余白になる）
+                function refreshDock(side) {
+                    const rail = side === 'left' ? railL : railR;
+                    const has = wrapsIn(rail).length > 0;
+                    rail.classList.toggle('active', has);
+                    document.body.classList.toggle('dock-' + side + '-on', has);
+                    fit(); requestRender(8);
+                }
+                // 入れ物（浮いているグループ or 端のレール）の後始末：空のグループは消す、2枚以上なら「まとめて移動」のつまみを出す
+                function tidy(c) {
+                    if (!c) return;
+                    if (isRail(c)) { refreshDock(c._side); return; }
+                    const n = wrapsIn(c).length;
+                    _zfKick = Math.max(_zfKick, 30); requestRender(30);   // 入れ物が変わったら自動ズームを合わせ直す
+                    if (!n) { c.remove(); return; }
+                    c.classList.toggle('multi', n > 1);
+                    if (n < 2) c.classList.remove('collapsed');   // つまみが無いとひらけないので、1枚ならたたまない
+                    syncFold(c); syncTabs(c);
+                    c.style.left = clampX(parseInt(c.style.left) || 0, c) + 'px';
+                    requestRender(5);
+                }
+                function newStack(x, y) {   // 浮いているグループ（縦に連結したパネルの入れ物）
+                    const st = document.createElement('div'); st.className = 'float-stack';
+                    const grip = document.createElement('div'); grip.className = 'fs-grip'; grip.title = 'つかんでグループごと移動（端に寄せるとドック、ほかのパネルに重ねると連結）';
+                    grip.innerHTML = '<span class="fs-dots">⠿</span><span>まとめて移動</span><span class="fs-count"></span>';
+                    const fold = document.createElement('button'); fold.type = 'button'; fold.className = 'sb-floatbtn fs-fold'; fold.title = 'グループをまとめてたたむ／ひらく（つまみのダブルクリックでも）';
+                    fold.addEventListener('click', e => { e.stopPropagation(); toggleFold(st); });
+                    grip.addEventListener('dblclick', e => { if (e.target.closest('button')) return; toggleFold(st); });
+                    const tabb = document.createElement('button'); tabb.type = 'button'; tabb.className = 'sb-floatbtn fs-tabbtn'; tabb.title = 'タブでまとめる（選んだ1枚だけ表示）／縦に並べる';
+                    tabb.addEventListener('click', e => { e.stopPropagation(); st.classList.toggle('tabbed'); syncTabs(st); save(); requestRender(5); });
+                    grip.appendChild(tabb); grip.appendChild(fold);
+                    const all = document.createElement('button'); all.type = 'button'; all.className = 'sb-floatbtn'; all.textContent = '⇲ 全部戻す'; all.title = 'このグループのパネルを全部元の場所へ';
+                    all.addEventListener('click', e => { e.stopPropagation(); wrapsIn(st).forEach(w => homeOf(w._sec)()); });
+                    grip.appendChild(all); st.appendChild(grip);
+                    layer.appendChild(st);
+                    st.style.left = clampX(x, st) + 'px'; st.style.top = clampY(y) + 'px';
+                    grip.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; dragStack(st, e); });
+                    return st;
+                }
+                function syncFold(st) {   // たたみボタンの文字と、たたんでいるときの枚数
+                    const b = st.querySelector(':scope > .fs-grip .fs-fold'), cnt = st.querySelector(':scope > .fs-grip .fs-count'); if (!b) return;
+                    const col = st.classList.contains('collapsed');
+                    b.textContent = col ? '▸ ひらく' : '▾ たたむ';
+                    if (cnt) cnt.textContent = col ? '（' + wrapsIn(st).length + '枚）' : '';
+                }
+                // タブでまとめる：見出しの代わりに上にタブを並べ、選んだ1枚だけ表示。タブはクリックで切替、ドラッグで取り出し・ほかへ移動
+                function syncTabs(st) {
+                    const tb = st.querySelector(':scope > .fs-grip .fs-tabbtn'); if (tb) tb.textContent = st.classList.contains('tabbed') ? '☰ 縦並び' : '▤ タブ';
+                    const items = wrapsIn(st); let bar = st.querySelector(':scope > .fs-tabs');
+                    if (!st.classList.contains('tabbed') || items.length < 2) {
+                        if (items.length < 2) st.classList.remove('tabbed');
+                        if (bar) bar.remove(); items.forEach(w => w.classList.remove('tab-on'));
+                        if (tb) tb.textContent = st.classList.contains('tabbed') ? '☰ 縦並び' : '▤ タブ';
+                        return;
+                    }
+                    const act = items.find(w => w._sec.dataset.fid === st._active) || items[0]; st._active = act._sec.dataset.fid;
+                    if (!bar) { bar = document.createElement('div'); bar.className = 'fs-tabs'; st.querySelector(':scope > .fs-grip').after(bar); }
+                    bar.innerHTML = '';
+                    items.forEach(w => {
+                        const fid = w._sec.dataset.fid, t = document.createElement('button'); t.type = 'button';
+                        t.className = 'fs-tab' + (w === act ? ' on' : ''); t.textContent = fid.replace(/（[^）]*）/g, '').trim() || fid; t.title = fid + '：クリックで切り替え。ドラッグで取り出す・ほかのグループや端へ移す';   // タブ名はかっこ書きを省いて短く
+                        t.addEventListener('pointerdown', e => { if (e.button !== 0) return; if (e.pointerType !== 'touch') e.preventDefault(); armDrag(e, ev => { t._dragged = true; beginDrag(w._sec, ev); }); });
+                        t.addEventListener('click', e => { e.stopPropagation(); if (t._dragged) { t._dragged = false; return; } st._active = fid; syncTabs(st); save(); requestRender(5); });
+                        bar.appendChild(t); w.classList.toggle('tab-on', w === act);
+                    });
+                    const back = document.createElement('button'); back.type = 'button'; back.className = 'sb-floatbtn fs-tab-back'; back.textContent = '⇲ 戻す'; back.title = '表示中のパネルを元の場所へ';
+                    back.addEventListener('click', e => { e.stopPropagation(); homeOf(act._sec)(); });
+                    bar.appendChild(back);
+                }
+                function toggleFold(st, on) {   // グループをまとめてたたむ（つまみだけ残す）／ひらく
+                    st.classList.toggle('collapsed', on === undefined ? !st.classList.contains('collapsed') : on);
+                    syncFold(st); st.style.top = clampY(parseInt(st.style.top) || 0) + 'px'; save(); requestRender(5);
+                }
+                function insertWrap(wrap, c, index) {   // 入れ物 c の index 番目（上から）に差し込む
+                    const items = wrapsIn(c).filter(w => w !== wrap);
+                    const ref = items[index] || null;
+                    if (ref) c.insertBefore(wrap, ref); else c.appendChild(wrap);
+                    wrap._sec._dockSide = isRail(c) ? c._side : null;
+                }
+                function indexByY(c, y) {   // ポインタの高さから、何番目に差し込むか（各パネルの上下の真ん中で判定）
+                    const items = wrapsIn(c);
+                    for (let i = 0; i < items.length; i++) { const r = items[i].getBoundingClientRect(); if (y < r.top + r.height / 2) return i; }
+                    return items.length;
+                }
+                function edgeSide(x) { if (window.innerWidth < DOCK_MINW) return null; if (x <= SNAP) return 'left'; if (x >= window.innerWidth - SNAP) return 'right'; return null; }
+                function showHint(side) {
+                    if (!side) { hint.style.display = 'none'; return; }
+                    const sbHidden = document.body.classList.contains('sidebar-hidden');
+                    const sbLeft = document.body.classList.contains('sidebar-left');
+                    const ov = document.getElementById('ui-overlay');
+                    const sbw = sbHidden ? 0 : (ov ? ov.offsetWidth : 0);
+                    const w = Math.min(340, Math.round(window.innerWidth * 0.32));
+                    hint.style.width = w + 'px'; hint.style.display = 'block';
+                    if (side === 'left') { hint.style.right = ''; hint.style.left = (sbLeft ? sbw : 0) + 'px'; }
+                    else { hint.style.left = ''; hint.style.right = (!sbLeft ? sbw : 0) + 'px'; }
+                }
+                function showIns(t) {   // 差し込み位置の線（グループやレールの、パネルとパネルの間）
+                    if (!t || !t.c || !wrapsIn(t.c).length) { insLine.style.display = 'none'; return; }
+                    const items = wrapsIn(t.c), cr = t.c.getBoundingClientRect();
+                    const tbar = t.c.querySelector(':scope > .fs-tabs');
+                    if (t.c.classList.contains('tabbed') && tbar && !t.c.classList.contains('collapsed')) { const br = tbar.getBoundingClientRect(); insLine.style.left = (br.left + 6) + 'px'; insLine.style.width = Math.max(40, br.width - 12) + 'px'; insLine.style.top = (br.bottom - 2) + 'px'; insLine.style.display = 'block'; return; }
+                    if (t.c.classList.contains('collapsed')) { insLine.style.left = (cr.left + 6) + 'px'; insLine.style.width = Math.max(40, cr.width - 12) + 'px'; insLine.style.top = (cr.bottom - 2) + 'px'; insLine.style.display = 'block'; return; }
+                    const y = t.index < items.length ? items[t.index].getBoundingClientRect().top - 4 : items[items.length - 1].getBoundingClientRect().bottom + 4;
+                    insLine.style.left = (cr.left + 6) + 'px'; insLine.style.width = Math.max(40, cr.width - 12) + 'px';
+                    insLine.style.top = (Math.max(cr.top, Math.min(cr.bottom, y)) - 2) + 'px'; insLine.style.display = 'block';
+                }
+                function findTarget(cx, cy, self) {   // ドロップ先：端（レール）／ほかのグループの上／ドック中のレールの上
+                    const side = edgeSide(cx);
+                    if (side) { const rail = side === 'left' ? railL : railR; return { c: rail, index: indexByY(rail, cy), side }; }
+                    const inside = el => { const r = el.getBoundingClientRect(); return r.width > 0 && cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom; };
+                    const stacks = [...layer.querySelectorAll(':scope > .float-stack')].filter(st => st !== self).reverse();   // 上に重なっているものから
+                    for (const st of stacks) if (inside(st)) return { c: st, index: (st.classList.contains('tabbed') || st.classList.contains('collapsed')) ? wrapsIn(st).length : indexByY(st, cy) };   // タブ・たたみ中は末尾へ
+                    for (const rail of [railL, railR]) if (rail.classList.contains('active') && inside(rail)) return { c: rail, index: indexByY(rail, cy), side: rail._side };
+                    return null;
+                }
+                // グループ（浮いている入れ物）をつかんで動かす。離した場所が端ならドック、ほかのグループやレールの上なら、その位置に連結（間に差し込み）
+                function dragStack(st, e, started) {   // started：すでに少し動かしてから始めた（直接ドラッグ・タブのドラッグ）
+                    const sx = e.clientX, sy = e.clientY, ox = parseInt(st.style.left) || 0, oy = parseInt(st.style.top) || 0;
+                    let cx = sx, cy = sy, moved = !!started, tgt = null;
+                    layer.appendChild(st);   // 一番手前へ
+                    const mv = ev => {
+                        cx = ev.clientX; cy = ev.clientY; const dx = cx - sx, dy = cy - sy;
+                        if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+                        st.style.left = clampX(ox + dx, st) + 'px'; st.style.top = clampY(oy + dy) + 'px';
+                        tgt = moved ? findTarget(cx, cy, st) : null;
+                        showHint(tgt && tgt.side && edgeSide(cx) ? tgt.side : null); showIns(tgt);
+                        st.classList.toggle('joining', !!tgt);
+                    };
+                    const end = () => {
+                        window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
+                        showHint(null); showIns(null); st.classList.remove('joining');
+                        _zfKick = Math.max(_zfKick, 30); requestRender(30);   // パネルを動かしたら自動ズームを合わせ直す（端に寄せた分を空ける）
+                        if (moved && tgt) {   // 連結：グループのパネルを順番そのままで差し込む
+                            const ws = wrapsIn(st); if (ws.length && tgt.c.classList.contains('tabbed')) tgt.c._active = ws[0]._sec.dataset.fid;   // タブのグループへ入れたら、入れた1枚を表示
+                            ws.forEach((w, i) => insertWrap(w, tgt.c, tgt.index + i));
+                            st.remove(); tidy(tgt.c);
+                        }
+                        save();
+                    };
+                    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+                    e.preventDefault();
+                }
+                function armDrag(e, onStart) {   // 少し（4px）動かしたらドラッグ開始。動かさなければふつうのクリック
+                    const sx = e.clientX, sy = e.clientY;
+                    const off = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', off); window.removeEventListener('pointercancel', off); };
+                    const mv = ev => { if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 4) { off(); onStart(ev); } };
+                    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', off); window.addEventListener('pointercancel', off);
+                }
+                function beginDrag(sec, ev) {   // 浮いている欄を動かす。1枚だけのグループならグループごと、連結中・タブ中・ドック中なら1枚だけ抜き出す
+                    const wrap = sec._fwrap; if (!wrap) return;
+                    let st = wrap.parentNode;
+                    if (isRail(st) || wrapsIn(st).length > 1) {
+                        const from = st, wasTab = from.classList && from.classList.contains('tabbed');
+                        const r = (wasTab ? from : wrap).getBoundingClientRect();   // タブから抜くときは、グループの位置から
+                        st = newStack(r.left, r.top); insertWrap(wrap, st, 0); wrap.classList.remove('tab-on'); tidy(from); tidy(st);
+                        st.style.left = clampX(ev.clientX - 60, st) + 'px'; st.style.top = clampY(ev.clientY - 14) + 'px';   // つかんだ所の近くに見出しが来るように
+                    }
+                    dragStack(st, ev, true);
+                }
+                function detachAt(wrap, ev) {   // メニューから直接ドラッグ：切り離して、つかんだ位置のまま浮かせて動かし始める
+                    const st = newStack(ev.clientX - 60, ev.clientY - 14); insertWrap(wrap, st, 0); tidy(st);
+                    st.style.left = clampX(ev.clientX - 60, st) + 'px'; st.style.top = clampY(ev.clientY - 14) + 'px';
+                    dragStack(st, ev, true);
+                }
+                const NODRAG = 'button, input, select, textarea, label, a';
+                function makeDrag(sec) {   // 見出しをつかんで動かす。メニューの中の欄も、マウス・ペンなら見出しをドラッグでそのまま分離
+                    const handle = sec.querySelector(':scope > .sb-h');
+                    handle.addEventListener('pointerdown', e => {
+                        sec._moved = false;
+                        if (e.button !== 0 || e.target.closest(NODRAG)) return;
+                        const floating = sec.classList.contains('floating');
+                        if (!floating && e.pointerType === 'touch') return;   // タッチはメニューのスクロールと区別できないので「分離」ボタンで
+                        if (e.pointerType !== 'touch') e.preventDefault();   // 文字の選択を始めない
+                        armDrag(e, ev => {
+                            sec._moved = true;
+                            if (sec.classList.contains('floating')) beginDrag(sec, ev);
+                            else detachAt(prepSec(sec), ev);
+                        });
+                    });
+                    handle.addEventListener('click', e => { if (sec._moved && !e.target.closest(NODRAG)) { e.stopPropagation(); e.preventDefault(); } sec._moved = false; }, true);   // ドラッグ直後の見出しクリック（たたむ等）だけ抑制。ボタンは通す
+                }
+                function makeWrap(sec) {   // パネルの枠（グループやレールに入る1枚）
+                    const wrap = document.createElement('div'); wrap.className = 'float-panel docked';
+                    wrap.appendChild(sec); wrap._sec = sec;
+                    sec.classList.add('floating'); sec._fwrap = wrap; sec._dockSide = null;
+                    return wrap;
+                }
+                function defaultPos() { const p = { x: Math.round(window.innerWidth * 0.42) + (cascade % 3) * 22, y: 70 + (cascade % 6) * 28 }; cascade++; return p; }
+                function prepSec(sec) {   // ふつうの欄を切り離して枠に入れる（置き場所はまだ）
+                    if (sec.classList.contains('floating')) return sec._fwrap;
+                    homes.set(sec, { parent: sec.parentNode, next: sec.nextSibling });
+                    const w = makeWrap(sec); sec._fbtn.textContent = '⇲ 戻す'; return w;
+                }
+                function floatSec(sec) {   // 「分離」：新しい1枚グループとして浮かせる
+                    if (sec.classList.contains('floating')) return;
+                    const w = prepSec(sec), p = defaultPos(), st = newStack(p.x, p.y);
+                    insertWrap(w, st, 0); tidy(st); save();
+                }
+                function dockSec(sec) {   // 「戻す」＝元の場所へ（浮き・連結・ドックどこからでも）
+                    const home = homes.get(sec); if (!home) return;
+                    const wrap = sec._fwrap, c = wrap ? wrap.parentNode : null;
+                    sec._dockSide = null; sec.classList.remove('floating'); sec._fbtn.textContent = '⇱ 分離';
+                    home.parent.insertBefore(sec, home.next); if (wrap) wrap.remove(); sec._fwrap = null; homes.delete(sec);
+                    tidy(c); save();
+                }
+                const homeOf = sec => () => dockSec(sec);
+                // 各タブの各欄にボタンを付ける（共有の「分解」欄は特殊なので除く）
+                const secById = new Map();
+                document.querySelectorAll('.sb-panel').forEach(panel => {
+                    [...panel.children].forEach(sec => {
+                        if (sec.tagName !== 'SECTION' || !sec.classList.contains('sb-sec')) return;
+                        const h = sec.querySelector(':scope > .sb-h'); if (!h) return;
+                        const title = titleOf(h); if (!title) return;
+                        sec.dataset.fid = title; secById.set(title, sec);
+                        const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'sb-floatbtn';
+                        btn.textContent = '⇱ 分離'; btn.title = 'この欄を切り離して浮かせる（見出しをドラッグしても分離できます。ほかのパネルに重ねると連結・間に差し込み。端に寄せるとドック。「戻す」で元の場所へ）';
+                        btn.addEventListener('click', e => { e.stopPropagation(); if (sec.classList.contains('floating')) dockSec(sec); else floatSec(sec); });
+                        h.appendChild(btn); sec._fbtn = btn; makeDrag(sec);
+                    });
+                });
+                // 保存されていた並びを復元（昔の形式は、1枚ずつのグループ／レールへ読み替え）
+                (function restore() {
+                    let L = layout0 || {};
+                    if (L.v !== 2) {
+                        const o = L; L = { v: 2, stacks: [], left: [], right: [] };
+                        Object.keys(o).forEach(fid => { const s = o[fid]; if (!s || typeof s !== 'object') return; if (s.dock === 'left' || s.dock === 'right') L[s.dock].push(fid); else L.stacks.push({ x: s.x, y: s.y, ids: [fid] }); });
+                    }
+                    const prep = fid => secById.has(fid) ? prepSec(secById.get(fid)) : null;
+                    const used = new Set();
+                    const fill = (c, ids) => (ids || []).forEach(fid => { if (used.has(fid)) return; const w = prep(fid); if (w) { used.add(fid); insertWrap(w, c, wrapsIn(c).length); } });
+                    restoring = true;
+                    const wide = window.innerWidth >= DOCK_MINW;
+                    ['left', 'right'].forEach(side => {
+                        const ids = L[side] || []; if (!ids.length) return;
+                        if (wide) { const rail = side === 'left' ? railL : railR; fill(rail, ids); tidy(rail); }
+                        else { const p = defaultPos(), st = newStack(p.x, p.y); fill(st, ids); tidy(st); }   // 狭い画面ではドックせず、浮かせて出す
+                    });
+                    (L.stacks || []).forEach(s => { const p = (Number.isFinite(s.x) && Number.isFinite(s.y)) ? s : defaultPos(); const st = newStack(p.x, p.y); fill(st, s.ids); if (s.collapsed) st.classList.add('collapsed'); if (s.tabs) { st.classList.add('tabbed'); st._active = s.active; } tidy(st); });
+                    restoring = false;
+                })();
+            })();
+})();
+
+// ---- 描画ループ ----
+let tPrev = performance.now(), fN = 0;
+(function loop() {
+    requestAnimationFrame(loop);
+    const now = performance.now(), dt = Math.min(0.05, (now - tPrev) / 1000); tPrev = now; fN++;
+    if (!paused) {
+        if (auto.some(Boolean)) { auto.forEach((a, k) => { if (a) ang[k] += 0.6 * dt * rspd * RATE[k]; }); if (fN % 6 === 0) syncRot(); }
+        if (scanV) { tScanV += dt * 0.45 * spd; v0 = B * 0.92 * Math.sin(tScanV); V0.e.value = v0; V0.show(); }
+        if (scanW) { tScanW += dt * 0.33 * spd; w0 = B * 0.92 * Math.sin(tScanW); W0.e.value = w0; W0.show(); }
+        if ((scanV || scanW) && fN % 4 === 0) syncCounters();
+    }
+    mkRot();
+    if (demo && !paused && bubbles[0] && bubbles[0].c[4] > v0 + bubbles[0].rho + 0.3) bubbles[0].vel[4] = -Math.abs(bubbles[0].vel[4]);   // 通り抜けたら折り返して、もう一度
+    for (const b of bubbles) updateBubble(b, dt);
+    updateBoxes(); stepFlashes(dt);
+    Object.values(P).forEach(({ pane, scene, cam, ren, ctl }) => { ctl.update(); if (!pane.classList.contains('off')) ren.render(scene, cam); });
+})();
+setMode('sphere'); auto[0] = auto[4] = true; syncRot(); syncButtons(); onWindowResize();
+if (window.lucide) lucide.createIcons();
+</script>
+</body>
+</html>
