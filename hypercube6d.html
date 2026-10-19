@@ -92,6 +92,7 @@
         .tbtn.on { background: rgba(124, 58, 237, 0.35); border-color: rgba(167, 139, 250, 0.7); color: #ede9fe; }
         .tbtn.go { background: rgba(8, 145, 178, 0.3); border-color: rgba(34, 211, 238, 0.6); color: #cffafe; }
         .badge { position: absolute; top: 12px; left: 12px; pointer-events: none; padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; z-index: 10; background: rgba(15, 23, 42, 0.85); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); max-width: calc(100% - 24px); }
+        body.sidebar-hidden .badge { left: 100px; }   /* 左上の「パネル」ボタンと重ならないように */
         .badge small { display: block; font-size: 10px; font-weight: 400; color: #94a3b8; }
         .note { font-size: 10px; color: #64748b; line-height: 1.5; }
         .stat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 10px; color: #94a3b8; }
@@ -99,6 +100,15 @@
         .stat b { color: #e2e8f0; font-family: ui-monospace, Menlo, monospace; }
         @font-face { font-family: 'TeXMath'; font-style: italic; src: url('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_Math-Italic.woff2') format('woff2'); }
         .ax-lb { position: absolute; pointer-events: none; z-index: 9; transform: translate(-50%, -50%); font: italic 26px TeXMath, Georgia, 'Times New Roman', serif; color: var(--c); text-shadow: 0 0 3px #020612, 0 0 3px #020612, 0 0 6px #020612; }
+        .grp-lb { position: absolute; pointer-events: none; z-index: 9; transform: translate(-50%, -50%); font: italic 15px TeXMath, Georgia, serif; letter-spacing: 1px; text-shadow: 0 0 3px #020612, 0 0 5px #020612; white-space: nowrap; }
+        .col-lb { position: absolute; pointer-events: none; z-index: 9; transform: translate(-50%, -50%); font-size: 10px; font-weight: 700; color: #cbd5e1; background: rgba(2, 6, 23, 0.75); border: 1px solid #334155; border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+        #cube-count { position: absolute; left: 50%; top: 70px; transform: translateX(-50%); z-index: 12; pointer-events: none; display: none; text-align: center; font-weight: 900; color: #fff; }
+        #cube-count .n { font-size: 44px; line-height: 1; text-shadow: 0 0 14px #2dd4bf, 0 0 34px #a855f7; }
+        #cube-count .t { font-size: 12px; color: #a5f3fc; margin-top: 2px; }
+        #cube-count.pop .n { animation: cpop .25s ease-out; }
+        #cube-count.done .n { animation: cdone 1.2s ease-out; }
+        @keyframes cpop { 0% { transform: scale(1.35); } 100% { transform: scale(1); } }
+        @keyframes cdone { 0% { transform: scale(0.4); opacity: 0; } 25% { transform: scale(1.5); opacity: 1; text-shadow: 0 0 30px #fff, 0 0 60px #2dd4bf; } 100% { transform: scale(1); } }
         .cell-lb { position: absolute; pointer-events: none; z-index: 8; transform: translate(-50%, -50%); font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(2, 6, 23, 0.78); border: 1px solid var(--c); color: var(--c); white-space: nowrap; }
     </style>
 </head>
@@ -107,6 +117,7 @@
         <div id="view" class="absolute inset-0"></div>
         <div class="badge border border-teal-400/30 text-teal-300"><i data-lucide="boxes" class="w-4 h-4 shrink-0"></i><div>5次元の展開図 → 6次元立方体<small>12個の5次元立方体（ペンテラクト）。u の向きへ折りたたむと6次元立方体になる。v と w の遠近で 3D に写す</small></div></div>
         <div id="labels" class="absolute inset-0 pointer-events-none"></div>
+        <div id="cube-count"><div class="n"></div><div class="t"></div></div>
     </div>
 
     <div id="rot-bar" class="absolute bottom-3 z-30 pointer-events-none flex justify-center">
@@ -118,6 +129,8 @@
             <button class="tbtn" data-act="spin" title="6次元の回転を自動で（S）"><span>6D回転: OFF</span></button>
             <button class="tbtn" data-act="label" title="各ペンテラクトの名前"><span>ラベル: ON</span></button>
             <button class="tbtn" data-act="axes" title="座標軸 x・y・z・w・v・u（X）"><span>座標軸: ON</span></button>
+            <button class="tbtn" data-act="cubes" title="6次元立方体を160個の立方体までバラして並べる（C）"><span>立方体まで: OFF</span></button>
+            <button class="tbtn go" data-act="count" title="160個の立方体を1個ずつ光らせて数える（N）">数える</button>
         </div>
     </div>
 
@@ -143,6 +156,8 @@
                 <section class="sb-sec">
                     <h3 class="sb-h"><i data-lucide="split" class="w-3.5 h-3.5"></i>分解</h3>
                     <div class="sl-row"><span>離す距離</span><input id="exp" type="range" min="0" max="2" step="0.01" value="0"><output id="expO"></output></div>
+                    <div class="flex flex-wrap gap-1.5"><button class="tbtn" data-act="cubes"><span>立方体まで: OFF</span></button><button class="tbtn go" data-act="count">数える</button></div>
+                    <p class="note"><b class="text-slate-300">立方体まで</b>：6次元立方体に組み上げてから、160個の立方体にバラして並べます。向き（自由に動く3本の軸）ごとに20組×8個。左から「x・y・z の向き 1組」「見える2本＋奥行き1本 9組」「見える1本＋奥行き2本 9組」「w・v・u の向き 1組」。辺の色は、その向きの軸の色です。</p>
                     <p class="note">12個のペンテラクトを外向きに離して、1個ずつの形を見やすくします。±W・±V と蓋（+U）は、離れる向きが奥行き（w・v・u）なので、そのままだと真ん中に重なります。分解のときは斜め下・上の空いている所へ脇に避けて見せます。</p>
                 </section>
                 <section class="sb-sec">
@@ -274,6 +289,75 @@ CELLS.forEach(C => {
     C.pos = new Float32Array(32 * 3); C.wd = new Float32Array(32);
     const el = document.createElement('div'); el.className = 'cell-lb'; el.style.setProperty('--c', C.hex); el.textContent = C.name; $('labels').appendChild(el); C.lb = el;
 });
+// ---- 立方体まで分解：6次元立方体の160個の立方体 ----
+//   立方体＝自由に動く3本の軸 F（6本から3本＝20通り）＋ 残り3本 G を ±1 に固定（8通り）。20×8＝160。
+//   出発点＝6次元立方体（組み上がり）を今の回転・遠近で写した本当の位置。行き先＝向きの種類ごとに並べた場所。
+let cubeMode = false, cubeT = 0, countK = -1, countOn = false;
+const CUBE_H = 0.22, CUBE_GAP = 0.42, CELL_SP = 2.0, XG = 3.0, XO = 8.0;   // 立方体の半分の大きさ・組の中の間隔・組どうしの間隔・3×3 の中心・両端の組
+const GRPS = [], CUBES = [];
+const COLS = [
+    { x: -XO, y: 3.55, text: 'xyz（1組）' }, { x: -XG, y: 3.55, text: '見える2＋奥1（9組）' },
+    { x: XG, y: 3.55, text: '見える1＋奥2（9組）' }, { x: XO, y: 3.55, text: 'wvu（1組）' },
+];
+(function buildCubes() {
+    for (let a = 0; a < 6; a++) for (let b = a + 1; b < 6; b++) for (let c = b + 1; c < 6; c++) {
+        const F = [a, b, c], G = [0, 1, 2, 3, 4, 5].filter(k => !F.includes(k)), h = F.filter(k => k >= 3).length;
+        let ctr;
+        if (h === 0) ctr = [-XO, 0, 0];
+        else if (h === 3) ctr = [XO, 0, 0];
+        else if (h === 1) { const m = [0, 1, 2].find(k => !F.includes(k)), hk = F.find(k => k >= 3); ctr = [-XG + (m - 1) * CELL_SP, (1 - (hk - 3)) * CELL_SP, 0]; }
+        else { const m = [3, 4, 5].find(k => !F.includes(k)), j = F.find(k => k < 3); ctr = [XG + (m - 4) * CELL_SP, (1 - j) * CELL_SP, 0]; }
+        const col = new THREE.Color(0, 0, 0); F.forEach(k => col.add(new THREE.Color(AXHEX[k]).multiplyScalar(1 / 3)));
+        const el = document.createElement('div'); el.className = 'grp-lb'; el.innerHTML = F.map(k => `<span style="color:${AXHEX[k]}">${AXN[k].toLowerCase()}</span>`).join(''); $('labels').appendChild(el);
+        const g = { F, G, h, ctr, col, el, idx: GRPS.length }; GRPS.push(g);
+        for (let sg = 0; sg < 8; sg++) {
+            const S = [0, 1, 2].map(i => (sg >> i & 1) ? 1 : -1);
+            const off = [S[0] * CUBE_GAP, S[1] * CUBE_GAP, S[2] * CUBE_GAP];
+            const v6 = [], dst = [];
+            for (let i = 0; i < 8; i++) {
+                const p = [0, 0, 0, 0, 0, 0]; G.forEach((k, j) => p[k] = S[j]); F.forEach((k, j) => p[k] = (i >> j & 1) ? 1 : -1); v6.push(p);
+                dst.push([0, 1, 2].map(j => ctr[j] + off[j] + ((i >> j & 1) ? CUBE_H : -CUBE_H)));
+            }
+            CUBES.push({ g, v6, dst, pos: new Float32Array(24), lit: 0 });
+        }
+    }
+    COLS.forEach(Cl => { const el = document.createElement('div'); el.className = 'col-lb'; el.textContent = Cl.text; $('labels').appendChild(el); Cl.el = el; });
+})();
+// 立方体を1つ（並べた順＝数える順）に。組の順は左の列から
+CUBES.sort((p, q) => (p.g.ctr[0] - q.g.ctr[0]) || (q.g.ctr[1] - p.g.ctr[1]));
+const CE = []; for (let i = 0; i < 8; i++) for (let j = 0; j < 3; j++) { const k = i ^ (1 << j); if (i < k) CE.push([i, k, j]); }   // 辺12本（j＝どの自由な軸の向きか）
+const CQ = []; for (let j = 0; j < 3; j++) for (const sb of [0, 1]) { const a = (j + 1) % 3, b = (j + 2) % 3, base = sb << j; CQ.push([base, base | (1 << a), base | (1 << a) | (1 << b), base | (1 << b)]); }
+const cubeLine = (() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(160 * 12 * 6), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(160 * 12 * 6), 3)); const m = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95 })); m.frustumCulled = false; m.visible = false; root.add(m); return m; })();
+const cubeFace = (() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(160 * 6 * 6 * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(160 * 6 * 6 * 3), 3)); const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false })); m.frustumCulled = false; m.visible = false; root.add(m); return m; })();
+const _c6 = [0, 0, 0, 0, 0, 0], _c3 = [0, 0, 0], camFront = new THREE.Vector3(0, 3.4, 24);
+function updateCubes() {
+    const on = cubeT > 0; cubeLine.visible = on && wireOn; cubeFace.visible = on && faceOn; if (!on) return;
+    const pa = cubeLine.geometry.attributes.position.array, ca = cubeLine.geometry.attributes.color.array, fa = cubeFace.geometry.attributes.position.array, fc = cubeFace.geometry.attributes.color.array;
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z0 = 1e9, z1 = -1e9, lp = 0, fp = 0;
+    const nG = GRPS.length;
+    CUBES.forEach((Q, qi) => {
+        const u = smooth(Math.max(0, Math.min(1, cubeT * 1.6 - (Q.g.idx / (nG - 1)) * 0.6)));   // 組ごとに少しずつずらして飛び出す
+        for (let i = 0; i < 8; i++) {
+            for (let k = 0; k < 6; k++) _c6[k] = Q.v6[i][k];
+            project(_c6, _c3, 0);
+            for (let k = 0; k < 3; k++) { const v = _c3[k] + (Q.dst[i][k] - _c3[k]) * u; Q.pos[i * 3 + k] = v; }
+            const x = Q.pos[i * 3], y = Q.pos[i * 3 + 1], z = Q.pos[i * 3 + 2];
+            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z;
+        }
+        const counted = countK >= 0 && qi <= countK, now = countOn && qi === Math.floor(countK);
+        const lit = now ? 1 : counted ? 0.35 : 0;
+        for (const [a, b, j] of CE) {
+            const c = new THREE.Color(AXHEX[Q.g.F[j]]); if (lit) c.lerp(new THREE.Color(1, 1, 1), lit);
+            for (const vi of [a, b]) { pa[lp] = Q.pos[vi * 3]; pa[lp + 1] = Q.pos[vi * 3 + 1]; pa[lp + 2] = Q.pos[vi * 3 + 2]; ca[lp] = c.r; ca[lp + 1] = c.g; ca[lp + 2] = c.b; lp += 3; }
+        }
+        const fcCol = Q.g.col.clone().multiplyScalar(now ? 2.2 : counted ? 1.3 : 1);
+        for (const q of CQ) for (const vi of [q[0], q[1], q[2], q[0], q[2], q[3]]) { fa[fp] = Q.pos[vi * 3]; fa[fp + 1] = Q.pos[vi * 3 + 1]; fa[fp + 2] = Q.pos[vi * 3 + 2]; fc[fp] = fcCol.r; fc[fp + 1] = fcCol.g; fc[fp + 2] = fcCol.b; fp += 3; }
+    });
+    cubeLine.geometry.attributes.position.needsUpdate = true; cubeLine.geometry.attributes.color.needsUpdate = true;
+    cubeFace.geometry.attributes.position.needsUpdate = true; cubeFace.geometry.attributes.color.needsUpdate = true;
+    if (autoCenter) { centerNow.lerp(new THREE.Vector3(-(x0 + x1) / 2, -(y0 + y1) / 2, -(z0 + z1) / 2), 0.12); root.position.copy(centerNow); }
+}
+
 // ---- 座標軸 x・y・z・w・v・u：原点から 6次元の向き e_k へ。図形と同じ回転・遠近で写す（直線は直線に写る） ----
 const AX_UP = new THREE.Vector3(0, 1, 0);
 const AXES = AXN.map((n, k) => {
@@ -288,7 +372,7 @@ const _ax = [0, 0, 0, 0, 0, 0], _o3 = [0, 0, 0], _dir = new THREE.Vector3();
 function updateAxes() {
     const AX_LEN = 1.9 + 1.8 * (1 - smooth(fold));   // 展開図では腕（長さ3）の外まで、組み上がると立方体（半分の長さ1）の少し外まで
     AXES.forEach(A => {
-        const vis = axesOn; A.pos.visible = A.neg.visible = vis; A.cone.visible = vis; if (!vis) return;
+        const vis = axesOn && cubeT <= 0; A.pos.visible = A.neg.visible = vis; A.cone.visible = vis; if (!vis) return;
         _ax.fill(0); _ax[A.k] = AX_LEN; project(_ax, _o3, 0); A.tip.set(_o3[0], _o3[1], _o3[2]);
         _ax.fill(0); _ax[A.k] = -AX_LEN; project(_ax, _o3, 0);
         const pa = A.pos.geometry.attributes.position.array, na = A.neg.geometry.attributes.position.array;
@@ -341,30 +425,41 @@ function update() {
     CELLS.forEach(C => {
         const fa = C.face.geometry.attributes.position.array; let k = 0;
         for (const quad of C.topo.Q) for (const vi of [quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]]) { fa[k++] = C.pos[vi * 3]; fa[k++] = C.pos[vi * 3 + 1]; fa[k++] = C.pos[vi * 3 + 2]; }
-        C.face.geometry.attributes.position.needsUpdate = true; C.face.visible = faceOn;
+        C.face.geometry.attributes.position.needsUpdate = true; C.face.visible = faceOn && cubeT <= 0;
         const ea = C.edge.geometry.attributes.position.array, ec = C.edge.geometry.attributes.color.array; k = 0;
         for (const [a, b] of C.topo.E) for (const vi of [a, b]) {
             ea[k] = C.pos[vi * 3]; ea[k + 1] = C.pos[vi * 3 + 1]; ea[k + 2] = C.pos[vi * 3 + 2];
             const t = 0.45 + 0.55 * (C.wd[vi] - wMin) / wSp;   // w の奥ほど暗く＝入れ子が読みやすい
             ec[k] = C.col.r * t; ec[k + 1] = C.col.g * t; ec[k + 2] = C.col.b * t; k += 3;
         }
-        C.edge.geometry.attributes.position.needsUpdate = true; C.edge.geometry.attributes.color.needsUpdate = true; C.edge.visible = wireOn;
+        C.edge.geometry.attributes.position.needsUpdate = true; C.edge.geometry.attributes.color.needsUpdate = true; C.edge.visible = wireOn && cubeT <= 0;
     });
     // 図形がいつも画面の真ん中に来るように（展開図は上に長いので）
     const want = new THREE.Vector3(-(x0 + x1) / 2, -(y0 + y1) / 2, -(z0 + z1) / 2);
-    if (autoCenter) { centerNow.lerp(want, 0.12); root.position.copy(centerNow); }
+    if (autoCenter && cubeT <= 0) { centerNow.lerp(want, 0.12); root.position.copy(centerNow); }
     updateAxes();
+    updateCubes();
 }
 function updateLabels() {
     const W = view.clientWidth, H = view.clientHeight;
     AXES.forEach(A => {
-        if (!axesOn) { A.el.style.display = 'none'; return; }
+        if (!axesOn || cubeT > 0) { A.el.style.display = 'none'; return; }
         tmp.copy(A.tip).multiplyScalar(1.13).add(root.position).project(cam);
         if (tmp.z > 1 || A.tip.length() < 0.15) { A.el.style.display = 'none'; return; }
         A.el.style.display = ''; A.el.style.left = ((tmp.x + 1) / 2 * W) + 'px'; A.el.style.top = ((1 - tmp.y) / 2 * H) + 'px';
     });
+    GRPS.forEach(G => {   // 立方体まで：組ごとの向きのラベル
+        if (cubeT < 0.75) { G.el.style.display = 'none'; return; }
+        tmp.set(G.ctr[0], G.ctr[1] + 0.9, G.ctr[2]).add(root.position).project(cam);
+        G.el.style.display = ''; G.el.style.left = ((tmp.x + 1) / 2 * W) + 'px'; G.el.style.top = ((1 - tmp.y) / 2 * H) + 'px';
+    });
+    COLS.forEach(Cl => {
+        if (cubeT < 0.75) { Cl.el.style.display = 'none'; return; }
+        tmp.set(Cl.x, Cl.y, 0).add(root.position).project(cam);
+        Cl.el.style.display = ''; Cl.el.style.left = ((tmp.x + 1) / 2 * W) + 'px'; Cl.el.style.top = ((1 - tmp.y) / 2 * H) + 'px';
+    });
     CELLS.forEach(C => {
-        if (!labelOn) { C.lb.style.display = 'none'; return; }
+        if (!labelOn || cubeT > 0) { C.lb.style.display = 'none'; return; }
         ctr.set(0, 0, 0); for (let i = 0; i < 32; i++) ctr.x += C.pos[i * 3] / 32, ctr.y += C.pos[i * 3 + 1] / 32, ctr.z += C.pos[i * 3 + 2] / 32;
         tmp.copy(ctr).add(root.position).project(cam);
         if (tmp.z > 1) { C.lb.style.display = 'none'; return; }
@@ -388,12 +483,14 @@ const rotRows = ROT.map(([n, i, j], k) => {
 const setTxt = (sp, t) => { if (sp && sp.textContent !== t && sp.dataset.swRaw !== t) sp.textContent = t; };
 function syncButtons() {
     const sw = (act, name, on) => document.querySelectorAll(`[data-act="${act}"] span:not(.ios-sw)`).forEach(sp => setTxt(sp, name + ': ' + (on ? 'ON' : 'OFF')));
-    sw('loop', '往復', loop); sw('spin', '6D回転', spin); sw('label', 'ラベル', labelOn); sw('stagger', '時間差', stagger); sw('face', '面', faceOn); sw('wire', '線', wireOn); sw('cam', '自動で中央に', autoCenter); sw('axes', '座標軸', axesOn);
+    sw('loop', '往復', loop); sw('spin', '6D回転', spin); sw('label', 'ラベル', labelOn); sw('stagger', '時間差', stagger); sw('face', '面', faceOn); sw('wire', '線', wireOn); sw('cam', '自動で中央に', autoCenter); sw('axes', '座標軸', axesOn); sw('cubes', '立方体まで', cubeMode);
 }
 const ACT = {
     fold: () => { foldTarget = 1; loop = false; }, unfold: () => { foldTarget = 0; loop = false; },
     loop: () => { loop = !loop; foldTarget = fold > 0.5 ? 0 : 1; }, spin: () => spin = !spin, label: () => labelOn = !labelOn,
     stagger: () => stagger = !stagger, axes: () => axesOn = !axesOn, face: () => faceOn = !faceOn, wire: () => wireOn = !wireOn, cam: () => autoCenter = !autoCenter,
+    cubes: () => { cubeMode = !cubeMode; if (cubeMode && fold < 0.999) { foldTarget = 1; loop = false; } if (!cubeMode) { countOn = false; countK = -1; $('cube-count').style.display = 'none'; } },
+    count: () => { if (!cubeMode) ACT.cubes(); countOn = true; countK = -1; const cc = $('cube-count'); cc.className = ''; cc.style.display = 'block'; cc.querySelector('.n').textContent = '0'; cc.querySelector('.t').textContent = '/ 160 個の立方体'; },
     rot0: () => { ang.fill(0); spin = false; rotRows.forEach(r => { r.r.value = 0; r.o.textContent = '0°'; }); },
 };
 document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => { ACT[b.dataset.act](); syncButtons(); }));
@@ -401,7 +498,7 @@ $('sidebar-close').addEventListener('click', () => { document.body.classList.add
 $('sidebar-open').addEventListener('click', () => { document.body.classList.remove('sidebar-hidden'); onWindowResize(); });
 addEventListener('keydown', e => {
     if (e.target.closest('input, textarea, select') || e.metaKey || e.ctrlKey || e.altKey) return;
-    const m = { a: 'fold', u: 'unfold', l: 'loop', s: 'spin', x: 'axes' }, k = e.key.toLowerCase();
+    const m = { a: 'fold', u: 'unfold', l: 'loop', s: 'spin', x: 'axes', c: 'cubes', n: 'count' }, k = e.key.toLowerCase();
     if (m[k]) { ACT[m[k]](); syncButtons(); } else if (k === 'p') { document.body.classList.toggle('sidebar-hidden'); onWindowResize(); }
 });
 
@@ -714,6 +811,16 @@ let tPrev = performance.now();
     if (spin) {
         const R = [0.69, 0.51, 0.39, 0.57, 0.33, 0.21];   // 速さの比をずらして同じ姿勢に戻りにくく（いちばん速い面で1周 約9秒）
         ang.forEach((a, k) => { ang[k] = a + R[k] * dt * rspd; const d = Math.round(((ang[k] * 180 / Math.PI) % 360 + 540) % 360 - 180); rotRows[k].r.value = d; rotRows[k].o.textContent = d + '°'; });
+    }
+    // 立方体まで：組み上がってから飛び出す。戻すときは立方体が元の位置へ帰ってから、ペンテラクトの表示に戻る
+    if (cubeMode && fold >= 0.999) cubeT = Math.min(1, cubeT + dt * 0.42 * spd);
+    else if (!cubeMode) cubeT = Math.max(0, cubeT - dt * 0.6 * spd);
+    if (cubeMode && cubeT > 0 && cubeT < 1) cam.position.lerp(camFront, 0.035);   // 並べた全体が見えるよう、正面へ少し引く
+    if (countOn && cubeT >= 1) {   // 数える：1秒に約24個
+        const prev = Math.floor(countK); countK = Math.min(159, countK + dt * 24 * Math.min(2, spd));
+        const n = Math.floor(countK) + 1, cc = $('cube-count');
+        if (Math.floor(countK) !== prev) { cc.querySelector('.n').textContent = n; cc.classList.remove('pop'); void cc.offsetWidth; cc.classList.add('pop'); }
+        if (countK >= 159) { countOn = false; cc.querySelector('.n').textContent = '160個！'; cc.querySelector('.t').textContent = '20通りの向き × 8個'; cc.classList.remove('pop'); void cc.offsetWidth; cc.classList.add('done'); setTimeout(() => { if (!countOn) { cc.style.display = 'none'; countK = -1; } }, 3200); }
     }
     update(); ctl.update(); ren.render(scene, cam); updateLabels();
 })();
