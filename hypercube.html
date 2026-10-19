@@ -234,6 +234,16 @@
 
         /* 5次元超立方体の「3D に出ている軸の長さ」（見出しの下・右）。右上ミニのときは左へ。スマホでは出さない */
         #axlen-5d { top: 64px; right: 12px; }
+        /* 移動パッド：画面の左下。ドラッグで画面の中身をつかんで動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す */
+        .pan-pad { position: absolute; left: 12px; top: 50%; margin-top: -23px; width: 46px; height: 46px; border-radius: 50%; z-index: 25; cursor: grab; touch-action: none; user-select: none;
+            background: rgba(15, 23, 42, 0.78); border: 1px solid #475569; color: #94a3b8; display: grid; place-items: center; backdrop-filter: blur(4px); transition: border-color .15s, color .15s; }
+        .pan-pad:hover { border-color: #a855f7; color: #e9d5ff; }
+        .pan-pad.dragging { cursor: grabbing; border-color: #a855f7; color: #e9d5ff; background: rgba(59, 29, 92, 0.85); }
+        .pan-pad svg { width: 26px; height: 26px; pointer-events: none; }
+        body.no-pan-pad .pan-pad, .mode-pip #wrapper-2d3d .pan-pad, #main-container.dim5.mode-pip #wrapper-3d4d .pan-pad { display: none; }
+        #axlen-4d { top: 64px; right: 12px; }
+        #main-container.dim5.mode-pip #axlen-4d { display: none !important; }   /* 5次元の右上ミニのときは出さない */
+        @media (max-width: 700px) { #axlen-4d { display: none !important; } }
         #main-container.dim5.mode-pip #axlen-5d { right: auto; left: 12px; }
         @media (max-width: 700px) { #axlen-5d { display: none !important; } }
         .seri-btn.on { background: rgba(217, 119, 6, 0.35); border-color: rgba(251, 191, 36, 0.7); color: #fef3c7; }
@@ -306,6 +316,7 @@
         <div id="wrapper-2d3d">
             <div id="canvas-2d3d" class="w-full h-full"></div>
             <div id="xp-layer-2d" class="xp-layer"></div><div id="xp-badge-2d" class="xp-badge"></div>
+            <div class="pan-pad" data-pan="2" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
             <div id="badge-2d3d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-cyan-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-cyan-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="square" class="w-4 h-4 text-cyan-400"></i>
                 <span><em id="side-2d3d" class="not-italic">左</em>: 2D展開図 → 立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = z。そこへ倒すと、ただ立方体が回る</span></span>
@@ -336,6 +347,16 @@
             <div id="canvas-3d4d" class="w-full h-full"></div>
             <div id="die-flash-3d" class="die-flash"><div class="box"><img class="pip" alt="" style="display:none"><div class="n"></div><div class="sub"></div></div></div>
             <div id="xp-layer-3d" class="xp-layer"></div><div id="xp-badge-3d" class="xp-badge"></div>
+            <div class="pan-pad" data-pan="3" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
+            <!-- 4次元：3D に出ている軸の長さ（平行投影で見える長さ）。w は 0° では落とす向きなので 0%。X-W・Y-W・Z-W で回すと出てくる。つぶす（お遊び）と減る -->
+            <div id="axlen-4d" class="absolute pointer-events-none z-10 bg-slate-900/80 backdrop-blur border border-slate-700 rounded-xl px-2.5 py-1.5" title="4本の軸が 3D にどれだけ出ているか（もとの長さを 100%）">
+                <div class="text-[10px] font-bold text-slate-300 mb-0.5">3D に出ている軸の長さ</div>
+                <div class="flex items-center gap-1.5 text-[10px] font-mono leading-tight"><b class="w-2 italic" style="color:#ff5d6c">x</b><span class="block w-20 h-1.5 rounded bg-slate-800 overflow-hidden"><span id="axl4-x" class="block h-full rounded" style="width:100%;background:#ff5d6c"></span></span><span id="axl4-x-t" class="w-9 text-right text-slate-300">100%</span></div>
+                <div class="flex items-center gap-1.5 text-[10px] font-mono leading-tight"><b class="w-2 italic" style="color:#3ddc84">y</b><span class="block w-20 h-1.5 rounded bg-slate-800 overflow-hidden"><span id="axl4-y" class="block h-full rounded" style="width:100%;background:#3ddc84"></span></span><span id="axl4-y-t" class="w-9 text-right text-slate-300">100%</span></div>
+                <div class="flex items-center gap-1.5 text-[10px] font-mono leading-tight"><b class="w-2 italic" style="color:#56a8ff">z</b><span class="block w-20 h-1.5 rounded bg-slate-800 overflow-hidden"><span id="axl4-z" class="block h-full rounded" style="width:100%;background:#56a8ff"></span></span><span id="axl4-z-t" class="w-9 text-right text-slate-300">100%</span></div>
+                <div class="flex items-center gap-1.5 text-[10px] font-mono leading-tight"><b class="w-2 italic" style="color:#b07cff">w</b><span class="block w-20 h-1.5 rounded bg-slate-800 overflow-hidden"><span id="axl4-w" class="block h-full rounded" style="width:100%;background:#b07cff"></span></span><span id="axl4-w-t" class="w-9 text-right text-slate-300">100%</span></div>
+            </div>
+
             <div id="badge-3d4d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="box" class="w-4 h-4 text-purple-400"></i>
                 <span><em id="side-3d4d" class="not-italic">右</em>: 3D展開図 → 超立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = w。そこへ倒すと、影が裏返って見える</span></span>
@@ -347,6 +368,7 @@
             <div id="canvas-4d5d" class="w-full h-full"></div>
             <div id="die-flash-5d" class="die-flash"><div class="box"><img class="pip" alt="" style="display:none"><div class="n"></div><div class="sub"></div></div></div>
             <div id="xp-layer-5d" class="xp-layer"></div><div id="xp-badge-5d" class="xp-badge"></div>
+            <div class="pan-pad" data-pan="5" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
             <div id="badge-4d5d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="hexagon" class="w-4 h-4 text-amber-400"></i>
                 <span><em id="side-4d5d" class="not-italic">右</em>: 4D展開図 → 5次元超立方体（β）<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = v。v と w の2段で 3D に写す</span></span>
@@ -935,6 +957,10 @@
                         <i data-lucide="sun" class="w-3.5 h-3.5"></i>
                         <span id="shine-text" class="text-[11px]">→ 照り返しライト: ON</span>
                     </button>
+                    <button id="panpad-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="移動パッド：各画面の左下に、画面の中身を動かすつまみを出す（マウスだけで動かせる）">
+                        <i data-lucide="move" class="w-3.5 h-3.5"></i>
+                        <span id="panpad-text" class="text-[11px]">→ 移動パッド: OFF</span>
+                    </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button></div>
                 <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
@@ -969,6 +995,14 @@
                     <button id="numtex-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="立体の面に数字を貼る（サイコロの目みたいに）。立方体は6面に1〜6、超立方体は8つの胞に1〜8、5次元体は10胞に1〜10。折りたたみ・回転で数字が重なってカオスになります（Shift+9）"><i data-lucide="hash" class="w-3.5 h-3.5"></i><span id="numtex-text" class="text-[11px]">数字テクスチャ: OFF</span></button>
                 </div>
                 <p class="text-[10px] text-slate-500 leading-snug">面に数字を貼ります。<b class="text-slate-400">立方体＝1〜6のサイコロ</b>、超立方体＝8つの胞に1〜8、5次元体＝10胞に1〜10。4次元・5次元では胞が重なるので、組み上げ・回転すると数字がぐちゃっと重なってカオスに（お遊び）。「面透過」が<b class="text-slate-400">立体感</b>のときに出ます。</p>
+                <div class="mt-2 pt-2 border-t border-slate-800">
+                    <div class="text-[11px] font-bold text-slate-300 mb-1">xyz をつぶす</div>
+                    <label class="flex items-center gap-2 text-[10px] text-slate-400"><b class="w-3 italic" style="color:#ff5d6c">x</b><input id="sq-x" type="range" min="0" max="1" step="0.01" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-400 border border-slate-700"><span id="sq-x-val" class="w-9 text-right font-mono text-rose-200 shrink-0">0%</span></label>
+                    <label class="flex items-center gap-2 text-[10px] text-slate-400"><b class="w-3 italic" style="color:#3ddc84">y</b><input id="sq-y" type="range" min="0" max="1" step="0.01" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 border border-slate-700"><span id="sq-y-val" class="w-9 text-right font-mono text-emerald-200 shrink-0">0%</span></label>
+                    <label class="flex items-center gap-2 text-[10px] text-slate-400"><b class="w-3 italic" style="color:#56a8ff">z</b><input id="sq-z" type="range" min="0" max="1" step="0.01" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-400 border border-slate-700"><span id="sq-z-val" class="w-9 text-right font-mono text-sky-200 shrink-0">0%</span></label>
+                    <div class="flex items-center gap-1.5 mt-1"><button id="sq-all" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[10px]" title="x・y・z を全部 100% つぶす（w や v だけが残る）。w が見えるよう、自動で斜めに回す">全部つぶす</button><button id="sq-reset" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[10px]" title="つぶすのをやめて元の形に">元に戻す</button></div>
+                    <p class="text-[10px] text-slate-500 leading-snug mt-1">その向きの厚みを縮めます（回す前の向き）。x・y・z を全部つぶすと w（5次元では w と v）の向きだけが残ります。w が奥行きの向きだと点になってしまうので、「全部つぶす」は w を 3D に出す向きへ自動で回します（4次元＝X-W・Y-W・Z-W を斜めに、5次元＝w と v の等角図）。右上の「3D に出ている軸の長さ」も減ります。</p>
+                </div>
             </section>
 
             <section class="sb-sec">
@@ -1779,6 +1813,7 @@
 
                 // 右の超立方体とまったく同じ手順: 中心へ寄せる → X-Z・Y-Z で回す → 戻す
                 z -= PIV;
+                x *= sqK('x'); y *= sqK('y'); z *= sqK('z');   // お遊び：xyz をつぶす
                 if (angleXZ !== 0) {
                     const c = Math.cos(angleXZ), sn = Math.sin(angleXZ);
                     const rx = x * c - z * sn;
@@ -1950,6 +1985,7 @@
 
                 // 回転の中心を「超立方体の中心」へ: 折りたたみ完成で w = S/2、展開図では w = 0（核胞が原点）
                 gw -= PIV;
+                gx *= sqK('x'); gy *= sqK('y'); gz *= sqK('z');   // お遊び：xyz をつぶす
                 if (angleXW !== 0) {
                     const cosA = Math.cos(angleXW);
                     const sinA = Math.sin(angleXW);
@@ -2513,6 +2549,10 @@
         const T5_EDGES = [];
         for (let v = 0; v < 16; v++) for (let d = 0; d < 4; d++) if (!(v & (1 << d))) T5_EDGES.push([v, v | (1 << d)]);
         let cellObjects5D = [];
+        // お遊び「xyz をつぶす」：x・y・z の向きを 0〜100% つぶす（形の座標に掛ける＝回す前の向き）。0%＝ふつう、100%＝その向きの厚みが 0
+        let squash = { x: 0, y: 0, z: 0 };
+        try { const o = JSON.parse(localStorage.getItem('hypercubeSquash') || 'null'); if (o) ['x', 'y', 'z'].forEach(k => { if (isFinite(o[k])) squash[k] = Math.max(0, Math.min(1, +o[k])); }); } catch (_) {}
+        const sqK = k => 1 - squash[k];   // 掛ける倍率
         // 照り返しライト（モード）：いつもの見た目で面が光を受けて「キラッ」と光るところ（鏡面反射）を強める。全体を明るくはしない。
         //   いつもの2つの光（青・紫）に、白い主光（左上・手前）と逆光（右うしろ上）を足し、面を少しなめらかにして照り返しを鋭く。
         //   シェーダー uShine で鏡面反射を色そのまま＋白で約3倍に強め、照り返しのところだけ不透明にする（透明な面でもキラッと見える）。既定 OFF
@@ -2581,7 +2621,7 @@
                     if (cell.sign > 0) { const l = c[k] + HALF_S; c[k] = HALF_S + l * Math.cos(a1); v = l * Math.sin(a1); }
                     else { const l = c[k] - HALF_S; c[k] = -HALF_S + l * Math.cos(a1); v = -l * Math.sin(a1); }
                 }
-                return [c[0], c[1], c[2], c[3], v - PIV];
+                return [c[0] * sqK('x'), c[1] * sqK('y'), c[2] * sqK('z'), c[3], v - PIV];   // お遊び：xyz をつぶす
             });
         }
         // 5Dの回転：X-V・Y-V・Z-V（超立方体の X-W・Y-W・Z-W と同じ角度・同じ順）→ 5次元だけの X-W・Y-W・Z-W・W-V → 3D回転
@@ -2958,8 +2998,19 @@
         }
         // 5次元の画面の右上：5本の軸が 3D にどれだけ出ているか（回したあとの x・y・z 成分の長さ）と、せり出し具合
         let _axlKey = '';
+        // 4次元の「3D に出ている軸の長さ」：x・y・z・w の単位ベクトルに、つぶし → X-W・Y-W・Z-W をかけて、xyz 成分の長さ（平行投影で見える長さ）。3D回転は長さを変えない
+        let _axl4Key = '';
+        function syncAxisLen4() {
+            const box = document.getElementById('axlen-4d'); if (!box) return;
+            const rot = v => { let [x, y, z, w] = v; const R = (a, b, th) => { if (!th) return; const c = Math.cos(th), sn = Math.sin(th); const p = [x, y, z, w], pa = p[a] * c - p[b] * sn, pb = p[a] * sn + p[b] * c; p[a] = pa; p[b] = pb; [x, y, z, w] = p; };
+                R(0, 3, linkAngleX); R(1, 3, linkAngleY); R(2, 3, soloAngleZW); return [x, y, z, w]; };
+            const AX = [['x', [sqK('x'), 0, 0, 0]], ['y', [0, sqK('y'), 0, 0]], ['z', [0, 0, sqK('z'), 0]], ['w', [0, 0, 0, 1]]];
+            const L = AX.map(([k, v]) => { const q = rot(v); return Math.hypot(q[0], q[1], q[2]); });
+            const key = L.map(v => Math.round(v * 100)).join(','); if (key === _axl4Key) return; _axl4Key = key;
+            AX.forEach(([k], i) => { const pc = Math.round(L[i] * 100), b = document.getElementById('axl4-' + k), tx = document.getElementById('axl4-' + k + '-t'); if (b) b.style.width = Math.min(100, pc) + '%'; if (tx) tx.textContent = pc + '%'; });
+        }
         function syncAxisLen5() {
-            const L = AXES_5D.map(a => { const q = rotate5(a.v); return Math.hypot(q[0], q[1], q[2]); });
+            const L = AXES_5D.map(a => { const q = rotate5(a.v.map((c, k) => k < 3 ? c * sqK('xyz'[k]) : c)); return Math.hypot(q[0], q[1], q[2]); });   // つぶした分も入れる
             const t = seriNow(seriPath), key = L.map(v => Math.round(v * 100)).join(',') + '|' + seriPath + '|' + t;
             if (key === _axlKey) return; _axlKey = key;
             AXES_5D.forEach((a, i) => {
@@ -3234,11 +3285,18 @@
         const _xpP = new THREE.Vector3();
         const _occV = new THREE.Vector3();   // 自動ズームの画面占有率の計算用
         // 展開図の自動ズームで、図形を「置ける範囲の真ん中」へずらす（カメラのビューオフセット＝画面上の平行移動。NDC 単位で sx 右・sy 上）
+        //   移動パッドのずらし（cam.userData.panSh）も同じしくみで足す＝カメラは動かさないので、同じカメラを使う画面（超立方体と5次元）も別々に動かせる
+        function applyViewShift(cam) {
+            if (!cam) return;
+            const a = cam.userData.netSh || [0, 0], b = cam.userData.panSh || [0, 0], sx = a[0] + b[0], sy = a[1] + b[1];
+            if (Math.abs(sx) < 1e-4 && Math.abs(sy) < 1e-4) { if (cam.view && cam.view.enabled) cam.clearViewOffset(); return; }
+            const H = 1000, W = H * (cam.aspect || 1);   // setViewOffset は縦横比を W/H に書き換えるので、今の縦横比のままの大きさで渡す
+            cam.setViewOffset(W, H, -sx * W / 2, sy * H / 2, W, H);
+        }
         function setNetShift(cam, sx, sy) {
             if (!cam) return;
-            if (Math.abs(sx) < 1e-4 && Math.abs(sy) < 1e-4) { if (cam.userData.netSh) { cam.userData.netSh = null; cam.clearViewOffset(); } return; }
-            const H = 1000, W = H * (cam.aspect || 1);   // setViewOffset は縦横比を W/H に書き換えるので、今の縦横比のままの大きさで渡す
-            cam.userData.netSh = [sx, sy]; cam.setViewOffset(W, H, -sx * W / 2, sy * H / 2, W, H);
+            cam.userData.netSh = (Math.abs(sx) < 1e-4 && Math.abs(sy) < 1e-4) ? null : [sx, sy];
+            applyViewShift(cam);
         }
         function relaxNetShift(cam, k) { const sh = cam && cam.userData.netSh; if (sh) setNetShift(cam, sh[0] * (1 - k), sh[1] * (1 - k)); }
         // バラしたあとの引き具合。バラした量 e だけ「一定の割合」でズームアウトする（回転に依存しない）。
@@ -3815,8 +3873,9 @@
             const fk = fixedMarks.size || 1;   // 大きさは2点セット（左右の立方体・混色も同じ倍率）
             [wMarkPlus, wMarkMinus, wMarkBlend, lMarkPlus, lMarkMinus, lMarkBlend].forEach(o => { if (o) o.scale.setScalar(fk); });
             if (wMarkPlus && wMarkMinus && nearVertId) {
-                const pp = rotated4DAxis(cellVerts4D(nearVertId.cell, progress)[nearVertId.corner]);
-                const pm = rotated4DAxis(cellVerts4D(farVertId.cell, progress)[farVertId.corner]);
+                const sq4 = v => [v[0] * sqK('x'), v[1] * sqK('y'), v[2] * sqK('z'), v[3]];   // お遊び：xyz をつぶす（形と同じく回す前に）
+                const pp = rotated4DAxis(sq4(cellVerts4D(nearVertId.cell, progress)[nearVertId.corner]));
+                const pm = rotated4DAxis(sq4(cellVerts4D(farVertId.cell, progress)[farVertId.corner]));
                 const oP = xpOffOf(3, nearVertId.cell), oM = xpOffOf(3, farVertId.cell);   // 分解中はその胞と一緒に動く
                 wMarkPlus.position.set(pp[0] + oP[0], pp[1] + oP[1], pp[2] + oP[2]);
                 wMarkMinus.position.set(pm[0] + oM[0], pm[1] + oM[1], pm[2] + oM[2]);
@@ -4349,10 +4408,10 @@
                 const netFit = (root, verts, cam, el, asmScale) => {
                     const fr = wN > 0 && cam ? freeNdc(el) : null; if (!fr || !root || !verts.length) return false;
                     cam.updateMatrixWorld(); root.updateMatrixWorld();
-                    const sh = cam.userData.netSh || [0, 0]; let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+                    const sh = cam.userData.netSh || [0, 0], ps = cam.userData.panSh || [0, 0]; let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;   // 移動パッドのずらし ps も引いて、ずらす前の位置で測る
                     for (const v of verts) {
                         _occV.set(v[0], v[1], v[2]).applyMatrix4(root.matrixWorld).project(cam);
-                        if (_occV.z < 1) { const x = _occV.x - sh[0], y = _occV.y - sh[1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+                        if (_occV.z < 1) { const x = _occV.x - sh[0] - ps[0], y = _occV.y - sh[1] - ps[1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
                     }
                     if (!(x1 > x0) || !(y1 > y0)) return false;
                     const fitv = Math.max((x1 - x0) / (2 * fr.side), (y1 - y0) / (fr.top + fr.bot)), k = NET_MID / fitv;
@@ -4370,7 +4429,7 @@
                     if (wN > 0) faceObjects2D.forEach(f => { const a = f.geometry.attributes.position.array; for (let k = 0; k < a.length; k += 3) pv2.push([a[k], a[k + 1], a[k + 2]]); });
                     if (!netFit(r2, pv2, camera2D, renderer2D && renderer2D.domElement, () => sAsm2)) { r2.scale.setScalar(sAsm2); relaxNetShift(camera2D, ease); }
                 }
-                const occOf = (verts, cam, root) => { cam.updateMatrixWorld(); root.updateMatrixWorld(); let occ = 0; for (const v of verts) { _occV.set(v[0], v[1], v[2]).applyMatrix4(root.matrixWorld).project(cam); if (_occV.z < 1) occ = Math.max(occ, Math.abs(_occV.x), Math.abs(_occV.y)); } return occ; };
+                const occOf = (verts, cam, root) => { cam.updateMatrixWorld(); root.updateMatrixWorld(); const ps = cam.userData.panSh || [0, 0]; let occ = 0; for (const v of verts) { _occV.set(v[0], v[1], v[2]).applyMatrix4(root.matrixWorld).project(cam); if (_occV.z < 1) occ = Math.max(occ, Math.abs(_occV.x - ps[0]), Math.abs(_occV.y - ps[1])); } return occ; };   // 移動パッドのずらしは引いて測る（ずらしても大きさを変えない）
                 const adjust = (root, verts, cam, lo, hi, mid, el) => {
                     if (!root || !cam || !verts.length) return;
                     const occ = occOf(verts, cam, root); if (occ < 1e-4) return;
@@ -4388,6 +4447,7 @@
                         } else [camera2D, camera3D, camera5D].forEach(c => relaxNetShift(c, 0.25));   // バラし中・自動ズームOFF：展開図のずらしは戻す
 
             updateAxisGnomon(progress);
+            syncAxisLen4();   // 4次元の「3D に出ている軸の長さ」
             updateUserPoints(progress);   // 置いた点も今の回転・投影・折りたたみに合わせる
 
             document.getElementById('unfold-slider').value = progress;
@@ -6723,6 +6783,51 @@
                 paint();
             })();
             applyCenterColor();   // パレットの色を材質とラベルに反映（起動時）
+            (function setupSquash() {   // お遊び：xyz をつぶす
+                const ks = ['x', 'y', 'z'];
+                const sync = () => ks.forEach(k => { const sl = document.getElementById('sq-' + k), v = document.getElementById('sq-' + k + '-val'); if (sl) sl.value = String(squash[k]); if (v) v.textContent = Math.round(squash[k] * 100) + '%'; });
+                const apply = () => { try { localStorage.setItem('hypercubeSquash', JSON.stringify(squash)); } catch (_) {} sync(); updateMorphingGeometry(animationProgress); _axlKey = ''; try { syncAxisLen5(); } catch (_) {} requestRender(30); };
+                ks.forEach(k => { const sl = document.getElementById('sq-' + k); if (sl) sl.addEventListener('input', e => { squash[k] = parseFloat(e.target.value); apply(); }); });
+                // 全部つぶすと w（5次元では w・v）しか残らない。w が奥行きの向き（3D に出ていない）だと点になってしまうので、w を 3D に出す向きへ回す
+                //   4次元：X-W 45°・Y-W 35°・Z-W 30°（w が 87% 出る）。5次元：見え方のマトリクスの「w と v（等角図）」
+                const setS = (id, v) => { const el = document.getElementById(id); if (el) { el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); } };
+                const all = document.getElementById('sq-all'); if (all) all.addEventListener('click', () => {
+                    ks.forEach(k => squash[k] = 1); apply();
+                    if (dim5) { const c = document.querySelector('.vm-cell[data-vcell="wv"]'); if (c) c.click(); }
+                    else { const wl = parseInt((document.getElementById('axl4-w-t') || {}).textContent, 10) || 0; if (wl < 50) { setS('link-x-slider', 45); setS('link-y-slider', 35); setS('solo-zw-slider', 30); } }
+                });
+                const rs = document.getElementById('sq-reset'); if (rs) rs.addEventListener('click', () => { ks.forEach(k => squash[k] = 0); apply(); });
+                sync();
+            })();
+            (function setupPanPad() {   // 移動パッド：画面の中身をつかんで動かす（カメラと注視点を一緒に、画面の左右・上下へ）
+                let padOn = true; try { padOn = localStorage.getItem('hypercubePanPad') !== '0'; } catch (_) {}
+                const views = {
+                    2: () => ({ cam: camera2D, el: renderer2D && renderer2D.domElement }),
+                    3: () => ({ cam: camera3D, el: renderer3D && renderer3D.domElement }),
+                    5: () => ({ cam: camera5D, el: renderer5D && renderer5D.domElement })   // 5次元は自分のカメラ（射影）だけをずらす＝超立方体の画面は動かない
+                };
+                function pan(k, dx, dy) {   // 画面の中身を、つかんだ向きへ（ピクセル → 画面の割合）
+                    const v = views[k](); if (!v.cam || !v.el) return;
+                    const w = v.el.clientWidth || 400, h = v.el.clientHeight || 400, sh = v.cam.userData.panSh || [0, 0];
+                    v.cam.userData.panSh = [sh[0] + 2 * dx / w, sh[1] - 2 * dy / h];
+                    applyViewShift(v.cam); requestRender(20);
+                }
+                function center(k) { const v = views[k](); if (!v.cam) return; v.cam.userData.panSh = null; applyViewShift(v.cam); requestRender(20); }
+                document.querySelectorAll('.pan-pad').forEach(p => {
+                    const k = p.dataset.pan; let lx = 0, ly = 0, on = false;
+                    p.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); on = true; lx = e.clientX; ly = e.clientY; p.classList.add('dragging'); try { p.setPointerCapture(e.pointerId); } catch (_) {} });
+                    p.addEventListener('pointermove', e => { if (!on) return; e.stopPropagation(); pan(k, e.clientX - lx, e.clientY - ly); lx = e.clientX; ly = e.clientY; });
+                    const end = e => { if (!on) return; on = false; p.classList.remove('dragging'); try { p.releasePointerCapture(e.pointerId); } catch (_) {} };
+                    p.addEventListener('pointerup', end); p.addEventListener('pointercancel', end);
+                    p.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); center(k); });
+                    p.addEventListener('wheel', e => e.stopPropagation(), { passive: true });
+                });
+                const b = document.getElementById('panpad-btn');
+                const paint = () => { document.body.classList.toggle('no-pan-pad', !padOn); const t = document.getElementById('panpad-text'); if (t && !t.dataset.swRaw) t.textContent = '→ 移動パッド: ' + (padOn ? 'OFF' : 'ON'); };
+                if (b) b.addEventListener('click', () => { padOn = !padOn; try { localStorage.setItem('hypercubePanPad', padOn ? '1' : '0'); } catch (_) {} paint(); });
+                window.__panPadOn = () => padOn;
+                paint();
+            })();
             (function setupShine() {   // 照り返しライト の ON/OFF
                 const b = document.getElementById('shine-btn'); if (!b) return;
                 const paint = () => { const on = shineOn; ['bg-yellow-900/40', 'border-yellow-500/50', 'text-yellow-200'].forEach(c => b.classList.toggle(c, on)); ['bg-slate-800/80', 'border-slate-700', 'text-slate-400'].forEach(c => b.classList.toggle(c, !on)); };
@@ -6841,6 +6946,7 @@
                 set('xparent-text', NEXT + (accurateFaces ? '面透過: 立体感' : '面透過: 正確'));
                 set('deep4-text', NEXT + (deep4On ? '奥を濃く(4D): OFF' : '奥を濃く(4D): ON'));
                 set('shine-text', NEXT + (shineOn ? '照り返しライト: OFF' : '照り返しライト: ON'));
+                set('panpad-text', NEXT + (window.__panPadOn && window.__panPadOn() ? '移動パッド: OFF' : '移動パッド: ON'));
                 if (palRebuild && palBuiltFor !== dim5) palRebuild();   // 4次元⇔5次元でパレットの列を入れ替える
                 set('persp-mode-btn', NEXT + (cubePersp ? '平行投影' : '遠近投影'));
                 set('face-cam-btn', NEXT + (presetFaceCamera ? 'カメラ正対: OFF' : 'カメラ正対: ON'));
