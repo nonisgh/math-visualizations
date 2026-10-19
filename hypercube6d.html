@@ -109,6 +109,9 @@
         #cube-count.done .n { animation: cdone 1.2s ease-out; }
         @keyframes cpop { 0% { transform: scale(1.35); } 100% { transform: scale(1); } }
         @keyframes cdone { 0% { transform: scale(0.4); opacity: 0; } 25% { transform: scale(1.5); opacity: 1; text-shadow: 0 0 30px #fff, 0 0 60px #2dd4bf; } 100% { transform: scale(1); } }
+        #crys-flash { position: absolute; inset: 0; z-index: 11; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.55), rgba(45, 212, 191, 0.18) 35%, transparent 70%); }
+        #crys-flash.go { animation: crysflash 0.7s ease-out; }
+        @keyframes crysflash { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
         .cell-lb { position: absolute; pointer-events: none; z-index: 8; transform: translate(-50%, -50%); font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(2, 6, 23, 0.78); border: 1px solid var(--c); color: var(--c); white-space: nowrap; }
     </style>
 </head>
@@ -118,6 +121,7 @@
         <div class="badge border border-teal-400/30 text-teal-300"><i data-lucide="boxes" class="w-4 h-4 shrink-0"></i><div>5次元の展開図 → 6次元立方体<small>12個の5次元立方体（ペンテラクト）。u の向きへ折りたたむと6次元立方体になる。v と w の遠近で 3D に写す</small></div></div>
         <div id="labels" class="absolute inset-0 pointer-events-none"></div>
         <div id="cube-count"><div class="n"></div><div class="t"></div></div>
+        <div id="crys-flash"></div>
     </div>
 
     <div id="rot-bar" class="absolute bottom-3 z-30 pointer-events-none flex justify-center">
@@ -131,6 +135,8 @@
             <button class="tbtn" data-act="axes" title="座標軸 x・y・z・w・v・u（X）"><span>座標軸: ON</span></button>
             <button class="tbtn" data-act="cubes" title="6次元立方体を160個の立方体までバラして並べる（C）"><span>立方体まで: OFF</span></button>
             <button class="tbtn go" data-act="count" title="160個の立方体を1個ずつ光らせて数える（N）">数える</button>
+            <button class="tbtn" data-act="autoExp" title="分解スライダーを自動で動かして、12個のペンテラクトを離す／戻す（E）"><span>自動で離す: OFF</span></button>
+            <button class="tbtn go" data-act="crys" title="1段ずつ分解しながら結晶のように放射状に広げる：12個の5次元立方体 → 60個の超立方体 → 160個の立方体（K）"><span>結晶ばらし: OFF</span></button>
         </div>
     </div>
 
@@ -156,6 +162,9 @@
                 <section class="sb-sec">
                     <h3 class="sb-h"><i data-lucide="split" class="w-3.5 h-3.5"></i>分解</h3>
                     <div class="sl-row"><span>離す距離</span><input id="exp" type="range" min="0" max="2" step="0.01" value="0"><output id="expO"></output></div>
+                    <div class="flex flex-wrap gap-1.5"><button class="tbtn" data-act="autoExp"><span>自動で離す: OFF</span></button></div>
+                    <div class="flex flex-wrap gap-1.5 items-center"><button class="tbtn go" data-act="crys"><span>結晶ばらし: OFF</span></button><button class="tbtn" data-act="crysPrev" title="1段階もどす">◀ 段階</button><button class="tbtn" data-act="crysNext" title="1段階すすめる">段階 ▶</button></div>
+                    <p class="note"><b class="text-slate-300">結晶ばらし</b>：組み上げてから、1段ずつ分解して放射状に広げます（12個の5次元立方体 → 60個の超立方体 → 160個の立方体）。段階が進むたびにカメラが引いていきます。このときは6本の軸を正二十面体の6方向に写すので、全体は菱形三十面体、部品は菱形二十面体・菱形十二面体・黄金比の菱形六面体（準結晶と同じ形）になり、どの部品もつぶれずに見えます。</p>
                     <div class="flex flex-wrap gap-1.5"><button class="tbtn" data-act="cubes"><span>立方体まで: OFF</span></button><button class="tbtn go" data-act="count">数える</button></div>
                     <p class="note"><b class="text-slate-300">立方体まで</b>：6次元立方体に組み上げてから、160個の立方体にバラして並べます。向き（自由に動く3本の軸）ごとに20組×8個。左から「x・y・z の向き 1組」「見える2本＋奥行き1本 9組」「見える1本＋奥行き2本 9組」「w・v・u の向き 1組」。辺の色は、その向きの軸の色です。</p>
                     <p class="note">12個のペンテラクトを外向きに離して、1個ずつの形を見やすくします。±W・±V と蓋（+U）は、離れる向きが奥行き（w・v・u）なので、そのままだと真ん中に重なります。分解のときは斜め下・上の空いている所へ脇に避けて見せます。</p>
@@ -205,7 +214,7 @@ const $ = id => document.getElementById(id);
 const AXN = ['X', 'Y', 'Z', 'W', 'V', 'U'];
 const AXHEX = ['#ff5d6c', '#3ddc84', '#56a8ff', '#b07cff', '#fbbf24', '#2dd4bf'];
 const U = 5;
-let axesOn = true, fold = 0, foldTarget = null, loop = false, stagger = true, spd = 1.5, rspd = 1, explode = 0, spin = false, faceOn = true, wireOn = true, labelOn = true, autoCenter = true;
+let expTarget = null, axesOn = true, fold = 0, foldTarget = null, loop = false, stagger = true, spd = 1.5, rspd = 1, explode = 0, spin = false, faceOn = true, wireOn = true, labelOn = true, autoCenter = true;
 let DW = 7, DV = 9.8, DU = 13.7;
 const ROT = [['X-W', 0, 3], ['Y-V', 1, 4], ['Z-U', 2, 5], ['W-U', 3, 5], ['V-U', 4, 5], ['X-U', 0, 5]];
 const ang = ROT.map(() => 0);
@@ -358,6 +367,73 @@ function updateCubes() {
     if (autoCenter) { centerNow.lerp(new THREE.Vector3(-(x0 + x1) / 2, -(y0 + y1) / 2, -(z0 + z1) / 2), 0.12); root.position.copy(centerNow); }
 }
 
+// ---- 多段階分離（結晶ばらし） ----
+//   6本の軸を正二十面体の6方向（向かい合う頂点の組の片方ずつ）に写す（平行に写す）。6次元立方体の影は菱形三十面体、
+//   5次元立方体は菱形二十面体、超立方体は菱形十二面体、立方体は黄金比の菱形六面体（2種類）＝準結晶と同じ形。どの部品もつぶれない。
+//   e：0〜1 で12個の5次元立方体が離れ、1〜2 で60個の超立方体、2〜3 で160個の立方体が、それぞれ中心の向き P(c) へ放射状に。
+const PHI = (1 + Math.sqrt(5)) / 2;
+const ICO = [[0, 1, PHI], [0, -1, PHI], [1, PHI, 0], [-1, PHI, 0], [PHI, 0, 1], [PHI, 0, -1]].map(v => { const l = Math.hypot(...v); return v.map(x => x / l); });
+const PC = v => { let x = 0, y = 0, z = 0; for (let k = 0; k < 6; k++) { x += v[k] * ICO[k][0]; y += v[k] * ICO[k][1]; z += v[k] * ICO[k][2]; } return [x, y, z]; };
+const crys = { active: false, m: 0, e: 0, target: 0, auto: false, hold: 0, lastLv: 0, done: false };
+const crysVis = () => crys.active || crys.m > 0;
+const CR_NAMES = [['12', '個の5次元立方体（ペンテラクト）'], ['60', '個の4次元立方体（超立方体）'], ['160', '個の立方体']];
+const CR_GAP = [4.0, 2.5, 2.5];   // 段階ごとに、中心の向き P(c) へどれだけ離すか（部品が大きいので大きめに）
+const CR_S = [0.6, 0.55, 0.5], CR_OP = [0.05, 0.08, 0.12];   // 部品の縮め具合・面の濃さ（部品が多い段階ほど、重なりが少ないので濃く）
+const CR_LEVELS = [5, 4, 3].map(k => {   // k＝自由に動く軸の数
+    const pieces = [];
+    const subsets = []; (function rec(st, a) { if (a.length === k) { subsets.push(a.slice()); return; } for (let i = st; i < 6; i++) { a.push(i); rec(i + 1, a); a.pop(); } })(0, []);
+    subsets.forEach(F => {
+        const G = [0, 1, 2, 3, 4, 5].filter(i => !F.includes(i)), nG = G.length;
+        for (let sg = 0; sg < (1 << nG); sg++) {
+            const c = [0, 0, 0, 0, 0, 0]; G.forEach((g, j) => c[g] = (sg >> j & 1) ? 1 : -1);
+            const v6 = []; for (let i = 0; i < (1 << k); i++) { const p = c.slice(); F.forEach((f, j) => p[f] = (i >> j & 1) ? 1 : -1); v6.push(p); }
+            const E = []; for (let i = 0; i < (1 << k); i++) for (let j = 0; j < k; j++) { const t = i ^ (1 << j); if (i < t) E.push([i, t, F[j]]); }
+            const Q = []; for (let a = 0; a < k; a++) for (let b = a + 1; b < k; b++) for (let r = 0; r < (1 << k); r++) { if (r & (1 << a) || r & (1 << b)) continue; Q.push([r, r | (1 << a), r | (1 << a) | (1 << b), r | (1 << b)]); }
+            const col = new THREE.Color(0, 0, 0); G.forEach(g => col.add(new THREE.Color(AXHEX[g]).multiplyScalar(1 / nG)));
+            pieces.push({ v6, E, Q, col, Pv: v6.map(PC), Pc: PC(c), pos: new Float32Array(v6.length * 3) });
+        }
+    });
+    return { k, pieces };
+});
+const crysG = new THREE.Group(); scene.add(crysG);
+const MAXE = Math.max(...CR_LEVELS.map(L => L.pieces.reduce((s, p) => s + p.E.length, 0))), MAXQ = Math.max(...CR_LEVELS.map(L => L.pieces.reduce((s, p) => s + p.Q.length, 0)));
+const crysLine = (() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXE * 6), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXE * 6), 3)); const m = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95 })); m.frustumCulled = false; m.visible = false; crysG.add(m); return m; })();
+const crysFace = (() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXQ * 18), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXQ * 18), 3)); const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false })); m.frustumCulled = false; m.visible = false; crysG.add(m); return m; })();
+const EDGE_COL = AXHEX.map(h => new THREE.Color(h));
+const crysLv = e => e < 1 ? 0 : e < 2 ? 1 : 2;
+const crysOff = e => { const L = crysLv(e); return [0, CR_GAP[0], CR_GAP[0] + CR_GAP[1]][L] + CR_GAP[L] * Math.min(1, e - L); };
+const _p6 = [0, 0, 0, 0, 0, 0], _p3 = [0, 0, 0];
+function updateCrystal() {
+    const on = crysVis(); crysLine.visible = on && wireOn; crysFace.visible = on && faceOn; if (!on) return;
+    const L = crysLv(crys.e), lv = CR_LEVELS[L], off = crysOff(crys.e), S = L === 0 ? 1 - (1 - CR_S[0]) * smooth(Math.min(1, crys.e / 0.5)) : CR_S[L], m = smooth(crys.m);
+    crysFace.material.opacity = CR_OP[L];
+    const pa = crysLine.geometry.attributes.position.array, ca = crysLine.geometry.attributes.color.array, fa = crysFace.geometry.attributes.position.array, fc = crysFace.geometry.attributes.color.array;
+    let lp = 0, fp = 0;
+    for (const P of lv.pieces) {
+        for (let i = 0; i < P.v6.length; i++) {
+            let x = P.Pc[0] * (1 + off) + S * (P.Pv[i][0] - P.Pc[0]), y = P.Pc[1] * (1 + off) + S * (P.Pv[i][1] - P.Pc[1]), z = P.Pc[2] * (1 + off) + S * (P.Pv[i][2] - P.Pc[2]);
+            if (m < 1) {   // いつもの写し方（6次元の回転＋遠近）から、結晶の写し方へなめらかに
+                for (let k = 0; k < 6; k++) _p6[k] = P.v6[i][k]; project(_p6, _p3, 0);
+                const r = crysG.rotation.y, cs = Math.cos(-r), sn = Math.sin(-r), wx = _p3[0] + root.position.x, wz = _p3[2] + root.position.z;
+                const lx = wx * cs + wz * sn, lz = -wx * sn + wz * cs, ly = _p3[1] + root.position.y;
+                x = lx + (x - lx) * m; y = ly + (y - ly) * m; z = lz + (z - lz) * m;
+            }
+            P.pos[i * 3] = x; P.pos[i * 3 + 1] = y; P.pos[i * 3 + 2] = z;
+        }
+        for (const [a, b, ax] of P.E) { const c = EDGE_COL[ax]; for (const vi of [a, b]) { pa[lp] = P.pos[vi * 3]; pa[lp + 1] = P.pos[vi * 3 + 1]; pa[lp + 2] = P.pos[vi * 3 + 2]; ca[lp] = c.r; ca[lp + 1] = c.g; ca[lp + 2] = c.b; lp += 3; } }
+        for (const q of P.Q) for (const vi of [q[0], q[1], q[2], q[0], q[2], q[3]]) { fa[fp] = P.pos[vi * 3]; fa[fp + 1] = P.pos[vi * 3 + 1]; fa[fp + 2] = P.pos[vi * 3 + 2]; fc[fp] = P.col.r; fc[fp + 1] = P.col.g; fc[fp + 2] = P.col.b; fp += 3; }
+    }
+    crysLine.geometry.setDrawRange(0, lp / 3); crysFace.geometry.setDrawRange(0, fp / 3);
+    crysLine.geometry.attributes.position.needsUpdate = true; crysLine.geometry.attributes.color.needsUpdate = true;
+    crysFace.geometry.attributes.position.needsUpdate = true; crysFace.geometry.attributes.color.needsUpdate = true;
+}
+function crysFlash(n, t) {   // 段階が進んだときの FLASH と段階名
+    const fl = $('crys-flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
+    const cc = $('cube-count'); cc.style.display = 'block'; cc.querySelector('.n').textContent = n; cc.querySelector('.t').textContent = t;
+    cc.classList.remove('pop', 'done'); void cc.offsetWidth; cc.classList.add('done');
+    clearTimeout(crysFlash.tm); crysFlash.tm = setTimeout(() => { if (!countOn) cc.style.display = 'none'; }, 2600);
+}
+
 // ---- 座標軸 x・y・z・w・v・u：原点から 6次元の向き e_k へ。図形と同じ回転・遠近で写す（直線は直線に写る） ----
 const AX_UP = new THREE.Vector3(0, 1, 0);
 const AXES = AXN.map((n, k) => {
@@ -372,7 +448,7 @@ const _ax = [0, 0, 0, 0, 0, 0], _o3 = [0, 0, 0], _dir = new THREE.Vector3();
 function updateAxes() {
     const AX_LEN = 1.9 + 1.8 * (1 - smooth(fold));   // 展開図では腕（長さ3）の外まで、組み上がると立方体（半分の長さ1）の少し外まで
     AXES.forEach(A => {
-        const vis = axesOn && cubeT <= 0; A.pos.visible = A.neg.visible = vis; A.cone.visible = vis; if (!vis) return;
+        const vis = axesOn && cubeT <= 0 && !crysVis(); A.pos.visible = A.neg.visible = vis; A.cone.visible = vis; if (!vis) return;
         _ax.fill(0); _ax[A.k] = AX_LEN; project(_ax, _o3, 0); A.tip.set(_o3[0], _o3[1], _o3[2]);
         _ax.fill(0); _ax[A.k] = -AX_LEN; project(_ax, _o3, 0);
         const pa = A.pos.geometry.attributes.position.array, na = A.neg.geometry.attributes.position.array;
@@ -425,25 +501,26 @@ function update() {
     CELLS.forEach(C => {
         const fa = C.face.geometry.attributes.position.array; let k = 0;
         for (const quad of C.topo.Q) for (const vi of [quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]]) { fa[k++] = C.pos[vi * 3]; fa[k++] = C.pos[vi * 3 + 1]; fa[k++] = C.pos[vi * 3 + 2]; }
-        C.face.geometry.attributes.position.needsUpdate = true; C.face.visible = faceOn && cubeT <= 0;
+        C.face.geometry.attributes.position.needsUpdate = true; C.face.visible = faceOn && cubeT <= 0 && !crysVis();
         const ea = C.edge.geometry.attributes.position.array, ec = C.edge.geometry.attributes.color.array; k = 0;
         for (const [a, b] of C.topo.E) for (const vi of [a, b]) {
             ea[k] = C.pos[vi * 3]; ea[k + 1] = C.pos[vi * 3 + 1]; ea[k + 2] = C.pos[vi * 3 + 2];
             const t = 0.45 + 0.55 * (C.wd[vi] - wMin) / wSp;   // w の奥ほど暗く＝入れ子が読みやすい
             ec[k] = C.col.r * t; ec[k + 1] = C.col.g * t; ec[k + 2] = C.col.b * t; k += 3;
         }
-        C.edge.geometry.attributes.position.needsUpdate = true; C.edge.geometry.attributes.color.needsUpdate = true; C.edge.visible = wireOn && cubeT <= 0;
+        C.edge.geometry.attributes.position.needsUpdate = true; C.edge.geometry.attributes.color.needsUpdate = true; C.edge.visible = wireOn && cubeT <= 0 && !crysVis();
     });
     // 図形がいつも画面の真ん中に来るように（展開図は上に長いので）
     const want = new THREE.Vector3(-(x0 + x1) / 2, -(y0 + y1) / 2, -(z0 + z1) / 2);
     if (autoCenter && cubeT <= 0) { centerNow.lerp(want, 0.12); root.position.copy(centerNow); }
     updateAxes();
     updateCubes();
+    updateCrystal();
 }
 function updateLabels() {
     const W = view.clientWidth, H = view.clientHeight;
     AXES.forEach(A => {
-        if (!axesOn || cubeT > 0) { A.el.style.display = 'none'; return; }
+        if (!axesOn || cubeT > 0 || crysVis()) { A.el.style.display = 'none'; return; }
         tmp.copy(A.tip).multiplyScalar(1.13).add(root.position).project(cam);
         if (tmp.z > 1 || A.tip.length() < 0.15) { A.el.style.display = 'none'; return; }
         A.el.style.display = ''; A.el.style.left = ((tmp.x + 1) / 2 * W) + 'px'; A.el.style.top = ((1 - tmp.y) / 2 * H) + 'px';
@@ -459,7 +536,7 @@ function updateLabels() {
         Cl.el.style.display = ''; Cl.el.style.left = ((tmp.x + 1) / 2 * W) + 'px'; Cl.el.style.top = ((1 - tmp.y) / 2 * H) + 'px';
     });
     CELLS.forEach(C => {
-        if (!labelOn || cubeT > 0) { C.lb.style.display = 'none'; return; }
+        if (!labelOn || cubeT > 0 || crysVis()) { C.lb.style.display = 'none'; return; }
         ctr.set(0, 0, 0); for (let i = 0; i < 32; i++) ctr.x += C.pos[i * 3] / 32, ctr.y += C.pos[i * 3 + 1] / 32, ctr.z += C.pos[i * 3 + 2] / 32;
         tmp.copy(ctr).add(root.position).project(cam);
         if (tmp.z > 1) { C.lb.style.display = 'none'; return; }
@@ -470,7 +547,7 @@ function updateLabels() {
 // ---- UI ----
 const bind = (id, f, fmt) => { const e = $(id), o = $(id + 'O'); const show = () => o.textContent = fmt ? fmt(+e.value) : e.value; e.addEventListener('input', () => { f(+e.value); show(); }); show(); return { e, show }; };
 const FOLD = bind('fold', v => { fold = v; foldTarget = null; loop = false; syncButtons(); }, v => Math.round(v * 100) + '%');
-bind('spd', v => spd = v); bind('rspd', v => rspd = v); bind('exp', v => explode = v, v => v.toFixed(2));
+bind('spd', v => spd = v); bind('rspd', v => rspd = v); const EXP = bind('exp', v => { explode = v; expTarget = null; syncButtons(); }, v => v.toFixed(2));
 bind('dW', v => DW = v, v => v.toFixed(1)); bind('dV', v => DV = v, v => v.toFixed(1)); bind('dU', v => DU = v, v => v.toFixed(1));
 const rotRows = ROT.map(([n, i, j], k) => {
     const d = document.createElement('div'); d.className = 'sl-row';
@@ -483,13 +560,21 @@ const rotRows = ROT.map(([n, i, j], k) => {
 const setTxt = (sp, t) => { if (sp && sp.textContent !== t && sp.dataset.swRaw !== t) sp.textContent = t; };
 function syncButtons() {
     const sw = (act, name, on) => document.querySelectorAll(`[data-act="${act}"] span:not(.ios-sw)`).forEach(sp => setTxt(sp, name + ': ' + (on ? 'ON' : 'OFF')));
-    sw('loop', '往復', loop); sw('spin', '6D回転', spin); sw('label', 'ラベル', labelOn); sw('stagger', '時間差', stagger); sw('face', '面', faceOn); sw('wire', '線', wireOn); sw('cam', '自動で中央に', autoCenter); sw('axes', '座標軸', axesOn); sw('cubes', '立方体まで', cubeMode);
+    sw('loop', '往復', loop); sw('spin', '6D回転', spin); sw('label', 'ラベル', labelOn); sw('stagger', '時間差', stagger); sw('face', '面', faceOn); sw('wire', '線', wireOn); sw('cam', '自動で中央に', autoCenter); sw('axes', '座標軸', axesOn); sw('cubes', '立方体まで', cubeMode); sw('autoExp', '自動で離す', expTarget > 0); sw('crys', '結晶ばらし', crys.active);
 }
 const ACT = {
     fold: () => { foldTarget = 1; loop = false; }, unfold: () => { foldTarget = 0; loop = false; },
     loop: () => { loop = !loop; foldTarget = fold > 0.5 ? 0 : 1; }, spin: () => spin = !spin, label: () => labelOn = !labelOn,
     stagger: () => stagger = !stagger, axes: () => axesOn = !axesOn, face: () => faceOn = !faceOn, wire: () => wireOn = !wireOn, cam: () => autoCenter = !autoCenter,
-    cubes: () => { cubeMode = !cubeMode; if (cubeMode && fold < 0.999) { foldTarget = 1; loop = false; } if (!cubeMode) { countOn = false; countK = -1; $('cube-count').style.display = 'none'; } },
+    autoExp: () => { if (crys.active) ACT.crys(); expTarget = (expTarget !== null ? expTarget > 0 : explode > 0.01) ? 0 : 1.4; },
+    crys: () => {
+        crys.active = !crys.active;
+        if (crys.active) { cubeMode = false; countOn = false; countK = -1; crys.auto = true; crys.target = Math.max(crys.target, 0); crys.hold = 0.6; crys.done = false; if (fold < 0.999) { foldTarget = 1; loop = false; } }
+        else { crys.auto = false; crys.target = 0; }
+    },
+    crysNext: () => { if (!crys.active) { ACT.crys(); crys.auto = false; crys.target = 1; return; } crys.auto = false; crys.target = Math.min(3, Math.floor(crys.e + 1e-6) + 1); },
+    crysPrev: () => { if (!crys.active) return; crys.auto = false; crys.target = Math.max(0, Math.ceil(crys.e - 1e-6) - 1); },
+    cubes: () => { if (crys.active) ACT.crys(); cubeMode = !cubeMode; if (cubeMode && fold < 0.999) { foldTarget = 1; loop = false; } if (!cubeMode) { countOn = false; countK = -1; $('cube-count').style.display = 'none'; } },
     count: () => { if (!cubeMode) ACT.cubes(); countOn = true; countK = -1; const cc = $('cube-count'); cc.className = ''; cc.style.display = 'block'; cc.querySelector('.n').textContent = '0'; cc.querySelector('.t').textContent = '/ 160 個の立方体'; },
     rot0: () => { ang.fill(0); spin = false; rotRows.forEach(r => { r.r.value = 0; r.o.textContent = '0°'; }); },
 };
@@ -498,7 +583,7 @@ $('sidebar-close').addEventListener('click', () => { document.body.classList.add
 $('sidebar-open').addEventListener('click', () => { document.body.classList.remove('sidebar-hidden'); onWindowResize(); });
 addEventListener('keydown', e => {
     if (e.target.closest('input, textarea, select') || e.metaKey || e.ctrlKey || e.altKey) return;
-    const m = { a: 'fold', u: 'unfold', l: 'loop', s: 'spin', x: 'axes', c: 'cubes', n: 'count' }, k = e.key.toLowerCase();
+    const m = { a: 'fold', u: 'unfold', l: 'loop', s: 'spin', x: 'axes', c: 'cubes', n: 'count', e: 'autoExp', k: 'crys' }, k = e.key.toLowerCase();
     if (m[k]) { ACT[m[k]](); syncButtons(); } else if (k === 'p') { document.body.classList.toggle('sidebar-hidden'); onWindowResize(); }
 });
 
@@ -813,6 +898,32 @@ let tPrev = performance.now();
         ang.forEach((a, k) => { ang[k] = a + R[k] * dt * rspd; const d = Math.round(((ang[k] * 180 / Math.PI) % 360 + 540) % 360 - 180); rotRows[k].r.value = d; rotRows[k].o.textContent = d + '°'; });
     }
     // 立方体まで：組み上がってから飛び出す。戻すときは立方体が元の位置へ帰ってから、ペンテラクトの表示に戻る
+    // 自動で離す：分解スライダーを動かす
+    if (expTarget !== null) {
+        explode += Math.sign(expTarget - explode) * Math.min(dt * 0.8 * spd, Math.abs(expTarget - explode));
+        EXP.e.value = explode; EXP.show();
+    }
+    // 結晶ばらし：組み上げ → 結晶の写し方へ → 1段ずつ分解（自動なら1段ごとに少し止まる）。OFF で逆にたどって戻る
+    const crysMoving = crys.active ? (fold < 0.999 || crys.m < 1 || Math.abs(crys.e - crys.target) > 1e-4) : crys.m > 0;
+    if (crys.active) {
+        if (fold >= 0.999) crys.m = Math.min(1, crys.m + dt * 0.9 * spd);
+        if (crys.m >= 1) {
+            if (Math.abs(crys.e - crys.target) > 1e-4) crys.e += Math.sign(crys.target - crys.e) * Math.min(dt * 0.38 * spd, Math.abs(crys.target - crys.e));
+            else if (crys.auto && crys.target < 3) { crys.hold += dt * spd; if (crys.hold > 1.2) { crys.hold = 0; crys.target = Math.floor(crys.e + 1e-6) + 1; } }
+        }
+        crysG.rotation.y += dt * 0.12;   // 結晶がゆっくり回る
+    } else if (crys.m > 0) {
+        if (crys.e > 0) crys.e = Math.max(0, crys.e - dt * 0.9 * spd); else crys.m = Math.max(0, crys.m - dt * 0.9 * spd);
+        if (crys.m <= 0) { crysG.rotation.y = 0; crys.lastLv = 0; }
+    }
+    { const lv = crys.active && crys.m >= 1 && crys.e > 1e-4 ? Math.min(3, Math.floor(crys.e - 1e-6) + 1) : 0;
+      if (lv > crys.lastLv) crysFlash(CR_NAMES[lv - 1][0], CR_NAMES[lv - 1][1]);
+      crys.lastLv = lv;
+      if (crys.active && crys.e >= 3 - 1e-4 && !crys.done) { crys.done = true; setTimeout(() => { if (crys.active) crysFlash('1 → 12 → 60 → 160', '6次元立方体を立方体まで分解（準結晶の形）'); }, 900); } }
+    if (crysVis() && crysMoving) {   // 段階が進むほどカメラが引いていく
+        const want = 14 + Math.max(0, crys.e) * 14, d = cam.position.length();
+        cam.position.multiplyScalar(1 + (want / d - 1) * 0.045);
+    }
     if (cubeMode && fold >= 0.999) cubeT = Math.min(1, cubeT + dt * 0.42 * spd);
     else if (!cubeMode) cubeT = Math.max(0, cubeT - dt * 0.6 * spd);
     if (cubeMode && cubeT > 0 && cubeT < 1) cam.position.lerp(camFront, 0.035);   // 並べた全体が見えるよう、正面へ少し引く
