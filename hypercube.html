@@ -1021,7 +1021,7 @@
                         <span id="panpad-text" class="text-[11px]">→ 移動パッド: OFF</span>
                     </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button>
-                    <div id="texfont-group" class="flex items-center gap-1 pl-2.5 pr-1 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前（x y z w v）の書体。セリフ＝数学の教科書・論文と同じ TeX の斜体（Computer Modern。ネットから読み込み、オフラインのときは Georgia の斜体）。サンセリフ＝飾りのないまっすぐな字（3D ソフト風）"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px] mr-0.5">軸の書体</span><button type="button" data-texfont="serif" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">セリフ</button><button type="button" data-texfont="sans" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">サンセリフ</button></div></div>
+                    <div id="texfont-group" class="flex items-center gap-1 pl-2.5 pr-1 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前（x y z w v）の書体。セリフ＝数学の教科書・論文と同じ TeX の斜体（Computer Modern。ネットから読み込み、オフラインのときは Georgia の斜体）。サンセリフ＝飾りのないまっすぐな字（3D ソフト風）"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px] mr-0.5">軸の書体</span><button type="button" data-texfont="serif" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">セリフ</button><button type="button" data-texfont="sans" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">サンセリフ</button></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button></div>
                 <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
@@ -4014,8 +4014,15 @@
         //   枠：左右 ±0.88、上 0.8（札の分）、下 −0.74（回転バーの分）。原点そのものが画面の外のときは何もしない
         const _fitV = new THREE.Vector3();
         const AXFIT = { MX: 0.88, MT: 0.8, MB: 0.74, LK: 1.2, SOFT: 0.75, TAU: 0.22 };
+        let axisFitOn = true; try { axisFitOn = localStorage.getItem('hypercubeAxisFit') !== '0'; } catch (_) {}   // 軸の見切れ防止（既定 ON）
+        function applyAxisFit() {
+            const t = document.getElementById('axisfit-text'); if (t) t.textContent = '軸の見切れ防止: ' + (axisFitOn ? 'ON' : 'OFF');
+            const b = document.getElementById('axisfit-btn'); if (b) { b.classList.toggle('bg-sky-900/40', axisFitOn); b.classList.toggle('border-sky-500/50', axisFitOn); b.classList.toggle('text-sky-200', axisFitOn); b.classList.toggle('bg-slate-800/80', !axisFitOn); b.classList.toggle('border-slate-700', !axisFitOn); b.classList.toggle('text-slate-300', !axisFitOn); }
+            if (typeof requestRender === 'function') requestRender(30);   // 切り替えた時も、長さは約 0.2 秒かけてなめらかに戻る・縮む
+        }
+        function toggleAxisFit() { axisFitOn = !axisFitOn; try { localStorage.setItem('hypercubeAxisFit', axisFitOn ? '1' : '0'); } catch (_) {} applyAxisFit(); }
         function axisFitTarget(tip, root, cam) {
-            if (!root || !cam) return 1;
+            if (!axisFitOn || !root || !cam) return 1;
             const ratio = k => {   // 名前の位置が、枠に対してどこまで来ているか（1＝ちょうど枠）。カメラの後ろなら大きい値
                 _fitV.set(tip[0] * k, tip[1] * k, tip[2] * k); root.localToWorld(_fitV); _fitV.project(cam);
                 if (!(_fitV.z < 1)) return 99;
@@ -7013,6 +7020,9 @@
             const ecoBtn = document.getElementById('eco-btn');
             if (ecoBtn) ecoBtn.addEventListener('click', toggleEco);
             document.querySelectorAll('[data-texfont]').forEach(b => b.addEventListener('click', () => setTexFont(b.dataset.texfont === 'serif')));
+            const axisFitBtn = document.getElementById('axisfit-btn');
+            if (axisFitBtn) axisFitBtn.addEventListener('click', toggleAxisFit);
+            applyAxisFit();
             applyTexFont();   // 起動時：保存した設定で（ON なら TeX の書体を読み込む）
             (function setupPalette() {   // 胞の色のパレット（行 ±X〜±V × 列 4D・5D）
                 const grid = document.getElementById('pal-grid'), sw = document.getElementById('pal-swatches'); if (!grid || !sw) return;
@@ -8048,7 +8058,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-0838';
+        const APP_BUILD = '20261020-0843';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
