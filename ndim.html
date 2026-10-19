@@ -157,7 +157,7 @@
             <button class="btn" type="button" data-s="labels">軸の名前</button>
         </div>
         <div class="row">遠近<input type="range" id="persp" min="0" max="1" step="0.01"><span class="v" id="perspV"></span></div>
-        <div class="row">線の太さ<input type="range" id="lw" min="0.5" max="5" step="0.1"><span class="v" id="lwV"></span></div>
+        <div class="row" title="1 ＝ いちばん細い（1px の線）">線の太さ<input type="range" id="lw" min="1" max="5" step="0.1"><span class="v" id="lwV"></span></div>
         <div class="row">面の濃さ<input type="range" id="faceOp" min="0" max="0.6" step="0.01"><span class="v" id="faceOpV"></span></div>
     </section>
     <section>
@@ -201,7 +201,7 @@ const DEF = () => ({
     show: { edges: true, verts: true, faces: true, axes: true, labels: true }, cam: null,
     axOn: new Array(10).fill(true),              // 軸を 1 本ずつ出す・消す
     sphereModel: 'slices', slices: 9,            // 超球：'slices' 球を重ねた輪切り / 'circles' 大円と点
-    v: 2,
+    v: 3,
 });
 let S = DEF();
 const key = (i, j) => `${Math.min(i, j)}-${Math.max(i, j)}`;
@@ -228,11 +228,21 @@ function lineMat(opts) {
 const mats = {
     edges: lineMat({ linewidth: S.lw, opacity: 0.95 }),   // 細い線（超球のバブルと同じくらい）。辺の色＝その辺の向きの軸の色
     axes: new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95, depthTest: false }),   // 次元おりがみと同じ 1px の軸
+    edgesThin: new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false }),   // 1px（次元おりがみ・バブルと同じ細さ）
     faces: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: S.faceOp, side: THREE.DoubleSide, depthWrite: false }),
     verts: new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false }),
 };
 const objs = {};
 function drop(k) { if (objs[k]) { scene.remove(objs[k]); objs[k].geometry.dispose(); objs[k] = null; } }
+// 網目の球（超球の輪切り）用の光と、縁ほど暗くする影（バブルアプリと同じ）
+scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+{ const dl = new THREE.DirectionalLight(0xffffff, 0.6); dl.position.set(2, 3, 4); scene.add(dl); }
+let shellObjs = [];
+function dropShells() { shellObjs.forEach(o => { scene.remove(o.solid, o.wire); o.geo.dispose(); o.solid.material.dispose(); o.wire.material.dispose(); }); shellObjs = []; }
+const rimShade = sh => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>',
+        '#include <dithering_fragment>\n float rimK = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition)));\n gl_FragColor.rgb *= 1.0 - 0.55 * pow(rimK, 1.6);');
+};
 
 // 軸の矢じり（10 本ぶん用意して、使う分だけ出す）
 const cones = AX.map(a => {
@@ -287,23 +297,25 @@ function buildShape(n, shape) {
         for (let a = 0; a < nv; a++) for (let b = a + 1; b < nv; b++) for (let c = b + 1; c < nv; c++)
             if ((a >> 1) !== (b >> 1) && (b >> 1) !== (c >> 1) && (a >> 1) !== (c >> 1)) { F.push(a, b, c); fc.push(...vc(a), ...vc(b), ...vc(c)); }
     } else if (S.sphereModel === 'slices') {
-        // 超球を最後の軸の向きに輪切り：x_{n−1} = h の切り口は、半径 √(1−h²) の 1 つ下の次元の球
-        // 切り口ごとに、座標面の大円と、x・y・z の部分の緯線を描く（遠近で、近い切り口ほど大きい＝球を重ねたいつもの形）
-        const K = S.slices, M = 72, last = n - 1;
+        // 超球を最後の軸の向きに輪切り：x_{n−1} = h の切り口は半径 √(1−h²) の 1 つ下の次元の球。
+        // その x・y・z の部分を、超球のバブルアプリと同じ網目の球（緯線・経線）で描く。3 次元の時は 1 個の球
+        const K = n === 3 ? 1 : S.slices, last = n - 1, sg = new THREE.SphereGeometry(1, 18, 12);
+        const pos = sg.attributes.position, idx = Array.from(sg.index.array);
+        const shells = [];
         for (let s = 0; s < K; s++) {
-            const h = -Math.cos(Math.PI * (s + 0.5) / K), r = Math.sqrt(Math.max(0, 1 - h * h));
-            const col = new THREE.Color().setHSL((0.55 + 0.4 * s / Math.max(1, K - 1)) % 1, 0.9, 0.6), c = [col.r, col.g, col.b];
-            const ring = (fill) => {   // fill(v, t) で 1 本の輪を作る
-                const base = V.length / n;
-                for (let m = 0; m < M; m++) { const v = new Array(n).fill(0); v[last] = h; fill(v, 2 * Math.PI * m / M); addV(v); }
-                for (let m = 0; m < M; m++) edge(base + m, base + (m + 1) % M, c);
-            };
-            for (let a = 0; a < last; a++) for (let b = a + 1; b < last; b++) ring((v, t) => { v[a] = r * Math.cos(t); v[b] = r * Math.sin(t); });
-            if (last >= 3) for (const z of [-0.6, 0.6]) {   // 緯線（xy の向きの輪を z の上下に）
-                const rr = r * Math.sqrt(1 - z * z);
-                ring((v, t) => { v[0] = rr * Math.cos(t); v[1] = rr * Math.sin(t); v[2] = r * z; });
+            const h = n === 3 ? 0 : -Math.cos(Math.PI * (s + 0.5) / K), r = Math.sqrt(Math.max(0, 1 - h * h));
+            const col = n === 3 ? new THREE.Color('#56a8ff') : new THREE.Color().setHSL((0.55 + 0.4 * s / Math.max(1, K - 1)) % 1, 0.85, 0.6);
+            const start = V.length / n;
+            for (let q = 0; q < pos.count; q++) {
+                const v = new Array(n).fill(0);
+                v[0] = r * pos.getX(q); v[1] = r * pos.getY(q); v[2] = r * pos.getZ(q);
+                if (n > 3) v[last] = h;
+                addV(v);
             }
+            shells.push({ start, count: pos.count, index: idx, col, h });
         }
+        sg.dispose();
+        return { n, shape, nv: V.length / n, V: Float64Array.from(V), E, ec, F, fc, shells };
     } else {
         // 超球：座標面ごとの大円（n(n−1)/2 本）＋表面の点
         const M = 96;
@@ -416,16 +428,34 @@ function makeObjects() {
     const src = S.net && S.shape === 'cube' ? NET : G;
     ['edges', 'faces', 'verts'].forEach(drop);
     P3 = new Float32Array(src.nv * 3);
-    // 辺
-    {
+    // 辺：線の太さ 1 は 1px の線、1 より太い時だけ太い線
+    if (S.lw > 1.01) {
         const g = new THREE.LineSegmentsGeometry();
-        g.setPositions(new Float32Array(src.E.length * 3));
-        g.setColors(Float32Array.from(src.ec));
+        g.setPositions(new Float32Array(Math.max(1, src.E.length) * 3));
+        g.setColors(Float32Array.from(src.ec.length ? src.ec : [0, 0, 0, 0, 0, 0]));
         objs.edges = new THREE.LineSegments2(g, mats.edges);
-        objs.edges.frustumCulled = false; objs.edges.renderOrder = 3;
-        objs.edges.userData.baseCol = Float32Array.from(src.ec);
-        scene.add(objs.edges);
+    } else {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(src.E.length * 3), 3));
+        g.setAttribute('color', new THREE.BufferAttribute(Float32Array.from(src.ec), 3));
+        objs.edges = new THREE.LineSegments(g, mats.edgesThin);
     }
+    objs.edges.frustumCulled = false; objs.edges.renderOrder = 3;
+    objs.edges.userData.baseCol = Float32Array.from(src.ec);
+    scene.add(objs.edges);
+    // 網目の球（超球の輪切り）：半透明の面（縁ほど暗い）＋緯線・経線の 1px の線
+    dropShells();
+    (src.shells || []).forEach(sh => {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(sh.count * 3), 3));
+        g.setIndex(sh.index);
+        const solid = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: sh.col, transparent: true, opacity: 0.14, roughness: 0.2, metalness: 0.3, side: THREE.DoubleSide, depthWrite: false }));
+        solid.material.onBeforeCompile = rimShade;
+        const wire = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: sh.col.clone().multiplyScalar(1.3), wireframe: true, transparent: true, opacity: 0.3, depthWrite: false }));
+        [solid, wire].forEach(o => { o.frustumCulled = false; scene.add(o); });
+        solid.renderOrder = 1; wire.renderOrder = 2;
+        shellObjs.push({ ...sh, geo: g, solid, wire });
+    });
     // 面（超立方体・正単体・正軸体、展開図の時は出さない）
     if (src.F && src.F.length) {
         const g = new THREE.BufferGeometry();
@@ -457,11 +487,12 @@ function makeObjects() {
 }
 function applyShow() {
     if (objs.edges) objs.edges.visible = S.show.edges;
+    shellObjs.forEach(o => { o.wire.visible = S.show.edges; o.solid.visible = S.show.faces; });
     if (objs.faces) objs.faces.visible = S.show.faces && !(S.net && S.shape === 'cube');
     if (objs.verts) objs.verts.visible = S.shape === 'sphere' ? S.sphereModel === 'circles' : S.show.verts;
     if (objs.axes) objs.axes.visible = S.show.axes;
     originDot.visible = S.show.axes;
-    mats.verts.size = S.shape === 'sphere' ? 2.2 : 5;
+    mats.verts.size = S.shape === 'sphere' ? 2 : 3.5;
     mats.edges.linewidth = S.lw;
     mats.faces.opacity = S.faceOp;
     requestRender();
@@ -477,17 +508,25 @@ function updateGeometry(flash) {
     if (S.net && S.shape === 'cube') netPositions(NET, S.fold, S.seq);
     for (let i = 0; i < src.nv; i++) proj(src.V, i, n, P3, i * 3);
     // 辺
-    {
-        const ib = objs.edges.geometry.attributes.instanceStart.data, a = ib.array, E = src.E;
+    if (src.E.length) {
+        const fat = !!objs.edges.isLineSegments2;
+        const ib = fat ? objs.edges.geometry.attributes.instanceStart.data : objs.edges.geometry.attributes.position, a = ib.array, E = src.E;
         for (let e = 0; e < E.length / 2; e++) {
             const p = E[2 * e] * 3, q = E[2 * e + 1] * 3, o = e * 6;
             a[o] = P3[p]; a[o + 1] = P3[p + 1]; a[o + 2] = P3[p + 2]; a[o + 3] = P3[q]; a[o + 4] = P3[q + 1]; a[o + 5] = P3[q + 2];
         }
         ib.needsUpdate = true;
-        const cb = objs.edges.geometry.attributes.instanceColorStart.data, base = objs.edges.userData.baseCol, k = 1 + flash * 0.9;
+        const cb = fat ? objs.edges.geometry.attributes.instanceColorStart.data : objs.edges.geometry.attributes.color, base = objs.edges.userData.baseCol, k = 1 + flash * 0.9;
         for (let i = 0; i < base.length; i++) cb.array[i] = Math.min(1, base[i] * k);
         cb.needsUpdate = true;
     }
+    // 網目の球
+    shellObjs.forEach(o => {
+        const pa = o.geo.attributes.position;
+        pa.array.set(P3.subarray(o.start * 3, (o.start + o.count) * 3));
+        pa.needsUpdate = true;
+        if (o.solid.visible) o.geo.computeVertexNormals();
+    });
     if (objs.faces && objs.faces.visible) {
         const pa = objs.faces.geometry.attributes.position, F = src.F;
         for (let i = 0; i < F.length; i++) { const p = F[i] * 3; pa.array[i * 3] = P3[p]; pa.array[i * 3 + 1] = P3[p + 1]; pa.array[i * 3 + 2] = P3[p + 2]; }
@@ -763,7 +802,7 @@ function renderFv() {
     if (sh === 'sphere') {
         $('#fv').innerHTML = `<tr><td>座標面の大円</td><td>${C(n, 2)}</td></tr><tr><td>表面の次元</td><td>${n - 1}</td></tr>`;
         $('#fvNote').textContent = S.sphereModel === 'slices'
-            ? `${n} 次元の球を最後の軸 ${AX[n - 1].n} の向きに輪切りにすると、切り口は ${n - 1} 次元の球（半径 √(1−${AX[n - 1].n}²)）。それを ${S.slices} 枚重ねて、遠近で写しています（近い切り口ほど大きい）。`
+            ? (n === 3 ? '3 次元の球を、緯線・経線の網目で描いています。' : `${n} 次元の球を最後の軸 ${AX[n - 1].n} の向きに輪切りにすると、切り口は ${n - 1} 次元の球（半径 √(1−${AX[n - 1].n}²)）。その x・y・z の部分を網目の球にして ${S.slices} 枚重ね、遠近で写しています（近い切り口ほど大きい）。`)
             : `${n} 次元の球の表面は ${n - 1} 次元。座標の 2 本ずつで切った大円が ${C(n, 2)} 本（＝回転面の数と同じ）。`;
         return;
     }
@@ -816,6 +855,7 @@ function loadState(d) {
     S = { ...base, ...d, show: { ...base.show, ...(d.show || {}) }, ang: { ...(d.ang || {}) }, spin: { ...(d.spin || {}) } };
     S.n = Math.max(NMIN, Math.min(NMAX, +S.n || 5));
     if (!(d.v >= 2)) { S.lw = 1.0; S.show.faces = true; S.faceOp = 0.16; S.v = 2; }   // 前の版の保存は、細い線・色つきの面に
+    if (!(d.v >= 3)) { S.lw = 1.0; S.v = 3; }   // 線はいちばん細い 1px を基本に
     if (!Array.isArray(S.axOn) || S.axOn.length !== 10) S.axOn = new Array(10).fill(true);
     if (!['cube', 'simplex', 'cross', 'sphere'].includes(S.shape)) S.shape = 'cube';
     if (S.cam && S.cam.p && S.cam.t) { camera.position.fromArray(S.cam.p); controls.target.fromArray(S.cam.t); }
@@ -844,7 +884,12 @@ $('#resetAng').addEventListener('click', () => { const to = {}; for (const k in 
 $('#selAng').addEventListener('input', e => { tween = null; S.ang[S.sel] = +e.target.value; syncSelAngle(); requestRender(); saveSoon(); });
 $('#speed').addEventListener('input', e => { S.speed = +e.target.value; $('#speedV').textContent = S.speed.toFixed(2); saveSoon(); });
 $('#persp').addEventListener('input', e => { S.pk = +e.target.value; $('#perspV').textContent = S.pk.toFixed(2); requestRender(); saveSoon(); });
-$('#lw').addEventListener('input', e => { S.lw = +e.target.value; $('#lwV').textContent = S.lw.toFixed(1); requestRender(); saveSoon(); });
+$('#lw').addEventListener('input', e => {
+    const was = S.lw > 1.01;
+    S.lw = +e.target.value; $('#lwV').textContent = S.lw.toFixed(1);
+    if (was !== (S.lw > 1.01)) makeObjects();   // 1px の線 ⇔ 太い線 を作り直す
+    requestRender(); saveSoon();
+});
 $('#faceOp').addEventListener('input', e => {
     S.faceOp = +e.target.value; $('#faceOpV').textContent = S.faceOp.toFixed(2);
     if (S.faceOp > 0 && !S.show.faces) { S.show.faces = true; renderShows(); }
