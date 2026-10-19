@@ -503,7 +503,7 @@
                 <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
                     <button id="gist-auto" class="px-2.5 py-1 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 text-[11px] font-bold whitespace-nowrap">自動同期: OFF</button>
                     <select id="gist-every" class="bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-[11px]" title="変わった時に上げる間隔">
-                        <option value="30">30 秒ごと</option><option value="60">1 分ごと</option><option value="300">5 分ごと</option>
+                        <option value="10">10 秒ごと</option><option value="30">30 秒ごと</option><option value="60">1 分ごと</option><option value="300">5 分ごと</option>
                     </select>
                     <button id="gist-now" class="px-2.5 py-1 rounded bg-emerald-600/40 border border-emerald-400/50 text-emerald-100 hover:bg-emerald-600/60 text-[11px] font-bold whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed">今すぐ上げる</button>
                     <button id="gist-load" class="px-2.5 py-1 rounded bg-sky-900/40 border border-sky-500/40 text-sky-200 hover:bg-sky-800/40 text-[11px] font-bold whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed">Gist から読み込む</button>
@@ -8020,20 +8020,22 @@
             try { Object.keys(localStorage).filter(k => k.startsWith('hypercube') && !gistSkip(k)).sort().forEach(k => { o[k] = localStorage.getItem(k); }); } catch (_) {}
             return o;
         }
-        let gistLastData = '', gistTimer = null, gistBusy = false;
+        let gistLastData = '', gistTimer = null, gistBusy = false, gistPausedUntil = 0;   // 上限に当たった時は、しばらく自動で上げるのを休む
         function gistStatus(msg, ok) {
             const el = document.getElementById('gist-st'); if (!el) return;
             el.textContent = msg;
             el.className = 'text-[10px] ' + (ok === true ? 'text-emerald-300' : ok === false ? 'text-rose-300' : 'text-slate-400');
         }
         const gistHeaders = () => ({ 'Authorization': 'Bearer ' + gistGet(GIST.TOKEN), 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' });
-        const gistExplain = r => r.status === 401 ? '鍵が無効です（期限切れ・貼り間違い）' : r.status === 403 ? '鍵に gist の権限がありません' : r.status === 404 ? 'Gist が見つかりません（ID 違い・別のアカウント）' : 'HTTP ' + r.status;
+        const gistLimited = r => r.status === 429 || (r.status === 403 && (r.headers.get('retry-after') || r.headers.get('x-ratelimit-remaining') === '0'));
+        const gistExplain = r => gistLimited(r) ? 'GitHub の書き込み上限に当たりました（しばらく休んでから続けます）' : r.status === 401 ? '鍵が無効です（期限切れ・貼り間違い）' : r.status === 403 ? '鍵に gist の権限がありません' : r.status === 404 ? 'Gist が見つかりません（ID 違い・別のアカウント）' : 'HTTP ' + r.status;
         async function gistUpload(force) {
             if (gistBusy || !gistGet(GIST.TOKEN)) return;
             saveSession();   // 今の画面を先に覚えてから
             const data = gistData(), dataStr = JSON.stringify(data);
             if (dataStr !== gistLastData) { gistSet(GIST.LOCAL_AT, Date.now()); }
             if (!force && dataStr === gistLastData && gistGet(GIST.UP_AT)) return;   // 変わっていなければ上げない
+            if (!force && Date.now() < gistPausedUntil) return;   // 上限に当たって休んでいる間
             gistBusy = true;
             try {
                 const savedAt = +gistGet(GIST.LOCAL_AT) || Date.now();
@@ -8043,7 +8045,13 @@
                 let r;
                 if (id) r = await fetch('https://api.github.com/gists/' + encodeURIComponent(id), { method: 'PATCH', headers: Object.assign({ 'Content-Type': 'application/json' }, gistHeaders()), body: JSON.stringify(body) });
                 else r = await fetch('https://api.github.com/gists', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, gistHeaders()), body: JSON.stringify(Object.assign({ public: false }, body)) });
-                if (!r.ok) throw new Error(gistExplain(r));
+                if (!r.ok) {
+                    if (gistLimited(r)) {
+                        const wait = Math.max(60, +r.headers.get('retry-after') || 0, ((+r.headers.get('x-ratelimit-reset') || 0) * 1000 - Date.now()) / 1000);
+                        gistPausedUntil = Date.now() + Math.min(3600, wait) * 1000;
+                    }
+                    throw new Error(gistExplain(r));
+                }
                 const j = await r.json();
                 if (!id && j && j.id) gistSet(GIST.ID, j.id);
                 gistLastData = dataStr;
@@ -8091,7 +8099,7 @@
         function gistSchedule() {
             clearInterval(gistTimer); gistTimer = null;
             if (gistGet(GIST.AUTO) !== '1' || !gistGet(GIST.TOKEN)) return;
-            const sec = Math.max(30, +gistGet(GIST.EVERY) || 60);
+            const sec = Math.max(10, +gistGet(GIST.EVERY) || 60);   // いちばん短い 10 秒＝1 時間に最大 360 回（GitHub の書き込み上限 目安 500 回に収まる）
             gistTimer = setInterval(() => gistUpload(false), sec * 1000);
         }
         function setupGistSync() {
@@ -8133,7 +8141,7 @@
                 gistFetch().then(o => {
                     const localAt = +gistGet(GIST.LOCAL_AT) || 0;
                     if (o && o.savedAt > localAt + 2000) { gistStatus('Gist の方が新しいので合わせます…'); gistApply(o); }
-                    else { gistLastData = o ? JSON.stringify(o.data) : ''; gistStatus('同期しています（' + (Math.max(30, +gistGet(GIST.EVERY) || 60)) + ' 秒ごと）', true); }
+                    else { gistLastData = o ? JSON.stringify(o.data) : ''; gistStatus('同期しています（' + (Math.max(10, +gistGet(GIST.EVERY) || 60)) + ' 秒ごと）', true); }
                 }).catch(e => gistStatus('Gist を確かめられませんでした：' + (e && e.message ? e.message : e), false));
             }
         }
