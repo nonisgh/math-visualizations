@@ -239,6 +239,7 @@
             background: rgba(15, 23, 42, 0.78); border: 1px solid #475569; color: #94a3b8; display: grid; place-items: center; backdrop-filter: blur(4px); transition: border-color .15s, color .15s; }
         .pan-pad:hover { border-color: #a855f7; color: #e9d5ff; }
         .pan-pad.dragging { cursor: grabbing; border-color: #a855f7; color: #e9d5ff; background: rgba(59, 29, 92, 0.85); }
+        .pan-pad.moving { cursor: move; border-color: #facc15; color: #fef08a; border-style: dashed; }   /* Shift＋ドラッグでパッド自体を動かしているとき */
         .pan-pad svg { width: 26px; height: 26px; pointer-events: none; }
         body.no-pan-pad .pan-pad, .mode-pip #wrapper-2d3d .pan-pad, #main-container.dim5.mode-pip #wrapper-3d4d .pan-pad { display: none; }
         #axlen-4d { top: 64px; right: 12px; }
@@ -316,7 +317,7 @@
         <div id="wrapper-2d3d">
             <div id="canvas-2d3d" class="w-full h-full"></div>
             <div id="xp-layer-2d" class="xp-layer"></div><div id="xp-badge-2d" class="xp-badge"></div>
-            <div class="pan-pad" data-pan="2" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
+            <div class="pan-pad" data-pan="2" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す。Shift＋ドラッグでパッド自体を動かす（Shift＋ダブルクリックで元の場所へ）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
             <div id="badge-2d3d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-cyan-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-cyan-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="square" class="w-4 h-4 text-cyan-400"></i>
                 <span><em id="side-2d3d" class="not-italic">左</em>: 2D展開図 → 立方体<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = z。そこへ倒すと、ただ立方体が回る</span></span>
@@ -347,7 +348,7 @@
             <div id="canvas-3d4d" class="w-full h-full"></div>
             <div id="die-flash-3d" class="die-flash"><div class="box"><img class="pip" alt="" style="display:none"><div class="n"></div><div class="sub"></div></div></div>
             <div id="xp-layer-3d" class="xp-layer"></div><div id="xp-badge-3d" class="xp-badge"></div>
-            <div class="pan-pad" data-pan="3" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
+            <div class="pan-pad" data-pan="3" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す。Shift＋ドラッグでパッド自体を動かす（Shift＋ダブルクリックで元の場所へ）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
             <!-- 4次元：3D に出ている軸の長さ（平行投影で見える長さ）。w は 0° では落とす向きなので 0%。X-W・Y-W・Z-W で回すと出てくる。つぶす（お遊び）と減る -->
             <div id="axlen-4d" class="absolute pointer-events-none z-10 bg-slate-900/80 backdrop-blur border border-slate-700 rounded-xl px-2.5 py-1.5" title="4本の軸が 3D にどれだけ出ているか（もとの長さを 100%）">
                 <div class="text-[10px] font-bold text-slate-300 mb-0.5">3D に出ている軸の長さ</div>
@@ -368,7 +369,7 @@
             <div id="canvas-4d5d" class="w-full h-full"></div>
             <div id="die-flash-5d" class="die-flash"><div class="box"><img class="pip" alt="" style="display:none"><div class="n"></div><div class="sub"></div></div></div>
             <div id="xp-layer-5d" class="xp-layer"></div><div id="xp-badge-5d" class="xp-badge"></div>
-            <div class="pan-pad" data-pan="5" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
+            <div class="pan-pad" data-pan="5" title="移動パッド：ドラッグで画面の中身を動かす（⌘/Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す。Shift＋ドラッグでパッド自体を動かす（Shift＋ダブルクリックで元の場所へ）"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/><path d="M12 9.6l2.4 2.4-2.4 2.4-2.4-2.4z"/></svg></div>
             <div id="badge-4d5d" class="absolute top-4 left-4 pointer-events-none bg-slate-900/80 backdrop-blur border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 shadow-lg flex items-center gap-2 z-10">
                 <i data-lucide="hexagon" class="w-4 h-4 text-amber-400"></i>
                 <span><em id="side-4d5d" class="not-italic">右</em>: 4D展開図 → 5次元超立方体（β）<br><span class="font-normal text-slate-400 text-[10px]">折りたたみでできる新しい次元 = v。v と w の2段で 3D に写す</span></span>
@@ -6813,13 +6814,25 @@
                     applyViewShift(v.cam); requestRender(20);
                 }
                 function center(k) { const v = views[k](); if (!v.cam) return; v.cam.userData.panSh = null; applyViewShift(v.cam); requestRender(20); }
+                // パッド自体の置き場所：Shift＋ドラッグで動かす（画面の大きさに対する割合で、画面ごとにこのブラウザに覚える）
+                let padPos = {}; try { padPos = JSON.parse(localStorage.getItem('hypercubePanPadPos') || '{}') || {}; } catch (_) {}
+                const placePad = (p, k) => { const q = padPos[k]; if (q && isFinite(q.x) && isFinite(q.y)) { p.style.left = (q.x * 100) + '%'; p.style.top = (q.y * 100) + '%'; p.style.marginTop = '-23px'; p.style.marginLeft = '-23px'; } else { p.style.left = ''; p.style.top = ''; p.style.marginTop = ''; p.style.marginLeft = ''; } };
                 document.querySelectorAll('.pan-pad').forEach(p => {
-                    const k = p.dataset.pan; let lx = 0, ly = 0, on = false;
-                    p.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); on = true; lx = e.clientX; ly = e.clientY; p.classList.add('dragging'); try { p.setPointerCapture(e.pointerId); } catch (_) {} });
-                    p.addEventListener('pointermove', e => { if (!on) return; e.stopPropagation(); pan(k, e.clientX - lx, e.clientY - ly); lx = e.clientX; ly = e.clientY; });
-                    const end = e => { if (!on) return; on = false; p.classList.remove('dragging'); try { p.releasePointerCapture(e.pointerId); } catch (_) {} };
+                    const k = p.dataset.pan; let lx = 0, ly = 0, on = false, moving = false;
+                    placePad(p, k);
+                    p.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); on = true; moving = e.shiftKey; lx = e.clientX; ly = e.clientY; p.classList.add(moving ? 'moving' : 'dragging'); try { p.setPointerCapture(e.pointerId); } catch (_) {} });
+                    p.addEventListener('pointermove', e => {
+                        if (!on) return; e.stopPropagation();
+                        if (moving) {   // パッドを動かす（親の画面の中で、はみ出さないように）
+                            const box = p.parentElement.getBoundingClientRect(); if (box.width < 50 || box.height < 50) return;
+                            const x = Math.max(23, Math.min(box.width - 23, e.clientX - box.left)), y = Math.max(23, Math.min(box.height - 23, e.clientY - box.top));
+                            padPos[k] = { x: x / box.width, y: y / box.height }; placePad(p, k);
+                        } else pan(k, e.clientX - lx, e.clientY - ly);
+                        lx = e.clientX; ly = e.clientY;
+                    });
+                    const end = e => { if (!on) return; on = false; p.classList.remove('dragging', 'moving'); if (moving) { try { localStorage.setItem('hypercubePanPadPos', JSON.stringify(padPos)); } catch (_) {} } moving = false; try { p.releasePointerCapture(e.pointerId); } catch (_) {} };
                     p.addEventListener('pointerup', end); p.addEventListener('pointercancel', end);
-                    p.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); center(k); });
+                    p.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); if (e.shiftKey) { delete padPos[k]; placePad(p, k); try { localStorage.setItem('hypercubePanPadPos', JSON.stringify(padPos)); } catch (_) {} } else center(k); });   // Shift＋ダブルクリック＝パッドを元の場所へ
                     p.addEventListener('wheel', e => e.stopPropagation(), { passive: true });
                 });
                 const b = document.getElementById('panpad-btn');
