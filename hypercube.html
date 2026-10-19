@@ -4592,9 +4592,9 @@
             const _dt = _lastT ? Math.min(0.1, (_now - _lastT) / 1000) : 0;
             _lastT = _now;
 
-            // 1コマあたりの量は「120コマ/秒（Chrome・120Hz の画面）」のときの値。経過時間を掛けて、何コマ/秒でも同じ速さにする
-            //   （以前は1コマごとに決まった量だったので、Safari など 60コマ/秒では半分の速さになっていた）
-            const _k = _dt * 120;
+            // 1コマあたりの量は「144コマ/秒（このパソコンの Chrome＝144Hz の画面）」のときの値。経過時間を掛けて、何コマ/秒でも同じ速さにする
+            //   （以前は1コマごとに決まった量だったので、Safari など 60コマ/秒では遅くなっていた。基準を 144 にして Chrome の見慣れた速さを保つ）
+            const _k = _dt * 144;
             const baseStep = 0.005 * animSpeedMultiplier * _k;
             const loopStep = 0.004 * animSpeedMultiplier * _k;
 

@@ -1882,7 +1882,7 @@ addEventListener('keyup', e => { if (e.code === 'Space' && e.target && e.target.
   }
   function frame() {
     if (!running) return;
-    const now = performance.now(), k = Math.min(0.1, (now - (frame._t || now)) / 1000) * 120; frame._t = now;   // 120コマ/秒のときの量を基準に
+    const now = performance.now(), k = Math.min(0.1, (now - (frame._t || now)) / 1000) * 144; frame._t = now;   // 144コマ/秒のときの量を基準に
     const tg = PRESETS[st.preset], al = 1 - Math.pow(0.88, k); let moved = 0;
     st.n.forEach((x, k) => { moved += Math.abs(tg.n[k] - x); st.n[k] = x + (tg.n[k] - x) * al; });
     st.e.forEach((e, i) => e.forEach((x, k) => { moved += Math.abs(tg.e[i][k] - x); e[k] = x + (tg.e[i][k] - x) * al; }));
@@ -2015,8 +2015,8 @@ function syncPanel() {
 // ---------------- ループ ----------------
 (function loop() {
   requestAnimationFrame(loop);
-  // 1コマあたりの量は「120コマ/秒」のときの値。経過時間を掛けて、何コマ/秒でも同じ速さに（Safari など 60コマ/秒で半分の速さにならない）
-  const _now = performance.now(), _k = Math.min(0.1, (_now - (loop._t || _now)) / 1000) * 120; loop._t = _now;
+  // 1コマあたりの量は「144コマ/秒（このパソコンの Chrome）」のときの値。経過時間を掛けて、何コマ/秒でも同じ速さに（Safari など 60コマ/秒で遅くならない）
+  const _now = performance.now(), _k = Math.min(0.1, (_now - (loop._t || _now)) / 1000) * 144; loop._t = _now;
   if (demo) {
     const d = 0.012 * spd * _k;
     if (axis === 'mix') { pitch = norm(pitch + d); roll = norm(roll + d * 0.67); }
@@ -2031,7 +2031,7 @@ function syncPanel() {
   }
   if (rlOn && (rlTick += _k) >= 2) { rlTick %= 2; for (let k = 0, m = Math.max(1, Math.round(spd)); k < m; k++) addRL(); if (rlN >= MAXRL) { rlOn = false; $('bRL').classList.remove('on'); } updatePath(); refreshUI(); }
   if (randPlay) {
-    loop._fa = (loop._fa || 0) + _k; const nf = Math.floor(loop._fa); loop._fa -= nf; if (nf) addFoot(4 * nf);   // 120コマ/秒で1コマ4点のペース
+    loop._fa = (loop._fa || 0) + _k; const nf = Math.floor(loop._fa); loop._fa -= nf; if (nf) addFoot(4 * nf);   // 144コマ/秒で1コマ4点のペース
     randTick += _k; if (randTick >= 15) { randTick -= 15; if (footLast) { pathPhi = footLast.ph; pathLam = footLast.lam; pathT = footLast.t; } }
     updatePath(); refreshUI();
   }
