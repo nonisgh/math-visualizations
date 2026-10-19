@@ -3600,8 +3600,21 @@
             const tex = new THREE.CanvasTexture(cv);
             const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
             sp.scale.set(0.52, 0.52, 0.52); sp.renderOrder = 1001;
+            sp.onBeforeRender = (r, sc, cam) => keepLabelSize(sp, cam);
             _labelSprites.push({ cv, tex, text, cssColor });
             return sp;
+        }
+        // 軸が手前にせり出しても文字が大きくならないように：描く直前に、図形の中心と同じ奥行きにあるときの大きさへ直す
+        //   （カメラのズームで大きさが変わるのは今まで通り。奥へ行っても小さくならない）
+        const _lblV = new THREE.Vector3(), _lblO = new THREE.Vector3();
+        function keepLabelSize(sp, cam) {
+            if (!cam || !cam.isPerspectiveCamera || !sp.parent) return;
+            _lblV.setFromMatrixPosition(sp.matrixWorld).applyMatrix4(cam.matrixWorldInverse);
+            _lblO.setFromMatrixPosition(sp.parent.matrixWorld).applyMatrix4(cam.matrixWorldInverse);
+            const d = -_lblV.z, d0 = -_lblO.z;
+            if (!(d > 0.05) || !(d0 > 0.05)) return;
+            sp.scale.setScalar(0.52 * d / d0);
+            sp.updateMatrix(); sp.matrixWorld.multiplyMatrices(sp.parent.matrixWorld, sp.matrix);   // この描画にすぐ反映
         }
         function redrawLabels() {
             _labelSprites.forEach(L => { drawLabel(L.cv, L.text, L.cssColor); L.tex.needsUpdate = true; });
