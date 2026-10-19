@@ -684,6 +684,7 @@
                     <div class="vm-row"><span class="vm-h">おすすめ</span><button data-vpreset="fat" title="3D展開＝同じ展開図（4次元の十字架）を、w の腕2本を奥に畳んで、3次元の十字架のように見る。しまう・展開図・斜め・遠近。±W の胞が中心の手前と奥に重なって、真ん中が大きくふくらむ。4次元体（超立方体）は x・y・z の伸びた十字架">3D展開</button><button data-vpreset="arms" title="4D展開＝展開図を4次元の形のまま見る。w を出す・展開図・斜め・平行。10個の超立方体でできた4次元の十字架の、8方向の腕が全部見える">4D展開</button><button data-vpreset="onept" title="5D等角図＝等角図「w と v」・正面・組み上がり・平行投影を一発で。5本の軸が同じ長さ（77%）になり、ピンク（手前の頂点）とエメラルド（奥の頂点）が真ん中で1点に重なる。輪郭は正十角形">5D等角図</button><button data-vpreset="anyang" title="六角柱＝5次元立方体を「立方体(x,y,z) × 正方形(w,v)」と見て、それぞれを対角線の方向から見た形。上から見ると正六角形、横から見ると四角。(1,1,1,1,1) の方向を投影でつぶす向き（4次元の等角図と同じ仕組み）。手前と奥の頂点が3Dの原点に重なるので、ドラッグでどの角度から回しても1点のまま。そのかわり軸の長さは x・y・z が82%、w・v が71%（5本をそろえることは3次元では不可能）。「5D等角図」は5本とも77%だが、真正面からしか重ならない">六角柱</button></div>
                     <div class="vm-row"><span class="vm-h">光</span><button id="light5-btn" title="4Dライト（お試し）。5次元空間に固定した光で、各胞（超立方体）の向きごとに明るさを変える。X-W・W-V など4次元・5次元の回転で光の当たる胞が入れ替わるので、3Dの形が同じでも『回っている』ことが光で分かる">→ 4Dライト: OFF</button></div>
                     <div class="vm-row"><span class="vm-h">奥行</span><label class="flex items-center gap-2 text-[10px] text-slate-400 w-full" title="奥の胞を濃く：胞ごとの奥行き（カメラからの距離）で、奥の胞ほど色を濃く（鮮やか・少し暗く）し、面も薄くしすぎない。正面図でも入れ子の四角が奥へ沈んで見える。0%＝これまでの見え方、50%＝標準、100%＝その倍の濃さ"><span class="shrink-0">奥の胞を濃く</span><input id="deep5-slider" type="range" min="0" max="1" step="0.05" value="0.5" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="deep5-val" class="w-9 text-right font-mono text-violet-200 shrink-0">50%</span></label></div>
+                    <div class="vm-row"><span class="vm-h">内側</span><label class="flex items-center gap-2 text-[10px] text-slate-400 w-full" title="入れ子の内側を濃く：各4次元体（超立方体）の中で、見た目の上で内側に入れ子になっている立方体の面ほど色を濃く・少し不透明にする。「奥の胞を濃く」に掛け合わせて効く。0%＝なし、40%＝標準、100%＝その2.5倍"><span class="shrink-0">入れ子の内側を濃く</span><input id="inner5-slider" type="range" min="0" max="1" step="0.05" value="0.4" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="inner5-val" class="w-9 text-right font-mono text-violet-200 shrink-0">40%</span></label></div>
                     <div class="vm-row"><span class="vm-h">お試し</span><button id="rhombi-btn" title="5次元体の影を菱形二十面体に変形する（お試し）。「w と v（等角図）」・組み上がり・平行投影へ回してから、写した形を5回対称の軸に沿って 1/√2 に縮め（軸の影の傾き 54.7°→63.4°＝黄金菱形）、中の線を消して凸包の20枚の菱形だけを残す。カメラは少し上から。もう一度押すと5次元体に戻る">→ 菱形二十面体へ</button></div>
                     <div class="text-[10px] text-slate-500 leading-snug">展開図は、折りたたむ向き（v）に厚みのない「4次元の十字架」（10個の超立方体）。同じ展開図を、w をつぶして3次元の十字架のように見るのが「3D展開」（真ん中が太い形）、w を出して4次元の形のまま見るのが「4D展開」（8方向の腕が全部見える）です。</div>
                     <label class="flex items-center gap-2 text-[10px] text-slate-400" title="選んだせり出し方の途中で止める（0%＝しまった形、100%＝せり出した形）"><span class="shrink-0">せり出し具合</span><input id="seri-slider" type="range" min="0" max="100" step="1" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400 border border-slate-700"><span id="seri-val" class="w-10 text-right font-mono text-amber-200 shrink-0">0%</span></label>
@@ -2412,6 +2413,8 @@
         let light5On = false; try { light5On = localStorage.getItem('hypercubeLight5') === '1'; } catch (_) {}
         // 奥の胞を濃く（0〜1）：胞ごとの奥行きで、奥ほど色を濃く（鮮やか・少し暗く）、面を薄くしすぎない＝正面図でも入れ子が奥へ沈んで見える。0＝従来どおり
         let deep5 = 0.5; try { const v = parseFloat(localStorage.getItem('hypercubeDeep5b')); if (isFinite(v)) deep5 = Math.max(0, Math.min(1, v)); } catch (_) {}   // 目盛り 0〜1。効きは 2 倍（50%＝以前の最大）
+        // 入れ子の内側を濃く（0〜1）：各4次元体の中で、見かけ上いちばん縮んで見える面（＝入れ子の内側の立方体）ほど色を濃く・面を少し不透明に。「奥の胞を濃く」に掛け合わせる
+        let inner5 = 0.4; try { const v = parseFloat(localStorage.getItem('hypercubeInner5b')); if (isFinite(v)) inner5 = Math.max(0, Math.min(1, v)); } catch (_) {}
         const LIGHT5 = (() => { const v = [0.35, 0.9, 0.5, 0.9, 0.7], l = Math.hypot(...v); return v.map(a => a / l); })();   // w・v 成分を強めに（4次元目・5次元目を向く胞が光る）
         const LIGHT5_AMB = 0.32;   // 光が当たらない胞の明るさ
         function cellNormal5(ci) { const c = P5_CELLS[ci], n = [0, 0, 0, 0, 0]; if (c.cap) n[4] = 1; else if (c.axis !== undefined) n[c.axis] = c.sign; else n[4] = -1; return n; }
@@ -2694,7 +2697,14 @@
                         return Math.log(Math.max(d, 1e-3)) - Math.log(Math.max(k1 * k2, 1e-3));
                     };
                     const cMean = dist.map(cd => cd.reduce((s, d) => s + d, 0) / cd.length);
-                    const cDepth = verts5.map((cv, ci) => cv.reduce((s, p, i) => s + depthOf(p, dist[ci][i]), 0) / cv.length), cLo = Math.min(...cDepth), cSp = Math.max(Math.max(...cDepth) - cLo, 1e-6);
+                    const vDep = verts5.map((cv, ci) => cv.map((p, i) => depthOf(p, dist[ci][i])));   // 頂点ごとの奥行き（見かけの縮み）
+                    const cDepth = vDep.map(a => a.reduce((s, v) => s + v, 0) / a.length), cLo = Math.min(...cDepth), cSp = Math.max(Math.max(...cDepth) - cLo, 1e-6);
+                    // 面ごとの奥行き → 各4次元体の中で 0（外側の面）〜1（入れ子の内側の面）に正規化
+                    const fDep = quads5.map(q => { let s = 0; for (let k = 0; k < 6; k++) s += vDep[q[0]][T5_TRIS[q[1] + k]]; return s / 6; });
+                    const fLo = cellObjects5D.map(() => 1e9), fHi = cellObjects5D.map(() => -1e9);
+                    quads5.forEach((q, i) => { const c = q[0]; if (fDep[i] < fLo[c]) fLo[c] = fDep[i]; if (fDep[i] > fHi[c]) fHi[c] = fDep[i]; });
+                    const kI = 2.5 * inner5;   // 入れ子の内側を濃く（効き＝目盛り×2.5。40%＝以前の最大）
+                    const deepen = (C, t) => { if (t <= 0) return C; const Y = 0.299 * C.r + 0.587 * C.g + 0.114 * C.b, sat = 1 + 1.0 * t, dk = Math.max(0.18, 1 - 0.45 * t), f = c => Math.max(0, Math.min(1, (Y + (c - Y) * sat) * dk)); return { r: f(C.r), g: f(C.g), b: f(C.b) }; };
                     const cDeep = cDepth.map(m => sm((m - cLo) / cSp));
                     // 奥の胞を濃く（効き kD＝目盛り×2）：手前の胞の面は薄く、奥の胞の面は濃く＝奥の濃い色が手前を透かして見える（kD=1 で手前×0.55・奥×1.6）
                     const kD = 2 * deep5;
@@ -2704,7 +2714,9 @@
                     const aFac = cellObjects5D.map((_, ci) => aOf(ci));
                     let mp = 0, mc = 0;
                     for (let qi = 0; qi < quads5.length; qi++) {
-                        const ci = quads5[qi][0], base = quads5[qi][1], cv = verts[ci], C = cCol[ci], a = aFac[ci];
+                        const ci = quads5[qi][0], base = quads5[qi][1], cv = verts[ci];
+                        const tIn = kI * sm(Math.max(0, Math.min(1, (fDep[qi] - fLo[ci]) / Math.max(fHi[ci] - fLo[ci], 1e-6))));   // この面がその4次元体の中でどれだけ内側か
+                        const C = deepen(cCol[ci], tIn), a = Math.min(0.97, aFac[ci] * (1 + 1.4 * tIn));   // 「奥の胞を濃く」の色・濃さに、さらに内側ぶんを掛ける
                         for (let k = 0; k < 6; k++) {
                             const idx = T5_TRIS[base + k], v = cv[idx], bt = bright(dist[ci][idx]) * (0.72 + 0.28 * nestOf(ci, idx)) * cellLit[ci];   // 面にも入れ子の濃淡を軽く（内側ほど少し暗く）× 4Dライト
                             mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
@@ -6852,6 +6864,12 @@
                 sl.addEventListener('input', e => { deep5 = parseFloat(e.target.value); if (val) val.textContent = Math.round(deep5 * 100) + '%'; try { localStorage.setItem('hypercubeDeep5b', String(deep5)); } catch (_) {} updateMorphingGeometry(animationProgress); requestRender(30); });
                 sl.addEventListener('keydown', e => e.stopPropagation());   // ショートカットのキーと取り合わない
                 sync();
+            })();
+            (function setupInner5() {   // 入れ子の内側を濃く
+                const sl = document.getElementById('inner5-slider'), val = document.getElementById('inner5-val'); if (!sl) return;
+                sl.value = String(inner5); if (val) val.textContent = Math.round(inner5 * 100) + '%';
+                sl.addEventListener('input', e => { inner5 = parseFloat(e.target.value); if (val) val.textContent = Math.round(inner5 * 100) + '%'; try { localStorage.setItem('hypercubeInner5b', String(inner5)); } catch (_) {} updateMorphingGeometry(animationProgress); requestRender(30); });
+                sl.addEventListener('keydown', e => e.stopPropagation());
             })();
             (function setupExplToggles() {   // 説明文を「[説明]」で開閉（パネル・キー設定・表示設定）。中身がプログラムで変わる行（id 付き）と一覧の中身は対象外
                 const ROOTS = ['ui-overlay', 'keycfg-overlay', 'viewcfg-overlay'].map(id => document.getElementById(id)).filter(Boolean); if (!ROOTS.length) return;
