@@ -853,10 +853,15 @@
                 </div>
                 <div class="flex items-center gap-1.5 flex-wrap text-[11px]">
                     <span class="text-amber-300 shrink-0 flex items-center gap-1"><i data-lucide="rotate-3d" class="w-3.5 h-3.5"></i>90°ずつ回す:</span>
-                    <button class="step90-btn px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" data-plane="x" title="X-W 面で90°回す。X軸が中心へ消え、W が X 方向へ出てくる">X-W</button>
-                    <button class="step90-btn px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" data-plane="y" title="Y-W 面で90°回す。Y軸が中心へ消え、W が Y 方向へ出てくる">Y-W</button>
-                    <button class="step90-btn px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" data-plane="z" title="Z-W 面で90°回す。Z軸が中心へ消え、W が Z 方向へ出てくる">Z-W</button>
-                    <span class="text-[10px] text-slate-500">押すたび1つの軸が中心へ消え、W が入れ替わりに出ます（軸表示が自動でON）</span>
+                    <button class="step90-btn px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" data-plane="x" title="X-W 面で90°回す。X軸が中心へ消え、W が X 方向へ出てくる" data-t4="X-W 面で90°回す。X軸が中心へ消え、W が X 方向へ出てくる" data-t5="X-V 面で90°回す。X軸が手前（v の向き）へ消え、V が X 方向へ出てくる" data-l4="X-W" data-l5="X-V">X-W</button>
+                    <button class="step90-btn px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" data-plane="y" title="Y-W 面で90°回す。Y軸が中心へ消え、W が Y 方向へ出てくる" data-t4="Y-W 面で90°回す。Y軸が中心へ消え、W が Y 方向へ出てくる" data-t5="Y-V 面で90°回す。Y軸が手前（v の向き）へ消え、V が Y 方向へ出てくる" data-l4="Y-W" data-l5="Y-V">Y-W</button>
+                    <button class="step90-btn px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" data-plane="z" title="Z-W 面で90°回す。Z軸が中心へ消え、W が Z 方向へ出てくる" data-t4="Z-W 面で90°回す。Z軸が中心へ消え、W が Z 方向へ出てくる" data-t5="Z-V 面で90°回す。Z軸が手前（v の向き）へ消え、V が Z 方向へ出てくる" data-l4="Z-W" data-l5="Z-V">Z-W</button>
+                    <button class="step90-btn d5-only hidden px-2 py-0.5 rounded bg-slate-800 border border-amber-500/40 text-amber-200 hover:bg-slate-700 transition" data-plane="wv" title="W-V 面で90°回す。W が手前（v の向き）へ消え、V が W の向きへ出てくる（3Dでは見え方の奥が入れ替わる）">W-V</button>
+                    <span class="d5-only hidden text-slate-600">|</span>
+                    <button class="step90-btn d5-only hidden px-2 py-0.5 rounded bg-slate-800 border border-violet-500/50 text-violet-200 hover:bg-slate-700 transition" data-plane="xw5" title="X-W 面で90°回す（5次元だけの面）。X軸が w の向きへつぶれ、W が X 方向へ出てくる">X-W</button>
+                    <button class="step90-btn d5-only hidden px-2 py-0.5 rounded bg-slate-800 border border-violet-500/50 text-violet-200 hover:bg-slate-700 transition" data-plane="yw5" title="Y-W 面で90°回す（5次元だけの面）。Y軸が w の向きへつぶれ、W が Y 方向へ出てくる">Y-W</button>
+                    <button class="step90-btn d5-only hidden px-2 py-0.5 rounded bg-slate-800 border border-violet-500/50 text-violet-200 hover:bg-slate-700 transition" data-plane="zw5" title="Z-W 面で90°回す（5次元だけの面）。Z軸が w の向きへつぶれ、W が Z 方向へ出てくる">Z-W</button>
+                    <span class="d5-sub text-[10px] text-slate-500" data-d4="押すたび1つの軸が中心へ消え、W が入れ替わりに出ます（軸表示が自動でON）" data-d5="琥珀＝v が絡む面（押すたび1つの軸が手前へ消え、V が入れ替わりに出る）。紫＝w が絡む5次元だけの面（その軸と W が入れ替わる）。軸表示が自動でON">押すたび1つの軸が中心へ消え、W が入れ替わりに出ます（軸表示が自動でON）</span>
                 </div>
             </section>
                 <details class="sb-sec text-[10px]"><summary class="sb-h cursor-pointer"><i data-lucide="info" class="w-3.5 h-3.5"></i>説明（立方体と超立方体の対応）</summary>
@@ -4881,12 +4886,20 @@
             }
         }
 
-        // 指定の面(X-W/Y-W/Z-W)で +90°（または -90°）だけ、なめらかにカクッと回す。
+        // 指定の面(X-W/Y-W/Z-W。5次元では X-V/Y-V/Z-V と、5次元だけの X-W/Y-W/Z-W/W-V)で +90°（または -90°）だけ、なめらかにカクッと回す。
         // 今の角度を一番近い90°へ寄せてから dir×90° 進めるので、常にきれいな90°刻みの姿勢になる。
         function step90(plane, dir) {
             _prepAxisMove();
             const q = Math.PI / 2;
             let tx = linkAngleX, ty = linkAngleY, tz = soloAngleZW;
+            const I5 = { xw5: 0, yw5: 1, zw5: 2, wv: 3 }[plane];   // 5次元だけの4面（X-W・Y-W・Z-W・W-V）
+            if (I5 !== undefined) {
+                if (!dim5) return;
+                const f5 = getP5(), t5 = f5.slice();
+                t5[I5] = (Math.round(f5[I5] / q) + dir) * q;
+                axisTween = { fx: tx, fy: ty, fz: tz, tx, ty, tz, f5, t5, t: 0, dur: 0.55 };
+                return;
+            }
             if (plane === 'x') tx = (Math.round(linkAngleX / q) + dir) * q;
             else if (plane === 'y') ty = (Math.round(linkAngleY / q) + dir) * q;
             else tz = (Math.round(soloAngleZW / q) + dir) * q;
@@ -5298,6 +5311,10 @@
                 { id: 'step_xw', label: '90°回す X-W', short: '90°XW', def: 'X', run: clickSel('.step90-btn[data-plane="x"]') },
                 { id: 'step_yw', label: '90°回す Y-W', short: '90°YW', def: 'Y', run: clickSel('.step90-btn[data-plane="y"]') },
                 { id: 'step_zw', label: '90°回す Z-W', short: '90°ZW', def: 'Z', run: clickSel('.step90-btn[data-plane="z"]') },
+                { id: 'step_wv5', label: '90°回す W-V（5次元）', short: '90°WV', def: '', run: clickSel('.step90-btn[data-plane="wv"]') },
+                { id: 'step_xw5', label: '90°回す X-W（5次元だけの面）', short: '90°XW5', def: '', run: clickSel('.step90-btn[data-plane="xw5"]') },
+                { id: 'step_yw5', label: '90°回す Y-W（5次元だけの面）', short: '90°YW5', def: '', run: clickSel('.step90-btn[data-plane="yw5"]') },
+                { id: 'step_zw5', label: '90°回す Z-W（5次元だけの面）', short: '90°ZW5', def: '', run: clickSel('.step90-btn[data-plane="zw5"]') },
                 { id: 'spin_xw', label: 'オート回転 X-W', short: 'オートXW', def: '4', run: clickSel('.plane-spin-btn[data-plane="x"]') },
                 { id: 'spin_yw', label: 'オート回転 Y-W', short: 'オートYW', def: '5', run: clickSel('.plane-spin-btn[data-plane="y"]') },
                 { id: 'spin_zw', label: 'オート回転 Z-W', short: 'オートZW', def: '6', run: clickSel('#solo-spin-btn') },
@@ -7305,7 +7322,8 @@
                 const cs = document.getElementById('cube-rot-sec'); if (cs) cs.classList.toggle('hidden', dim5);   // 立方体の欄は5次元モードでは使わない
                 document.querySelectorAll('.d5-sub').forEach(el => el.textContent = dim5 ? el.dataset.d5 : el.dataset.d4);
                 document.querySelectorAll('.d5-only').forEach(el => el.classList.toggle('hidden', !dim5));
-                document.querySelectorAll('[data-t5]').forEach(el => { el.title = dim5 ? el.dataset.t5 : el.dataset.t4; });   // ボタンの説明を4次元／5次元で入れ替え
+                document.querySelectorAll('[data-t5]').forEach(el => { el.title = dim5 ? el.dataset.t5 : el.dataset.t4; });
+                document.querySelectorAll('[data-l5]').forEach(el => { el.textContent = dim5 ? el.dataset.l5 : el.dataset.l4; });   // 90°回す の X-W → X-V など   // ボタンの説明を4次元／5次元で入れ替え
                 if (!dim5 && screenAxis === 'v') screenAxis = 'z';   // 4次元に V は無い
                 document.querySelectorAll('.dim5-toggle').forEach(b => {
                     b.classList.toggle('bg-amber-900/40', dim5); b.classList.toggle('border-amber-500/50', dim5); b.classList.toggle('text-amber-200', dim5);
