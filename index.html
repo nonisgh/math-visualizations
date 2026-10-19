@@ -326,6 +326,18 @@
                     </div>
                 </div>
             </a>
+
+            <a class="card" href="graph4d.html" style="--accent: var(--d5);">
+                <div class="thumb"><svg data-thumb="graph4d" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>複素グラフ 4D</h3><span class="new">NEW</span></div>
+                    <p>x も y も複素数にした y = f(x) を、Re x・Im x・Re y・Im y の4本の軸でできた4次元の面として描きます。4次元のまま回すと軸が消えて別の軸が現れ、複素数の解は全部、床の上の光る点で見えます。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d3">3D</span><span class="dim d4">4D</span></div>
+                        <span class="file">graph4d.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
         </div>
     </section>
 
@@ -474,10 +486,35 @@
             svg.appendChild(el('path', { ...stroke, d: d1, 'stroke-width': 2 }));
         }
 
+        // 複素グラフ 4D: 床（x の複素数平面）の上の鞍の形（y = x² の実部）と、床の上の解（x⁴ + 1 の 4 つ）
+        function drawGraph4d(svg) {
+            const P = (a, b, h) => [32 * a - 14 * b, 10 * a + 9 * b - 22 * h + 6];
+            const line = pts => pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join('');
+            const floor = [P(-1, -1, 0), P(1, -1, 0), P(1, 1, 0), P(-1, 1, 0), P(-1, -1, 0)];
+            svg.appendChild(el('path', { ...stroke, d: line(floor), 'stroke-width': 0.8, opacity: 0.35 }));
+            let d = '';
+            for (let k = 0; k <= 4; k++) {
+                const c = -1 + k / 2, A = [], B = [];
+                for (let i = 0; i <= 24; i++) {
+                    const t = -1 + i / 12;
+                    A.push(P(c, t, (c * c - t * t) * 0.9));
+                    B.push(P(t, c, (t * t - c * c) * 0.9));
+                }
+                d += line(A) + line(B);
+            }
+            svg.appendChild(el('path', { ...stroke, d, 'stroke-width': 1.1, opacity: 0.9 }));
+            [[0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]].forEach(([a, b]) => {
+                const [x, y] = P(a, b, 0);
+                svg.appendChild(el('circle', { cx: x.toFixed(2), cy: y.toFixed(2), r: 4.2, fill: '#a3e635', opacity: 0.25 }));
+                svg.appendChild(el('circle', { cx: x.toFixed(2), cy: y.toFixed(2), r: 1.9, fill: '#d9f99d' }));
+            });
+        }
+
         document.querySelectorAll('svg[data-thumb]').forEach(svg => {
             switch (svg.dataset.thumb) {
                 case 'star':    drawStar(svg, 7, 3, 42); break;
                 case 'graph':   drawGraph(svg); break;
+                case 'graph4d': drawGraph4d(svg); break;
                 case 'cube4':   drawCube(svg, 4, 43, 1.1); break;
                 case 'cube5':   drawCube(svg, 5, 44, 0.7); break;
                 case 'cube6':   drawCube(svg, 6, 45, 0.45); break;
