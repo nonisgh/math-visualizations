@@ -3581,7 +3581,8 @@
         function makeLabelSprite(text, cssColor) {
             const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
             const ctx = cv.getContext('2d');
-            ctx.font = 'italic 42px Georgia, "Times New Roman", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            // z だけは Georgia の斜体だと大文字 Z に見えるので、下がくるっと巻いた小文字らしい z の書体（Hoefler Text 斜体）にする
+            ctx.font = text === 'z' ? 'italic 46px "Hoefler Text", Didot, Georgia, serif' : 'italic 42px Georgia, "Times New Roman", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(2,6,18,0.9)'; ctx.strokeText(text, 32, 34);
             ctx.fillStyle = cssColor; ctx.fillText(text, 32, 34);
             const tex = new THREE.CanvasTexture(cv);
