@@ -1212,6 +1212,20 @@ function reticle(x, y, cols) {
     ctx.restore();
 }
 function ringDot(x, y, color) { reticle(x, y, [color]); }
+// 軸の矢じり（画面の上の三角）：p は先の少し手前、q は先（どちらも [x, y, …]）
+function arrowTip(p, q, color, alpha = 1) {
+    const dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy);
+    if (!(L > 0.5)) return;
+    const ux = dx / L, uy = dy / L, s = 10, w = 4.5;
+    ctx.save();
+    ctx.globalAlpha = alpha; ctx.fillStyle = color; ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(q[0], q[1]);
+    ctx.lineTo(q[0] - ux * s - uy * w, q[1] - uy * s + ux * w);
+    ctx.lineTo(q[0] - ux * s + uy * w, q[1] - uy * s - ux * w);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+}
 // 同じ場所の印は1つにまとめる（原点のように何本も重なる所で、印と光が何重にもならないように）
 function markSet() {
     const list = [];
@@ -2682,6 +2696,8 @@ function draw4D(ex, f) {
     axes.forEach(([, c, e]) => {
         ctx.strokeStyle = hexA(c, 0.55);
         ctx.beginPath(); seg(e.map(v => -v), e); ctx.stroke();
+        const pa = P4(...e.map(v => v * 0.9)), pb = P4(...e);
+        if (pa && pb) { const dw = map4(...e.map(v => v / 1.45)); arrowTip(pa, pb, c, dw ? 0.25 + 0.75 * (1 - Math.min(1, dw[3] * dw[3])) : 0.5); }
     });
 
     // 曲面
@@ -2839,6 +2855,8 @@ function draw3D() {
     }
     ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.4;
     ctx.beginPath(); line([-1.15, 0, 0], [1.15, 0, 0]); line([0, 0, 1.15], [0, 0, -1.15]); ctx.stroke();
+    arrowTip(proj(1.0, 0, 0), proj(1.18, 0, 0), '#94a3b8');     // Re x の +
+    arrowTip(proj(0, 0, -1.0), proj(0, 0, -1.18), '#94a3b8');   // Im x の +（奥）
 
     ctx.font = '500 10.5px Inter, system-ui, sans-serif'; ctx.textBaseline = 'middle';
     for (let t = Math.ceil(-R / step) * step; t <= R + 1e-9; t += step) {
@@ -2943,6 +2961,7 @@ function draw3D() {
     // 縦軸
     ctx.strokeStyle = 'rgba(226,232,240,0.55)'; ctx.lineWidth = 1.2;
     ctx.beginPath(); line([0, -1.5, 0], [0, 1.5, 0]); ctx.stroke();
+    arrowTip(proj(0, 1.35, 0), proj(0, 1.55, 0), 'rgba(226,232,240,0.85)');   // 高さの +
     const ys = niceStep(Yr / 2);
     ctx.font = '500 10.5px Inter, system-ui, sans-serif';
     ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 3;

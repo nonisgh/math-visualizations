@@ -1232,6 +1232,33 @@ const FAT = { real: '#fde047', green: '#4ade80' };
     objs.axes = fatObj(fatGeo(p4, ok, col, dir), mats.axes, 1);
 })();
 
+// 軸の矢じり：+ の向きの端に円すい。4 本目の向きに回るほど小さく薄くなる（軸と一緒に消える）
+const ARROWS = [
+    { d: [1, 0, 0, 0], c: '#ff5d6c' }, { d: [0, 0, -1, 0], c: '#56a8ff' },
+    { d: [0, 1, 0, 0], c: '#3ddc84' }, { d: [0, 0, 0, 1], c: '#b07cff' },
+].map(a => {
+    const m = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.22, 20), new THREE.MeshBasicMaterial({ color: a.c, transparent: true, depthWrite: false, depthTest: false }));
+    m.frustumCulled = false; m.renderOrder = 5;
+    scene.add(m);
+    return { ...a, m };
+});
+const _up = new THREE.Vector3(0, 1, 0);
+function updateArrows() {
+    ARROWS.forEach(a => {
+        a.m.visible = S.show.axes;
+        if (!a.m.visible) return;
+        const L = 1.36, tip = proj4(a.d.map(v => v * L)), back = proj4(a.d.map(v => v * (L - 0.22)));
+        const dir = tip.v.clone().sub(back.v), len = dir.length();
+        const dw = proj4(a.d).w, fade = 1 - Math.min(1, dw * dw);
+        if (len < 1e-4) { a.m.visible = false; return; }
+        a.m.position.copy(tip.v).addScaledVector(dir, -0.5);   // 円すいの中心を、先が軸の端に来る位置へ
+        a.m.quaternion.setFromUnitVectors(_up, dir.clone().normalize());
+        const k = 0.35 + 0.65 * fade;
+        a.m.scale.set(k, len / 0.22, k);
+        a.m.material.opacity = 0.12 + 0.88 * fade;
+    });
+}
+
 // ---------- 式の読み取り ----------
 let cur = null;   // { cf, free, text }
 function analyzeExpr(text) {
@@ -1503,10 +1530,10 @@ function proj4(p) {
 // ---------- ラベル（軸の名前・解の値） ----------
 const labelsEl = $('#labels');
 const AXL = [
-    { t: 'Re x', c: '#ff5d6c', p: [1.42, 0, 0, 0], d: [1, 0, 0, 0] },
-    { t: 'Im x', c: '#56a8ff', p: [0, 0, -1.42, 0], d: [0, 0, -1, 0] },
-    { t: 'Re y', c: '#3ddc84', p: [0, 1.42, 0, 0], d: [0, 1, 0, 0] },
-    { t: 'Im y', c: '#b07cff', p: [0, 0, 0, 1.42], d: [0, 0, 0, 1] },
+    { t: 'Re x', c: '#ff5d6c', p: [1.48, 0, 0, 0], d: [1, 0, 0, 0] },
+    { t: 'Im x', c: '#56a8ff', p: [0, 0, -1.48, 0], d: [0, 0, -1, 0] },
+    { t: 'Re y', c: '#3ddc84', p: [0, 1.48, 0, 0], d: [0, 1, 0, 0] },
+    { t: 'Im y', c: '#b07cff', p: [0, 0, 0, 1.48], d: [0, 0, 0, 1] },
 ];
 let labPool = [];
 function updateLabels() {
@@ -1648,6 +1675,7 @@ function frame(t) {
     if (controls.update()) anim = true;
     if (anim || needRender) {
         updateRot();
+        updateArrows();
         renderer.render(scene, camera);
         updateLabels();
         needRender = false;
