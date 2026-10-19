@@ -3056,6 +3056,7 @@
         let seriPath = 'wv';
         // せり出したら、その形（道のり k・具合 t）を覚えて固定する。リセット・補正でも 0° ではなくこの形へ戻す。「→ しまう」で解除
         let seriHold = null;
+        let _seriSyncHook = null;   // 画面の状態を戻した時に「固定中：…」の文字をそろえる（syncSeriHold を外から呼ぶ口）
         // 固定しているせり出しの角度（PP_ALL の名前ごと・ラジアン）。5次元モードで固定していなければ null
         function seriHoldAngles() {
             if (!dim5 || !seriHold || !(seriHold.t > 0)) return null;
@@ -7644,6 +7645,7 @@
                 return null;
             }
             const syncSeriHold = () => {   // 今の固定を文字で出す
+                _seriSyncHook = syncSeriHold;
                 const el = document.getElementById('seri-hold'); if (!el) return;
                 el.textContent = seriHold
                     ? '固定中：' + SERI_PATHS[seriHold.k].name + '（' + Math.round(seriHold.t * 100) + '%）。リセット・補正でもこの形に戻ります。解除は「しまう」のマス'
@@ -7785,7 +7787,7 @@
                 setAngles6(seriVec(seriPath).map(v => v * t)); xyManualOff = 0;
                 ensureProjection(); updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
-            syncMatrix(); syncSeriHold();
+            syncMatrix(); syncSeriHold(); _seriSyncHook = syncSeriHold;
 
             // ===== 分解：スライダー＝その場で離す量、ボタン＝なめらかにバラす／くっつける、数える＝バラして1個ずつ =====
             const xpSlider = document.getElementById('explode-slider');
@@ -7937,7 +7939,9 @@
 
         // ===== 画面の状態をそのまま覚える（3 秒ごと＋閉じる時）。次に開いた時に同じ画面へ戻す =====
         //   表示モード（どっちも／右上ミニ／大きい方だけ）・パネルの開閉・折りたたみの進み・速さ・ループ・回転の角度（6面＋5次元の4面）・
-        //   回し続けている面・分解・投影・自動ズーム・カメラ（左と右）。スイッチ類の設定はそれぞれ前から保存されている
+        //   回し続けている面・分解・投影・自動ズーム・カメラ（左と右）・線だけ・面透過・座標軸・点固定・時間差・画面に立てる軸・
+        //   5次元の見え方マトリクス（マスと途中）・菱形二十面体・周回／往復の再生中・パネルのスクロール位置・開いている設定の画面。
+        //   そのほかのスイッチ類（色・見え方・タブ・窓の配置など）は前からそれぞれ保存されている
         const SESSION_STORE = 'hypercubeSession';
         let _sessionLast = '';
         function sessionSnapshot() {
@@ -7951,6 +7955,21 @@
                 spins: { linkSpin, soloSpinZW, spinX, spinY, spinXY, spinXZ, spinYZ, spin5XW, spin5YW, spin5ZW, spin5WV },
                 explode: r5(explodeRaw), cubePersp, parallel4D, autoFitZoom,
                 cam2: cam(camera2D, controls2D), cam3: cam(camera3D, controls3D),
+                // スイッチ
+                wire: wireframeOnly, accurate: accurateFaces, axes: showAxes, pin: pinVertex, stagger: enableStagger,
+                screenAxis, lastPreset,
+                // 5 次元：見え方マトリクスのマスと途中の位置・菱形二十面体
+                seri: seriHold ? { k: seriHold.k, t: r5(seriHold.t) } : null, seriPath, rhombi: !!rhombi.on,
+                // 動いている途中のもの（周回・往復）
+                cycle: !!cycleMode, cyclePeriod,
+                pp: pingPong ? { stops: pingPong.pts.map(q => Object.fromEntries(PP_ALL.map((k, i) => [k, +(q[i] * 180 / Math.PI).toFixed(3)]))),
+                    legSec: pingPong.legSec, once: !!pingPong.once, mode: pingPong.mode, labels: pingPong.labels || null } : null,
+                // 画面まわり：パネルのスクロール位置・開いている設定の画面
+                ui: {
+                    scroll: (() => { const p = document.querySelector('.sb-panel'); return p && p.parentElement ? Math.round(p.parentElement.scrollTop) : 0; })(),
+                    keycfg: !document.getElementById('keycfg-overlay').classList.contains('hidden'),
+                    viewcfg: !document.getElementById('viewcfg-overlay').classList.contains('hidden'),
+                },
             };
         }
         function saveSession() {
@@ -7973,6 +7992,23 @@
                 if (!!s.leftFull3D !== leftFull3D) click('left3d-btn');
                 for (let i = 0; i < 4 && s.speed && animSpeedMultiplier !== s.speed; i++) click('speed-btn');
                 if (typeof s.autoFitZoom === 'boolean' && s.autoFitZoom !== autoFitZoom) click('zoom-btn');
+                // スイッチ（線だけ・面透過・座標軸・点固定・時間差）：ボタンを押して合わせる
+                if (typeof s.wire === 'boolean' && s.wire !== wireframeOnly) click(s.wire ? 'view-wire-btn' : 'view-mesh-btn');
+                if (typeof s.accurate === 'boolean' && s.accurate !== accurateFaces) click('xparent-btn');
+                if (typeof s.axes === 'boolean' && s.axes !== showAxes) click('axis-btn');
+                if (typeof s.pin === 'boolean' && s.pin !== pinVertex) click('pin-btn');
+                if (typeof s.stagger === 'boolean' && s.stagger !== enableStagger) click('stagger-btn');
+                // 画面に立てる軸：押すとカメラが動くので、選んだ軸と表示だけ合わせる（カメラは下で戻す）
+                if (typeof s.screenAxis === 'string') {
+                    screenAxis = s.screenAxis;
+                    document.querySelectorAll('.screen-axis-btn').forEach(b => {
+                        const on = b.getAttribute('data-axis') === screenAxis;
+                        b.classList.toggle('bg-sky-900/50', on); b.classList.toggle('border-sky-400/60', on); b.classList.toggle('text-sky-100', on && screenAxis === 'z');
+                        b.classList.toggle('bg-slate-800', !on); b.classList.toggle('border-slate-700', !on);
+                    });
+                }
+                if (typeof s.lastPreset === 'string') lastPreset = s.lastPreset;
+                if (isFinite(s.cyclePeriod)) { cyclePeriod = Math.max(2, Math.min(120, s.cyclePeriod)); const cs = document.getElementById('cycle-sec'); if (cs) cs.value = cyclePeriod; }
                 // 折りたたみの進み・ループ
                 animationMode = 0;
                 if (isFinite(s.prog)) { animationProgress = Math.max(0, Math.min(1, s.prog)); const sl = document.getElementById('unfold-slider'); if (sl) sl.value = animationProgress; }
@@ -7985,6 +8021,15 @@
                     spinXY = !!p.spinXY; spinXZ = !!p.spinXZ; spinYZ = !!p.spinYZ;
                     if (dim5) { spin5XW = !!p.spin5XW; spin5YW = !!p.spin5YW; spin5ZW = !!p.spin5ZW; spin5WV = !!p.spin5WV; }
                     updateSpinBtns(); if (typeof updateLinkUI === 'function') updateLinkUI();
+                }
+                // 5 次元：見え方マトリクスのマスと途中の位置・菱形二十面体
+                if (dim5) {
+                    if (typeof s.seriPath === 'string' && SERI_PATHS[s.seriPath]) seriPath = s.seriPath;
+                    seriHold = (s.seri && SERI_PATHS[s.seri.k] && isFinite(s.seri.t)) ? { k: s.seri.k, t: Math.max(0, Math.min(1, s.seri.t)) } : null;
+                    _axlKey = '';
+                    if (_seriSyncHook) _seriSyncHook();
+                    const ss = document.getElementById('seri-slider'); if (ss) ss.value = seriHold ? Math.round(seriHold.t * 100) : 0;
+                    if (s.rhombi && !rhombi.on) { rhombi.on = true; rhombi.t = 1; rhombi.anim = false; rhombi.pending = false; if (rhombi.sync) rhombi.sync(); }
                 }
                 // 分解・投影
                 if (isFinite(s.explode)) { setExplodeRaw(s.explode); if (typeof syncExplodeUI === 'function') syncExplodeUI(); }
@@ -8000,6 +8045,15 @@
                 };
                 setCam(camera2D, controls2D, s.cam2); setCam(camera3D, controls3D, s.cam3);
                 updateMorphingGeometry(animationProgress);
+                // 動いている途中だったもの：周回・往復をもう一度始める
+                if (s.cycle && !cycleMode) click('cycle-btn');
+                else if (s.pp && Array.isArray(s.pp.stops) && s.pp.stops.length >= 2) startPingPong(s.pp.stops, s.pp.legSec, !!s.pp.once, s.pp.mode || 'pingpong', s.pp.labels || null);
+                // 画面まわり：開いていた設定の画面・パネルのスクロール位置
+                if (s.ui) {
+                    if (s.ui.keycfg) click('keycfg-open');
+                    if (s.ui.viewcfg) click('viewcfg-open');
+                    if (isFinite(s.ui.scroll) && s.ui.scroll > 0) setTimeout(() => { const p = document.querySelector('.sb-panel'); if (p && p.parentElement) p.parentElement.scrollTop = s.ui.scroll; }, 400);
+                }
                 requestRender(60);
             } catch (e) { console.warn('前回の画面を戻せませんでした', e); }
             _sessionLast = JSON.stringify(sessionSnapshot());
