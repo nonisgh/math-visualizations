@@ -240,11 +240,11 @@
         /* 5次元の見え方マトリクス（行＝w、列＝v のつぶす／出す）と、形・向き・投影の選択 */
         .vm-grid { display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px; font-size: 11px; }
         .vm-h { font-size: 10px; color: #94a3b8; align-self: center; white-space: nowrap; }
-        /* ON/OFF の切り替えボタンは iPhone 風のスイッチで見せる（緑＝ON、灰＝OFF）。文字は名前だけ */
-        .ios-sw { position: relative; display: inline-block; width: 28px; height: 16px; border-radius: 9px; background: #475569; transition: background .2s; flex-shrink: 0; margin-left: 6px; vertical-align: middle; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
-        .ios-sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.45); transition: transform .2s; }
-        .ios-sw.on { background: #34c759; }
-        .ios-sw.on::after { transform: translateX(12px); }
+        /* ON/OFF の切り替えボタンは「ダイヤ」のスイッチ：立方体の角のようなひし形が動く。OFF＝灰（左）、ON＝紫（右）。文字は名前だけ */
+        .ios-sw { position: relative; display: inline-block; width: 30px; height: 16px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; box-sizing: border-box; transition: background .2s, border-color .2s; flex-shrink: 0; margin-left: 7px; vertical-align: middle; }
+        .ios-sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 8px; height: 8px; background: #64748b; transform: rotate(45deg); transition: left .2s, background .2s; }
+        .ios-sw.on { border-color: #a855f7; background: #3b1d5c; }
+        .ios-sw.on::after { left: 17px; background: #e9d5ff; }
         button.has-sw { display: inline-flex; align-items: center; }
         .vm-grid > .vm-col { text-align: center; }
         .vm-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 5px 4px; border-radius: 8px;
