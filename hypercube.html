@@ -986,6 +986,14 @@
                     <button id="pal-pair" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="選んでいる枠の色を、同じ軸の反対側（＋と−）にも入れる">±をそろえる</button>
                     <button id="pal-reset" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="パレットを最初の色（軸の色）に戻す">既定に戻す</button>
                 </div>
+                <div class="flex items-center gap-1.5 flex-wrap mt-1.5 text-[10px]">
+                    <span class="text-slate-400">色と見え方を</span>
+                    <button id="col-gh-save" class="px-2 py-0.5 rounded bg-emerald-700/30 border border-emerald-500/40 text-emerald-200 hover:bg-emerald-700/50" title="パレット・補色・目印の色・辺の強調・表示設定などを GitHub（hypercube-colors.json）へ保存。鍵は「GitHub と一括同期」の欄で保存したもの">GitHub へ保存</button>
+                    <button id="col-gh-load" class="px-2 py-0.5 rounded bg-sky-800/30 border border-sky-500/40 text-sky-200 hover:bg-sky-800/50" title="GitHub の hypercube-colors.json から読み込んで、ページを読み込み直す">GitHub から読込</button>
+                    <button id="col-file-save" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700" title="色と見え方の設定を JSON ファイルに書き出す">ファイルに書き出す</button>
+                    <label class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 cursor-pointer" title="書き出した JSON ファイルを読み込んで、ページを読み込み直す">ファイルから読込<input id="col-file-load" type="file" accept=".json,application/json" class="hidden"></label>
+                    <span id="col-sync-st" class="text-slate-500"></span>
+                </div>
                 <div class="flex items-center gap-2 mt-1.5"><button id="pal-comp" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="補色モード：−の色を、＋の色の補色（色相を反対に回した色）に自動で決める。−の枠は選べなくなる">→ 補色モード: ON</button><button id="pal-comp-center" class="px-2 py-0.5 rounded border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" title="中心だけ補色：中心の色を、その図形の蓋の色の補色にする（立方体＝+Z の補色、超立方体＝+W の補色、5次元＝+V の補色）。ほかの −はパレットのまま">→ 中心だけ補色: ON</button></div>
                 <div class="text-[10px] text-slate-500 leading-snug mt-1">枠を選んでから、下の色を押すと変わります。4次元モードでは「4D（超立方体）」と「3D（立方体の面）」、5次元モードでは「5D（5次元体）」と「4D（超立方体）」の列が出ます。各面・胞は向いている方向の色になります（中心と蓋は、3D は ±Z、4D は ±W、5D は ±V）。中心の色もこの表の「中心」の枠で決めます。下の色は色相ごとに 濃・標準・薄 の3段なので、縦に並んだ2つで ±の濃淡ペアが作れます。</div>
             </section>
@@ -6385,6 +6393,19 @@
                     toCSV: () => { try { return (localStorage.getItem('hypercubeFloats') || '{}') + '\n'; } catch (_) { return '{}\n'; } },
                     apply: txt => { let o; try { o = JSON.parse(txt); } catch (_) { throw new Error('JSON が壊れています'); } if (!o || typeof o !== 'object') throw new Error('形式が違います'); try { localStorage.setItem('hypercubeFloats', JSON.stringify(o)); } catch (_) {} ghAllReload = true; return Object.keys(o).length; } },
             ];
+            // 色と見え方の設定（パレット・補色・頂点の目印の色・辺の強調・表示設定・奥を濃く・照り返し・4Dライト・ズームの大きさ・移動パッドなど）を1つの JSON に
+            const COLOR_KEYS = ['hypercubeCellPalette2', 'hypercubePalComp', 'hypercubePalCompCenter', 'hypercubeMarkCol', 'hypercubeFixedMarks', 'hypercubeEdgeHi', 'hypercubeViewCfg',
+                'hypercubeDeep4', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
+                'hypercubePanPad', 'hypercubePanPadPos', 'hypercubeEco', 'hypercubeNumTex', 'hypercubeDiePips', 'hypercubeDieKind'];
+            const COLOR_FILE = 'hypercube-colors.json';
+            const colorsToJSON = () => { const o = {}; COLOR_KEYS.forEach(k => { try { const v = localStorage.getItem(k); if (v !== null) o[k] = v; } catch (_) {} }); return JSON.stringify({ app: 'hypercube', kind: 'colors', v: 1, data: o }, null, 1) + '\n'; };
+            const colorsFromJSON = txt => {
+                let o; try { o = JSON.parse(txt); } catch (_) { throw new Error('JSON が壊れています'); }
+                const d = o && o.data; if (!d || typeof d !== 'object') throw new Error('形式が違います');
+                let n = 0; COLOR_KEYS.forEach(k => { if (typeof d[k] === 'string') { try { localStorage.setItem(k, d[k]); n++; } catch (_) {} } });
+                ghAllReload = true; return n;
+            };
+            GH_ALL.push({ msg: '色と見え方', file: COLOR_FILE, toCSV: colorsToJSON, apply: colorsFromJSON });
             const ghAllSt = (msg, ok) => { const el = document.getElementById('gh-all-status'); if (!el) return; el.textContent = msg; el.className = 'text-[10px] ' + (ok === true ? 'text-emerald-300' : ok === false ? 'text-rose-300' : 'text-slate-400'); };
             async function ghPutFile(file, csv, message) {
                 const api = 'https://api.github.com/repos/' + GH_REPO + '/contents/' + file;
@@ -6415,6 +6436,25 @@
                 else ghAllSt('すべて GitHub へ書き込みました（' + done.join('・') + '）。Pages 反映は1〜2分', true);
                 b.disabled = !ghToken();
             });
+            (function setupColorSync() {   // 色と見え方だけの保存・読込（GitHub とファイル）
+                const st = (m, ok) => { const el = document.getElementById('col-sync-st'); if (el) { el.textContent = m; el.className = ok === false ? 'text-rose-300' : ok ? 'text-emerald-300' : 'text-slate-500'; } };
+                const reload = () => setTimeout(() => location.reload(), 600);
+                const bs = document.getElementById('col-gh-save'); if (bs) bs.addEventListener('click', async () => {
+                    if (!ghToken()) { st('鍵がありません（「GitHub と一括同期」の欄で保存）', false); return; }
+                    st('保存中…'); try { await ghPutFile(COLOR_FILE, colorsToJSON(), COLOR_FILE + ': 色と見え方をアプリから保存'); st('GitHub へ保存しました', true); } catch (e) { st('失敗：' + (e && e.message ? e.message : e), false); }
+                });
+                const bl = document.getElementById('col-gh-load'); if (bl) bl.addEventListener('click', async () => {
+                    st('読込中…'); try { const t = await ghGetFile(COLOR_FILE); if (t == null) { st('まだ保存されていません', false); return; } const n = colorsFromJSON(t); st(n + '件 読み込みました。読み込み直します', true); reload(); } catch (e) { st('失敗：' + (e && e.message ? e.message : e), false); }
+                });
+                const fs = document.getElementById('col-file-save'); if (fs) fs.addEventListener('click', () => {
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([colorsToJSON()], { type: 'application/json' })); a.download = COLOR_FILE; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); st('書き出しました', true);
+                });
+                const fl = document.getElementById('col-file-load'); if (fl) fl.addEventListener('change', async e => {
+                    const f = e.target.files && e.target.files[0]; if (!f) return;
+                    try { const n = colorsFromJSON(await f.text()); st(n + '件 読み込みました。読み込み直します', true); reload(); } catch (err) { st('失敗：' + (err && err.message ? err.message : err), false); }
+                    e.target.value = '';
+                });
+            })();
             document.getElementById('gh-all-load').addEventListener('click', async () => {
                 ghAllSt('一括読込中…'); ghAllReload = false;
                 const done = [], miss = [], fail = [];
@@ -6423,7 +6463,7 @@
                     catch (e) { fail.push(d.msg + '（' + (e && e.message ? e.message : e) + '）'); }
                 }
                 const parts = []; if (done.length) parts.push('読込 ' + done.join('・')); if (miss.length) parts.push('未保存 ' + miss.join('・')); if (fail.length) parts.push('失敗 ' + fail.join('／'));
-                if (ghAllReload) parts.push('ウィンドウ配置は再読み込みで反映されます');
+                if (ghAllReload) parts.push('ウィンドウ配置・色と見え方は再読み込みで反映されます');
                 ghAllSt(parts.join(' ／ ') || '対象なし', fail.length ? false : true);
             });
 
