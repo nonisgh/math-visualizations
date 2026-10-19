@@ -7943,12 +7943,14 @@
         //   5次元の見え方マトリクス（マスと途中）・菱形二十面体・周回／往復の再生中・パネルのスクロール位置・開いている設定の画面。
         //   そのほかのスイッチ類（色・見え方・タブ・窓の配置など）は前からそれぞれ保存されている
         const SESSION_STORE = 'hypercubeSession';
+        // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
+        const APP_BUILD = '20261020-0740';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
             const cam = (c, ctl) => (c && ctl) ? { p: c.position.toArray().map(r5), t: ctl.target.toArray().map(r5), z: r5(c.zoom) } : null;
             return {
-                v: 1,
+                v: 1, build: APP_BUILD,
                 displayMode, panelHidden, leftFull3D,
                 prog: r5(animationProgress), speed: animSpeedMultiplier, loop: animationMode === 2,
                 ang: [linkAngleX, linkAngleY, soloAngleZW, rotXY, rotXZ, rotYZ, p5XW, p5YW, p5ZW, p5WV].map(r5),
@@ -8093,7 +8095,7 @@
             gistBusy = true;
             try {
                 const savedAt = +gistGet(GIST.LOCAL_AT) || Date.now();
-                const content = JSON.stringify({ app: 'hypercube', kind: 'state', v: 1, savedAt, data }, null, 1);
+                const content = JSON.stringify({ app: 'hypercube', kind: 'state', v: 1, build: APP_BUILD, savedAt, data }, null, 1);
                 const id = gistGet(GIST.ID);
                 const body = { description: '次元おりがみ：画面の状態と設定（自動同期）', files: { [GIST.FILE]: { content } } };
                 let r;
@@ -8128,12 +8130,35 @@
             if (!o || o.app !== 'hypercube' || !o.data || typeof o.data !== 'object') throw new Error('形式が違います');
             return o;
         }
-        function gistApply(o) {   // Gist の状態をこのブラウザに入れて、読み直す
-            Object.keys(o.data).forEach(k => { if (k.startsWith('hypercube') && !gistSkip(k) && typeof o.data[k] === 'string') { try { localStorage.setItem(k, o.data[k]); } catch (_) {} } });
+        // 画面の状態（JSON）をまぜる：Gist 側にある項目は Gist の値、Gist 側に無い項目（古い版から上げた時など）は手元の値を残す。
+        // 中の入れ物（spins・ui など）も 1 段だけ同じようにまぜる
+        function gistMergeJSON(localStr, remoteStr) {
+            let a, b;
+            try { a = JSON.parse(localStr || 'null'); b = JSON.parse(remoteStr || 'null'); } catch (_) { return remoteStr; }
+            const plain = x => x && typeof x === 'object' && !Array.isArray(x);
+            if (!plain(a) || !plain(b)) return remoteStr;
+            const out = Object.assign({}, a, b);
+            Object.keys(b).forEach(k => { if (plain(a[k]) && plain(b[k])) out[k] = Object.assign({}, a[k], b[k]); });
+            return JSON.stringify(out);
+        }
+        function gistApply(o) {   // Gist の状態をこのブラウザに入れて、読み直す（Gist に無いキーは、そもそも書きかえない＝手元のまま）
+            Object.keys(o.data).forEach(k => {
+                if (!(k.startsWith('hypercube') && !gistSkip(k) && typeof o.data[k] === 'string')) return;
+                let v = o.data[k];
+                if (k === SESSION_STORE) { try { v = gistMergeJSON(localStorage.getItem(k), v); } catch (_) {} }
+                try { localStorage.setItem(k, v); } catch (_) {}
+            });
             gistSet(GIST.LOCAL_AT, o.savedAt || Date.now());
-            try { sessionStorage.setItem('hypercubeGistApplied', '1'); } catch (_) {}
+            try { sessionStorage.setItem('hypercubeGistApplied', JSON.stringify({ build: o.build || '' })); } catch (_) {}
             _sessionLast = '__skip__';   // 読み直すまで今の画面で上書きしない
             location.reload();
+        }
+        // Gist に上げた端末のアプリの版と、このページの版の違いを、ひとことで
+        function gistBuildNote(b) {
+            if (!b) return '（版の記録が無い古い版から上げた状態なので、足りない項目は手元の値を残しました）';
+            if (b < APP_BUILD) return '（古い版 ' + b + ' から上げた状態なので、足りない項目は手元の値を残しました）';
+            if (b > APP_BUILD) return '（Gist は新しい版 ' + b + ' から上げた状態です。このページを読み直すと新しい版になります）';
+            return '';
         }
         function gistRenderUI() {
             const t = gistGet(GIST.TOKEN), id = gistGet(GIST.ID), auto = gistGet(GIST.AUTO) === '1';
@@ -8189,13 +8214,21 @@
             // 閉じる・隠れる時にも、変わっていれば上げる
             document.addEventListener('visibilitychange', () => { if (document.hidden && gistGet(GIST.AUTO) === '1') gistUpload(false); });
             // 開いた時：Gist の方が新しければ、そちらに合わせる（読み直しは 1 回だけ）
-            let applied = false; try { applied = sessionStorage.getItem('hypercubeGistApplied') === '1'; sessionStorage.removeItem('hypercubeGistApplied'); } catch (_) {}
-            if (applied) { gistLastData = JSON.stringify(gistData()); gistStatus('Gist の新しい状態に合わせました', true); return; }
+            let applied = null;
+            try { const a = sessionStorage.getItem('hypercubeGistApplied'); sessionStorage.removeItem('hypercubeGistApplied'); if (a) applied = a === '1' ? {} : JSON.parse(a); } catch (_) {}
+            if (applied) {
+                gistLastData = JSON.stringify(gistData());
+                gistStatus('Gist の新しい状態に合わせました' + gistBuildNote(applied.build), true);
+                return;
+            }
             if (gistGet(GIST.AUTO) === '1' && gistGet(GIST.TOKEN) && gistGet(GIST.ID)) {
                 gistFetch().then(o => {
                     const localAt = +gistGet(GIST.LOCAL_AT) || 0;
                     if (o && o.savedAt > localAt + 2000) { gistStatus('Gist の方が新しいので合わせます…'); gistApply(o); }
-                    else { gistLastData = o ? JSON.stringify(o.data) : ''; gistStatus('同期しています（' + (Math.max(10, +gistGet(GIST.EVERY) || 60)) + ' 秒ごと）', true); }
+                    else {
+                        gistLastData = o ? JSON.stringify(o.data) : '';
+                        gistStatus('同期しています（' + (Math.max(10, +gistGet(GIST.EVERY) || 60)) + ' 秒ごと）' + (o && o.build && o.build > APP_BUILD ? gistBuildNote(o.build) : ''), true);
+                    }
                 }).catch(e => gistStatus('Gist を確かめられませんでした：' + (e && e.message ? e.message : e), false));
             }
         }
