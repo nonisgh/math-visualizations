@@ -3021,8 +3021,13 @@
             const ag = root && root.getObjectByName('Axis5D');
             if (ag) {
                 ag.visible = showAxes;
+                if (showAxes) {   // 5次元の画面は超立方体のカメラの視点を写すので、先に合わせてから見切れを調べる
+                    camera5D.position.copy(camera3D.position); camera5D.quaternion.copy(camera3D.quaternion); camera5D.up.copy(camera3D.up);
+                    if (camera5D.fov !== camera3D.fov) { camera5D.fov = camera3D.fov; camera5D.updateProjectionMatrix(); }
+                    axisFitPrep(root, camera5D);
+                }
                 if (showAxes) axis5.forEach((o, i) => {
-                    const tip = project5(rotate5(AXES_5D[i].v.map(c => c * AXIS_LEN)), pb);
+                    const tip = fitTip(project5(rotate5(AXES_5D[i].v.map(c => c * AXIS_LEN)), pb), root, camera5D);   // 見切れる時だけ短く
                     const pa = o.line.geometry.attributes.position;
                     pa.array[0] = 0; pa.array[1] = 0; pa.array[2] = 0; pa.array[3] = tip[0]; pa.array[4] = tip[1]; pa.array[5] = tip[2]; pa.needsUpdate = true;
                     const len = Math.hypot(tip[0], tip[1], tip[2]);
@@ -3954,6 +3959,28 @@
             return { near: rot3DLeft(n[0], n[1], n[2]), far: rot3DLeft(f[0], f[1], f[2]) };   // 3D回転にも追従
         }
 
+        // 座標軸が画面から見切れる時は、その軸だけ一時的に短くして、矢じりと名前（x・y・z…）が画面に入るようにする。
+        //   名前の位置（先端の 1.2 倍）が画面の内側に入る長さを二分探索。上は札（「右: 4D展開図…」）、下は回転のバーが重なるので、
+        //   上下は少し広めに空ける（左右 6%・上 10%・下 13%）。矢じりの大きさ・形はそのまま。
+        //   原点そのものが画面の外のとき（大きくズームして動かしたとき）は、短くしても入らないので元の長さのまま
+        const _fitV = new THREE.Vector3();
+        function axisFitScale(tip, root, cam) {
+            if (!root || !cam) return 1;
+            const inView = (k, mx, myTop, myBot) => {
+                _fitV.set(tip[0] * k, tip[1] * k, tip[2] * k); root.localToWorld(_fitV); _fitV.project(cam);
+                return _fitV.z < 1 && Math.abs(_fitV.x) <= mx && _fitV.y <= myTop && _fitV.y >= -myBot;
+            };
+            const MX = 0.88, MT = 0.8, MB = 0.74, LK = 1.2;
+            if (!inView(0, 1, 1, 1)) return 1;
+            if (inView(LK, MX, MT, MB)) return 1;
+            let lo = 0.2, hi = 1;
+            if (!inView(lo * LK, MX, MT, MB)) return lo;
+            for (let it = 0; it < 12; it++) { const m = (lo + hi) / 2; if (inView(m * LK, MX, MT, MB)) lo = m; else hi = m; }
+            return lo;
+        }
+        const fitTip = (tip, root, cam) => { const k = axisFitScale(tip, root, cam); return k < 1 ? [tip[0] * k, tip[1] * k, tip[2] * k] : tip; };
+        function axisFitPrep(root, cam) { if (root) root.updateMatrixWorld(); if (cam) cam.updateMatrixWorld(); }
+
         function updateAxisGnomon(progress) {
             updateFixedMarks(progress);   // 既定のピンク・エメラルドは軸の表示と関係なく更新
             updateLeftAxisGnomon();   // 左も先に更新（OFF時にも visible=false を確実に反映させる）
@@ -3963,8 +3990,9 @@
             group.visible = showAxes;
             if (!showAxes) return;
             if (progress === undefined) progress = animationProgress;
+            axisFitPrep(root3D, camera3D);
             AXES_4D.forEach((ax, i) => {
-                const tip = rotated4DAxis([ax.v[0] * AXIS_LEN, ax.v[1] * AXIS_LEN, ax.v[2] * AXIS_LEN, ax.v[3] * AXIS_LEN]);
+                const tip = fitTip(rotated4DAxis([ax.v[0] * AXIS_LEN, ax.v[1] * AXIS_LEN, ax.v[2] * AXIS_LEN, ax.v[3] * AXIS_LEN]), root3D, camera3D);   // 見切れる時だけ短く
                 const pa = axisLines[i].geometry.attributes.position;
                 pa.array[0] = 0; pa.array[1] = 0; pa.array[2] = 0;
                 pa.array[3] = tip[0]; pa.array[4] = tip[1]; pa.array[5] = tip[2];
@@ -4022,9 +4050,10 @@
             if (!showAxes) return;
             const zwArrowOn = zwViz.wArrow && zwLink && Math.abs(wrapPi(soloAngleZW)) > 0.003;
             const zk = zwArrowOn ? Math.cos(soloAngleZW) : 1;   // z が w へ移った分だけ z の矢印を縮める（90°で0、180°で反対向き）
+            axisFitPrep(root2D, camera2D);
             AXES_3D.forEach((ax, i) => {
                 const L = AXIS_LEN * (i === 2 ? zk : 1);
-                const tip = rotatedLeftAxis([ax.v[0] * L, ax.v[1] * L, ax.v[2] * L]);
+                const tip = fitTip(rotatedLeftAxis([ax.v[0] * L, ax.v[1] * L, ax.v[2] * L]), root2D, camera2D);   // 見切れる時だけ短く
                 const pa = axisLinesL[i].geometry.attributes.position;
                 pa.array[0] = 0; pa.array[1] = 0; pa.array[2] = 0;
                 pa.array[3] = tip[0]; pa.array[4] = tip[1]; pa.array[5] = tip[2];
@@ -7944,7 +7973,7 @@
         //   そのほかのスイッチ類（色・見え方・タブ・窓の配置など）は前からそれぞれ保存されている
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-0740';
+        const APP_BUILD = '20261020-0752';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
