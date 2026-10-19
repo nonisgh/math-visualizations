@@ -935,7 +935,7 @@
                         <i data-lucide="layers-3" class="w-3.5 h-3.5"></i>
                         <span id="deep4-text" class="text-[11px]">→ 奥を濃く(4D): ON</span>
                     </button>
-                    <button id="shine-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="照り返しライト：透き通ったプラスチックに光が映り込むような見た目。左上・手前の主光と、右うしろ上の逆光の2つで、面の向きごとに小さく鋭い照り返しが出る（明るくするのではない）。立体感と胞の並び（どっちを向いている胞か）が分かりやすい。立方体・超立方体・5次元体のすべてに効く">
+                    <button id="shine-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 rounded-xl hover:bg-slate-700 transition text-xs" title="照り返しライト：面が光を受けてキラッと光るところ（照り返し）を強める。全体は明るくしない。白い主光（左上・手前）と逆光（右うしろ上）も足すので、面の向きごとにキラッと光る場所が変わる。立体感と胞の並び（どっちを向いている胞か）が分かりやすい。立方体・超立方体・5次元体のすべてに効く">
                         <i data-lucide="sun" class="w-3.5 h-3.5"></i>
                         <span id="shine-text" class="text-[11px]">→ 照り返しライト: ON</span>
                     </button>
@@ -2505,16 +2505,16 @@
         const T5_EDGES = [];
         for (let v = 0; v < 16; v++) for (let d = 0; d < 4; d++) if (!(v & (1 << d))) T5_EDGES.push([v, v | (1 << d)]);
         let cellObjects5D = [];
-        // 照り返しライト（モード）：透き通ったプラスチックに光が映り込むような見た目。明るくするのではなく、小さく鋭い白い照り返しだけを足す。
-        //   光源は2つ：主光（見ている人の左上・手前、白）と、逆光（右うしろ上、少し青みの白）＝縁が光って立体感が出る。
-        //   透明な面でも照り返しが薄まらないよう、照り返しの強さぶんだけ不透明度を上げる（シェーダー uShine）。既定 OFF
+        // 照り返しライト（モード）：いつもの見た目で面が光を受けて「キラッ」と光るところ（鏡面反射）を強める。全体を明るくはしない。
+        //   いつもの2つの光（青・紫）に、白い主光（左上・手前）と逆光（右うしろ上）を足し、面を少しなめらかにして照り返しを鋭く。
+        //   シェーダー uShine で鏡面反射を色そのまま＋白で約3倍に強め、照り返しのところだけ不透明にする（透明な面でもキラッと見える）。既定 OFF
         let shineOn = false; try { shineOn = localStorage.getItem('hypercubeShine') === '1'; } catch (_) {}
         const shineLights = [], shineAmbients = [];   // { light, scene, cam:()=>camera, tgt:()=>Vector3 } / AmbientLight
         const _shR = new THREE.Vector3(), _shU = new THREE.Vector3(), _shT = new THREE.Vector3();
         const shineU = { value: 0 };   // 照り返しの強さぶん不透明度を上げる（1＝ON）
         function addShineLight(scene, camFn, tgtFn) {
-            const K = new THREE.PointLight(0xffffff, 1.1, 0); K.visible = shineOn; scene.add(K);    // 主光：左上・手前
-            const R = new THREE.PointLight(0xdbeafe, 0.9, 0); R.visible = shineOn; scene.add(R);    // 逆光：右うしろ上（縁が光る）
+            const K = new THREE.PointLight(0xffffff, 1.0, 0); K.visible = shineOn; scene.add(K);    // 主光：左上・手前
+            const R = new THREE.PointLight(0xdbeafe, 0.8, 0); R.visible = shineOn; scene.add(R);    // 逆光：右うしろ上（縁が光る）
             shineLights.push({ light: K, cam: camFn, tgt: tgtFn, kind: 'key' }, { light: R, cam: camFn, tgt: tgtFn, kind: 'rim' });
         }
         function patchShine(m) {   // 材質のシェーダーに「照り返しのところは不透明に」を足す（1回だけ）
@@ -2525,7 +2525,7 @@
                 if (prev) prev.call(this, sh, r);
                 sh.uniforms.uShine = shineU;
                 sh.fragmentShader = 'uniform float uShine;\n' + sh.fragmentShader.replace('gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
-                    'float shSp = max(max(reflectedLight.directSpecular.r, reflectedLight.directSpecular.g), reflectedLight.directSpecular.b);\n\tgl_FragColor = vec4( outgoingLight, clamp( diffuseColor.a + uShine * shSp * 1.6, 0.0, 1.0 ) );');
+                    'vec3 shS = reflectedLight.directSpecular; float shSp = max(max(shS.r, shS.g), shS.b);\n\tgl_FragColor = vec4( outgoingLight + uShine * (shS * 3.0 + vec3(shSp * 2.6)), clamp( diffuseColor.a + uShine * shSp * 3.0, 0.0, 1.0 ) );');
             };
             m.needsUpdate = true;
         }
@@ -2543,7 +2543,7 @@
         }
         function applyShine() {   // 光の ON/OFF と、面の材質のつや（ざらつき・金属っぽさ）
             shineLights.forEach(o => { o.light.visible = shineOn; });
-            shineAmbients.forEach(a => { a.intensity = shineOn ? 0.75 : 0.9; });   // 明るくしすぎない（光を足すぶん少しだけ下げる）
+            shineAmbients.forEach(a => { a.intensity = shineOn ? 0.8 : 0.9; });   // 全体は明るくしない（光を足すぶん少しだけ下げる）
             shineU.value = shineOn ? 1 : 0;
             const mats = [];
             cellObjects3D.forEach(c => mats.push(c.material)); faceObjects2D.forEach(f => mats.push(f.material)); cellObjects5D.forEach(c => c.material && mats.push(c.material));
@@ -2553,7 +2553,7 @@
                 if (m.userData.shine0 === undefined) m.userData.shine0 = [m.roughness, m.metalness];
                 patchShine(m);
                 const [r0, m0] = m.userData.shine0;
-                m.roughness = shineOn ? 0.035 : r0; m.metalness = shineOn ? 0 : m0;   // つるつる（小さく鋭い照り返し）・金属感なし＝プラスチック
+                m.roughness = shineOn ? r0 * 0.8 : r0; m.metalness = m0;   // いつもの材質のまま、少しなめらかに＝キラッが鋭く小さく
             });
             requestRender(30);
         }
