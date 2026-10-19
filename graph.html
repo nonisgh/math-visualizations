@@ -351,7 +351,7 @@
         <div class="hsel" id="hsel" hidden>
             <span class="hlab">高さ</span><button type="button" data-h="re">Re y</button><button type="button" data-h="im">Im y</button><button type="button" data-h="abs">|y|</button><button type="button" data-h="4d" title="4次元のまま回して、4本目の軸の遠近で歪ませて立体に落とす">4D</button>
             <span class="hsep"></span><button type="button" data-t="surf">曲面</button><button type="button" data-t="floor">床</button>
-            <span class="hsep"></span><button type="button" id="viewRe" title="Re x の方向を正面に（x が実数の普通のグラフ）">正面</button><button type="button" id="viewIm" title="90° 回して Im x の方向を正面に（x が純虚数の所に隠れたグラフ）">90° 回す</button>
+            <span class="hsep"></span><button type="button" id="viewRe" title="Re x の方向を正面に（x が実数の普通のグラフ）">正面</button><button type="button" id="viewIm" title="90° 回して Im x の方向を正面に（x が純虚数の所に隠れたグラフ）">90° 回す</button><button type="button" class="open4d" title="three.js の 4D ビューで開く（4 本の軸を回して消す・複素数の解を全部見る）">4D ビュー ↗</button>
             <span class="h4" id="h4" hidden>
                 <label>θ<input type="range" id="h4th" min="0" max="360" step="1"></label>
                 <label>φ<input type="range" id="h4ph" min="0" max="360" step="1"></label>
@@ -361,7 +361,7 @@
         </div>
         <div class="hsel" id="rsel" hidden>
             <span class="hlab">x の向き</span><input type="range" id="rotA" min="0" max="360" step="1"><span class="rotv" id="rotV">0°</span>
-            <button type="button" data-ra="0">実軸 0°</button><button type="button" data-ra="90">虚軸 90°</button><button type="button" data-ra="180">180°</button><button type="button" id="rotSpin">回す</button>
+            <button type="button" data-ra="0">実軸 0°</button><button type="button" data-ra="90">虚軸 90°</button><button type="button" data-ra="180">180°</button><button type="button" id="rotSpin">回す</button><button type="button" class="open4d" title="three.js の 4D ビューで開く（4 本の軸を回して消す・複素数の解を全部見る）">4D ビュー ↗</button>
         </div>
         <div class="gbtns">
             <button type="button" id="rotBtn" title="x を複素数の向きに回す（普通のグラフのまま 4 次元を見る）">∠</button>
@@ -394,6 +394,7 @@
                 x 以外の文字（n, a など）は自動でスライダーになります。<b>y</b> は縦の座標、<b>i</b> は虚数単位です。<br>
                 <code>y+25=x^2</code> のように = を使った式や、<code>x^2+y^2=r</code> のような陰関数も描けます（先頭の <code>y=</code> は付けたままでも OK、X・Y の大文字も可）。<br>
                 各式の下に「解」を複素数まで表示します。右上の <b>ℂ</b> で複素数平面に切り替えると、解の位置と値の色分けが見られます（解の行をタップでも移動）。<br>
+                <b>4D ビュー ↗</b>（3D・∠ の時の上のボタン）で、three.js の 4D ビューが開きます。4 本の軸を 4 次元のまま回して消したり、複素数の解を全部光る点で見られます。<br>
                 <b>3D</b> は x と y を両方複素数にした4次元を、床＝x（実軸・虚軸）、高さ＝y の実部、色＝y の虚部で表示します。<span style="color:#fde047">黄＝普通のグラフ</span>、<span style="color:#4ade80">緑＝x が複素数でも y が実数になる所</span>、●＝解（グラフと同じ色）。上のボタンで曲面・床をオンオフ、ドラッグで回転、ホイール／ピンチで範囲を変更。<br>
                 Σ は <code>Σ(k=0,n, 式)</code>、階乗は <code>(2k+1)!</code>、× は省略できます（<code>2x</code>, <code>3sin(x)</code>）。<br>
                 ^ を打たなくても、1 文字の変数のすぐ後の数字は指数になります（<code>x2</code> → x²、<code>3x2-2x</code> → 3x²−2x、<code>a10</code> → a¹⁰）。ただし <b>e と i は除く</b>（<code>e2</code> は e×2、<code>i2</code> は i×2）、小数も除く（<code>x2.5</code> は x×2.5）。指数が式の時は今まで通り <code>x^(2k+1)</code>、<code>e^x</code>。<br>
@@ -3107,6 +3108,15 @@ document.querySelectorAll('#hsel button[data-t]').forEach(b => b.addEventListene
     const k = b.dataset.t; d3[k] = d3[k] === false; syncModeUI(); requestDraw(); save();
 }));
 $('#colorBtn').addEventListener('click', () => { colorOn = !colorOn; syncModeUI(); requestDraw(); save(); });
+// three.js の 4D ビュー（graph4d.html）へ、いま選んでいる式とパラメータを渡して開く
+document.querySelectorAll('.open4d').forEach(b => b.addEventListener('click', () => {
+    const ex = colorTarget() || exprs.find(e => e.visible && !isBlank(e.text));
+    if (!ex) return;
+    const used = {};
+    (ex.free || []).forEach(n => { if (params[n]) used[n] = params[n]; });
+    save();
+    location.href = 'graph4d.html#e=' + encodeURIComponent(ex.text) + (Object.keys(used).length ? '&p=' + encodeURIComponent(JSON.stringify(used)) : '');
+}));
 $('#rotBtn').addEventListener('click', () => { xRot.on = !xRot.on; if (!xRot.on) { xRot.spin = false; rotTween = null; } syncRotUI(); requestDraw(); save(); });
 $('#rotA').addEventListener('input', () => { rotTween = null; xRot.a = +$('#rotA').value; syncRotUI(); requestDraw(); saveSoon(); });
 document.querySelectorAll('#rsel button[data-ra]').forEach(b => b.addEventListener('click', () => {

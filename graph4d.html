@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>複素グラフ 4D</title>
+<link rel="icon" type="image/svg+xml" href="icons/graph.svg">
+<link rel="apple-touch-icon" href="icons/graph-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#030712">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+    :root {
+        --bg: #030712; --card: rgba(9, 14, 28, 0.88); --line: #1e293b; --text: #e2e8f0; --muted: #94a3b8; --faint: #64748b;
+        --lime: #a3e635; --rex: #ff5d6c; --imx: #56a8ff; --rey: #3ddc84; --imy: #b07cff;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, 'Hiragino Sans', sans-serif; overflow: hidden; }
+    #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+    #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+    .lab { position: absolute; transform: translate(-50%, -50%); font: 700 12px Inter, system-ui, sans-serif; white-space: nowrap; text-shadow: 0 0 6px #000, 0 0 2px #000; }
+    .lab.root { font: 600 11px ui-monospace, 'SF Mono', Menlo, monospace; color: #ecfccb; transform: translate(10px, -130%); }
+    .lab.root.hot { color: var(--lime); font-size: 13px; }
+
+    .top {
+        position: fixed; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        padding: 10px 14px; padding-top: max(10px, env(safe-area-inset-top));
+        background: linear-gradient(to bottom, rgba(3, 7, 18, 0.92), rgba(3, 7, 18, 0));
+    }
+    .back { color: var(--faint); text-decoration: none; font-size: 13px; }
+    .back:hover { color: var(--text); }
+    h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: 0.02em; }
+    h1 b { color: var(--imy); }
+    .eq { display: flex; align-items: center; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; height: 36px; flex: 1 1 260px; max-width: 460px; }
+    .eq span { font: italic 500 15px 'Times New Roman', serif; color: var(--muted); }
+    .eq input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--text); font: 500 15px ui-monospace, 'SF Mono', Menlo, monospace; }
+    select { height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 0 8px; font-size: 13px; max-width: 280px; }
+    .err { position: fixed; left: 14px; top: 60px; color: #fb7185; font-size: 12px; background: var(--card); border: 1px solid #4c0519; border-radius: 8px; padding: 4px 10px; }
+    .err[hidden] { display: none; }
+
+    .panel-btn {
+        position: fixed; right: 12px; top: 58px; width: 40px; height: 40px; border-radius: 12px; z-index: 3;
+        border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 18px; cursor: pointer;
+    }
+    .panel {
+        position: fixed; right: 12px; top: 106px; bottom: 12px; width: 300px; overflow-y: auto; z-index: 2;
+        background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px 14px;
+        backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    }
+    .panel[hidden] { display: none; }
+    .panel section { padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .panel section:last-child { border-bottom: 0; }
+    .panel h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; display: flex; justify-content: space-between; }
+    .plane { display: grid; grid-template-columns: 1fr 34px; gap: 2px 8px; align-items: center; margin-bottom: 8px; }
+    .plane .nm { font-size: 12px; }
+    .plane .nm small { color: var(--faint); }
+    .plane input[type=range] { grid-column: 1; width: 100%; accent-color: var(--imy); }
+    .plane button { grid-row: 1 / span 2; grid-column: 2; }
+    .btn {
+        height: 30px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--muted);
+        font-size: 12px; cursor: pointer; padding: 0 10px;
+    }
+    .btn:hover { color: var(--text); border-color: #334155; }
+    .btn.on { color: #e9d5ff; border-color: var(--imy); background: rgba(76, 29, 149, 0.45); }
+    .btn.lime.on { color: #ecfccb; border-color: var(--lime); background: rgba(63, 98, 18, 0.5); }
+    .views { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .views .btn { height: auto; min-height: 34px; padding: 5px 8px; text-align: left; line-height: 1.3; }
+    .views .btn small { display: block; color: var(--faint); font-size: 10.5px; }
+    .seg { display: flex; gap: 4px; flex-wrap: wrap; }
+    .row { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+    .row input[type=range] { flex: 1; accent-color: var(--lime); }
+    .row .v { font: 500 12px ui-monospace, Menlo, monospace; color: var(--text); min-width: 36px; text-align: right; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+        font: 500 12px ui-monospace, 'SF Mono', Menlo, monospace; color: #ecfccb; cursor: pointer;
+        border: 1px solid rgba(163, 230, 53, 0.4); background: rgba(63, 98, 18, 0.25); border-radius: 999px; padding: 3px 10px;
+    }
+    .chip:hover, .chip.hot { border-color: var(--lime); color: #fff; background: rgba(101, 163, 13, 0.45); }
+    .note { font-size: 11px; color: var(--faint); margin-top: 6px; line-height: 1.5; }
+    .param { margin-bottom: 6px; }
+    .legend {
+        position: fixed; left: 12px; bottom: 12px; max-width: min(640px, calc(100% - 340px)); z-index: 1;
+        background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px;
+        font-size: 11.5px; color: var(--muted); line-height: 1.6; pointer-events: none;
+    }
+    .legend i { font-style: normal; font-weight: 700; }
+    @media (max-width: 760px) {
+        .panel { left: 12px; right: 12px; width: auto; top: auto; max-height: 55vh; }
+        .legend { max-width: calc(100% - 76px); font-size: 10.5px; }
+        .panel-btn { top: auto; bottom: 12px; }
+    }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="labels"></div>
+<header class="top">
+    <a class="back" href="graph.html">← グラフ電卓</a>
+    <h1>複素グラフ <b>4D</b></h1>
+    <label class="eq"><span>y =</span><input id="expr" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="x^2+1"></label>
+    <select id="preset"><option value="">例を読み込む…</option></select>
+</header>
+<div class="err" id="err" hidden></div>
+<button class="panel-btn" id="panelBtn" type="button" title="パネルの表示／非表示">⚙</button>
+<aside class="panel" id="panel">
+    <section>
+        <h3>4 次元の回転 <button class="btn" id="spinAll" type="button">回す</button></h3>
+        <div id="planes"></div>
+        <div class="row">速さ<input type="range" id="speed" min="0.1" max="3" step="0.05"><span class="v" id="speedV"></span></div>
+    </section>
+    <section>
+        <h3>見え方（軸を消す）</h3>
+        <div class="views" id="views"></div>
+    </section>
+    <section>
+        <h3>解（y = 0）<span id="rootCount"></span></h3>
+        <div class="chips" id="roots"></div>
+        <div class="row"><button class="btn" id="fitRoots" type="button">解が全部入る範囲にする</button></div>
+        <div class="note">解は x の複素数平面（床）の上の光る点。どの向きに回しても見えるように、いちばん手前に描きます。</div>
+    </section>
+    <section id="paramSec" hidden>
+        <h3>パラメータ</h3>
+        <div id="params"></div>
+    </section>
+    <section>
+        <h3>色</h3>
+        <div class="seg" id="colors">
+            <button class="btn" type="button" data-c="w">消えた軸（4 本目）</button>
+            <button class="btn" type="button" data-c="arg">y の向き（偏角）</button>
+            <button class="btn" type="button" data-c="abs">|y| の大きさ</button>
+        </div>
+    </section>
+    <section>
+        <h3>表示</h3>
+        <div class="seg" id="shows">
+            <button class="btn" type="button" data-s="surf">曲面</button>
+            <button class="btn" type="button" data-s="grid">格子</button>
+            <button class="btn" type="button" data-s="floor">床</button>
+            <button class="btn" type="button" data-s="axes">軸</button>
+            <button class="btn" type="button" data-s="real">黄の線</button>
+            <button class="btn" type="button" data-s="green">緑の線</button>
+        </div>
+        <div class="row">範囲<input type="range" id="range" min="0.5" max="12" step="0.1"><span class="v" id="rangeV"></span></div>
+        <div class="row">歪み<input type="range" id="persp" min="0" max="1" step="0.01"><span class="v" id="perspV"></span></div>
+    </section>
+</aside>
+<div class="legend" id="legend"></div>
+
+<script>
+(() => {
+'use strict';
+
+// ===== ここから下はグラフ電卓（graph.html）の式の読み取り・複素数の計算と同じ =====
+// ==== PARSER START ====
+// ---------- 数学関数 ----------
+const FACT = [1];
+for (let i = 1; i <= 170; i++) FACT[i] = FACT[i - 1] * i;
+
+function gamma(z) {
+    if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+    z -= 1;
+    const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313,
+        -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5050632385208166e-7];
+    let x = c[0];
+    for (let i = 1; i < 9; i++) x += c[i] / (z + i);
+    const t = z + 7.5;
+    return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
+}
+function factorial(n) {
+    if (Number.isInteger(n)) return n < 0 ? NaN : (n > 170 ? Infinity : FACT[n]);
+    return gamma(n + 1);
+}
+
+const FUNCS = {
+    sin: Math.sin, cos: Math.cos, tan: Math.tan,
+    sec: x => 1 / Math.cos(x), csc: x => 1 / Math.sin(x), cot: x => 1 / Math.tan(x),
+    asin: Math.asin, acos: Math.acos, atan: Math.atan,
+    arcsin: Math.asin, arccos: Math.acos, arctan: Math.atan,
+    sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh,
+    asinh: Math.asinh, acosh: Math.acosh, atanh: Math.atanh,
+    exp: Math.exp, ln: Math.log, log: Math.log10,
+    sqrt: Math.sqrt, cbrt: Math.cbrt, abs: Math.abs, sign: Math.sign,
+    floor: Math.floor, ceil: Math.ceil, round: Math.round,
+    max: Math.max, min: Math.min, gamma: gamma,
+};
+const VARIADIC = new Set(['max', 'min']);
+const NAMES = [...Object.keys(FUNCS), 'sum', 'prod', 'pi'].sort((a, b) => b.length - a.length);
+const UNI = { '×': '*', '·': '*', '∙': '*', '÷': '/', '−': '-', '–': '-' };
+
+function ParseError(msg) { const e = new Error(msg); e.isParse = true; return e; }
+
+// ---------- 字句解析 ----------
+function tokenize(s) {
+    const t = [];
+    let i = 0;
+    while (i < s.length) {
+        let ch = s[i];
+        if (/\s/.test(ch)) { i++; continue; }
+        if (UNI[ch]) ch = UNI[ch];
+        if (/[0-9.]/.test(ch)) {
+            let j = i;
+            while (j < s.length && /[0-9.]/.test(s[j])) j++;
+            const raw = s.slice(i, j);
+            if (!/^(\d+\.?\d*|\.\d+)$/.test(raw)) throw ParseError(`数の書き方が変です: ${raw}`);
+            t.push({ k: 'num', v: parseFloat(raw), raw });
+            i = j; continue;
+        }
+        if (ch === '²' || ch === '³') {
+            t.push({ k: 'op', v: '^' }, { k: 'num', v: ch === '²' ? 2 : 3, raw: ch === '²' ? '2' : '3' });
+            i++; continue;
+        }
+        if (ch === 'π') { t.push({ k: 'id', v: 'pi' }); i++; continue; }
+        if (ch === 'Σ' || ch === '∑') { t.push({ k: 'fn', v: 'sum' }); i++; continue; }
+        if (ch === 'Π' || ch === '∏') { t.push({ k: 'fn', v: 'prod' }); i++; continue; }
+        if (ch === '√') { t.push({ k: 'fn', v: 'sqrt' }); i++; continue; }
+        if (ch === '∛') { t.push({ k: 'fn', v: 'cbrt' }); i++; continue; }
+        if (/[a-zA-Zα-ωΑ-Ω]/.test(ch)) {
+            const low = s.slice(i, i + 8).toLowerCase();
+            const m = NAMES.find(nm => low.startsWith(nm));
+            if (m) {
+                t.push(m === 'pi' ? { k: 'id', v: 'pi' } : { k: 'fn', v: m });
+                i += m.length; continue;
+            }
+            const v = ch === 'X' ? 'x' : ch === 'Y' ? 'y' : ch;
+            t.push({ k: 'id', v });
+            i++;
+            // ^ を打たない書き方：1 文字の変数のすぐ後の数字は指数（x2 → x²、a10 → a¹⁰）
+            // e と i は除く（e2x・3i2 などが紛らわしいので、そのまま掛け算）。小数（x2.5）も除く。関数名は上で先に読むので関係しない
+            if (v !== 'e' && v !== 'i' && /[0-9]/.test(s[i] || '')) {
+                let j = i;
+                while (j < s.length && /[0-9]/.test(s[j])) j++;
+                if (s[j] !== '.') {
+                    const raw = s.slice(i, j);
+                    t.push({ k: 'op', v: '^' }, { k: 'num', v: parseFloat(raw), raw });
+                    i = j;
+                }
+            }
+            continue;
+        }
+        if ('+-*/^(),=!|'.includes(ch)) { t.push({ k: 'op', v: ch }); i++; continue; }
+        throw ParseError(`使えない文字です: ${ch}`);
+    }
+    return t;
+}
+
+// ---------- 構文解析 ----------
+function parse(src) {
+    const toks = tokenize(src);
+    let p = 0;
+    const isOp = v => p < toks.length && toks[p].k === 'op' && toks[p].v === v;
+    const expect = v => {
+        if (!isOp(v)) {
+            if (p >= toks.length) throw ParseError(`「${v}」が足りません`);
+            throw ParseError(`「${v}」が必要な所に「${toks[p].v}」があります`);
+        }
+        p++;
+    };
+    const startsPrimary = () => {
+        const tk = toks[p];
+        return tk && (tk.k === 'num' || tk.k === 'id' || tk.k === 'fn' || (tk.k === 'op' && tk.v === '('));
+    };
+
+    function expr() {
+        let l = term();
+        while (isOp('+') || isOp('-')) {
+            const op = toks[p++].v;
+            l = { t: 'bin', op, l, r: term() };
+        }
+        return l;
+    }
+    function term() {
+        let l = unary();
+        for (;;) {
+            if (isOp('*') || isOp('/')) {
+                const op = toks[p++].v;
+                l = { t: 'bin', op, l, r: unary() };
+            } else if (startsPrimary()) {
+                l = { t: 'bin', op: '*', l, r: power(), imp: true }; // 暗黙の掛け算
+            } else break;
+        }
+        return l;
+    }
+    function unary() {
+        if (isOp('-')) { p++; return { t: 'neg', a: unary() }; }
+        if (isOp('+')) { p++; return unary(); }
+        return power();
+    }
+    function power() {
+        const b = postfix();
+        if (isOp('^')) { p++; return { t: 'pow', b, e: unary() }; }
+        return b;
+    }
+    function postfix() {
+        let a = primary();
+        while (isOp('!')) { p++; a = { t: 'fact', a }; }
+        return a;
+    }
+    function primary() {
+        const tk = toks[p];
+        if (!tk) throw ParseError('式が途中で終わっています');
+        if (tk.k === 'num') { p++; return { t: 'num', v: tk.v, raw: tk.raw }; }
+        if (tk.k === 'id') { p++; return { t: 'var', name: tk.v }; }
+        if (tk.k === 'op' && tk.v === '(') {
+            p++;
+            if (isOp(')')) throw ParseError('( ) の中が空です');
+            const e = expr(); expect(')'); return e;
+        }
+        if (tk.k === 'op' && tk.v === '|') {
+            p++; const e = expr(); expect('|');
+            return { t: 'call', name: 'abs', args: [e] };
+        }
+        if (tk.k === 'fn') {
+            p++;
+            const name = tk.v;
+            if (name === 'sum' || name === 'prod') {
+                const sym = name === 'sum' ? 'Σ' : 'Π';
+                expect('(');
+                const vt = toks[p];
+                if (!vt || vt.k !== 'id') throw ParseError(`${sym}( の後には変数を書きます（例: ${sym}(k=0,n, 式)）`);
+                p++;
+                if (isOp('=')) p++; else expect(',');
+                if (isOp(',') || isOp(')')) throw ParseError(`${sym} の開始値が空です`);
+                const from = expr(); expect(',');
+                if (isOp(',') || isOp(')')) throw ParseError(`${sym} の終了値が空です`);
+                const to = expr(); expect(',');
+                if (isOp(')') || p >= toks.length) throw ParseError(`${sym} の中の式が空です`);
+                const body = expr(); expect(')');
+                return { t: 'sum', kind: name, v: vt.v, from, to, body };
+            }
+            if (isOp('(')) {
+                p++;
+                const args = [];
+                if (!isOp(')')) {
+                    args.push(expr());
+                    while (isOp(',')) { p++; args.push(expr()); }
+                }
+                expect(')');
+                if (VARIADIC.has(name) ? args.length < 1 : args.length !== 1)
+                    throw ParseError(`${name} の引数の数が違います`);
+                return { t: 'call', name, args };
+            }
+            if (VARIADIC.has(name)) throw ParseError(`${name}( ) と書いてください`);
+            return { t: 'call', name, args: [power()] }; // sin x のような書き方
+        }
+        if (tk.k === 'op' && tk.v === ')') throw ParseError('「(」より「)」が多いか、( ) の中が空です');
+        throw ParseError(`ここに「${tk.v}」は置けません`);
+    }
+
+    const ast = expr();
+    if (p < toks.length) {
+        const tk = toks[p];
+        if (tk.v === ')') throw ParseError('「)」が多すぎます');
+        throw ParseError(`「${tk.v}」の位置が変です`);
+    }
+    return ast;
+}
+
+// ---------- 関数へ変換 ----------
+function compile(n) {
+    switch (n.t) {
+        case 'num': { const v = n.v; return () => v; }
+        case 'var': {
+            if (n.name === 'pi') return () => Math.PI;
+            if (n.name === 'e') return () => Math.E;
+            const nm = n.name;
+            return env => env[nm];
+        }
+        case 'neg': { const a = compile(n.a); return env => -a(env); }
+        case 'bin': {
+            const l = compile(n.l), r = compile(n.r);
+            switch (n.op) {
+                case '+': return env => l(env) + r(env);
+                case '-': return env => l(env) - r(env);
+                case '*': return env => l(env) * r(env);
+                case '/': return env => l(env) / r(env);
+            }
+            break;
+        }
+        case 'pow': { const b = compile(n.b), e = compile(n.e); return env => Math.pow(b(env), e(env)); }
+        case 'fact': { const a = compile(n.a); return env => factorial(a(env)); }
+        case 'call': {
+            const f = FUNCS[n.name];
+            const as = n.args.map(compile);
+            if (as.length === 1) { const a = as[0]; return env => f(a(env)); }
+            return env => f(...as.map(g => g(env)));
+        }
+        case 'sum': {
+            const fr = compile(n.from), to = compile(n.to), body = compile(n.body);
+            const v = n.v, isProd = n.kind === 'prod';
+            return env => {
+                const a = Math.ceil(fr(env) - 1e-9), b = Math.floor(to(env) + 1e-9);
+                if (!isFinite(a) || !isFinite(b) || b - a > 100000) return NaN;
+                const old = env[v];
+                let s = isProd ? 1 : 0;
+                for (let k = a; k <= b; k++) {
+                    env[v] = k;
+                    const t = body(env);
+                    s = isProd ? s * t : s + t;
+                }
+                env[v] = old;
+                return s;
+            };
+        }
+    }
+    throw ParseError('内部エラー');
+}
+
+// ---------- 自由な文字（x, y, i 以外はパラメータ） ----------
+const RESERVED = new Set(['x', 'y', 'pi', 'e', 'i']);
+function allFree(n, bound = new Set(), out = new Set()) {
+    switch (n.t) {
+        case 'var': if (!bound.has(n.name)) out.add(n.name); break;
+        case 'neg': case 'fact': allFree(n.a, bound, out); break;
+        case 'bin': allFree(n.l, bound, out); allFree(n.r, bound, out); break;
+        case 'pow': allFree(n.b, bound, out); allFree(n.e, bound, out); break;
+        case 'call': n.args.forEach(a => allFree(a, bound, out)); break;
+        case 'sum': {
+            allFree(n.from, bound, out); allFree(n.to, bound, out);
+            const b2 = new Set(bound); b2.add(n.v);
+            allFree(n.body, b2, out);
+            break;
+        }
+    }
+    return out;
+}
+function freeVars(n) { return new Set([...allFree(n)].filter(v => !RESERVED.has(v))); }
+
+// ---------- 数式の見た目（MathML） ----------
+function prec(n) {
+    if (n.t === 'bin') return n.op === '/' ? 9 : n.op === '*' ? 2 : 1;
+    return { num: 9, var: 9, call: 9, fact: 8, pow: 7, neg: 3, sum: 1.5 }[n.t];
+}
+const mo = s => `<mo>${s}</mo>`;
+const paren = inner => `<mrow><mo>(</mo>${inner}<mo>)</mo></mrow>`;
+const W = (n, min) => prec(n) < min ? paren(toMathML(n)) : toMathML(n);
+function startsNum(n) {
+    switch (n.t) {
+        case 'num': return true;
+        case 'bin': return n.op !== '/' && startsNum(n.l);
+        case 'pow': return startsNum(n.b);
+        case 'fact': return startsNum(n.a);
+        default: return false;
+    }
+}
+const GREEK_NAME = { pi: 'π' };
+function toMathML(n) {
+    switch (n.t) {
+        case 'num': return `<mn>${n.raw}</mn>`;
+        case 'var': return `<mi>${GREEK_NAME[n.name] || n.name}</mi>`;
+        case 'neg': return `<mrow>${mo('−')}${W(n.a, 2)}</mrow>`;
+        case 'bin': {
+            if (n.op === '/') return `<mfrac>${toMathML(n.l)}${toMathML(n.r)}</mfrac>`;
+            if (n.op === '*') {
+                const r = n.r.t === 'neg' ? paren(toMathML(n.r)) : W(n.r, 2.01);
+                const sep = startsNum(n.r) ? mo('·') : '<mo>&#x2062;</mo>';
+                return `<mrow>${W(n.l, 2)}${sep}${r}</mrow>`;
+            }
+            const l = n.l.t === 'sum' ? paren(toMathML(n.l)) : W(n.l, 1);
+            const r = n.r.t === 'neg' ? paren(toMathML(n.r)) : W(n.r, n.op === '-' ? 1.01 : 1);
+            return `<mrow>${l}${mo(n.op === '-' ? '−' : '+')}${r}</mrow>`;
+        }
+        case 'pow': return `<msup>${W(n.b, 9)}${toMathML(n.e)}</msup>`;
+        case 'fact': return `<mrow>${W(n.a, 9)}${mo('!')}</mrow>`;
+        case 'call': {
+            const a = n.args;
+            switch (n.name) {
+                case 'sqrt': return `<msqrt>${toMathML(a[0])}</msqrt>`;
+                case 'cbrt': return `<mroot>${toMathML(a[0])}<mn>3</mn></mroot>`;
+                case 'abs': return `<mrow><mo>|</mo>${toMathML(a[0])}<mo>|</mo></mrow>`;
+                case 'exp': return `<msup><mi>e</mi>${toMathML(a[0])}</msup>`;
+                case 'floor': return `<mrow><mo>⌊</mo>${toMathML(a[0])}<mo>⌋</mo></mrow>`;
+                case 'ceil': return `<mrow><mo>⌈</mo>${toMathML(a[0])}<mo>⌉</mo></mrow>`;
+            }
+            return `<mrow><mi>${n.name}</mi><mo>&#x2061;</mo>${paren(a.map(toMathML).join('<mo>,</mo>'))}</mrow>`;
+        }
+        case 'sum':
+            return `<mrow><munderover><mo>${n.kind === 'sum' ? '∑' : '∏'}</mo>` +
+                `<mrow><mi>${n.v}</mi><mo>=</mo>${toMathML(n.from)}</mrow>${toMathML(n.to)}</munderover>` +
+                `${W(n.body, 2)}</mrow>`;
+    }
+    return '';
+}
+// ---------- Σ を書き出す（項を並べて、階乗はそのまま n! で） ----------
+const NUM = v => v < 0 ? { t: 'neg', a: { t: 'num', v: -v, raw: String(-v) } } : { t: 'num', v, raw: String(v) };
+const numOf = n => n.t === 'num' ? n.v : (n.t === 'neg' && n.a.t === 'num') ? -n.a.v : null;
+const isIntV = v => v !== null && Number.isInteger(v) && Math.abs(v) < 1e15;
+const sNeg = a => a.t === 'neg' ? a.a : numOf(a) === 0 ? a : { t: 'neg', a };
+function sMul(l, r, imp) {
+    const lv = numOf(l), rv = numOf(r);
+    if (lv === 0 || rv === 0) return NUM(0);
+    if (isIntV(lv) && isIntV(rv)) return NUM(lv * rv);
+    if (lv === 1) return r;
+    if (rv === 1) return l;
+    if (lv === -1) return sNeg(r);
+    if (rv === -1) return sNeg(l);
+    if (l.t === 'neg') return sNeg(sMul(l.a, r, imp));
+    if (r.t === 'neg') return sNeg(sMul(l, r.a, imp));
+    return { t: 'bin', op: '*', l, r, imp };
+}
+function sDiv(l, r) {
+    const lv = numOf(l), rv = numOf(r);
+    if (lv === 0) return NUM(0);
+    if (rv === 1) return l;
+    if (rv === -1) return sNeg(l);
+    if (isIntV(lv) && isIntV(rv) && rv !== 0 && lv % rv === 0) return NUM(lv / rv);
+    if (l.t === 'neg') return sNeg(sDiv(l.a, r));
+    if (r.t === 'neg') return sNeg(sDiv(l, r.a));
+    return { t: 'bin', op: '/', l, r };
+}
+function sAdd(l, r, minus) {
+    const lv = numOf(l), rv = numOf(r);
+    if (rv === 0) return l;
+    if (lv === 0) return minus ? sNeg(r) : r;
+    if (isIntV(lv) && isIntV(rv)) return NUM(minus ? lv - rv : lv + rv);
+    if (r.t === 'neg') return { t: 'bin', op: minus ? '+' : '-', l, r: r.a };
+    return { t: 'bin', op: minus ? '-' : '+', l, r };
+}
+function simp(n) {
+    switch (n.t) {
+        case 'neg': return sNeg(simp(n.a));
+        case 'fact': {
+            const a = simp(n.a), v = numOf(a);
+            return isIntV(v) && (v === 0 || v === 1) ? NUM(1) : { t: 'fact', a };   // 0! = 1! = 1、2! からはそのまま
+        }
+        case 'pow': {
+            const b = simp(n.b), e = simp(n.e), bv = numOf(b), ev = numOf(e);
+            if (ev === 0) return NUM(1);
+            if (ev === 1) return b;
+            if (isIntV(ev) && (bv === 1 || bv === -1)) return NUM(bv === -1 && ev % 2 ? -1 : 1);   // (−1)^k → ±1
+            if (bv === 0 && ev > 0) return NUM(0);
+            return { t: 'pow', b, e };
+        }
+        case 'bin': {
+            const l = simp(n.l), r = simp(n.r);
+            if (n.op === '*') return sMul(l, r, n.imp);
+            if (n.op === '/') return sDiv(l, r);
+            return sAdd(l, r, n.op === '-');
+        }
+        case 'call': return { t: 'call', name: n.name, args: n.args.map(simp) };
+        case 'sum': return { ...n, from: simp(n.from), to: simp(n.to), body: simp(n.body) };
+    }
+    return n;
+}
+function subst(n, v, val) {
+    switch (n.t) {
+        case 'var': return n.name === v ? NUM(val) : n;
+        case 'neg': case 'fact': return { ...n, a: subst(n.a, v, val) };
+        case 'bin': return { ...n, l: subst(n.l, v, val), r: subst(n.r, v, val) };
+        case 'pow': return { ...n, b: subst(n.b, v, val), e: subst(n.e, v, val) };
+        case 'call': return { ...n, args: n.args.map(a => subst(a, v, val)) };
+        case 'sum': return { ...n, from: subst(n.from, v, val), to: subst(n.to, v, val), body: n.v === v ? n.body : subst(n.body, v, val) };
+    }
+    return n;
+}
+// 入力欄に戻せる文字の式にする
+function tprec(n) {
+    if (n.t === 'bin') return n.op === '+' || n.op === '-' ? 1 : 2;
+    return { num: 10, var: 10, call: 10, sum: 10, fact: 9, pow: 7, neg: 3 }[n.t];
+}
+function toSrc(n) {
+    const w = (m, ok) => ok ? toSrc(m) : `(${toSrc(m)})`;
+    switch (n.t) {
+        case 'num': return n.raw;
+        case 'var': return n.name === 'pi' ? 'π' : n.name;
+        case 'neg': return '-' + w(n.a, tprec(n.a) >= 2);
+        case 'fact': return w(n.a, n.a.t === 'num' || n.a.t === 'var') + '!';
+        case 'pow': return w(n.b, tprec(n.b) >= 10 && n.b.t !== 'neg') + '^' + w(n.e, (n.e.t === 'num' || n.e.t === 'var'));
+        case 'call': return `${n.name}(${n.args.map(toSrc).join(',')})`;
+        case 'sum': return `${n.kind === 'sum' ? 'Σ' : 'Π'}(${n.v}=${toSrc(n.from)},${toSrc(n.to)},${toSrc(n.body)})`;
+        case 'bin': {
+            if (n.op === '+' || n.op === '-') return `${toSrc(n.l)} ${n.op} ${w(n.r, tprec(n.r) >= 2 && n.r.t !== 'neg')}`;
+            if (n.op === '/') return w(n.l, tprec(n.l) >= 2) + '/' + w(n.r, tprec(n.r) >= 7);
+            const r = w(n.r, tprec(n.r) > 2 && n.r.t !== 'neg');
+            const sep = /^[0-9.]/.test(r) ? '·' : n.l.t === 'num' ? '' : ' ';   // 3x・2π のように数と文字はくっつける
+            return w(n.l, tprec(n.l) >= 2) + sep + r;
+        }
+    }
+    return '';
+}
+// Σ(k=a,b, 式) を、いまのパラメータの値で項ごとに書き出す
+function expandSum(ast, env) {
+    if (!ast || ast.t !== 'sum' || ast.kind !== 'sum') return null;
+    let a, b;
+    try { a = Math.ceil(compile(ast.from)(env) - 1e-9); b = Math.floor(compile(ast.to)(env) + 1e-9); } catch (_) { return null; }
+    if (!isFinite(a) || !isFinite(b) || b - a > 60) return null;
+    const terms = [];
+    for (let k = a; k <= b; k++) {
+        const t = simp(subst(ast.body, ast.v, k));
+        if (numOf(t) !== 0) terms.push(t);
+    }
+    return terms;
+}
+// x についての次数（多項式でなければ null）
+function termDeg(n) {
+    switch (n.t) {
+        case 'num': return 0;
+        case 'var': return n.name === 'x' ? 1 : n.name === 'y' ? null : 0;
+        case 'neg': return termDeg(n.a);
+        case 'fact': return termDeg(n.a) === 0 ? 0 : null;
+        case 'pow': {
+            const db = termDeg(n.b), de = termDeg(n.e), ev = numOf(n.e);
+            if (db === null || de === null) return null;
+            if (db === 0) return de === 0 ? 0 : null;
+            return isIntV(ev) && ev >= 0 ? db * ev : null;
+        }
+        case 'bin': {
+            const l = termDeg(n.l), r = termDeg(n.r);
+            if (l === null || r === null) return null;
+            if (n.op === '*') return l + r;
+            if (n.op === '/') return r === 0 ? l : null;
+            return Math.max(l, r);
+        }
+        case 'call': return n.args.every(a => termDeg(a) === 0) ? 0 : null;
+        case 'sum': return allFree(n).has('x') || allFree(n).has('y') ? null : 0;
+    }
+    return null;
+}
+// 次数 D 以下の項だけを書き出す（次数が D を超えた所で止める）
+function expandDeg(ast, env, D) {
+    let a;
+    try { a = Math.ceil(compile(ast.from)(env) - 1e-9); } catch (_) { return null; }
+    if (!isFinite(a)) return null;
+    const terms = [];
+    for (let k = a; k < a + 400; k++) {
+        const t = simp(subst(ast.body, ast.v, k)), d = termDeg(t);
+        if (d === null) return null;
+        if (d > D) break;
+        if (numOf(t) !== 0) terms.push({ t, k, d });
+    }
+    return terms;
+}
+// 次数モードの式：パラメータが変わった時だけ多項式を作り直す
+function getPoly(ex, env) {
+    const S = ex.sum, D = Math.floor(+env[S.dName] + 1e-9);
+    const key = D + ',' + S.used.map(v => env[v]).join(',');
+    if (S.poly && S.poly.key === key) return S.poly;
+    const list = expandDeg(S.ast, env, D) || [];
+    const ast = termsToAst(list.map(o => o.t));
+    S.poly = { key, D, list, terms: list.map(o => o.t), f: compile(ast), cf: compileC(ast) };
+    return S.poly;
+}
+function termsToAst(terms) {
+    if (!terms.length) return NUM(0);
+    return terms.slice(1).reduce((acc, t) => t.t === 'neg'
+        ? { t: 'bin', op: '-', l: acc, r: t.a } : { t: 'bin', op: '+', l: acc, r: t }, terms[0]);
+}
+// 見せる用：長い時は「最初の数項 ＋ ⋯ ＋ 最後の項」
+function termsToMathML(terms, max = 7) {
+    if (!terms.length) return '<mn>0</mn>';
+    const show = terms.length > max ? [...terms.slice(0, max - 1), null, terms[terms.length - 1]] : terms;
+    return show.map((t, i) => {
+        if (t === null) return '<mo>+</mo><mo>⋯</mo>';
+        const neg = t.t === 'neg', body = neg ? t.a : t;
+        const m = prec(body) < 1.01 ? paren(toMathML(body)) : toMathML(body);
+        return (neg ? mo('−') : i ? mo('+') : '') + m;
+    }).join('');
+}
+
+// ---------- 複素数 ----------
+const C = (re, im = 0) => ({ re, im });
+const CI = C(0, 1);
+const cabs = a => Math.hypot(a.re, a.im);
+const cadd = (a, b) => C(a.re + b.re, a.im + b.im);
+const csub = (a, b) => C(a.re - b.re, a.im - b.im);
+const cmul = (a, b) => C(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re);
+function cdiv(a, b) {
+    const d = b.re * b.re + b.im * b.im;
+    return C((a.re * b.re + a.im * b.im) / d, (a.im * b.re - a.re * b.im) / d);
+}
+const mulI = w => C(-w.im, w.re);
+const mulNegI = w => C(w.im, -w.re);
+const cexp = a => { const m = Math.exp(a.re); return C(m * Math.cos(a.im), m * Math.sin(a.im)); };
+const clog = a => C(Math.log(cabs(a)), Math.atan2(a.im, a.re));
+function cpowInt(a, n) {
+    let r = C(1), b = a, k = Math.abs(n);
+    while (k) { if (k & 1) r = cmul(r, b); b = cmul(b, b); k >>= 1; }
+    return n < 0 ? cdiv(C(1), r) : r;
+}
+function cpow(a, b) {
+    if (b.im === 0 && Number.isInteger(b.re) && Math.abs(b.re) <= 4096) return cpowInt(a, b.re);
+    if (a.re === 0 && a.im === 0) return b.re > 0 ? C(0) : C(NaN, NaN);
+    if (a.im === 0 && a.re > 0 && b.im === 0) return C(Math.pow(a.re, b.re));
+    return cexp(cmul(b, clog(a)));
+}
+function csqrt(a) {
+    const r = cabs(a);
+    let im = Math.sqrt(Math.max(0, (r - a.re) / 2));
+    if (a.im < 0) im = -im;
+    return C(Math.sqrt(Math.max(0, (r + a.re) / 2)), im);
+}
+const csin = z => C(Math.sin(z.re) * Math.cosh(z.im), Math.cos(z.re) * Math.sinh(z.im));
+const ccos = z => C(Math.cos(z.re) * Math.cosh(z.im), -Math.sin(z.re) * Math.sinh(z.im));
+const csinh = z => C(Math.sinh(z.re) * Math.cos(z.im), Math.cosh(z.re) * Math.sin(z.im));
+const ccosh = z => C(Math.cosh(z.re) * Math.cos(z.im), Math.sinh(z.re) * Math.sin(z.im));
+const ONE = C(1);
+const casin = z => mulNegI(clog(cadd(mulI(z), csqrt(csub(ONE, cmul(z, z))))));
+const catan = z => cmul(C(0, 0.5), clog(cdiv(cadd(CI, z), csub(CI, z))));
+const LZ = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313,
+    -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5050632385208166e-7];
+function cgamma(z) {
+    if (z.im === 0) return C(gamma(z.re));
+    if (z.re < 0.5) return cdiv(C(Math.PI), cmul(csin(C(Math.PI * z.re, Math.PI * z.im)), cgamma(csub(ONE, z))));
+    z = csub(z, ONE);
+    let x = C(LZ[0]);
+    for (let i = 1; i < 9; i++) x = cadd(x, cdiv(C(LZ[i]), cadd(z, C(i))));
+    const t = cadd(z, C(7.5));
+    return cmul(cmul(C(Math.sqrt(2 * Math.PI)), cpow(t, cadd(z, C(0.5)))), cmul(cexp(C(-t.re, -t.im)), x));
+}
+const cfact = a => (a.im === 0 ? C(factorial(a.re)) : cgamma(cadd(a, ONE)));
+const CFUNCS = {
+    sin: csin, cos: ccos, tan: z => cdiv(csin(z), ccos(z)),
+    sec: z => cdiv(ONE, ccos(z)), csc: z => cdiv(ONE, csin(z)), cot: z => cdiv(ccos(z), csin(z)),
+    asin: casin, acos: z => csub(C(Math.PI / 2), casin(z)), atan: catan,
+    sinh: csinh, cosh: ccosh, tanh: z => cdiv(csinh(z), ccosh(z)),
+    asinh: z => clog(cadd(z, csqrt(cadd(cmul(z, z), ONE)))),
+    acosh: z => clog(cadd(z, cmul(csqrt(cadd(z, ONE)), csqrt(csub(z, ONE))))),
+    atanh: z => cmul(C(0.5), clog(cdiv(cadd(ONE, z), csub(ONE, z)))),
+    exp: cexp, ln: clog, log: z => { const l = clog(z); return C(l.re / Math.LN10, l.im / Math.LN10); },
+    sqrt: csqrt, cbrt: z => (z.im === 0 ? C(Math.cbrt(z.re)) : cpow(z, C(1 / 3))),
+    abs: z => C(cabs(z)), sign: z => { const m = cabs(z); return m ? C(z.re / m, z.im / m) : C(0); },
+    floor: z => C(Math.floor(z.re), Math.floor(z.im)), ceil: z => C(Math.ceil(z.re), Math.ceil(z.im)),
+    round: z => C(Math.round(z.re), Math.round(z.im)), gamma: cgamma,
+};
+CFUNCS.arcsin = CFUNCS.asin; CFUNCS.arccos = CFUNCS.acos; CFUNCS.arctan = CFUNCS.atan;
+
+// env = { z: 複素数の x, y: 複素数の y, p: パラメータ, loop: Σ の変数 }
+function compileC(n, bound = new Set()) {
+    switch (n.t) {
+        case 'num': { const v = C(n.v); return () => v; }
+        case 'var': {
+            const nm = n.name;
+            if (bound.has(nm)) return env => C(env.loop[nm]);
+            if (nm === 'x') return env => env.z;
+            if (nm === 'y') return env => env.y;
+            if (nm === 'pi') { const v = C(Math.PI); return () => v; }
+            if (nm === 'e') { const v = C(Math.E); return () => v; }
+            if (nm === 'i') return () => CI;
+            return env => C(env.p[nm]);
+        }
+        case 'neg': { const a = compileC(n.a, bound); return env => { const v = a(env); return C(-v.re, -v.im); }; }
+        case 'bin': {
+            const l = compileC(n.l, bound), r = compileC(n.r, bound);
+            const op = { '+': cadd, '-': csub, '*': cmul, '/': cdiv }[n.op];
+            return env => op(l(env), r(env));
+        }
+        case 'pow': { const b = compileC(n.b, bound), e = compileC(n.e, bound); return env => cpow(b(env), e(env)); }
+        case 'fact': { const a = compileC(n.a, bound); return env => cfact(a(env)); }
+        case 'call': {
+            const as = n.args.map(a => compileC(a, bound));
+            if (n.name === 'max' || n.name === 'min') {
+                const f = Math[n.name];
+                return env => C(f(...as.map(g => { const v = g(env); return v.im === 0 ? v.re : NaN; })));
+            }
+            const f = CFUNCS[n.name], a = as[0];
+            return env => f(a(env));
+        }
+        case 'sum': {
+            const fr = compileC(n.from, bound), to = compileC(n.to, bound);
+            const b2 = new Set(bound); b2.add(n.v);
+            const body = compileC(n.body, b2);
+            const v = n.v, isProd = n.kind === 'prod';
+            return env => {
+                const a = Math.ceil(fr(env).re - 1e-9), b = Math.floor(to(env).re + 1e-9);
+                if (!isFinite(a) || !isFinite(b) || b - a > 100000) return C(NaN, NaN);
+                const old = env.loop[v];
+                let sr = isProd ? 1 : 0, si = 0;
+                for (let k = a; k <= b; k++) {
+                    env.loop[v] = k;
+                    const t = body(env);
+                    if (isProd) { const nr = sr * t.re - si * t.im; si = sr * t.im + si * t.re; sr = nr; }
+                    else { sr += t.re; si += t.im; }
+                }
+                env.loop[v] = old;
+                return C(sr, si);
+            };
+        }
+    }
+    throw ParseError('内部エラー');
+}
+
+// ---------- 解を探す（複素ニュートン法） ----------
+function newton(g, z) {
+    for (let it = 0; it < 100; it++) {
+        const f = g(z);
+        if (!isFinite(f.re) || !isFinite(f.im)) return null;
+        if (f.re === 0 && f.im === 0) break;
+        const h = 1e-6 * (1 + cabs(z));
+        const f1 = g(C(z.re + h, z.im));
+        const d = C((f1.re - f.re) / h, (f1.im - f.im) / h);
+        if (!(d.re * d.re + d.im * d.im > 0)) return null;
+        let st = cdiv(f, d);
+        const sm = cabs(st), lim = 2 + cabs(z);
+        if (!isFinite(sm)) return null;
+        if (sm > lim) st = C(st.re * lim / sm, st.im * lim / sm);
+        z = csub(z, st);
+        if (cabs(z) > 1e4) return null;
+        if (cabs(st) < 1e-14 * (1 + cabs(z))) break;
+    }
+    // 本当に 0 になっているか（すぐ近くの値と比べる）
+    const m = cabs(g(z)), dz = 1e-3 * (1 + cabs(z));
+    const ref = Math.max(cabs(g(C(z.re + dz, z.im))), cabs(g(C(z.re, z.im + dz))));
+    if (!(m <= 1e-6 * ref) && !(m < 1e-13)) return null;
+    const tol = 1e-9 * (1 + cabs(z));
+    return C(Math.abs(z.re) < tol ? 0 : z.re, Math.abs(z.im) < tol ? 0 : z.im);
+}
+
+function findRoots(cfn, params, rect, budgetMs = 150) {
+    const env = { z: null, y: C(0), p: params, loop: {} };
+    const g = z => { env.z = z; env.loop = {}; return cfn(env); };
+    const seeds = [C(0.013, 0.007)];
+    for (const r of [0.3, 0.8, 1.5, 2.5, 4, 6, 9, 13, 18, 25, 35, 50]) {
+        const na = r < 5 ? 12 : 24;
+        for (let k = 0; k < na; k++) {
+            const a = (k + 0.37) * 2 * Math.PI / na;
+            seeds.push(C(r * Math.cos(a), r * Math.sin(a)));
+        }
+    }
+    if (rect) {
+        for (let i = 0; i < 9; i++) for (let j = 0; j < 7; j++)
+            seeds.push(C(rect.x0 + (rect.x1 - rect.x0) * (i + 0.5) / 9, rect.y0 + (rect.y1 - rect.y0) * (j + 0.5) / 7));
+    }
+    const roots = [];
+    const tEnd = Date.now() + budgetMs;
+    const add = r => {
+        if (!r || roots.some(q => cabs(csub(q, r)) < 1e-6 * (1 + cabs(r)))) return false;
+        roots.push(r); return true;
+    };
+    // 見つかった解の共役・符号反転からも探す（実係数の式や偶奇のある式で取りこぼしを防ぐ）
+    const mirrors = r => [C(r.re, -r.im), C(-r.re, r.im), C(-r.re, -r.im)].forEach(m => {
+        if (add(newton(g, C(m.re * (1 + 1e-7) + 1e-9, m.im * (1 - 1e-7) + 1e-9)))) mirrors(roots[roots.length - 1]);
+    });
+    for (const sd of seeds) {
+        if (Date.now() > tEnd) break;
+        if (add(newton(g, sd))) mirrors(roots[roots.length - 1]);
+    }
+    roots.sort((a, b) => cabs(a) - cabs(b) || a.re - b.re || a.im - b.im);
+    return roots;
+}
+
+// ---------- 複素数の表示 ----------
+function fmtFix(v) {
+    if (Math.abs(v - Math.round(v)) < 1e-9) v = Math.round(v);
+    let s = String(+v.toFixed(6));
+    if (s === '-0') s = '0';
+    return s.replace('-', '−');
+}
+function fmtSig(v) {
+    if (!isFinite(v)) return Number.isNaN(v) ? 'NaN' : (v > 0 ? '∞' : '−∞');
+    const a = Math.abs(v);
+    if (a !== 0 && (a >= 1e7 || a < 1e-5)) return v.toExponential(4).replace('-', '−');
+    return String(+v.toPrecision(7)).replace('-', '−');
+}
+function fmtComplex(re, im, f) {
+    if (Number.isNaN(re) || Number.isNaN(im)) return '未定義';
+    const big = Math.max(Math.abs(re), Math.abs(im));
+    if (Math.abs(im) < 1e-12 * big) im = 0;   // 計算誤差の 1e-16 などは 0 として表示
+    if (Math.abs(re) < 1e-12 * big) re = 0;
+    const sr = f(re), si = f(Math.abs(im));
+    if (si === '0') return sr;
+    const ip = (si === '1' ? '' : si) + 'i';
+    if (sr === '0') return (im < 0 ? '−' : '') + ip;
+    return `${sr} ${im < 0 ? '−' : '+'} ${ip}`;
+}
+const fmtC = (re, im) => fmtComplex(re, im, fmtFix);
+const fmtCv = z => fmtComplex(z.re, z.im, fmtSig);
+// ==== PARSER END ====
+// ---------- = の位置・閉じていない ( （グラフ電卓と同じ） ----------
+function splitTop(src) {
+    let d = 0, at = -1;
+    for (let i = 0; i < src.length; i++) {
+        const c = src[i];
+        if (c === '(') d++;
+        else if (c === ')') d--;
+        else if (c === '=' && d <= 0) {
+            if (at >= 0) throw ParseError('「=」は1つまでです');
+            at = i;
+        }
+    }
+    return at;
+}
+const isBlank = t => !t.trim() || /^\s*[yY]\s*=\s*$/.test(t);
+function closeParens(s) {
+    let o = 0;
+    for (const ch of s) { if (ch === '(') o++; else if (ch === ')') o--; }
+    return o > 0 ? s + ')'.repeat(o) : s; // 閉じていない ( は自動で閉じる
+}
+
+
+// ================================================================
+// 複素グラフ 4D：y = f(x)（x も y も複素数）を (Re x, Im x, Re y, Im y) の 4 次元の面として、
+// 4 次元のまま回し、4 本目の軸 w の遠近で歪ませて three.js で描く
+// three.js の座標：X = Re x、Y = Re y（上）、Z = −Im x（奥が +Im x）、W = Im y
+// ================================================================
+const $ = s => document.querySelector(s);
+function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const m = raw / p;
+    return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+}
+// 解の値は短く（小数 3 桁）。チップにのせたら詳しい値
+const fmt3 = v => { if (Math.abs(v - Math.round(v)) < 1e-9) v = Math.round(v); let s = String(+v.toFixed(3)); if (s === '-0') s = '0'; return s.replace('-', '−'); };
+const fmtR = (re, im) => fmtComplex(re, im, fmt3);
+const STORE = 'graph4d.v1';
+const CLIP = 1.8;   // これより大きい値（Yr で割った後）は切る
+const PLANES = [
+    { k: 'zw', a: 2, b: 3, name: 'Im x ↔ Im y', sub: 'Im x が消えて Im y が現れる', rate: 1.0 },
+    { k: 'yw', a: 1, b: 3, name: 'Re y ↔ Im y', sub: '高さが Re y と Im y で入れ替わる', rate: 0.73 },
+    { k: 'xw', a: 0, b: 3, name: 'Re x ↔ Im y', sub: 'Re x が消えて Im y が現れる', rate: 0.57 },
+    { k: 'xz', a: 0, b: 2, name: 'Re x ↔ Im x', sub: '床（x の平面）を回す', rate: 0.41 },
+];
+const VIEWS = [
+    { k: 'base', name: '普通の 3D', sub: '高さ＝Re y、Im y は色', ang: { xw: 0, yw: 0, zw: 0, xz: 0 }, cam: 'side' },
+    { k: 'imy', name: '高さ＝Im y', sub: 'Re y が消える', ang: { xw: 0, yw: 90, zw: 0, xz: 0 }, cam: 'side' },
+    { k: 'noimx', name: 'Im x を消す', sub: 'x が実数の所の y を丸ごと', ang: { xw: 0, yw: 0, zw: 90, xz: 0 }, cam: 'side' },
+    { k: 'norex', name: 'Re x を消す', sub: 'x が純虚数の所（隠れたグラフ）', ang: { xw: 90, yw: 0, zw: 0, xz: 0 }, cam: 'side' },
+    { k: 'top', name: '真上から', sub: 'x の平面と解だけ', ang: { xw: 0, yw: 0, zw: 0, xz: 0 }, cam: 'top' },
+    { k: 'diag', name: '斜めの 4D', sub: '全部の軸が少しずつ', ang: { xw: 25, yw: 35, zw: 45, xz: 0 }, cam: 'side' },
+];
+const PRESETS = [
+    { name: 'y = x²（Im x を消すと下向きの放物線）', e: 'x^2', view: 'base', spin: ['zw'] },
+    { name: 'y = x² + 1（解 ±i）', e: 'x^2+1', spin: ['zw'] },
+    { name: 'y = x² − 2x + 5（解 1 ± 2i）', e: 'x^2-2x+5', spin: ['zw'] },
+    { name: 'y = x³ − 1（1 の 3 乗根）', e: 'x^3-1', spin: ['yw'] },
+    { name: 'y = x³ − 2x + 4（解 −2 と 1 ± i）', e: 'x^3-2x+4', spin: ['zw'] },
+    { name: 'y = x⁴ + 1（解 4 つ、全部が複素数）', e: 'x^4+1', spin: ['yw', 'zw'] },
+    { name: 'y = x⁵ − 1（1 の 5 乗根：正五角形）', e: 'x^5-1', spin: ['yw'] },
+    { name: 'y = x⁶ − 1（1 の 6 乗根：正六角形）', e: 'x^6-1', spin: ['yw'] },
+    { name: 'y = x² − 2ix − 2（係数も複素数：解 ±1 + i）', e: 'x^2-2ix-2', spin: ['zw'] },
+    { name: 'y = x³ − 3x（解 0 と ±√3、虚軸の向きは x³ + 3x）', e: 'x^3-3x', spin: ['zw'] },
+    { name: 'y = sin x（解は実軸の上、虚軸の向きは sinh）', e: 'sin(x)', R: 4, spin: ['zw'] },
+    { name: 'sin の展開（n を動かすと解が増える）', e: 'Σ(k=0,n,(-1)^k x^(2k+1)/(2k+1)!)', params: { n: { v: 6, min: 0, max: 15, step: 1 } }, R: 7, spin: ['yw'] },
+    { name: 'y = eˣ（解はない）', e: 'e^x', R: 2.5, spin: ['zw'] },
+    { name: 'y = 1/x（x = 0 で無限大）', e: '1/x', R: 2, spin: ['zw'] },
+];
+
+// ---------- 状態 ----------
+const S = {
+    expr: 'x^2', params: {}, R: 2, pk: 0.55,
+    ang: { xw: 0, yw: 0, zw: 0, xz: 0 },
+    spin: { xw: false, yw: false, zw: true, xz: false }, spinOn: true, speed: 1,
+    color: 'w', show: { surf: true, grid: true, floor: true, axes: true, real: true, green: true },
+};
+function save() {
+    try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (_) { /* 保存できない環境では何もしない */ }
+}
+let saveTimer = null;
+const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); };
+function load() {
+    try {
+        const d = JSON.parse(localStorage.getItem(STORE) || 'null');
+        if (!d) return false;
+        Object.assign(S, d, { ang: { ...S.ang, ...(d.ang || {}) }, spin: { ...S.spin, ...(d.spin || {}) }, show: { ...S.show, ...(d.show || {}) } });
+        return true;
+    } catch (_) { return false; }
+}
+
+// ---------- three.js ----------
+const canvas = $('#cv');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setClearColor(0x030712, 1);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 100);
+const CAM_SIDE = new THREE.Vector3(2.9, 2.0, 3.6), CAM_TOP = new THREE.Vector3(0.0001, 5.2, 0.35);
+camera.position.copy(CAM_SIDE);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.09;
+controls.minDistance = 1.2; controls.maxDistance = 14;
+
+const R4 = new THREE.Matrix4();
+const U = { R4: { value: R4 }, pk: { value: S.pk } };
+
+const V_HEAD = `
+uniform mat4 R4; uniform float pk;
+attribute vec4 p4;
+vec3 proj4(vec4 p, out float w) {
+    vec4 q = R4 * p; w = q.w;
+    float k = 1.0 / max(0.3, 1.0 - pk * q.w / 2.6);
+    return q.xyz * k;
+}`;
+const TANH = `float th(float x) { float e = exp(2.0 * clamp(x, -8.0, 8.0)); return (e - 1.0) / (e + 1.0); }`;
+
+// 曲面
+const surfMat = new THREE.ShaderMaterial({
+    uniforms: { ...U, cmode: { value: 0 }, flash: { value: 0 } },
+    vertexShader: V_HEAD + `
+attribute vec4 aux;   // (cos arg y, sin arg y, log|y|, ok)
+varying float vW; varying vec4 vAux; varying vec3 vPos;
+void main() {
+    float w; vec3 pos = proj4(p4, w);
+    vW = w; vAux = aux;
+    vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+    vPos = mv.xyz;
+    gl_Position = projectionMatrix * mv;
+}`,
+    fragmentShader: TANH + `
+uniform int cmode;
+varying float vW; varying vec4 vAux; varying vec3 vPos;
+vec3 hsv(float h, float s, float v) {
+    vec3 k = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+    return v * mix(vec3(1.0), k, s);
+}
+void main() {
+    if (vAux.w < 0.999) discard;
+    vec3 n = normalize(cross(dFdx(vPos), dFdy(vPos)));
+    float sh = 0.52 + 0.48 * abs(dot(n, normalize(vec3(-0.35, 0.8, 0.5))));
+    vec3 col;
+    if (cmode == 0) {
+        float t = th(vW * 1.6);
+        vec3 base = vec3(0.89, 0.91, 0.94), pos = vec3(0.98, 0.55, 0.20), neg = vec3(0.15, 0.55, 0.98);
+        col = mix(base, t > 0.0 ? pos : neg, abs(t));
+    } else if (cmode == 1) {
+        float h = atan(vAux.y, vAux.x) / 6.2831853 + 0.5;
+        float band = fract(vAux.z / 0.6931472);
+        col = hsv(h, 0.72, 0.72 + 0.28 * band);
+    } else {
+        float m = exp(vAux.z);
+        float t = m / (m + 1.0);
+        float band = fract(vAux.z / 0.6931472);
+        col = mix(vec3(0.03, 0.08, 0.22), vec3(0.98, 0.9, 0.62), t) * (0.8 + 0.2 * band);
+    }
+    gl_FragColor = vec4(col * sh, 1.0);
+}`,
+    side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+});
+surfMat.extensions.derivatives = true;
+
+// 線（色・濃さ）
+const lineMat = (color, opacity) => new THREE.ShaderMaterial({
+    uniforms: { ...U, color: { value: new THREE.Color(color) }, opacity: { value: opacity }, glow: { value: 0 } },
+    vertexShader: V_HEAD + `
+attribute float ok;
+varying float vOk;
+void main() { float w; vec3 pos = proj4(p4, w); vOk = ok; gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0); }`,
+    fragmentShader: `
+uniform vec3 color; uniform float opacity; uniform float glow;
+varying float vOk;
+void main() { if (vOk < 0.999) discard; gl_FragColor = vec4(min(vec3(1.0), color * (1.0 + glow)), min(1.0, opacity + glow * 0.5)); }`,
+    transparent: true, depthWrite: false,
+});
+// 太い線：線分の両端を画面に投影してから、画面の上で幅を持たせる（WebGL の線は 1px しか出ないため）
+// 軸は 4 本目の向きに回るほど細く薄くなる（座標の消失）
+const RES = { value: new THREE.Vector2(1, 1) };
+const fatMat = (width, opacity, glowGain = 1) => new THREE.ShaderMaterial({
+    uniforms: { ...U, res: RES, width: { value: width }, opacity: { value: opacity }, glow: { value: 0 }, gain: { value: glowGain } },
+    vertexShader: V_HEAD + `
+uniform vec2 res; uniform float width; uniform float glow; uniform float gain;
+attribute vec4 pA; attribute vec4 pB; attribute vec2 corner; attribute float ok; attribute vec4 dir; attribute vec3 col;
+varying float vOk; varying float vSide; varying vec3 vCol; varying float vA;
+void main() {
+    float wa, wb; vec3 a = proj4(pA, wa); vec3 b = proj4(pB, wb);
+    vec4 ca = projectionMatrix * modelViewMatrix * vec4(a, 1.0), cb = projectionMatrix * modelViewMatrix * vec4(b, 1.0);
+    vec2 sa = ca.xy / ca.w * res * 0.5, sb = cb.xy / cb.w * res * 0.5;
+    vec2 d = sb - sa; d = length(d) < 1e-5 ? vec2(1.0, 0.0) : normalize(d);
+    vec2 n = vec2(-d.y, d.x);
+    float dw = (R4 * dir).w, fade = 1.0 - min(1.0, dw * dw);
+    float wpx = width * (0.35 + 0.65 * fade) * (1.0 + glow * gain * 1.6);
+    vec4 c = corner.x < 0.5 ? ca : cb;
+    c.xy += n * corner.y * wpx * 0.5 / (res * 0.5) * c.w;
+    gl_Position = c;
+    vOk = ok; vSide = corner.y; vCol = col; vA = 0.1 + 0.9 * fade;
+}`,
+    fragmentShader: `
+uniform float opacity; uniform float glow; uniform float gain;
+varying float vOk; varying float vSide; varying vec3 vCol; varying float vA;
+void main() {
+    if (vOk < 0.999) discard;
+    float edge = 1.0 - smoothstep(0.35, 1.0, abs(vSide));
+    vec3 c = min(vec3(1.0), vCol * (1.0 + glow * gain * 0.6));
+    gl_FragColor = vec4(c, (opacity + glow * gain * 0.3) * vA * edge);
+}`,
+    transparent: true, depthWrite: false,
+});
+// 線分の列 → 太い線の形（線分ごとに 4 頂点）
+function fatGeo(pairs, oks, cols, dirs) {
+    const n = pairs.length / 8;
+    const pA = new Float32Array(n * 16), pB = new Float32Array(n * 16), corner = new Float32Array(n * 8), ok = new Float32Array(n * 4);
+    const col = new Float32Array(n * 12), dir = new Float32Array(n * 16), idx = [];
+    for (let s = 0; s < n; s++) {
+        const A = pairs.slice(s * 8, s * 8 + 4), B = pairs.slice(s * 8 + 4, s * 8 + 8);
+        const okS = oks[s * 2] && oks[s * 2 + 1] ? 1 : 0;
+        [[0, -1], [0, 1], [1, -1], [1, 1]].forEach((cr, v) => {
+            const q = s * 4 + v;
+            pA.set(A, q * 4); pB.set(B, q * 4); corner.set(cr, q * 2); ok[q] = okS;
+            col.set(cols.slice(s * 3, s * 3 + 3), q * 3);
+            dir.set(dirs ? dirs.slice(s * 4, s * 4 + 4) : [0, 0, 0, 0], q * 4);
+        });
+        const b = s * 4;
+        idx.push(b, b + 1, b + 2, b + 2, b + 1, b + 3);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('pA', new THREE.BufferAttribute(pA, 4));
+    g.setAttribute('pB', new THREE.BufferAttribute(pB, 4));
+    g.setAttribute('corner', new THREE.BufferAttribute(corner, 2));
+    g.setAttribute('ok', new THREE.BufferAttribute(ok, 1));
+    g.setAttribute('col', new THREE.BufferAttribute(col, 3));
+    g.setAttribute('dir', new THREE.BufferAttribute(dir, 4));
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 12), 3));
+    g.setIndex(idx);
+    return g;
+}
+function fatObj(g, mat, order) {
+    const o = new THREE.Mesh(g, mat);
+    o.frustumCulled = false; o.renderOrder = order;
+    scene.add(o);
+    return o;
+}
+// 解：光る点（どの向きでも見えるように、いちばん手前）
+const rootMat = new THREE.ShaderMaterial({
+    uniforms: { ...U, flash: { value: 0 }, dpr: { value: 1 }, hot: { value: -1 } },
+    vertexShader: V_HEAD + `
+uniform float flash; uniform float dpr; uniform float hot;
+attribute float idx;
+varying float vHot;
+void main() {
+    float w; vec3 pos = proj4(p4, w);
+    vHot = abs(idx - hot) < 0.5 ? 1.0 : 0.0;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    gl_PointSize = (15.0 + 18.0 * flash + 14.0 * vHot) * dpr;
+}`,
+    fragmentShader: `
+uniform float flash;
+varying float vHot;
+void main() {
+    vec2 d = gl_PointCoord - 0.5; float r = length(d) * 2.0;
+    if (r > 1.0) discard;
+    float core = smoothstep(0.42, 0.28, r), halo = pow(1.0 - r, 2.0);
+    vec3 lime = vec3(0.64, 0.9, 0.21);
+    vec3 col = mix(lime, vec3(1.0), core);
+    gl_FragColor = vec4(col, max(core, halo * (0.55 + 0.45 * flash + 0.3 * vHot)));
+}`,
+    transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending,
+});
+
+function mk(geoAttrs, mat, Kind, order = 0) {
+    const g = new THREE.BufferGeometry();
+    for (const k in geoAttrs) g.setAttribute(k, geoAttrs[k]);
+    const n = geoAttrs.p4.count;
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    const o = new Kind(g, mat);
+    o.frustumCulled = false; o.renderOrder = order;
+    scene.add(o);
+    return o;
+}
+const objs = {};
+function dropObj(k) {
+    if (!objs[k]) return;
+    scene.remove(objs[k]); objs[k].geometry.dispose(); objs[k] = null;
+}
+const mats = {
+    grid: lineMat('#cbd5e1', 0.16), floor: lineMat('#64748b', 0.35),
+    real: fatMat(2.6, 0.95, 0.6), green: fatMat(2.6, 0.95, 1.0), axes: fatMat(1.8, 0.9, 0),
+};
+const FAT = { real: '#fde047', green: '#4ade80' };
+
+// 軸（4 本、両端まで）
+(() => {
+    const L = 1.3, dirs = [[1, 0, 0, 0], [0, 0, -1, 0], [0, 1, 0, 0], [0, 0, 0, 1]];
+    const cols = ['#ff5d6c', '#56a8ff', '#3ddc84', '#b07cff'].map(c => new THREE.Color(c));
+    const p4 = [], dir = [], col = [], ok = [];
+    dirs.forEach((d, i) => {
+        p4.push(...d.map(v => -v * L), ...d.map(v => v * L));
+        dir.push(...d);
+        col.push(cols[i].r, cols[i].g, cols[i].b);
+        ok.push(1, 1);
+    });
+    objs.axes = fatObj(fatGeo(p4, ok, col, dir), mats.axes, 1);
+})();
+
+// ---------- 式の読み取り ----------
+let cur = null;   // { cf, free, text }
+function analyzeExpr(text) {
+    let src = text.replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=').replace(/^\s*[yY]\s*=/, '');
+    if (!src.trim()) throw ParseError('式を入力してください');
+    const at = splitTop(src);
+    let ast;
+    if (at < 0) ast = parse(closeParens(src));
+    else {
+        const L = parse(closeParens(src.slice(0, at))), R = parse(closeParens(src.slice(at + 1)));
+        const isY = n => n.t === 'var' && n.name === 'y';
+        if (isY(L) && !allFree(R).has('y')) ast = R;
+        else if (isY(R) && !allFree(L).has('y')) ast = L;
+        else ast = { t: 'bin', op: '-', l: L, r: R };
+    }
+    let cf = compileC(ast);
+    if (allFree(ast).has('y')) {
+        // y について 1 次なら y = … に解く
+        const g = cf, at2 = (z, y, p) => g({ z, y, p, loop: {} });
+        cf = env => {
+            const f0 = at2(env.z, C(0), env.p), f1 = at2(env.z, C(1), env.p);
+            return cdiv(C(-f0.re, -f0.im), csub(f1, f0));
+        };
+    }
+    return { cf, free: [...freeVars(ast)].filter(v => v !== 'y'), text };
+}
+function paramEnv() { const e = {}; for (const k in S.params) e[k] = S.params[k].v; return e; }
+function defaultParam(name) {
+    if ('nmkjNMK'.includes(name)) return { v: 3, min: 0, max: 20, step: 1 };
+    return { v: 1, min: -5, max: 5, step: 0.1 };
+}
+
+// ---------- 面・線・解を作り直す ----------
+let Yr = 1, roots = [], hotRoot = -1;
+function rebuild(fitR) {
+    if (!cur) return;
+    const env = paramEnv(), R = S.R, N = 96, n1 = N + 1;
+    const cenv = { z: null, y: C(0), p: env, loop: {} };
+    const ev = z => { cenv.z = z; cenv.loop = {}; return cur.cf(cenv); };
+
+    // 解（範囲より広めに探して、範囲を合わせる時に使う）
+    roots = findRoots(cur.cf, env, { x0: -R, x1: R, y0: -R, y1: R }, 350).filter(r => cabs(r) < 60);
+    if (fitR) {
+        const m = roots.reduce((a, r) => Math.max(a, Math.abs(r.re), Math.abs(r.im)), 0);
+        if (m > 0) { S.R = Math.min(12, Math.max(1.2, Math.ceil(m * 1.35 * 10) / 10)); }
+        syncUI();
+        return rebuild(false);
+    }
+
+    const re = new Float64Array(n1 * n1), im = new Float64Array(n1 * n1);
+    for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) {
+        const v = ev(C(-R + 2 * R * i / N, -R + 2 * R * j / N));
+        re[j * n1 + i] = v.re; im[j * n1 + i] = v.im;
+    }
+    const mags = [];
+    for (let k = 0; k < re.length; k++) { const m = Math.hypot(re[k], im[k]); if (isFinite(m)) mags.push(m); }
+    mags.sort((a, b) => a - b);
+    Yr = Math.max(1e-9, (mags.length ? mags[Math.floor(mags.length * 0.9)] : 1) * 1.1);
+
+    const A = i => -1 + 2 * i / N, B = j => -1 + 2 * j / N;
+    const okv = k => isFinite(re[k]) && isFinite(im[k]) && Math.abs(re[k] / Yr) < CLIP && Math.abs(im[k] / Yr) < CLIP;
+    const P4 = (a, b, u, v) => [a, u, -b, v];
+    const cl = v => Math.max(-CLIP * 1.2, Math.min(CLIP * 1.2, isFinite(v) ? v : 0));
+
+    // 曲面
+    const p4 = new Float32Array(n1 * n1 * 4), aux = new Float32Array(n1 * n1 * 4);
+    for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) {
+        const k = j * n1 + i, u = re[k] / Yr, v = im[k] / Yr, m = Math.hypot(re[k], im[k]);
+        p4.set(P4(A(i), B(j), cl(u), cl(v)), k * 4);
+        aux.set([m > 0 ? re[k] / m : 1, m > 0 ? im[k] / m : 0, m > 0 && isFinite(m) ? Math.log(m) : -20, okv(k) ? 1 : 0], k * 4);
+    }
+    const idx = [];
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const a = j * n1 + i, b = a + 1, c = a + n1 + 1, d = a + n1;
+        idx.push(a, b, c, a, c, d);
+    }
+    dropObj('surf');
+    {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('p4', new THREE.BufferAttribute(p4, 4));
+        g.setAttribute('aux', new THREE.BufferAttribute(aux, 4));
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n1 * n1 * 3), 3));
+        g.setIndex(idx);
+        objs.surf = new THREE.Mesh(g, surfMat); objs.surf.frustumCulled = false;
+        scene.add(objs.surf);
+    }
+
+    // 線を作る道具
+    const segs = () => ({ p: [], ok: [] });
+    const push = (L, a, b, okA = 1, okB = 1) => { L.p.push(...a, ...b); L.ok.push(okA, okB); };
+    const put = (key, L, order) => {
+        dropObj(key);
+        if (!L.p.length) return;
+        if (FAT[key]) {
+            const c = new THREE.Color(FAT[key]), cols = [];
+            for (let s = 0; s < L.p.length / 8; s++) cols.push(c.r, c.g, c.b);
+            objs[key] = fatObj(fatGeo(L.p, L.ok, cols), mats[key], order);
+            return;
+        }
+        objs[key] = mk({
+            p4: new THREE.BufferAttribute(new Float32Array(L.p), 4),
+            ok: new THREE.BufferAttribute(new Float32Array(L.ok), 1),
+        }, mats[key], THREE.LineSegments, order);
+    };
+
+    // 曲面の上の格子（Re x・Im x が一定の線）
+    const G = segs(), gs = N / 12;
+    for (let j = 0; j <= N; j += gs) for (let i = 0; i < N; i++) {
+        const k0 = j * n1 + i, k1 = k0 + 1;
+        push(G, P4(A(i), B(j), cl(re[k0] / Yr), cl(im[k0] / Yr)), P4(A(i + 1), B(j), cl(re[k1] / Yr), cl(im[k1] / Yr)), okv(k0) ? 1 : 0, okv(k1) ? 1 : 0);
+    }
+    for (let i = 0; i <= N; i += gs) for (let j = 0; j < N; j++) {
+        const k0 = j * n1 + i, k1 = k0 + n1;
+        push(G, P4(A(i), B(j), cl(re[k0] / Yr), cl(im[k0] / Yr)), P4(A(i), B(j + 1), cl(re[k1] / Yr), cl(im[k1] / Yr)), okv(k0) ? 1 : 0, okv(k1) ? 1 : 0);
+    }
+    put('grid', G, 2);
+
+    // 床（x の複素数平面、y = 0）
+    const F = segs(), st = niceStep(R / 3);
+    for (let t = Math.ceil(-R / st) * st; t <= R + 1e-9; t += st) {
+        push(F, P4(t / R, -1, 0, 0), P4(t / R, 1, 0, 0));
+        push(F, P4(-1, t / R, 0, 0), P4(1, t / R, 0, 0));
+    }
+    put('floor', F, 1);
+
+    // 黄：x が実数の所（細かく）
+    const Y = segs(), M = 600;
+    let prev = null;
+    for (let m = 0; m <= M; m++) {
+        const a = -1 + 2 * m / M, v = ev(C(a * R, 0)), u = v.re / Yr, w = v.im / Yr;
+        const ok = isFinite(u) && isFinite(w) && Math.abs(u) < CLIP && Math.abs(w) < CLIP;
+        const p = ok ? P4(a, 0, u, w) : null;
+        if (p && prev) push(Y, prev, p);
+        prev = p;
+    }
+    put('real', Y, 3);
+
+    // 緑：x が複素数でも y が実数になる所（Im y = 0）
+    const Gr = segs();
+    const gp = (ka, kb, ia, ja, ib, jb) => {
+        const ca = im[ka], cb = im[kb], t = ca / (ca - cb);
+        const a = A(ia + (ib - ia) * t), b = B(ja + (jb - ja) * t), u = (re[ka] + (re[kb] - re[ka]) * t) / Yr;
+        return Math.abs(u) < CLIP && Math.abs(b) > 0.6 / N ? P4(a, b, u, 0) : null;
+    };
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const k0 = j * n1 + i, k1 = k0 + 1, k2 = k0 + n1 + 1, k3 = k0 + n1;
+        const c0 = im[k0], c1 = im[k1], c2 = im[k2], c3 = im[k3];
+        if (!(isFinite(c0) && isFinite(c1) && isFinite(c2) && isFinite(c3))) continue;
+        if (!(okv(k0) && okv(k1) && okv(k2) && okv(k3))) continue;
+        const ps = [];
+        if ((c0 > 0) !== (c1 > 0)) ps.push(gp(k0, k1, i, j, i + 1, j));
+        if ((c1 > 0) !== (c2 > 0)) ps.push(gp(k1, k2, i + 1, j, i + 1, j + 1));
+        if ((c3 > 0) !== (c2 > 0)) ps.push(gp(k3, k2, i, j + 1, i + 1, j + 1));
+        if ((c0 > 0) !== (c3 > 0)) ps.push(gp(k0, k3, i, j, i, j + 1));
+        for (let m = 0; m + 1 < ps.length; m += 2) if (ps[m] && ps[m + 1]) push(Gr, ps[m], ps[m + 1]);
+    }
+    put('green', Gr, 3);
+
+    // 解
+    dropObj('roots');
+    const vis = roots.filter(r => Math.abs(r.re) <= R * 1.0001 && Math.abs(r.im) <= R * 1.0001);
+    if (vis.length) {
+        const rp = new Float32Array(vis.length * 4), ri = new Float32Array(vis.length);
+        vis.forEach((r, i) => { rp.set(P4(r.re / R, r.im / R, 0, 0), i * 4); ri[i] = i; });
+        objs.roots = mk({ p4: new THREE.BufferAttribute(rp, 4), idx: new THREE.BufferAttribute(ri, 1) }, rootMat, THREE.Points, 10);
+    }
+    visRoots = vis;
+    renderRootChips();
+    applyShow();
+    requestRender();
+}
+let visRoots = [];
+
+// ---------- 4D の回転行列 ----------
+function rotM(a, b, deg) {
+    const m = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], t = deg * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
+    m[a][a] = c; m[a][b] = -s; m[b][a] = s; m[b][b] = c;
+    return m;
+}
+const mul = (A, B) => A.map((r, i) => B[0].map((_, j) => r.reduce((acc, v, k) => acc + v * B[k][j], 0)));
+let Rm = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+function updateRot() {
+    Rm = PLANES.reduce((acc, p) => mul(rotM(p.a, p.b, S.ang[p.k]), acc), [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]);
+    R4.set(...Rm[0], ...Rm[1], ...Rm[2], ...Rm[3]);
+    U.pk.value = S.pk;
+}
+// JS 側でも同じ投影（ラベルの位置用）
+function proj4(p) {
+    const q = Rm.map(r => r[0] * p[0] + r[1] * p[1] + r[2] * p[2] + r[3] * p[3]);
+    const k = 1 / Math.max(0.3, 1 - S.pk * q[3] / 2.6);
+    return { v: new THREE.Vector3(q[0] * k, q[1] * k, q[2] * k), w: q[3] };
+}
+
+// ---------- ラベル（軸の名前・解の値） ----------
+const labelsEl = $('#labels');
+const AXL = [
+    { t: 'Re x', c: '#ff5d6c', p: [1.42, 0, 0, 0], d: [1, 0, 0, 0] },
+    { t: 'Im x', c: '#56a8ff', p: [0, 0, -1.42, 0], d: [0, 0, -1, 0] },
+    { t: 'Re y', c: '#3ddc84', p: [0, 1.42, 0, 0], d: [0, 1, 0, 0] },
+    { t: 'Im y', c: '#b07cff', p: [0, 0, 0, 1.42], d: [0, 0, 0, 1] },
+];
+let labPool = [];
+function updateLabels() {
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    const items = [];
+    if (S.show.axes) AXL.forEach(a => {
+        const r = proj4(a.p), dw = proj4(a.d).w;
+        const fade = 1 - Math.min(1, dw * dw);
+        items.push({ cls: 'lab', text: a.t, color: a.c, v: r.v, op: 0.1 + 0.9 * fade, scale: 0.75 + 0.35 * fade });
+    });
+    visRoots.forEach((r, i) => items.push({ cls: 'lab root' + (i === hotRoot ? ' hot' : ''), text: fmtR(r.re, r.im), v: proj4([r.re / S.R, 0, -r.im / S.R, 0]).v, op: 1 }));
+    while (labPool.length < items.length) { const d = document.createElement('div'); labelsEl.appendChild(d); labPool.push(d); }
+    const placed = [];   // 解のラベルが重なる時は後のものを隠す（軸を消すと解が 1 か所に集まるため）
+    labPool.forEach((d, i) => {
+        const it = items[i];
+        if (!it) { d.style.display = 'none'; return; }
+        const p = it.v.clone().project(camera);
+        if (p.z > 1 || p.z < -1) { d.style.display = 'none'; return; }
+        if (it.cls.startsWith('lab root')) {
+            const x = (p.x + 1) / 2 * W, y = (1 - p.y) / 2 * H, w = it.text.length * 6.8;
+            if (!it.cls.includes('hot') && placed.some(q => Math.abs(q[0] - x) < (q[2] + w) / 2 + 4 && Math.abs(q[1] - y) < 15)) { d.style.display = 'none'; return; }
+            placed.push([x, y, w]);
+        }
+        d.style.display = '';
+        d.className = it.cls;
+        d.textContent = it.text;
+        if (it.color) d.style.color = it.color; else d.style.color = '';
+        d.style.opacity = it.op;
+        d.style.left = ((p.x + 1) / 2 * W) + 'px';
+        d.style.top = ((1 - p.y) / 2 * H) + 'px';
+        d.style.fontSize = it.scale ? (12 * it.scale).toFixed(1) + 'px' : '';
+    });
+}
+
+// ---------- 描画ループ（必要な時だけ描く・時間基準） ----------
+let needRender = true, lastT = 0, tween = null, flashT = 0;
+const requestRender = () => { needRender = true; };
+controls.addEventListener('change', requestRender);
+function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(dpr);
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    rootMat.uniforms.dpr.value = dpr;
+    RES.value.set(window.innerWidth, window.innerHeight);
+    requestRender();
+}
+window.addEventListener('resize', resize);
+const ease = u => u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+function startTween(ang, cam) {
+    const from = { ...S.ang }, to = {};
+    for (const k in ang) { const d = ((ang[k] - from[k]) % 360 + 540) % 360 - 180; to[k] = from[k] + d; }   // 近い方へ回る
+    tween = { from, to, t0: performance.now(), dur: 1500, camFrom: camera.position.clone(), camTo: cam === 'top' ? CAM_TOP.clone() : (cam === 'side' && camera.position.y > 4.5 ? CAM_SIDE.clone() : null) };
+    S.spinOn = false; syncUI();
+    requestRender();
+}
+function frame(t) {
+    requestAnimationFrame(frame);
+    const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
+    lastT = t;
+    let anim = false;
+    if (S.spinOn && PLANES.some(p => S.spin[p.k])) {
+        PLANES.forEach(p => { if (S.spin[p.k]) S.ang[p.k] = (S.ang[p.k] + 22 * p.rate * S.speed * dt) % 360; });
+        anim = true;
+        syncAngles();
+    }
+    if (tween) {
+        const u = Math.min(1, (performance.now() - tween.t0) / tween.dur), e = ease(u);
+        for (const k in tween.to) S.ang[k] = tween.from[k] + (tween.to[k] - tween.from[k]) * e;
+        if (tween.camTo) camera.position.lerpVectors(tween.camFrom, tween.camTo, e), camera.lookAt(0, 0, 0);
+        if (u >= 1) { for (const k in tween.to) S.ang[k] = ((tween.to[k] % 360) + 360) % 360; tween = null; flashT = performance.now(); save(); }
+        syncAngles();
+        anim = true;
+    }
+    let fl = 0;
+    if (flashT) {
+        const u = (performance.now() - flashT) / 1700;
+        if (u >= 1) flashT = 0;
+        else { fl = Math.pow(1 - u, 1.4) * (0.6 + 0.4 * Math.cos(u * Math.PI * 7)); anim = true; }
+    }
+    rootMat.uniforms.flash.value = fl;
+    mats.green.uniforms.glow.value = fl;
+    mats.real.uniforms.glow.value = fl;
+    if (controls.update()) anim = true;
+    if (anim || needRender) {
+        updateRot();
+        renderer.render(scene, camera);
+        updateLabels();
+        needRender = false;
+    }
+}
+
+// ---------- UI ----------
+function renderPlanes() {
+    $('#planes').innerHTML = PLANES.map(p => `
+        <div class="plane" data-k="${p.k}">
+            <div class="nm">${p.name}<br><small>${p.sub}</small></div>
+            <input type="range" min="0" max="360" step="1">
+            <button class="btn" type="button" title="この面で回す">▶</button>
+        </div>`).join('');
+    document.querySelectorAll('.plane').forEach(el => {
+        const k = el.dataset.k;
+        el.querySelector('input').addEventListener('input', e => { tween = null; S.ang[k] = +e.target.value; requestRender(); saveSoon(); });
+        el.querySelector('button').addEventListener('click', () => {
+            S.spin[k] = !S.spin[k];
+            if (S.spin[k]) S.spinOn = true;
+            syncUI(); save();
+        });
+    });
+}
+function syncAngles() {
+    document.querySelectorAll('.plane').forEach(el => {
+        const inp = el.querySelector('input');
+        if (document.activeElement !== inp) inp.value = Math.round(((S.ang[el.dataset.k] % 360) + 360) % 360);
+    });
+}
+function renderViews() {
+    $('#views').innerHTML = VIEWS.map(v => `<button class="btn" type="button" data-v="${v.k}">${v.name}<small>${v.sub}</small></button>`).join('');
+    document.querySelectorAll('#views .btn').forEach(b => b.addEventListener('click', () => {
+        const v = VIEWS.find(x => x.k === b.dataset.v);
+        startTween(v.ang, v.cam);
+    }));
+}
+function renderRootChips() {
+    $('#rootCount').textContent = roots.length ? `${visRoots.length} 個` + (roots.length > visRoots.length ? `（範囲の外に ${roots.length - visRoots.length} 個）` : '') : 'なし';
+    $('#roots').innerHTML = visRoots.map((r, i) => `<span class="chip" data-i="${i}" title="${fmtC(r.re, r.im)}">${fmtR(r.re, r.im)}</span>`).join('');
+    document.querySelectorAll('#roots .chip').forEach(c => c.addEventListener('click', () => {
+        hotRoot = +c.dataset.i;
+        rootMat.uniforms.hot.value = hotRoot;
+        document.querySelectorAll('#roots .chip').forEach(x => x.classList.toggle('hot', x === c));
+        flashT = performance.now();
+        requestRender();
+    }));
+    hotRoot = -1; rootMat.uniforms.hot.value = -1;
+}
+function renderParams() {
+    const names = cur ? cur.free : [];
+    names.forEach(n => { if (!S.params[n]) S.params[n] = defaultParam(n); });
+    $('#paramSec').hidden = !names.length;
+    $('#params').innerHTML = names.map(n => {
+        const p = S.params[n];
+        return `<div class="param row" data-n="${n}"><i style="font:italic 500 14px 'Times New Roman',serif;color:var(--text)">${n}</i><input type="range" min="${p.min}" max="${p.max}" step="${p.step}" value="${p.v}"><span class="v">${p.v}</span></div>`;
+    }).join('');
+    document.querySelectorAll('#params .param').forEach(el => el.querySelector('input').addEventListener('input', e => {
+        const p = S.params[el.dataset.n];
+        p.v = +e.target.value; el.querySelector('.v').textContent = p.v;
+        scheduleRebuild(false); saveSoon(); writeHash();
+    }));
+}
+function applyShow() {
+    if (objs.surf) objs.surf.visible = S.show.surf;
+    if (objs.grid) objs.grid.visible = S.show.grid && S.show.surf;
+    if (objs.floor) objs.floor.visible = S.show.floor;
+    if (objs.axes) objs.axes.visible = S.show.axes;
+    if (objs.real) objs.real.visible = S.show.real;
+    if (objs.green) objs.green.visible = S.show.green;
+    surfMat.uniforms.cmode.value = { w: 0, arg: 1, abs: 2 }[S.color] || 0;
+    requestRender();
+}
+function syncUI() {
+    PLANES.forEach(p => {
+        const b = document.querySelector(`.plane[data-k="${p.k}"] button`);
+        if (b) b.classList.toggle('on', S.spin[p.k]);
+    });
+    syncAngles();
+    $('#spinAll').textContent = S.spinOn ? '止める' : '回す';
+    $('#spinAll').classList.toggle('on', S.spinOn);
+    $('#speed').value = S.speed; $('#speedV').textContent = S.speed.toFixed(2);
+    $('#range').value = S.R; $('#rangeV').textContent = S.R.toFixed(1);
+    $('#persp').value = S.pk; $('#perspV').textContent = S.pk.toFixed(2);
+    document.querySelectorAll('#colors .btn').forEach(b => b.classList.toggle('on', b.dataset.c === S.color));
+    document.querySelectorAll('#shows .btn').forEach(b => b.classList.toggle('on', !!S.show[b.dataset.s]));
+    $('#legend').innerHTML = legendText();
+    applyShow();
+}
+function legendText() {
+    const c = S.color === 'w' ? '色＝いま消えている 4 本目の軸（<span style="color:#60a5fa">青−</span>・白0・<span style="color:#fb923c">橙+</span>）'
+        : S.color === 'arg' ? '色＝y の向き（偏角、虹色が一周）、明るさの縞＝|y| が 2 倍ごと' : '色＝|y| の大きさ（暗いほど 0 に近い）';
+    return `<i style="color:var(--rex)">Re x</i>・<i style="color:var(--imx)">Im x</i>・<i style="color:var(--rey)">Re y</i>・<i style="color:var(--imy)">Im y</i> の 4 本の軸を 4 次元のまま回し、4 本目の向きに回った軸は薄く消えます。　${c}　` +
+        `<span style="color:#fde047">黄＝x が実数</span>　<span style="color:#4ade80">緑＝y が実数</span>　<span style="color:var(--lime)">●＝解（y = 0）</span>`;
+}
+
+let rebuildQueued = null;
+function scheduleRebuild(fitR) {
+    if (rebuildQueued) return;
+    rebuildQueued = requestAnimationFrame(() => { rebuildQueued = null; rebuild(fitR); });
+}
+function setExpr(text, fitR = true) {
+    S.expr = text;
+    try {
+        cur = analyzeExpr(text);
+        $('#err').hidden = true;
+    } catch (e) {
+        $('#err').hidden = false; $('#err').textContent = e.isParse ? e.message : '式を読み取れません';
+        return;
+    }
+    renderParams();
+    rebuild(fitR);
+    save(); writeHash();
+}
+function writeHash() {
+    const used = {};
+    (cur ? cur.free : []).forEach(n => { used[n] = S.params[n]; });
+    const h = 'e=' + encodeURIComponent(S.expr) + (Object.keys(used).length ? '&p=' + encodeURIComponent(JSON.stringify(used)) : '');
+    try { history.replaceState(null, '', '#' + h); } catch (_) { /* file:// などでは何もしない */ }
+}
+function readHash() {
+    const h = new URLSearchParams(location.hash.slice(1));
+    if (!h.get('e')) return false;
+    S.expr = h.get('e');
+    try { const p = JSON.parse(h.get('p') || '{}'); for (const k in p) if (p[k] && isFinite(p[k].v)) S.params[k] = p[k]; } catch (_) { /* 無視 */ }
+    return true;
+}
+function loadPreset(p) {
+    S.params = { ...S.params, ...(p.params || {}) };
+    for (const k in S.spin) S.spin[k] = (p.spin || []).includes(k);
+    S.spinOn = true;
+    S.ang = { xw: 0, yw: 0, zw: 0, xz: 0 };
+    $('#expr').value = p.e;
+    if (p.R) { S.R = p.R; setExpr(p.e, false); } else setExpr(p.e, true);
+    syncUI();
+}
+
+// 入力・ボタン
+PRESETS.forEach((p, i) => { const o = document.createElement('option'); o.value = i; o.textContent = p.name; $('#preset').appendChild(o); });
+$('#preset').addEventListener('change', e => { const i = e.target.value; e.target.value = ''; if (i !== '') loadPreset(PRESETS[+i]); });
+let exprTimer = null;
+$('#expr').addEventListener('input', e => { clearTimeout(exprTimer); exprTimer = setTimeout(() => setExpr(e.target.value, true), 350); });
+$('#spinAll').addEventListener('click', () => { S.spinOn = !S.spinOn; tween = null; syncUI(); save(); });
+$('#speed').addEventListener('input', e => { S.speed = +e.target.value; $('#speedV').textContent = S.speed.toFixed(2); saveSoon(); });
+$('#range').addEventListener('input', e => { S.R = +e.target.value; $('#rangeV').textContent = S.R.toFixed(1); scheduleRebuild(false); saveSoon(); });
+$('#persp').addEventListener('input', e => { S.pk = +e.target.value; $('#perspV').textContent = S.pk.toFixed(2); requestRender(); saveSoon(); });
+$('#fitRoots').addEventListener('click', () => rebuild(true));
+document.querySelectorAll('#colors .btn').forEach(b => b.addEventListener('click', () => { S.color = b.dataset.c; syncUI(); save(); }));
+document.querySelectorAll('#shows .btn').forEach(b => b.addEventListener('click', () => { S.show[b.dataset.s] = !S.show[b.dataset.s]; syncUI(); save(); }));
+$('#panelBtn').addEventListener('click', () => { $('#panel').hidden = !$('#panel').hidden; });
+if (window.innerWidth <= 760) $('#panel').hidden = true;
+
+// ---------- 開始 ----------
+renderPlanes();
+renderViews();
+const fromHash = readHash();
+if (!fromHash) load();
+resize();
+syncUI();
+$('#expr').value = S.expr;
+if (fromHash) {
+    // グラフ電卓から来た時：解が全部入る範囲にして、少し回す
+    S.spin = { xw: false, yw: false, zw: true, xz: false }; S.spinOn = true; S.ang = { xw: 0, yw: 0, zw: 0, xz: 0 };
+    setExpr(S.expr, true); syncUI();
+} else if (!localStorage.getItem(STORE)) loadPreset(PRESETS[0]);
+else setExpr(S.expr, false);
+window.addEventListener('hashchange', () => { if (readHash()) { $('#expr').value = S.expr; setExpr(S.expr, true); } });
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
