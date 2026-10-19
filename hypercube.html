@@ -161,6 +161,19 @@
         .float-stack.collapsed { padding-bottom: 0; }
         .float-stack.collapsed > .fs-grip { margin-bottom: 0; border-bottom: 0; border-radius: 11px; }
         .fs-grip .fs-count { color: #8aa0c6; }
+        .sb-panel > .sb-sec[data-fid] > .sb-h, .sb-h.xp-drag { cursor: grab; user-select: none; }   /* メニューの欄も見出しをつかんでドラッグで分離 */
+        .sb-panel > .sb-sec[data-fid] > .sb-h button, .sb-h.xp-drag button { cursor: pointer; }
+        /* タブでまとめる：見出しの代わりにタブ。選んだ1枚だけ表示 */
+        .float-stack.tabbed > .float-panel:not(.tab-on) { display: none; }
+        .float-stack.tabbed > .float-panel > .sb-sec > .sb-h { display: none; }
+        .float-stack.tabbed > .float-panel > .sb-sec { padding-top: 10px; border-top-left-radius: 0; border-top-right-radius: 0; }
+        .float-stack.tabbed { gap: 0; }
+        .float-stack > .fs-tabs { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 3px; position: sticky; top: 24px; z-index: 6; margin: 4px -4px 0; padding: 4px 6px 0; background: rgba(7, 11, 26, 0.98); border-bottom: 1px solid rgba(167, 139, 250, 0.55); }
+        .float-stack.collapsed > .fs-tabs { display: none; }
+        .fs-tab { font-size: 11px; line-height: 1.2; padding: 5px 10px; border-radius: 7px 7px 0 0; color: #94a3b8; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(71, 85, 105, 0.7); border-bottom: 0; cursor: pointer; user-select: none; touch-action: none; }
+        .fs-tab:hover { color: #e2e8f0; }
+        .fs-tab.on { color: #ede9fe; background: rgba(76, 29, 149, 0.6); border-color: rgba(167, 139, 250, 0.75); }
+        .fs-tabs .fs-tab-back { margin-left: auto; align-self: center; }
         #dock-ins { position: fixed; z-index: 47; height: 4px; border-radius: 2px; background: #a5b4fc; box-shadow: 0 0 10px rgba(165, 180, 252, 0.9); pointer-events: none; display: none; }
         #dock-hint { position: fixed; top: 0; bottom: 0; z-index: 46; pointer-events: none; display: none; background: rgba(129, 140, 248, 0.16); border: 2px dashed rgba(129, 140, 248, 0.75); border-radius: 10px; box-sizing: border-box; }
 
@@ -7161,7 +7174,7 @@
                 function save() {   // 今の並び（DOM）をそのまま保存
                     if (restoring) return;
                     const ids = c => wrapsIn(c).map(w => w._sec.dataset.fid);
-                    const L = { v: 2, stacks: [...layer.querySelectorAll(':scope > .float-stack')].map(st => ({ x: parseInt(st.style.left) || 0, y: parseInt(st.style.top) || 0, ids: ids(st), ...(st.classList.contains('collapsed') ? { collapsed: true } : {}) })).filter(s => s.ids.length), left: ids(railL), right: ids(railR) };
+                    const L = { v: 2, stacks: [...layer.querySelectorAll(':scope > .float-stack')].map(st => ({ x: parseInt(st.style.left) || 0, y: parseInt(st.style.top) || 0, ids: ids(st), ...(st.classList.contains('collapsed') ? { collapsed: true } : {}), ...(st.classList.contains('tabbed') ? { tabs: true, active: st._active } : {}) })).filter(s => s.ids.length), left: ids(railL), right: ids(railR) };
                     try { localStorage.setItem(FKEY, JSON.stringify(L)); } catch (_) {}
                 }
                 // レールの中身の有無で、本体の描画領域を広げ／狭める（--dock-l/r がそのまま main-container の余白になる）
@@ -7180,7 +7193,7 @@
                     if (!n) { c.remove(); return; }
                     c.classList.toggle('multi', n > 1);
                     if (n < 2) c.classList.remove('collapsed');   // つまみが無いとひらけないので、1枚ならたたまない
-                    syncFold(c);
+                    syncFold(c); syncTabs(c);
                     c.style.left = clampX(parseInt(c.style.left) || 0, c) + 'px';
                     requestRender(5);
                 }
@@ -7191,7 +7204,9 @@
                     const fold = document.createElement('button'); fold.type = 'button'; fold.className = 'sb-floatbtn fs-fold'; fold.title = 'グループをまとめてたたむ／ひらく（つまみのダブルクリックでも）';
                     fold.addEventListener('click', e => { e.stopPropagation(); toggleFold(st); });
                     grip.addEventListener('dblclick', e => { if (e.target.closest('button')) return; toggleFold(st); });
-                    grip.appendChild(fold);
+                    const tabb = document.createElement('button'); tabb.type = 'button'; tabb.className = 'sb-floatbtn fs-tabbtn'; tabb.title = 'タブでまとめる（選んだ1枚だけ表示）／縦に並べる';
+                    tabb.addEventListener('click', e => { e.stopPropagation(); st.classList.toggle('tabbed'); syncTabs(st); save(); requestRender(5); });
+                    grip.appendChild(tabb); grip.appendChild(fold);
                     const all = document.createElement('button'); all.type = 'button'; all.className = 'sb-floatbtn'; all.textContent = '⇲ 全部戻す'; all.title = 'このグループのパネルを全部元の場所へ';
                     all.addEventListener('click', e => { e.stopPropagation(); wrapsIn(st).forEach(w => homeOf(w._sec)()); });
                     grip.appendChild(all); st.appendChild(grip);
@@ -7205,6 +7220,30 @@
                     const col = st.classList.contains('collapsed');
                     b.textContent = col ? '▸ ひらく' : '▾ たたむ';
                     if (cnt) cnt.textContent = col ? '（' + wrapsIn(st).length + '枚）' : '';
+                }
+                // タブでまとめる：見出しの代わりに上にタブを並べ、選んだ1枚だけ表示。タブはクリックで切替、ドラッグで取り出し・ほかへ移動
+                function syncTabs(st) {
+                    const tb = st.querySelector(':scope > .fs-grip .fs-tabbtn'); if (tb) tb.textContent = st.classList.contains('tabbed') ? '☰ 縦並び' : '▤ タブ';
+                    const items = wrapsIn(st); let bar = st.querySelector(':scope > .fs-tabs');
+                    if (!st.classList.contains('tabbed') || items.length < 2) {
+                        if (items.length < 2) st.classList.remove('tabbed');
+                        if (bar) bar.remove(); items.forEach(w => w.classList.remove('tab-on'));
+                        if (tb) tb.textContent = st.classList.contains('tabbed') ? '☰ 縦並び' : '▤ タブ';
+                        return;
+                    }
+                    const act = items.find(w => w._sec.dataset.fid === st._active) || items[0]; st._active = act._sec.dataset.fid;
+                    if (!bar) { bar = document.createElement('div'); bar.className = 'fs-tabs'; st.querySelector(':scope > .fs-grip').after(bar); }
+                    bar.innerHTML = '';
+                    items.forEach(w => {
+                        const fid = w._sec.dataset.fid, t = document.createElement('button'); t.type = 'button';
+                        t.className = 'fs-tab' + (w === act ? ' on' : ''); t.textContent = fid.replace(/（[^）]*）/g, '').trim() || fid; t.title = fid + '：クリックで切り替え。ドラッグで取り出す・ほかのグループや端へ移す';   // タブ名はかっこ書きを省いて短く
+                        t.addEventListener('pointerdown', e => { if (e.button !== 0) return; if (e.pointerType !== 'touch') e.preventDefault(); armDrag(e, ev => { t._dragged = true; beginDrag(w._sec, ev); }); });
+                        t.addEventListener('click', e => { e.stopPropagation(); if (t._dragged) { t._dragged = false; return; } st._active = fid; syncTabs(st); save(); requestRender(5); });
+                        bar.appendChild(t); w.classList.toggle('tab-on', w === act);
+                    });
+                    const back = document.createElement('button'); back.type = 'button'; back.className = 'sb-floatbtn fs-tab-back'; back.textContent = '⇲ 戻す'; back.title = '表示中のパネルを元の場所へ';
+                    back.addEventListener('click', e => { e.stopPropagation(); homeOf(act._sec)(); });
+                    bar.appendChild(back);
                 }
                 function toggleFold(st, on) {   // グループをまとめてたたむ（つまみだけ残す）／ひらく
                     st.classList.toggle('collapsed', on === undefined ? !st.classList.contains('collapsed') : on);
@@ -7236,6 +7275,8 @@
                 function showIns(t) {   // 差し込み位置の線（グループやレールの、パネルとパネルの間）
                     if (!t || !t.c || !wrapsIn(t.c).length) { insLine.style.display = 'none'; return; }
                     const items = wrapsIn(t.c), cr = t.c.getBoundingClientRect();
+                    const tbar = t.c.querySelector(':scope > .fs-tabs');
+                    if (t.c.classList.contains('tabbed') && tbar && !t.c.classList.contains('collapsed')) { const br = tbar.getBoundingClientRect(); insLine.style.left = (br.left + 6) + 'px'; insLine.style.width = Math.max(40, br.width - 12) + 'px'; insLine.style.top = (br.bottom - 2) + 'px'; insLine.style.display = 'block'; return; }
                     if (t.c.classList.contains('collapsed')) { insLine.style.left = (cr.left + 6) + 'px'; insLine.style.width = Math.max(40, cr.width - 12) + 'px'; insLine.style.top = (cr.bottom - 2) + 'px'; insLine.style.display = 'block'; return; }
                     const y = t.index < items.length ? items[t.index].getBoundingClientRect().top - 4 : items[items.length - 1].getBoundingClientRect().bottom + 4;
                     insLine.style.left = (cr.left + 6) + 'px'; insLine.style.width = Math.max(40, cr.width - 12) + 'px';
@@ -7246,14 +7287,14 @@
                     if (side) { const rail = side === 'left' ? railL : railR; return { c: rail, index: indexByY(rail, cy), side }; }
                     const inside = el => { const r = el.getBoundingClientRect(); return r.width > 0 && cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom; };
                     const stacks = [...layer.querySelectorAll(':scope > .float-stack')].filter(st => st !== self).reverse();   // 上に重なっているものから
-                    for (const st of stacks) if (inside(st)) return { c: st, index: indexByY(st, cy) };
+                    for (const st of stacks) if (inside(st)) return { c: st, index: (st.classList.contains('tabbed') || st.classList.contains('collapsed')) ? wrapsIn(st).length : indexByY(st, cy) };   // タブ・たたみ中は末尾へ
                     for (const rail of [railL, railR]) if (rail.classList.contains('active') && inside(rail)) return { c: rail, index: indexByY(rail, cy), side: rail._side };
                     return null;
                 }
                 // グループ（浮いている入れ物）をつかんで動かす。離した場所が端ならドック、ほかのグループやレールの上なら、その位置に連結（間に差し込み）
-                function dragStack(st, e) {
+                function dragStack(st, e, started) {   // started：すでに少し動かしてから始めた（直接ドラッグ・タブのドラッグ）
                     const sx = e.clientX, sy = e.clientY, ox = parseInt(st.style.left) || 0, oy = parseInt(st.style.top) || 0;
-                    let cx = sx, cy = sy, moved = false, tgt = null;
+                    let cx = sx, cy = sy, moved = !!started, tgt = null;
                     layer.appendChild(st);   // 一番手前へ
                     const mv = ev => {
                         cx = ev.clientX; cy = ev.clientY; const dx = cx - sx, dy = cy - sy;
@@ -7267,7 +7308,8 @@
                         window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
                         showHint(null); showIns(null); st.classList.remove('joining');
                         if (moved && tgt) {   // 連結：グループのパネルを順番そのままで差し込む
-                            wrapsIn(st).forEach((w, i) => insertWrap(w, tgt.c, tgt.index + i));
+                            const ws = wrapsIn(st); if (ws.length && tgt.c.classList.contains('tabbed')) tgt.c._active = ws[0]._sec.dataset.fid;   // タブのグループへ入れたら、入れた1枚を表示
+                            ws.forEach((w, i) => insertWrap(w, tgt.c, tgt.index + i));
                             st.remove(); tidy(tgt.c);
                         }
                         save();
@@ -7275,25 +7317,44 @@
                     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
                     e.preventDefault();
                 }
-                function makeDrag(sec) {   // 見出しをつかんで動かす。1枚だけのグループならグループごと、連結中やドック中なら1枚だけ抜き出して動かす
+                function armDrag(e, onStart) {   // 少し（4px）動かしたらドラッグ開始。動かさなければふつうのクリック
+                    const sx = e.clientX, sy = e.clientY;
+                    const off = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', off); window.removeEventListener('pointercancel', off); };
+                    const mv = ev => { if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 4) { off(); onStart(ev); } };
+                    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', off); window.addEventListener('pointercancel', off);
+                }
+                function beginDrag(sec, ev) {   // 浮いている欄を動かす。1枚だけのグループならグループごと、連結中・タブ中・ドック中なら1枚だけ抜き出す
+                    const wrap = sec._fwrap; if (!wrap) return;
+                    let st = wrap.parentNode;
+                    if (isRail(st) || wrapsIn(st).length > 1) {
+                        const from = st, wasTab = from.classList && from.classList.contains('tabbed');
+                        const r = (wasTab ? from : wrap).getBoundingClientRect();   // タブから抜くときは、グループの位置から
+                        st = newStack(r.left, r.top); insertWrap(wrap, st, 0); wrap.classList.remove('tab-on'); tidy(from); tidy(st);
+                        st.style.left = clampX(ev.clientX - 60, st) + 'px'; st.style.top = clampY(ev.clientY - 14) + 'px';   // つかんだ所の近くに見出しが来るように
+                    }
+                    dragStack(st, ev, true);
+                }
+                function detachAt(wrap, ev) {   // メニューから直接ドラッグ：切り離して、つかんだ位置のまま浮かせて動かし始める
+                    const st = newStack(ev.clientX - 60, ev.clientY - 14); insertWrap(wrap, st, 0); tidy(st);
+                    st.style.left = clampX(ev.clientX - 60, st) + 'px'; st.style.top = clampY(ev.clientY - 14) + 'px';
+                    dragStack(st, ev, true);
+                }
+                const NODRAG = 'button, input, select, textarea, label, a';
+                function makeDrag(sec) {   // 見出しをつかんで動かす。メニューの中の欄も、マウス・ペンなら見出しをドラッグでそのまま分離
                     const handle = sec.querySelector(':scope > .sb-h');
                     handle.addEventListener('pointerdown', e => {
                         sec._moved = false;
-                        if (!sec.classList.contains('floating') || e.target.closest('button, input, select, label, a')) return;
-                        const wrap = sec._fwrap; if (!wrap) return;
-                        let st = wrap.parentNode;
-                        if (isRail(st) || wrapsIn(st).length > 1) {   // 抜き出す：今の見た目の位置で、新しい1枚グループへ
-                            const r = wrap.getBoundingClientRect(), from = st;
-                            st = newStack(r.left, r.top - 2); insertWrap(wrap, st, 0); tidy(from); tidy(st);
-                            st.style.left = clampX(r.left, st) + 'px'; st.style.top = clampY(r.top) + 'px';
-                        }
-                        const sx = e.clientX, sy = e.clientY;
-                        const watch = ev => { if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 3) sec._moved = true; };
-                        const stop = () => { window.removeEventListener('pointermove', watch); window.removeEventListener('pointerup', stop); window.removeEventListener('pointercancel', stop); };
-                        window.addEventListener('pointermove', watch); window.addEventListener('pointerup', stop); window.addEventListener('pointercancel', stop);
-                        dragStack(st, e);
+                        if (e.button !== 0 || e.target.closest(NODRAG)) return;
+                        const floating = sec.classList.contains('floating');
+                        if (!floating && e.pointerType === 'touch') return;   // タッチはメニューのスクロールと区別できないので「分離」ボタンで
+                        if (e.pointerType !== 'touch') e.preventDefault();   // 文字の選択を始めない
+                        armDrag(e, ev => {
+                            sec._moved = true;
+                            if (sec.classList.contains('floating')) beginDrag(sec, ev);
+                            else detachAt(prepSec(sec), ev);
+                        });
                     });
-                    handle.addEventListener('click', e => { if (sec._moved && !e.target.closest('button, input, select, label, a')) { e.stopPropagation(); e.preventDefault(); } sec._moved = false; }, true);   // ドラッグ直後の見出しクリック（たたむ等）だけ抑制。ボタンは通す
+                    handle.addEventListener('click', e => { if (sec._moved && !e.target.closest(NODRAG)) { e.stopPropagation(); e.preventDefault(); } sec._moved = false; }, true);   // ドラッグ直後の見出しクリック（たたむ等）だけ抑制。ボタンは通す
                 }
                 function makeWrap(sec) {   // パネルの枠（グループやレールに入る1枚）
                     const wrap = document.createElement('div'); wrap.className = 'float-panel docked';
@@ -7329,7 +7390,7 @@
                         const title = titleOf(h); if (!title || title.includes('分解')) return;
                         sec.dataset.fid = title; secById.set(title, sec);
                         const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'sb-floatbtn';
-                        btn.textContent = '⇱ 分離'; btn.title = 'この欄を切り離して浮かせる（見出しをドラッグで移動。ほかのパネルに重ねると連結・間に差し込み。端に寄せるとドック。「戻す」で元の場所へ）';
+                        btn.textContent = '⇱ 分離'; btn.title = 'この欄を切り離して浮かせる（見出しをドラッグしても分離できます。ほかのパネルに重ねると連結・間に差し込み。端に寄せるとドック。「戻す」で元の場所へ）';
                         btn.addEventListener('click', e => { e.stopPropagation(); if (sec.classList.contains('floating')) dockSec(sec); else floatSec(sec); });
                         h.appendChild(btn); sec._fbtn = btn; makeDrag(sec);
                     });
@@ -7383,6 +7444,14 @@
                     btn.textContent = '⇱ 分離'; btn.title = 'この欄を切り離して浮かせる（ほかのパネルに重ねると連結・端にドックで2ペイン。「戻す」で元の場所へ）';
                     btn.addEventListener('click', e => { e.stopPropagation(); if (xpFloating) homeXp(); else floatXp(); });
                     h.appendChild(btn); sec._xpbtn = btn;
+                    let moved = false; h.classList.add('xp-drag');
+                    h.addEventListener('pointerdown', e => {
+                        moved = false;
+                        if (e.button !== 0 || e.target.closest(NODRAG) || xpFloating || e.pointerType === 'touch') return;
+                        e.preventDefault();
+                        armDrag(e, ev => { moved = true; const w = prepXp(); if (w) detachAt(w, ev); });
+                    });
+                    h.addEventListener('click', e => { if (moved && !e.target.closest(NODRAG)) { e.stopPropagation(); e.preventDefault(); } moved = false; }, true);
                 });
                 // 保存されていた並びを復元（昔の形式は、1枚ずつのグループ／レールへ読み替え）
                 (function restore() {
@@ -7401,7 +7470,7 @@
                         if (wide) { const rail = side === 'left' ? railL : railR; fill(rail, ids); tidy(rail); }
                         else { const p = defaultPos(), st = newStack(p.x, p.y); fill(st, ids); tidy(st); }   // 狭い画面ではドックせず、浮かせて出す
                     });
-                    (L.stacks || []).forEach(s => { const p = (Number.isFinite(s.x) && Number.isFinite(s.y)) ? s : defaultPos(); const st = newStack(p.x, p.y); fill(st, s.ids); if (s.collapsed) st.classList.add('collapsed'); tidy(st); });
+                    (L.stacks || []).forEach(s => { const p = (Number.isFinite(s.x) && Number.isFinite(s.y)) ? s : defaultPos(); const st = newStack(p.x, p.y); fill(st, s.ids); if (s.collapsed) st.classList.add('collapsed'); if (s.tabs) { st.classList.add('tabbed'); st._active = s.active; } tidy(st); });
                     restoring = false;
                 })();
             })();
