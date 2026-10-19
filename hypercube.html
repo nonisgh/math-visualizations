@@ -298,9 +298,9 @@
         .vm-row > button { padding: 2px 8px; border-radius: 8px; border: 1px solid #334155; background: rgba(30, 41, 59, 0.8); color: #cbd5e1; }
         .vm-row > button:hover, .vm-seg button:hover { background: #334155; }
         .vm-row > button.on { background: rgba(217, 119, 6, 0.35); border-color: rgba(251, 191, 36, 0.7); color: #fef3c7; }
-        /* 角度の往復：いま向かっている停留点の行を、蛍光緑の枠で点滅させる（「ここへ向かっているよ」） */
-        @keyframes ppNextBlink { 0%, 49% { border-color: #39ff14; box-shadow: 0 0 6px #39ff14aa, inset 0 0 6px #39ff1433; } 50%, 100% { border-color: #39ff1455; box-shadow: none; } }
-        #pp-slots .pp-next { border-color: #39ff14 !important; animation: ppNextBlink 0.9s step-end infinite; }
+        /* 角度の往復：いま向かっている停留点の行を、黄緑（蛍光ペンのような #a3e635）の枠で点滅させる（「ここへ向かっているよ」） */
+        @keyframes ppNextBlink { 0%, 49% { border-color: #a3e635; box-shadow: 0 0 6px #a3e635aa, inset 0 0 6px #a3e63533; } 50%, 100% { border-color: #a3e63555; box-shadow: none; } }
+        #pp-slots .pp-next { border-color: #a3e635 !important; animation: ppNextBlink 0.9s step-end infinite; }
 
         /* 4次元サイコロ：振って胞が手前に来て止まったときの FLASH（画面の中央に出目が「ドン！」と出る） */
         .die-flash { position: absolute; inset: 0; z-index: 25; pointer-events: none; display: flex; align-items: center; justify-content: center; opacity: 0; }
@@ -4491,8 +4491,19 @@
                         const r = o.getBoundingClientRect(); if (r.height < 2 || r.bottom <= cr.top || r.top >= cr.bottom || r.right <= cr.left || r.left >= cr.right) continue;
                         if ((r.top + r.bottom) / 2 < cr.top + cr.height / 2) t = Math.max(t, r.bottom - cr.top); else b = Math.max(b, cr.bottom - r.top);
                     }
+                    // 浮かせたパネル（グループ）が画面の左端・右端に寄せてあれば、その幅は「置けない」とする。真ん中に浮いているものは無視（隠れてもよい）
+                    let l = 0, rr = 0;
+                    document.querySelectorAll('#float-layer > .float-stack').forEach(st => {
+                        const r = st.getBoundingClientRect(); if (r.width < 2 || r.bottom <= cr.top || r.top >= cr.bottom || r.right <= cr.left || r.left >= cr.right) return;
+                        if (Math.min(r.bottom, cr.bottom) - Math.max(r.top, cr.top) < cr.height * 0.35) return;   // 背の低いもの（たたんだバーなど）は数えない
+                        const nearL = r.left <= cr.left + cr.width * 0.15, nearR = r.right >= cr.right - cr.width * 0.15;
+                        if (nearL && !nearR) l = Math.max(l, r.right - cr.left);
+                        else if (nearR && !nearL) rr = Math.max(rr, cr.right - r.left);
+                    });
+                    if (l + rr > cr.width * 0.85) { const k = cr.width * 0.85 / (l + rr); l *= k; rr *= k; }   // 置ける幅を最低15%は残す
                     const ky = 2 / cr.height, kx = 2 / cr.width;
-                    return { top: Math.max(0.3, 1 - (t + 8) * ky), bot: Math.max(0.3, 1 - (b + 8) * ky), side: Math.max(0.3, 1 - 12 * kx) };
+                    // left・right＝中心から、置ける範囲の左端・右端まで（NDC）。パネルが真ん中を越えて覆うと left はマイナス（置ける範囲が中心より右だけ）
+                    return { top: Math.max(0.3, 1 - (t + 8) * ky), bot: Math.max(0.3, 1 - (b + 8) * ky), left: 1 - (l + 12) * kx, right: 1 - (rr + 12) * kx, sideOcc: l > 0 || rr > 0 };
                 };
                 // 展開図より：置ける範囲いっぱい（NET_MID）になる倍率と、置ける範囲の真ん中に来るような画面上のずらし（カメラのビューオフセット）。
                 //   展開図は回転の中心（真ん中の面・胞）に対して上下が非対称なので、ずらさないと片側だけ余白が残る。
@@ -4506,12 +4517,12 @@
                         if (_occV.z < 1) { const x = _occV.x - sh[0] - ps[0], y = _occV.y - sh[1] - ps[1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
                     }
                     if (!(x1 > x0) || !(y1 > y0)) return false;
-                    const fitv = Math.max((x1 - x0) / (2 * fr.side), (y1 - y0) / (fr.top + fr.bot)), k = NET_MID / fitv;
-                    const over = x0 + sh[0] < -fr.side || x1 + sh[0] > fr.side || y0 + sh[1] < -fr.bot || y1 + sh[1] > fr.top;
+                    const fitv = Math.max((x1 - x0) / (fr.left + fr.right), (y1 - y0) / (fr.top + fr.bot)), k = NET_MID / fitv;
+                    const over = x0 + sh[0] < -fr.left || x1 + sh[0] > fr.right || y0 + sh[1] < -fr.bot || y1 + sh[1] > fr.top;
                     if (!(folding || over || fitv < NET_LO)) return true;
                     const sc = root.scale.x, want = Math.max(0.2, Math.min(8, asmScale(sc) * (1 - wN) + sc * k * wN));
                     root.scale.setScalar(sc + (want - sc) * ease);
-                    const tx = -(x0 + x1) / 2 * k * wN, ty = ((fr.top - fr.bot) / 2 - (y0 + y1) / 2 * k) * wN;
+                    const tx = ((fr.right - fr.left) / 2 - (x0 + x1) / 2 * k) * wN, ty = ((fr.top - fr.bot) / 2 - (y0 + y1) / 2 * k) * wN;
                     setNetShift(cam, sh[0] + (tx - sh[0]) * ease, sh[1] + (ty - sh[1]) * ease);
                     return true;
                 };
@@ -4526,7 +4537,13 @@
                     if (!root || !cam || !verts.length) return;
                     const occ = occOf(verts, cam, root); if (occ < 1e-4) return;
                     if (netFit(root, verts, cam, el, sc => sc * mid / occ)) return;   // 展開図より
-                    relaxNetShift(cam, ease);   // 組み上がり：ずらしは戻す
+                    // 組み上がり：ふだんはずらしを戻す。端にパネルを寄せてあれば、空いている幅の真ん中へずらし、その幅に合わせて小さく
+                    const fr = cam ? freeNdc(el) : null;
+                    if (fr && fr.sideOcc) {
+                        const wk = Math.min(1, (fr.left + fr.right) / 2); mid *= wk; lo *= wk; hi *= wk;
+                        const sh = cam.userData.netSh || [0, 0], tx = (fr.right - fr.left) / 2;
+                        setNetShift(cam, sh[0] + (tx - sh[0]) * ease, sh[1] * (1 - ease));
+                    } else relaxNetShift(cam, ease);
                     if (folding || occ > hi || occ < lo) { const want = Math.max(0.2, Math.min(8, root.scale.x * mid / occ)); root.scale.setScalar(root.scale.x + (want - root.scale.x) * ease); }
                 };
                 let rv = [], pv = [];
@@ -7189,6 +7206,7 @@
                     if (!c) return;
                     if (isRail(c)) { refreshDock(c._side); return; }
                     const n = wrapsIn(c).length;
+                    _zfKick = Math.max(_zfKick, 30); requestRender(30);   // 入れ物が変わったら自動ズームを合わせ直す
                     if (!n) { c.remove(); return; }
                     c.classList.toggle('multi', n > 1);
                     if (n < 2) c.classList.remove('collapsed');   // つまみが無いとひらけないので、1枚ならたたまない
@@ -7306,6 +7324,7 @@
                     const end = () => {
                         window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
                         showHint(null); showIns(null); st.classList.remove('joining');
+                        _zfKick = Math.max(_zfKick, 30); requestRender(30);   // パネルを動かしたら自動ズームを合わせ直す（端に寄せた分を空ける）
                         if (moved && tgt) {   // 連結：グループのパネルを順番そのままで差し込む
                             const ws = wrapsIn(st); if (ws.length && tgt.c.classList.contains('tabbed')) tgt.c._active = ws[0]._sec.dataset.fid;   // タブのグループへ入れたら、入れた1枚を表示
                             ws.forEach((w, i) => insertWrap(w, tgt.c, tgt.index + i));
