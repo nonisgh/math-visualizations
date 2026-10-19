@@ -1660,24 +1660,25 @@
             [0,4], [1,5], [2,6], [3,7]
         ];
 
+        // 面・胞の色は座標軸の色に合わせる（2026-10-19）：±X＝赤（ローズ）、±Y＝緑（エメラルド）、±Z＝青（水色）、5次元の ±W＝紫。中心と蓋は「新しい次元」の±の組なので同じ色：立方体 z＝濃い青、超立方体 w＝濃い紫、5次元 v＝琥珀
         const faceConfigs2D = [
-            { id: 0, name: "中央面", color: 0xf59e0b },
-            { id: 1, name: "上面",   color: 0x38bdf8 },
-            { id: 2, name: "下面",   color: 0x38bdf8 },
-            { id: 3, name: "右面",   color: 0x10b981 },
-            { id: 4, name: "左面",   color: 0x10b981 },
-            { id: 5, name: "最上蓋", color: 0xa855f7 }
+            { id: 0, name: "中央面", color: 0x0284c7 },
+            { id: 1, name: "上面",   color: 0x10b981 },
+            { id: 2, name: "下面",   color: 0x10b981 },
+            { id: 3, name: "右面",   color: 0xf43f5e },
+            { id: 4, name: "左面",   color: 0xf43f5e },
+            { id: 5, name: "最上蓋", color: 0x0284c7 }
         ];
 
         const cellConfigs3D = [
-            { id: 0, name: "中央固定核胞", color: 0xf59e0b },
-            { id: 1, name: "上ヒンジ胞",   color: 0x38bdf8 },
-            { id: 2, name: "下ヒンジ胞",   color: 0x38bdf8 },
-            { id: 3, name: "右ヒンジ胞",   color: 0x10b981 },
-            { id: 4, name: "左ヒンジ胞",   color: 0x10b981 },
-            { id: 5, name: "前ヒンジ胞",   color: 0xf43f5e },
-            { id: 6, name: "後ヒンジ胞",   color: 0xf43f5e },
-            { id: 7, name: "連鎖頂点胞",   color: 0xa855f7 }
+            { id: 0, name: "中央固定核胞", color: 0x9333ea },
+            { id: 1, name: "上ヒンジ胞",   color: 0x10b981 },
+            { id: 2, name: "下ヒンジ胞",   color: 0x10b981 },
+            { id: 3, name: "右ヒンジ胞",   color: 0xf43f5e },
+            { id: 4, name: "左ヒンジ胞",   color: 0xf43f5e },
+            { id: 5, name: "前ヒンジ胞",   color: 0x38bdf8 },
+            { id: 6, name: "後ヒンジ胞",   color: 0x38bdf8 },
+            { id: 7, name: "連鎖頂点胞",   color: 0x9333ea }
         ];
         const CELL_RGB = cellConfigs3D.map(c => new THREE.Color(c.color));   // 胞ごとの色（正確透過モードの頂点カラーに使う）
 
@@ -2410,15 +2411,15 @@
         // 5次元超立方体の10個の胞（＝超立方体）。色は超立方体の胞にそろえ、±W の2つを足した。蓋は +Y の胞の先につながる
         const P5_CELLS = [
             { name: '中央固定核胞', color: 0xf59e0b },
-            { name: '上ヒンジ胞', color: 0x38bdf8, axis: 1, sign: 1 },
-            { name: '下ヒンジ胞', color: 0x38bdf8, axis: 1, sign: -1 },
-            { name: '右ヒンジ胞', color: 0x10b981, axis: 0, sign: 1 },
-            { name: '左ヒンジ胞', color: 0x10b981, axis: 0, sign: -1 },
-            { name: '前ヒンジ胞', color: 0xf43f5e, axis: 2, sign: 1 },
-            { name: '後ヒンジ胞', color: 0xf43f5e, axis: 2, sign: -1 },
-            { name: '外ヒンジ胞', color: 0xa3e635, axis: 3, sign: 1 },
-            { name: '内ヒンジ胞', color: 0xa3e635, axis: 3, sign: -1 },
-            { name: '連鎖頂点胞', color: 0xa855f7, cap: true }
+            { name: '上ヒンジ胞', color: 0x10b981, axis: 1, sign: 1 },
+            { name: '下ヒンジ胞', color: 0x10b981, axis: 1, sign: -1 },
+            { name: '右ヒンジ胞', color: 0xf43f5e, axis: 0, sign: 1 },
+            { name: '左ヒンジ胞', color: 0xf43f5e, axis: 0, sign: -1 },
+            { name: '前ヒンジ胞', color: 0x38bdf8, axis: 2, sign: 1 },
+            { name: '後ヒンジ胞', color: 0x38bdf8, axis: 2, sign: -1 },
+            { name: '外ヒンジ胞', color: 0xa855f7, axis: 3, sign: 1 },
+            { name: '内ヒンジ胞', color: 0xa855f7, axis: 3, sign: -1 },
+            { name: '連鎖頂点胞', color: 0xf59e0b, cap: true }   // 5次元の中心と蓋は琥珀（v 軸の色に合わせる）
         ];
         const P5_RGB = P5_CELLS.map(c => new THREE.Color(c.color));   // 胞ごとの色（5次元のまとめメッシュの頂点カラーに使う）
         // 4Dライト（お試し）：5次元空間に固定した光。各胞の外向き法線（5D）を今の回転で回し、光との内積で胞ごとの明るさを決める
