@@ -23,7 +23,7 @@
     html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, 'Hiragino Sans', sans-serif; overflow: hidden; }
     #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
     #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
-    .lab { position: absolute; transform: translate(-50%, -50%); font: 700 13px Inter, system-ui, sans-serif; white-space: nowrap; text-shadow: 0 0 6px #000, 0 0 2px #000; }
+    .lab { position: absolute; transform: translate(-50%, -50%); font: italic 600 13px 'Times New Roman', Georgia, serif; white-space: nowrap; text-shadow: 0 0 6px #000, 0 0 2px #000; }
 
     .top { position: fixed; left: 14px; top: 12px; display: flex; align-items: baseline; gap: 12px; z-index: 2; padding-top: env(safe-area-inset-top); }
     .back { color: var(--faint); text-decoration: none; font-size: 13px; }
@@ -76,6 +76,9 @@
     .axes { display: flex; flex-wrap: wrap; gap: 5px; }
     .axchip { font: 700 13px Inter, sans-serif; border-radius: 999px; padding: 3px 11px; border: 1px solid currentColor; background: transparent; cursor: pointer; transition: opacity 0.2s; }
     .axchip.hid { opacity: 0.38; border-style: dashed; }
+    #axes .axchip { opacity: 0.35; }
+    #axes .axchip.on { opacity: 1; background: color-mix(in srgb, currentColor 16%, transparent); }
+    .axchip.go { font-size: 12px; padding: 2px 9px; }
     .note { font-size: 11px; color: var(--faint); margin-top: 6px; line-height: 1.55; }
     .fv { width: 100%; border-collapse: collapse; font-size: 12px; }
     .fv td { padding: 2px 0; }
@@ -114,6 +117,13 @@
             <button class="btn" type="button" data-sh="cross">正軸体</button>
             <button class="btn" type="button" data-sh="sphere">超球</button>
         </div>
+        <div id="sphereOpts" hidden>
+            <div class="seg" style="margin-top:8px">
+                <button class="btn" type="button" data-sm="slices" title="最後の軸の向きに輪切りにして、1 つ下の次元の球を重ねたモデル（よく見る形）">球を重ねる（輪切り）</button>
+                <button class="btn" type="button" data-sm="circles" title="座標面ごとの大円と、表面の点">大円と点</button>
+            </div>
+            <div class="row" id="slicesRow">輪切り<input type="range" id="slices" min="3" max="15" step="1"><span class="v" id="slicesV"></span></div>
+        </div>
     </section>
     <section>
         <h3>回転面マップ <span class="seg"><button class="btn" id="spinAll" type="button">回す</button><button class="btn" id="randSpin" type="button" title="いくつかの面を選んで回す">おまかせ</button><button class="btn" id="resetAng" type="button" title="全部の角度を 0 に戻す">整列</button></span></h3>
@@ -124,8 +134,12 @@
         <div class="note">マスを押すと、その 2 本の軸の面で回ります（もう一度押すと止まる）。見えている軸は x・y・z の 3 本で、残りは遠近（近いほど大きい）で写しています。</div>
     </section>
     <section>
-        <h3>軸 <span class="note" style="margin:0">押すとその軸が見える所へ回ってくる</span></h3>
+        <h3>軸 <span class="seg"><button class="btn" id="axAll" type="button">全部</button><button class="btn" id="axNone" type="button">なし</button></span></h3>
+        <div class="row" style="margin-top:0">表示</div>
         <div class="axes" id="axes"></div>
+        <div class="row">見える所へ回す</div>
+        <div class="axes" id="axGo"></div>
+        <div class="note">上の列で、出す軸を 1 本ずつ選べます。下の列を押すと、その軸が z の位置へ回ってきて光ります。</div>
     </section>
     <section id="netSec">
         <h3>展開図 <span class="seg"><button class="btn" id="netOn" type="button">展開図にする</button></span></h3>
@@ -144,6 +158,7 @@
         </div>
         <div class="row">遠近<input type="range" id="persp" min="0" max="1" step="0.01"><span class="v" id="perspV"></span></div>
         <div class="row">線の太さ<input type="range" id="lw" min="0.5" max="5" step="0.1"><span class="v" id="lwV"></span></div>
+        <div class="row">面の濃さ<input type="range" id="faceOp" min="0" max="0.6" step="0.01"><span class="v" id="faceOpV"></span></div>
     </section>
     <section>
         <h3>数 <span class="note" style="margin:0" id="fvShape"></span></h3>
@@ -182,8 +197,11 @@ const AXC = AX.map(a => new THREE.Color(a.c));
 const STORE = 'ndim.v1';
 const DEF = () => ({
     n: 5, shape: 'cube', ang: {}, spin: { '0-3': true, '1-4': true }, spinOn: true, speed: 1, sel: '0-3',
-    pk: 0.45, lw: 1.8, net: false, fold: 1, seq: false,
-    show: { edges: true, verts: true, faces: false, axes: true, labels: true }, cam: null,
+    pk: 0.45, lw: 1.0, faceOp: 0.16, net: false, fold: 1, seq: false,
+    show: { edges: true, verts: true, faces: true, axes: true, labels: true }, cam: null,
+    axOn: new Array(10).fill(true),              // 軸を 1 本ずつ出す・消す
+    sphereModel: 'slices', slices: 9,            // 超球：'slices' 球を重ねた輪切り / 'circles' 大円と点
+    v: 2,
 });
 let S = DEF();
 const key = (i, j) => `${Math.min(i, j)}-${Math.max(i, j)}`;
@@ -208,9 +226,9 @@ function lineMat(opts) {
     return m;
 }
 const mats = {
-    edges: lineMat({ linewidth: S.lw, opacity: 0.95 }),
-    axes: lineMat({ linewidth: 2.4, opacity: 1 }),
-    faces: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.075, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+    edges: lineMat({ linewidth: S.lw, opacity: 0.95 }),   // 細い線（超球のバブルと同じくらい）。辺の色＝その辺の向きの軸の色
+    axes: new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95, depthTest: false }),   // 次元おりがみと同じ 1px の軸
+    faces: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: S.faceOp, side: THREE.DoubleSide, depthWrite: false }),
     verts: new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false }),
 };
 const objs = {};
@@ -218,12 +236,12 @@ function drop(k) { if (objs[k]) { scene.remove(objs[k]); objs[k].geometry.dispos
 
 // 軸の矢じり（10 本ぶん用意して、使う分だけ出す）
 const cones = AX.map(a => {
-    const m = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.17, 18), new THREE.MeshBasicMaterial({ color: a.c, transparent: true, depthTest: false, depthWrite: false }));
+    const m = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.09, 16), new THREE.MeshBasicMaterial({ color: a.c, transparent: true, depthTest: false, depthWrite: false }));
     m.frustumCulled = false; m.renderOrder = 6; m.visible = false;
     scene.add(m);
     return m;
 });
-const originDot = new THREE.Mesh(new THREE.SphereGeometry(0.028, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }));
+const originDot = new THREE.Mesh(new THREE.SphereGeometry(0.018, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }));
 originDot.renderOrder = 7; scene.add(originDot);
 
 // ================================================================
@@ -268,6 +286,24 @@ function buildShape(n, shape) {
         for (let a = 0; a < nv; a++) for (let b = a + 1; b < nv; b++) if ((a >> 1) !== (b >> 1)) edge(a, b, vc(a), vc(b));
         for (let a = 0; a < nv; a++) for (let b = a + 1; b < nv; b++) for (let c = b + 1; c < nv; c++)
             if ((a >> 1) !== (b >> 1) && (b >> 1) !== (c >> 1) && (a >> 1) !== (c >> 1)) { F.push(a, b, c); fc.push(...vc(a), ...vc(b), ...vc(c)); }
+    } else if (S.sphereModel === 'slices') {
+        // 超球を最後の軸の向きに輪切り：x_{n−1} = h の切り口は、半径 √(1−h²) の 1 つ下の次元の球
+        // 切り口ごとに、座標面の大円と、x・y・z の部分の緯線を描く（遠近で、近い切り口ほど大きい＝球を重ねたいつもの形）
+        const K = S.slices, M = 72, last = n - 1;
+        for (let s = 0; s < K; s++) {
+            const h = -Math.cos(Math.PI * (s + 0.5) / K), r = Math.sqrt(Math.max(0, 1 - h * h));
+            const col = new THREE.Color().setHSL((0.55 + 0.4 * s / Math.max(1, K - 1)) % 1, 0.9, 0.6), c = [col.r, col.g, col.b];
+            const ring = (fill) => {   // fill(v, t) で 1 本の輪を作る
+                const base = V.length / n;
+                for (let m = 0; m < M; m++) { const v = new Array(n).fill(0); v[last] = h; fill(v, 2 * Math.PI * m / M); addV(v); }
+                for (let m = 0; m < M; m++) edge(base + m, base + (m + 1) % M, c);
+            };
+            for (let a = 0; a < last; a++) for (let b = a + 1; b < last; b++) ring((v, t) => { v[a] = r * Math.cos(t); v[b] = r * Math.sin(t); });
+            if (last >= 3) for (const z of [-0.6, 0.6]) {   // 緯線（xy の向きの輪を z の上下に）
+                const rr = r * Math.sqrt(1 - z * z);
+                ring((v, t) => { v[0] = rr * Math.cos(t); v[1] = rr * Math.sin(t); v[2] = r * z; });
+            }
+        }
     } else {
         // 超球：座標面ごとの大円（n(n−1)/2 本）＋表面の点
         const M = 96;
@@ -411,10 +447,10 @@ function makeObjects() {
     // 軸
     drop('axes');
     {
-        const g = new THREE.LineSegmentsGeometry();
-        g.setPositions(new Float32Array(NMAX * 6));
-        g.setColors(new Float32Array(NMAX * 6));
-        objs.axes = new THREE.LineSegments2(g, mats.axes); objs.axes.frustumCulled = false; objs.axes.renderOrder = 5;
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NMAX * 6), 3));
+        g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(NMAX * 6), 3));
+        objs.axes = new THREE.LineSegments(g, mats.axes); objs.axes.frustumCulled = false; objs.axes.renderOrder = 5;
         scene.add(objs.axes);
     }
     applyShow();
@@ -422,11 +458,12 @@ function makeObjects() {
 function applyShow() {
     if (objs.edges) objs.edges.visible = S.show.edges;
     if (objs.faces) objs.faces.visible = S.show.faces && !(S.net && S.shape === 'cube');
-    if (objs.verts) objs.verts.visible = S.show.verts || S.shape === 'sphere';
+    if (objs.verts) objs.verts.visible = S.shape === 'sphere' ? S.sphereModel === 'circles' : S.show.verts;
     if (objs.axes) objs.axes.visible = S.show.axes;
     originDot.visible = S.show.axes;
     mats.verts.size = S.shape === 'sphere' ? 2.2 : 5;
     mats.edges.linewidth = S.lw;
+    mats.faces.opacity = S.faceOp;
     requestRender();
 }
 
@@ -459,11 +496,11 @@ function updateGeometry(flash) {
     if (objs.verts && objs.verts.visible) { const pa = objs.verts.geometry.attributes.position; pa.array.set(P3); pa.needsUpdate = true; }
     // 軸（−1.5 〜 +1.5、4 本目から先に回るほど暗く・細い矢じり）
     {
-        const ib = objs.axes.geometry.attributes.instanceStart.data, cb = objs.axes.geometry.attributes.instanceColorStart.data;
+        const ib = objs.axes.geometry.attributes.position, cb = objs.axes.geometry.attributes.color;
         const unit = new Float64Array(NMAX * NMAX);
         for (let k = 0; k < NMAX; k++) {
             const o = k * 6;
-            if (k >= n) { ib.array.fill(0, o, o + 6); cb.array.fill(0, o, o + 6); cones[k].visible = false; continue; }
+            if (k >= n || !S.axOn[k]) { ib.array.fill(0, o, o + 6); cb.array.fill(0, o, o + 6); cones[k].visible = false; axEnd[k] = 0; labelPos[k] = null; continue; }
             const L = 1.45;
             for (let c = 0; c < n; c++) unit[c] = c === k ? -L : 0;
             proj(unit, 0, n, tmp3, 0); ib.array[o] = tmp3[0]; ib.array[o + 1] = tmp3[1]; ib.array[o + 2] = tmp3[2];
@@ -472,7 +509,7 @@ function updateGeometry(flash) {
             cb.array.set([c.r * br, c.g * br, c.b * br, c.r * br, c.g * br, c.b * br], o);
             // 矢じり
             const tip = new THREE.Vector3(tmp3[0], tmp3[1], tmp3[2]);
-            unit[k] = L - 0.17; proj(unit, 0, n, tmp3, 0);
+            unit[k] = L - 0.09; proj(unit, 0, n, tmp3, 0);
             const back = new THREE.Vector3(tmp3[0], tmp3[1], tmp3[2]), dir = tip.clone().sub(back), len = dir.length();
             const cone = cones[k];
             cone.visible = S.show.axes && len > 1e-4;
@@ -480,7 +517,7 @@ function updateGeometry(flash) {
                 cone.position.copy(tip).addScaledVector(dir, -0.5);
                 cone.quaternion.setFromUnitVectors(_up, dir.normalize());
                 const w = 0.35 + 0.65 * fade;
-                cone.scale.set(w, len / 0.17, w);
+                cone.scale.set(w, len / 0.09, w);
                 cone.material.opacity = 0.15 + 0.85 * fade;
             }
             axEnd[k] = fade;
@@ -504,7 +541,7 @@ function updateLabels() {
         d.style.left = ((p.x + 1) / 2 * W) + 'px';
         d.style.top = ((1 - p.y) / 2 * H) + 'px';
         d.style.opacity = (0.12 + 0.88 * f).toFixed(2);
-        d.style.fontSize = (11 + 5 * f).toFixed(1) + 'px';
+        d.style.fontSize = (10 + 4 * f).toFixed(1) + 'px';
     });
 }
 
@@ -671,11 +708,15 @@ function syncSpinBtn() {
 }
 function renderAxes() {
     const n = G.n;
-    $('#axes').innerHTML = AX.slice(0, n).map((a, k) => `<button class="axchip" type="button" data-k="${k}" style="color:${a.c}">${a.n}</button>`).join('');
-    $('#axes').querySelectorAll('.axchip').forEach(b => b.addEventListener('click', () => showAxis(+b.dataset.k)));
+    $('#axes').innerHTML = AX.slice(0, n).map((a, k) => `<button class="axchip${S.axOn[k] ? ' on' : ''}" type="button" data-k="${k}" style="color:${a.c}" title="${a.n} 軸を出す／消す">${a.n}</button>`).join('');
+    $('#axes').querySelectorAll('.axchip').forEach(b => b.addEventListener('click', () => {
+        const k = +b.dataset.k; S.axOn[k] = !S.axOn[k]; renderAxes(); requestRender(); save();
+    }));
+    $('#axGo').innerHTML = AX.slice(0, n).map((a, k) => `<button class="axchip go" type="button" data-k="${k}" style="color:${a.c}" title="${a.n} 軸を見える所へ回す">↻ ${a.n}</button>`).join('');
+    $('#axGo').querySelectorAll('.axchip').forEach(b => b.addEventListener('click', () => { const k = +b.dataset.k; if (!S.axOn[k]) { S.axOn[k] = true; renderAxes(); } showAxis(k); }));
 }
 function syncAxisChips() {
-    $('#axes').querySelectorAll('.axchip').forEach(b => b.classList.toggle('hid', axisFade(+b.dataset.k) < 0.5));
+    $('#axGo').querySelectorAll('.axchip').forEach(b => b.classList.toggle('hid', axisFade(+b.dataset.k) < 0.5));
 }
 // 軸 k を見える所（z の位置）へ回してくる：他の角度は 0 に、z–k の面だけ 90°
 function showAxis(k) {
@@ -721,7 +762,9 @@ function renderFv() {
     $('#fvShape').textContent = `${n} 次元の${names[sh]}`;
     if (sh === 'sphere') {
         $('#fv').innerHTML = `<tr><td>座標面の大円</td><td>${C(n, 2)}</td></tr><tr><td>表面の次元</td><td>${n - 1}</td></tr>`;
-        $('#fvNote').textContent = `${n} 次元の球の表面は ${n - 1} 次元。座標の 2 本ずつで切った大円が ${C(n, 2)} 本（＝回転面の数と同じ）。`;
+        $('#fvNote').textContent = S.sphereModel === 'slices'
+            ? `${n} 次元の球を最後の軸 ${AX[n - 1].n} の向きに輪切りにすると、切り口は ${n - 1} 次元の球（半径 √(1−${AX[n - 1].n}²)）。それを ${S.slices} 枚重ねて、遠近で写しています（近い切り口ほど大きい）。`
+            : `${n} 次元の球の表面は ${n - 1} 次元。座標の 2 本ずつで切った大円が ${C(n, 2)} 本（＝回転面の数と同じ）。`;
         return;
     }
     const f = k => sh === 'cube' ? C(n, k) * Math.pow(2, n - k) : sh === 'simplex' ? C(n + 1, k + 1) : Math.pow(2, k + 1) * C(n, k + 1);
@@ -733,11 +776,16 @@ function renderFv() {
         : 'k 次元の部分の数 ＝ 2<sup>k+1</sup>·C(n, k+1)（超立方体と頂点・面が入れかわった形）';
 }
 function renderShows() {
-    document.querySelectorAll('#shapes .btn').forEach(b => b.classList.toggle('on', b.dataset.sh === S.shape));
+    document.querySelectorAll('#shapes .btn[data-sh]').forEach(b => b.classList.toggle('on', b.dataset.sh === S.shape));
     document.querySelectorAll('#shows .btn').forEach(b => b.classList.toggle('on', !!S.show[b.dataset.s]));
     $('#speed').value = S.speed; $('#speedV').textContent = S.speed.toFixed(2);
     $('#persp').value = S.pk; $('#perspV').textContent = S.pk.toFixed(2);
     $('#lw').value = S.lw; $('#lwV').textContent = S.lw.toFixed(1);
+    $('#faceOp').value = S.faceOp; $('#faceOpV').textContent = S.faceOp.toFixed(2);
+    $('#sphereOpts').hidden = S.shape !== 'sphere';
+    document.querySelectorAll('#sphereOpts [data-sm]').forEach(b => b.classList.toggle('on', b.dataset.sm === S.sphereModel));
+    $('#slices').value = S.slices; $('#slicesV').textContent = S.slices + ' 枚';
+    $('#slicesRow').style.display = S.sphereModel === 'slices' ? '' : 'none';
 }
 function renderHud() {
     const n = G.n, np = C(n, 2);
@@ -767,6 +815,8 @@ function loadState(d) {
     const base = DEF();
     S = { ...base, ...d, show: { ...base.show, ...(d.show || {}) }, ang: { ...(d.ang || {}) }, spin: { ...(d.spin || {}) } };
     S.n = Math.max(NMIN, Math.min(NMAX, +S.n || 5));
+    if (!(d.v >= 2)) { S.lw = 1.0; S.show.faces = true; S.faceOp = 0.16; S.v = 2; }   // 前の版の保存は、細い線・色つきの面に
+    if (!Array.isArray(S.axOn) || S.axOn.length !== 10) S.axOn = new Array(10).fill(true);
     if (!['cube', 'simplex', 'cross', 'sphere'].includes(S.shape)) S.shape = 'cube';
     if (S.cam && S.cam.p && S.cam.t) { camera.position.fromArray(S.cam.p); controls.target.fromArray(S.cam.t); }
 }
@@ -781,7 +831,7 @@ function readHash() {
 $('#nMinus').addEventListener('click', () => changeDim(G.n - 1));
 $('#nPlus').addEventListener('click', () => changeDim(G.n + 1));
 $('#nRange').addEventListener('change', e => changeDim(+e.target.value));
-document.querySelectorAll('#shapes .btn').forEach(b => b.addEventListener('click', () => { if (dimAnim) return; setShape(G.n, b.dataset.sh); flashT = performance.now(); }));
+document.querySelectorAll('#shapes .btn[data-sh]').forEach(b => b.addEventListener('click', () => { if (dimAnim) return; setShape(G.n, b.dataset.sh); flashT = performance.now(); }));
 $('#spinAll').addEventListener('click', () => { S.spinOn = !S.spinOn; tween = null; syncSpinBtn(); save(); });
 $('#randSpin').addEventListener('click', () => {
     const ps = planes(G.n).filter(([i, j]) => j >= 3);   // 軸が消える回転・見えない所の回転から選ぶ
@@ -795,6 +845,14 @@ $('#selAng').addEventListener('input', e => { tween = null; S.ang[S.sel] = +e.ta
 $('#speed').addEventListener('input', e => { S.speed = +e.target.value; $('#speedV').textContent = S.speed.toFixed(2); saveSoon(); });
 $('#persp').addEventListener('input', e => { S.pk = +e.target.value; $('#perspV').textContent = S.pk.toFixed(2); requestRender(); saveSoon(); });
 $('#lw').addEventListener('input', e => { S.lw = +e.target.value; $('#lwV').textContent = S.lw.toFixed(1); requestRender(); saveSoon(); });
+$('#faceOp').addEventListener('input', e => {
+    S.faceOp = +e.target.value; $('#faceOpV').textContent = S.faceOp.toFixed(2);
+    if (S.faceOp > 0 && !S.show.faces) { S.show.faces = true; renderShows(); }
+    applyShow(); saveSoon();
+});
+document.querySelectorAll('#sphereOpts [data-sm]').forEach(b => b.addEventListener('click', () => { S.sphereModel = b.dataset.sm; setShape(G.n, 'sphere'); }));
+$('#slices').addEventListener('change', e => { S.slices = +e.target.value; setShape(G.n, 'sphere'); });
+$('#slices').addEventListener('input', e => { $('#slicesV').textContent = e.target.value + ' 枚'; });
 document.querySelectorAll('#shows .btn').forEach(b => b.addEventListener('click', () => { S.show[b.dataset.s] = !S.show[b.dataset.s]; renderShows(); applyShow(); save(); }));
 $('#netOn').addEventListener('click', () => {
     S.net = !S.net;
@@ -812,6 +870,8 @@ $('#foldPlay').addEventListener('click', () => {
 });
 $('#seqBtn').addEventListener('click', () => { S.seq = !S.seq; renderNet(); requestRender(); save(); });
 $('#panelBtn').addEventListener('click', () => { $('#panel').hidden = !$('#panel').hidden; });
+$('#axAll').addEventListener('click', () => { S.axOn.fill(true); renderAxes(); requestRender(); save(); });
+$('#axNone').addEventListener('click', () => { S.axOn.fill(false); renderAxes(); requestRender(); save(); });
 $('#copyUrl').addEventListener('click', async () => {
     save();
     const s = { n: S.n, shape: S.shape, ang: Object.fromEntries(Object.entries(S.ang).map(([k, v]) => [k, Math.round(v)])), spin: S.spin, spinOn: S.spinOn, net: S.net, fold: +S.fold.toFixed(3), seq: S.seq, pk: S.pk };
