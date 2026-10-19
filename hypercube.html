@@ -536,17 +536,7 @@
                         <i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400"></i>
                         <span id="stagger-text" class="text-[11px]">時間差: ON</span>
                     </button>
-                    <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
-                        <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
-                        <span id="zoom-text" class="text-[11px]">自動ズーム: ON</span>
-                    </button>
-                    <button id="zoomfit-toggle" class="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-[11px]" title="自動ズームの大きさを決める（展開図・組み上がり・分解）">大きさ ▾</button></div>
-                <div id="zoomfit-panel" class="hidden mt-2 space-y-1.5 text-[10px] text-slate-400">
-                    <label class="flex items-center gap-2" title="展開図のとき：上の見出しと下の回転バーを除いた空きに対して、展開図を何%の大きさにするか（縦か横のきつい方で決まる）。空きの真ん中に寄せる。既定85%"><span class="w-16 shrink-0">展開図</span><input id="zf-net" type="range" min="0.5" max="1" step="0.01" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="zf-net-val" class="w-9 text-right font-mono text-violet-200 shrink-0"></span></label>
-                    <label class="flex items-center gap-2" title="組み上がりのとき：形のいちばん外が、画面の中心から端までの何%に来るか。既定50%。回しているだけのときは、少しはみ出す／小さくなるまで大きさを変えない"><span class="w-16 shrink-0">組み上がり</span><input id="zf-asm" type="range" min="0.25" max="0.85" step="0.01" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="zf-asm-val" class="w-9 text-right font-mono text-violet-200 shrink-0"></span></label>
-                    <label class="flex items-center gap-2" title="分解（バラす）のとき：いちばん遠い胞の中心が、画面の中心から端までの何%に来るか。既定86%（下の回転バーに胞の中心が隠れない）。胞そのものは少しはみ出してもよい"><span class="w-16 shrink-0">分解</span><input id="zf-xp" type="range" min="0.5" max="1" step="0.01" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="zf-xp-val" class="w-9 text-right font-mono text-violet-200 shrink-0"></span></label>
-                    <div class="flex justify-end"><button id="zf-reset" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700">既定に戻す</button></div>
-                </div>
+</div>
             </section>
 
             <section class="sb-sec">
@@ -946,6 +936,22 @@
                         <span id="shine-text" class="text-[11px]">→ 照り返しライト: ON</span>
                     </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button></div>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>自動ズーム</h3>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
+                        <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
+                        <span id="zoom-text" class="text-[11px]">自動ズーム: ON</span>
+                    </button>
+                    <button id="zoomfit-toggle" class="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-[11px]" title="自動ズームの大きさを決める（展開図・組み上がり・分解）">大きさ ▾</button></div>
+                <div id="zoomfit-panel" class="hidden mt-2 space-y-1.5 text-[10px] text-slate-400">
+                    <label class="flex items-center gap-2" title="展開図のとき：上の見出しと下の回転バーを除いた空きに対して、展開図を何%の大きさにするか（縦か横のきつい方で決まる）。空きの真ん中に寄せる。既定85%"><span class="w-16 shrink-0">展開図</span><input id="zf-net" type="range" min="0.5" max="1" step="0.01" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="zf-net-val" class="w-9 text-right font-mono text-violet-200 shrink-0"></span></label>
+                    <label class="flex items-center gap-2" title="組み上がりのとき：形のいちばん外が、画面の中心から端までの何%に来るか。既定50%。回しているだけのときは、少しはみ出す／小さくなるまで大きさを変えない"><span class="w-16 shrink-0">組み上がり</span><input id="zf-asm" type="range" min="0.25" max="0.85" step="0.01" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="zf-asm-val" class="w-9 text-right font-mono text-violet-200 shrink-0"></span></label>
+                    <label class="flex items-center gap-2" title="分解（バラす）のとき：いちばん遠い胞の中心が、画面の中心から端までの何%に来るか。既定86%（下の回転バーに胞の中心が隠れない）。胞そのものは少しはみ出してもよい"><span class="w-16 shrink-0">分解</span><input id="zf-xp" type="range" min="0.5" max="1" step="0.01" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="zf-xp-val" class="w-9 text-right font-mono text-violet-200 shrink-0"></span></label>
+                    <div class="flex justify-end"><button id="zf-reset" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700">既定に戻す</button></div>
+                </div>
             </section>
 
             <section class="sb-sec">
