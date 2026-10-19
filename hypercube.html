@@ -3027,7 +3027,7 @@
                     axisFitPrep(root, camera5D);
                 }
                 if (showAxes) axis5.forEach((o, i) => {
-                    const tip = fitTip(project5(rotate5(AXES_5D[i].v.map(c => c * AXIS_LEN)), pb), root, camera5D);   // 見切れる時だけ短く
+                    const tip = fitTip(project5(rotate5(AXES_5D[i].v.map(c => c * AXIS_LEN)), pb), root, camera5D, 'F' + i);   // 見切れそうな時だけ短く
                     const pa = o.line.geometry.attributes.position;
                     pa.array[0] = 0; pa.array[1] = 0; pa.array[2] = 0; pa.array[3] = tip[0]; pa.array[4] = tip[1]; pa.array[5] = tip[2]; pa.needsUpdate = true;
                     const len = Math.hypot(tip[0], tip[1], tip[2]);
@@ -3959,26 +3959,46 @@
             return { near: rot3DLeft(n[0], n[1], n[2]), far: rot3DLeft(f[0], f[1], f[2]) };   // 3D回転にも追従
         }
 
-        // 座標軸が画面から見切れる時は、その軸だけ一時的に短くして、矢じりと名前（x・y・z…）が画面に入るようにする。
-        //   名前の位置（先端の 1.2 倍）が画面の内側に入る長さを二分探索。上は札（「右: 4D展開図…」）、下は回転のバーが重なるので、
-        //   上下は少し広めに空ける（左右 6%・上 10%・下 13%）。矢じりの大きさ・形はそのまま。
-        //   原点そのものが画面の外のとき（大きくズームして動かしたとき）は、短くしても入らないので元の長さのまま
+        // 座標軸が画面から見切れそうな時は、その軸だけ一時的に短くして、矢じりと名前（x・y・z…）が画面に入るようにする。
+        //   ぶつかってから止めると角が立つので、①枠の手前（25% 内側）から少しずつ縮め始め、枠に近づくほどゆっくり（枠には当たらない）、
+        //   ②縮む・伸びるは約 0.2 秒かけて追いかける（速く回してもカクカクしない）。矢じりの大きさ・形はそのまま。
+        //   枠：左右 ±0.88、上 0.8（札の分）、下 −0.74（回転バーの分）。原点そのものが画面の外のときは何もしない
         const _fitV = new THREE.Vector3();
-        function axisFitScale(tip, root, cam) {
+        const AXFIT = { MX: 0.88, MT: 0.8, MB: 0.74, LK: 1.2, SOFT: 0.75, TAU: 0.22 };
+        function axisFitTarget(tip, root, cam) {
             if (!root || !cam) return 1;
-            const inView = (k, mx, myTop, myBot) => {
+            const ratio = k => {   // 名前の位置が、枠に対してどこまで来ているか（1＝ちょうど枠）。カメラの後ろなら大きい値
                 _fitV.set(tip[0] * k, tip[1] * k, tip[2] * k); root.localToWorld(_fitV); _fitV.project(cam);
-                return _fitV.z < 1 && Math.abs(_fitV.x) <= mx && _fitV.y <= myTop && _fitV.y >= -myBot;
+                if (!(_fitV.z < 1)) return 99;
+                return Math.max(Math.abs(_fitV.x) / AXFIT.MX, _fitV.y >= 0 ? _fitV.y / AXFIT.MT : -_fitV.y / AXFIT.MB);
             };
-            const MX = 0.88, MT = 0.8, MB = 0.74, LK = 1.2;
-            if (!inView(0, 1, 1, 1)) return 1;
-            if (inView(LK, MX, MT, MB)) return 1;
+            _fitV.set(0, 0, 0); root.localToWorld(_fitV); _fitV.project(cam);
+            if (!(_fitV.z < 1) || Math.abs(_fitV.x) > 1 || Math.abs(_fitV.y) > 1) return 1;
+            const r = ratio(AXFIT.LK);
+            if (r <= AXFIT.SOFT) return 1;
+            // やわらかい枠：r（そのままの長さでの位置）を、SOFT から先は 1 に近づくだけの位置 q に置きかえる（つなぎ目もなめらか）
+            const s0 = AXFIT.SOFT, q = s0 + (1 - s0) * (1 - Math.exp(-(r - s0) / (1 - s0)));
             let lo = 0.2, hi = 1;
-            if (!inView(lo * LK, MX, MT, MB)) return lo;
-            for (let it = 0; it < 12; it++) { const m = (lo + hi) / 2; if (inView(m * LK, MX, MT, MB)) lo = m; else hi = m; }
+            if (ratio(lo * AXFIT.LK) > q) return lo;
+            for (let it = 0; it < 12; it++) { const m = (lo + hi) / 2; if (ratio(m * AXFIT.LK) <= q) lo = m; else hi = m; }
             return lo;
         }
-        const fitTip = (tip, root, cam) => { const k = axisFitScale(tip, root, cam); return k < 1 ? [tip[0] * k, tip[1] * k, tip[2] * k] : tip; };
+        const _axisFitCur = new Map();   // 軸ごとの今の縮み具合（時間でならす）
+        function fitTip(tip, root, cam, key) {
+            const target = axisFitTarget(tip, root, cam);
+            let k = target;
+            if (key) {
+                const now = performance.now(), st = _axisFitCur.get(key);
+                if (st) {
+                    const dt = Math.min(0.5, Math.max(0, (now - st.t) / 1000));
+                    k = st.k + (target - st.k) * (1 - Math.exp(-dt / AXFIT.TAU));
+                    if (Math.abs(target - k) > 0.003) requestRender(3);   // 止まったあとも、追いつくまでは描く
+                    else k = target;
+                }
+                _axisFitCur.set(key, { k, t: now });
+            }
+            return k < 0.9999 ? [tip[0] * k, tip[1] * k, tip[2] * k] : tip;
+        }
         function axisFitPrep(root, cam) { if (root) root.updateMatrixWorld(); if (cam) cam.updateMatrixWorld(); }
 
         function updateAxisGnomon(progress) {
@@ -3992,7 +4012,7 @@
             if (progress === undefined) progress = animationProgress;
             axisFitPrep(root3D, camera3D);
             AXES_4D.forEach((ax, i) => {
-                const tip = fitTip(rotated4DAxis([ax.v[0] * AXIS_LEN, ax.v[1] * AXIS_LEN, ax.v[2] * AXIS_LEN, ax.v[3] * AXIS_LEN]), root3D, camera3D);   // 見切れる時だけ短く
+                const tip = fitTip(rotated4DAxis([ax.v[0] * AXIS_LEN, ax.v[1] * AXIS_LEN, ax.v[2] * AXIS_LEN, ax.v[3] * AXIS_LEN]), root3D, camera3D, 'R' + i);   // 見切れそうな時だけ短く
                 const pa = axisLines[i].geometry.attributes.position;
                 pa.array[0] = 0; pa.array[1] = 0; pa.array[2] = 0;
                 pa.array[3] = tip[0]; pa.array[4] = tip[1]; pa.array[5] = tip[2];
@@ -4053,7 +4073,7 @@
             axisFitPrep(root2D, camera2D);
             AXES_3D.forEach((ax, i) => {
                 const L = AXIS_LEN * (i === 2 ? zk : 1);
-                const tip = fitTip(rotatedLeftAxis([ax.v[0] * L, ax.v[1] * L, ax.v[2] * L]), root2D, camera2D);   // 見切れる時だけ短く
+                const tip = fitTip(rotatedLeftAxis([ax.v[0] * L, ax.v[1] * L, ax.v[2] * L]), root2D, camera2D, 'L' + i);   // 見切れそうな時だけ短く
                 const pa = axisLinesL[i].geometry.attributes.position;
                 pa.array[0] = 0; pa.array[1] = 0; pa.array[2] = 0;
                 pa.array[3] = tip[0]; pa.array[4] = tip[1]; pa.array[5] = tip[2];
@@ -7968,12 +7988,13 @@
 
         // ===== 画面の状態をそのまま覚える（3 秒ごと＋閉じる時）。次に開いた時に同じ画面へ戻す =====
         //   表示モード（どっちも／右上ミニ／大きい方だけ）・パネルの開閉・折りたたみの進み・速さ・ループ・回転の角度（6面＋5次元の4面）・
-        //   回し続けている面・分解・投影・自動ズーム・カメラ（左と右）・線だけ・面透過・座標軸・点固定・時間差・画面に立てる軸・
+        //   回し続けている面・分解・自動ズーム・線だけ・面透過・座標軸・点固定・時間差・画面に立てる軸・
         //   5次元の見え方マトリクス（マスと途中）・菱形二十面体・周回／往復の再生中・パネルのスクロール位置・開いている設定の画面。
-        //   そのほかのスイッチ類（色・見え方・タブ・窓の配置など）は前からそれぞれ保存されている
+        //   そのほかのスイッチ類（色・見え方・タブ・窓の配置など）は前からそれぞれ保存されている。
+        //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-0752';
+        const APP_BUILD = '20261020-0804';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
@@ -8064,17 +8085,9 @@
                 }
                 // 分解・投影
                 if (isFinite(s.explode)) { setExplodeRaw(s.explode); if (typeof syncExplodeUI === 'function') syncExplodeUI(); }
-                if (typeof s.cubePersp === 'boolean') { cubePersp = s.cubePersp; applyPerspUI(); }
-                parallel4D = !!s.parallel4D; projAnim = null;
-                // カメラ（左と右）。起動時のカメラの動きや自動ズームに上書きされないように
-                camHome = null; _lastFitProg = animationProgress;
-                const setCam = (c, ctl, d) => {
-                    if (!c || !ctl || !d || !Array.isArray(d.p) || !Array.isArray(d.t)) return;
-                    c.position.fromArray(d.p); ctl.target.fromArray(d.t);
-                    if (isFinite(d.z) && d.z > 0) c.zoom = d.z;
-                    c.updateProjectionMatrix(); ctl.update();
-                };
-                setCam(camera2D, controls2D, s.cam2); setCam(camera3D, controls3D, s.cam3);
+                // カメラ（左と右）と投影（遠近／平行）は戻さない：開いた時はいつも初期の状態（遠近・元の距離）から始める
+                //   （ユーザーの希望 2026-10-20。前回のカメラの近さや投影のまま開くと、真ん中の超立方体が小さく見えて分かりにくい）
+                //   保存（と Gist）には入っているので、あとで戻したくなったら s.cam2・s.cam3・s.cubePersp・s.parallel4D を使う
                 updateMorphingGeometry(animationProgress);
                 // 動いている途中だったもの：周回・往復をもう一度始める
                 if (s.cycle && !cycleMode) click('cycle-btn');
