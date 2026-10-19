@@ -2632,6 +2632,7 @@
             const verts5 = cellObjects5D.map((_, ci) => cellVerts5D(ci, progress).map(q => rotate5(q)));   // 回したあとの5D座標（w＝入れ子の深さ）
             const verts = verts5.map(cv => cv.map(p => project5(p, pb)));
             applyExplode(5, verts, progress);   // 分解：10個の超立方体を1個ずつ離す
+            xpNoteR(5, verts, root, controls3D);   // バラしたときの自動ズーム用
             let dMin = 1e9, dMax = -1e9;
             const dist = verts.map(cv => cv.map(v => { _p5v.set(v[0], v[1], v[2]); if (mat) _p5v.applyMatrix4(mat); const d = _p5v.distanceTo(camP); if (d < dMin) dMin = d; if (d > dMax) dMax = d; return d; }));
             const span = Math.max(dMax - dMin, 1e-3), sm = t => t * t * (3 - 2 * t);
@@ -3099,18 +3100,43 @@
         //   前は毎フレーム画面の輪郭に合わせていたので、回すたびにズームが動いて揺れていた。
         //   いまは回しても倍率が変わらない＝揺れない。4次元の遠近で形が息づく（大きく/小さく写る）のはそのまま見える。
         const XP_ZOOM_K = { 2: 1.5, 3: 1.2, 5: 1.4 };   // バラしきった(e=1)とき 1/(1+K) 倍。引きすぎないよう控えめ（多少はみ出しても大きく見せる）
-        function xpFitZoom(dim, zBase) {
+        // バラしたときの倍率：いちばん外の胞（2Dは面）の中心が、画面の端の 86% に来るように引く＝胞の外側は少し見切れても、どの胞も半分以上は残る。
+        //   胞の中心から注視点までの距離は、3D回転・カメラを回しても変わらない＝回しても揺れない。通常の倍率より拡大はしない
+        const _xpC = new THREE.Vector3(), xpR = { 2: 0, 3: 0, 5: 0 };
+        const xpHold = { 2: null, 3: null, 5: null };   // 最後に決めた倍率と、そのときのバラす量・折りたたみ・基準倍率
+        function xpNoteR(dim, cells, root, ctl) {   // バラしたあとの胞の中心の、注視点からの最大距離（ワールド座標）を測っておく
+            if (explodeE() < 0.001 || !cells || !cells.length) { xpR[dim] = 0; return; }
+            const tgt = ctl && ctl.target ? ctl.target : null; let m = 0;
+            cells.forEach(cv => {
+                if (!cv || !cv.length) return; let x = 0, y = 0, z = 0; cv.forEach(v => { x += v[0]; y += v[1]; z += v[2]; });
+                _xpC.set(x / cv.length, y / cv.length, z / cv.length); if (root) _xpC.applyMatrix4(root.matrixWorld);
+                const d = tgt ? _xpC.distanceTo(tgt) : _xpC.length(); if (d > m) m = d;
+            });
+            xpR[dim] = m;
+        }
+        function xpFitZoom(dim, zBase, cam, ctl) {
             const e = explodeE();
             if (e <= 0) return zBase;
-            return zBase * Math.max(0.28, 1 / (1 + XP_ZOOM_K[dim] * e));
+            const R = xpR[dim];
+            if (!cam || !(R > 1e-6)) return zBase * Math.max(0.28, 1 / (1 + XP_ZOOM_K[dim] * e));   // 測れないときは従来の一定倍率
+            const D = ctl && ctl.target ? cam.position.distanceTo(ctl.target) : cam.position.length();
+            const half = D * Math.tan(cam.fov * Math.PI / 360) * Math.min(1, cam.aspect || 1);   // 倍率1のとき、注視点の距離で画面の端までの長さ（縦横の短い方）
+            return Math.min(zBase, Math.max(zBase * 0.2, 0.86 * half / R));   // 86%＝下の回転バーに胞の中心が隠れない余裕
         }
         function applyExplodeZoom() {
             const set = (cam, z) => { if (cam && Math.abs(cam.zoom - z) > 1e-4) { cam.zoom = z; cam.updateProjectionMatrix(); } };
             const z3 = (dim5 && displayMode === 'hypercube_pip') ? 2.2 : viewZoom();
             if (!autoFitZoom) { set(camera2D, viewZoom2D()); set(camera3D, z3); set(camera5D, viewZoom()); return; }   // 自動ズームOFF：バラしてもズームしない（今の倍率のまま＝揺れない）
-            set(camera2D, xpFitZoom(2, viewZoom2D()));
-            set(camera3D, xpFitZoom(3, z3));
-            set(camera5D, xpFitZoom(5, viewZoom()));
+            const ease = (cam, z) => { if (cam) set(cam, cam.zoom + (z - cam.zoom) * (Math.abs(z - cam.zoom) < 1e-3 ? 1 : 0.25)); };   // なめらかに追従
+            // 倍率を決め直すのは「バラす量・折りたたみ・画面の大きさ」が変わったときだけ。回しているだけのときは据え置き（見切れてもズームしない＝出たり入ったりしない）
+            const tgt = (dim, zBase, cam, ctl) => {
+                const e = explodeE(), h = xpHold[dim];
+                if (h && Math.abs(h.e - e) < 1e-4 && Math.abs(h.zBase - zBase) < 1e-6 && Math.abs(h.p - animationProgress) < 1e-4) return h.z;
+                const z = xpFitZoom(dim, zBase, cam, ctl); xpHold[dim] = { e, zBase, p: animationProgress, z }; return z;
+            };
+            ease(camera2D, tgt(2, viewZoom2D(), camera2D, controls2D));
+            ease(camera3D, tgt(3, z3, camera3D, controls3D));
+            ease(camera5D, tgt(5, viewZoom(), camera5D, controls3D));
         }
 
         // ===== 手前と奥の胞の辺を色で強調（点タブ）=====
@@ -3893,6 +3919,7 @@
                     return vs;
                 });
                 applyExplode(2, faceVerts, progress);   // 分解：面を1枚ずつ離す
+                xpNoteR(2, faceVerts, scene2D.getObjectByName('Root2D'), controls2D);   // バラしたときの自動ズーム用
                 const r2 = scene2D.getObjectByName('Root2D'); if (r2) r2.updateMatrixWorld();
                 if (camera2D) camera2D.updateMatrixWorld();
                 const r2mat = r2 ? r2.matrixWorld : null, cam2P = camera2D ? camera2D.position : null;
@@ -3992,6 +4019,7 @@
                 const cellVerts = cellObjects3D.map(cell =>
                     calculateFoldedCellVertices3D(cell.id, progress, linkAngleX, linkAngleY));
                 applyExplode(3, cellVerts, progress);   // 分解：胞を1個ずつ離す
+                xpNoteR(3, cellVerts, scene3D.getObjectByName('Root3D'), controls3D);   // バラしたときの自動ズーム用
                 // 画面の奥行き（カメラからの距離）を各頂点で測る。辺のフェードと面の陰影に共通で使う。
                 const r3 = scene3D.getObjectByName('Root3D'); if (r3) r3.updateMatrixWorld();
                 if (camera3D) camera3D.updateMatrixWorld();
