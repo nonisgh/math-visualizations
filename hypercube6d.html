@@ -143,7 +143,7 @@
                 <section class="sb-sec">
                     <h3 class="sb-h"><i data-lucide="split" class="w-3.5 h-3.5"></i>分解</h3>
                     <div class="sl-row"><span>離す距離</span><input id="exp" type="range" min="0" max="2" step="0.01" value="0"><output id="expO"></output></div>
-                    <p class="note">12個のペンテラクトを外向きに離して、1個ずつの形を見やすくします。</p>
+                    <p class="note">12個のペンテラクトを外向きに離して、1個ずつの形を見やすくします。±W・±V と蓋（+U）は、離れる向きが奥行き（w・v・u）なので、そのままだと真ん中に重なります。分解のときは斜め下・上の空いている所へ脇に避けて見せます。</p>
                 </section>
                 <section class="sb-sec">
                     <h3 class="sb-h"><i data-lucide="rotate-3d" class="w-3.5 h-3.5"></i>6次元の回転</h3>
@@ -302,12 +302,39 @@ function updateAxes() {
 }
 const q6 = [0, 0, 0, 0, 0, 0], ctr = new THREE.Vector3(), tmp = new THREE.Vector3();
 let centerNow = new THREE.Vector3();
+// 分解のとき、3D では真ん中に重なってしまうセルを、空いている向きへ脇に避けて置く（見せるためだけのずらし）
+//   ±W・±V の腕：離れる向きが w・v＝奥行きなので、写すと真ん中に固まる → 斜め下の4方向（±X と ±Z の腕のあいだ）へ
+//   +U（蓋）：組み上がるほど u＝奥行きの向きに離れて真ん中に入る → その分だけ上（+Y の腕のさらに上）へ
+const ASIDE = { '+W': [1, -0.9, 1], '−W': [-1, -0.9, -1], '+V': [-1, -0.9, 1], '−V': [1, -0.9, -1] };
+Object.keys(ASIDE).forEach(k => { const v = ASIDE[k], l = Math.hypot(...v); ASIDE[k] = v.map(x => x / l); });
+function asideOf(C, f1, f2) {   // 戻り値：[3D でずらす量, 奥行き（w・v・u）のずれを中心にそろえる割合]
+    if (!explode) return null;
+    const m = Math.min(1, explode / 0.4);   // 少し分解したら、奥行きのずれは中心にそろえる＝中心と同じ大きさの1個の箱として見せる
+    const d = ASIDE[C.name];
+    if (d) { const k = 3.4 * explode; return [[d[0] * k, d[1] * k, d[2] * k], m]; }
+    if (C.kind === 'cap') { const h = Math.sin((f1 + f2) / 2); return h > 1e-3 ? [[0, 3.6 * explode * h, 0], m * h] : null; }
+    return null;
+}
+const HID = [3, 4, 5];   // 奥行きになる向き（w・v・u）
 function update() {
     mkRot();
     const [f1, f2] = angles(fold);
     let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z0 = 1e9, z1 = -1e9, wMin = 1e9, wMax = -1e9;
+    // まず全部を折りたたんで6次元の位置と重心を求める（脇に避けるセルは、奥行きの重心を中心のセルにそろえる）
     CELLS.forEach(C => {
-        for (let i = 0; i < 32; i++) { foldPoint(C, C.base[i], f1, f2, q6); const w = project(q6, C.pos, i * 3); C.wd[i] = w; if (w < wMin) wMin = w; if (w > wMax) wMax = w; }
+        if (!C.q) { C.q = Array.from({ length: 32 }, () => [0, 0, 0, 0, 0, 0]); C.cen = [0, 0, 0, 0, 0, 0]; }
+        C.cen.fill(0);
+        for (let i = 0; i < 32; i++) { foldPoint(C, C.base[i], f1, f2, C.q[i]); for (let k = 0; k < 6; k++) C.cen[k] += C.q[i][k] / 32; }
+    });
+    const cen0 = CELLS[0].cen;
+    CELLS.forEach(C => {
+        const as = asideOf(C, f1, f2);
+        for (let i = 0; i < 32; i++) {
+            for (let k = 0; k < 6; k++) q6[k] = C.q[i][k];
+            if (as) for (const k of HID) q6[k] -= (C.cen[k] - cen0[k]) * as[1];
+            const w = project(q6, C.pos, i * 3); C.wd[i] = w; if (w < wMin) wMin = w; if (w > wMax) wMax = w;
+            if (as) { C.pos[i * 3] += as[0][0]; C.pos[i * 3 + 1] += as[0][1]; C.pos[i * 3 + 2] += as[0][2]; }
+        }
         for (let i = 0; i < 96; i += 3) { const x = C.pos[i], y = C.pos[i + 1], z = C.pos[i + 2]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z; }
     });
     const wSp = Math.max(1e-3, wMax - wMin);
