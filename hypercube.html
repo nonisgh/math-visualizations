@@ -5057,7 +5057,8 @@
             window.addEventListener('keydown', (e) => {
                 if (scRecording) return;   // 記録中は捕捉側で処理
                 const t = e.target;
-                if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+                const TYPING = /^(text|number|search|email|password|tel|url|date|time|datetime-local|month|week)$/;   // 文字・数字を打つ欄
+                if (t && ((t.tagName === 'INPUT' && TYPING.test((t.type || 'text').toLowerCase())) || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;   // 打つ欄だけ除外。スライダー等にフォーカスしていてもショートカット優先（当たったキーはスライダーを動かさない）
                 const ko = document.getElementById('keycfg-overlay'), vo = document.getElementById('viewcfg-overlay');
                 if ((ko && !ko.classList.contains('hidden')) || (vo && !vo.classList.contains('hidden'))) return;  // 設定を開いている間は無効
                 const tok = keyToken(e); if (!tok) return;
@@ -6886,20 +6887,17 @@
                 const sl = document.getElementById('deep5-slider'), val = document.getElementById('deep5-val'); if (!sl) return;
                 const sync = () => { sl.value = String(deep5); if (val) val.textContent = Math.round(deep5 * 100) + '%'; };
                 sl.addEventListener('input', e => { deep5 = parseFloat(e.target.value); if (val) val.textContent = Math.round(deep5 * 100) + '%'; try { localStorage.setItem('hypercubeDeep5b', String(deep5)); } catch (_) {} updateMorphingGeometry(animationProgress); requestRender(30); });
-                sl.addEventListener('keydown', e => e.stopPropagation());   // ショートカットのキーと取り合わない
                 sync();
             })();
             (function setupLine5() {   // 内側の線を細く
                 const sl = document.getElementById('line5-slider'), val = document.getElementById('line5-val'); if (!sl) return;
                 sl.value = String(line5); if (val) val.textContent = Math.round(line5 * 100) + '%';
                 sl.addEventListener('input', e => { line5 = parseFloat(e.target.value); if (val) val.textContent = Math.round(line5 * 100) + '%'; try { localStorage.setItem('hypercubeLine5b', String(line5)); } catch (_) {} updateMorphingGeometry(animationProgress); requestRender(30); });
-                sl.addEventListener('keydown', e => e.stopPropagation());
             })();
             (function setupInner5() {   // 入れ子の内側を濃く
                 const sl = document.getElementById('inner5-slider'), val = document.getElementById('inner5-val'); if (!sl) return;
                 sl.value = String(inner5); if (val) val.textContent = Math.round(inner5 * 100) + '%';
                 sl.addEventListener('input', e => { inner5 = parseFloat(e.target.value); if (val) val.textContent = Math.round(inner5 * 100) + '%'; try { localStorage.setItem('hypercubeInner5c', String(inner5)); } catch (_) {} updateMorphingGeometry(animationProgress); requestRender(30); });
-                sl.addEventListener('keydown', e => e.stopPropagation());
             })();
             (function setupExplToggles() {   // 説明文を「[説明]」で開閉（パネル・キー設定・表示設定）。中身がプログラムで変わる行（id 付き）と一覧の中身は対象外
                 const ROOTS = ['ui-overlay', 'keycfg-overlay', 'viewcfg-overlay'].map(id => document.getElementById(id)).filter(Boolean); if (!ROOTS.length) return;
@@ -6967,13 +6965,11 @@
                 setAngles6(seriVec(seriPath).map(v => v * t)); xyManualOff = 0;
                 ensureProjection(); updateLinkUI(); updateMorphingGeometry(animationProgress);
             });
-            document.getElementById('seri-slider').addEventListener('keydown', e => e.stopPropagation());   // ←→ キーで微調整（ショートカットにしない）
             syncMatrix(); syncSeriHold();
 
             // ===== 分解：スライダー＝その場で離す量、ボタン＝なめらかにバラす／くっつける、数える＝バラして1個ずつ =====
             const xpSlider = document.getElementById('explode-slider');
             xpSlider.addEventListener('input', () => { xpAnim = null; explodeTarget = null; if (xpCount.active) endXpCount(); setExplodeRaw(parseFloat(xpSlider.value)); });
-            xpSlider.addEventListener('keydown', e => e.stopPropagation());
             document.getElementById('explode-btn').addEventListener('click', () => {
                 const apart = explodeTarget !== null ? explodeTarget === 1 : explodeRaw >= 0.5;
                 if (apart && xpCount.active) endXpCount();
@@ -7040,7 +7036,6 @@
                 try { localStorage.setItem('hypercubeExplodeDist', String(xpDistK)); } catch (_) {}
                 updateMorphingGeometry(animationProgress); requestRender(10);
             });
-            xpDistEl.addEventListener('keydown', e => e.stopPropagation());
             syncXpDist();
 
             // ===== 手前と奥の辺の強調：オン・オフと色（このブラウザに覚える） =====
@@ -7062,12 +7057,11 @@
             ehNear.addEventListener('input', () => { edgeHi.near = ehNear.value; edgeHi.on = true; ehApply(); });   // 色を選んだら強調もオンに
             ehFar.addEventListener('input', () => { edgeHi.far = ehFar.value; edgeHi.on = true; ehApply(); });
             [['eh-mid', 'mid'], ['eh-arm', 'arm']].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.addEventListener('input', () => { edgeHi[key] = el.value; edgeHi.on = true; ehApply(); }); });
-            [['eh-face-mid', 'faceMid'], ['eh-face-arm', 'faceArm']].forEach(([id, key]) => { const sl = document.getElementById(id); if (sl) { sl.addEventListener('input', e => { edgeHi[key] = parseFloat(e.target.value); edgeHi.on = true; ehApply(); }); sl.addEventListener('keydown', e => e.stopPropagation()); } });
+            [['eh-face-mid', 'faceMid'], ['eh-face-arm', 'faceArm']].forEach(([id, key]) => { const sl = document.getElementById(id); if (sl) { sl.addEventListener('input', e => { edgeHi[key] = parseFloat(e.target.value); edgeHi.on = true; ehApply(); }); } });
             document.getElementById('eh-reset').addEventListener('click', () => { edgeHi.near = EH_DEF.near; edgeHi.far = EH_DEF.far; edgeHi.mid = EH_DEF.mid; edgeHi.arm = EH_DEF.arm; ehApply(); });
             [['near', 'widthNear'], ['far', 'widthFar'], ['mid', 'widthMid'], ['arm', 'widthArm']].forEach(([side, key]) => {
                 const sl = document.getElementById('eh-width-' + side);
                 sl.addEventListener('input', e => { edgeHi[key] = parseFloat(e.target.value); edgeHi.on = true; ehApply(); });   // 太さを変えたら強調もオンに
-                sl.addEventListener('keydown', e => e.stopPropagation());
             });
             syncEdgeHiUI();
 
