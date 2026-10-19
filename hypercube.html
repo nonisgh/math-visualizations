@@ -582,7 +582,7 @@
                     <button id="count-btn" class="px-2.5 py-1 rounded-xl border font-bold transition" title="バラして、1個ずつ番号を付けて光らせながら数える（Shift+C）">→ 数える</button>
                     <button id="explode-stag-btn" class="px-2.5 py-1 rounded-xl border transition" title="ボタンでバラす・くっつけるときに、番号の順に少しずつずらして動かすか（OFF＝全部いっしょに動く）">→ バラす時間差: OFF</button>
                     <button id="explode-map-btn" class="px-2.5 py-1 rounded-xl border transition" title="バラしたときに、くっついていた面どうしを点線で結び、高い次元の向きを矢印で示す">→ 高次元マップ: OFF</button>
-                    <button id="cell-label-btn" class="px-2.5 py-1 rounded-xl border transition" title="立体（胞・面）の名前を、バラしていないときも小さく出す（−w (中心)・w (蓋)・±X など）。バラしたときは今までどおり番号つきの札。重なったら上下にずらして並べる">→ 立体のラベル: ON</button>
+                    <button id="cell-label-btn" class="px-2.5 py-1 rounded-xl border transition" title="立体（胞・面）の名前を、バラしていないときも小さく出す（−W (中心)・+W (蓋)・±X など）。バラしたときは今までどおり番号つきの札。重なったら上下にずらして並べる">→ 立体のラベル: ON</button>
                 </div>
                 <p class="d5-sub text-[10px] text-slate-500 leading-snug" data-d4="高次元マップ：点線＝くっついていた面どうし。紫の点線は「4次元目（w）を通ってつながる」面（中心と蓋の立方体につながる線）。組み上がりをバラすと、中心→蓋 の向きに「w：4次元目の向き」の矢印が出ます。立方体の画面では、青が3次元目（z）。" data-d5="高次元マップ：点線＝くっついていた面どうし。琥珀色の点線は5次元目（v）、紫の点線は4次元目（w）を通ってつながる面。組み上がりをバラすと、中心→蓋 に「v：5次元目の向き」、−W→+W に「w：4次元目の向き」の矢印が出ます。">高次元マップ：点線＝くっついていた面どうし。紫の点線は「4次元目（w）を通ってつながる」面（中心と蓋の立方体につながる線）。組み上がりをバラすと、中心→蓋 の向きに「w：4次元目の向き」の矢印が出ます。立方体の画面では、青が3次元目（z）。</p>
                 <div class="flex items-center gap-2 text-[11px] pt-1 border-t border-slate-800">
@@ -3066,9 +3066,9 @@
         const XP_N5 = [[0, 0, 0, 0, -1], [0, 1, 0, 0, 0], [0, -1, 0, 0, 0], [1, 0, 0, 0, 0], [-1, 0, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, -1, 0, 0], [0, 0, 0, 1, 0], [0, 0, 0, -1, 0], [0, 0, 0, 0, 1]];
         const XP_SHORT = {
             // 中心と蓋は、折りたたみでできる次元の − と ＋（立方体は z、超立方体は w、5次元超立方体は v）
-            2: ['中心 (−z)', '+Y', '−Y', '+X', '−X', '蓋 (+z)'],
-            3: ['−w (中心)', '+Y', '−Y', '+X', '−X', '+Z', '−Z', 'w (蓋)'],
-            5: ['−v (中心)', '+Y', '−Y', '+X', '−X', '+Z', '−Z', '+W', '−W', 'v (蓋)']
+            2: ['−Z (中心)', '+Y', '−Y', '+X', '−X', '+Z (蓋)'],
+            3: ['−W (中心)', '+Y', '−Y', '+X', '−X', '+Z', '−Z', '+W (蓋)'],
+            5: ['−V (中心)', '+Y', '−Y', '+X', '−X', '+Z', '−Z', '+W', '−W', '+V (蓋)']
         };
         const XP_KIND = { 2: ['6枚', '正方形'], 3: ['8個', '立方体'], 5: ['10個', '超立方体（4次元）'] };
         const _xpComb = (c, basis) => [0, 1, 2].map(i => basis.reduce((sm, b, k) => sm + c[k] * b[i], 0));
