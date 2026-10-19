@@ -164,6 +164,9 @@
                     <h3 class="sb-h"><i data-lucide="split" class="w-3.5 h-3.5"></i>分解</h3>
                     <div class="sl-row"><span>離す距離</span><input id="exp" type="range" min="0" max="2" step="0.01" value="0"><output id="expO"></output></div>
                     <div class="flex flex-wrap gap-1.5"><button class="tbtn" data-act="autoExp"><span>自動で離す: OFF</span></button></div>
+                    <div class="flex items-center gap-2 text-[11px] text-slate-300"><span>出発の形</span>
+                        <div class="seg" id="from-seg"><button data-from="net" class="on" title="ハンマー型の展開図のまま分解していく（最後もハンマーの形に散らばる）">展開図から</button><button data-from="ball" title="6次元立方体に組み上げてから分解（球のように広がる）">組み上がり（球）から</button></div>
+                    </div>
                     <div class="flex flex-wrap gap-1.5 items-center"><button class="tbtn go" data-act="crys"><span>結晶ばらし: OFF</span></button><button class="tbtn" data-act="crysPrev" title="1段階もどす">◀ 段階</button><button class="tbtn" data-act="crysNext" title="1段階すすめる">段階 ▶</button></div>
                     <div class="flex flex-wrap gap-1.5"><button class="tbtn go" data-act="chain"><span>連鎖ばらし: OFF</span></button></div>
                     <p class="note"><b class="text-slate-300">連鎖ばらし</b>：割れた部品が、時間差で次々に自分の面へ割れていきます（5次元立方体 → それぞれ10個の超立方体 → それぞれ8個の立方体）。となり同士が共有する面もそれぞれから出てくるので、数は 12 → 120 → 960（重なりを除くと 12・60・160 種類）。</p>
@@ -377,7 +380,9 @@ function updateCubes() {
 const PHI = (1 + Math.sqrt(5)) / 2;
 const ICO = [[0, 1, PHI], [0, -1, PHI], [1, PHI, 0], [-1, PHI, 0], [PHI, 0, 1], [PHI, 0, -1]].map(v => { const l = Math.hypot(...v); return v.map(x => x / l); });
 const PC = v => { let x = 0, y = 0, z = 0; for (let k = 0; k < 6; k++) { x += v[k] * ICO[k][0]; y += v[k] * ICO[k][1]; z += v[k] * ICO[k][2]; } return [x, y, z]; };
-const crys = { active: false, m: 0, e: 0, target: 0, auto: false, hold: 0, lastLv: 0, done: false, chain: false, T: 0 };
+const crys = { active: false, m: 0, e: 0, target: 0, auto: false, hold: 0, lastLv: 0, done: false, chain: false, T: 0, from: 'net', ex0: 0 };
+let crysFromSel = 'net';   // 出発の形：'net'＝展開図から（ハンマー）／'ball'＝組み上がり（球）から
+const NET_EX = 1.6;        // 展開図から：まず12個をこの分解量まで離す（±W・±V・蓋は脇へ）
 const crysVis = () => crys.active || crys.m > 0;
 const CR_NAMES = [['12', '個の5次元立方体（ペンテラクト）'], ['60', '個の4次元立方体（超立方体）'], ['160', '個の立方体']];
 const CR_GAP = [4.0, 2.5, 2.5];   // 段階ごとに、中心の向き P(c) へどれだけ離すか（部品が大きいので大きめに）
@@ -399,6 +404,14 @@ const CR_LEVELS = [5, 4, 3].map(k => {   // k＝自由に動く軸の数
     return { k, pieces };
 });
 const crysG = new THREE.Group(); scene.add(crysG);
+CR_LEVELS[0].pieces.forEach(P => { const a = P.c.findIndex(x => x !== 0); P.cell = CELLS.find(C => C.a === a && C.s === P.c[a]); });
+const toLocal = (wx, wy, wz, out) => { const r = crysG.rotation.y, cs = Math.cos(-r), sn = Math.sin(-r); out[0] = wx * cs + wz * sn; out[1] = wy; out[2] = -wx * sn + wz * cs; return out; };
+// 展開図から：5次元立方体 P の、いまの展開図での頂点（crysG の座標）と、その重心
+function netVerts(P) {
+    const C = P.cell, out = [], cen = [0, 0, 0], n = P.v6.length;
+    for (let i = 0; i < n; i++) { const v = toLocal(C.pos[i * 3] + root.position.x, C.pos[i * 3 + 1] + root.position.y, C.pos[i * 3 + 2] + root.position.z, [0, 0, 0]); out.push(v); cen[0] += v[0] / n; cen[1] += v[1] / n; cen[2] += v[2] / n; }
+    return { out, cen };
+}
 // ---- 連鎖ばらし：割れた部品が、自分の面（1つ下の次元の部品）へ次々に割れていく木 ----
 //   5次元立方体 12個 → それぞれ10個の超立方体（120）→ それぞれ8個の立方体（960）。となりと共有する面も、それぞれから出る。
 //   子は、親の面にぴったり重なった位置から出発して（親が割れて中から出てくる）、親から見た向き P(c子 − c親) へ飛び出す。
@@ -418,6 +431,7 @@ CR_LEVELS[0].pieces.forEach((p, i) => {
     }));
 });
 const CH_G = [4.2, 2.3, 1.7], CH_S = [0.6, 0.42, 0.27];   // 飛び出す距離・縮め具合（段ごと）
+const CHN_G = [0, 1.5, 1.0], CHN_S = [0.34, 0.24, 0.16];   // 展開図からのとき（部品どうしが近いので小さめ）
 const chS2 = n1 => 1.9 + n1.i * 0.13, chS3 = n2 => chS2(n2.parent) + 1.5 + n2.k * 0.07;   // 5次元立方体 n1・超立方体 n2 が割れはじめる時刻（少しずつずらす＝連鎖）。子は親が割れた瞬間に一斉に出る
 const CH_END = 1.9 + 11 * 0.13 + 1.5 + 9 * 0.07 + 1.1;
 const chainLine = (() => { const n = CH1.length * 80 + CH2.length * 32 + CH3.length * 12, g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 6), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 6), 3)); const m = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95 })); m.frustumCulled = false; m.visible = false; crysG.add(m); return m; })();
@@ -436,7 +450,7 @@ function updateChain() {
     const draw = (P, c3, S) => {
         for (let i = 0; i < P.v6.length; i++) {
             let x = c3[0] + S * (P.Pv[i][0] - P.Pc[0]), y = c3[1] + S * (P.Pv[i][1] - P.Pc[1]), z = c3[2] + S * (P.Pv[i][2] - P.Pc[2]);
-            if (m < 1) {   // いつもの写し方から結晶の写し方へ（はじめだけ）
+            if (m < 1 && crys.from !== 'net') {   // いつもの写し方から結晶の写し方へ（はじめだけ）
                 for (let k = 0; k < 6; k++) _p6[k] = P.v6[i][k]; project(_p6, _p3, 0);
                 const r = crysG.rotation.y, cs = Math.cos(-r), sn = Math.sin(-r), wx = _p3[0] + root.position.x, wz = _p3[2] + root.position.z;
                 const lx = wx * cs + wz * sn, lz = -wx * sn + wz * cs, ly = _p3[1] + root.position.y;
@@ -444,19 +458,31 @@ function updateChain() {
             }
             P.pos[i * 3] = x; P.pos[i * 3 + 1] = y; P.pos[i * 3 + 2] = z;
         }
+        drawPos(P);
+    };
+    function drawPos(P) {   // P.pos（計算ずみの頂点）を線と面のバッファへ
         for (const [a, b, ax] of P.E) { const c = EDGE_COL[ax]; for (const vi of [a, b]) { pa[lp] = P.pos[vi * 3]; pa[lp + 1] = P.pos[vi * 3 + 1]; pa[lp + 2] = P.pos[vi * 3 + 2]; ca[lp] = c.r; ca[lp + 1] = c.g; ca[lp + 2] = c.b; lp += 3; } }
         for (const q of P.Q) for (const vi of [q[0], q[1], q[2], q[0], q[2], q[3]]) { fa[fp] = P.pos[vi * 3]; fa[fp + 1] = P.pos[vi * 3 + 1]; fa[fp + 2] = P.pos[vi * 3 + 2]; fc[fp] = P.col.r; fc[fp + 1] = P.col.g; fc[fp + 2] = P.col.b; fp += 3; }
-    };
-    const u1 = ez(T / 1.6);
-    for (const n of CH1) { const k = 1 + CH_G[0] * u1; n.c3 = [n.p.Pc[0] * k, n.p.Pc[1] * k, n.p.Pc[2] * k]; n.S = 1 - (1 - CH_S[0]) * u1; if (T <= chS2(n)) draw(n.p, n.c3, n.S); }
+    }
+    const u1 = ez(T / 1.6), net = crys.from === 'net', G = net ? CHN_G : CH_G, SS = net ? CHN_S : CH_S;
+    for (const n of CH1) {
+        if (net) {   // 展開図から：展開図のセル（離れていく）から、その場で結晶の形（菱形二十面体）へ
+            const { out, cen } = netVerts(n.p), P = n.p; n.c3 = cen; n.S = SS[0];
+            if (T > chS2(n)) continue;
+            for (let i = 0; i < P.v6.length; i++) for (let j = 0; j < 3; j++) { const X = cen[j] + SS[0] * (P.Pv[i][j] - P.Pc[j]); P.pos[i * 3 + j] = out[i][j] + (X - out[i][j]) * u1; }
+            drawPos(P);
+            continue;
+        }
+        const k = 1 + G[0] * u1; n.c3 = [n.p.Pc[0] * k, n.p.Pc[1] * k, n.p.Pc[2] * k]; n.S = 1 - (1 - SS[0]) * u1; if (T <= chS2(n)) draw(n.p, n.c3, n.S);
+    }
     for (const n of CH2) {   // 親の面にぴったり重なった位置から、親から見た向きへ
-        const P0 = n.parent, t0 = chS2(P0), u = ez((T - t0) / 1.3), f = P0.S + CH_G[1] * u;
-        n.c3 = [0, 1, 2].map(j => P0.c3[j] + f * (n.p.Pc[j] - P0.p.Pc[j])); n.S = P0.S + (CH_S[1] - P0.S) * u;
+        const P0 = n.parent, t0 = chS2(P0), u = ez((T - t0) / 1.3), f = P0.S + G[1] * u;
+        n.c3 = [0, 1, 2].map(j => P0.c3[j] + f * (n.p.Pc[j] - P0.p.Pc[j])); n.S = P0.S + (SS[1] - P0.S) * u;
         if (T > t0 && T <= chS3(n)) draw(n.p, n.c3, n.S);
     }
     for (const n of CH3) {
-        const P0 = n.parent, t0 = chS3(P0), u = ez((T - t0) / 1.1), f = P0.S + CH_G[2] * u;
-        n.c3 = [0, 1, 2].map(j => P0.c3[j] + f * (n.p.Pc[j] - P0.p.Pc[j])); n.S = P0.S + (CH_S[2] - P0.S) * u;
+        const P0 = n.parent, t0 = chS3(P0), u = ez((T - t0) / 1.1), f = P0.S + G[2] * u;
+        n.c3 = [0, 1, 2].map(j => P0.c3[j] + f * (n.p.Pc[j] - P0.p.Pc[j])); n.S = P0.S + (SS[2] - P0.S) * u;
         if (T > t0) draw(n.p, n.c3, n.S);
     }
     chainLine.geometry.setDrawRange(0, lp / 3); chainFace.geometry.setDrawRange(0, fp / 3);
@@ -468,20 +494,58 @@ function updateCrystal() {
     chainLine.visible = on && crys.chain && wireOn; chainFace.visible = on && crys.chain && faceOn;
     crysLine.visible = on && !crys.chain && wireOn; crysFace.visible = on && !crys.chain && faceOn; if (!on) return;
     if (crys.chain) { updateChain(); return; }
+    if (crys.from === 'net') { updateCrystalNet(); return; }
     const L = crysLv(crys.e), lv = CR_LEVELS[L], off = crysOff(crys.e), S = L === 0 ? 1 - (1 - CR_S[0]) * smooth(Math.min(1, crys.e / 0.5)) : CR_S[L], m = smooth(crys.m);
     crysFace.material.opacity = CR_OP[L];
     const pa = crysLine.geometry.attributes.position.array, ca = crysLine.geometry.attributes.color.array, fa = crysFace.geometry.attributes.position.array, fc = crysFace.geometry.attributes.color.array;
     let lp = 0, fp = 0;
+    const netW = crys.from === 'net' && L === 0 ? smooth(Math.min(1, crys.e)) : 1;   // 展開図から：はじめは展開図のセルの形・位置
     for (const P of lv.pieces) {
+        const NV = netW < 1 ? netVerts(P).out : null;
         for (let i = 0; i < P.v6.length; i++) {
             let x = P.Pc[0] * (1 + off) + S * (P.Pv[i][0] - P.Pc[0]), y = P.Pc[1] * (1 + off) + S * (P.Pv[i][1] - P.Pc[1]), z = P.Pc[2] * (1 + off) + S * (P.Pv[i][2] - P.Pc[2]);
-            if (m < 1) {   // いつもの写し方（6次元の回転＋遠近）から、結晶の写し方へなめらかに
+            if (NV) { x = NV[i][0] + (x - NV[i][0]) * netW; y = NV[i][1] + (y - NV[i][1]) * netW; z = NV[i][2] + (z - NV[i][2]) * netW; }
+            if (m < 1 && crys.from !== 'net') {   // いつもの写し方（6次元の回転＋遠近）から、結晶の写し方へなめらかに
                 for (let k = 0; k < 6; k++) _p6[k] = P.v6[i][k]; project(_p6, _p3, 0);
                 const r = crysG.rotation.y, cs = Math.cos(-r), sn = Math.sin(-r), wx = _p3[0] + root.position.x, wz = _p3[2] + root.position.z;
                 const lx = wx * cs + wz * sn, lz = -wx * sn + wz * cs, ly = _p3[1] + root.position.y;
                 x = lx + (x - lx) * m; y = ly + (y - ly) * m; z = lz + (z - lz) * m;
             }
             P.pos[i * 3] = x; P.pos[i * 3 + 1] = y; P.pos[i * 3 + 2] = z;
+        }
+        for (const [a, b, ax] of P.E) { const c = EDGE_COL[ax]; for (const vi of [a, b]) { pa[lp] = P.pos[vi * 3]; pa[lp + 1] = P.pos[vi * 3 + 1]; pa[lp + 2] = P.pos[vi * 3 + 2]; ca[lp] = c.r; ca[lp + 1] = c.g; ca[lp + 2] = c.b; lp += 3; } }
+        for (const q of P.Q) for (const vi of [q[0], q[1], q[2], q[0], q[2], q[3]]) { fa[fp] = P.pos[vi * 3]; fa[fp + 1] = P.pos[vi * 3 + 1]; fa[fp + 2] = P.pos[vi * 3 + 2]; fc[fp] = P.col.r; fc[fp + 1] = P.col.g; fc[fp + 2] = P.col.b; fp += 3; }
+    }
+    crysLine.geometry.setDrawRange(0, lp / 3); crysFace.geometry.setDrawRange(0, fp / 3);
+    crysLine.geometry.attributes.position.needsUpdate = true; crysLine.geometry.attributes.color.needsUpdate = true;
+    crysFace.geometry.attributes.position.needsUpdate = true; crysFace.geometry.attributes.color.needsUpdate = true;
+}
+// 結晶ばらし（段階）を展開図から：どの部品も、自分を含む5次元立方体（展開図のセル）の重心の平均の位置に置く＝ハンマーの形のまま分解
+//   12個：展開図のセル → その場で菱形二十面体へ。60個：その2つのセルの間へ。160個：その3つのセルの間へ（親の位置から動き出す）
+const NETL_S = [0.34, 0.24, 0.16];
+function updateCrystalNet() {
+    const e = Math.max(0, crys.e), L = crysLv(e), lv = CR_LEVELS[L], w = smooth(Math.min(1, e - L));
+    const cen = new Map(); CR_LEVELS[0].pieces.forEach(P => cen.set(keyOf(P.c), netVerts(P)));
+    const avgOf = (c, sel) => { const a = [0, 0, 0]; let n = 0; c.forEach((x, k) => { if (x === 0 || !sel(k)) return; const q = [0, 0, 0, 0, 0, 0]; q[k] = x; const C = cen.get(keyOf(q)).cen; a[0] += C[0]; a[1] += C[1]; a[2] += C[2]; n++; }); return a.map(v => v / Math.max(1, n)); };
+    const firstK = c => c.findIndex(x => x !== 0);
+    const H = [0, 0, 0]; cen.forEach(r => { H[0] += r.cen[0] / 12; H[1] += r.cen[1] / 12; H[2] += r.cen[2] / 12; });   // ハンマー全体の重心
+    const spread = L === 0 ? 1 : 1 + 0.7 * (L - 1 + w);   // 段階が進むほど、ハンマーの形のまま外向きに広げる（間に置くと真ん中に寄るので）
+    crysFace.material.opacity = CR_OP[L];
+    const pa = crysLine.geometry.attributes.position.array, ca = crysLine.geometry.attributes.color.array, fa = crysFace.geometry.attributes.position.array, fc = crysFace.geometry.attributes.color.array;
+    let lp = 0, fp = 0;
+    for (const P of lv.pieces) {
+        let ctr, S = NETL_S[L], NV = null;
+        if (L === 0) { const r = cen.get(keyOf(P.c)); ctr = r.cen; NV = r.out; }
+        else {
+            const all = avgOf(P.c, () => true), k0 = firstK(P.c);
+            const start = L === 1 ? avgOf(P.c, k => k === k0) : avgOf(P.c, k => k === k0 || k === P.c.findIndex((x, i) => x !== 0 && i > k0));   // 親（の位置）から動き出す
+            const sp0 = 1 + 0.7 * (L - 1);   // 動き出すときの広げ具合（前の段階の終わり）
+            ctr = [0, 1, 2].map(j => { const a = H[j] + (start[j] - H[j]) * sp0, b = H[j] + (all[j] - H[j]) * spread; return a + (b - a) * w; }); S = NETL_S[L - 1] + (NETL_S[L] - NETL_S[L - 1]) * w;
+        }
+        for (let i = 0; i < P.v6.length; i++) for (let j = 0; j < 3; j++) {
+            let X = ctr[j] + S * (P.Pv[i][j] - P.Pc[j]);
+            if (NV) X = NV[i][j] + (X - NV[i][j]) * w;   // 12個：展開図のセルの形から結晶の形へ
+            P.pos[i * 3 + j] = X;
         }
         for (const [a, b, ax] of P.E) { const c = EDGE_COL[ax]; for (const vi of [a, b]) { pa[lp] = P.pos[vi * 3]; pa[lp + 1] = P.pos[vi * 3 + 1]; pa[lp + 2] = P.pos[vi * 3 + 2]; ca[lp] = c.r; ca[lp + 1] = c.g; ca[lp + 2] = c.b; lp += 3; } }
         for (const q of P.Q) for (const vi of [q[0], q[1], q[2], q[0], q[2], q[3]]) { fa[fp] = P.pos[vi * 3]; fa[fp + 1] = P.pos[vi * 3 + 1]; fa[fp + 2] = P.pos[vi * 3 + 2]; fc[fp] = P.col.r; fc[fp + 1] = P.col.g; fc[fp + 2] = P.col.b; fp += 3; }
@@ -625,6 +689,13 @@ function syncButtons() {
     const sw = (act, name, on) => document.querySelectorAll(`[data-act="${act}"] span:not(.ios-sw)`).forEach(sp => setTxt(sp, name + ': ' + (on ? 'ON' : 'OFF')));
     sw('loop', '往復', loop); sw('spin', '6D回転', spin); sw('label', 'ラベル', labelOn); sw('stagger', '時間差', stagger); sw('face', '面', faceOn); sw('wire', '線', wireOn); sw('cam', '自動で中央に', autoCenter); sw('axes', '座標軸', axesOn); sw('cubes', '立方体まで', cubeMode); sw('autoExp', '自動で離す', expTarget > 0); sw('crys', '結晶ばらし', crys.active && !crys.chain); sw('chain', '連鎖ばらし', crys.active && crys.chain);
 }
+function crysStart() {   // 始めるとき：出発の形を決めて、展開図からなら展開図へ・組み上がりからなら組み上げる
+    if (crys.m <= 0) { crys.from = crysFromSel; crys.ex0 = explode; expTarget = null; }
+    loop = false;
+    if (crys.from === 'net') { if (fold > 0.001) foldTarget = 0; } else if (fold < 0.999) foldTarget = 1;
+}
+const crysFoldReady = () => crys.from === 'net' ? fold <= 0.001 : fold >= 0.999;
+document.querySelectorAll('#from-seg button').forEach(b => b.addEventListener('click', () => { crysFromSel = b.dataset.from; document.querySelectorAll('#from-seg button').forEach(x => x.classList.toggle('on', x === b)); }));
 const ACT = {
     fold: () => { foldTarget = 1; loop = false; }, unfold: () => { foldTarget = 0; loop = false; },
     loop: () => { loop = !loop; foldTarget = fold > 0.5 ? 0 : 1; }, spin: () => spin = !spin, label: () => labelOn = !labelOn,
@@ -634,13 +705,13 @@ const ACT = {
         if (crys.active) { ACT.crys(); return; }   // どちらかが動いていたら止める（逆再生で戻る）
         if (crys.m > 0 && !crys.chain) return;     // 結晶ばらしが戻りきるまで待つ
         crys.chain = true; crys.T = Math.max(0, crys.T); crys.lastLv = 0; crys.done = false;
-        crys.active = true; cubeMode = false; countOn = false; countK = -1; if (fold < 0.999) { foldTarget = 1; loop = false; }
+        crys.active = true; cubeMode = false; countOn = false; countK = -1; crysStart();
     },
     crys: () => {
         if (!crys.active && crys.chain && crys.m > 0) return;   // 連鎖が戻りきるまで待つ
         if (!crys.active) crys.chain = false;
         crys.active = !crys.active;
-        if (crys.active) { cubeMode = false; countOn = false; countK = -1; crys.auto = true; crys.target = Math.max(crys.target, 0); crys.hold = 0.6; crys.done = false; if (fold < 0.999) { foldTarget = 1; loop = false; } }
+        if (crys.active) { cubeMode = false; countOn = false; countK = -1; crys.auto = true; crys.target = Math.max(crys.target, 0); crys.hold = 0.6; crys.done = false; crysStart(); }
         else { crys.auto = false; crys.target = 0; }
     },
     crysNext: () => { if (!crys.active) { ACT.crys(); crys.auto = false; crys.target = 1; return; } crys.auto = false; crys.target = Math.min(3, Math.floor(crys.e + 1e-6) + 1); },
@@ -975,19 +1046,23 @@ let tPrev = performance.now();
         EXP.e.value = explode; EXP.show();
     }
     // 結晶ばらし：組み上げ → 結晶の写し方へ → 1段ずつ分解（自動なら1段ごとに少し止まる）。OFF で逆にたどって戻る
-    const crysMoving = crys.active ? (fold < 0.999 || crys.m < 1 || (crys.chain ? crys.T < CH_END : Math.abs(crys.e - crys.target) > 1e-4)) : crys.m > 0;
+    const crysMoving = crys.active ? (!crysFoldReady() || crys.m < 1 || (crys.chain ? crys.T < CH_END : Math.abs(crys.e - crys.target) > 1e-4)) : crys.m > 0;
     if (crys.active) {
-        if (fold >= 0.999) crys.m = Math.min(1, crys.m + dt * 0.9 * spd);
+        if (crysFoldReady()) crys.m = Math.min(1, crys.m + dt * (crys.from === 'net' ? 5 : 0.9) * spd);
         if (crys.m >= 1 && crys.chain) crys.T = Math.min(CH_END, crys.T + dt * 0.75 * spd);
         else if (crys.m >= 1) {
             if (Math.abs(crys.e - crys.target) > 1e-4) crys.e += Math.sign(crys.target - crys.e) * Math.min(dt * 0.38 * spd, Math.abs(crys.target - crys.e));
             else if (crys.auto && crys.target < 3) { crys.hold += dt * spd; if (crys.hold > 1.2) { crys.hold = 0; crys.target = Math.floor(crys.e + 1e-6) + 1; } }
         }
-        crysG.rotation.y += dt * 0.12;   // 結晶がゆっくり回る
+        if (crys.from !== 'net') crysG.rotation.y += dt * 0.12;   // 結晶がゆっくり回る（展開図からのときはハンマーの向きを保つ）
     } else if (crys.m > 0) {
         if (crys.chain && crys.T > 0) crys.T = Math.max(0, crys.T - dt * 1.6 * spd);
         else if (!crys.chain && crys.e > 0) crys.e = Math.max(0, crys.e - dt * 0.9 * spd); else crys.m = Math.max(0, crys.m - dt * 0.9 * spd);
-        if (crys.m <= 0) { crysG.rotation.y = 0; crys.lastLv = 0; crys.chain = false; syncButtons(); }
+        if (crys.m <= 0) { crysG.rotation.y = 0; crys.lastLv = 0; crys.chain = false; if (crys.from === 'net') { explode = crys.ex0; EXP.e.value = explode; EXP.show(); } syncButtons(); }
+    }
+    if (crysVis() && crys.from === 'net') {   // 展開図から：12個を分解の要領で離していく（±W・±V・蓋は脇へ）。終わったら元の分解量へ
+        const u = crys.chain ? smooth(Math.max(0, Math.min(1, crys.T / 1.6))) : smooth(Math.min(1, Math.max(0, crys.e)));
+        explode = crys.ex0 + (NET_EX - crys.ex0) * u;
     }
     if (crys.chain) {   // 連鎖：割れはじめるたびに FLASH
         const lv = !crys.active || crys.m < 1 ? 0 : crys.T > chS3(CH2[0]) ? 3 : crys.T > chS2(CH1[0]) ? 2 : crys.T > 0.01 ? 1 : 0;
@@ -1000,7 +1075,7 @@ let tPrev = performance.now();
       crys.lastLv = lv;
       if (crys.active && crys.e >= 3 - 1e-4 && !crys.done) { crys.done = true; setTimeout(() => { if (crys.active && !crys.chain) crysFlash('1 → 12 → 60 → 160', '6次元立方体を立方体まで分解（準結晶の形）'); }, 900); } }
     if (crysVis() && crysMoving) {   // 段階が進むほどカメラが引いていく
-        const want = crys.chain ? 14 + crys.T / CH_END * 30 : 14 + Math.max(0, crys.e) * 14, d = cam.position.length();
+        const net = crys.from === 'net', base = net ? 19 : 14, want = crys.chain ? base + crys.T / CH_END * (net ? 12 : 30) : base + Math.max(0, crys.e) * (net ? 8 : 14), d = cam.position.length();   // 展開図からは、ハンマーの大きさがあまり変わらないので控えめに引く
         cam.position.multiplyScalar(1 + (want / d - 1) * 0.045);
     }
     if (cubeMode && fold >= 0.999) cubeT = Math.min(1, cubeT + dt * 0.42 * spd);
