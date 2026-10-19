@@ -396,6 +396,7 @@
                 各式の下に「解」を複素数まで表示します。右上の <b>ℂ</b> で複素数平面に切り替えると、解の位置と値の色分けが見られます（解の行をタップでも移動）。<br>
                 <b>3D</b> は x と y を両方複素数にした4次元を、床＝x（実軸・虚軸）、高さ＝y の実部、色＝y の虚部で表示します。<span style="color:#fde047">黄＝普通のグラフ</span>、<span style="color:#4ade80">緑＝x が複素数でも y が実数になる所</span>、●＝解（グラフと同じ色）。上のボタンで曲面・床をオンオフ、ドラッグで回転、ホイール／ピンチで範囲を変更。<br>
                 Σ は <code>Σ(k=0,n, 式)</code>、階乗は <code>(2k+1)!</code>、× は省略できます（<code>2x</code>, <code>3sin(x)</code>）。<br>
+                ^ を打たなくても、1 文字の変数のすぐ後の数字は指数になります（<code>x2</code> → x²、<code>3x2-2x</code> → 3x²−2x、<code>a10</code> → a¹⁰）。ただし <b>e と i は除く</b>（<code>e2</code> は e×2、<code>i2</code> は i×2）、小数も除く（<code>x2.5</code> は x×2.5）。指数が式の時は今まで通り <code>x^(2k+1)</code>、<code>e^x</code>。<br>
                 グラフはドラッグで移動、ホイール／ピンチで拡大、タップで値を表示。
             </details>
         </div>
@@ -492,8 +493,21 @@ function tokenize(s) {
                 t.push(m === 'pi' ? { k: 'id', v: 'pi' } : { k: 'fn', v: m });
                 i += m.length; continue;
             }
-            t.push({ k: 'id', v: ch === 'X' ? 'x' : ch === 'Y' ? 'y' : ch });
-            i++; continue;
+            const v = ch === 'X' ? 'x' : ch === 'Y' ? 'y' : ch;
+            t.push({ k: 'id', v });
+            i++;
+            // ^ を打たない書き方：1 文字の変数のすぐ後の数字は指数（x2 → x²、a10 → a¹⁰）
+            // e と i は除く（e2x・3i2 などが紛らわしいので、そのまま掛け算）。小数（x2.5）も除く。関数名は上で先に読むので関係しない
+            if (v !== 'e' && v !== 'i' && /[0-9]/.test(s[i] || '')) {
+                let j = i;
+                while (j < s.length && /[0-9]/.test(s[j])) j++;
+                if (s[j] !== '.') {
+                    const raw = s.slice(i, j);
+                    t.push({ k: 'op', v: '^' }, { k: 'num', v: parseFloat(raw), raw });
+                    i = j;
+                }
+            }
+            continue;
         }
         if ('+-*/^(),=!|'.includes(ch)) { t.push({ k: 'op', v: ch }); i++; continue; }
         throw ParseError(`使えない文字です: ${ch}`);
