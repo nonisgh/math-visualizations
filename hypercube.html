@@ -969,7 +969,8 @@
                         <i data-lucide="move" class="w-3.5 h-3.5"></i>
                         <span id="panpad-text" class="text-[11px]">→ 移動パッド: OFF</span>
                     </button>
-                    <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button></div>
+                    <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button>
+                    <button id="texfont-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸ラベル（x y z w v）の書体。ON＝数学の教科書・論文と同じ TeX の斜体（Computer Modern。ネットから読み込み、オフラインのときはいつもの書体）。OFF＝いつもの書体（Georgia の斜体）"><i data-lucide="sigma" class="w-3.5 h-3.5"></i><span id="texfont-text" class="text-[11px]">教科書の書体: ON</span></button></div>
                 <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
@@ -3578,18 +3579,48 @@
             b.style.display = 'block';
         }
 
-        function makeLabelSprite(text, cssColor) {
-            const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
-            const ctx = cv.getContext('2d');
-            // z だけは Georgia の斜体だと大文字 Z に見えるので、下がくるっと巻いた小文字らしい z の書体（Hoefler Text 斜体）にする
-            ctx.font = text === 'z' ? 'italic 46px "Hoefler Text", Didot, Georgia, serif' : 'italic 42px Georgia, "Times New Roman", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        // 軸ラベルの書体：教科書の書体（TeX の数式用斜体＝Computer Modern）か、いつもの書体（Georgia 斜体）か
+        let texLabels = true; try { texLabels = localStorage.getItem('hypercubeTexFont') !== '0'; } catch (_) {}
+        let texFontState = 'none';   // none → loading → ready / failed（オフラインなどで読めなければ、いつもの書体のまま）
+        const _labelSprites = [];    // 書体を切り替えたときに描き直すため、作ったラベルを覚えておく
+        function labelFont(text) {
+            if (texLabels && texFontState === 'ready') return 'italic 48px TeXMath, Georgia, serif';
+            // いつもの書体：z だけは Georgia の斜体だと大文字 Z に見えるので、下がくるっと巻いた小文字らしい z の書体（Hoefler Text 斜体）にする
+            return text === 'z' ? 'italic 46px "Hoefler Text", Didot, Georgia, serif' : 'italic 42px Georgia, "Times New Roman", serif';
+        }
+        function drawLabel(cv, text, cssColor) {
+            const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+            ctx.font = labelFont(text); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(2,6,18,0.9)'; ctx.strokeText(text, 32, 34);
             ctx.fillStyle = cssColor; ctx.fillText(text, 32, 34);
+        }
+        function makeLabelSprite(text, cssColor) {
+            const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
+            drawLabel(cv, text, cssColor);
             const tex = new THREE.CanvasTexture(cv);
             const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
             sp.scale.set(0.52, 0.52, 0.52); sp.renderOrder = 1001;
+            _labelSprites.push({ cv, tex, text, cssColor });
             return sp;
         }
+        function redrawLabels() {
+            _labelSprites.forEach(L => { drawLabel(L.cv, L.text, L.cssColor); L.tex.needsUpdate = true; });
+            if (typeof requestRender === 'function') requestRender(10);
+        }
+        function loadTexFont() {   // KaTeX の数式用斜体（TeX の cmmi と同じ字形）を読み込む。読めたらラベルを描き直す
+            if (texFontState !== 'none' || typeof FontFace === 'undefined') return;
+            texFontState = 'loading';
+            new FontFace('TeXMath', 'url(https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_Math-Italic.woff2) format("woff2")', { style: 'italic' }).load()
+                .then(f => { document.fonts.add(f); texFontState = 'ready'; redrawLabels(); })
+                .catch(() => { texFontState = 'failed'; });
+        }
+        function applyTexFont() {
+            if (texLabels) loadTexFont();
+            const t = document.getElementById('texfont-text'); if (t) t.textContent = '教科書の書体: ' + (texLabels ? 'ON' : 'OFF');
+            const b = document.getElementById('texfont-btn'); if (b) { b.classList.toggle('bg-sky-900/40', texLabels); b.classList.toggle('border-sky-500/50', texLabels); b.classList.toggle('text-sky-200', texLabels); b.classList.toggle('bg-slate-800/80', !texLabels); b.classList.toggle('border-slate-700', !texLabels); b.classList.toggle('text-slate-300', !texLabels); }
+            redrawLabels();
+        }
+        function toggleTexFont() { texLabels = !texLabels; try { localStorage.setItem('hypercubeTexFont', texLabels ? '1' : '0'); } catch (_) {} applyTexFont(); }
 
         function buildAxisGnomon() {
             const root3D = scene3D.getObjectByName('Root3D');
@@ -6797,6 +6828,9 @@
             if (numtexBtn) numtexBtn.addEventListener('click', toggleNumTex);
             const ecoBtn = document.getElementById('eco-btn');
             if (ecoBtn) ecoBtn.addEventListener('click', toggleEco);
+            const texFontBtn = document.getElementById('texfont-btn');
+            if (texFontBtn) texFontBtn.addEventListener('click', toggleTexFont);
+            applyTexFont();   // 起動時：保存した設定で（ON なら TeX の書体を読み込む）
             (function setupPalette() {   // 胞の色のパレット（行 ±X〜±V × 列 4D・5D）
                 const grid = document.getElementById('pal-grid'), sw = document.getElementById('pal-swatches'); if (!grid || !sw) return;
                 // 色候補：色相ごとに 濃・標準・薄 の3段（縦に並ぶ3つで ±の濃淡ペアが作れる）。標準の段に、今使っている色と黄緑 #a3e635
