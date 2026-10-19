@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>5次元球（S⁴）｜次元おりがみ UI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
+        body { font-family: 'Noto Sans JP', 'Inter', sans-serif; background-color: #030712; color: #f3f4f6; overflow: hidden; }
+        .glass-panel { background: rgba(15, 23, 42, 0.93); border: 1px solid rgba(255, 255, 255, 0.12); }
+        /* サイドパネル（--sb-w：パネル幅、--sb：描画領域から引く幅。パネルを閉じると 0）＝次元おりがみと同じ */
+        body { --sb-w: 340px; --sb: var(--sb-w); --dock-l: 0px; --dock-r: 0px; }
+        body.sidebar-hidden { --sb: 0px; }
+        body.dock-left-on { --dock-l: min(340px, 32vw); }
+        body.dock-right-on { --dock-r: min(340px, 32vw); }
+        body.sidebar-hidden #ui-overlay { display: none; }
+        #sidebar-open { display: none; }
+        body.sidebar-hidden #sidebar-open { display: flex; }
+        #main-container { position: absolute; top: 0; bottom: 0; right: var(--dock-r); left: calc(var(--sb) + var(--dock-l)); }
+        #rot-bar { left: calc(var(--sb) + var(--dock-l) + 12px); right: calc(var(--dock-r) + 12px); }
+        #ui-overlay { left: 0; right: auto; border-width: 0 1px 0 0 !important; }
+        #sidebar-open { left: 12px; }
+        .sb-sec { background: rgba(2, 6, 23, 0.35); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .sb-h { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #cbd5e1; margin: 0; }
+        /* ポップアップ分離：欄を切り離して浮かせる */
+        #float-layer { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+        .float-panel { position: absolute; width: min(330px, 92vw); max-height: 82vh; overflow-y: auto; overflow-x: hidden; pointer-events: auto; border-radius: 12px; box-shadow: 0 12px 44px rgba(0, 0, 0, 0.6); }
+        .float-panel > .sb-sec { margin: 0; padding-top: 0; background: rgba(4, 8, 22, 0.96); border-color: rgba(129, 140, 248, 0.55); }   /* 背景ぼかしは外した（ほぼ不透明なので見た目は同じ・3Dが動くたびのぼかし計算をなくして軽く） */
+        .float-panel .sb-h { cursor: move; position: sticky; top: 0; z-index: 5; margin: 0 -10px; padding: 9px 10px 7px; background: rgba(7, 11, 26, 0.98); box-shadow: 0 1px 0 rgba(129, 140, 248, 0.3); }
+        .sb-floatbtn { margin-left: 6px; flex-shrink: 0; font-size: 10px; font-weight: 400; color: #8aa0c6; cursor: pointer; white-space: nowrap; background: none; border: 0; padding: 0 2px; }
+        .sb-floatbtn:hover { color: #e2e8f0; }
+        .sb-sec.floating > .sb-h .sb-floatbtn { color: #a5b4fc; }
+        /* 説明文：ふだんはたたんで「📖 [説明]」だけ。押すと開く */
+        .expl-tg { display: inline-flex; align-items: center; gap: 3px; align-self: flex-start; font-size: 10px; line-height: 1.4; color: #8aa0c6; background: none; border: 0; padding: 0; cursor: pointer; white-space: nowrap; }
+        .expl-tg:hover { color: #e2e8f0; }
+        .expl-tg .expl-ic { flex-shrink: 0; transition: transform .15s; }
+        .expl-tg:hover .expl-ic { transform: translateY(-1px); }
+        .expl-closed { display: none !important; }
+        /* 画面端にドッキングした2ペイン用のレール（幅は --dock-l/--dock-r と連動＝描画領域が自動で縮む） */
+        .dock-rail { position: fixed; top: 0; bottom: 0; z-index: 44; width: 0; overflow: hidden; pointer-events: none; display: flex; flex-direction: column; gap: 8px; padding: 0; box-sizing: border-box; background: rgba(2, 5, 16, 0.95); }
+        .dock-rail.active { pointer-events: auto; overflow-y: auto; overflow-x: hidden; padding: 8px; }
+        #dock-left { left: 0; width: var(--dock-l); border-right: 1px solid rgba(129, 140, 248, 0.4); }
+        #dock-right { right: 0; width: var(--dock-r); border-left: 1px solid rgba(129, 140, 248, 0.4); }
+        body.sidebar-left:not(.sidebar-hidden) #dock-left { left: var(--sb); }
+        body:not(.sidebar-left):not(.sidebar-hidden) #dock-right { right: var(--sb); }
+        /* メニューを非表示にしたら、端にくっつけた（ドックした）パネルも一緒に隠して描画領域を広げる。浮いているパネルは出したまま */
+        body.sidebar-hidden #dock-left, body.sidebar-hidden #dock-right { display: none; }
+        body.sidebar-hidden.dock-left-on { --dock-l: 0px; }
+        body.sidebar-hidden.dock-right-on { --dock-r: 0px; }
+        .float-panel.docked { position: static !important; width: 100% !important; max-height: none !important; left: auto !important; top: auto !important; box-shadow: none; flex: 0 0 auto; overflow: visible; }   /* スクロールは入れ物（グループ・レール）側で。見出しの固定もそこ基準 */
+        /* 分離パネルの連結（Photoshop 風）：浮いているグループ＝縦に連結したパネルの入れ物。2枚以上で「まとめて移動」のつまみ */
+        .float-stack { position: absolute; width: min(330px, 92vw); max-height: 82vh; overflow-y: auto; overflow-x: hidden; pointer-events: auto; border-radius: 12px; box-shadow: 0 12px 44px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; gap: 6px; }
+        .float-stack > .fs-grip { display: none; }
+        .float-stack.multi { background: rgba(4, 8, 22, 0.55); border: 1px solid rgba(129, 140, 248, 0.35); padding: 0 4px 4px; }
+        .float-stack.multi > .fs-grip { display: flex; align-items: center; gap: 6px; position: sticky; top: 0; z-index: 6; height: 24px; flex: 0 0 auto; box-sizing: border-box; cursor: move; user-select: none; font-size: 10px; color: #a5b4fc; padding: 0 8px; margin: 0 -4px; background: rgba(30, 27, 75, 0.96); border-bottom: 1px solid rgba(129, 140, 248, 0.35); }
+        .float-stack.multi .float-panel .sb-h { top: 24px; }
+        .fs-grip .fs-dots { font-size: 13px; letter-spacing: -1px; }
+        .fs-grip .fs-fold { margin-left: auto; }
+        .float-stack.joining { opacity: 0.55; }
+        .float-stack.collapsed > .float-panel { display: none; }   /* まとめてたたむ：つまみだけ残す */
+        .float-stack.collapsed { padding-bottom: 0; }
+        .float-stack.collapsed > .fs-grip { margin-bottom: 0; border-bottom: 0; border-radius: 11px; }
+        .fs-grip .fs-count { color: #8aa0c6; }
+        .sb-panel > .sb-sec[data-fid] > .sb-h, .sb-h.xp-drag { cursor: grab; user-select: none; }   /* メニューの欄も見出しをつかんでドラッグで分離 */
+        .sb-panel > .sb-sec[data-fid] > .sb-h button, .sb-h.xp-drag button { cursor: pointer; }
+        /* タブでまとめる：見出しの代わりにタブ。選んだ1枚だけ表示 */
+        .float-stack.tabbed > .float-panel:not(.tab-on) { display: none; }
+        .float-stack.tabbed > .float-panel > .sb-sec > .sb-h { display: none; }
+        .float-stack.tabbed > .float-panel > .sb-sec { padding-top: 10px; border-top-left-radius: 0; border-top-right-radius: 0; }
+        .float-stack.tabbed { gap: 0; }
+        .float-stack > .fs-tabs { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 3px; position: sticky; top: 24px; z-index: 6; margin: 4px -4px 0; padding: 4px 6px 0; background: rgba(7, 11, 26, 0.98); border-bottom: 1px solid rgba(167, 139, 250, 0.55); }
+        .float-stack.collapsed > .fs-tabs { display: none; }
+        .fs-tab { font-size: 11px; line-height: 1.2; padding: 5px 10px; border-radius: 7px 7px 0 0; color: #94a3b8; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(71, 85, 105, 0.7); border-bottom: 0; cursor: pointer; user-select: none; touch-action: none; }
+        .fs-tab:hover { color: #e2e8f0; }
+        .fs-tab.on { color: #ede9fe; background: rgba(76, 29, 149, 0.6); border-color: rgba(167, 139, 250, 0.75); }
+        .fs-tabs .fs-tab-back { margin-left: auto; align-self: center; }
+        #dock-ins { position: fixed; z-index: 47; height: 4px; border-radius: 2px; background: #a5b4fc; box-shadow: 0 0 10px rgba(165, 180, 252, 0.9); pointer-events: none; display: none; }
+        #dock-hint { position: fixed; top: 0; bottom: 0; z-index: 46; pointer-events: none; display: none; background: rgba(129, 140, 248, 0.16); border: 2px dashed rgba(129, 140, 248, 0.75); border-radius: 10px; box-sizing: border-box; }
+        .ios-sw { position: relative; display: inline-block; width: 30px; height: 16px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; box-sizing: border-box; transition: background .2s, border-color .2s; flex-shrink: 0; margin-left: 7px; vertical-align: middle; }
+        .ios-sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 8px; height: 8px; background: #64748b; transform: rotate(45deg); transition: left .2s, background .2s; }
+        .ios-sw.on { border-color: #a855f7; background: #3b1d5c; }
+        .ios-sw.on::after { left: 17px; background: #e9d5ff; }
+        button.has-sw { display: inline-flex; align-items: center; }
+        /* 回転面の行：面の名前（2軸の色）・スライダー・角度・自動のスイッチ */
+        .pl-row { display: grid; grid-template-columns: 44px 1fr 40px auto; align-items: center; gap: 6px; font-size: 11px; }
+        .pl-name { font-weight: 700; font-family: ui-monospace, Menlo, monospace; }
+        .pl-deg { text-align: right; font-family: ui-monospace, Menlo, monospace; color: #94a3b8; font-size: 10px; }
+        .pl-row button { padding: 1px 6px; border-radius: 7px; border: 1px solid #334155; background: rgba(30, 41, 59, 0.8); color: #cbd5e1; font-size: 10px; }
+        .sl-row { display: grid; grid-template-columns: 70px 1fr 38px; align-items: center; gap: 6px; font-size: 11px; color: #cbd5e1; }
+        .sl-row output { text-align: right; font-family: ui-monospace, Menlo, monospace; color: #94a3b8; font-size: 10px; }
+        input[type=range] { accent-color: #a855f7; width: 100%; }
+        .tbtn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 9px; border: 1px solid #334155; background: rgba(30, 41, 59, 0.8); color: #cbd5e1; font-size: 11px; white-space: nowrap; }
+        .tbtn:hover { background: #334155; }
+        .tbtn.on { background: rgba(124, 58, 237, 0.35); border-color: rgba(167, 139, 250, 0.7); color: #ede9fe; }
+        #angles { font-family: ui-monospace, Menlo, monospace; }
+    </style>
+</head>
+<body class="w-full h-screen relative select-none overflow-hidden sidebar-left">
+    <div id="main-container">
+        <div id="view" class="absolute inset-0"></div>
+        <div id="badge" class="absolute top-4 left-4 pointer-events-none bg-slate-900/85 border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 shadow-lg flex items-center gap-2 z-10">
+            <i data-lucide="globe" class="w-4 h-4"></i>
+            <div><div>5次元球（S⁴）→ 3D</div><div class="text-[10px] font-normal text-slate-400">x²+y²+z²+w²+v²＝R²。v と w の2段の遠近で 3D に写す</div></div>
+        </div>
+        <div id="angles" class="absolute top-4 right-4 pointer-events-none bg-slate-900/85 border border-slate-700 rounded-xl px-2.5 py-1.5 text-[10px] leading-snug z-10"></div>
+        <div id="fps" class="absolute bottom-4 right-4 pointer-events-none text-[10px] text-slate-500 font-mono z-10"></div>
+    </div>
+
+    <div id="rot-bar" class="absolute bottom-3 z-30 pointer-events-none flex justify-center">
+        <div class="glass-panel rounded-xl px-2.5 py-1.5 pointer-events-auto shadow-xl flex items-center gap-1.5 text-[11px] flex-wrap justify-center">
+            <span class="text-violet-200 font-bold flex items-center gap-1 shrink-0 mr-0.5"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>回転</span>
+            <button class="tbtn" data-preset="all" title="7面すべてを自動で回す">全部</button>
+            <button class="tbtn" data-preset="w" title="w が絡む3面（X-W・Y-W・Z-W）">W系</button>
+            <button class="tbtn" data-preset="v" title="v が絡む3面（X-V・Y-V・Z-V）">V系</button>
+            <button class="tbtn" data-preset="dbl" title="X-W と Y-V を同時に＝5次元ならではの「ダブル回転」（2つの面が互いに独立）">ダブル回転</button>
+            <button class="tbtn" data-preset="stop" title="自動回転を止める（角度はそのまま）">停止</button>
+            <button class="tbtn" data-preset="reset" title="角度を全部0に戻して止める">リセット</button>
+        </div>
+    </div>
+
+    <button id="sidebar-open" class="absolute top-3 z-30 items-center gap-1 px-2 py-1 rounded-lg glass-panel text-[11px] text-slate-300" title="パネルを開く"><i data-lucide="panel-left-open" class="w-3.5 h-3.5"></i>パネル</button>
+
+    <aside id="ui-overlay" class="absolute top-0 h-full z-30 glass-panel flex flex-col pointer-events-auto" style="width: var(--sb-w);">
+        <div class="flex items-center justify-between px-3 pt-2.5 pb-2 border-b border-slate-800">
+            <span class="text-[12px] font-bold text-slate-200 flex items-center gap-1.5"><i data-lucide="globe" class="w-4 h-4 text-amber-300"></i>5次元球（S⁴）</span>
+            <button id="sidebar-close" class="text-slate-400 hover:text-slate-200 px-1.5 py-0.5 rounded hover:bg-slate-800 text-[11px] flex items-center gap-1" title="パネルを閉じて図形を広く"><i data-lucide="panel-left-close" class="w-3.5 h-3.5"></i>閉じる</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-3 py-2.5">
+            <div class="sb-panel space-y-3">
+                <section class="sb-sec">
+                    <h3 class="sb-h"><i data-lucide="rotate-3d" class="w-3.5 h-3.5"></i>回転（7つの面）</h3>
+                    <div id="pl-rows" class="flex flex-col gap-1.5"></div>
+                    <p class="text-[10px] text-slate-500 leading-snug">スライダーで角度、右のスイッチで自動回転。w・v が絡む面を回すと、殻が入れ替わりながら裏返るように見えます。</p>
+                </section>
+                <section class="sb-sec">
+                    <h3 class="sb-h"><i data-lucide="gauge" class="w-3.5 h-3.5"></i>自動回転</h3>
+                    <div class="sl-row"><span>速さ</span><input id="spd" type="range" min="0.2" max="3" step="0.1" value="1"><output id="spdO"></output></div>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button class="tbtn" data-preset="all">全部</button><button class="tbtn" data-preset="w">W系</button><button class="tbtn" data-preset="v">V系</button><button class="tbtn" data-preset="dbl">ダブル回転</button><button class="tbtn" data-preset="stop">停止</button><button class="tbtn" data-preset="reset">リセット</button>
+                    </div>
+                </section>
+                <section class="sb-sec">
+                    <h3 class="sb-h"><i data-lucide="eye" class="w-3.5 h-3.5"></i>見え方</h3>
+                    <div class="sl-row"><span>遠近 V</span><input id="cv" type="range" min="2.5" max="8" step="0.1" value="4.5"><output id="cvO"></output></div>
+                    <div class="sl-row"><span>遠近 W</span><input id="cw" type="range" min="2.5" max="8" step="0.1" value="4.5"><output id="cwO"></output></div>
+                    <div class="sl-row"><span>線の濃さ</span><input id="op" type="range" min="0.1" max="1" step="0.05" value="0.5"><output id="opO"></output></div>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button id="ax-btn" class="tbtn"><span id="ax-text">軸の点: ON</span></button>
+                        <button id="color-btn" class="tbtn"><span id="color-text">色を v で: ON</span></button>
+                    </div>
+                    <p class="text-[10px] text-slate-500 leading-snug">点：赤 x・緑 y・青 z・紫 w・琥珀 v（暗いほうが −側）。殻の色は、OFF だと w の位置で塗り分けます。</p>
+                </section>
+                <section class="sb-sec">
+                    <h3 class="sb-h"><i data-lucide="layers" class="w-3.5 h-3.5"></i>殻の数</h3>
+                    <div class="sl-row"><span>v の層</span><input id="nv" type="range" min="3" max="31" step="1" value="7"><output id="nvO"></output></div>
+                    <div class="sl-row"><span>w の層</span><input id="nw" type="range" min="3" max="31" step="1" value="9"><output id="nwO"></output></div>
+                    <p class="text-[10px] text-slate-500 leading-snug">5次元球を v と w で輪切りにすると、1枚1枚は 3D の球（殻）になります。層を増やすほど細かく、ただし重く。</p>
+                </section>
+            </div>
+        </div>
+    </aside>
+
+<script>
+// ===== 5次元球 S⁴（もとの hypersphere5d.html と同じ中身。UI だけ次元おりがみ風に） =====
+// 殻のパラメータ：ψ（v＝R·cosψ）と θ（w＝R·sinψ·cosθ）。各 (ψ,θ) で半径 ρ＝R·sinψ·sinθ の 3D 球殻（xyz）になる。
+const R = 1.3, SC = 1.4, TAU = Math.PI * 2;
+let N = 9, M = 7;   // w の層・v の層の数
+const AXC_HEX = { x: '#ff5d6c', y: '#3ddc84', z: '#56a8ff', w: '#b07cff', v: '#fbbf24' };   // 軸の色（次元おりがみと同じ）
+const PL = [['X-W', 0, 3], ['Y-W', 1, 3], ['Z-W', 2, 3], ['X-V', 0, 4], ['Y-V', 1, 4], ['Z-V', 2, 4], ['W-V', 3, 4]];
+const AX = ['x', 'y', 'z', 'w', 'v'];
+const RATE = [1, 0.77, 0.61, 0.53, 0.43, 0.37, 0.29];   // 面ごとの速さの比（同じ姿勢に戻りにくく）
+const ang = PL.map(() => 0), auto = PL.map(() => false);
+let spd = 1, camV = 4.5, camW = 4.5, op = 0.5, showAx = true, colorByV = true;
+const $ = id => document.getElementById(id);
+const deg = a => (a * 180 / Math.PI).toFixed(0) + '°';
+const norm = a => { a %= TAU; if (a > Math.PI) a -= TAU; if (a < -Math.PI) a += TAU; return a; };
+
+// ---- three.js ----
+const view = $('view'), scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(45, 1, 0.1, 100); cam.position.set(0, 0, 7.5);
+const ren = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+ren.setPixelRatio(Math.min(devicePixelRatio, 2)); view.appendChild(ren.domElement);
+const ctl = new THREE.OrbitControls(cam, ren.domElement); ctl.enableDamping = true; ctl.dampingFactor = 0.06;
+function onWindowResize() { const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return; ren.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+addEventListener('resize', onWindowResize);
+if (window.ResizeObserver) new ResizeObserver(onWindowResize).observe(view);   // パネルを閉じる・端にドックで描画領域が変わったとき
+function requestRender() {}   // 毎フレーム描くので何もしない（パネル部品との互換用）
+let _zfKick = 0;              // 同上（自動ズームは無し）
+
+// ---- 殻 ----
+const shells = [];
+function shellColor(psi, th) { return colorByV ? new THREE.Color().setHSL(0.85 * psi / Math.PI, 0.9, 0.45 + 0.2 * Math.sin(th)) : new THREE.Color().setHSL(0.72 - 0.6 * th / Math.PI, 0.85, 0.5 + 0.12 * Math.sin(psi)); }
+function applyOp() { const e = Math.max(0.06, op * Math.min(1, Math.sqrt(60 / (N * M)))); shells.forEach(S => S.mesh.material.opacity = e); }   // 殻が多いほど1枚を薄く
+function applyColors() { shells.forEach(S => S.mesh.material.color.copy(shellColor(S.psi, S.th))); }
+function build() {
+    while (shells.length) { const S = shells.pop(); scene.remove(S.mesh); S.geo.dispose(); S.mesh.material.dispose(); }
+    const tot = N * M, sw = tot > 400 ? 8 : tot > 200 ? 10 : tot > 100 ? 12 : 14, sh = tot > 400 ? 5 : tot > 200 ? 6 : tot > 100 ? 8 : 9;   // 殻が多いときは分割を粗く＝軽く
+    for (let j = 0; j < M; j++) for (let i = 0; i < N; i++) {
+        const psi = (j + 0.5) / M * Math.PI, th = (i + 0.5) / N * Math.PI;
+        const rho = R * Math.sin(psi) * Math.sin(th), w = R * Math.sin(psi) * Math.cos(th), v = R * Math.cos(psi);
+        const geo = new THREE.SphereGeometry(1, sw, sh), base = Float32Array.from(geo.attributes.position.array);
+        const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: shellColor(psi, th), wireframe: true, transparent: true, opacity: op, depthWrite: false }));
+        mesh.frustumCulled = false; scene.add(mesh);
+        shells.push({ geo, base, rho, w, v, psi, th, mesh });
+    }
+    applyOp();
+}
+build();
+// 軸の目印：±R の点（明るい＝＋側、暗い＝−側）
+const axPts = []; for (let a = 0; a < 5; a++) for (const s of [1, -1]) axPts.push({ a, s });
+const axG = new THREE.BufferGeometry();
+axG.setAttribute('position', new THREE.BufferAttribute(new Float32Array(10 * 3), 3));
+axG.setAttribute('color', new THREE.BufferAttribute(new Float32Array(axPts.flatMap(p => { const c = new THREE.Color(AXC_HEX[AX[p.a]]); const k = p.s > 0 ? 1 : 0.45; return [c.r * k, c.g * k, c.b * k]; })), 3));
+const axM = new THREE.Points(axG, new THREE.PointsMaterial({ size: 10, sizeAttenuation: false, vertexColors: true, depthTest: false }));
+axM.frustumCulled = false; axM.renderOrder = 5; scene.add(axM);
+
+// ---- 5D 回転＋2段の遠近投影（v → w） ----
+let st = [];
+function mk() { st = PL.map(([, i, j], k) => [i, j, Math.cos(ang[k]), Math.sin(ang[k])]); }
+const p5 = [0, 0, 0, 0, 0];
+function proj(out, k) {
+    for (const [i, j, c, s] of st) { const t = p5[i] * c - p5[j] * s; p5[j] = p5[i] * s + p5[j] * c; p5[i] = t; }
+    const s1 = camV / Math.max(0.6, camV - p5[4]), w1 = p5[3] * s1, s2 = camW / Math.max(0.6, camW - w1) * s1 * SC;
+    out[k] = p5[0] * s2; out[k + 1] = p5[1] * s2; out[k + 2] = p5[2] * s2;
+}
+function update() {
+    mk();
+    for (const S of shells) {
+        const a = S.geo.attributes.position, arr = a.array, b = S.base;
+        for (let k = 0; k < arr.length; k += 3) { p5[0] = b[k] * S.rho; p5[1] = b[k + 1] * S.rho; p5[2] = b[k + 2] * S.rho; p5[3] = S.w; p5[4] = S.v; proj(arr, k); }
+        a.needsUpdate = true;
+    }
+    const pa = axG.attributes.position.array;
+    axPts.forEach((P, n) => { p5.fill(0); p5[P.a] = P.s * R; proj(pa, n * 3); });
+    axG.attributes.position.needsUpdate = true;
+    axM.visible = showAx;
+    $('angles').innerHTML = PL.map(([n], k) => `<div><span style="color:${AXC_HEX[AX[PL[k][1]]]}">${n[0]}</span>-<span style="color:${AXC_HEX[AX[PL[k][2]]]}">${n[2]}</span> ${deg(ang[k]).padStart(5, ' ')}${auto[k] ? ' ⟳' : ''}</div>`).join('') +
+        `<div class="text-slate-500 mt-1">殻 ${shells.length} 枚（v ${M} × w ${N}）</div>`;
+}
+
+// ---- UI ----
+const rows = PL.map(([n, i, j], k) => {
+    const d = document.createElement('div'); d.className = 'pl-row';
+    d.innerHTML = `<span class="pl-name"><span style="color:${AXC_HEX[AX[i]]}">${n[0]}</span>-<span style="color:${AXC_HEX[AX[j]]}">${n[2]}</span></span><input type="range" min="-180" max="180" step="1" value="0"><span class="pl-deg"></span><button title="${n} を自動で回す"><span>自動: OFF</span></button>`;
+    $('pl-rows').appendChild(d);
+    const rg = d.querySelector('input'), o = d.querySelector('.pl-deg'), b = d.querySelector('button');
+    rg.addEventListener('input', () => { ang[k] = +rg.value * Math.PI / 180; update(); sync(); });
+    b.addEventListener('click', () => { auto[k] = !auto[k]; sync(); });
+    return { rg, o, b };
+});
+function sync() {
+    rows.forEach((r, k) => {
+        r.rg.value = Math.round(ang[k] * 180 / Math.PI); r.o.textContent = deg(ang[k]);
+        const sp = r.b.querySelector('span:not(.ios-sw)'), tx = '自動: ' + (auto[k] ? 'ON' : 'OFF'); if (sp && sp.textContent !== tx && sp.dataset.swRaw !== tx) sp.textContent = tx;   // 変わったときだけ書く（スイッチの付け直しを減らす）
+    });
+    const cur = auto.every(a => a) ? 'all' : auto.every((a, k) => a === (k < 3)) ? 'w' : auto.every((a, k) => a === (k >= 3 && k < 6)) ? 'v' : auto.every((a, k) => a === (k === 0 || k === 4)) ? 'dbl' : '';
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('on', b.dataset.preset === cur));
+}
+const PRESET = { all: () => true, w: k => k < 3, v: k => k >= 3 && k < 6, dbl: k => k === 0 || k === 4, stop: () => false };
+document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
+    const p = b.dataset.preset;
+    if (p === 'reset') { ang.fill(0); auto.fill(false); update(); } else auto.forEach((_, k) => auto[k] = PRESET[p](k));
+    sync();
+}));
+const bind = (id, f) => { const e = $(id), o = $(id + 'O'); e.addEventListener('input', () => { f(+e.value); o.textContent = e.value; update(); }); o.textContent = e.value; };
+bind('spd', v => spd = v); bind('cv', v => camV = v); bind('cw', v => camW = v);
+bind('op', v => { op = v; applyOp(); });
+bind('nv', v => { M = v; build(); }); bind('nw', v => { N = v; build(); });
+$('ax-btn').addEventListener('click', () => { showAx = !showAx; $('ax-text').textContent = '軸の点: ' + (showAx ? 'ON' : 'OFF'); update(); });
+$('color-btn').addEventListener('click', () => { colorByV = !colorByV; $('color-text').textContent = '色を v で: ' + (colorByV ? 'ON' : 'OFF'); applyColors(); });
+$('sidebar-close').addEventListener('click', () => { document.body.classList.add('sidebar-hidden'); onWindowResize(); });
+$('sidebar-open').addEventListener('click', () => { document.body.classList.remove('sidebar-hidden'); onWindowResize(); });
+
+// ===== 次元おりがみの UI 部品（ON/OFF スイッチ・パネルの分離／連結／タブ／ドック）＝ hypercube.html からそのまま =====
+(function () {
+            const SW_RE = /^(→\s*)?(.+?)\s*[:：]?\s*(ON|OFF)\b/;
+            function switchifyButton(btn) {
+                if (!btn || btn.tagName !== 'BUTTON') return;
+                const spans = [...btn.querySelectorAll('span')].filter(x => x.children.length === 0 && !x.classList.contains('ios-sw'));
+                let tgt = spans.find(x => SW_RE.test(x.textContent.trim())) || null;
+                if (!tgt && btn.querySelectorAll('span:not(.ios-sw), i, svg').length === 0 && SW_RE.test(btn.textContent.trim())) tgt = btn;
+                if (!tgt) return;
+                const raw = tgt.textContent.trim(), m = raw.match(SW_RE); if (!m) return;
+                const on = m[1] ? m[3] === 'OFF' : m[3] === 'ON', name = m[2].trim();
+                tgt.dataset.swRaw = raw;
+                if (tgt === btn) { btn.textContent = ''; const l = document.createElement('span'); l.className = 'sw-label'; l.textContent = name; btn.appendChild(l); }
+                else tgt.textContent = name;
+                let sw = btn.querySelector(':scope > .ios-sw'); if (!sw) { sw = document.createElement('span'); sw.className = 'ios-sw'; btn.appendChild(sw); }
+                sw.classList.toggle('on', on); btn.classList.add('has-sw'); btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            }
+            function switchifyAll() { document.querySelectorAll('button').forEach(switchifyButton); }
+            (function watchSwitches() {
+                const pend = new Set(); let tm = null;
+                new MutationObserver(ms => {
+                    ms.forEach(m => { const n = m.target.nodeType === 3 ? m.target.parentElement : m.target; const b = n && n.closest && n.closest('button'); if (b) pend.add(b); });
+                    if (pend.size && !tm) tm = setTimeout(() => { tm = null; const l = [...pend]; pend.clear(); l.forEach(switchifyButton); }, 0);
+                }).observe(document.body, { childList: true, characterData: true, subtree: true });
+            })();
+            setTimeout(switchifyAll, 0);
+            (function setupFloatPanels() {
+                const layer = document.createElement('div'); layer.id = 'float-layer'; document.body.appendChild(layer);
+                // 画面左右の端にドッキングするレール（2ペイン）と、ドラッグ中のドロップ先ガイド（端の帯／差し込み線）
+                const railL = document.createElement('div'); railL.id = 'dock-left'; railL.className = 'dock-rail'; railL._side = 'left';
+                const railR = document.createElement('div'); railR.id = 'dock-right'; railR.className = 'dock-rail'; railR._side = 'right';
+                const hint = document.createElement('div'); hint.id = 'dock-hint';
+                const insLine = document.createElement('div'); insLine.id = 'dock-ins';
+                document.body.appendChild(railL); document.body.appendChild(railR); document.body.appendChild(hint); document.body.appendChild(insLine);
+                // 保存形式：{ v:2, stacks:[{x,y,ids:[…]}], left:[…], right:[…] }（ids は欄の名前。上から順）。昔の形式 {欄名:{x,y}|{dock}} も読める
+                const FKEY = 'hypersphere5dFloats';   // 次元おりがみとは別に保存
+                let layout0 = null; try { layout0 = JSON.parse(localStorage.getItem(FKEY) || '{}') || {}; } catch (_) { layout0 = {}; }
+                const homes = new Map(); let cascade = 0;
+                const SNAP = 52, DOCK_MINW = 820;   // 端から SNAP px 以内で離すとドック。狭い画面では無効
+                const clampX = (x, el) => { const ww = el.offsetWidth || 330; return Math.max(4, Math.min(window.innerWidth - ww - 4, x)); };
+                const clampY = y => Math.max(4, Math.min(window.innerHeight - 42, y));
+                const titleOf = h => [...h.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').replace(/\s+/g, ' ').trim();
+                const fit = () => { if (typeof onWindowResize === 'function') onWindowResize(); };
+                const wrapsIn = c => [...c.querySelectorAll(':scope > .float-panel')];
+                const isRail = c => c === railL || c === railR;
+                let restoring = false;
+                function save() {   // 今の並び（DOM）をそのまま保存
+                    if (restoring) return;
+                    const ids = c => wrapsIn(c).map(w => w._sec.dataset.fid);
+                    const L = { v: 2, stacks: [...layer.querySelectorAll(':scope > .float-stack')].map(st => ({ x: parseInt(st.style.left) || 0, y: parseInt(st.style.top) || 0, ids: ids(st), ...(st.classList.contains('collapsed') ? { collapsed: true } : {}), ...(st.classList.contains('tabbed') ? { tabs: true, active: st._active } : {}) })).filter(s => s.ids.length), left: ids(railL), right: ids(railR) };
+                    try { localStorage.setItem(FKEY, JSON.stringify(L)); } catch (_) {}
+                }
+                // レールの中身の有無で、本体の描画領域を広げ／狭める（--dock-l/r がそのまま main-container の余白になる）
+                function refreshDock(side) {
+                    const rail = side === 'left' ? railL : railR;
+                    const has = wrapsIn(rail).length > 0;
+                    rail.classList.toggle('active', has);
+                    document.body.classList.toggle('dock-' + side + '-on', has);
+                    fit(); requestRender(8);
+                }
+                // 入れ物（浮いているグループ or 端のレール）の後始末：空のグループは消す、2枚以上なら「まとめて移動」のつまみを出す
+                function tidy(c) {
+                    if (!c) return;
+                    if (isRail(c)) { refreshDock(c._side); return; }
+                    const n = wrapsIn(c).length;
+                    _zfKick = Math.max(_zfKick, 30); requestRender(30);   // 入れ物が変わったら自動ズームを合わせ直す
+                    if (!n) { c.remove(); return; }
+                    c.classList.toggle('multi', n > 1);
+                    if (n < 2) c.classList.remove('collapsed');   // つまみが無いとひらけないので、1枚ならたたまない
+                    syncFold(c); syncTabs(c);
+                    c.style.left = clampX(parseInt(c.style.left) || 0, c) + 'px';
+                    requestRender(5);
+                }
+                function newStack(x, y) {   // 浮いているグループ（縦に連結したパネルの入れ物）
+                    const st = document.createElement('div'); st.className = 'float-stack';
+                    const grip = document.createElement('div'); grip.className = 'fs-grip'; grip.title = 'つかんでグループごと移動（端に寄せるとドック、ほかのパネルに重ねると連結）';
+                    grip.innerHTML = '<span class="fs-dots">⠿</span><span>まとめて移動</span><span class="fs-count"></span>';
+                    const fold = document.createElement('button'); fold.type = 'button'; fold.className = 'sb-floatbtn fs-fold'; fold.title = 'グループをまとめてたたむ／ひらく（つまみのダブルクリックでも）';
+                    fold.addEventListener('click', e => { e.stopPropagation(); toggleFold(st); });
+                    grip.addEventListener('dblclick', e => { if (e.target.closest('button')) return; toggleFold(st); });
+                    const tabb = document.createElement('button'); tabb.type = 'button'; tabb.className = 'sb-floatbtn fs-tabbtn'; tabb.title = 'タブでまとめる（選んだ1枚だけ表示）／縦に並べる';
+                    tabb.addEventListener('click', e => { e.stopPropagation(); st.classList.toggle('tabbed'); syncTabs(st); save(); requestRender(5); });
+                    grip.appendChild(tabb); grip.appendChild(fold);
+                    const all = document.createElement('button'); all.type = 'button'; all.className = 'sb-floatbtn'; all.textContent = '⇲ 全部戻す'; all.title = 'このグループのパネルを全部元の場所へ';
+                    all.addEventListener('click', e => { e.stopPropagation(); wrapsIn(st).forEach(w => homeOf(w._sec)()); });
+                    grip.appendChild(all); st.appendChild(grip);
+                    layer.appendChild(st);
+                    st.style.left = clampX(x, st) + 'px'; st.style.top = clampY(y) + 'px';
+                    grip.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; dragStack(st, e); });
+                    return st;
+                }
+                function syncFold(st) {   // たたみボタンの文字と、たたんでいるときの枚数
+                    const b = st.querySelector(':scope > .fs-grip .fs-fold'), cnt = st.querySelector(':scope > .fs-grip .fs-count'); if (!b) return;
+                    const col = st.classList.contains('collapsed');
+                    b.textContent = col ? '▸ ひらく' : '▾ たたむ';
+                    if (cnt) cnt.textContent = col ? '（' + wrapsIn(st).length + '枚）' : '';
+                }
+                // タブでまとめる：見出しの代わりに上にタブを並べ、選んだ1枚だけ表示。タブはクリックで切替、ドラッグで取り出し・ほかへ移動
+                function syncTabs(st) {
+                    const tb = st.querySelector(':scope > .fs-grip .fs-tabbtn'); if (tb) tb.textContent = st.classList.contains('tabbed') ? '☰ 縦並び' : '▤ タブ';
+                    const items = wrapsIn(st); let bar = st.querySelector(':scope > .fs-tabs');
+                    if (!st.classList.contains('tabbed') || items.length < 2) {
+                        if (items.length < 2) st.classList.remove('tabbed');
+                        if (bar) bar.remove(); items.forEach(w => w.classList.remove('tab-on'));
+                        if (tb) tb.textContent = st.classList.contains('tabbed') ? '☰ 縦並び' : '▤ タブ';
+                        return;
+                    }
+                    const act = items.find(w => w._sec.dataset.fid === st._active) || items[0]; st._active = act._sec.dataset.fid;
+                    if (!bar) { bar = document.createElement('div'); bar.className = 'fs-tabs'; st.querySelector(':scope > .fs-grip').after(bar); }
+                    bar.innerHTML = '';
+                    items.forEach(w => {
+                        const fid = w._sec.dataset.fid, t = document.createElement('button'); t.type = 'button';
+                        t.className = 'fs-tab' + (w === act ? ' on' : ''); t.textContent = fid.replace(/（[^）]*）/g, '').trim() || fid; t.title = fid + '：クリックで切り替え。ドラッグで取り出す・ほかのグループや端へ移す';   // タブ名はかっこ書きを省いて短く
+                        t.addEventListener('pointerdown', e => { if (e.button !== 0) return; if (e.pointerType !== 'touch') e.preventDefault(); armDrag(e, ev => { t._dragged = true; beginDrag(w._sec, ev); }); });
+                        t.addEventListener('click', e => { e.stopPropagation(); if (t._dragged) { t._dragged = false; return; } st._active = fid; syncTabs(st); save(); requestRender(5); });
+                        bar.appendChild(t); w.classList.toggle('tab-on', w === act);
+                    });
+                    const back = document.createElement('button'); back.type = 'button'; back.className = 'sb-floatbtn fs-tab-back'; back.textContent = '⇲ 戻す'; back.title = '表示中のパネルを元の場所へ';
+                    back.addEventListener('click', e => { e.stopPropagation(); homeOf(act._sec)(); });
+                    bar.appendChild(back);
+                }
+                function toggleFold(st, on) {   // グループをまとめてたたむ（つまみだけ残す）／ひらく
+                    st.classList.toggle('collapsed', on === undefined ? !st.classList.contains('collapsed') : on);
+                    syncFold(st); st.style.top = clampY(parseInt(st.style.top) || 0) + 'px'; save(); requestRender(5);
+                }
+                function insertWrap(wrap, c, index) {   // 入れ物 c の index 番目（上から）に差し込む
+                    const items = wrapsIn(c).filter(w => w !== wrap);
+                    const ref = items[index] || null;
+                    if (ref) c.insertBefore(wrap, ref); else c.appendChild(wrap);
+                    wrap._sec._dockSide = isRail(c) ? c._side : null;
+                }
+                function indexByY(c, y) {   // ポインタの高さから、何番目に差し込むか（各パネルの上下の真ん中で判定）
+                    const items = wrapsIn(c);
+                    for (let i = 0; i < items.length; i++) { const r = items[i].getBoundingClientRect(); if (y < r.top + r.height / 2) return i; }
+                    return items.length;
+                }
+                function edgeSide(x) { if (window.innerWidth < DOCK_MINW) return null; if (x <= SNAP) return 'left'; if (x >= window.innerWidth - SNAP) return 'right'; return null; }
+                function showHint(side) {
+                    if (!side) { hint.style.display = 'none'; return; }
+                    const sbHidden = document.body.classList.contains('sidebar-hidden');
+                    const sbLeft = document.body.classList.contains('sidebar-left');
+                    const ov = document.getElementById('ui-overlay');
+                    const sbw = sbHidden ? 0 : (ov ? ov.offsetWidth : 0);
+                    const w = Math.min(340, Math.round(window.innerWidth * 0.32));
+                    hint.style.width = w + 'px'; hint.style.display = 'block';
+                    if (side === 'left') { hint.style.right = ''; hint.style.left = (sbLeft ? sbw : 0) + 'px'; }
+                    else { hint.style.left = ''; hint.style.right = (!sbLeft ? sbw : 0) + 'px'; }
+                }
+                function showIns(t) {   // 差し込み位置の線（グループやレールの、パネルとパネルの間）
+                    if (!t || !t.c || !wrapsIn(t.c).length) { insLine.style.display = 'none'; return; }
+                    const items = wrapsIn(t.c), cr = t.c.getBoundingClientRect();
+                    const tbar = t.c.querySelector(':scope > .fs-tabs');
+                    if (t.c.classList.contains('tabbed') && tbar && !t.c.classList.contains('collapsed')) { const br = tbar.getBoundingClientRect(); insLine.style.left = (br.left + 6) + 'px'; insLine.style.width = Math.max(40, br.width - 12) + 'px'; insLine.style.top = (br.bottom - 2) + 'px'; insLine.style.display = 'block'; return; }
+                    if (t.c.classList.contains('collapsed')) { insLine.style.left = (cr.left + 6) + 'px'; insLine.style.width = Math.max(40, cr.width - 12) + 'px'; insLine.style.top = (cr.bottom - 2) + 'px'; insLine.style.display = 'block'; return; }
+                    const y = t.index < items.length ? items[t.index].getBoundingClientRect().top - 4 : items[items.length - 1].getBoundingClientRect().bottom + 4;
+                    insLine.style.left = (cr.left + 6) + 'px'; insLine.style.width = Math.max(40, cr.width - 12) + 'px';
+                    insLine.style.top = (Math.max(cr.top, Math.min(cr.bottom, y)) - 2) + 'px'; insLine.style.display = 'block';
+                }
+                function findTarget(cx, cy, self) {   // ドロップ先：端（レール）／ほかのグループの上／ドック中のレールの上
+                    const side = edgeSide(cx);
+                    if (side) { const rail = side === 'left' ? railL : railR; return { c: rail, index: indexByY(rail, cy), side }; }
+                    const inside = el => { const r = el.getBoundingClientRect(); return r.width > 0 && cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom; };
+                    const stacks = [...layer.querySelectorAll(':scope > .float-stack')].filter(st => st !== self).reverse();   // 上に重なっているものから
+                    for (const st of stacks) if (inside(st)) return { c: st, index: (st.classList.contains('tabbed') || st.classList.contains('collapsed')) ? wrapsIn(st).length : indexByY(st, cy) };   // タブ・たたみ中は末尾へ
+                    for (const rail of [railL, railR]) if (rail.classList.contains('active') && inside(rail)) return { c: rail, index: indexByY(rail, cy), side: rail._side };
+                    return null;
+                }
+                // グループ（浮いている入れ物）をつかんで動かす。離した場所が端ならドック、ほかのグループやレールの上なら、その位置に連結（間に差し込み）
+                function dragStack(st, e, started) {   // started：すでに少し動かしてから始めた（直接ドラッグ・タブのドラッグ）
+                    const sx = e.clientX, sy = e.clientY, ox = parseInt(st.style.left) || 0, oy = parseInt(st.style.top) || 0;
+                    let cx = sx, cy = sy, moved = !!started, tgt = null;
+                    layer.appendChild(st);   // 一番手前へ
+                    const mv = ev => {
+                        cx = ev.clientX; cy = ev.clientY; const dx = cx - sx, dy = cy - sy;
+                        if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+                        st.style.left = clampX(ox + dx, st) + 'px'; st.style.top = clampY(oy + dy) + 'px';
+                        tgt = moved ? findTarget(cx, cy, st) : null;
+                        showHint(tgt && tgt.side && edgeSide(cx) ? tgt.side : null); showIns(tgt);
+                        st.classList.toggle('joining', !!tgt);
+                    };
+                    const end = () => {
+                        window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
+                        showHint(null); showIns(null); st.classList.remove('joining');
+                        _zfKick = Math.max(_zfKick, 30); requestRender(30);   // パネルを動かしたら自動ズームを合わせ直す（端に寄せた分を空ける）
+                        if (moved && tgt) {   // 連結：グループのパネルを順番そのままで差し込む
+                            const ws = wrapsIn(st); if (ws.length && tgt.c.classList.contains('tabbed')) tgt.c._active = ws[0]._sec.dataset.fid;   // タブのグループへ入れたら、入れた1枚を表示
+                            ws.forEach((w, i) => insertWrap(w, tgt.c, tgt.index + i));
+                            st.remove(); tidy(tgt.c);
+                        }
+                        save();
+                    };
+                    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+                    e.preventDefault();
+                }
+                function armDrag(e, onStart) {   // 少し（4px）動かしたらドラッグ開始。動かさなければふつうのクリック
+                    const sx = e.clientX, sy = e.clientY;
+                    const off = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', off); window.removeEventListener('pointercancel', off); };
+                    const mv = ev => { if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 4) { off(); onStart(ev); } };
+                    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', off); window.addEventListener('pointercancel', off);
+                }
+                function beginDrag(sec, ev) {   // 浮いている欄を動かす。1枚だけのグループならグループごと、連結中・タブ中・ドック中なら1枚だけ抜き出す
+                    const wrap = sec._fwrap; if (!wrap) return;
+                    let st = wrap.parentNode;
+                    if (isRail(st) || wrapsIn(st).length > 1) {
+                        const from = st, wasTab = from.classList && from.classList.contains('tabbed');
+                        const r = (wasTab ? from : wrap).getBoundingClientRect();   // タブから抜くときは、グループの位置から
+                        st = newStack(r.left, r.top); insertWrap(wrap, st, 0); wrap.classList.remove('tab-on'); tidy(from); tidy(st);
+                        st.style.left = clampX(ev.clientX - 60, st) + 'px'; st.style.top = clampY(ev.clientY - 14) + 'px';   // つかんだ所の近くに見出しが来るように
+                    }
+                    dragStack(st, ev, true);
+                }
+                function detachAt(wrap, ev) {   // メニューから直接ドラッグ：切り離して、つかんだ位置のまま浮かせて動かし始める
+                    const st = newStack(ev.clientX - 60, ev.clientY - 14); insertWrap(wrap, st, 0); tidy(st);
+                    st.style.left = clampX(ev.clientX - 60, st) + 'px'; st.style.top = clampY(ev.clientY - 14) + 'px';
+                    dragStack(st, ev, true);
+                }
+                const NODRAG = 'button, input, select, textarea, label, a';
+                function makeDrag(sec) {   // 見出しをつかんで動かす。メニューの中の欄も、マウス・ペンなら見出しをドラッグでそのまま分離
+                    const handle = sec.querySelector(':scope > .sb-h');
+                    handle.addEventListener('pointerdown', e => {
+                        sec._moved = false;
+                        if (e.button !== 0 || e.target.closest(NODRAG)) return;
+                        const floating = sec.classList.contains('floating');
+                        if (!floating && e.pointerType === 'touch') return;   // タッチはメニューのスクロールと区別できないので「分離」ボタンで
+                        if (e.pointerType !== 'touch') e.preventDefault();   // 文字の選択を始めない
+                        armDrag(e, ev => {
+                            sec._moved = true;
+                            if (sec.classList.contains('floating')) beginDrag(sec, ev);
+                            else detachAt(prepSec(sec), ev);
+                        });
+                    });
+                    handle.addEventListener('click', e => { if (sec._moved && !e.target.closest(NODRAG)) { e.stopPropagation(); e.preventDefault(); } sec._moved = false; }, true);   // ドラッグ直後の見出しクリック（たたむ等）だけ抑制。ボタンは通す
+                }
+                function makeWrap(sec) {   // パネルの枠（グループやレールに入る1枚）
+                    const wrap = document.createElement('div'); wrap.className = 'float-panel docked';
+                    wrap.appendChild(sec); wrap._sec = sec;
+                    sec.classList.add('floating'); sec._fwrap = wrap; sec._dockSide = null;
+                    return wrap;
+                }
+                function defaultPos() { const p = { x: Math.round(window.innerWidth * 0.42) + (cascade % 3) * 22, y: 70 + (cascade % 6) * 28 }; cascade++; return p; }
+                function prepSec(sec) {   // ふつうの欄を切り離して枠に入れる（置き場所はまだ）
+                    if (sec.classList.contains('floating')) return sec._fwrap;
+                    homes.set(sec, { parent: sec.parentNode, next: sec.nextSibling });
+                    const w = makeWrap(sec); sec._fbtn.textContent = '⇲ 戻す'; return w;
+                }
+                function floatSec(sec) {   // 「分離」：新しい1枚グループとして浮かせる
+                    if (sec.classList.contains('floating')) return;
+                    const w = prepSec(sec), p = defaultPos(), st = newStack(p.x, p.y);
+                    insertWrap(w, st, 0); tidy(st); save();
+                }
+                function dockSec(sec) {   // 「戻す」＝元の場所へ（浮き・連結・ドックどこからでも）
+                    const home = homes.get(sec); if (!home) return;
+                    const wrap = sec._fwrap, c = wrap ? wrap.parentNode : null;
+                    sec._dockSide = null; sec.classList.remove('floating'); sec._fbtn.textContent = '⇱ 分離';
+                    home.parent.insertBefore(sec, home.next); if (wrap) wrap.remove(); sec._fwrap = null; homes.delete(sec);
+                    tidy(c); save();
+                }
+                const homeOf = sec => () => dockSec(sec);
+                // 各タブの各欄にボタンを付ける（共有の「分解」欄は特殊なので除く）
+                const secById = new Map();
+                document.querySelectorAll('.sb-panel').forEach(panel => {
+                    [...panel.children].forEach(sec => {
+                        if (sec.tagName !== 'SECTION' || !sec.classList.contains('sb-sec')) return;
+                        const h = sec.querySelector(':scope > .sb-h'); if (!h) return;
+                        const title = titleOf(h); if (!title) return;
+                        sec.dataset.fid = title; secById.set(title, sec);
+                        const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'sb-floatbtn';
+                        btn.textContent = '⇱ 分離'; btn.title = 'この欄を切り離して浮かせる（見出しをドラッグしても分離できます。ほかのパネルに重ねると連結・間に差し込み。端に寄せるとドック。「戻す」で元の場所へ）';
+                        btn.addEventListener('click', e => { e.stopPropagation(); if (sec.classList.contains('floating')) dockSec(sec); else floatSec(sec); });
+                        h.appendChild(btn); sec._fbtn = btn; makeDrag(sec);
+                    });
+                });
+                // 保存されていた並びを復元（昔の形式は、1枚ずつのグループ／レールへ読み替え）
+                (function restore() {
+                    let L = layout0 || {};
+                    if (L.v !== 2) {
+                        const o = L; L = { v: 2, stacks: [], left: [], right: [] };
+                        Object.keys(o).forEach(fid => { const s = o[fid]; if (!s || typeof s !== 'object') return; if (s.dock === 'left' || s.dock === 'right') L[s.dock].push(fid); else L.stacks.push({ x: s.x, y: s.y, ids: [fid] }); });
+                    }
+                    const prep = fid => secById.has(fid) ? prepSec(secById.get(fid)) : null;
+                    const used = new Set();
+                    const fill = (c, ids) => (ids || []).forEach(fid => { if (used.has(fid)) return; const w = prep(fid); if (w) { used.add(fid); insertWrap(w, c, wrapsIn(c).length); } });
+                    restoring = true;
+                    const wide = window.innerWidth >= DOCK_MINW;
+                    ['left', 'right'].forEach(side => {
+                        const ids = L[side] || []; if (!ids.length) return;
+                        if (wide) { const rail = side === 'left' ? railL : railR; fill(rail, ids); tidy(rail); }
+                        else { const p = defaultPos(), st = newStack(p.x, p.y); fill(st, ids); tidy(st); }   // 狭い画面ではドックせず、浮かせて出す
+                    });
+                    (L.stacks || []).forEach(s => { const p = (Number.isFinite(s.x) && Number.isFinite(s.y)) ? s : defaultPos(); const st = newStack(p.x, p.y); fill(st, s.ids); if (s.collapsed) st.classList.add('collapsed'); if (s.tabs) { st.classList.add('tabbed'); st._active = s.active; } tidy(st); });
+                    restoring = false;
+                })();
+            })();
+})();
+
+// ---- 描画ループ ----
+let fpsV = 60, tPrev = performance.now(), fN = 0;
+(function loop() {
+    requestAnimationFrame(loop);
+    const now = performance.now(); fpsV += (1000 / Math.max(1, now - tPrev) - fpsV) * 0.1; tPrev = now;
+    if (++fN % 20 === 0) $('fps').textContent = fpsV.toFixed(0) + ' fps';
+    if (auto.some(Boolean)) { auto.forEach((a, k) => { if (a) ang[k] = norm(ang[k] + 0.01 * spd * RATE[k]); }); update(); if (fN % 6 === 0) sync(); }
+    ctl.update(); ren.render(scene, cam);
+})();
+onWindowResize(); update(); sync();
+if (window.lucide) lucide.createIcons();
+</script>
+</body>
+</html>
