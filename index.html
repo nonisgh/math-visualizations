@@ -151,6 +151,15 @@
             overflow: hidden;
         }
         .thumb svg { width: 72px; height: 72px; display: block; }
+        /* サムネイルの右下に、小さくもう1つの図（次元おりがみの5次元＝ペンテラクト） */
+        .thumb { position: relative; }
+        .thumb svg.mini { position: absolute; right: 3px; bottom: 3px; width: 34px; height: 34px; border-radius: 8px; background: rgba(6, 11, 23, 0.82); box-shadow: 0 0 0 1px color-mix(in srgb, var(--d5) 45%, transparent); }
+        .sub {
+            margin: -2px 0 6px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--d5);
+        }
         /* アプリ名のしるし（カードの色に合わせた枠つき） */
         .title-row .app {
             font-size: 11px;
@@ -321,9 +330,10 @@
         </div>
         <div class="grid">
             <a class="card" href="hypercube.html" style="--accent: var(--d4);">
-                <div class="thumb"><svg data-thumb="cube4" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="thumb"><svg data-thumb="cube4" viewBox="-50 -50 100 100" aria-hidden="true"></svg><svg class="mini" data-thumb="cube5" viewBox="-50 -50 100 100" style="--accent: var(--d5);" aria-hidden="true"></svg></div>
                 <div class="body">
                     <div class="title-row"><h3>超立方体（テセラクト）</h3><span class="app">アプリ：次元おりがみ</span></div>
+                    <div class="sub">＋ 5次元超立方体（ペンテラクト）</div>
                     <p>立方体の展開図（2D→3D）と超立方体の展開図（3D→4D）を同時に折りたたみ、並べて比べます。5次元β では、超立方体10個の展開図を5次元超立方体へ（4D→5D）。</p>
                     <div class="meta">
                         <div class="dims"><span class="dim d3">3D</span><span class="dim d4">4D</span><span class="dim d5">5D</span></div>
