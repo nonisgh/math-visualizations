@@ -845,11 +845,19 @@ function findRoots(cfn, params, rect, budgetMs = 150) {
         roots.push(r); return true;
     };
     // 見つかった解の共役・符号反転からも探す（実係数の式や偶奇のある式で取りこぼしを防ぐ）
-    const mirrors = r => [C(r.re, -r.im), C(-r.re, r.im), C(-r.re, -r.im)].forEach(m => {
-        if (add(newton(g, C(m.re * (1 + 1e-7) + 1e-9, m.im * (1 - 1e-7) + 1e-9)))) mirrors(roots[roots.length - 1]);
-    });
+    // 自分を呼び続けると、解が無限にある式（e^(ix) + 1 など）で止まってしまうので、順番待ちの列で回して数にも上限
+    const MAXR = 160;
+    const mirrors = r0 => {
+        const queue = [r0];
+        while (queue.length && roots.length < MAXR && Date.now() <= tEnd) {
+            const r = queue.pop();
+            [C(r.re, -r.im), C(-r.re, r.im), C(-r.re, -r.im)].forEach(m => {
+                if (roots.length < MAXR && add(newton(g, C(m.re * (1 + 1e-7) + 1e-9, m.im * (1 - 1e-7) + 1e-9)))) queue.push(roots[roots.length - 1]);
+            });
+        }
+    };
     for (const sd of seeds) {
-        if (Date.now() > tEnd) break;
+        if (Date.now() > tEnd || roots.length >= MAXR) break;
         if (add(newton(g, sd))) mirrors(roots[roots.length - 1]);
     }
     roots.sort((a, b) => cabs(a) - cabs(b) || a.re - b.re || a.im - b.im);
@@ -1134,7 +1142,7 @@ void main() {
     vec3 c = min(vec3(1.0), vCol * (1.0 + glow * gain * 0.6));
     gl_FragColor = vec4(c, (opacity + glow * gain * 0.3) * vA * edge);
 }`,
-    transparent: true, depthWrite: false,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,   // 線の向きで三角形が裏返っても描く
 });
 // 線分の列 → 太い線の形（線分ごとに 4 頂点）
 function fatGeo(pairs, oks, cols, dirs) {
@@ -1214,7 +1222,7 @@ function dropObj(k) {
 }
 const mats = {
     floor: lineMat('#64748b', 0.35),
-    real: fatMat(2.6, 0.95, 0.6), green: fatMat(2.6, 0.95, 1.0), axes: fatMat(1.8, 0.9, 0),
+    real: fatMat(2.6, 0.95, 0.6), green: fatMat(2.6, 0.95, 1.0), axes: fatMat(2.6, 1.0, 0),
 };
 const FAT = { real: '#fde047', green: '#4ade80' };
 
@@ -1243,7 +1251,18 @@ const ARROWS = [
     return { ...a, m };
 });
 const _up = new THREE.Vector3(0, 1, 0);
+// 原点：4 次元で回しても動かない（いつも 3D の原点）。白く光る点
+const origin = new THREE.Group();
+{
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.034, 20, 14), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true }));
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(0.075, 20, 14), new THREE.MeshBasicMaterial({ color: 0xe2e8f0, depthTest: false, transparent: true, opacity: 0.25, depthWrite: false }));
+    core.renderOrder = 7; halo.renderOrder = 6;
+    origin.add(halo, core);
+    origin.traverse(o => { o.frustumCulled = false; });
+    scene.add(origin);
+}
 function updateArrows() {
+    origin.visible = S.show.axes;
     ARROWS.forEach(a => {
         a.m.visible = S.show.axes;
         if (!a.m.visible) return;
@@ -1544,6 +1563,7 @@ function updateLabels() {
         const fade = 1 - Math.min(1, dw * dw);
         items.push({ cls: 'lab', text: a.t, color: a.c, v: r.v, op: 0.1 + 0.9 * fade, scale: 0.75 + 0.35 * fade });
     });
+    if (S.show.axes) items.push({ cls: 'lab', text: 'O', color: '#f1f5f9', v: new THREE.Vector3(-0.07, -0.07, 0.07), op: 0.95, scale: 1.05 });
     visRoots.forEach((r, i) => items.push({ cls: 'lab root' + (i === hotRoot ? ' hot' : ''), text: fmtR(r.re, r.im), v: (([a, b]) => proj4([a, 0, -b, 0]).v)(xToDisp(r)), op: 1 }));
     if (S.inf && S.show.floor) items.push({ cls: 'lab', text: '∞', color: '#94a3b8', v: proj4([0.76, 0, 0.76, 0]).v, op: 0.9, scale: 1.4 });
     while (labPool.length < items.length) { const d = document.createElement('div'); labelsEl.appendChild(d); labPool.push(d); }

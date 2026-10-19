@@ -1104,11 +1104,19 @@ function findRoots(cfn, params, rect, budgetMs = 150) {
         roots.push(r); return true;
     };
     // 見つかった解の共役・符号反転からも探す（実係数の式や偶奇のある式で取りこぼしを防ぐ）
-    const mirrors = r => [C(r.re, -r.im), C(-r.re, r.im), C(-r.re, -r.im)].forEach(m => {
-        if (add(newton(g, C(m.re * (1 + 1e-7) + 1e-9, m.im * (1 - 1e-7) + 1e-9)))) mirrors(roots[roots.length - 1]);
-    });
+    // 自分を呼び続けると、解が無限にある式（e^(ix) + 1 など）で止まってしまうので、順番待ちの列で回して数にも上限
+    const MAXR = 160;
+    const mirrors = r0 => {
+        const queue = [r0];
+        while (queue.length && roots.length < MAXR && Date.now() <= tEnd) {
+            const r = queue.pop();
+            [C(r.re, -r.im), C(-r.re, r.im), C(-r.re, -r.im)].forEach(m => {
+                if (roots.length < MAXR && add(newton(g, C(m.re * (1 + 1e-7) + 1e-9, m.im * (1 - 1e-7) + 1e-9)))) queue.push(roots[roots.length - 1]);
+            });
+        }
+    };
     for (const sd of seeds) {
-        if (Date.now() > tEnd) break;
+        if (Date.now() > tEnd || roots.length >= MAXR) break;
         if (add(newton(g, sd))) mirrors(roots[roots.length - 1]);
     }
     roots.sort((a, b) => cabs(a) - cabs(b) || a.re - b.re || a.im - b.im);
@@ -1213,6 +1221,18 @@ function reticle(x, y, cols) {
 }
 function ringDot(x, y, color) { reticle(x, y, [color]); }
 // 軸の矢じり（画面の上の三角）：p は先の少し手前、q は先（どちらも [x, y, …]）
+// 原点の印（白い点と O）
+function originDot(p) {
+    if (!p || !isFinite(p[0]) || !isFinite(p[1])) return;
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(226,232,240,0.25)'; ctx.beginPath(); ctx.arc(p[0], p[1], 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(p[0], p[1], 2.8, 0, Math.PI * 2); ctx.fill();
+    ctx.font = 'italic 600 13px "Times New Roman", serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 4; ctx.fillStyle = '#f1f5f9';
+    ctx.fillText('O', p[0] - 6, p[1] + 4);
+    ctx.restore();
+}
 function arrowTip(p, q, color, alpha = 1) {
     const dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy);
     if (!(L > 0.5)) return;
@@ -2787,6 +2807,7 @@ function draw4D(ex, f) {
         if (p) ringDot(p[0], p[1], ex.color);
     });
 
+    originDot(P4(0, 0, 0, 0));   // 原点（面の上に）
     const n = exprs.indexOf(ex) + 1;
     legendEl.innerHTML = `<i style="background:${ex.color}"></i>式 ${n}　4D：x と y の 4 本の軸を 4 次元で回転（θ・φ）＋遠近で歪ませる` +
         `　色＝4 本目の軸（<span style="color:#60a5fa">青−</span>・白0・<span style="color:#fb923c">橙+</span>）　<span style="color:#fde047">黄＝x が実数の所</span>　<span style="color:#4ade80">緑＝x が複素数でも y が実数の所</span>`;
@@ -2962,6 +2983,7 @@ function draw3D() {
     ctx.strokeStyle = 'rgba(226,232,240,0.55)'; ctx.lineWidth = 1.2;
     ctx.beginPath(); line([0, -1.5, 0], [0, 1.5, 0]); ctx.stroke();
     arrowTip(proj(0, 1.35, 0), proj(0, 1.55, 0), 'rgba(226,232,240,0.85)');   // 高さの +
+    originDot(proj(0, 0, 0));
     const ys = niceStep(Yr / 2);
     ctx.font = '500 10.5px Inter, system-ui, sans-serif';
     ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 3;
