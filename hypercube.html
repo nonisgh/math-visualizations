@@ -24,6 +24,8 @@
     <!-- 視覚効果の共通部品（パレット・照り返し・軸の札・見切れ防止・高い次元の光・奥／内側を濃く）。設定は全アプリ共通の vfx キー -->
     <script src="lib/visual-fx.js"></script>
     <script src="lib/ui-dock.js"></script>
+    <!-- n 次元の計算の共通部品（回転・3D への写し方・折りたたみ）。6次元アプリ・n次元ビューアと同じ -->
+    <script src="lib/nd-geom.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
         
@@ -980,7 +982,7 @@
                         <span id="panpad-text" class="text-[11px]">→ 移動パッド: OFF</span>
                     </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button>
-                    <div id="texfont-group" class="flex items-center gap-1 pl-2.5 pr-1 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前（x y z w v）の書体。セリフ＝数学の教科書・論文と同じ TeX の斜体（Computer Modern。ネットから読み込み、オフラインのときは Georgia の斜体）。サンセリフ＝飾りのないまっすぐな字（3D ソフト風）"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px] mr-0.5">軸の書体</span><button type="button" data-texfont="serif" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">セリフ</button><button type="button" data-texfont="sans" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">サンセリフ</button></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。展開図の並べ表示・回転マトリクス・分解・見え方。下の段の「ばらす」で立方体まで・結晶ばらし・連鎖ばらし（「6次元アプリ」で元のアプリも開ける）。ほかの画面には影響しない"><i data-lucide="box" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体: OFF</span></button></div>
+                    <div id="texfont-group" class="flex items-center gap-2 pl-2.5 pr-2 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前の札（x y z w v、6次元の窓では u も）の書体と、小文字／大文字。セリフ＝数学の教科書・論文と同じ TeX の斜体、サンセリフ＝飾りのないまっすぐな字（3D ソフト風）。説明の文字（+X の胞、X-W の回転など）は変わらない。同じ部品を使う 6次元アプリ・n次元ビューアにも効く"><span class="flex items-center gap-1"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px]">軸の書体</span></span><div style="display:grid;grid-template-columns:auto auto auto;gap:3px 4px;align-items:center"><span></span><span class="text-[10px] text-slate-500 text-center">小文字</span><span class="text-[10px] text-slate-500 text-center">大文字</span><span class="text-[10px] text-slate-400">セリフ</span><button type="button" data-texfont="serif" data-case="lower" title="セリフ・小文字（教科書の書き方）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">xyz</button><button type="button" data-texfont="serif" data-case="upper" title="セリフ・大文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">XYZ</button><span class="text-[10px] text-slate-400">サンセリフ</span><button type="button" data-texfont="sans" data-case="lower" title="サンセリフ・小文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">xyz</button><button type="button" data-texfont="sans" data-case="upper" title="サンセリフ・大文字（3D ソフト風）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">XYZ</button></div></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。展開図の並べ表示・回転マトリクス・分解・見え方。下の段の「ばらす」で立方体まで・結晶ばらし・連鎖ばらし（「6次元アプリ」で元のアプリも開ける）。ほかの画面には影響しない"><i data-lucide="box" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体: OFF</span></button></div>
                 <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
@@ -1794,22 +1796,48 @@
         }
 
         // 左(2D→3D): 折りたたみで新しくできる次元は z。右の w と同じ役割なので、同じ式で中心補正して回す。
+        // ===== n 次元の計算は共通部品 nd-geom（lib/nd-geom.js）=====
+        //   折りたたみ：胞（面）ごとの自分の座標 c（±HALF_S）を「組み上がりの位置」（±1）に読みかえて nd-geom の foldPoint へ。
+        //   次元おりがみの折り方（PRESETS.okami.fold）：腕 0〜0.60・ふた 0.45〜1（smootherstep）、ふたは +y の腕の先、
+        //   中心を原点へ寄せる（PIV：組み上がりで新しい軸の中心が 0、展開図では真ん中の胞が 0）
+        const ND_FOLD = NDGeom.PRESETS.okami.fold;
+        function foldAnglesAt(progress, n) {   // { arm: [腕の角度 …], cap }（0＝平ら、π/2＝折りたたみ済み）。時間差の ON・OFF も
+            return NDGeom.foldAngles(progress, n, { ...ND_FOLD, timing: enableStagger ? 'stagger' : 'together' });
+        }
+        // 展開図の胞の頂点 c を折る。cell：{} 真ん中、{ axis, sign } 腕、{ cap: true } ふた（+y の腕の先）。返り値は n 次元（±HALF_S の単位、PIV 込み）
+        const _ndP = {}, _ndCell = { kind: 'center', axis: 0, sign: -1 };
+        function foldNetVert(n, cell, c, ang, out) {
+            const N = n - 1, p = _ndP[n] || (_ndP[n] = new Float64Array(n));
+            for (let j = 0; j < N; j++) p[j] = c[j] / HALF_S;
+            if (cell.cap) { _ndCell.kind = 'cap'; _ndCell.axis = N; _ndCell.sign = 1; p[1] = -c[1] / HALF_S; p[N] = 1; }
+            else if (cell.axis !== undefined) { const k = cell.axis; _ndCell.kind = 'arm'; _ndCell.axis = k; _ndCell.sign = cell.sign; p[N] = cell.sign > 0 ? c[k] / HALF_S : -c[k] / HALF_S; p[k] = cell.sign; }
+            else { _ndCell.kind = 'center'; _ndCell.axis = N; _ndCell.sign = -1; p[N] = -1; }
+            out = out || new Array(n);
+            NDGeom.foldPoint(_ndCell, p, ang, out, n, ND_FOLD.capAxis, 1 - ang.arm[0] / (Math.PI / 2));
+            for (let k = 0; k < n; k++) out[k] *= HALF_S;
+            return out;
+        }
+        const NET3_CELLS = [{}, { axis: 1, sign: 1 }, { axis: 1, sign: -1 }, { axis: 0, sign: 1 }, { axis: 0, sign: -1 }, { cap: true }];   // 立方体の展開図の面 0〜5
+        const NET4_CELLS = [{}, { axis: 1, sign: 1 }, { axis: 1, sign: -1 }, { axis: 0, sign: 1 }, { axis: 0, sign: -1 }, { axis: 2, sign: 1 }, { axis: 2, sign: -1 }, { cap: true }];   // 超立方体の胞 0〜7
+        // 写し方：4 本目から先を 1 本ずつ遠近（w は CAMERA_W、v は ×1.4、u は ×1.9。±(D−0.5) ではさむ）。pb：0＝遠近、1＝平行
+        const _ndPJ = {};
+        function ndProjector(n, pb) {
+            const pj = _ndPJ[n] || (_ndPJ[n] = NDGeom.projector(n, { preset: 'okami' }));
+            if (n > 3) pj.D[3] = CAMERA_W;
+            if (n > 4) pj.D[4] = CAMERA_V();
+            if (n > 5) pj.D[5] = CAMERA_W * 1.9;
+            pj.blend = pb >= 1 ? 1 : pb > 0 ? pb : 0;
+            return pj;
+        }
+        function ndProject(p, pb) { const o = [0, 0, 0]; ndProjector(p.length, pb).project(p, o); return o; }   // [x, y, z]
+        const _ndW = [0, 0, 0, 0];
+        function ndWScale(w, pb) { _ndW[3] = w; return ndProjector(4, pb).project(_ndW); }   // w だけの点の見かけの縮み（1 段の遠近、平行との間も）
+        // 回す順（超立方体）：X-W・Y-W・Z-W → X-Y・X-Z・Y-Z（rot3D と同じ順）
+        const rot4List = (ax, ay) => [[0, 3, ax], [1, 3, ay], [2, 3, soloAngleZW], [0, 1, rotXY], [0, 2, rotXZ], [1, 2, rotYZ]];
+
         function calculateFoldedFaceVertices2D(faceId, progress, angleXZ, angleYZ) {
-            let a1, a2;
-            if (enableStagger) {
-                const p1 = Math.min(1.0, progress / 0.60);
-                a1 = smootherstep(p1) * (Math.PI / 2);
-
-                const p2 = Math.max(0.0, (progress - 0.45) / 0.55);
-                a2 = smootherstep(p2) * (Math.PI / 2);
-            } else {
-                const t = smootherstep(progress);
-                a1 = t * (Math.PI / 2);
-                a2 = t * (Math.PI / 2);
-            }
-
-            // 回転の中心を「立方体の中心」へ: 組み上がりで z = S/2、展開図では z = 0（中央面が原点）
-            const PIV = HALF_S * (a1 / (Math.PI / 2));
+            // 回転の中心を「立方体の中心」へ: 組み上がりで z = S/2、展開図では z = 0（中央面が原点）（foldNetVert の PIV）
+            const ang = foldAnglesAt(progress, 3), cell = NET3_CELLS[faceId] || {};
 
             const baseQuad = [
                 [-HALF_S, -HALF_S, 0],
@@ -1819,41 +1847,10 @@
             ];
 
             return baseQuad.map(v => {
-                let x = v[0], y = v[1], z = 0;
-
-                if (faceId === 0) {}
-                else if (faceId === 1) {
-                    const ly = y + HALF_S;
-                    y = HALF_S + ly * Math.cos(a1);
-                    z = ly * Math.sin(a1);
-                }
-                else if (faceId === 2) {
-                    const ly = y - HALF_S;
-                    y = -HALF_S + ly * Math.cos(a1);
-                    z = -ly * Math.sin(a1);
-                }
-                else if (faceId === 3) {
-                    const lx = x + HALF_S;
-                    x = HALF_S + lx * Math.cos(a1);
-                    z = lx * Math.sin(a1);
-                }
-                else if (faceId === 4) {
-                    const lx = x - HALF_S;
-                    x = -HALF_S + lx * Math.cos(a1);
-                    z = -lx * Math.sin(a1);
-                }
-                else if (faceId === 5) {
-                    const ly = y + HALF_S;
-                    const y1 = HALF_S + S * Math.cos(a1);
-                    const z1 = S * Math.sin(a1);
-
-                    const totalA = a1 + a2;
-                    y = y1 + ly * Math.cos(totalA);
-                    z = z1 + ly * Math.sin(totalA);
-                }
+                const f = foldNetVert(3, cell, v, ang);   // 面 1・2＝±y、3・4＝±x、5＝ふた（+y の先）
+                let x = f[0], y = f[1], z = f[2];
 
                 // 右の超立方体とまったく同じ手順: 中心へ寄せる → X-Z・Y-Z で回す → 戻す
-                z -= PIV;
                 x *= sqK('x'); y *= sqK('y'); z *= sqK('z');   // お遊び：xyz をつぶす
                 if (angleXZ !== 0) {
                     const c = Math.cos(angleXZ), sn = Math.sin(angleXZ);
@@ -1875,33 +1872,9 @@
 
         // 折りたたみ後の胞の8頂点の「4D座標」（X-W/Y-W/Z-W 回転はかける前、PIV補正済み）を返す。
         // マーカーが追う頂点の4D位置を得るために使う。
-        function cellVerts4D(cellId, progress) {
-            let foldAngle1, foldAngle2;
-            if (enableStagger) {
-                foldAngle1 = smootherstep(Math.min(1.0, progress / 0.60)) * (Math.PI / 2);
-                foldAngle2 = smootherstep(Math.max(0.0, (progress - 0.45) / 0.55)) * (Math.PI / 2);
-            } else {
-                const t = smootherstep(progress);
-                foldAngle1 = t * (Math.PI / 2); foldAngle2 = t * (Math.PI / 2);
-            }
-            const PIV = HALF_S * (foldAngle1 / (Math.PI / 2));
-            const out = [];
-            for (let i = 0; i < 8; i++) {
-                const u = unitCubeVertices[i];
-                let x = u[0] * S, y = u[1] * S, z = u[2] * S;
-                let gx = x, gy = y, gz = z, gw = 0;
-                if (cellId === 0) { gx = x; gy = y; gz = z; gw = 0; }
-                else if (cellId === 1) { const ly = y + HALF_S; gy = HALF_S + ly * Math.cos(foldAngle1); gw = ly * Math.sin(foldAngle1); }
-                else if (cellId === 2) { const ly = y - HALF_S; gy = -HALF_S + ly * Math.cos(foldAngle1); gw = -ly * Math.sin(foldAngle1); }
-                else if (cellId === 3) { const lx = x + HALF_S; gx = HALF_S + lx * Math.cos(foldAngle1); gw = lx * Math.sin(foldAngle1); }
-                else if (cellId === 4) { const lx = x - HALF_S; gx = -HALF_S + lx * Math.cos(foldAngle1); gw = -lx * Math.sin(foldAngle1); }
-                else if (cellId === 5) { const lz = z + HALF_S; gz = HALF_S + lz * Math.cos(foldAngle1); gw = lz * Math.sin(foldAngle1); }
-                else if (cellId === 6) { const lz = z - HALF_S; gz = -HALF_S + lz * Math.cos(foldAngle1); gw = -lz * Math.sin(foldAngle1); }
-                else if (cellId === 7) { const ly = y + HALF_S; const y1 = HALF_S + S * Math.cos(foldAngle1); const w1 = S * Math.sin(foldAngle1); const ta = foldAngle1 + foldAngle2; gy = y1 + ly * Math.cos(ta); gw = w1 + ly * Math.sin(ta); }
-                gw -= PIV;
-                out.push([gx, gy, gz, gw]);
-            }
-            return out;
+        function cellVerts4D(cellId, progress) {   // 折りたたみは nd-geom（foldNetVert）
+            const ang = foldAnglesAt(progress, 4), cell = NET4_CELLS[cellId] || {};
+            return unitCubeVertices.map(u => foldNetVert(4, cell, [u[0] * S, u[1] * S, u[2] * S], ang));
         }
 
         // 等角図で中心にくる頂点（＝対角(1,1,1,1)方向の頂点＝4次元の手前）と、その反対(奥)の
@@ -1956,125 +1929,22 @@
 
         // --- 中心核胞を中心座標 (0,0,0) へ完璧に固定・補正した計算処理 ---
         function calculateFoldedCellVertices3D(cellId, progress, angleXW, angleYW) {
-            let foldAngle1, foldAngle2;
-
-            if (enableStagger) {
-                const p1 = Math.min(1.0, progress / 0.60);
-                foldAngle1 = smootherstep(p1) * (Math.PI / 2);
-
-                const p2 = Math.max(0.0, (progress - 0.45) / 0.55);
-                foldAngle2 = smootherstep(p2) * (Math.PI / 2);
-            } else {
-                const t = smootherstep(progress);
-                foldAngle1 = t * (Math.PI / 2);
-                foldAngle2 = t * (Math.PI / 2);
-            }
-
-            const PIV = HALF_S * (foldAngle1 / (Math.PI / 2));
-            const vertices4D = [];
-
-            for (let i = 0; i < 8; i++) {
-                const u = unitCubeVertices[i];
-                let x = u[0] * S;
-                let y = u[1] * S;
-                let z = u[2] * S;
-
-                let gx = x, gy = y, gz = z, gw = 0;
-
-                if (cellId === 0) {
-                    gx = x; gy = y; gz = z; gw = 0;
-                }
-                else if (cellId === 1) {
-                    const ly = y + HALF_S;
-                    gy = HALF_S + ly * Math.cos(foldAngle1);
-                    gw = ly * Math.sin(foldAngle1);
-                }
-                else if (cellId === 2) {
-                    const ly = y - HALF_S;
-                    gy = -HALF_S + ly * Math.cos(foldAngle1);
-                    gw = -ly * Math.sin(foldAngle1);
-                }
-                else if (cellId === 3) {
-                    const lx = x + HALF_S;
-                    gx = HALF_S + lx * Math.cos(foldAngle1);
-                    gw = lx * Math.sin(foldAngle1);
-                }
-                else if (cellId === 4) {
-                    const lx = x - HALF_S;
-                    gx = -HALF_S + lx * Math.cos(foldAngle1);
-                    gw = -lx * Math.sin(foldAngle1);
-                }
-                else if (cellId === 5) {
-                    const lz = z + HALF_S;
-                    gz = HALF_S + lz * Math.cos(foldAngle1);
-                    gw = lz * Math.sin(foldAngle1);
-                }
-                else if (cellId === 6) {
-                    const lz = z - HALF_S;
-                    gz = -HALF_S + lz * Math.cos(foldAngle1);
-                    gw = -lz * Math.sin(foldAngle1);
-                }
-                else if (cellId === 7) {
-                    const ly = y + HALF_S;
-                    const y1 = HALF_S + S * Math.cos(foldAngle1);
-                    const w1 = S * Math.sin(foldAngle1);
-
-                    const totalAngle = foldAngle1 + foldAngle2;
-                    gy = y1 + ly * Math.cos(totalAngle);
-                    gw = w1 + ly * Math.sin(totalAngle);
-                }
-
-                // 回転の中心を「超立方体の中心」へ: 折りたたみ完成で w = S/2、展開図では w = 0（核胞が原点）
-                gw -= PIV;
-                gx *= sqK('x'); gy *= sqK('y'); gz *= sqK('z');   // お遊び：xyz をつぶす
-                if (angleXW !== 0) {
-                    const cosA = Math.cos(angleXW);
-                    const sinA = Math.sin(angleXW);
-                    const rx = gx * cosA - gw * sinA;
-                    const rw = gx * sinA + gw * cosA;
-                    gx = rx; gw = rw;
-                }
-
-                if (angleYW !== 0) {
-                    const cosA = Math.cos(angleYW);
-                    const sinA = Math.sin(angleYW);
-                    const ry = gy * cosA - gw * sinA;
-                    const rw = gy * sinA + gw * cosA;
-                    gy = ry; gw = rw;
-                }
-
-                // Z-W: 左の立方体には対応する回転面が存在しない（左の3次元には w がない）
-                if (soloAngleZW !== 0) {
-                    const cosA = Math.cos(soloAngleZW);
-                    const sinA = Math.sin(soloAngleZW);
-                    const rz = gz * cosA - gw * sinA;
-                    const rw = gz * sinA + gw * cosA;
-                    gz = rz; gw = rw;
-                }
-                // 3D回転（X-Y・X-Z・Y-Z）：w は変わらない＝投影した形がそのまま転がる
-                if (rotXY !== 0 || rotXZ !== 0 || rotYZ !== 0) { const r = rot3D(gx, gy, gz); gx = r[0]; gy = r[1]; gz = r[2]; }
-
-                // 左と同じく戻さない: 超立方体の中心が w=0 に来るので、内側と外側の胞が対称な入れ子に写る
-                vertices4D.push([gx, gy, gz, gw]);
-            }
+            // 折りたたみ・回転・写し方は nd-geom。回転の中心を「超立方体の中心」へ: 折りたたみ完成で w = S/2、展開図では w = 0（核胞が原点）
+            const ang = foldAnglesAt(progress, 4), cell = NET4_CELLS[cellId] || {};
+            const rot = rot4List(angleXW, angleYW);   // X-W・Y-W・Z-W（Z-W は左の立方体には無い回転面）→ 3D回転（w は変わらない＝投影した形がそのまま転がる）
+            // 左と同じく戻さない: 超立方体の中心が w=0 に来るので、内側と外側の胞が対称な入れ子に写る
+            const vertices4D = unitCubeVertices.map(u => {
+                const g = foldNetVert(4, cell, [u[0] * S, u[1] * S, u[2] * S], ang);
+                g[0] *= sqK('x'); g[1] *= sqK('y'); g[2] *= sqK('z');   // お遊び：xyz をつぶす
+                return NDGeom.rotatePoint(g, rot);
+            });
 
             // 4D → 3D の投影。pblend=0 で遠近、1 で平行。周回中はその中間も使って滑らかにつなぐ。
             const pblend = cycleMode ? cycleBlend : (projAnim !== null ? projAnim : (parallel4D ? 1 : 0));
-            const projected = vertices4D.map(p4 => {
-                const wVal = p4[3];
-                let x3, y3, z3;
-                if (pblend >= 1) { x3 = p4[0]; y3 = p4[1]; z3 = p4[2]; }   // 平行投影: w を落とすだけ
-                else {
-                    const safeW = Math.min(Math.max(wVal, -CAMERA_W + 0.5), CAMERA_W - 0.5);
-                    const scale = CAMERA_W / (CAMERA_W - safeW);
-                    const px = p4[0] * scale, py = p4[1] * scale, pz = p4[2] * scale;
-                    if (pblend <= 0) { x3 = px; y3 = py; z3 = pz; }
-                    else { x3 = px + (p4[0] - px) * pblend; y3 = py + (p4[1] - py) * pblend; z3 = pz + (p4[2] - pz) * pblend; }
-                }
-                return [x3, y3, z3, wVal];   // 4D の w を4要素目に添える（辺の遠近フェード用）
+            return vertices4D.map(p4 => {
+                const q = ndProject(p4, pblend);
+                return [q[0], q[1], q[2], p4[3]];   // 4D の w を4要素目に添える（辺の遠近フェード用）
             });
-
-            return projected;
         }
 
         function updateLinkUI() {
@@ -2471,19 +2341,9 @@
             if (scene2D && scene2D.fog) scene2D.fog.density = 0.018 * 18 / CAM2D_D(pb);   // 遠くても暗くならないように
             _lastPbL = pb;
         }
-        function rotated4DAxis(p4) {
-            let x = p4[0], y = p4[1], z = p4[2], w = p4[3];
-            if (linkAngleX !== 0) { const c = Math.cos(linkAngleX), s = Math.sin(linkAngleX); const nx = x * c - w * s, nw = x * s + w * c; x = nx; w = nw; }
-            if (linkAngleY !== 0) { const c = Math.cos(linkAngleY), s = Math.sin(linkAngleY); const ny = y * c - w * s, nw = y * s + w * c; y = ny; w = nw; }
-            if (soloAngleZW !== 0) { const c = Math.cos(soloAngleZW), s = Math.sin(soloAngleZW); const nz = z * c - w * s, nw = z * s + w * c; z = nz; w = nw; }
-            if (rotXY !== 0 || rotXZ !== 0 || rotYZ !== 0) { const r = rot3D(x, y, z); x = r[0]; y = r[1]; z = r[2]; }
-            const pblend = cycleMode ? cycleBlend : (projAnim !== null ? projAnim : (parallel4D ? 1 : 0));
-            if (pblend >= 1) return [x, y, z];
-            const safeW = Math.min(Math.max(w, -CAMERA_W + 0.5), CAMERA_W - 0.5);
-            const scale = CAMERA_W / (CAMERA_W - safeW);
-            const px = x * scale, py = y * scale, pz = z * scale;
-            if (pblend <= 0) return [px, py, pz];
-            return [px + (x - px) * pblend, py + (y - py) * pblend, pz + (z - pz) * pblend];
+        function rotated4DAxis(p4) {   // 回して（X-W・Y-W・Z-W → 3D回転）写す。nd-geom
+            const q = NDGeom.rotatePoint([p4[0], p4[1], p4[2], p4[3]], rot4List(linkAngleX, linkAngleY));
+            return ndProject(q, projBlendNow());
         }
 
         // ===== 5次元モード（β）：左に超立方体、右に5次元超立方体 =====
@@ -2626,43 +2486,20 @@
             requestRender(30);
         }
         // 折りたたみ後の胞の16頂点の5D座標 (x,y,z,w,v)（回転の前。v は中心補正済み）。超立方体の cellVerts4D を1次元上げたもの
-        function cellVerts5D(ci, progress) {
-            let a1, a2;
-            if (enableStagger) { a1 = smootherstep(Math.min(1, progress / 0.60)) * (Math.PI / 2); a2 = smootherstep(Math.max(0, (progress - 0.45) / 0.55)) * (Math.PI / 2); }
-            else { const t = smootherstep(progress); a1 = t * (Math.PI / 2); a2 = a1; }
-            const PIV = HALF_S * (a1 / (Math.PI / 2)), cell = P5_CELLS[ci];
+        function cellVerts5D(ci, progress) {   // 折りたたみは nd-geom（foldNetVert）
+            const ang = foldAnglesAt(progress, 5), cell = P5_CELLS[ci];
             return T5_VERTS.map(q => {
-                const c = q.slice(); let v = 0;
-                if (cell.cap) {
-                    const l = c[1] + HALF_S, y1 = HALF_S + S * Math.cos(a1), v1 = S * Math.sin(a1), t = a1 + a2;
-                    c[1] = y1 + l * Math.cos(t); v = v1 + l * Math.sin(t);
-                } else if (cell.axis !== undefined) {
-                    const k = cell.axis;
-                    if (cell.sign > 0) { const l = c[k] + HALF_S; c[k] = HALF_S + l * Math.cos(a1); v = l * Math.sin(a1); }
-                    else { const l = c[k] - HALF_S; c[k] = -HALF_S + l * Math.cos(a1); v = -l * Math.sin(a1); }
-                }
-                return [c[0] * sqK('x'), c[1] * sqK('y'), c[2] * sqK('z'), c[3], v - PIV];   // お遊び：xyz をつぶす
+                const f = foldNetVert(5, cell, q, ang);
+                return [f[0] * sqK('x'), f[1] * sqK('y'), f[2] * sqK('z'), f[3], f[4]];   // お遊び：xyz をつぶす
             });
         }
         // 5Dの回転：X-V・Y-V・Z-V（超立方体の X-W・Y-W・Z-W と同じ角度・同じ順）→ 5次元だけの X-W・Y-W・Z-W・W-V → 3D回転
-        const _rp = (p, a, b, th) => { if (th === 0) return; const c = Math.cos(th), sn = Math.sin(th), pa = p[a] * c - p[b] * sn, pb = p[a] * sn + p[b] * c; p[a] = pa; p[b] = pb; };
-        function rotate5(q) {
-            const p = q.slice();
-            _rp(p, 0, 4, linkAngleX); _rp(p, 1, 4, linkAngleY); _rp(p, 2, 4, soloAngleZW);
-            _rp(p, 0, 3, p5XW); _rp(p, 1, 3, p5YW); _rp(p, 2, 3, p5ZW); _rp(p, 3, 4, p5WV);
-            if (rotXY !== 0 || rotXZ !== 0 || rotYZ !== 0) { const r = rot3D(p[0], p[1], p[2]); p[0] = r[0]; p[1] = r[1]; p[2] = r[2]; }
-            return p;
+        function rotate5(q) {   // nd-geom の rotatePoint（書いた順に回す）
+            return NDGeom.rotatePoint(q.slice(), [[0, 4, linkAngleX], [1, 4, linkAngleY], [2, 4, soloAngleZW], [0, 3, p5XW], [1, 3, p5YW], [2, 3, p5ZW], [3, 4, p5WV], [0, 1, rotXY], [0, 2, rotXZ], [1, 2, rotYZ]]);
         }
-        // 5D → 4D（v を落とす）→ 3D（w を落とす）。pb：0＝遠近、1＝平行
+        // 5D → 4D（v を落とす）→ 3D（w を落とす）。pb：0＝遠近、1＝平行。写し方は nd-geom
         function project5(p, pb) {
-            let x = p[0], y = p[1], z = p[2], w = p[3];
-            if (pb < 1) {
-                const DV = CAMERA_V(), sv = DV / (DV - Math.min(Math.max(p[4], -DV + 0.5), DV - 0.5)), k1 = 1 + (sv - 1) * (1 - pb);
-                x *= k1; y *= k1; z *= k1; w *= k1;
-                const sw = CAMERA_W / (CAMERA_W - Math.min(Math.max(w, -CAMERA_W + 0.5), CAMERA_W - 0.5)), k2 = 1 + (sw - 1) * (1 - pb);
-                x *= k2; y *= k2; z *= k2;
-            }
-            return rhombiSquash([x, y, z]);
+            return rhombiSquash(ndProject(p, pb));
         }
         // お試し：写したあとの3Dで、(1,1,1,1,1) の影の向き（5回対称の軸）に沿って縮める（rhombi.t が 0 なら何もしない）
         let _rhU = null, _rhKey = '';
@@ -2837,12 +2674,8 @@
             const EN = edgeTint(cfgEdgeNear), EF = edgeTint(cfgEdgeFar);
             const ecol = d => { const t = sm((d - dMin) / span); return [EN[0] + (EF[0] - EN[0]) * t, EN[1] + (EF[1] - EN[1]) * t, EN[2] + (EF[2] - EN[2]) * t]; };
             // 頂点ごとの奥行き（見かけの縮み）＝カメラの遠近 × v・w の遠近（project5 と同じ式）。面の濃さと線の太さの段分けで使う
-            const DV5 = CAMERA_V();
-            const depthOf = (p, d) => {   // 大きいほど奥
-                const sv = DV5 / (DV5 - Math.min(Math.max(p[4], -DV5 + 0.5), DV5 - 0.5)), k1 = 1 + (sv - 1) * (1 - pb), w1 = p[3] * k1;
-                const sw = CAMERA_W / (CAMERA_W - Math.min(Math.max(w1, -CAMERA_W + 0.5), CAMERA_W - 0.5)), k2 = 1 + (sw - 1) * (1 - pb);
-                return Math.log(Math.max(d, 1e-3)) - Math.log(Math.max(k1 * k2, 1e-3));
-            };
+            const PJ5 = ndProjector(5, pb);
+            const depthOf = (p, d) => Math.log(Math.max(d, 1e-3)) - Math.log(Math.max(PJ5.project(p), 1e-3));   // 大きいほど奥（PJ5.project の返り値＝v・w の遠近の倍率）
             const vDepAll = verts5.map((cv, ci) => cv.map((p, i) => depthOf(p, dist[ci][i])));
             {   // 辺を全体の奥行きで4段に分ける（0＝外側・手前、3＝いちばん内側・奥）
                 let gLo = Infinity, gHi = -Infinity; vDepAll.forEach(a => a.forEach(v => { if (v < gLo) gLo = v; if (v > gHi) gHi = v; }));
@@ -3617,7 +3450,8 @@
         let texLabels = VisualFX.get('texFont');   // 軸の名前の書体（TeX の斜体／サンセリフ）。札の描き方・書体の読み込み・大きさを保つのは visual-fx.js
         function makeLabelSprite(text, cssColor) { return VisualFX.makeLabel(text, cssColor); }
         function applyTexFont() {
-            document.querySelectorAll('[data-texfont]').forEach(btn => { const on = (btn.dataset.texfont === 'serif') === texLabels; ['bg-sky-900/40', 'border-sky-500/50', 'text-sky-200'].forEach(c => btn.classList.toggle(c, on)); ['bg-slate-800', 'border-slate-600', 'text-slate-300'].forEach(c => btn.classList.toggle(c, !on)); btn.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+            const lc = VisualFX.get('labelCase');
+            document.querySelectorAll('[data-texfont]').forEach(btn => { const on = (btn.dataset.texfont === 'serif') === texLabels && (!btn.dataset.case || btn.dataset.case === lc); ['bg-sky-900/40', 'border-sky-500/50', 'text-sky-200'].forEach(c => btn.classList.toggle(c, on)); ['bg-slate-800', 'border-slate-600', 'text-slate-300'].forEach(c => btn.classList.toggle(c, !on)); btn.setAttribute('aria-pressed', on ? 'true' : 'false'); });
         }
         function setTexFont(serif) { texLabels = !!serif; VisualFX.set('texFont', texLabels); applyTexFont(); }   // 書体を読み込んで札を描き直すのは部品
 
@@ -3784,7 +3618,7 @@
             if (linkAngleY !== 0) { const c = Math.cos(linkAngleY), s = Math.sin(linkAngleY); const ry = y * c - z * s, rz = y * s + z * c; y = ry; z = rz; }
             if (zwLink && soloAngleZW !== 0) {
                 const zc = Math.cos(soloAngleZW), zs = Math.sin(soloAngleZW);
-                const wv = z * zs, safeW = Math.min(Math.max(wv, -CAMERA_W + 0.5), CAMERA_W - 0.5), sc = 1 + (CAMERA_W / (CAMERA_W - safeW) - 1) * (1 - projBlendNow());
+                const sc = ndWScale(z * zs, projBlendNow());
                 x *= sc; y *= sc; z = (z * zc) * sc;
             }
             return rot3DLeft(x, y, z);
@@ -4182,9 +4016,7 @@
                     faceW[fi] = vs.map(v => zwOn ? v[2] * zs : 0);
                     if (zwOn) for (let i = 0; i < vs.length; i++) {
                         const v = vs[i], z = v[2];
-                        const wv = z * zs;                                             // ZW回転で生じる4D成分
-                        const safeW = Math.min(Math.max(wv, -CAMERA_W + 0.5), CAMERA_W - 0.5);
-                        const sc = 1 + (CAMERA_W / (CAMERA_W - safeW) - 1) * (1 - pbL);   // 右と同じ射影（遠近→平行の混ざり具合も同じ）
+                        const sc = ndWScale(z * zs, pbL);   // ZW回転で生じる4D成分 z·sin を、右と同じ射影で（遠近→平行の混ざり具合も同じ）
                         v[0] *= sc; v[1] *= sc; v[2] = (z * zc) * sc;
                     }
                     // 3D回転は最後にかける。標準は X-Y だけ（左にとっての平面の回転）、トグルONで右と同じ角度・同じ順で全部＝左右がそろって転がる
@@ -4327,8 +4159,7 @@
                 if (kF4 > 0) {
                     const pb4 = projBlendNow();
                     const vDep4 = cellVerts.map((cv, ci) => cv.map((v, j) => {
-                        const sw = CAMERA_W / (CAMERA_W - Math.min(Math.max(v[3] || 0, -CAMERA_W + 0.5), CAMERA_W - 0.5));
-                        return Math.log(Math.max(cellDist[ci][j], 1e-6)) - Math.log(1 + (sw - 1) * (1 - pb4));
+                        return Math.log(Math.max(cellDist[ci][j], 1e-6)) - Math.log(ndWScale(v[3] || 0, pb4));
                     }));
                     const cDep4 = vDep4.map(a => a.reduce((t, x) => t + x, 0) / a.length), cLo4 = Math.min(...cDep4), cSp4 = Math.max(Math.max(...cDep4) - cLo4, 1e-6);
                     dA4 = cDep4.map(m => 1 + (0.55 + 1.05 * sm((m - cLo4) / cSp4) - 1) * kF4);
@@ -6864,7 +6695,8 @@
             if (numtexBtn) numtexBtn.addEventListener('click', toggleNumTex);
             const ecoBtn = document.getElementById('eco-btn');
             if (ecoBtn) ecoBtn.addEventListener('click', toggleEco);
-            document.querySelectorAll('[data-texfont]').forEach(b => b.addEventListener('click', () => setTexFont(b.dataset.texfont === 'serif')));
+            document.querySelectorAll('[data-texfont]').forEach(b => b.addEventListener('click', () => { if (b.dataset.case) VisualFX.set('labelCase', b.dataset.case); setTexFont(b.dataset.texfont === 'serif'); }));
+            VisualFX.onChange(n => { if (n === 'labelCase' || n === 'texFont' || n === '*') { texLabels = VisualFX.get('texFont'); applyTexFont(); if (window.hex6Test && hex6Test.relabel) hex6Test.relabel(); } });   // ほかのアプリで変えた時も、マスの光り方と 6次元の窓の見出しをそろえる
             const axisFitBtn = document.getElementById('axisfit-btn');
             if (axisFitBtn) axisFitBtn.addEventListener('click', toggleAxisFit);
             applyAxisFit();
@@ -7603,7 +7435,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-1159';
+        const APP_BUILD = '20261020-1211';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
@@ -7936,36 +7768,17 @@
     let on = false, panel = null, renderer = null, scene, camera, controls, raf = 0, last = 0;
     let fold = 1, explode = 0, autoEx = false, exDir = 1, showFaces = true, showWires = true, appMode = false, dW = 0, dV = 0, dU = 0, playing = false, playDir = -1, hold = 0, sideBySide = true, paused = false, showMat = window.innerHeight >= 700;   // 縦が短い画面では、マトリクスは最初しまっておく
     const smooth = t => (typeof smootherstep === 'function' ? smootherstep(t) : t * t * (3 - 2 * t));
-    function cellVerts6(ci, pr) {   // 折りたたみ後の 32 頂点の 6D 座標（回転の前）。cellVerts5D を 1 次元上げたもの
-        const st = typeof enableStagger === 'undefined' || enableStagger;
-        let a1, a2;
-        if (st) { a1 = smooth(Math.min(1, pr / 0.60)) * (Math.PI / 2); a2 = smooth(Math.max(0, (pr - 0.45) / 0.55)) * (Math.PI / 2); }
-        else { const t = smooth(pr); a1 = t * (Math.PI / 2); a2 = a1; }
-        const PIV = HS * (a1 / (Math.PI / 2)), cell = CELLS[ci];
-        return CV.map(q => {
-            const c = q.slice(); let u = 0;
-            if (cell.cap) { const l = c[1] + HS, y1 = HS + SS * Math.cos(a1), u1 = SS * Math.sin(a1), t = a1 + a2; c[1] = y1 + l * Math.cos(t); u = u1 + l * Math.sin(t); }
-            else if (cell.axis !== undefined) {
-                const k = cell.axis;
-                if (cell.sign > 0) { const l = c[k] + HS; c[k] = HS + l * Math.cos(a1); u = l * Math.sin(a1); }
-                else { const l = c[k] - HS; c[k] = -HS + l * Math.cos(a1); u = -l * Math.sin(a1); }
-            }
-            c.push(u - PIV);
-            return c;
-        });
+    function cellVerts6(ci, pr) {   // 折りたたみ後の 32 頂点の 6D 座標（回転の前）。本体の foldNetVert（nd-geom）で cellVerts5D を 1 次元上げたもの
+        const ang = foldAnglesAt(pr, 6), cell = CELLS[ci];
+        return CV.map(q => foldNetVert(6, cell, q, ang));
     }
-    function rot6(p) {
-        for (const q of PLANES) { if (q.ang === 0) continue; const c = Math.cos(q.ang), sn = Math.sin(q.ang), x = p[q.a], y = p[q.b]; p[q.a] = c * x - sn * y; p[q.b] = sn * x + c * y; }
-        return p;
-    }
+    function rot6(p) { return NDGeom.rotatePoint(p, PLANES); }   // 15 面を辞書の順に
     const CW = () => (typeof CAMERA_W !== 'undefined' ? CAMERA_W : 4.5);
-    function proj6(p) {   // u → v → w の順に遠近（u は v よりさらに弱く）。返り値 [x, y, z, 見かけの縮み]
-        let x = p[0], y = p[1], z = p[2], w = p[3], v = p[4];
-        const cl = (a, D) => Math.min(Math.max(a, -D + 0.5), D - 0.5);
-        const DU = dU || CW() * 1.9, su = DU / (DU - cl(p[5], DU)); x *= su; y *= su; z *= su; w *= su; v *= su;
-        const DV = dV || CW() * 1.4, sv = DV / (DV - cl(v, DV)); x *= sv; y *= sv; z *= sv; w *= sv;
-        const DW = dW || CW(), sw = DW / (DW - cl(w, DW)); x *= sw; y *= sw; z *= sw;
-        return [x, y, z, su * sv * sw];
+    const PJ6 = NDGeom.projector(6, { preset: 'okami' });
+    function proj6(p) {   // u → v → w の順に遠近（u は v よりさらに弱く）。返り値 [x, y, z, 見かけの縮み]。nd-geom
+        PJ6.D[3] = dW || CW(); PJ6.D[4] = dV || CW() * 1.4; PJ6.D[5] = dU || CW() * 1.9;
+        const o = [0, 0, 0], K = PJ6.project(p, o);
+        return [o[0], o[1], o[2], K];
     }
     const RGB = CELLS.map(c => new THREE.Color(c.color)), _v = new THREE.Vector3(), _dir = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);   // _v は軸の計算用、_dir はカメラの向き（分けておく）
     // ---- 次元おりがみ本体の見た目の設定をそのまま使う（本体で切り替えると、この窓もすぐ変わる）----
@@ -8505,9 +8318,9 @@
     function buildMatrix() {
         const cs = 'width:18px;height:18px;border:1px solid #334155;border-radius:4px;font:600 11px system-ui;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none';
         let h = '<div style="display:grid;grid-template-columns:repeat(7,18px);gap:2px">';
-        h += '<div></div>' + AX.map((n, k) => '<div style="' + cs + ';cursor:default;border-color:transparent;color:' + hex(AXC[k]) + ';font:italic 600 12px Georgia,serif">' + n + '</div>').join('');
+        h += '<div></div>' + AX.map((n, k) => '<div style="' + cs + ';cursor:default;border-color:transparent;color:' + hex(AXC[k]) + ';font:' + axFont(12) + '">' + nm(n) + '</div>').join('');
         for (let a = 0; a < 6; a++) {
-            h += '<div style="' + cs + ';cursor:default;border-color:transparent;color:' + hex(AXC[a]) + ';font:italic 600 12px Georgia,serif">' + AX[a] + '</div>';
+            h += '<div style="' + cs + ';cursor:default;border-color:transparent;color:' + hex(AXC[a]) + ';font:' + axFont(12) + '">' + nm(AX[a]) + '</div>';
             for (let b = 0; b < 6; b++) {
                 if (b < a) h += '<div></div>';
                 else if (b === a) h += '<div data-axd="' + a + '" title="' + AX[a] + ' 軸を出す／消す" style="' + cs + ';border-radius:50%"></div>';
@@ -8523,6 +8336,11 @@
         box.querySelector('#hex6-zero').onclick = () => { PLANES.forEach(p => { p.ang = 0; }); };
         paintMatrix();
     }
+    // 軸の名前（凡例・回転マトリクスの見出し）も、本体の「軸の書体」（セリフ／サンセリフ × 小文字／大文字）に合わせる
+    const nm = n => (window.VisualFX && VisualFX.labelText) ? VisualFX.labelText(n) : n;
+    const axFont = px => (window.VisualFX && !VisualFX.get('texFont')) ? '600 ' + (px - 1) + 'px system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif' : 'italic 600 ' + px + 'px TeXMath,Georgia,serif';
+    const legendHtml = () => AX.map((n, k) => '<span style="color:' + hex(AXC[k]) + ';font:' + axFont(13) + '">' + nm(n) + '</span>').join(' ');
+    function relabel() { if (!panel) return; const l = panel.querySelector('#hex6-legend'); if (l) l.innerHTML = legendHtml(); buildMatrix(); }
     function buildCfg() {   // 見え方：面・線・遠近 W/V/U と、6次元立方体の数
         const box = panel.querySelector('#hex6-cfg');
         const B2 = 'padding:1px 8px;border:1px solid #334155;border-radius:7px;background:#0f172a;color:#cbd5e1;cursor:pointer';
@@ -8558,7 +8376,7 @@
     function build() {
         panel = document.createElement('div'); panel.id = 'hex6-panel';
         panel.style.cssText = 'position:fixed;z-index:10000;background:#030712;border:1px solid #2dd4bf66;border-radius:14px;box-shadow:0 10px 40px #000a;display:flex;flex-direction:column;overflow:hidden;resize:both;min-width:320px;min-height:260px';
-        const legend = AX.map((n, k) => '<span style="color:' + hex(AXC[k]) + ';font:italic 600 13px Georgia,serif">' + n + '</span>').join(' ');
+        const legend = '<span id="hex6-legend">' + legendHtml() + '</span>';
         const B = 'padding:2px 8px;border:1px solid #334155;border-radius:8px;background:#0f172a;color:#cbd5e1;white-space:nowrap;cursor:pointer';
         panel.innerHTML = '<div id="hex6-head" style="display:flex;align-items:center;gap:6px;padding:6px 8px 6px 12px;border-bottom:1px solid #1e293b;color:#cbd5e1;font-size:12px;cursor:move;user-select:none;touch-action:none">'
             + '<b style="color:#5eead4;white-space:nowrap">6次元立方体</b><span style="color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">胞 12（5次元立方体）</span><span style="margin-left:auto;white-space:nowrap">' + legend + '</span>'
@@ -8735,7 +8553,7 @@
         else { rememberWin(); cancelAnimationFrame(raf); if (panel) panel.style.display = 'none'; }
     }
     btn.addEventListener('click', () => setOn(!on));
-    window.hex6Test = { setOn, get on() { return on; }, cells: CELLS.length, planes: PLANES, setFold: f => { fold = f; }, setExplode: e => { explode = e; }, get fold() { return fold; }, get views() { return views; }, setSide: b => { sideBySide = !!b; paintMatrix(); }, x: { act: XACT, crys, get cubeT() { return cubeT; }, get countK() { return countK; }, setFrom: f => { crysFromSel = f; }, get xr() { return _xr; }, get idle() { return _rf <= 0; },
+    window.hex6Test = { relabel, setOn, get on() { return on; }, cells: CELLS.length, planes: PLANES, setFold: f => { fold = f; }, setExplode: e => { explode = e; }, get fold() { return fold; }, get views() { return views; }, setSide: b => { sideBySide = !!b; paintMatrix(); }, x: { act: XACT, crys, get cubeT() { return cubeT; }, get countK() { return countK; }, setFrom: f => { crysFromSel = f; }, get xr() { return _xr; }, get idle() { return _rf <= 0; },
         bench: n => { const V = views[1], t0 = performance.now(); for (let i = 0; i < n; i++) { fillView(V, xHide()); xUpdate(V); } return (performance.now() - t0) / n; } } };
 })();
 </script>
