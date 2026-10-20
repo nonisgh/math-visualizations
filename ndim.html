@@ -159,6 +159,7 @@
             <button class="btn" type="button" data-s="faces">面</button>
             <button class="btn" type="button" data-s="axes">軸</button>
             <button class="btn" type="button" data-s="labels">軸の名前</button>
+            <button class="btn" type="button" data-s="cells" title="面を胞（n−1 次元の面）ごとに、その胞の色で描きます（超立方体・正単体）。胞は少し縮めてすき間をあけます。奥の胞を濃く・入れ子の内側を濃く・高い次元の光が胞ごとに効きます">胞で色分け</button>
         </div>
         <div class="row">遠近<input type="range" id="persp" min="0" max="1" step="0.01"><span class="v" id="perspV"></span></div>
         <div class="row" title="1 ＝ いちばん細い（1px の線）">線の太さ<input type="range" id="lw" min="1" max="5" step="0.1"><span class="v" id="lwV"></span></div>
@@ -167,7 +168,7 @@
     <section>
         <h3>見た目の効果</h3>
         <div id="vfx-box"></div>
-        <div class="note">次元おりがみ・6次元アプリと同じ見た目の効果で、設定も共通です。面は奥から並べて描き、見かけの縮み（遠近）で奥の面ほど濃くします。高い次元の光は、面の向き（n 次元）で明るさが変わります。「入れ子の内側を濃く」は胞ごとに比べる効果なので、このアプリでは効きません。</div>
+        <div class="note">次元おりがみ・6次元アプリと同じ見た目の効果で、設定も共通です。面は奥から並べて描き、見かけの縮み（遠近）で奥の面ほど濃くします。高い次元の光は、面の向き（n 次元）で明るさが変わります。「表示」の「胞で色分け」を ON にすると（超立方体・正単体）、面を胞ごとの色で描き、奥の胞を濃く・入れ子の内側を濃く・高い次元の光が胞ごとに効きます。OFF の時は「入れ子の内側を濃く」は効きません。</div>
     </section>
     <section>
         <h3>数 <span class="note" style="margin:0" id="fvShape"></span></h3>
@@ -213,7 +214,7 @@ const STORE = 'ndim.v1';
 const DEF = () => ({
     n: 5, shape: 'cube', ang: {}, spin: { '0-3': true, '1-4': true }, spinOn: true, speed: 1, sel: '0-3',
     pk: 0.45, lw: 1.0, faceOp: 0.16, net: false, fold: 1, seq: false,
-    show: { edges: true, verts: true, faces: true, axes: true, labels: true }, cam: null,
+    show: { edges: true, verts: true, faces: true, axes: true, labels: true, cells: false }, cam: null,
     axOn: new Array(10).fill(true),              // 軸を 1 本ずつ出す・消す
     sphereModel: 'slices', slices: 9,            // 超球：'slices' 球を重ねた輪切り / 'circles' 大円と点
     v: 3,
@@ -443,7 +444,7 @@ function axisFade(k) {
 
 // ---------- 画面用の物を作る（形が変わった時） ----------
 let P3 = null;   // 投影した頂点（nv*3）
-let K3 = null, P3v = null, faceSet = null, faceDir = null;   // 頂点ごとの見かけの縮み・頂点ごとの [x,y,z]・面のまとめメッシュ（visual-fx）・面の真ん中の向き（n 次元、光用）
+let K3 = null, P3v = null, faceSet = null, faceDir = null, CELLF = null;   // CELLF：胞で色分けの時の、胞ごとの面   // 頂点ごとの見かけの縮み・頂点ごとの [x,y,z]・面のまとめメッシュ（visual-fx）・面の真ん中の向き（n 次元、光用）
 function makeObjects() {
     const src = S.net && S.shape === 'cube' ? NET : G;
     ['edges', 'faces', 'verts'].forEach(drop);
@@ -480,7 +481,12 @@ function makeObjects() {
     // 面（超立方体・正単体・正軸体、展開図の時は出さない）
     //   三角形を 1 つのメッシュにまとめ、毎回遠い順に並べて描く（visual-fx の sortedFaces）。照り返しが効く材質
     if (faceSet) { faceSet.material.dispose(); faceSet = null; }
-    if (src.F && src.F.length) {
+    CELLF = S.show.cells && src === G ? buildCellFaces(src) : null;
+    if (CELLF) {
+        faceSet = VisualFX.sortedFaces(CELLF.count, { renderOrder: 1, material: { roughness: 0.45, metalness: 0 } });
+        objs.faces = faceSet.mesh; scene.add(objs.faces);
+        shine.addMaterial(faceSet.material);
+    } else if (src.F && src.F.length) {
         const nT = src.F.length / 3, n = src.n, F = src.F, sq = src.shape === 'cube';
         faceSet = VisualFX.sortedFaces(sq ? nT / 2 : nT, { renderOrder: 1, material: { roughness: 0.45, metalness: 0 } });   // 金属っぽさは外す（もとの光の当たらない面に近い明るさ）。照り返しは効く
         objs.faces = faceSet.mesh; scene.add(objs.faces);
@@ -559,7 +565,7 @@ function updateGeometry(flash) {
         pa.needsUpdate = true;
         if (o.solid.visible) o.geo.computeVertexNormals();
     });
-    if (faceSet && objs.faces.visible) updateFaces(src);
+    if (faceSet && objs.faces.visible) { if (CELLF) updateCellFaces(); else updateFaces(src); }
     if (objs.verts && objs.verts.visible) { const pa = objs.verts.geometry.attributes.position; pa.array.set(P3); pa.needsUpdate = true; }
     // 軸（−1.5 〜 +1.5、4 本目から先に回るほど暗く・細い矢じり）
     {
@@ -597,6 +603,84 @@ function updateGeometry(flash) {
     }
 }
 const labelPos = [];
+// 胞で色分け：面を胞（n−1 次元の面）ごとに持つ（同じ面が n−2 個の胞に入るので重ねて描く）
+//   超立方体：胞＝±各軸の (n−1) 次元立方体（2n 個）、色＝その軸の ＋／− の色（いちばん上の軸の −側＝中心）、外向き＝±e_k
+//   正単体：胞＝頂点 i の向かいの (n−1) 次元単体（n+1 個）、色＝頂点 i の色、外向き＝−（頂点 i の向き）
+const CELL_SHRINK = 0.85;   // 胞を自分の中心へ縮める割合（胞どうしにすき間ができ、色が混ざらずに分かれて見える）
+function buildCellFaces(src) {
+    const n = src.n, cells = [], idx = [], cell = [];
+    if (src.shape === 'cube') {
+        const nv = 1 << n;
+        for (let k = 0; k < n; k++) for (const sg of [1, -1]) {
+            const o = [...Array(n).keys()].filter(d => d !== k), fix = sg > 0 ? (1 << k) : 0, ci = cells.length;
+            const verts = []; for (let i = 0; i < nv; i++) if ((i & (1 << k)) === fix) verts.push(i);
+            const nrm = new Float64Array(n); nrm[k] = sg;
+            cells.push({ verts, nrm, ax: k, sg, center: k === n - 1 && sg < 0 });
+            for (let a = 0; a < o.length; a++) for (let b = a + 1; b < o.length; b++) {
+                const rest = o.filter((_, j) => j !== a && j !== b), A = 1 << o[a], B = 1 << o[b];
+                for (let m = 0; m < (1 << rest.length); m++) {
+                    let base = fix; rest.forEach((d, j) => { if ((m >> j) & 1) base |= 1 << d; });
+                    idx.push(base, base | A, base | A | B, base | B); cell.push(ci);
+                }
+            }
+        }
+        return finishCells(src, { quad: true, n, cells, idx, cell });
+    }
+    if (src.shape === 'simplex') {
+        for (let i = 0; i <= n; i++) {
+            const verts = [...Array(n + 1).keys()].filter(v => v !== i), ci = cells.length;
+            const nrm = new Float64Array(n); let l = 0;
+            for (let c = 0; c < n; c++) { nrm[c] = -src.V[i * n + c]; l += nrm[c] * nrm[c]; }
+            l = Math.sqrt(l) || 1; for (let c = 0; c < n; c++) nrm[c] /= l;
+            cells.push({ verts, nrm, ax: i < n ? i : -1, sg: 1, center: false });
+            for (let a = 0; a < verts.length; a++) for (let b = a + 1; b < verts.length; b++) for (let c = b + 1; c < verts.length; c++) { idx.push(verts[a], verts[b], verts[c], verts[c]); cell.push(ci); }
+        }
+        return finishCells(src, { quad: false, n, cells, idx, cell });
+    }
+    return null;   // 正軸体・超球は色分けしない（正軸体の胞は 2^n 個で、軸の色との対応もない）
+}
+// 胞ごとに自分の頂点（n 次元）を持たせ、胞の中心へ CELL_SHRINK だけ縮める。面の頂点番号は、その胞の頂点の番号に置きかえる
+function finishCells(src, C) {
+    const n = C.n; let tot = 0;
+    C.cells.forEach(c => { c.off = tot; tot += c.verts.length; });
+    const V = new Float64Array(tot * n);
+    C.cells.forEach(c => {
+        const cen = new Float64Array(n); c.verts.forEach(v => { for (let q = 0; q < n; q++) cen[q] += src.V[v * n + q] / c.verts.length; });
+        c.local = new Map(c.verts.map((v, j) => [v, c.off + j]));
+        c.verts.forEach((v, j) => { for (let q = 0; q < n; q++) V[(c.off + j) * n + q] = cen[q] + (src.V[v * n + q] - cen[q]) * CELL_SHRINK; });
+    });
+    const idx = new Int32Array(C.idx.length);
+    for (let f = 0; f < C.cell.length; f++) { const c = C.cells[C.cell[f]]; for (let j = 0; j < 4; j++) idx[f * 4 + j] = c.local.get(C.idx[f * 4 + j]); }
+    const P = new Float32Array(tot * 3);
+    return { quad: C.quad, n, cells: C.cells, idx, cell: Uint16Array.from(C.cell), count: C.cell.length, nv: tot, V, P, K: new Float32Array(tot), Pv: Array.from({ length: tot }, (_, i) => P.subarray(i * 3, i * 3 + 3)) };
+}
+const _cc = new THREE.Color(), _co = { r: 0, g: 0, b: 0, a: 1 };
+let _cfK = new Float32Array(0);
+function updateCellFaces() {
+    const C = CELLF, n = C.n, idx = C.idx, per = C.quad ? 4 : 3, K = C.K, Pv = C.Pv;
+    for (let i = 0; i < C.nv; i++) { proj(C.V, i, n, C.P, i * 3); K[i] = projK; }   // 縮めた胞の頂点を写す
+    const deep = VisualFX.cellDepth(C.cells.map(c => K.subarray(c.off, c.off + c.verts.length)));   // 奥の胞を濃く：胞ごとの見かけの縮み
+    if (_cfK.length < C.count) _cfK = new Float32Array(C.count);
+    for (let f = 0; f < C.count; f++) { let k = 0; for (let j = 0; j < per; j++) k += K[idx[f * 4 + j]]; _cfK[f] = k / per; }
+    const inner = VisualFX.innerAmount(_cfK.subarray(0, C.count), C.cell);   // 入れ子の内側を濃く：各胞の中で、見かけの縮みがいちばん大きい面ほど
+    const lightOn = VisualFX.get('light'), rb = new Array(n);
+    const lit = C.cells.map(c => {   // 高い次元の光：胞の外向きの向きを今の回し方で回して、光との内積
+        if (!lightOn) return 1;
+        for (let r = 0; r < n; r++) { let v = 0; for (let q = 0; q < n; q++) v += Rm[r * n + q] * c.nrm[q]; rb[r] = v; }
+        return VisualFX.light(rb, true);
+    });
+    const cols = C.cells.map(c => { _cc.setHex(c.ax < 0 ? 0xe2e8f0 : VisualFX.cellHex(AX[c.ax].n, c.sg, c.center)); return { r: _cc.r, g: _cc.g, b: _cc.b }; });
+    const a0 = Math.min(0.6, S.faceOp * 1.6 / Math.sqrt(Math.max(1, (n - 2) * C.cells.length / 8)));   // 胞が多いほど 1 枚ずつは薄く（重なりで白くならないように）
+    faceSet.clear();
+    for (let f = 0; f < C.count; f++) {
+        const ci = C.cell[f];
+        VisualFX.shadeFace(cols[ci], { deep: deep[ci], inner: inner[f], lit: lit[ci], alpha: a0 }, _co);
+        const o = f * 4;
+        if (C.quad) faceSet.quad(Pv[idx[o]], Pv[idx[o + 1]], Pv[idx[o + 2]], Pv[idx[o + 3]], _co);
+        else faceSet.tri(Pv[idx[o]], Pv[idx[o + 1]], Pv[idx[o + 2]], _co);
+    }
+    faceSet.commit(camera);
+}
 // 面：見かけの縮みで奥の面ほど濃く・高い次元の光・色はその角の色（visual-fx の shadeFace）
 const _fcC = { r: 0, g: 0, b: 0 }, _fcO = [0, 1, 2, 3].map(() => ({ r: 0, g: 0, b: 0, a: 1 })), _fc3 = _fcO.slice(0, 3);
 let _fK = new Float32Array(0);
@@ -877,6 +961,7 @@ function renderFv() {
 function renderShows() {
     document.querySelectorAll('#shapes .btn[data-sh]').forEach(b => b.classList.toggle('on', b.dataset.sh === S.shape));
     document.querySelectorAll('#shows .btn').forEach(b => b.classList.toggle('on', !!S.show[b.dataset.s]));
+    { const cb = document.querySelector('#shows [data-s=cells]'); if (cb) cb.style.opacity = S.shape === 'cube' || S.shape === 'simplex' ? '' : '0.4'; }   // 色分けできるのは超立方体・正単体
     $('#speed').value = S.speed; $('#speedV').textContent = S.speed.toFixed(2);
     $('#persp').value = S.pk; $('#perspV').textContent = S.pk.toFixed(2);
     $('#lw').value = S.lw; $('#lwV').textContent = S.lw.toFixed(1);
@@ -958,7 +1043,7 @@ $('#faceOp').addEventListener('input', e => {
 document.querySelectorAll('#sphereOpts [data-sm]').forEach(b => b.addEventListener('click', () => { S.sphereModel = b.dataset.sm; setShape(G.n, 'sphere'); }));
 $('#slices').addEventListener('change', e => { S.slices = +e.target.value; setShape(G.n, 'sphere'); });
 $('#slices').addEventListener('input', e => { $('#slicesV').textContent = e.target.value + ' 枚'; });
-document.querySelectorAll('#shows .btn').forEach(b => b.addEventListener('click', () => { S.show[b.dataset.s] = !S.show[b.dataset.s]; renderShows(); applyShow(); save(); }));
+document.querySelectorAll('#shows .btn').forEach(b => b.addEventListener('click', () => { S.show[b.dataset.s] = !S.show[b.dataset.s]; renderShows(); if (b.dataset.s === 'cells') makeObjects(); else applyShow(); save(); }));
 $('#netOn').addEventListener('click', () => {
     S.net = !S.net;
     if (S.net && S.fold > 0.999) { S.fold = 1; foldAnim = { from: 1, to: 0, t0: performance.now(), dur: S.seq ? 900 * G.n : 2200 }; }
