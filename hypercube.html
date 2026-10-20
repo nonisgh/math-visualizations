@@ -2896,7 +2896,7 @@
                             for (let q = 0; q < 6; q++) { bp[k].push(P[e * 6 + q]); bc[k].push(Cc[e * 6 + q]); }
                         });
                         const aLine = 0.28 + 0.32 * (1 - sm(progress));   // 1 本ずつの濃さ：展開図 0.6（辺がほとんど重ならない）→ 組み上がり 0.28（4 つの胞が重ねて持つので 4 段階に濃くなる）
-                        const box = document.getElementById(EH_BOX[5]), W0 = 0.78, s5 = line5 > 0 ? line5 : 0.5;   // 手前は「細い線」より 1 段細い 0.78px（ユーザーの好み）
+                        const box = document.getElementById(EH_BOX[5]), W0 = 0.9, s5 = line5 > 0 ? line5 : 0.5;   // 手前 0.9px（ユーザーの好み：0.78 から少しだけ太く。50% で 0.9・0.7・0.5・0.5px）
                         solid5Depth.forEach((L, k) => {
                             if (!bp[k].length) { L.visible = false; return; }
                             L.geometry.setPositions(bp[k]); L.geometry.setColors(bc[k]);
@@ -7674,7 +7674,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-1630';
+        const APP_BUILD = '20261020-1640';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
