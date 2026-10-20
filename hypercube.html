@@ -1021,7 +1021,7 @@
                         <span id="panpad-text" class="text-[11px]">→ 移動パッド: OFF</span>
                     </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button>
-                    <div id="texfont-group" class="flex items-center gap-1 pl-2.5 pr-1 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前（x y z w v）の書体。セリフ＝数学の教科書・論文と同じ TeX の斜体（Computer Modern。ネットから読み込み、オフラインのときは Georgia の斜体）。サンセリフ＝飾りのないまっすぐな字（3D ソフト風）"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px] mr-0.5">軸の書体</span><button type="button" data-texfont="serif" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">セリフ</button><button type="button" data-texfont="sans" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">サンセリフ</button></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="テスト機能：6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。ほかの画面・設定には影響しない（保存もしない）"><i data-lucide="flask-conical" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体（テスト）: OFF</span></button></div>
+                    <div id="texfont-group" class="flex items-center gap-1 pl-2.5 pr-1 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前（x y z w v）の書体。セリフ＝数学の教科書・論文と同じ TeX の斜体（Computer Modern。ネットから読み込み、オフラインのときは Georgia の斜体）。サンセリフ＝飾りのないまっすぐな字（3D ソフト風）"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px] mr-0.5">軸の書体</span><button type="button" data-texfont="serif" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">セリフ</button><button type="button" data-texfont="sans" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">サンセリフ</button></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。展開図の並べ表示・回転マトリクス・分解・見え方。「6次元アプリ」で立方体まで・結晶ばらし・連鎖ばらしも。ほかの画面には影響しない"><i data-lucide="box" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体: OFF</span></button></div>
                 <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
@@ -8058,7 +8058,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-0914';
+        const APP_BUILD = '20261020-0931';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
@@ -8352,7 +8352,7 @@
         };
     </script>
 <script>
-// ==== テスト：6次元立方体（見え方の「6次元立方体（テスト）」）====
+// ==== 6次元立方体（見え方の「6次元立方体」。もとはテスト機能）====
 //   4D・5D と同じ方式：12 個の胞（5次元立方体）の展開図を、u の向きへ折りたたんで 6次元立方体にする。
 //   中心（−U）＋ ±X・±Y・±Z・±W・±V のヒンジ胞 10 個＋蓋（+U、+Y の胞の先）。折りたたみは本体と同じ 2 段（時間差あり）。
 //   6次元の回転 → 遠近 3 段（u → v → w。u がいちばん弱い）→ 3D。面は半透明で、毎フレーム奥から並べて重ねる（奥の胞ほど濃く）。
@@ -8389,7 +8389,7 @@
     let speedK = 1;
     const axOn = AX.map(() => true);
     let on = false, panel = null, renderer = null, scene, camera, controls, raf = 0, last = 0;
-    let fold = 1, explode = 0, playing = false, playDir = -1, hold = 0, sideBySide = true, paused = false, showMat = window.innerHeight >= 700;   // 縦が短い画面では、マトリクスは最初しまっておく
+    let fold = 1, explode = 0, autoEx = false, exDir = 1, showFaces = true, showWires = true, appMode = false, dW = 0, dV = 0, dU = 0, playing = false, playDir = -1, hold = 0, sideBySide = true, paused = false, showMat = window.innerHeight >= 700;   // 縦が短い画面では、マトリクスは最初しまっておく
     const smooth = t => (typeof smootherstep === 'function' ? smootherstep(t) : t * t * (3 - 2 * t));
     function cellVerts6(ci, pr) {   // 折りたたみ後の 32 頂点の 6D 座標（回転の前）。cellVerts5D を 1 次元上げたもの
         const st = typeof enableStagger === 'undefined' || enableStagger;
@@ -8417,9 +8417,9 @@
     function proj6(p) {   // u → v → w の順に遠近（u は v よりさらに弱く）。返り値 [x, y, z, 見かけの縮み]
         let x = p[0], y = p[1], z = p[2], w = p[3], v = p[4];
         const cl = (a, D) => Math.min(Math.max(a, -D + 0.5), D - 0.5);
-        const DU = CW() * 1.9, su = DU / (DU - cl(p[5], DU)); x *= su; y *= su; z *= su; w *= su; v *= su;
-        const DV = CW() * 1.4, sv = DV / (DV - cl(v, DV)); x *= sv; y *= sv; z *= sv; w *= sv;
-        const DW = CW(), sw = DW / (DW - cl(w, DW)); x *= sw; y *= sw; z *= sw;
+        const DU = dU || CW() * 1.9, su = DU / (DU - cl(p[5], DU)); x *= su; y *= su; z *= su; w *= su; v *= su;
+        const DV = dV || CW() * 1.4, sv = DV / (DV - cl(v, DV)); x *= sv; y *= sv; z *= sv; w *= sv;
+        const DW = dW || CW(), sw = DW / (DW - cl(w, DW)); x *= sw; y *= sw; z *= sw;
         return [x, y, z, su * sv * sw];
     }
     const RGB = CELLS.map(c => new THREE.Color(c.color)), _v = new THREE.Vector3(), _dir = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);   // _v は軸の計算用、_dir はカメラの向き（分けておく）
@@ -8573,27 +8573,63 @@
         box.querySelector('#hex6-zero').onclick = () => { PLANES.forEach(p => { p.ang = 0; }); };
         paintMatrix();
     }
+    function buildCfg() {   // 見え方：面・線・遠近 W/V/U と、6次元立方体の数
+        const box = panel.querySelector('#hex6-cfg');
+        const B2 = 'padding:1px 8px;border:1px solid #334155;border-radius:7px;background:#0f172a;color:#cbd5e1;cursor:pointer';
+        const sl = (id, label, min, max, val) => '<div style="display:flex;align-items:center;gap:6px;margin:4px 0"><span style="width:44px">' + label + '</span><input type="range" id="' + id + '" min="' + min + '" max="' + max + '" step="0.1" value="' + val + '" style="flex:1;accent-color:#2dd4bf"><span id="' + id + '-v" style="width:28px;text-align:right;color:#cbd5e1">' + (+val).toFixed(1) + '</span></div>';
+        box.innerHTML = '<div style="color:#cbd5e1;font-weight:600;margin-bottom:4px">見え方</div>'
+            + '<div style="display:flex;gap:6px;margin-bottom:6px"><button type="button" id="hex6-faces" style="' + B2 + '">面: ON</button><button type="button" id="hex6-wires" style="' + B2 + '">線: ON</button></div>'
+            + sl('hex6-dw', '遠近 W', 2, 20, CW()) + sl('hex6-dv', '遠近 V', 2, 20, CW() * 1.4) + sl('hex6-du', '遠近 U', 2, 20, CW() * 1.9)
+            + '<div style="margin:2px 0 8px;color:#64748b;line-height:1.4">数字が小さいほど、その向きの奥行きが強く出る（入れ子がはっきり）</div>'
+            + '<button type="button" id="hex6-dreset" style="' + B2 + '">遠近を元に</button>'
+            + '<div style="color:#cbd5e1;font-weight:600;margin:10px 0 4px">6次元立方体の数</div>'
+            + '<div style="display:grid;grid-template-columns:auto auto;gap:1px 10px;line-height:1.5"><span>頂点</span><b style="color:#e2e8f0">64</b><span>辺</span><b style="color:#e2e8f0">192</b><span>正方形</span><b style="color:#e2e8f0">240</b><span>立方体</span><b style="color:#e2e8f0">160</b><span>超立方体</span><b style="color:#e2e8f0">60</b><span>5次元立方体</span><b style="color:#e2e8f0">12</b></div>';
+        const fb = box.querySelector('#hex6-faces'), wb = box.querySelector('#hex6-wires');
+        fb.onclick = () => { showFaces = !showFaces; fb.textContent = '面: ' + (showFaces ? 'ON' : 'OFF'); };
+        wb.onclick = () => { showWires = !showWires; wb.textContent = '線: ' + (showWires ? 'ON' : 'OFF'); };
+        const bind = (id, set) => { const r = box.querySelector('#' + id), o = box.querySelector('#' + id + '-v'); r.oninput = () => { set(+r.value); o.textContent = (+r.value).toFixed(1); }; };
+        bind('hex6-dw', v => { dW = v; }); bind('hex6-dv', v => { dV = v; }); bind('hex6-du', v => { dU = v; });
+        box.querySelector('#hex6-dreset').onclick = () => { dW = dV = dU = 0; [['hex6-dw', CW()], ['hex6-dv', CW() * 1.4], ['hex6-du', CW() * 1.9]].forEach(([id, v]) => { box.querySelector('#' + id).value = v; box.querySelector('#' + id + '-v').textContent = v.toFixed(1); }); };
+    }
+    let appSrc = null;
+    function setApp(v) {   // 6次元アプリ（hypercube6d.html）をこの窓の中で開く。ウェブでは同じ場所、手元では hypercube/6次元/ にある
+        appMode = !!v;
+        const box = panel.querySelector('#hex6-app'), b = panel.querySelector('#hex6-app-btn'), foot = panel.querySelector('#hex6-foot');
+        box.style.display = appMode ? 'block' : 'none'; if (foot) foot.style.display = appMode ? 'none' : 'flex';
+        b.textContent = appMode ? '← 戻る' : '6次元アプリ'; b.style.borderColor = appMode ? '#2dd4bf' : '#334155';
+        ['#hex6-reset', '#hex6-pause', '#hex6-side', '#hex6-mat-btn', '#hex6-cfg-btn'].forEach(q => { const e = panel.querySelector(q); if (e) e.style.display = appMode ? 'none' : ''; });
+        if (appMode && !box.firstChild) {
+            const open = src => { appSrc = src; const f = document.createElement('iframe'); f.src = src; f.title = '6次元アプリ'; f.style.cssText = 'width:100%;height:100%;border:0;display:block;background:#030712'; box.appendChild(f); };
+            const cands = ['hypercube6d.html', 'hypercube/6次元/hypercube6d.html'];
+            (async () => { for (const c of cands) { try { const r = await fetch(c, { method: 'HEAD', cache: 'no-store' }); if (r.ok) return open(c); } catch (_) {} } open(location.protocol === 'file:' ? cands[1] : cands[0]); })();
+        }
+    }
     function build() {
         panel = document.createElement('div'); panel.id = 'hex6-panel';
         panel.style.cssText = 'position:fixed;z-index:10000;background:#030712;border:1px solid #2dd4bf66;border-radius:14px;box-shadow:0 10px 40px #000a;display:flex;flex-direction:column;overflow:hidden;resize:both;min-width:320px;min-height:260px';
         const legend = AX.map((n, k) => '<span style="color:' + hex(AXC[k]) + ';font:italic 600 13px Georgia,serif">' + n + '</span>').join(' ');
         const B = 'padding:2px 8px;border:1px solid #334155;border-radius:8px;background:#0f172a;color:#cbd5e1;white-space:nowrap;cursor:pointer';
         panel.innerHTML = '<div id="hex6-head" style="display:flex;align-items:center;gap:6px;padding:6px 8px 6px 12px;border-bottom:1px solid #1e293b;color:#cbd5e1;font-size:12px;cursor:move;user-select:none;touch-action:none">'
-            + '<b style="color:#5eead4;white-space:nowrap">6次元立方体</b><span style="color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">テスト｜胞 12（5次元立方体）</span><span style="margin-left:auto;white-space:nowrap">' + legend + '</span>'
+            + '<b style="color:#5eead4;white-space:nowrap">6次元立方体</b><span style="color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">胞 12（5次元立方体）</span><span style="margin-left:auto;white-space:nowrap">' + legend + '</span>'
             + '<button type="button" id="hex6-reset" style="' + B + '" title="回転の角度をすべて 0 に戻して止め、カメラも最初の向きに（展開図がまっすぐ見える）。「回す」でまた回る">リセット</button>'
             + '<button type="button" id="hex6-pause" style="' + B + '" title="回転を止める／また回す（角度はそのまま）">止める</button>'
             + '<button type="button" id="hex6-side" style="' + B + '" title="展開図と組み上がりを並べる／1 つにする">並べる</button>'
             + '<button type="button" id="hex6-mat-btn" style="' + B + '" title="回転マトリクスを出す／しまう">回転マトリクス</button>'
+            + '<button type="button" id="hex6-cfg-btn" style="' + B + '" title="見え方（面・線・遠近 W/V/U）と数">見え方</button>'
+            + '<button type="button" id="hex6-app-btn" style="' + B + '" title="6次元アプリ（hypercube6d）をこの窓で開く：立方体まで・結晶ばらし・連鎖ばらし など全部の機能。もう一度押すとこちらに戻る">6次元アプリ</button>'
             + '<button type="button" id="hex6-max" style="' + B + '" title="画面いっぱい／元の大きさ">大きく</button>'
             + '<button type="button" id="hex6-close" style="' + B + '">✕</button></div>'
             + '<div id="hex6-view" style="flex:1;position:relative;min-height:0">'
             + '<div id="hex6-lab0" style="position:absolute;left:10px;bottom:6px;color:#94a3b8;font-size:11px;pointer-events:none">展開図</div>'
             + '<div id="hex6-lab1" style="position:absolute;right:10px;bottom:6px;color:#94a3b8;font-size:11px;pointer-events:none"></div>'
+            + '<div id="hex6-cfg" style="display:none;position:absolute;right:8px;top:8px;z-index:2;background:#030712e6;border:1px solid #1e293b;border-radius:10px;padding:8px 10px;font-size:11px;color:#94a3b8;max-height:calc(100% - 16px);overflow:auto;width:230px"></div>'
+            + '<div id="hex6-app" style="display:none;position:absolute;inset:0;z-index:5;background:#030712"></div>'
             + '<div id="hex6-mat" style="position:absolute;left:8px;top:8px;z-index:2;background:#030712e6;border:1px solid #1e293b;border-radius:10px;padding:6px;max-width:calc(100% - 16px);max-height:calc(100% - 16px);overflow:auto"></div></div>'
-            + '<div style="display:flex;align-items:center;gap:8px;padding:6px 12px 8px;border-top:1px solid #1e293b;color:#94a3b8;font-size:12px">'
+            + '<div id="hex6-foot" style="display:flex;align-items:center;gap:8px;padding:6px 12px 8px;border-top:1px solid #1e293b;color:#94a3b8;font-size:12px;flex-wrap:wrap">'
             + '<span style="white-space:nowrap">展開図</span><input type="range" id="hex6-fold" min="0" max="1" step="0.001" value="1" style="flex:1;min-width:60px;accent-color:#2dd4bf"><span style="white-space:nowrap">6次元立方体</span>'
             + '<button type="button" id="hex6-play" style="' + B + '">▶ 折る</button>'
-            + '<span style="white-space:nowrap;margin-left:6px">分解</span><input type="range" id="hex6-explode" min="0" max="1.5" step="0.01" value="0" style="width:min(140px,18%);accent-color:#f59e0b" title="胞（5次元立方体）を外向きに離す。中心は −u、蓋は +u、ほかは自分の向きの軸の方へ"><span style="width:14px"></span></div>';
+            + '<span style="white-space:nowrap;margin-left:6px">分解</span><input type="range" id="hex6-explode" min="0" max="1.5" step="0.01" value="0" style="width:min(140px,18%);accent-color:#f59e0b" title="胞（5次元立方体）を外向きに離す。中心は −u、蓋は +u、ほかは自分の向きの軸の方へ">'
+            + '<button type="button" id="hex6-autoex" style="' + B + '" title="分解を 0 ⇄ 1.2 で自動で行き来する">自動で離す</button><span style="width:14px"></span></div>';
         document.body.appendChild(panel);
         placeWin();
         panel.querySelector('#hex6-close').onclick = () => setOn(false);
@@ -8609,7 +8645,13 @@
         panel.querySelector('#hex6-mat-btn').onclick = () => { showMat = !showMat; paintMatrix(); };
         const fs = panel.querySelector('#hex6-fold'), pb = panel.querySelector('#hex6-play');
         fs.oninput = () => { fold = +fs.value; playing = false; pb.textContent = '▶ 折る'; };
-        panel.querySelector('#hex6-explode').oninput = e => { explode = +e.target.value; };
+        const exS = panel.querySelector('#hex6-explode'), axB = panel.querySelector('#hex6-autoex');
+        const setAutoEx = v => { autoEx = !!v; axB.textContent = autoEx ? '■ 止める' : '自動で離す'; axB.style.borderColor = autoEx ? '#f59e0b' : '#334155'; if (autoEx) exDir = explode > 0.6 ? -1 : 1; };
+        exS.oninput = e => { explode = +e.target.value; setAutoEx(false); };
+        axB.onclick = () => setAutoEx(!autoEx);
+        buildCfg();
+        panel.querySelector('#hex6-cfg-btn').onclick = () => { const c = panel.querySelector('#hex6-cfg'); const v = c.style.display === 'none'; c.style.display = v ? 'block' : 'none'; panel.querySelector('#hex6-cfg-btn').style.borderColor = v ? '#2dd4bf' : '#334155'; };
+        panel.querySelector('#hex6-app-btn').onclick = () => setApp(!appMode);
         pb.onclick = () => { playing = !playing; pb.textContent = playing ? '■ 止める' : '▶ 折る'; if (playing) { playDir = fold > 0.5 ? -1 : 1; hold = 0; } };
         {   // 見出しをドラッグで移動（ボタンの上は除く）
             const head = panel.querySelector('#hex6-head'); let d = null;
@@ -8642,7 +8684,9 @@
         if (!on) return;
         raf = requestAnimationFrame(loop);
         const dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t;
+        if (appMode) return;   // 6次元アプリを開いている間は、こちらは描かない
         if (!paused) PLANES.forEach(p => { if (p.dir) p.ang += p.dir * p.sp * speedK * dt; });
+        if (autoEx) { explode = Math.max(0, Math.min(1.2, explode + exDir * dt / 2.4)); if (explode <= 0 || explode >= 1.2) exDir = -exDir; const es = panel.querySelector('#hex6-explode'); if (es) es.value = explode; }
         if (playing) {
             if (hold > 0) hold -= dt;
             else { fold = Math.max(0, Math.min(1, fold + playDir * dt / 3.2)); if (fold <= 0 || fold >= 1) { playDir = -playDir; hold = 1.2; } }
@@ -8673,6 +8717,7 @@
         views.forEach(V => {
             if (!V.rect) return;
             views.forEach(o => { o.root.visible = o === V; });
+            V.faces.visible = showFaces; V.wires.visible = showWires;
             const [x, y, vw, vh] = V.rect;
             renderer.setViewport(x, y, vw, vh); renderer.setScissor(x, y, vw, vh);
             renderer.render(scene, V.cam);
@@ -8682,7 +8727,7 @@
     }
     function setOn(v) {
         on = !!v;
-        const t = btn.querySelector('#hex6-text'); if (t) t.textContent = '6次元立方体（テスト）: ' + (on ? 'ON' : 'OFF');
+        const t = btn.querySelector('#hex6-text'); if (t) t.textContent = '6次元立方体: ' + (on ? 'ON' : 'OFF');
         if (on) { if (!panel) build(); panel.style.display = 'flex'; placeWin(); last = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
         else { rememberWin(); cancelAnimationFrame(raf); if (panel) panel.style.display = 'none'; }
     }
