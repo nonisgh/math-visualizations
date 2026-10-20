@@ -23,6 +23,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
     <!-- 視覚効果の共通部品（パレット・照り返し・軸の札・見切れ防止・高い次元の光・奥／内側を濃く）。設定は全アプリ共通の vfx キー -->
     <script src="lib/visual-fx.js"></script>
+    <script src="lib/ui-dock.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
         
@@ -122,60 +123,16 @@
         .sb-tab.active { background: rgba(124, 58, 237, 0.25); border-color: rgba(167, 139, 250, 0.5); color: #ede9fe; }
         .sb-sec { background: rgba(2, 6, 23, 0.35); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .sb-h { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #cbd5e1; margin: 0; }
-        /* ポップアップ分離：欄を切り離して浮かせる */
-        #float-layer { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
-        .float-panel { position: absolute; width: min(330px, 92vw); max-height: 82vh; overflow-y: auto; overflow-x: hidden; pointer-events: auto; border-radius: 12px; box-shadow: 0 12px 44px rgba(0, 0, 0, 0.6); }
+        /* ポップアップ分離・連結・タブ・端のドック・説明のたたみの CSS は共通部品 lib/ui-dock.js が入れる（共通部品/ui-dock/README.md）。ここは次元おりがみの見た目と、メニューに合わせた位置だけ */
         .float-panel > .sb-sec { margin: 0; padding-top: 0; background: rgba(4, 8, 22, 0.96); border-color: rgba(129, 140, 248, 0.55); }   /* 背景ぼかしは外した（ほぼ不透明なので見た目は同じ・3Dが動くたびのぼかし計算をなくして軽く） */
-        .float-panel .sb-h { cursor: move; position: sticky; top: 0; z-index: 5; margin: 0 -10px; padding: 9px 10px 7px; background: rgba(7, 11, 26, 0.98); box-shadow: 0 1px 0 rgba(129, 140, 248, 0.3); }
-        .sb-floatbtn { margin-left: 6px; flex-shrink: 0; font-size: 10px; font-weight: 400; color: #8aa0c6; cursor: pointer; white-space: nowrap; background: none; border: 0; padding: 0 2px; }
-        .sb-floatbtn:hover { color: #e2e8f0; }
-        .sb-sec.floating > .sb-h .sb-floatbtn { color: #a5b4fc; }
-        /* 説明文：ふだんはたたんで「📖 [説明]」だけ。押すと開く */
-        .expl-tg { display: inline-flex; align-items: center; gap: 3px; align-self: flex-start; font-size: 10px; line-height: 1.4; color: #8aa0c6; background: none; border: 0; padding: 0; cursor: pointer; white-space: nowrap; }
-        .expl-tg:hover { color: #e2e8f0; }
-        .expl-tg .expl-ic { flex-shrink: 0; transition: transform .15s; }
-        .expl-tg:hover .expl-ic { transform: translateY(-1px); }
-        .expl-closed { display: none !important; }
-        /* 画面端にドッキングした2ペイン用のレール（幅は --dock-l/--dock-r と連動＝描画領域が自動で縮む） */
-        .dock-rail { position: fixed; top: 0; bottom: 0; z-index: 44; width: 0; overflow: hidden; pointer-events: none; display: flex; flex-direction: column; gap: 8px; padding: 0; box-sizing: border-box; background: rgba(2, 5, 16, 0.95); }
-        .dock-rail.active { pointer-events: auto; overflow-y: auto; overflow-x: hidden; padding: 8px; }
-        #dock-left { left: 0; width: var(--dock-l); border-right: 1px solid rgba(129, 140, 248, 0.4); }
-        #dock-right { right: 0; width: var(--dock-r); border-left: 1px solid rgba(129, 140, 248, 0.4); }
+        .float-panel .sb-h { margin: 0 -10px; padding: 9px 10px 7px; }   /* 浮いた欄の見出し（上に固定・背景は部品） */
+        /* 画面端にドッキングした2ペイン用のレール：メニュー（--sb）の内側に出す */
         body.sidebar-left:not(.sidebar-hidden) #dock-left { left: var(--sb); }
         body:not(.sidebar-left):not(.sidebar-hidden) #dock-right { right: var(--sb); }
         /* メニューを非表示にしたら、端にくっつけた（ドックした）パネルも一緒に隠して描画領域を広げる。浮いているパネルは出したまま */
         body.sidebar-hidden #dock-left, body.sidebar-hidden #dock-right { display: none; }
         body.sidebar-hidden.dock-left-on { --dock-l: 0px; }
         body.sidebar-hidden.dock-right-on { --dock-r: 0px; }
-        .float-panel.docked { position: static !important; width: 100% !important; max-height: none !important; left: auto !important; top: auto !important; box-shadow: none; flex: 0 0 auto; overflow: visible; }   /* スクロールは入れ物（グループ・レール）側で。見出しの固定もそこ基準 */
-        /* 分離パネルの連結（Photoshop 風）：浮いているグループ＝縦に連結したパネルの入れ物。2枚以上で「まとめて移動」のつまみ */
-        .float-stack { position: absolute; width: min(330px, 92vw); max-height: 82vh; overflow-y: auto; overflow-x: hidden; pointer-events: auto; border-radius: 12px; box-shadow: 0 12px 44px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; gap: 6px; }
-        .float-stack > .fs-grip { display: none; }
-        .float-stack.multi { background: rgba(4, 8, 22, 0.55); border: 1px solid rgba(129, 140, 248, 0.35); padding: 0 4px 4px; }
-        .float-stack.multi > .fs-grip { display: flex; align-items: center; gap: 6px; position: sticky; top: 0; z-index: 6; height: 24px; flex: 0 0 auto; box-sizing: border-box; cursor: move; user-select: none; font-size: 10px; color: #a5b4fc; padding: 0 8px; margin: 0 -4px; background: rgba(30, 27, 75, 0.96); border-bottom: 1px solid rgba(129, 140, 248, 0.35); }
-        .float-stack.multi .float-panel .sb-h { top: 24px; }
-        .fs-grip .fs-dots { font-size: 13px; letter-spacing: -1px; }
-        .fs-grip .fs-fold { margin-left: auto; }
-        .float-stack.joining { opacity: 0.55; }
-        .float-stack.collapsed > .float-panel { display: none; }   /* まとめてたたむ：つまみだけ残す */
-        .float-stack.collapsed { padding-bottom: 0; }
-        .float-stack.collapsed > .fs-grip { margin-bottom: 0; border-bottom: 0; border-radius: 11px; }
-        .fs-grip .fs-count { color: #8aa0c6; }
-        .sb-panel > .sb-sec[data-fid] > .sb-h, .sb-h.xp-drag { cursor: grab; user-select: none; }   /* メニューの欄も見出しをつかんでドラッグで分離 */
-        .sb-panel > .sb-sec[data-fid] > .sb-h button, .sb-h.xp-drag button { cursor: pointer; }
-        /* タブでまとめる：見出しの代わりにタブ。選んだ1枚だけ表示 */
-        .float-stack.tabbed > .float-panel:not(.tab-on) { display: none; }
-        .float-stack.tabbed > .float-panel > .sb-sec > .sb-h { display: none; }
-        .float-stack.tabbed > .float-panel > .sb-sec { padding-top: 10px; border-top-left-radius: 0; border-top-right-radius: 0; }
-        .float-stack.tabbed { gap: 0; }
-        .float-stack > .fs-tabs { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 3px; position: sticky; top: 24px; z-index: 6; margin: 4px -4px 0; padding: 4px 6px 0; background: rgba(7, 11, 26, 0.98); border-bottom: 1px solid rgba(167, 139, 250, 0.55); }
-        .float-stack.collapsed > .fs-tabs { display: none; }
-        .fs-tab { font-size: 11px; line-height: 1.2; padding: 5px 10px; border-radius: 7px 7px 0 0; color: #94a3b8; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(71, 85, 105, 0.7); border-bottom: 0; cursor: pointer; user-select: none; touch-action: none; }
-        .fs-tab:hover { color: #e2e8f0; }
-        .fs-tab.on { color: #ede9fe; background: rgba(76, 29, 149, 0.6); border-color: rgba(167, 139, 250, 0.75); }
-        .fs-tabs .fs-tab-back { margin-left: auto; align-self: center; }
-        #dock-ins { position: fixed; z-index: 47; height: 4px; border-radius: 2px; background: #a5b4fc; box-shadow: 0 0 10px rgba(165, 180, 252, 0.9); pointer-events: none; display: none; }
-        #dock-hint { position: fixed; top: 0; bottom: 0; z-index: 46; pointer-events: none; display: none; background: rgba(129, 140, 248, 0.16); border: 2px dashed rgba(129, 140, 248, 0.75); border-radius: 10px; box-sizing: border-box; }
 
         /* ===== iPad・iPhone 向け（レスポンシブ） ===== */
         button, input, label, summary { touch-action: manipulation; }   /* ダブルタップで拡大しない */
@@ -1023,7 +980,7 @@
                         <span id="panpad-text" class="text-[11px]">→ 移動パッド: OFF</span>
                     </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button>
-                    <div id="texfont-group" class="flex items-center gap-1 pl-2.5 pr-1 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前（x y z w v）の書体。セリフ＝数学の教科書・論文と同じ TeX の斜体（Computer Modern。ネットから読み込み、オフラインのときは Georgia の斜体）。サンセリフ＝飾りのないまっすぐな字（3D ソフト風）"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px] mr-0.5">軸の書体</span><button type="button" data-texfont="serif" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">セリフ</button><button type="button" data-texfont="sans" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">サンセリフ</button></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。展開図の並べ表示・回転マトリクス・分解・見え方。「6次元アプリ」で立方体まで・結晶ばらし・連鎖ばらしも。ほかの画面には影響しない"><i data-lucide="box" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体: OFF</span></button></div>
+                    <div id="texfont-group" class="flex items-center gap-1 pl-2.5 pr-1 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前（x y z w v）の書体。セリフ＝数学の教科書・論文と同じ TeX の斜体（Computer Modern。ネットから読み込み、オフラインのときは Georgia の斜体）。サンセリフ＝飾りのないまっすぐな字（3D ソフト風）"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px] mr-0.5">軸の書体</span><button type="button" data-texfont="serif" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">セリフ</button><button type="button" data-texfont="sans" class="px-2 py-0.5 rounded-lg border text-[11px] transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700">サンセリフ</button></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。展開図の並べ表示・回転マトリクス・分解・見え方。下の段の「ばらす」で立方体まで・結晶ばらし・連鎖ばらし（「6次元アプリ」で元のアプリも開ける）。ほかの画面には影響しない"><i data-lucide="box" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体: OFF</span></button></div>
                 <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
@@ -7197,331 +7154,50 @@
                 panel.insertBefore(bar, panel.firstChild);
             })();
 
-            // ===== ポップアップ分離：各欄に「分離」ボタン。押すと切り離して浮かせ、ドラッグで移動、「戻す」で元の場所へ。位置と状態はこのブラウザに保存 =====
-            (function setupFloatPanels() {
-                const layer = document.createElement('div'); layer.id = 'float-layer'; document.body.appendChild(layer);
-                // 画面左右の端にドッキングするレール（2ペイン）と、ドラッグ中のドロップ先ガイド（端の帯／差し込み線）
-                const railL = document.createElement('div'); railL.id = 'dock-left'; railL.className = 'dock-rail'; railL._side = 'left';
-                const railR = document.createElement('div'); railR.id = 'dock-right'; railR.className = 'dock-rail'; railR._side = 'right';
-                const hint = document.createElement('div'); hint.id = 'dock-hint';
-                const insLine = document.createElement('div'); insLine.id = 'dock-ins';
-                document.body.appendChild(railL); document.body.appendChild(railR); document.body.appendChild(hint); document.body.appendChild(insLine);
-                // 保存形式：{ v:2, stacks:[{x,y,ids:[…]}], left:[…], right:[…] }（ids は欄の名前。上から順）。昔の形式 {欄名:{x,y}|{dock}} も読める
-                const FKEY = 'hypercubeFloats';
-                let layout0 = null; try { layout0 = JSON.parse(localStorage.getItem(FKEY) || '{}') || {}; } catch (_) { layout0 = {}; }
-                const homes = new Map(); let cascade = 0;
-                const SNAP = 52, DOCK_MINW = 820;   // 端から SNAP px 以内で離すとドック。狭い画面では無効
-                const clampX = (x, el) => { const ww = el.offsetWidth || 330; return Math.max(4, Math.min(window.innerWidth - ww - 4, x)); };
-                const clampY = y => Math.max(4, Math.min(window.innerHeight - 42, y));
+            // ===== ポップアップ分離：各欄に「分離」ボタン。押すと切り離して浮かせ、ドラッグで移動、ほかのパネルに重ねると連結（タブ・たたみも）、端に寄せるとドック、「戻す」で元の場所へ。並びは hypercubeFloats に保存 =====
+            //   仕組みは共通部品 lib/ui-dock.js（共通部品/ui-dock/README.md）。ここは欄の登録と、「分解」欄の中身の出し入れだけ
+            const uiDock = (function setupFloatPanels() {
+                const dock = UIDock.create({
+                    prefix: 'hypercube',   // 保存キー hypercubeFloats（今までの並びをそのまま読む）
+                    onResize: () => { if (typeof onWindowResize === 'function') onWindowResize(); requestRender(8); },   // 端のレールが出た・消えた＝描画領域の幅が変わる
+                    onChange: () => { _zfKick = Math.max(_zfKick, 30); requestRender(30); },   // 入れ物が変わったら自動ズームを合わせ直す（端に寄せた分を空ける）
+                });
                 const titleOf = h => [...h.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').replace(/\s+/g, ' ').trim();
-                const fit = () => { if (typeof onWindowResize === 'function') onWindowResize(); };
-                const wrapsIn = c => [...c.querySelectorAll(':scope > .float-panel')];
-                const isRail = c => c === railL || c === railR;
-                let restoring = false;
-                function save() {   // 今の並び（DOM）をそのまま保存
-                    if (restoring) return;
-                    const ids = c => wrapsIn(c).map(w => w._sec.dataset.fid);
-                    const L = { v: 2, stacks: [...layer.querySelectorAll(':scope > .float-stack')].map(st => ({ x: parseInt(st.style.left) || 0, y: parseInt(st.style.top) || 0, ids: ids(st), ...(st.classList.contains('collapsed') ? { collapsed: true } : {}), ...(st.classList.contains('tabbed') ? { tabs: true, active: st._active } : {}) })).filter(s => s.ids.length), left: ids(railL), right: ids(railR) };
-                    try { localStorage.setItem(FKEY, JSON.stringify(L)); } catch (_) {}
-                }
-                // レールの中身の有無で、本体の描画領域を広げ／狭める（--dock-l/r がそのまま main-container の余白になる）
-                function refreshDock(side) {
-                    const rail = side === 'left' ? railL : railR;
-                    const has = wrapsIn(rail).length > 0;
-                    rail.classList.toggle('active', has);
-                    document.body.classList.toggle('dock-' + side + '-on', has);
-                    fit(); requestRender(8);
-                }
-                // 入れ物（浮いているグループ or 端のレール）の後始末：空のグループは消す、2枚以上なら「まとめて移動」のつまみを出す
-                function tidy(c) {
-                    if (!c) return;
-                    if (isRail(c)) { refreshDock(c._side); return; }
-                    const n = wrapsIn(c).length;
-                    _zfKick = Math.max(_zfKick, 30); requestRender(30);   // 入れ物が変わったら自動ズームを合わせ直す
-                    if (!n) { c.remove(); return; }
-                    c.classList.toggle('multi', n > 1);
-                    if (n < 2) c.classList.remove('collapsed');   // つまみが無いとひらけないので、1枚ならたたまない
-                    syncFold(c); syncTabs(c);
-                    c.style.left = clampX(parseInt(c.style.left) || 0, c) + 'px';
-                    requestRender(5);
-                }
-                function newStack(x, y) {   // 浮いているグループ（縦に連結したパネルの入れ物）
-                    const st = document.createElement('div'); st.className = 'float-stack';
-                    const grip = document.createElement('div'); grip.className = 'fs-grip'; grip.title = 'つかんでグループごと移動（端に寄せるとドック、ほかのパネルに重ねると連結）';
-                    grip.innerHTML = '<span class="fs-dots">⠿</span><span>まとめて移動</span><span class="fs-count"></span>';
-                    const fold = document.createElement('button'); fold.type = 'button'; fold.className = 'sb-floatbtn fs-fold'; fold.title = 'グループをまとめてたたむ／ひらく（つまみのダブルクリックでも）';
-                    fold.addEventListener('click', e => { e.stopPropagation(); toggleFold(st); });
-                    grip.addEventListener('dblclick', e => { if (e.target.closest('button')) return; toggleFold(st); });
-                    const tabb = document.createElement('button'); tabb.type = 'button'; tabb.className = 'sb-floatbtn fs-tabbtn'; tabb.title = 'タブでまとめる（選んだ1枚だけ表示）／縦に並べる';
-                    tabb.addEventListener('click', e => { e.stopPropagation(); st.classList.toggle('tabbed'); syncTabs(st); save(); requestRender(5); });
-                    grip.appendChild(tabb); grip.appendChild(fold);
-                    const all = document.createElement('button'); all.type = 'button'; all.className = 'sb-floatbtn'; all.textContent = '⇲ 全部戻す'; all.title = 'このグループのパネルを全部元の場所へ';
-                    all.addEventListener('click', e => { e.stopPropagation(); wrapsIn(st).forEach(w => homeOf(w._sec)()); });
-                    grip.appendChild(all); st.appendChild(grip);
-                    layer.appendChild(st);
-                    st.style.left = clampX(x, st) + 'px'; st.style.top = clampY(y) + 'px';
-                    grip.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; dragStack(st, e); });
-                    return st;
-                }
-                function syncFold(st) {   // たたみボタンの文字と、たたんでいるときの枚数
-                    const b = st.querySelector(':scope > .fs-grip .fs-fold'), cnt = st.querySelector(':scope > .fs-grip .fs-count'); if (!b) return;
-                    const col = st.classList.contains('collapsed');
-                    b.textContent = col ? '▸ ひらく' : '▾ たたむ';
-                    if (cnt) cnt.textContent = col ? '（' + wrapsIn(st).length + '枚）' : '';
-                }
-                // タブでまとめる：見出しの代わりに上にタブを並べ、選んだ1枚だけ表示。タブはクリックで切替、ドラッグで取り出し・ほかへ移動
-                function syncTabs(st) {
-                    const tb = st.querySelector(':scope > .fs-grip .fs-tabbtn'); if (tb) tb.textContent = st.classList.contains('tabbed') ? '☰ 縦並び' : '▤ タブ';
-                    const items = wrapsIn(st); let bar = st.querySelector(':scope > .fs-tabs');
-                    if (!st.classList.contains('tabbed') || items.length < 2) {
-                        if (items.length < 2) st.classList.remove('tabbed');
-                        if (bar) bar.remove(); items.forEach(w => w.classList.remove('tab-on'));
-                        if (tb) tb.textContent = st.classList.contains('tabbed') ? '☰ 縦並び' : '▤ タブ';
-                        return;
-                    }
-                    const act = items.find(w => w._sec.dataset.fid === st._active) || items[0]; st._active = act._sec.dataset.fid;
-                    if (!bar) { bar = document.createElement('div'); bar.className = 'fs-tabs'; st.querySelector(':scope > .fs-grip').after(bar); }
-                    bar.innerHTML = '';
-                    items.forEach(w => {
-                        const fid = w._sec.dataset.fid, t = document.createElement('button'); t.type = 'button';
-                        t.className = 'fs-tab' + (w === act ? ' on' : ''); t.textContent = fid.replace(/（[^）]*）/g, '').trim() || fid; t.title = fid + '：クリックで切り替え。ドラッグで取り出す・ほかのグループや端へ移す';   // タブ名はかっこ書きを省いて短く
-                        t.addEventListener('pointerdown', e => { if (e.button !== 0) return; if (e.pointerType !== 'touch') e.preventDefault(); armDrag(e, ev => { t._dragged = true; beginDrag(w._sec, ev); }); });
-                        t.addEventListener('click', e => { e.stopPropagation(); if (t._dragged) { t._dragged = false; return; } st._active = fid; syncTabs(st); save(); requestRender(5); });
-                        bar.appendChild(t); w.classList.toggle('tab-on', w === act);
-                    });
-                    const back = document.createElement('button'); back.type = 'button'; back.className = 'sb-floatbtn fs-tab-back'; back.textContent = '⇲ 戻す'; back.title = '表示中のパネルを元の場所へ';
-                    back.addEventListener('click', e => { e.stopPropagation(); homeOf(act._sec)(); });
-                    bar.appendChild(back);
-                }
-                function toggleFold(st, on) {   // グループをまとめてたたむ（つまみだけ残す）／ひらく
-                    st.classList.toggle('collapsed', on === undefined ? !st.classList.contains('collapsed') : on);
-                    syncFold(st); st.style.top = clampY(parseInt(st.style.top) || 0) + 'px'; save(); requestRender(5);
-                }
-                function insertWrap(wrap, c, index) {   // 入れ物 c の index 番目（上から）に差し込む
-                    const items = wrapsIn(c).filter(w => w !== wrap);
-                    const ref = items[index] || null;
-                    if (ref) c.insertBefore(wrap, ref); else c.appendChild(wrap);
-                    wrap._sec._dockSide = isRail(c) ? c._side : null;
-                }
-                function indexByY(c, y) {   // ポインタの高さから、何番目に差し込むか（各パネルの上下の真ん中で判定）
-                    const items = wrapsIn(c);
-                    for (let i = 0; i < items.length; i++) { const r = items[i].getBoundingClientRect(); if (y < r.top + r.height / 2) return i; }
-                    return items.length;
-                }
-                function edgeSide(x) { if (window.innerWidth < DOCK_MINW) return null; if (x <= SNAP) return 'left'; if (x >= window.innerWidth - SNAP) return 'right'; return null; }
-                function showHint(side) {
-                    if (!side) { hint.style.display = 'none'; return; }
-                    const sbHidden = document.body.classList.contains('sidebar-hidden');
-                    const sbLeft = document.body.classList.contains('sidebar-left');
-                    const ov = document.getElementById('ui-overlay');
-                    const sbw = sbHidden ? 0 : (ov ? ov.offsetWidth : 0);
-                    const w = Math.min(340, Math.round(window.innerWidth * 0.32));
-                    hint.style.width = w + 'px'; hint.style.display = 'block';
-                    if (side === 'left') { hint.style.right = ''; hint.style.left = (sbLeft ? sbw : 0) + 'px'; }
-                    else { hint.style.left = ''; hint.style.right = (!sbLeft ? sbw : 0) + 'px'; }
-                }
-                function showIns(t) {   // 差し込み位置の線（グループやレールの、パネルとパネルの間）
-                    if (!t || !t.c || !wrapsIn(t.c).length) { insLine.style.display = 'none'; return; }
-                    const items = wrapsIn(t.c), cr = t.c.getBoundingClientRect();
-                    const tbar = t.c.querySelector(':scope > .fs-tabs');
-                    if (t.c.classList.contains('tabbed') && tbar && !t.c.classList.contains('collapsed')) { const br = tbar.getBoundingClientRect(); insLine.style.left = (br.left + 6) + 'px'; insLine.style.width = Math.max(40, br.width - 12) + 'px'; insLine.style.top = (br.bottom - 2) + 'px'; insLine.style.display = 'block'; return; }
-                    if (t.c.classList.contains('collapsed')) { insLine.style.left = (cr.left + 6) + 'px'; insLine.style.width = Math.max(40, cr.width - 12) + 'px'; insLine.style.top = (cr.bottom - 2) + 'px'; insLine.style.display = 'block'; return; }
-                    const y = t.index < items.length ? items[t.index].getBoundingClientRect().top - 4 : items[items.length - 1].getBoundingClientRect().bottom + 4;
-                    insLine.style.left = (cr.left + 6) + 'px'; insLine.style.width = Math.max(40, cr.width - 12) + 'px';
-                    insLine.style.top = (Math.max(cr.top, Math.min(cr.bottom, y)) - 2) + 'px'; insLine.style.display = 'block';
-                }
-                function findTarget(cx, cy, self) {   // ドロップ先：端（レール）／ほかのグループの上／ドック中のレールの上
-                    const side = edgeSide(cx);
-                    if (side) { const rail = side === 'left' ? railL : railR; return { c: rail, index: indexByY(rail, cy), side }; }
-                    const inside = el => { const r = el.getBoundingClientRect(); return r.width > 0 && cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom; };
-                    const stacks = [...layer.querySelectorAll(':scope > .float-stack')].filter(st => st !== self).reverse();   // 上に重なっているものから
-                    for (const st of stacks) if (inside(st)) return { c: st, index: (st.classList.contains('tabbed') || st.classList.contains('collapsed')) ? wrapsIn(st).length : indexByY(st, cy) };   // タブ・たたみ中は末尾へ
-                    for (const rail of [railL, railR]) if (rail.classList.contains('active') && inside(rail)) return { c: rail, index: indexByY(rail, cy), side: rail._side };
-                    return null;
-                }
-                // グループ（浮いている入れ物）をつかんで動かす。離した場所が端ならドック、ほかのグループやレールの上なら、その位置に連結（間に差し込み）
-                function dragStack(st, e, started) {   // started：すでに少し動かしてから始めた（直接ドラッグ・タブのドラッグ）
-                    const sx = e.clientX, sy = e.clientY, ox = parseInt(st.style.left) || 0, oy = parseInt(st.style.top) || 0;
-                    let cx = sx, cy = sy, moved = !!started, tgt = null;
-                    layer.appendChild(st);   // 一番手前へ
-                    const mv = ev => {
-                        cx = ev.clientX; cy = ev.clientY; const dx = cx - sx, dy = cy - sy;
-                        if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-                        st.style.left = clampX(ox + dx, st) + 'px'; st.style.top = clampY(oy + dy) + 'px';
-                        tgt = moved ? findTarget(cx, cy, st) : null;
-                        showHint(tgt && tgt.side && edgeSide(cx) ? tgt.side : null); showIns(tgt);
-                        st.classList.toggle('joining', !!tgt);
-                    };
-                    const end = () => {
-                        window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
-                        showHint(null); showIns(null); st.classList.remove('joining');
-                        _zfKick = Math.max(_zfKick, 30); requestRender(30);   // パネルを動かしたら自動ズームを合わせ直す（端に寄せた分を空ける）
-                        if (moved && tgt) {   // 連結：グループのパネルを順番そのままで差し込む
-                            const ws = wrapsIn(st); if (ws.length && tgt.c.classList.contains('tabbed')) tgt.c._active = ws[0]._sec.dataset.fid;   // タブのグループへ入れたら、入れた1枚を表示
-                            ws.forEach((w, i) => insertWrap(w, tgt.c, tgt.index + i));
-                            st.remove(); tidy(tgt.c);
-                        }
-                        save();
-                    };
-                    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
-                    e.preventDefault();
-                }
-                function armDrag(e, onStart) {   // 少し（4px）動かしたらドラッグ開始。動かさなければふつうのクリック
-                    const sx = e.clientX, sy = e.clientY;
-                    const off = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', off); window.removeEventListener('pointercancel', off); };
-                    const mv = ev => { if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 4) { off(); onStart(ev); } };
-                    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', off); window.addEventListener('pointercancel', off);
-                }
-                function beginDrag(sec, ev) {   // 浮いている欄を動かす。1枚だけのグループならグループごと、連結中・タブ中・ドック中なら1枚だけ抜き出す
-                    const wrap = sec._fwrap; if (!wrap) return;
-                    let st = wrap.parentNode;
-                    if (isRail(st) || wrapsIn(st).length > 1) {
-                        const from = st, wasTab = from.classList && from.classList.contains('tabbed');
-                        const r = (wasTab ? from : wrap).getBoundingClientRect();   // タブから抜くときは、グループの位置から
-                        st = newStack(r.left, r.top); insertWrap(wrap, st, 0); wrap.classList.remove('tab-on'); tidy(from); tidy(st);
-                        st.style.left = clampX(ev.clientX - 60, st) + 'px'; st.style.top = clampY(ev.clientY - 14) + 'px';   // つかんだ所の近くに見出しが来るように
-                    }
-                    dragStack(st, ev, true);
-                }
-                function detachAt(wrap, ev) {   // メニューから直接ドラッグ：切り離して、つかんだ位置のまま浮かせて動かし始める
-                    const st = newStack(ev.clientX - 60, ev.clientY - 14); insertWrap(wrap, st, 0); tidy(st);
-                    st.style.left = clampX(ev.clientX - 60, st) + 'px'; st.style.top = clampY(ev.clientY - 14) + 'px';
-                    dragStack(st, ev, true);
-                }
-                const NODRAG = 'button, input, select, textarea, label, a';
-                function makeDrag(sec) {   // 見出しをつかんで動かす。メニューの中の欄も、マウス・ペンなら見出しをドラッグでそのまま分離
-                    const handle = sec.querySelector(':scope > .sb-h');
-                    handle.addEventListener('pointerdown', e => {
-                        sec._moved = false;
-                        if (e.button !== 0 || e.target.closest(NODRAG)) return;
-                        const floating = sec.classList.contains('floating');
-                        if (!floating && e.pointerType === 'touch') return;   // タッチはメニューのスクロールと区別できないので「分離」ボタンで
-                        if (e.pointerType !== 'touch') e.preventDefault();   // 文字の選択を始めない
-                        armDrag(e, ev => {
-                            sec._moved = true;
-                            if (sec.classList.contains('floating')) beginDrag(sec, ev);
-                            else detachAt(prepSec(sec), ev);
-                        });
-                    });
-                    handle.addEventListener('click', e => { if (sec._moved && !e.target.closest(NODRAG)) { e.stopPropagation(); e.preventDefault(); } sec._moved = false; }, true);   // ドラッグ直後の見出しクリック（たたむ等）だけ抑制。ボタンは通す
-                }
-                function makeWrap(sec) {   // パネルの枠（グループやレールに入る1枚）
-                    const wrap = document.createElement('div'); wrap.className = 'float-panel docked';
-                    wrap.appendChild(sec); wrap._sec = sec;
-                    sec.classList.add('floating'); sec._fwrap = wrap; sec._dockSide = null;
-                    return wrap;
-                }
-                function defaultPos() { const p = { x: Math.round(window.innerWidth * 0.42) + (cascade % 3) * 22, y: 70 + (cascade % 6) * 28 }; cascade++; return p; }
-                function prepSec(sec) {   // ふつうの欄を切り離して枠に入れる（置き場所はまだ）
-                    if (sec.classList.contains('floating')) return sec._fwrap;
-                    homes.set(sec, { parent: sec.parentNode, next: sec.nextSibling });
-                    const w = makeWrap(sec); sec._fbtn.textContent = '⇲ 戻す'; return w;
-                }
-                function floatSec(sec) {   // 「分離」：新しい1枚グループとして浮かせる
-                    if (sec.classList.contains('floating')) return;
-                    const w = prepSec(sec), p = defaultPos(), st = newStack(p.x, p.y);
-                    insertWrap(w, st, 0); tidy(st); save();
-                }
-                function dockSec(sec) {   // 「戻す」＝元の場所へ（浮き・連結・ドックどこからでも）
-                    const home = homes.get(sec); if (!home) return;
-                    const wrap = sec._fwrap, c = wrap ? wrap.parentNode : null;
-                    sec._dockSide = null; sec.classList.remove('floating'); sec._fbtn.textContent = '⇱ 分離';
-                    home.parent.insertBefore(sec, home.next); if (wrap) wrap.remove(); sec._fwrap = null; homes.delete(sec);
-                    tidy(c); save();
-                }
-                const homeOf = sec => sec.dataset.fid === '分解' ? homeXp : () => dockSec(sec);
-                // 各タブの各欄にボタンを付ける（共有の「分解」欄は特殊なので除く）
-                const secById = new Map();
+                // 各タブの各欄にボタンを付ける（共有の「分解」欄は特殊なので除く）。名前（data-fid）は見出しの文字
                 document.querySelectorAll('.sb-panel').forEach(panel => {
                     [...panel.children].forEach(sec => {
                         if (sec.tagName !== 'SECTION' || !sec.classList.contains('sb-sec')) return;
                         const h = sec.querySelector(':scope > .sb-h'); if (!h) return;
                         const title = titleOf(h); if (!title || title.includes('分解')) return;
-                        sec.dataset.fid = title; secById.set(title, sec);
-                        const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'sb-floatbtn';
-                        btn.textContent = '⇱ 分離'; btn.title = 'この欄を切り離して浮かせる（見出しをドラッグしても分離できます。ほかのパネルに重ねると連結・間に差し込み。端に寄せるとドック。「戻す」で元の場所へ）';
-                        btn.addEventListener('click', e => { e.stopPropagation(); if (sec.classList.contains('floating')) dockSec(sec); else floatSec(sec); });
-                        h.appendChild(btn); sec._fbtn = btn; makeDrag(sec);
+                        dock.add(sec, { id: title, handle: h });
                     });
                 });
-                // 「分解」欄は中身(#xp-body)が placeXp で2タブ間を移動する特殊欄。専用に分離・連結・ドックできるようにする。
+                // 「分解」欄は中身(#xp-body)が placeXp で2タブ間を移動する特殊欄。浮かせる時だけ入れ物を作って中身を入れ、戻す時は今のタブのスロットへ
                 const xpBody = document.getElementById('xp-body');
                 const foldSlot = document.getElementById('xp-fold-slot');
                 const foldSec = foldSlot ? foldSlot.closest('section.sb-sec') : null;
                 const rotSec = document.getElementById('xp-rot-sec');
-                let xpSec = null;
                 const curTab = () => { const a = document.querySelector('.sb-tab.active'); return a && a.getAttribute('data-tab') === 'rot' ? 'rot' : 'fold'; };
-                function updateXpBtns() { [foldSec, rotSec].forEach(s => { if (s && s._xpbtn) s._xpbtn.textContent = xpFloating ? '⇲ 戻す' : '⇱ 分離'; }); }
-                function buildXpSec() {
-                    const sec = document.createElement('section'); sec.className = 'sb-sec'; sec.dataset.fid = '分解';
-                    const h = document.createElement('h3'); h.className = 'sb-h';
-                    const label = document.createElement('span'); label.textContent = '分解（どんな形でできているか）';
-                    h.appendChild(label);
-                    const back = document.createElement('button'); back.type = 'button'; back.className = 'sb-floatbtn'; back.textContent = '⇲ 戻す'; back.title = '元の場所へ戻す';
-                    back.addEventListener('click', e => { e.stopPropagation(); homeXp(); });
-                    h.appendChild(back); sec.appendChild(h);
-                    sec._fbtn = back; sec._dockSide = null; makeDrag(sec);
-                    return sec;
-                }
-                function prepXp() {   // 分解の欄を組み立てて枠に入れる（置き場所はまだ）
-                    if (!xpBody) return null;
-                    if (xpFloating && xpSec && xpSec._fwrap) return xpSec._fwrap;
-                    if (!xpSec) xpSec = buildXpSec();
-                    xpFloating = true; xpSec.appendChild(xpBody);
-                    const w = makeWrap(xpSec); updateXpBtns(); return w;
-                }
-                function floatXp() {
-                    if (xpFloating) return;
-                    const w = prepXp(); if (!w) return;
-                    const p = defaultPos(), st = newStack(p.x, p.y); insertWrap(w, st, 0); tidy(st); save(); requestRender(5);
-                }
-                function homeXp() {
-                    if (!xpFloating) return;
-                    xpFloating = false;
-                    // 先に xp-body を現タブのスロットへ繋ぎ直す（wrap を外すと getElementById で拾えなくなるので placeXp に頼らない）
-                    const slot = document.getElementById(curTab() === 'rot' ? 'xp-rot-slot' : 'xp-fold-slot');
-                    if (slot && xpBody) slot.appendChild(xpBody);
-                    const wrap = xpSec ? xpSec._fwrap : null, c = wrap ? wrap.parentNode : null;
-                    if (xpSec) { xpSec._dockSide = null; xpSec.classList.remove('floating'); xpSec._fwrap = null; }
-                    if (wrap) wrap.remove();
-                    tidy(c); save(); requestRender(5);
-                    updateXpBtns();
-                }
-                [foldSec, rotSec].forEach(sec => {
-                    if (!sec || !xpBody) return; const h = sec.querySelector(':scope > .sb-h'); if (!h) return;
-                    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'sb-floatbtn';
-                    btn.textContent = '⇱ 分離'; btn.title = 'この欄を切り離して浮かせる（ほかのパネルに重ねると連結・端にドックで2ペイン。「戻す」で元の場所へ）';
-                    btn.addEventListener('click', e => { e.stopPropagation(); if (xpFloating) homeXp(); else floatXp(); });
-                    h.appendChild(btn); sec._xpbtn = btn;
-                    let moved = false; h.classList.add('xp-drag');
-                    h.addEventListener('pointerdown', e => {
-                        moved = false;
-                        if (e.button !== 0 || e.target.closest(NODRAG) || xpFloating || e.pointerType === 'touch') return;
-                        e.preventDefault();
-                        armDrag(e, ev => { moved = true; const w = prepXp(); if (w) detachAt(w, ev); });
-                    });
-                    h.addEventListener('click', e => { if (moved && !e.target.closest(NODRAG)) { e.stopPropagation(); e.preventDefault(); } moved = false; }, true);
+                if (xpBody) dock.addPortable('分解', {
+                    build: () => {
+                        const sec = document.createElement('section'); sec.className = 'sb-sec';
+                        const h = document.createElement('h3'); h.className = 'sb-h';
+                        const label = document.createElement('span'); label.textContent = '分解（どんな形でできているか）';
+                        h.appendChild(label); sec.appendChild(h);
+                        return sec;
+                    },
+                    handle: sec => sec.querySelector(':scope > .sb-h'),
+                    onFloat: sec => { xpFloating = true; sec.appendChild(xpBody); },
+                    onHome: () => {   // 先に xp-body を現タブのスロットへ繋ぎ直す（入れ物を外すと getElementById で拾えなくなるので placeXp に頼らない）
+                        xpFloating = false;
+                        const slot = document.getElementById(curTab() === 'rot' ? 'xp-rot-slot' : 'xp-fold-slot');
+                        if (slot) slot.appendChild(xpBody);
+                        requestRender(5);
+                    },
+                    triggers: [foldSec, rotSec].map(s => s && s.querySelector(':scope > .sb-h')).filter(Boolean),
                 });
-                // 保存されていた並びを復元（昔の形式は、1枚ずつのグループ／レールへ読み替え）
-                (function restore() {
-                    let L = layout0 || {};
-                    if (L.v !== 2) {
-                        const o = L; L = { v: 2, stacks: [], left: [], right: [] };
-                        Object.keys(o).forEach(fid => { const s = o[fid]; if (!s || typeof s !== 'object') return; if (s.dock === 'left' || s.dock === 'right') L[s.dock].push(fid); else L.stacks.push({ x: s.x, y: s.y, ids: [fid] }); });
-                    }
-                    const prep = fid => fid === '分解' ? prepXp() : (secById.has(fid) ? prepSec(secById.get(fid)) : null);
-                    const used = new Set();
-                    const fill = (c, ids) => (ids || []).forEach(fid => { if (used.has(fid)) return; const w = prep(fid); if (w) { used.add(fid); insertWrap(w, c, wrapsIn(c).length); } });
-                    restoring = true;
-                    const wide = window.innerWidth >= DOCK_MINW;
-                    ['left', 'right'].forEach(side => {
-                        const ids = L[side] || []; if (!ids.length) return;
-                        if (wide) { const rail = side === 'left' ? railL : railR; fill(rail, ids); tidy(rail); }
-                        else { const p = defaultPos(), st = newStack(p.x, p.y); fill(st, ids); tidy(st); }   // 狭い画面ではドックせず、浮かせて出す
-                    });
-                    (L.stacks || []).forEach(s => { const p = (Number.isFinite(s.x) && Number.isFinite(s.y)) ? s : defaultPos(); const st = newStack(p.x, p.y); fill(st, s.ids); if (s.collapsed) st.classList.add('collapsed'); if (s.tabs) { st.classList.add('tabbed'); st._active = s.active; } tidy(st); });
-                    restoring = false;
-                })();
+                dock.restore();   // 保存されていた並びを復元（昔の形式も読みかえる）
+                return dock;
             })();
 
             // ===== 5次元モード（β）の切替と、5次元だけの4面の操作 =====
@@ -7734,39 +7410,8 @@
                 applyShine(); applyTexFont(); applyAxisFit(); applyCenterColor();
                 updateMorphingGeometry(animationProgress); requestRender(30);
             });
-            (function setupExplToggles() {   // 説明文を「[説明]」で開閉（パネル・キー設定・表示設定）。中身がプログラムで変わる行（id 付き）と一覧の中身は対象外
-                const ROOTS = ['ui-overlay', 'keycfg-overlay', 'viewcfg-overlay', 'float-layer', 'dock-left', 'dock-right'].map(id => document.getElementById(id)).filter(Boolean); if (!ROOTS.length) return;
-                // 本のアイコン（フラットデザイン）：開いた本。左右のページを2色、まん中に綴じ目、ページに行
-                const BOOK_ICON = '<svg class="expl-ic" width="15" height="11" viewBox="0 0 16 12" aria-hidden="true">'
-                    + '<path d="M8 2.2C6.2 1 3.8 .6 1 .9v9.4c2.8-.3 5.2.1 7 1.3z" fill="#a5b4fc"/>'
-                    + '<path d="M8 2.2C9.8 1 12.2 .6 15 .9v9.4c-2.8-.3-5.2.1-7 1.3z" fill="#818cf8"/>'
-                    + '<path d="M8 2.2v9.4" stroke="#312e81" stroke-width=".9"/>'
-                    + '<path d="M3 3.6h3.2M3 5.4h3.2M3 7.2h3.2M9.8 3.6h3.2M9.8 5.4h3.2M9.8 7.2h3.2" stroke="#eef2ff" stroke-width=".75" stroke-linecap="round"/>'
-                    + '</svg>';
-                const INTER = 'button, input, select, textarea, label, a, canvas, svg, img, kbd';
-                const txtOf = el => el.textContent.replace(/\s+/g, ' ').trim();
-                const isExpl = el => {
-                    const EXPL_IDS = ['drag5-note'];   // id 付きでも中身の文を書き換えるだけの説明（クラスは触らない）はたたむ
-                    if (el.id && !EXPL_IDS.includes(el.id)) return false;                               // 状態表示（中身がプログラムで変わる）
-                    if (EXPL_IDS.includes(el.id)) return true;
-                    if (el.closest('[id$="-list"], [id$="-slots"], button, label, a, kbd')) return false;   // 一覧の中身（作り直される）・ボタンの中
-                    if (el.querySelector(INTER)) return false;                                          // 操作部品を含む＝説明だけの文ではない
-                    if (txtOf(el).length < 25) return false;
-                    if (!/text-\[(10|11)px\]|text-xs|text-slate-(300|400|500)/.test(String(el.className))) return false;
-                    if (el.tagName === 'SPAN' && !el.parentElement.querySelector(INTER)) return false;    // 文の中の span は親の文ごとたたむ
-                    return true;
-                };
-                const found = []; ROOTS.forEach(r => r.querySelectorAll('p, div, span').forEach(el => { if (isExpl(el)) found.push(el); }));
-                found.filter(el => !found.some(o => o !== el && o.contains(el))).forEach(el => {   // いちばん外側のまとまりだけ
-                    const b = document.createElement('button'); b.type = 'button'; b.className = 'expl-tg'; b.title = 'クリックで説明を開く／閉じる';
-                    ['d5-only', 'd4-only'].forEach(c => { if (el.classList.contains(c)) { b.classList.add(c); if (el.classList.contains('hidden')) b.classList.add('hidden'); } });
-                    b.innerHTML = BOOK_ICON + '<span class="expl-lb"></span>';
-                    const lb = b.querySelector('.expl-lb');
-                    const set = open => { el.classList.toggle('expl-closed', !open); lb.textContent = '[説明] ' + (open ? '▴' : '▾'); };
-                    b.addEventListener('click', e => { e.stopPropagation(); set(el.classList.contains('expl-closed')); });
-                    el.parentNode.insertBefore(b, el); set(false);
-                });
-            })();
+            // 説明文を「[説明]」で開閉（パネル・キー設定・表示設定・浮いた欄・端のレール）。中身がプログラムで変わる行（id 付き）と一覧の中身は対象外。仕組みは lib/ui-dock.js
+            UIDock.explToggles(['ui-overlay', 'keycfg-overlay', 'viewcfg-overlay', ...uiDock.roots()], { ids: ['drag5-note'] });   // drag5-note は id 付きでも中身の文を書き換えるだけの説明
             const rhombiBtn = document.getElementById('rhombi-btn');
             rhombi.sync = () => { if (!rhombiBtn) return; rhombiBtn.textContent = rhombi.on ? '→ 5次元体に戻す' : '→ 菱形二十面体へ'; rhombiBtn.classList.toggle('on', rhombi.on); };
             if (rhombiBtn) rhombiBtn.addEventListener('click', () => {
@@ -7958,7 +7603,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-1000';
+        const APP_BUILD = '20261020-1159';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
