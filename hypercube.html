@@ -2720,7 +2720,7 @@
                 root.add(mergedFaces5D);
                 // 入れ子の立方体ごとの乗算（セロハン重ね）：正面から見える 4 つの立方体それぞれの面を、面のあとに乗算で重ねる。立方体 1 つにつき 1 点 1 回だけ（ステンシルの位 1・4・8・16。反転の線は 2）＝
                 //   重なる立方体の数だけ掛かる → 外の帯は 1 回、中心は 4 回＝中心の立方体ほど濃い。ふつうの重ね方では手前の面が何枚も重なって奥が見えないので、順に関係ない乗算で。ユーザー「この画面で見た時に中心の立方体ほど濃くなる色の重ね方」
-                stackFaces5D = [1, 4, 8, 16].map((bit, L) => {
+                stackFaces5D = [1, 4, 8, 16, 64].map((bit, L) => {   // 5 枚目（64 の位）＝いちばん奥の立方体のうしろ向きの面：前の面と向かい合って重なる所は 2 回掛かる（いちばん奥だけ、向かい合う面の立体的な重なりを見せる。ユーザー希望 2026-10-21）
                     const dg = new THREE.BufferGeometry();
                     dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nVert5 * 3), 3));
                     dg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nVert5 * 4), 4));
@@ -2916,7 +2916,10 @@
                     const SL5 = solidLookOf(solid5), solidOn = solid5 !== 'classic' && !!NDSolid.LOOKS[solid5], solidMul = SL5.blend === 'multiply', solidK = SL5.k5 !== undefined ? SL5.k5 : SL5.base / NDSolid.LOOKS.classic.base, L5 = VisualFX.lightDir(5), _st = { r: 0, g: 0, b: 0 };
                     const v5f = solidOn ? verts5.map(cv => { const f = new Float64Array(cv.length * 5); cv.forEach((p, i) => { for (let k = 0; k < 5; k++) f[i * 5 + k] = p[k]; }); return f; }) : null;
                     let mp = 0, mc = 0;
-                    const stK = solidMul ? 0 : 0.22 * Math.min(1.6, inner5 / 0.5), stN = [0, 0, 0, 0];   // 立方体ごとの乗算の濃さ（「入れ子の内側を濃く」50% で 0.22＝中心は 4 回で 外の約 4 割の明るさ）。透明プラスチック（もともと乗算）では使わない
+                    const stK = solidMul ? 0 : 0.22 * Math.min(1.6, inner5 / 0.5), stN = [0, 0, 0, 0, 0];
+                    // いちばん奥の立方体の真ん中（段 0 の頂点の重心）とカメラ（この入れ物の中の座標）：面がカメラ向き（前）かうしろ向きかを分ける
+                    const st0C = [0, 0, 0]; let st0n = 0; if (stK > 0) verts.forEach((cv, ci) => cv.forEach((v, i) => { if (nestStep[ci][i] < 0.15) { st0C[0] += v[0]; st0C[1] += v[1]; st0C[2] += v[2]; st0n++; } })); if (st0n) { st0C[0] /= st0n; st0C[1] /= st0n; st0C[2] /= st0n; }
+                    const stCam = (update5D._stCam || (update5D._stCam = new THREE.Vector3())).copy(camera5D.position); if (mat) stCam.applyMatrix4((update5D._stIM || (update5D._stIM = new THREE.Matrix4())).copy(mat).invert());   // 立方体ごとの乗算の濃さ（「入れ子の内側を濃く」50% で 0.22＝中心は 4 回で 外の約 4 割の明るさ）。透明プラスチック（もともと乗算）では使わない
                     // 照り返しの透け：光の位置（主光・逆光）とカメラを、この入れ物（root）の中の座標に直す
                     const thOn = shineOn && !!shineThru5D, rig5 = thOn ? shineRigs.find(r => r.key.parent === scene5D) : null, TP = thOn ? shineThru5D.geometry.attributes.position.array : null, TC = thOn ? shineThru5D.geometry.attributes.color.array : null; let tN = 0;
                     const _thC = { r: 0, g: 0, b: 0 }, thSeen = thOn ? new Set() : null, thV = update5D._thV || (update5D._thV = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Matrix4()]);
@@ -2925,7 +2928,11 @@
                         const ci = quads5[qi][0], base = quads5[qi][1], cv = verts[ci];
                         const tIn = kI * sm(Math.max(0, Math.min(1, (fDep[qi] - fLo[ci]) / Math.max(fHi[ci] - fLo[ci], 1e-6))));   // この面がその4次元体の中でどれだけ内側か
                         let sLo = 1, sHi = 0, sSum = 0; for (let k = 0; k < 6; k++) { const t = nestStep[ci][T5_TRIS[base + k]]; if (t < sLo) sLo = t; if (t > sHi) sHi = t; sSum += t; }
-                        const sL = stK > 0 && stackFaces5D && sHi - sLo < 0.15 ? Math.round(sSum / 6 * 3) : -1, SC = sL >= 0 ? deepen(cCol[ci], 1.0) : null;   // この面が 1 つの立方体だけにある（段がそろっている）時、その立方体の乗算に入れる。色は胞の色を深く
+                        let sL = stK > 0 && stackFaces5D && sHi - sLo < 0.15 ? Math.round(sSum / 6 * 3) : -1; const SC = sL >= 0 ? deepen(cCol[ci], 1.0) : null;
+                        if (sL === 0) {   // いちばん奥の立方体：うしろ向きの面は 5 枚目へ（前の面と別に 1 回掛かる）
+                            let fx = 0, fy = 0, fz = 0; for (let k = 0; k < 6; k++) { const q = cv[T5_TRIS[base + k]]; fx += q[0]; fy += q[1]; fz += q[2]; } fx /= 6; fy /= 6; fz /= 6;
+                            if ((fx - st0C[0]) * (stCam.x - fx) + (fy - st0C[1]) * (stCam.y - fy) + (fz - st0C[2]) * (stCam.z - fz) < 0) sL = 4;
+                        }   // この面が 1 つの立方体だけにある（段がそろっている）時、その立方体の乗算に入れる。色は胞の色を深く
                         let thK = null;   // この面の照り返しの透け（null＝足さない）：いちばん外の立方体にかからない面だけ（外の面はふつうの照り返しで光っている）
                         if (thOn && rig5 && sHi < 0.9) {
                             const A = cv[T5_TRIS[base]], B = cv[T5_TRIS[base + 1]], Cq = cv[T5_TRIS[base + 2]];
@@ -2951,7 +2958,7 @@
                             const bq = (solidMul ? 1 - (1 - bt) * 0.3 : bt) * (1 + flash5);   // ＋組み上がった瞬間の FLASH   // 乗算（透明プラスチック）は陰影を 3 割の効きに（掛け算で何重にも暗くならないように）
                             mcol[mc++] = Math.min(1, C.r * bq); mcol[mc++] = Math.min(1, C.g * bq); mcol[mc++] = Math.min(1, C.b * bq); mcol[mc++] = a;
                             if (thK) { const T = thK(v); TP[tN * 3] = v[0]; TP[tN * 3 + 1] = v[1]; TP[tN * 3 + 2] = v[2]; TC[tN * 4] = T.r; TC[tN * 4 + 1] = T.g; TC[tN * 4 + 2] = T.b; TC[tN * 4 + 3] = 1; tN++; }   // 照り返しの透け
-                            if (sL >= 0) { const G = stackFaces5D[sL].geometry, n = stN[sL]++, P = G.attributes.position.array, Q = G.attributes.color.array; P[n * 3] = v[0]; P[n * 3 + 1] = v[1]; P[n * 3 + 2] = v[2]; Q[n * 4] = SC.r * stK; Q[n * 4 + 1] = SC.g * stK; Q[n * 4 + 2] = SC.b * stK; Q[n * 4 + 3] = stK; }   // 立方体ごとの乗算の面
+                            if (sL >= 0) { const G = stackFaces5D[sL].geometry, n = stN[sL]++, P = G.attributes.position.array, Q = G.attributes.color.array; P[n * 3] = v[0]; P[n * 3 + 1] = v[1]; P[n * 3 + 2] = v[2]; const sk = sL === 0 || sL === 4 ? Math.min(0.6, stK * 1.8) : stK; Q[n * 4] = SC.r * sk; Q[n * 4 + 1] = SC.g * sk; Q[n * 4 + 2] = SC.b * sk; Q[n * 4 + 3] = sk; }   // いちばん奥の立方体（前の面・うしろの面）は 1.8 倍の濃さ＝向かい合う 2 枚の重なりがはっきり   // 立方体ごとの乗算の面
                         }
                     }
                     if (shineThru5D) { shineThru5D.geometry.setDrawRange(0, tN); shineThru5D.geometry.attributes.position.needsUpdate = true; shineThru5D.geometry.attributes.color.needsUpdate = true; shineThru5D.visible = thOn && mergedFaces5D.visible && tN > 0; }
@@ -3009,7 +3016,7 @@
                             if (edge5 === 'depthrev') { const wN = Math.max(0.5, W0 * (1 - 1.0 * s5 * 2 / 3)), wF = Math.max(wN, 0.9); L.material.linewidth = wN + (wF - wN) * (1 - kk / 2); }   // 奥ほど太く：いちばん奥を 0.9px まで（ユーザー「奥が太すぎ、もう少し細く」：1.1px から）。手前は奥ほど細くのいちばん細い線と同じ（50% で 0.73・0.73・0.82・0.9px）
                             L.material.opacity = aLine * (1 - 0.5 * s5 * kk / 3);
                             if (tierThin) { L.material.linewidth = 1; L.material.opacity = k === 0 || k === 3 ? 0.9 : 0.5; }   // 細い線（手前と奥だけ補色・反転の時）：ふだんの細い線と同じ 1px。補色の段 0.9、乗算の段 0.5（線色「面と同系色」の細い線と同じ）
-                            if ((eInv && (k === 0 || k === 3)) || eAll) L.material.opacity = 0.8;   // 反転の段：太さはほかの線と同じ（ユーザー「反転系の線が太くなりすぎ」：前は 1.5 倍・細い線で 1.8px にしていた＝線が描かれない不具合で反転が見えなかった頃の名残）
+                            if ((eInv && (k === 0 || k === 3)) || eAll) { L.material.opacity = 0.8; L.material.linewidth = Math.max(0.5, L.material.linewidth * 0.75); }   // 反転の段：ほかの線より少し細く（ユーザー「もう少し細く」：細い線 0.75px、奥ほど細く 0.83・0.69・0.55・0.55px）   // 反転の段：太さはほかの線と同じ（ユーザー「反転系の線が太くなりすぎ」：前は 1.5 倍・細い線で 1.8px にしていた＝線が描かれない不具合で反転が見えなかった頃の名残）
                             if (box && box.clientWidth > 0) L.material.resolution.set(box.clientWidth, box.clientHeight);
                         });
                     }
@@ -3540,7 +3547,9 @@
             const can = !!(root && edgeHi.on && THREE.LineSegments2 && THREE.LineMaterial);
             const sides = [['near', objs.length - 1, edgeHi.widthNear], ['far', 0, edgeHi.widthFar]];   // 手前＝最後の番号（蓋）、奥＝番号1（中心）
             if (dim === 5) { sides.push(['midA', EH_MID5[0], edgeHi.widthMid], ['midB', EH_MID5[1], edgeHi.widthMid]); EH_ARM5.forEach(i => sides.push(['arm' + i, i, edgeHi.widthArm])); }   // 5次元：中（±W）と腕
-            sides.forEach(([side, i, width]) => {
+            const wK = dim === 5 && (solid5LineTint === 'inv' || solid5LineTint === 'endsinv') ? 0.6 : 1;   // 線色が反転系の時は強調の太い線も細く（ユーザー希望：0.6 倍）
+            sides.forEach(([side, i, width0]) => {
+                const width = width0 * wK;
                 const use = (key, w, pos, col) => {   // key の太い線を、太さ w・この位置と色で描く（描けないときは隠す）
                     let F = ehFat[dim][key];
                     if (!can || !(w > 1.01) || !objs[i] || !xpVisible(dim, i) || !pos.length) { if (F) F.visible = false; return; }
@@ -7779,7 +7788,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-1245';
+        const APP_BUILD = '20261021-1345';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
