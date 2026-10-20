@@ -8058,7 +8058,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-0931';
+        const APP_BUILD = '20261020-0934';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
@@ -8423,6 +8423,36 @@
         return [x, y, z, su * sv * sw];
     }
     const RGB = CELLS.map(c => new THREE.Color(c.color)), _v = new THREE.Vector3(), _dir = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);   // _v は軸の計算用、_dir はカメラの向き（分けておく）
+    // ---- 次元おりがみ本体の見た目の設定をそのまま使う（本体で切り替えると、この窓もすぐ変わる）----
+    //   胞の色のパレット（5D の列 ±X〜±V、補色モードも）、軸の色を立体に合わせる、4Dライト（→ 6次元の光）、
+    //   奥の胞を濃く、入れ子の内側を濃く、照り返しライト。中心（−U）と蓋（+U）はパレットに無いので青緑のまま
+    const G = name => { try { return eval(name); } catch (_) { return undefined; } };   // 本体の変数（無ければ undefined）
+    const LIGHT6 = (() => { const v = [0.35, 0.9, 0.5, 0.9, 0.7, 0.8], l = Math.hypot(...v); return v.map(a => a / l); })();   // 6次元空間に固定した光（w・v・u も強めに）
+    const LIGHT6_AMB = 0.32;
+    const FX = { col: CELLS.map(c => new THREE.Color(c.color)), lit: CELLS.map(() => 1), kD: 0.5, kI: 0, shine: false, axSync: null, palKey: '' };
+    function readFx() {
+        let P = null; try { P = typeof effPal === 'function' ? effPal('d5') : null; } catch (_) {}
+        const key = P ? JSON.stringify(P) : '';
+        if (key !== FX.palKey) {
+            FX.palKey = key;
+            CELLS.forEach((c, ci) => { let h = c.color; if (P && c.axis !== undefined) { const v = P[(c.sign > 0 ? 'p' : 'n') + 'xyzwv'[c.axis]]; if (isFinite(v)) h = v; } FX.col[ci].setHex(h); });
+        }
+        const d5 = G('deep5'), i5 = G('inner5');
+        FX.kD = 2 * (isFinite(d5) ? d5 : 0.5); FX.kI = 3.75 * (isFinite(i5) ? i5 : 0.5);
+        FX.light = !!G('light5On'); FX.shine = !!G('shineOn');
+        const as = G('axisSync'); FX.axSync = as && as.on ? (as.side === 'minus' ? -1 : 1) : null;
+        if (FX.light) CELLS.forEach((c, ci) => {
+            const n = [0, 0, 0, 0, 0, 0]; if (c.cap) n[5] = 1; else if (c.axis !== undefined) n[c.axis] = c.sign; else n[5] = -1;
+            const r = rot6(n); let d = 0; for (let k = 0; k < 6; k++) d += r[k] * LIGHT6[k];
+            FX.lit[ci] = LIGHT6_AMB + (1 - LIGHT6_AMB) * Math.max(0, d);
+        }); else FX.lit.fill(1);
+    }
+    const _dc = { r: 0, g: 0, b: 0 };
+    function deepen(C, t, out) {   // 色を濃く（彩度を上げて少し暗く）。本体の「奥の胞を濃く」「入れ子の内側を濃く」と同じ式
+        if (t <= 0) { out.r = C.r; out.g = C.g; out.b = C.b; return out; }
+        const Y = 0.299 * C.r + 0.587 * C.g + 0.114 * C.b, sat = 1 + 1.0 * t, dk = Math.max(0.18, 1 - 0.45 * t), f = c => Math.max(0, Math.min(1, (Y + (c - Y) * sat) * dk));
+        out.r = f(C.r); out.g = f(C.g); out.b = f(C.b); return out;
+    }
     // 1 つの図（展開図用・折る用の 2 つ）。それぞれ自分の面・辺・軸・カメラを持つ
     function makeView(foldFn, title) {
         const V = { foldFn, title, root: new THREE.Group(), axes: [], dist: 0, cam: new THREE.PerspectiveCamera(45, 1, 0.1, 1000), rect: null,
@@ -8489,18 +8519,27 @@
         }
         V.quads.sort((a, b) => b[2] - a[2]);   // 遠い面を先に
         const mp = V.faces.geometry.attributes.position.array, mc = V.faces.geometry.attributes.color.array, seeThru = 0.75 + 0.25 * fd;
+        // 面ごとの「見かけの縮み」→ 各胞の中で 0（外側の面）〜1（入れ子の内側の面）
+        const fK = V.quads.map(q => { const kk = K[q[0]]; let t = 0; for (let k = 0; k < 6; k++) t += kk[TRI[q[1] + k]]; return t / 6; });
+        const fLo = CELLS.map(() => 1e9), fHi = CELLS.map(() => -1e9);
+        V.quads.forEach((q, i) => { const c = q[0]; if (fK[i] < fLo[c]) fLo[c] = fK[i]; if (fK[i] > fHi[c]) fHi[c] = fK[i]; });
+        const sm = t => t * t * (3 - 2 * t);
         let o = 0, oc = 0;
-        for (const q of V.quads) {
-            const ci = q[0], b = q[1], pp = P[ci], C = RGB[ci];
+        for (let qi = 0; qi < V.quads.length; qi++) {
+            const q = V.quads[qi], ci = q[0], b = q[1], pp = P[ci];
             const deep = 1 - (cK[ci] - kLo) / kSp;   // 0＝手前（大きく写る）〜1＝奥
-            const a = Math.min(0.9, 0.16 * seeThru * (0.55 + 1.1 * deep));
-            for (let k = 0; k < 6; k++) { const i = TRI[b + k] * 3; mp[o++] = pp[i]; mp[o++] = pp[i + 1]; mp[o++] = pp[i + 2]; mc[oc++] = C.r; mc[oc++] = C.g; mc[oc++] = C.b; mc[oc++] = a; }
+            const tIn = FX.kI * sm(Math.max(0, Math.min(1, (fHi[ci] - fK[qi]) / Math.max(fHi[ci] - fLo[ci], 1e-6))));   // 入れ子の内側ほど 1
+            const tD = FX.kD * sm(deep);
+            const C = deepen(deepen(FX.col[ci], tD * 0.8, _dc), tIn, _dc), L = FX.lit[ci];
+            const a = Math.min(0.95, 0.16 * seeThru * Math.max(0.12, 1 - 0.45 * FX.kD + 1.05 * FX.kD * deep) * (1 + 1.4 * tIn));
+            const r = C.r * L, g = C.g * L, bl = C.b * L;
+            for (let k = 0; k < 6; k++) { const i = TRI[b + k] * 3; mp[o++] = pp[i]; mp[o++] = pp[i + 1]; mp[o++] = pp[i + 2]; mc[oc++] = r; mc[oc++] = g; mc[oc++] = bl; mc[oc++] = a; }
         }
         V.faces.geometry.attributes.position.needsUpdate = true; V.faces.geometry.attributes.color.needsUpdate = true;
         V.faces.geometry.computeVertexNormals();
         const wp = V.wires.geometry.attributes.position.array, wc = V.wires.geometry.attributes.color.array; let e = 0;
         CELLS.forEach((_, ci) => {
-            const pp = P[ci], C = RGB[ci], br = 0.55 + 0.45 * ((cK[ci] - kLo) / kSp);
+            const pp = P[ci], C = FX.col[ci], br = (0.55 + 0.45 * ((cK[ci] - kLo) / kSp)) * (0.4 + 0.6 * FX.lit[ci]);
             const r = Math.min(1, (C.r * 0.75 + 0.25) * br), g = Math.min(1, (C.g * 0.75 + 0.25) * br), bl = Math.min(1, (C.b * 0.75 + 0.25) * br);
             EDG.forEach(([i, j]) => { for (const v of [i, j]) { wp[e] = pp[v * 3]; wp[e + 1] = pp[v * 3 + 1]; wp[e + 2] = pp[v * 3 + 2]; wc[e] = r; wc[e + 1] = g; wc[e + 2] = bl; e += 3; } });
         });
@@ -8511,13 +8550,17 @@
             const pa = A.line.geometry.attributes.position.array; pa[0] = o3[0]; pa[1] = o3[1]; pa[2] = o3[2]; pa[3] = t[0]; pa[4] = t[1]; pa[5] = t[2]; A.line.geometry.attributes.position.needsUpdate = true;
             _v.set(t[0] - o3[0], t[1] - o3[1], t[2] - o3[2]); const len = _v.length();
             A.line.visible = axOn[k]; A.cone.visible = A.sprite.visible = axOn[k] && len > 0.08;
+            {   // 軸の色：本体で「軸の色を立体に合わせる」が ON なら、選んだ側の胞の色（u は中心・蓋の青緑）
+                const want = FX.axSync === null ? AXC[k] : k < 5 ? FX.col[1 + k * 2 + (FX.axSync > 0 ? 0 : 1)].getHex() : CU;
+                if (A.hex !== want) { A.hex = want; A.line.material.color.setHex(want); A.cone.material.color.setHex(want); if (typeof recolorLabel === 'function') try { recolorLabel(A.sprite, hex(want)); } catch (_) {} }
+            }
             if (len > 1e-6) { _v.normalize(); A.cone.position.set(t[0], t[1], t[2]); A.cone.quaternion.setFromUnitVectors(_up, _v); }
             A.sprite.position.set(o3[0] + (t[0] - o3[0]) * 1.13, o3[1] + (t[1] - o3[1]) * 1.13 + 0.02, o3[2] + (t[2] - o3[2]) * 1.13);
             if (axOn[k]) rMax = Math.max(rMax, Math.hypot(t[0], t[1], t[2]) * 1.13);
         });
         return rMax;
     }
-    let views = [];
+    let views = [], shine6 = null;
     // ---- 窓の位置と大きさ（このブラウザに覚える） ----
     const WKEY = 'hypercubeHex6Win';
     let win = null; try { win = JSON.parse(localStorage.getItem(WKEY) || 'null'); } catch (_) {}
@@ -8668,7 +8711,8 @@
         camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000); camera.position.set(4.5, 3.4, 9.5).setLength(10);   // 向きと寄り具合だけに使う（長さ 10＝ふつう）
         if (THREE.OrbitControls) { controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.08; controls.enablePan = false; controls.minDistance = 3; controls.maxDistance = 40; }
         camera.lookAt(0, 0, 0);
-        scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+        const amb = new THREE.AmbientLight(0xffffff, 0.9); scene.add(amb);
+        shine6 = { amb, key: new THREE.PointLight(0xffffff, 1.0, 0), rim: new THREE.PointLight(0xdbeafe, 0.8, 0) }; shine6.key.visible = shine6.rim.visible = false; scene.add(shine6.key, shine6.rim);
         const d1 = new THREE.DirectionalLight(0x38bdf8, 1.4); d1.position.set(15, 22, 18); scene.add(d1);
         const d2 = new THREE.DirectionalLight(0xa855f7, 0.9); d2.position.set(-15, -12, -15); scene.add(d2);
         views = [makeView(() => 0, '展開図'), makeView(() => fold, '')];
@@ -8685,6 +8729,7 @@
         raf = requestAnimationFrame(loop);
         const dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t;
         if (appMode) return;   // 6次元アプリを開いている間は、こちらは描かない
+        readFx();
         if (!paused) PLANES.forEach(p => { if (p.dir) p.ang += p.dir * p.sp * speedK * dt; });
         if (autoEx) { explode = Math.max(0, Math.min(1.2, explode + exDir * dt / 2.4)); if (explode <= 0 || explode >= 1.2) exDir = -exDir; const es = panel.querySelector('#hex6-explode'); if (es) es.value = explode; }
         if (playing) {
@@ -8718,6 +8763,15 @@
             if (!V.rect) return;
             views.forEach(o => { o.root.visible = o === V; });
             V.faces.visible = showFaces; V.wires.visible = showWires;
+            if (shine6) {   // 照り返しライト：本体と同じく、カメラから見て左上・手前の主光と右うしろ上の逆光
+                shine6.key.visible = shine6.rim.visible = FX.shine; shine6.amb.intensity = FX.shine ? 0.8 : 0.9;
+                const m = V.faces.material; if (m.userData.r0 === undefined) { m.userData.r0 = m.roughness; if (typeof patchShine === 'function') try { patchShine(m); } catch (_) {} } m.roughness = FX.shine ? m.userData.r0 * 0.8 : m.userData.r0;
+                if (FX.shine) {
+                    const cam = V.cam, D = cam.position.length() || 10, R = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion), U = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion), T = cam.position.clone();
+                    shine6.key.position.copy(T).multiplyScalar(0.55).addScaledVector(U, D * 0.42).addScaledVector(R, -D * 0.32);
+                    shine6.rim.position.copy(T).multiplyScalar(-0.6).addScaledVector(U, D * 0.35).addScaledVector(R, D * 0.55);
+                }
+            }
             const [x, y, vw, vh] = V.rect;
             renderer.setViewport(x, y, vw, vh); renderer.setScissor(x, y, vw, vh);
             renderer.render(scene, V.cam);
