@@ -27,7 +27,7 @@
     <!-- n 次元の計算の共通部品（回転・3D への写し方・折りたたみ）。6次元アプリ・n次元ビューアと同じ -->
     <script src="lib/nd-geom.js?b=20261020-1625"></script>
     <!-- 高い次元の立体の質感（5次元の面をガラス・結晶・樹脂に、辺を管と玉に）。共通部品/nd-solid -->
-    <script src="lib/nd-solid.js?b=20261020-1625"></script>
+    <script src="lib/nd-solid.js?b=20261021-1530"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
         
@@ -2943,6 +2943,7 @@
                     const v5f = solidOn ? verts5.map(cv => { const f = new Float64Array(cv.length * 5); cv.forEach((p, i) => { for (let k = 0; k < 5; k++) f[i * 5 + k] = p[k]; }); return f; }) : null;
                     let mp = 0, mc = 0;
                     const stK = solidMul ? 0 : 0.22 * Math.min(1.6, inner5 / 0.5), stN = [0, 0, 0, 0, 0];
+                    const ovXp = Math.max(0, 1 - 3 * explodeE()) * (1 - rhombi.t);   // 重ねる効果（中心ほど濃く・照り返しの透け）は、バラす（分解）・菱形へ変える時は消す（離れた胞では重なりの意味がない。前はバラしても残っていた）
                     // いちばん奥の立方体の真ん中（段 0 の頂点の重心）とカメラ（この入れ物の中の座標）：面がカメラ向き（前）かうしろ向きかを分ける
                     const st0C = [0, 0, 0]; let st0n = 0; if (stK > 0) verts.forEach((cv, ci) => cv.forEach((v, i) => { if (nestStep[ci][i] < 0.15) { st0C[0] += v[0]; st0C[1] += v[1]; st0C[2] += v[2]; st0n++; } })); if (st0n) { st0C[0] /= st0n; st0C[1] /= st0n; st0C[2] /= st0n; }
                     const stCam = (update5D._stCam || (update5D._stCam = new THREE.Vector3())).copy(camera5D.position); if (mat) stCam.applyMatrix4((update5D._stIM || (update5D._stIM = new THREE.Matrix4())).copy(mat).invert());   // 立方体ごとの乗算の濃さ（「入れ子の内側を濃く」50% で 0.22＝中心は 4 回で 外の約 4 割の明るさ）。透明プラスチック（もともと乗算）では使わない
@@ -2954,13 +2955,14 @@
                         const ci = quads5[qi][0], base = quads5[qi][1], cv = verts[ci];
                         const tIn = kI * sm(Math.max(0, Math.min(1, (fDep[qi] - fLo[ci]) / Math.max(fHi[ci] - fLo[ci], 1e-6))));   // この面がその4次元体の中でどれだけ内側か
                         let sLo = 1, sHi = 0, sSum = 0; for (let k = 0; k < 6; k++) { const t = nestStep[ci][T5_TRIS[base + k]]; if (t < sLo) sLo = t; if (t > sHi) sHi = t; sSum += t; }
-                        let sL = stK > 0 && stackFaces5D && sHi - sLo < 0.15 ? Math.round(sSum / 6 * 3) : -1; const SC = sL >= 0 ? deepen(cCol[ci], 1.0) : null;
+                        const ovK = xpVisible(5, ci) ? Math.min(1, cellFocus(5, ci).face) * ovXp : 0;   // 隠した胞（表だけ・裏だけ・選んだ胞だけ）には重ねない、薄くした胞は薄く
+                        let sL = stK > 0 && stackFaces5D && ovK > 0.01 && sHi - sLo < 0.15 ? Math.round(sSum / 6 * 3) : -1; const SC = sL >= 0 ? deepen(cCol[ci], 1.0) : null;
                         if (sL === 0) {   // いちばん奥の立方体：うしろ向きの面は 5 枚目へ（前の面と別に 1 回掛かる）
                             let fx = 0, fy = 0, fz = 0; for (let k = 0; k < 6; k++) { const q = cv[T5_TRIS[base + k]]; fx += q[0]; fy += q[1]; fz += q[2]; } fx /= 6; fy /= 6; fz /= 6;
                             if ((fx - st0C[0]) * (stCam.x - fx) + (fy - st0C[1]) * (stCam.y - fy) + (fz - st0C[2]) * (stCam.z - fz) < 0) sL = 4;
                         }   // この面が 1 つの立方体だけにある（段がそろっている）時、その立方体の乗算に入れる。色は胞の色を深く
                         let thK = null;   // この面の照り返しの透け（null＝足さない）：いちばん外の立方体にかからない面だけ（外の面はふつうの照り返しで光っている）
-                        if (thOn && rig5 && sHi < 0.9) {
+                        if (thOn && rig5 && ovK > 0.01 && sHi < 0.9) {
                             const A = cv[T5_TRIS[base]], B = cv[T5_TRIS[base + 1]], Cq = cv[T5_TRIS[base + 2]];
                             const key = Math.round((A[0] + B[0] + Cq[0]) * 300) + ',' + Math.round((A[1] + B[1] + Cq[1]) * 300) + ',' + Math.round((A[2] + B[2] + Cq[2]) * 300);   // 同じ場所の面（胞の重なり）は 1 枚だけ
                             if (!thSeen.has(key)) {
@@ -2971,7 +2973,7 @@
                                 thK = (P) => {   // 頂点ごと（面の中でもキラッが動く＝面がまるごと光らない）：主光は白、逆光は青白（0xdbeafe）。両面とも（向きは気にしない）
                                     let vx = CV.x - P[0], vy = CV.y - P[1], vz = CV.z - P[2]; const vl = Math.hypot(vx, vy, vz) || 1; vx /= vl; vy /= vl; vz /= vl;
                                     const lit = (Lp, pw) => { let lx = Lp.x - P[0], ly = Lp.y - P[1], lz = Lp.z - P[2]; const ll = Math.hypot(lx, ly, lz) || 1; lx /= ll; ly /= ll; lz /= ll; let hx = lx + vx, hy = ly + vy, hz = lz + vz; const hl = Math.hypot(hx, hy, hz) || 1; return Math.pow(Math.abs(nx * hx + ny * hy + nz * hz) / hl, pw); };
-                                    const kI = 0.6 * lit(thV[0], 28) * dimIn, rI = 0.3 * lit(thV[1], 18) * dimIn;
+                                    const kI = 0.6 * lit(thV[0], 28) * dimIn * ovK, rI = 0.3 * lit(thV[1], 18) * dimIn * ovK;
                                     _thC.r = Math.min(1, kI + rI * 0.86); _thC.g = Math.min(1, kI + rI * 0.92); _thC.b = Math.min(1, kI + rI); return _thC;
                                 };
                             }
@@ -2984,7 +2986,7 @@
                             const bq = (solidMul ? 1 - (1 - bt) * 0.3 : bt) * (1 + flash5);   // ＋組み上がった瞬間の FLASH   // 乗算（透明プラスチック）は陰影を 3 割の効きに（掛け算で何重にも暗くならないように）
                             mcol[mc++] = Math.min(1, C.r * bq); mcol[mc++] = Math.min(1, C.g * bq); mcol[mc++] = Math.min(1, C.b * bq); mcol[mc++] = a;
                             if (thK) { const T = thK(v); TP[tN * 3] = v[0]; TP[tN * 3 + 1] = v[1]; TP[tN * 3 + 2] = v[2]; TC[tN * 4] = T.r; TC[tN * 4 + 1] = T.g; TC[tN * 4 + 2] = T.b; TC[tN * 4 + 3] = 1; tN++; }   // 照り返しの透け
-                            if (sL >= 0) { const G = stackFaces5D[sL].geometry, n = stN[sL]++, P = G.attributes.position.array, Q = G.attributes.color.array; P[n * 3] = v[0]; P[n * 3 + 1] = v[1]; P[n * 3 + 2] = v[2]; const sk = sL === 0 || sL === 4 ? Math.min(0.6, stK * 1.8) : stK; Q[n * 4] = SC.r * sk; Q[n * 4 + 1] = SC.g * sk; Q[n * 4 + 2] = SC.b * sk; Q[n * 4 + 3] = sk; }   // いちばん奥の立方体（前の面・うしろの面）は 1.8 倍の濃さ＝向かい合う 2 枚の重なりがはっきり   // 立方体ごとの乗算の面
+                            if (sL >= 0) { const G = stackFaces5D[sL].geometry, n = stN[sL]++, P = G.attributes.position.array, Q = G.attributes.color.array; P[n * 3] = v[0]; P[n * 3 + 1] = v[1]; P[n * 3 + 2] = v[2]; const sk = (sL === 0 || sL === 4 ? Math.min(0.6, stK * 1.8) : stK) * ovK; Q[n * 4] = SC.r * sk; Q[n * 4 + 1] = SC.g * sk; Q[n * 4 + 2] = SC.b * sk; Q[n * 4 + 3] = sk; }   // いちばん奥の立方体（前の面・うしろの面）は 1.8 倍の濃さ＝向かい合う 2 枚の重なりがはっきり   // 立方体ごとの乗算の面
                         }
                     }
                     if (shineThru5D) { shineThru5D.geometry.setDrawRange(0, tN); shineThru5D.geometry.attributes.position.needsUpdate = true; shineThru5D.geometry.attributes.color.needsUpdate = true; shineThru5D.visible = thOn && mergedFaces5D.visible && tN > 0; }
@@ -7884,7 +7886,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-1500';
+        const APP_BUILD = '20261021-1530';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
