@@ -26,6 +26,8 @@
     <script src="lib/ui-dock.js"></script>
     <!-- n 次元の計算の共通部品（回転・3D への写し方・折りたたみ）。6次元アプリ・n次元ビューアと同じ -->
     <script src="lib/nd-geom.js"></script>
+    <!-- 高い次元の立体の質感（5次元の面をガラス・結晶・樹脂に、辺を管と玉に）。共通部品/nd-solid -->
+    <script src="lib/nd-solid.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
         
@@ -720,6 +722,11 @@
                     <div class="vm-row" style="align-items:flex-start"><span class="vm-h" style="padding-top:3px">ドラッグ</span><div class="flex flex-col gap-1"><div class="flex items-center gap-1.5"><span class="vm-h" title="4次元体（超立方体）をドラッグしたとき">4次元体</span><div class="vm-seg"><button data-drag5="3d" data-side5="L" title="4次元体（超立方体）を、形をそのまま3Dで転がす（X-Z・Y-Z）。w はつぶれたままなので、展開図は x・y・z が伸びた十字架。3D回転は5次元体にも同じくかかる">転がす</button><button data-drag5="dim" data-side5="L" title="4次元体（超立方体）を X-W・Y-W で回す（4次元モードの立方体と同じ）。0° では目の方を向いてつぶれている4次元体の w が、画面の中へ出てくる（中の立方体が横へずれる）。5次元体ではこの向きが v なので、5次元体では v が出てくる">w を出す（5次元体では v）</button></div></div><div class="flex items-center gap-1.5"><span class="vm-h" title="5次元体（5次元超立方体）をドラッグしたとき">5次元体</span><div class="vm-seg"><button data-drag5="3d" data-side5="R" title="5次元体を、形をそのまま3Dで転がす（X-Z・Y-Z）。w と v はつぶれたままなので、展開図は真ん中が大きい形のまま。3D回転は4次元体（超立方体）にも同じくかかる">転がす</button><button data-drag5="dim" data-side5="R" title="5次元体を、5次元だけの X-W・Y-W で回す（4次元モードの超立方体と同じ関係）。4次元体に無い w が画面の中へ出てくる。4次元体（超立方体）は動かない">w を出す</button></div></div></div></div>
                     <div id="drag5-note" class="text-[10px] text-slate-400 leading-snug"></div>
                     <div class="vm-row"><span class="vm-h">おすすめ</span><button data-vpreset="fat" title="3D展開＝同じ展開図（4次元の十字架）を、w の腕2本を奥に畳んで、3次元の十字架のように見る。しまう・展開図・斜め・遠近。±W の胞が中心の手前と奥に重なって、真ん中が大きくふくらむ。4次元体（超立方体）は x・y・z の伸びた十字架">3D展開</button><button data-vpreset="arms" title="4D展開＝展開図を4次元の形のまま見る。w を出す・展開図・斜め・平行。10個の超立方体でできた4次元の十字架の、8方向の腕が全部見える">4D展開</button><button data-vpreset="onept" title="5D等角図＝等角図「w と v」・正面・組み上がり・平行投影を一発で。5本の軸が同じ長さ（77%）になり、ピンク（手前の頂点）とエメラルド（奥の頂点）が真ん中で1点に重なる。輪郭は正十角形">5D等角図</button><button data-vpreset="anyang" title="六角柱＝5次元立方体を「立方体(x,y,z) × 正方形(w,v)」と見て、それぞれを対角線の方向から見た形。上から見ると正六角形、横から見ると四角。(1,1,1,1,1) の方向を投影でつぶす向き（4次元の等角図と同じ仕組み）。手前と奥の頂点が3Dの原点に重なるので、ドラッグでどの角度から回しても1点のまま。そのかわり軸の長さは x・y・z が82%、w・v が71%（5本をそろえることは3次元では不可能）。「5D等角図」は5本とも77%だが、真正面からしか重ならない">六角柱</button></div>
+                    <div class="vm-row"><span class="vm-h">分ける</span><button id="solid5-split" title="展開図（折りたたみの途中もふくむ）と、組み上がり（100%）で、質感と辺を別々に選ぶ。組み上がった瞬間に切りかわる">展開図と組み上がりで別々: OFF</button><button data-solid5edit="net" title="下の質感・辺のボタンで、展開図（と折りたたみの途中）の設定を選ぶ">展開図の設定</button><button data-solid5edit="full" title="下の質感・辺のボタンで、組み上がり（100%）の設定を選ぶ">組み上がりの設定</button></div>
+                    <div class="vm-row"><span class="vm-h">質感</span><button data-solid5="classic" title="今まで：薄い面と細い線">今まで</button><button data-solid5="glass" title="擦りガラス：正面は透け、斜めの面ほど濃く光る。縁が光り、周りが映り込む。辺は管、頂点は玉。面ごとに 5次元の陰影">擦りガラス</button><button data-solid5="crystal" title="結晶：色が鮮やかで、照り返しが強い。辺は管、頂点は玉">結晶</button><button data-solid5="resin" title="樹脂：明るいパステルの、つや消しの半透明。辺は管、頂点は玉">樹脂</button><button data-solid5="vivid" title="ビビッド：面を濃いめ・色を鮮やかに、つやのあるプラスチック。線にたよらず、色の面で胞の形を見せる">ビビッド</button><button data-solid5="film" title="透明プラスチック（乗算）：色つきのセロハンを重ねたように、重なるほど色が深くなる。明るい背景で見る。線にたよらず、重なりと奥行きで立体感">透明プラスチック</button><button data-solid5="holo" title="ホログラム（加算）：暗い背景で、重なるほど光が足されて明るく光る。縁がふわっと光る">ホログラム</button><button data-solid4 title="上の 4次元（超立方体）にも同じ質感をかける">4次元にも</button></div>
+                    <div class="vm-row"><span class="vm-h">辺</span><button data-solid5e="rods" title="辺を光と影のある管に、頂点を玉に">管と玉</button><button data-solid5e="thin" title="辺は今までと同じ細い線">細い線</button><button data-solid5e="none" title="辺を描かず、面だけで形を見せる（強調の太い線も出さない）">なし</button><button data-solid5e="depth" title="全部の胞の辺を、奥行きで 4 段に分けた線で描き、奥・内側ほど細く（「内側の線を細く」の目盛りが効く）。色は線の色（手前の強調の色・奥ほど灰色）">奥ほど細く</button><span class="text-[10px] text-slate-500">（どの質感でも。奥ほど細くは「内側の線を細く」の目盛りが効く）</span></div>
+                    <div class="vm-row"><span class="vm-h">線色</span><button data-linetint="default" title="いつもの色：手前の強調の色・奥ほど灰色">いつもの色</button><button data-linetint="cell" title="面と同系色の濃いめ：線をその胞の面の色にそろえ、鮮やかに暗めに">面と同系色（濃いめ）</button></div>
+                    <div class="vm-row"><span class="vm-h">組上</span><button id="autolight5-btn" title="組み上がったら 4Dライト：4Dライトが OFF でも、組み上がる直前に光が少しずつ効いてきて、組み上がった瞬間に面がふわっと光る（4Dライトが ON の時はいつも効く）">組み上がったら 4Dライト: ON</button></div>
                     <div class="vm-row"><span class="vm-h">光</span><button id="light5-btn" title="4Dライト（お試し）。5次元空間に固定した光で、各胞（超立方体）の向きごとに明るさを変える。X-W・W-V など4次元・5次元の回転で光の当たる胞が入れ替わるので、3Dの形が同じでも『回っている』ことが光で分かる">→ 4Dライト: OFF</button></div>
                     <div class="vm-row"><span class="vm-h">奥行</span><label class="flex items-center gap-2 text-[10px] text-slate-400 w-full" title="奥の胞を濃く：胞ごとの奥行き（カメラからの距離）で、奥の胞ほど色を濃く（鮮やか・少し暗く）し、面も薄くしすぎない。正面図でも入れ子の四角が奥へ沈んで見える。0%＝これまでの見え方、50%＝標準、100%＝その倍の濃さ"><span class="shrink-0">奥の胞を濃く</span><input id="deep5-slider" type="range" min="0" max="1" step="0.05" value="0.5" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="deep5-val" class="w-9 text-right font-mono text-violet-200 shrink-0">50%</span></label></div>
                     <div class="vm-row"><span class="vm-h">内側</span><label class="flex items-center gap-2 text-[10px] text-slate-400 w-full" title="入れ子の内側を濃く：各4次元体（超立方体）の中で、見た目の上で内側に入れ子になっている立方体の面ほど色を濃く・少し不透明にする。「奥の胞を濃く」に掛け合わせて効く。0%＝なし、50%＝標準、100%＝その倍"><span class="shrink-0">入れ子の内側を濃く</span><input id="inner5-slider" type="range" min="0" max="1" step="0.05" value="0.5" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="inner5-val" class="w-9 text-right font-mono text-violet-200 shrink-0">50%</span></label></div>
@@ -2234,6 +2241,7 @@
                 root3D.add(mergedFaces3D);
             }
 
+            try { applySolid4(true); } catch (_) {}   // 質感のフィルター（起動の最初は、まだ準備前なので下の setupSolid5 でかけ直す）
             updateMorphingGeometry(animationProgress);   // 既定の組み上がり状態で初期描画
         }
 
@@ -2470,7 +2478,57 @@
         VisualFX.requestRender = n => requestRender(n);
         function addShineLight(scene, camFn, tgtFn, ambient) { shineRigs.push(VisualFX.shineRig({ scene, camera: camFn, target: tgtFn, ambient })); }
         function patchShine(m) { VisualFX.patchShine(m); }   // 材質のシェーダーに「照り返しのところは不透明に」を足す（1回だけ）。6次元の窓も使う
-        function updateShineLights() { if (shineOn) shineRigs.forEach(r => r.update()); }   // 描く直前に、光をカメラから見た左上へ
+        function updateShineLights() { if (shineOn) shineRigs.forEach(r => r.update()); }
+        // 5次元の質感（共通部品 nd-solid）：'classic'＝今まで・'glass'＝ガラス（既定）・'crystal'＝結晶・'resin'＝樹脂。
+        //   面：フレネル（斜めの面ほど濃く光る）・縁の光・周りの映り込み・照り返しが明るい所だけ不透明に。面ごとの 5次元の陰影。辺：管と玉（今まで以外）
+        let solid5 = 'glass'; try { const v = localStorage.getItem('hypercubeSolid5'); if (v && NDSolid.LOOKS[v]) solid5 = v; } catch (_) {}
+        let solid5Rods = null;   // 辺の管・頂点の玉（build5D で作る）
+        // 辺の描き方（今まで以外の質感の時）：'rods'＝管と玉・'thin'＝細い線・'none'＝なし（面だけで形を見せる。強調の太い線も出さない）・
+        //   'depth'＝奥ほど細く（全部の胞の辺を、奥行きの 4 段に分けた太い線で。奥・内側ほど細く）
+        let solid5Edge = 'thin'; try { const v = localStorage.getItem('hypercubeSolid5Edge'); if (['rods', 'thin', 'none', 'depth'].includes(v)) solid5Edge = v; } catch (_) {}   // 既定は細い線（今まで と同じ）
+        let solid5Depth = null;   // 奥ほど細くの太い線（段 0〜3。build5D で作る）
+        // 5次元の線の色：'default'＝いつもの色（手前の強調の色・奥ほど灰色）・'cell'＝面と同系色の濃いめ（その胞の色を鮮やかに暗く）
+        let solid5LineTint = 'default'; try { if (localStorage.getItem('hypercubeSolid5LineTint') === 'cell') solid5LineTint = 'cell'; } catch (_) {}
+        // 展開図と組み上がりで別々（既定 OFF）：ON の時は、組み上がり 100% の時だけ「組み上がり」の質感・辺、それ以外（展開図・折りたたみの途中）は「展開図」の質感・辺
+        let solid5Split = false; try { solid5Split = localStorage.getItem('hypercubeSolid5Split') === '1'; } catch (_) {}
+        let solid5Prof = null; try { const o = JSON.parse(localStorage.getItem('hypercubeSolid5Prof') || 'null'); if (o && o.net && o.full) solid5Prof = o; } catch (_) {}
+        let solid5EditProf = 'full';   // 質感・辺のボタンで決める方（'net'＝展開図・'full'＝組み上がり）
+        function solid5ProfOK() {   // 2 つの設定（無ければ今の設定から作る・壊れた値は直す）
+            if (!solid5Prof) solid5Prof = { net: { look: solid5, edge: solid5Edge }, full: { look: solid5, edge: solid5Edge } };
+            ['net', 'full'].forEach(k => { const q = solid5Prof[k]; if (!NDSolid.LOOKS[q.look]) q.look = 'classic'; if (!['rods', 'thin', 'none', 'depth'].includes(q.edge)) q.edge = 'thin'; });
+            return solid5Prof;
+        }
+        function saveSolid5Prof() { try { localStorage.setItem('hypercubeSolid5Prof', JSON.stringify(solid5Prof)); } catch (_) {} }
+        // 組み上がったら 4Dライト（既定 ON）：4Dライトのボタンが OFF でも、組み上がる直前（85%→100%）に光が少しずつ効いてきて、
+        //   組み上がった瞬間に面がふわっと光る（FLASH、約 0.9 秒）。ボタンが ON の時はいつも効く（今まで通り）
+        let autoLight5 = true; try { autoLight5 = localStorage.getItem('hypercubeAutoLight5') !== '0'; } catch (_) {}
+        let autoLight5FlashT = 0, autoLight5LastP = -1;
+        // 4次元（超立方体）にも同じ質感をフィルターとしてかける（既定 ON）。色・濃さはシェーダーの中で（4次元の計算はそのまま）
+        let solid4On = true; try { solid4On = localStorage.getItem('hypercubeSolid4') !== '0'; } catch (_) {}
+        function applySolid4(noUpdate) {
+            const look = solid4On ? solid5 : 'classic', L = NDSolid.LOOKS[look];
+            const mats = cellObjects3D.map(c => c.material); if (mergedFaces3D) mats.push(mergedFaces3D.material);
+            mats.forEach(m => {
+                if (!m) return;
+                if (m.userData.dw0 === undefined) m.userData.dw0 = m.depthWrite;
+                m.depthWrite = look === 'classic' ? m.userData.dw0 : false;   // 質感の時は奥行きを書かない（後ろの面も混ざる）
+                m.envMap = L.env > 0 && renderer3D ? NDSolid.envMap(renderer3D) : null;
+                NDSolid.patchFace(m, look, { inShader: true }); m.needsUpdate = true;
+            });
+            if (scene3D) { const bg = NDSolid.bgOf(look); scene3D.background = bg === null ? null : new THREE.Color(bg); }   // 透明プラスチック（乗算）は明るい背景
+            if (!noUpdate) requestRender(30);
+        }
+        function applySolid5(noUpdate) {
+            if (scene5D) { const bg = NDSolid.bgOf(solid5); scene5D.background = bg === null ? null : new THREE.Color(bg); }
+            try { applySolid4(true); } catch (_) {}
+            if (mergedFaces5D) {
+                const m = mergedFaces5D.material;
+                m.envMap = NDSolid.LOOKS[solid5].env > 0 && renderer5D ? NDSolid.envMap(renderer5D) : null;
+                NDSolid.patchFace(m, solid5); m.needsUpdate = true;
+            }
+            if (solid5Rods) solid5Rods.setLook(solid5);
+            if (!noUpdate) { updateMorphingGeometry(animationProgress); requestRender(30); }
+        }   // 描く直前に、光をカメラから見た左上へ
         function applyShine() {   // 光の ON/OFF と、面の材質のつや（ざらつき・金属っぽさ）
             shineRigs.forEach(r => r.apply());   // 光・環境光（全体は明るくしない）・uShine
             const mats = [];
@@ -2626,6 +2684,13 @@
                 mergedFaces5D.frustumCulled = false;
                 mergedFaces5D.renderOrder = -1;   // 面は線より先に（後ろに）描く＝手前の線が面に薄められず、くっきり乗る
                 root.add(mergedFaces5D);
+                solid5Rods = NDSolid.rods(P5_CELLS.length * T5_EDGES.length, P5_CELLS.length * 16, renderer5D, { look: solid5 });   // 辺の管・頂点の玉
+                root.add(solid5Rods.group);
+                if (THREE.LineSegments2 && THREE.LineMaterial) solid5Depth = [0, 1, 2, 3].map(() => {   // 奥ほど細く：段ごとに 1 本
+                    const L = new THREE.LineSegments2(new THREE.LineSegmentsGeometry(), new THREE.LineMaterial({ vertexColors: true, linewidth: 2, transparent: true, opacity: 0.95, depthWrite: false }));
+                    L.renderOrder = 4; L.frustumCulled = false; L.visible = false; root.add(L); return L;
+                });
+                applySolid5(true);
             }
             const ag = new THREE.Group(); ag.name = 'Axis5D';
             AXES_5D.forEach(ax => {
@@ -2655,6 +2720,10 @@
         const _p5v = new THREE.Vector3();
         function update5D(progress) {
             if (!scene5D || !camera3D) return;
+            if (solid5Split) {   // 展開図と組み上がりで別々：今の折り具合に合う方の質感・辺へ（組み上がり 100% の時だけ「組み上がり」）
+                const pf = solid5ProfOK()[progress >= 0.999 ? 'full' : 'net'];
+                if (pf.look !== solid5 || pf.edge !== solid5Edge) { solid5 = pf.look; solid5Edge = pf.edge; applySolid5(true); }
+            }
             const root = scene5D.getObjectByName('Root5D'); if (root) root.updateMatrixWorld();
             const pb = projBlendNow(), mat = root ? root.matrixWorld : null, camP = camera3D.position;
             const verts5 = cellObjects5D.map((_, ci) => cellVerts5D(ci, progress).map(q => rotate5(q)));   // 回したあとの5D座標（w＝入れ子の深さ）
@@ -2711,13 +2780,26 @@
                     for (let c = 0; c < 3; c++, k++) wc[k] = (wc[k] * (1 - g0) + WG * g0) * n0;
                     for (let c = 0; c < 3; c++, k++) wc[k] = (wc[k] * (1 - g1) + WG * g1) * n1;
                 }
+                if (solid5LineTint === 'cell') {   // 線の色：面と同系色の濃いめ（胞の色を鮮やかに・暗く）。奥ほど・入れ子の内側ほど少し暗く。細い線・奥ほど細く・管・強調の線のどれにも
+                    const D = VisualFX.deepen(P5_RGB[ci], 0.9);
+                    for (let e = 0, k = 0; e < T5_EDGES.length; e++) for (const vi of T5_EDGES[e]) {
+                        const f = 0.68 * (1 - 0.3 * sm((cd[vi] - dMin) / span)) * (0.75 + 0.25 * nestOf(ci, vi));
+                        wc[k++] = D.r * f; wc[k++] = D.g * f; wc[k++] = D.b * f;
+                    }
+                }
                 cell.wireGeo.attributes.position.needsUpdate = true; cell.wireGeo.attributes.color.needsUpdate = true;
                 if (rhombi.t > 0 || cell._rhDim) { cell.wire.material.opacity = 0.9 * (1 - rhombi.t); cell._rhDim = rhombi.t > 0; }   // 菱形二十面体へ：線を消す
             });
             // 5次元の面：全胞の四角形を1メッシュにまとめ、毎フレーム「全体で」遠い順に並べ替える＝重なった胞も三角形単位で正しく前後合成（真上でも色が混ざる）
             if (mergedFaces5D) {
                 const useMerged5 = !wireframeOnly && !numTex && rhombi.t < 1;   // 数字テクスチャ・ワイヤーのみ・菱形のときは胞ごと（従来）
-                const cellLit = cellObjects5D.map((_, ci) => { return light5On ? VisualFX.light(rotate5(cellNormal5(ci)), true) : 1; });   // 4Dライト：胞ごとの明るさ
+                const litK = light5On ? 1 : autoLight5 ? sm(Math.max(0, Math.min(1, (progress - 0.85) / 0.15))) : 0;   // 4Dライトの効き（組み上がったら 4Dライト：85%→100% で 0→1）
+                const cellLit = cellObjects5D.map((_, ci) => { return litK > 0 ? 1 + (VisualFX.light(rotate5(cellNormal5(ci)), true) - 1) * litK : 1; });   // 4Dライト：胞ごとの明るさ
+                // 組み上がった瞬間の FLASH：100% に着いた時に面がふわっと明るく光って落ち着く
+                if (autoLight5 && !light5On && progress >= 0.999 && autoLight5LastP >= 0 && autoLight5LastP < 0.999) autoLight5FlashT = performance.now();
+                autoLight5LastP = progress;
+                const flashU = autoLight5FlashT ? (performance.now() - autoLight5FlashT) / 900 : 1, flash5 = flashU < 1 ? Math.sin(Math.PI * Math.min(1, flashU * 1.6)) * (1 - flashU) * 0.9 + (flashU < 0.3 ? 0.25 * (1 - flashU / 0.3) : 0) : 0;
+                if (flashU < 1) requestRender(3); else autoLight5FlashT = 0;
                 mergedFaces5D.visible = useMerged5;
                 if (useMerged5) {
                     const quads5 = [];
@@ -2748,20 +2830,71 @@
                     // 色：奥の胞ほど鮮やか（彩度を上げる）＋少し暗く＝「濃い」色
                     const cCol = P5_RGB.map((C, ci) => { const t = kD * cDeep[ci], Y = 0.299 * C.r + 0.587 * C.g + 0.114 * C.b, sat = 1 + 0.8 * t, dk = 1 - 0.35 * t, f = c => Math.max(0, Math.min(1, (Y + (c - Y) * sat) * dk)); return { r: f(C.r), g: f(C.g), b: f(C.b) }; });
                     const aFac = cellObjects5D.map((_, ci) => aOf(ci));
+                    // 質感（nd-solid）：濃さを質感の割合に、色を質感に合わせて整え、面ごとに 5次元の陰影（回したあとの 5次元の座標で、面の平面と光の角度）
+                    const solidOn = solid5 !== 'classic', solidMul = NDSolid.LOOKS[solid5].blend === 'multiply', solidK = NDSolid.LOOKS[solid5].k5 !== undefined ? NDSolid.LOOKS[solid5].k5 : NDSolid.LOOKS[solid5].base / NDSolid.LOOKS.classic.base, L5 = VisualFX.lightDir(5), _st = { r: 0, g: 0, b: 0 };
+                    const v5f = solidOn ? verts5.map(cv => { const f = new Float64Array(cv.length * 5); cv.forEach((p, i) => { for (let k = 0; k < 5; k++) f[i * 5 + k] = p[k]; }); return f; }) : null;
                     let mp = 0, mc = 0;
                     for (let qi = 0; qi < quads5.length; qi++) {
                         const ci = quads5[qi][0], base = quads5[qi][1], cv = verts[ci];
                         const tIn = kI * sm(Math.max(0, Math.min(1, (fDep[qi] - fLo[ci]) / Math.max(fHi[ci] - fLo[ci], 1e-6))));   // この面がその4次元体の中でどれだけ内側か
-                        const C = deepen(cCol[ci], tIn), a = Math.min(0.97, aFac[ci] * (1 + 1.4 * tIn));   // 「奥の胞を濃く」の色・濃さに、さらに内側ぶんを掛ける
+                        const C = solidOn ? NDSolid.tint(deepen(cCol[ci], tIn), solid5, _st) : deepen(cCol[ci], tIn), a = Math.min(0.97, aFac[ci] * (1 + 1.4 * tIn) * solidK);   // 「奥の胞を濃く」の色・濃さに、さらに内側ぶんを掛ける（質感の割合も）
+                        const sh5 = solidOn ? NDSolid.planeShade(null, 5, v5f[ci], T5_TRIS[base], T5_TRIS[base + 1], T5_TRIS[base + 5], L5, 0.5) : 1;   // 5次元の陰影
                         for (let k = 0; k < 6; k++) {
-                            const idx = T5_TRIS[base + k], v = cv[idx], bt = bright(dist[ci][idx]) * (0.72 + 0.28 * nestOf(ci, idx)) * cellLit[ci];   // 面にも入れ子の濃淡を軽く（内側ほど少し暗く）× 4Dライト
+                            const idx = T5_TRIS[base + k], v = cv[idx], bt = bright(dist[ci][idx]) * (0.72 + 0.28 * nestOf(ci, idx)) * cellLit[ci] * sh5;   // 面にも入れ子の濃淡を軽く（内側ほど少し暗く）× 4Dライト × 5次元の陰影
                             mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
-                            mcol[mc++] = Math.min(1, C.r * bt); mcol[mc++] = Math.min(1, C.g * bt); mcol[mc++] = Math.min(1, C.b * bt); mcol[mc++] = a;
+                            const bq = (solidMul ? 1 - (1 - bt) * 0.3 : bt) * (1 + flash5);   // ＋組み上がった瞬間の FLASH   // 乗算（透明プラスチック）は陰影を 3 割の効きに（掛け算で何重にも暗くならないように）
+                            mcol[mc++] = Math.min(1, C.r * bq); mcol[mc++] = Math.min(1, C.g * bq); mcol[mc++] = Math.min(1, C.b * bq); mcol[mc++] = a;
                         }
                     }
                     mergedFaces5D.geometry.attributes.position.needsUpdate = true;
                     mergedFaces5D.geometry.attributes.color.needsUpdate = true;
                     mergedFaces5D.geometry.computeVertexNormals();
+                }
+            }
+            if (solid5Rods) {   // 辺を管・頂点を玉に（今まで以外の質感）。色は線と同じ（奥ほど灰色・辺の強調の色）、太さは見かけの縮みで遠いほど細く
+                const edge5 = solid5Edge;   // 辺の描き方はどの質感でも（今まで ＋ 奥ほど細く もできる）
+                const rodsOn = edge5 === 'rods' && rhombi.t <= 0;
+                solid5Rods.group.visible = rodsOn;
+                cellObjects5D.forEach(cell => { if (cell.wire) cell.wire.visible = edge5 === 'thin' || ((edge5 === 'rods' || edge5 === 'depth') && rhombi.t > 0); });
+                if (solid5Depth) {   // 奥ほど細く：全部の見せる胞の辺を、奥行きの段（edgeLvl5：0＝外側・手前 〜 3＝いちばん内側・奥）ごとに集めて、段ごとの太さで
+                    const on = edge5 === 'depth' && rhombi.t <= 0;
+                    solid5Depth.forEach(L => { L.visible = on; });
+                    if (on) {
+                        // 段は「奥行きの順位」で 4 等分（手前から 1/4 ずつ）。値の幅で分けると、展開図では外側の腕がほとんど奥の段に入って見えなくなる
+                        const eds = [];
+                        cellObjects5D.forEach((cell, ci) => { if (!xpVisible(5, ci)) return; T5_EDGES.forEach(([a, b], e) => eds.push([ci, e, (vDepAll[ci][a] + vDepAll[ci][b]) / 2])); });
+                        const srt = eds.map(x => x[2]).sort((a, b) => a - b), qa = t => srt[Math.min(srt.length - 1, Math.floor(t * srt.length))] || 0;
+                        const q1 = qa(0.25), q2 = qa(0.5), q3 = qa(0.75);
+                        const bp = [[], [], [], []], bc = [[], [], [], []];
+                        eds.forEach(([ci, e, d]) => {
+                            const k = d < q1 ? 0 : d < q2 ? 1 : d < q3 ? 2 : 3, cell = cellObjects5D[ci];
+                            const P = cell.wireGeo.attributes.position.array, Cc = cell.wireGeo.attributes.color.array;
+                            for (let q = 0; q < 6; q++) { bp[k].push(P[e * 6 + q]); bc[k].push(Cc[e * 6 + q]); }
+                        });
+                        const aLine = 0.28 + 0.32 * (1 - sm(progress));   // 1 本ずつの濃さ：展開図 0.6（辺がほとんど重ならない）→ 組み上がり 0.28（4 つの胞が重ねて持つので 4 段階に濃くなる）
+                        const box = document.getElementById(EH_BOX[5]), W0 = 0.78, s5 = line5 > 0 ? line5 : 0.5;   // 手前は「細い線」より 1 段細い 0.78px（ユーザーの好み）
+                        solid5Depth.forEach((L, k) => {
+                            if (!bp[k].length) { L.visible = false; return; }
+                            L.geometry.setPositions(bp[k]); L.geometry.setColors(bc[k]);
+                            const kk = Math.min(k, 2);   // 3 段階：いちばん奥（段 3）は段 2 と同じ細さ・薄さ
+                            L.material.linewidth = Math.max(0.15, W0 * (1 - 1.35 * s5 * kk / 3));   // 手前 0.78px → 奥・内側ほど細く（「内側の線を細く」の目盛り。0 の時は 50% として。50% で 0.78・0.6・0.43・0.25px。奥はかすかに）
+                            L.material.opacity = aLine * (1 - 0.5 * s5 * kk / 3);   // 1 本ずつはうっすら（手前 0.28）。5次元体では 1 本の辺を 4 つの胞が重ねて持つので、重なった数で 4 段階に濃くなる（1〜4 重：0.28・0.48・0.63・0.73）。奥の段ほどさらに薄く
+                            if (box && box.clientWidth > 0) L.material.resolution.set(box.clientWidth, box.clientHeight);
+                        });
+                    }
+                }
+                if (rodsOn) {
+                    const nv = verts.length * 16;
+                    if (!update5D._rp || update5D._rp.length !== nv * 3) { update5D._rp = new Float32Array(nv * 3); update5D._rk = new Float32Array(nv); update5D._rv = new Float32Array(nv * 3); }
+                    const RP = update5D._rp, RK = update5D._rk, RV = update5D._rv, RE = [], REC = [];
+                    verts.forEach((cv, ci) => {
+                        const vis = xpVisible(5, ci), c = P5_RGB[ci];
+                        cv.forEach((v, i) => { const j = ci * 16 + i; RP[j * 3] = v[0]; RP[j * 3 + 1] = v[1]; RP[j * 3 + 2] = v[2]; RK[j] = vis ? Math.exp(-vDepAll[ci][i]) : 0; RV[j * 3] = 0.55 + 0.45 * c.r; RV[j * 3 + 1] = 0.55 + 0.45 * c.g; RV[j * 3 + 2] = 0.55 + 0.45 * c.b; });
+                        if (!vis) return;
+                        const wc = cellObjects5D[ci].wireGeo.attributes.color.array;
+                        T5_EDGES.forEach(([a, b], e) => { RE.push(ci * 16 + a, ci * 16 + b); const k = e * 6; REC.push((wc[k] + wc[k + 3]) / 2, (wc[k + 1] + wc[k + 4]) / 2, (wc[k + 2] + wc[k + 5]) / 2); });
+                    });
+                    solid5Rods.update(RP, RE, REC, RK, RV, nv);
                 }
             }
             if (rhombiObj) {   // お試し：菱形二十面体＝5本の軸の影 E の組 (i,j) ごとに、いちばん外にある正方形（＝菱形）を表と裏の2枚拾う
@@ -2788,6 +2921,7 @@
                 }
             }
             updateFatEdges(5, cellObjects5D, scene5D, 'Root5D');   // 強調した辺の太さ
+            if (solid5Edge === 'none' || solid5Edge === 'depth') Object.keys(ehFat[5]).forEach(k => { if (ehFat[5][k]) ehFat[5][k].visible = false; });   // 質感で「辺：なし」の時は、強調の太い線も出さない
             Object.keys(ehFat[5]).forEach(side => { const F = ehFat[5][side]; if (F && (rhombi.t > 0 || F._rhDim)) { F.material.opacity = 0.95 * (1 - rhombi.t); F._rhDim = rhombi.t > 0; } });   // 菱形二十面体へ：強調した太い辺も消す
             // 既定のピンク・エメラルド（大きさ・表示・重なりの乗算は超立方体と共通の設定）
             if (p5MarkPlus && p5NearId) {
@@ -7208,6 +7342,50 @@
             document.querySelectorAll('[data-vproj]').forEach(b => b.addEventListener('click', () => viewGo({ proj: b.dataset.vproj })));
             // お試し：5次元体 → 菱形二十面体。まず「w と v」・組み上がり・平行・正面へ回し、カメラを少し上から（視線方向の縮みが見えるように）。
             //   回し終わったら animate() が rhombi.t を 0→1 に進める（縮め＝rhombiSquash、面と線の消え方＝update5D）
+            (function setupSolid5() {   // 5次元の質感（nd-solid）・辺の描き方・展開図と組み上がりで別々
+                const bs = document.querySelectorAll('[data-solid5]'), be = document.querySelectorAll('[data-solid5e]'); if (!bs.length) return;
+                const bsp = document.getElementById('solid5-split'), bed = document.querySelectorAll('[data-solid5edit]');
+                const cur = () => solid5Split ? solid5ProfOK()[solid5EditProf] : { look: solid5, edge: solid5Edge };   // ボタンに出す設定
+                const sync = () => {
+                    const c = cur();
+                    bs.forEach(b => b.classList.toggle('on', b.dataset.solid5 === c.look));
+                    be.forEach(b => b.classList.toggle('on', b.dataset.solid5e === c.edge));
+                    if (bsp) { bsp.textContent = '展開図と組み上がりで別々: ' + (solid5Split ? 'ON' : 'OFF'); bsp.classList.toggle('on', solid5Split); }
+                    bed.forEach(b => { b.classList.toggle('on', solid5Split && b.dataset.solid5edit === solid5EditProf); b.style.display = solid5Split ? '' : 'none'; });
+                };
+                const set = (key, v) => {
+                    if (solid5Split) { solid5ProfOK()[solid5EditProf][key] = v; saveSolid5Prof(); }   // 別々の時は、選んでいる方（展開図／組み上がり）の設定を変える
+                    else if (key === 'look') { solid5 = v; try { localStorage.setItem('hypercubeSolid5', v); } catch (_) {} }
+                    else { solid5Edge = v; try { localStorage.setItem('hypercubeSolid5Edge', v); } catch (_) {} }
+                    sync(); applySolid5();   // → 描き直しで、今の折り具合に合う方がかかる
+                };
+                bs.forEach(b => b.addEventListener('click', () => set('look', b.dataset.solid5)));
+                be.forEach(b => b.addEventListener('click', () => set('edge', b.dataset.solid5e)));
+                if (bsp) bsp.addEventListener('click', () => {
+                    solid5Split = !solid5Split; try { localStorage.setItem('hypercubeSolid5Split', solid5Split ? '1' : '0'); } catch (_) {}
+                    if (solid5Split) { solid5ProfOK(); saveSolid5Prof(); }
+                    else { try { localStorage.setItem('hypercubeSolid5', solid5); localStorage.setItem('hypercubeSolid5Edge', solid5Edge); } catch (_) {} }   // やめる時は、今の表示の設定を 1 つの設定に
+                    sync(); applySolid5();
+                });
+                bed.forEach(b => b.addEventListener('click', () => { solid5EditProf = b.dataset.solid5edit; sync(); }));
+                const b4 = document.querySelector('[data-solid4]');
+                if (b4) { const s4 = () => { b4.textContent = '4次元にも: ' + (solid4On ? 'ON' : 'OFF'); b4.classList.toggle('on', solid4On); };
+                    b4.addEventListener('click', () => { solid4On = !solid4On; try { localStorage.setItem('hypercubeSolid4', solid4On ? '1' : '0'); } catch (_) {} s4(); applySolid4(); updateMorphingGeometry(animationProgress); }); s4(); }
+                sync();
+                applySolid5();   // 起動時：保存した質感を 4次元・5次元に
+            })();
+            (function setupLineTint5() {   // 5次元の線の色
+                const bs = document.querySelectorAll('[data-linetint]'); if (!bs.length) return;
+                const sync = () => bs.forEach(b => b.classList.toggle('on', b.dataset.linetint === solid5LineTint));
+                bs.forEach(b => b.addEventListener('click', () => { solid5LineTint = b.dataset.linetint; try { localStorage.setItem('hypercubeSolid5LineTint', solid5LineTint); } catch (_) {} sync(); updateMorphingGeometry(animationProgress); requestRender(30); }));
+                sync();
+            })();
+            (function setupAutoLight5() {   // 組み上がったら 4Dライト
+                const b = document.getElementById('autolight5-btn'); if (!b) return;
+                const sync = () => { b.textContent = '組み上がったら 4Dライト: ' + (autoLight5 ? 'ON' : 'OFF'); b.classList.toggle('on', autoLight5); };
+                b.addEventListener('click', () => { autoLight5 = !autoLight5; try { localStorage.setItem('hypercubeAutoLight5', autoLight5 ? '1' : '0'); } catch (_) {} sync(); updateMorphingGeometry(animationProgress); requestRender(30); });
+                sync();
+            })();
             (function setupLight5() {   // 4Dライトのボタン
                 const b = document.getElementById('light5-btn'); if (!b) return;
                 const sync = () => { b.textContent = '→ 4Dライト: ' + (light5On ? 'OFF' : 'ON'); b.classList.toggle('on', light5On); };
@@ -7435,7 +7613,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-1211';
+        const APP_BUILD = '20261020-1603';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
