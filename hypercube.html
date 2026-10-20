@@ -725,7 +725,7 @@
                     <div class="vm-row"><span class="vm-h">分ける</span><button id="solid5-split" title="展開図（折りたたみの途中もふくむ）と、組み上がり（100%）で、質感と辺を別々に選ぶ。組み上がった瞬間に切りかわる">展開図と組み上がりで別々: OFF</button><button data-solid5edit="net" title="下の質感・辺のボタンで、展開図（と折りたたみの途中）の設定を選ぶ">展開図の設定</button><button data-solid5edit="full" title="下の質感・辺のボタンで、組み上がり（100%）の設定を選ぶ">組み上がりの設定</button></div>
                     <div class="vm-row"><span class="vm-h">質感</span><button data-solid5="classic" title="今まで：薄い面と細い線">今まで</button><button data-solid5="glass" title="擦りガラス：正面は透け、斜めの面ほど濃く光る。縁が光り、周りが映り込む。辺は管、頂点は玉。面ごとに 5次元の陰影">擦りガラス</button><button data-solid5="crystal" title="結晶：色が鮮やかで、照り返しが強い。辺は管、頂点は玉">結晶</button><button data-solid5="resin" title="樹脂：明るいパステルの、つや消しの半透明。辺は管、頂点は玉">樹脂</button><button data-solid5="vivid" title="ビビッド：面を濃いめ・色を鮮やかに、つやのあるプラスチック。線にたよらず、色の面で胞の形を見せる">ビビッド</button><button data-solid5="film" title="透明プラスチック（乗算）：色つきのセロハンを重ねたように、重なるほど色が深くなる。明るい背景で見る。線にたよらず、重なりと奥行きで立体感">透明プラスチック</button><button data-solid5="holo" title="ホログラム（加算）：暗い背景で、重なるほど光が足されて明るく光る。縁がふわっと光る">ホログラム</button><button data-solid4 title="上の 4次元（超立方体）と左の 3次元（立方体）にも、同じ質感と線色をかける">4次元にも</button></div>
                     <div class="vm-row"><span class="vm-h">辺</span><button data-solid5e="rods" title="辺を光と影のある管に、頂点を玉に">管と玉</button><button data-solid5e="thin" title="辺は今までと同じ細い線">細い線</button><button data-solid5e="none" title="辺を描かず、面だけで形を見せる（強調の太い線も出さない）">なし</button><button data-solid5e="depth" title="全部の胞の辺を、奥行きで 4 段に分けた線で描き、奥・内側ほど細く（「内側の線を細く」の目盛りが効く）。色は線の色（手前の強調の色・奥ほど灰色）">奥ほど細く</button><span class="text-[10px] text-slate-500">（どの質感でも。奥ほど細くは「内側の線を細く」の目盛りが効く）</span></div>
-                    <div class="vm-row"><span class="vm-h">線色</span><button data-linetint="default" title="いつもの色：手前の強調の色・奥ほど灰色">いつもの色</button><button data-linetint="comp" title="補色：線を面の補色（色相を 180° 回した色）にして、ふつうに重ねる。真ん中ほど濃く">補色</button><button data-linetint="compmul" title="補色（乗算）：補色を下の面の色に掛け合わせる（色が打ち消し合って暗い墨の輪郭のようになる）">補色（乗算）</button><button data-linetint="inv" title="反転（乗算の補色）：下の色を反転して線の色を掛ける。線が通る場所ごとに、下の面の補色の線になる（色の違う面をまたぐと色が変わる）。暗い背景の上では明るい線">反転（乗算の補色）</button><button data-linetint="ends" title="手前と奥だけ補色：奥行きで 4 段に分けた線の、いちばん手前の段といちばん奥の段だけ補色、間はいつもの色（「奥ほど細く」の 1 段目と 4 段目。5次元だけ）">手前と奥だけ補色</button><button data-linetint="endsinv" title="手前と奥だけ反転（乗算の補色）：いちばん手前の段といちばん奥の段の線だけ「反転（乗算の補色）」の重ね方（下の面の補色の線）、間はいつもの色。細い線・奥ほど細くで（管では効かない。5次元だけ）">手前と奥だけ反転</button><button data-linetint="compout" title="外側だけ補色：外側の線は補色、真ん中に向かうほど同系色に（ふつうに重ねる）">外側だけ補色</button><button data-linetint="cell" title="面と同系色の濃いめ：線をその胞の面の色にそろえ、立体の真ん中に近いほど濃く（鮮やかに暗く）、外側ほど明るめに。線は乗算で描く（下の面の色に掛け合わせる＝色の違う面に重なっても浮かない）。「4次元にも」が ON なら 4次元・3次元にも">面と同系色（濃いめ）</button></div>
+                    <div class="vm-row"><span class="vm-h">線色</span><button data-linetint="default" title="いつもの色：手前の強調の色・奥ほど灰色">いつもの色</button><button data-linetint="comp" title="補色：線を面の補色（色相を 180° 回した色）にして、ふつうに重ねる。真ん中ほど濃く">補色</button><button data-linetint="compmul" title="補色（乗算）：補色を下の面の色に掛け合わせる（色が打ち消し合って暗い墨の輪郭のようになる）">補色（乗算）</button><button data-linetint="inv" title="反転（乗算の補色）：白い線で下の色を反転する＝線が通る場所ごとに、下の面の本当の補色の線になる（色の違う面をまたぐと色が変わる。同じ場所に重なる線は 1 本だけ）。暗い背景の上では明るい線。強調の太い線・管は補色。5次元（4次元・3次元は前のまま）">反転（乗算の補色）</button><button data-linetint="ends" title="手前と奥だけ補色：奥行きで 4 段に分けた線の、いちばん手前の段といちばん奥の段だけ補色、間の 2 段は面と同系色（乗算）（「奥ほど細く」の 1 段目と 4 段目が補色。5次元だけ）">手前と奥だけ補色</button><button data-linetint="endsinv" title="手前と奥だけ反転（乗算の補色）：いちばん手前の段といちばん奥の段の線だけ「反転（乗算の補色）」の重ね方（白い線で下の色を反転＝下の面の補色）、間は面と同系色（乗算）。細い線・奥ほど細くで（管では効かない。5次元だけ）">手前と奥だけ反転</button><button data-linetint="compout" title="外側だけ補色：外側の線は補色、真ん中に向かうほど同系色に（ふつうに重ねる）">外側だけ補色</button><button data-linetint="cell" title="面と同系色の濃いめ：線をその胞の面の色にそろえ、立体の真ん中に近いほど濃く（鮮やかに暗く）、外側ほど明るめに。線は乗算で描く（下の面の色に掛け合わせる＝色の違う面に重なっても浮かない）。「4次元にも」が ON なら 4次元・3次元にも">面と同系色（濃いめ）</button></div>
                     <div class="vm-row"><span class="vm-h">組上</span><button id="autolight5-btn" title="組み上がったら 4Dライト：4Dライトが OFF でも、組み上がる直前に光が少しずつ効いてきて、組み上がった瞬間に面がふわっと光る（4Dライトが ON の時はいつも効く）">組み上がったら 4Dライト: ON</button></div>
                     <div class="vm-row"><span class="vm-h">光</span><button id="light5-btn" title="4Dライト（お試し）。5次元空間に固定した光で、各胞（超立方体）の向きごとに明るさを変える。X-W・W-V など4次元・5次元の回転で光の当たる胞が入れ替わるので、3Dの形が同じでも『回っている』ことが光で分かる">→ 4Dライト: OFF</button></div>
                     <div class="vm-row"><span class="vm-h">奥行</span><label class="flex items-center gap-2 text-[10px] text-slate-400 w-full" title="奥の胞を濃く：胞ごとの奥行き（カメラからの距離）で、奥の胞ほど色を濃く（鮮やか・少し暗く）し、面も薄くしすぎない。正面図でも入れ子の四角が奥へ沈んで見える。0%＝これまでの見え方、50%＝標準、100%＝その倍の濃さ"><span class="shrink-0">奥の胞を濃く</span><input id="deep5-slider" type="range" min="0" max="1" step="0.05" value="0.5" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-violet-400 border border-slate-700"><span id="deep5-val" class="w-9 text-right font-mono text-violet-200 shrink-0">50%</span></label></div>
@@ -2491,8 +2491,9 @@
             m.userData.lineMul = mul;
             if (mul) {
                 m.blending = THREE.CustomBlending; m.blendEquation = THREE.AddEquation; m.blendSrc = mul === 'inv' ? THREE.OneMinusDstColorFactor : THREE.DstColorFactor; m.blendDst = THREE.OneMinusSrcAlphaFactor; m.blendSrcAlpha = THREE.ZeroFactor; m.blendDstAlpha = THREE.OneFactor; m.premultipliedAlpha = mul === 'inv';
+                m.stencilWrite = mul === 'inv'; if (mul === 'inv') { m.stencilFunc = THREE.EqualStencilFunc; m.stencilRef = 0; m.stencilFail = THREE.KeepStencilOp; m.stencilZFail = THREE.KeepStencilOp; m.stencilZPass = THREE.IncrementStencilOp; }   // 反転：1 つの点は 1 回だけ反転（反転は 2 回重ねると元に戻るので、線が重なる・交わる所で補色が消えないように。ステンシルで「もう塗った点」を覚える）
                 if (m.userData.op0 === undefined) m.userData.op0 = m.opacity; m.opacity = Math.min(m.userData.op0, 0.5);   // 1 本ずつは淡く（5次元では 1 本の辺に 4 本重なるので、黒くつぶれないように）
-            } else { m.blending = THREE.NormalBlending; m.premultipliedAlpha = false; if (m.userData.op0 !== undefined) m.opacity = m.userData.op0; }
+            } else { m.blending = THREE.NormalBlending; m.premultipliedAlpha = false; m.stencilWrite = false; if (m.userData.op0 !== undefined) m.opacity = m.userData.op0; }
             m.needsUpdate = true;
         }
         const lineBlendAll = (objs, fat, mul) => { objs.forEach(o => { if (o && o.wire) lineBlend(o.wire.material, mul); }); if (fat) Object.keys(fat).forEach(k => { if (fat[k]) lineBlend(fat[k].material, mul); }); };   // 質感の数（部品が古くて名前が見つからない時は「今まで」として描く＝落ちない）
@@ -2505,8 +2506,8 @@
         // 5次元の線の色：'default'＝いつもの色（手前の強調の色・奥ほど灰色）・'cell'＝面と同系色の濃いめ（その胞の色を鮮やかに暗く）
         //   'comp'＝補色（ふつうに重ねる）・'compmul'＝補色を乗算で・'compout'＝外側の線は補色、真ん中ほど同系色・
         //   'inv'＝反転（乗算の補色）：下の色を反転して線の色を掛ける＝線が通る場所ごとに、下の面の補色の線
-        //   'endsinv'＝手前と奥だけ反転（乗算の補色）：段 0・3 の線だけ「反転」の重ね方、間はいつもの色。重ね方は材質ごとなので、段ごとの線（奥ほど細くの 4 本）で描く（細い線の時も段ごとの線で 1px に）。管の時は効かない
-        //   'ends'＝手前と奥だけ補色：奥行きで 4 段に分けた辺の、いちばん手前（段 0）といちばん奥（段 3）だけ補色、間（段 1・2）はいつもの色（奥ほど細くの段と同じ分け方。5次元だけ）
+        //   'endsinv'＝手前と奥だけ反転（乗算の補色）：段 0・3 の線だけ「反転」の重ね方（白い線＝下の面の本当の補色）、間は面と同系色（乗算）。重ね方は材質ごとなので、段ごとの線（奥ほど細くの 4 本）で描く（細い線の時も段ごとの線で 1px に）。管の時は効かない
+        //   'ends'＝手前と奥だけ補色：奥行きで 4 段に分けた辺の、いちばん手前（段 0）といちばん奥（段 3）だけ補色、間（段 1・2）は面と同系色（乗算）。段ごとの線で描く（細い線の時も）。管の時は 段 0・3 だけ補色・間はいつもの色（奥ほど細くの段と同じ分け方。5次元だけ）
         let solid5LineTint = 'default'; try { const v = localStorage.getItem('hypercubeSolid5LineTint'); if (['cell', 'comp', 'compmul', 'compout', 'inv', 'ends', 'endsinv'].includes(v)) solid5LineTint = v; } catch (_) {}
         const lineTintMode = () => solid5LineTint === 'cell' || solid5LineTint === 'compmul' ? 'mul' : solid5LineTint === 'inv' ? 'inv' : false;   // 線の重ね方（乗算・反転・ふつう）
         // 線色の色：C＝胞の色（THREE.Color）、tc＝0（いちばん外側）〜1（真ん中）。真ん中ほど濃く（鮮やかに・暗く）、外側ほど明るめ。補色の時は色相を 180° 回す
@@ -2778,7 +2779,7 @@
             const depthOf = (p, d) => Math.log(Math.max(d, 1e-3)) - Math.log(Math.max(PJ5.project(p), 1e-3));   // 大きいほど奥（PJ5.project の返り値＝v・w の遠近の倍率）
             const vDepAll = verts5.map((cv, ci) => cv.map((p, i) => depthOf(p, dist[ci][i])));
             let endsQ1 = 0, endsQ3 = 0, endsB = 1e-4;   // 線色「手前と奥だけ補色」：辺の奥行き（両端の平均）の 1/4・3/4 の境目（奥ほど細くの段と同じ）と、境目のぼかし幅（境目をまたぐ辺がコマごとに色が飛んでちらつかないように）
-            if (solid5LineTint === 'ends') { const ed = []; verts5.forEach((cv, ci) => { if (xpVisible(5, ci)) T5_EDGES.forEach(([a, b]) => ed.push((vDepAll[ci][a] + vDepAll[ci][b]) / 2)); }); ed.sort((a, b) => a - b); const qa = t => ed[Math.min(ed.length - 1, Math.floor(t * ed.length))] || 0; endsQ1 = qa(0.25); endsQ3 = qa(0.75); endsB = Math.max(0.3 * (endsQ3 - endsQ1), 0.1 * ((ed[ed.length - 1] || 0) - (ed[0] || 0)), 1e-4); }
+            if (solid5LineTint === 'ends' || solid5LineTint === 'endsinv') { const ed = []; verts5.forEach((cv, ci) => { if (xpVisible(5, ci)) T5_EDGES.forEach(([a, b]) => ed.push((vDepAll[ci][a] + vDepAll[ci][b]) / 2)); }); ed.sort((a, b) => a - b); const qa = t => ed[Math.min(ed.length - 1, Math.floor(t * ed.length))] || 0; endsQ1 = qa(0.25); endsQ3 = qa(0.75); endsB = Math.max(0.3 * (endsQ3 - endsQ1), 0.1 * ((ed[ed.length - 1] || 0) - (ed[0] || 0)), 1e-4); }
             {   // 辺を全体の奥行きで4段に分ける（0＝外側・手前、3＝いちばん内側・奥）
                 let gLo = Infinity, gHi = -Infinity; vDepAll.forEach(a => a.forEach(v => { if (v < gLo) gLo = v; if (v > gHi) gHi = v; }));
                 const gSp = Math.max(gHi - gLo, 1e-6);
@@ -2821,17 +2822,16 @@
                     for (let c = 0; c < 3; c++, k++) wc[k] = (wc[k] * (1 - g0) + WG * g0) * n0;
                     for (let c = 0; c < 3; c++, k++) wc[k] = (wc[k] * (1 - g1) + WG * g1) * n1;
                 }
-                if (solid5LineTint !== 'default' && solid5LineTint !== 'endsinv') {   // 線の色：面と同系色の濃いめ（または補色）。立体の真ん中に近いほど濃く（鮮やかに・暗く）、外側ほど明るめ。細い線・奥ほど細く・管・強調の線のどれにも
-                    const C = P5_RGB[ci], D = { r: 0, g: 0, b: 0 }, inv5K = solid5LineTint === 'inv' ? 1 - 0.45 * sm(progress) : 1;   // 反転：組み上がるほど控えめに（1 本の辺に 4 つの胞の線が重なり、反転を重ねるほど明るい灰色へ寄るので）
-                    if (solid5LineTint === 'ends') { for (let e = 0; e < T5_EDGES.length; e++) {   // 手前と奥だけ補色：段 0・3 の辺だけ塗りかえ、間の辺はいつもの色のまま
+                if (solid5LineTint !== 'default') {   // 線の色：面と同系色の濃いめ（または補色）。立体の真ん中に近いほど濃く（鮮やかに・暗く）、外側ほど明るめ。細い線・奥ほど細く・管・強調の線のどれにも
+                    const C = P5_RGB[ci], D = { r: 0, g: 0, b: 0 };
+                    if (solid5LineTint === 'ends' || solid5LineTint === 'endsinv') { const D2 = { r: 0, g: 0, b: 0 }; for (let e = 0; e < T5_EDGES.length; e++) {   // 手前と奥だけ補色・反転：段 0・3 の辺は補色、間の辺は面と同系色（管・強調の太い線の色。細い線・奥ほど細くは段ごとの線で別に塗る）
                         const d = (vDepAll[ci][T5_EDGES[e][0]] + vDepAll[ci][T5_EDGES[e][1]]) / 2, cs = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
                         const w = Math.max(1 - cs((d - endsQ1 + endsB) / (2 * endsB)), cs((d - endsQ3 + endsB) / (2 * endsB)));   // 補色の割合：境目の前後 endsB でなめらかに（0＝いつもの色）
-                        if (w <= 0) continue;
-                        for (let j = 0; j < 2; j++) { const v = cv[T5_EDGES[e][j]], tc = sm(1 - Math.min(1, Math.hypot(v[0] - tintCen[0], v[1] - tintCen[1], v[2] - tintCen[2]) / tintR)), k = e * 6 + j * 3; tintLineColor(C, tc, D, 1, 'comp'); wc[k] += (D.r - wc[k]) * w; wc[k + 1] += (D.g - wc[k + 1]) * w; wc[k + 2] += (D.b - wc[k + 2]) * w; }
+                        for (let j = 0; j < 2; j++) { const v = cv[T5_EDGES[e][j]], tc = sm(1 - Math.min(1, Math.hypot(v[0] - tintCen[0], v[1] - tintCen[1], v[2] - tintCen[2]) / tintR)), k = e * 6 + j * 3; tintLineColor(C, tc, D, 1, 'comp'); tintLineColor(C, tc, D2, 1, 'cell'); wc[k] = D2.r + (D.r - D2.r) * w; wc[k + 1] = D2.g + (D.g - D2.g) * w; wc[k + 2] = D2.b + (D.b - D2.b) * w; }
                     } } else
                     for (let e = 0, k = 0; e < T5_EDGES.length; e++) for (const vi of T5_EDGES[e]) {
                         const v = cv[vi], tc = sm(1 - Math.min(1, Math.hypot(v[0] - tintCen[0], v[1] - tintCen[1], v[2] - tintCen[2]) / tintR));   // 0＝いちばん外側 〜 1＝真ん中
-                        tintLineColor(C, tc, D, inv5K);   // 同系色・補色・外側だけ補色
+                        tintLineColor(C, tc, D, 1, solid5LineTint === 'inv' ? 'comp' : undefined);   // 同系色・補色・外側だけ補色（反転の時は 管・強調の太い線を補色で。細い線・奥ほど細くは段ごとの線で本当の反転）
                         wc[k++] = D.r; wc[k++] = D.g; wc[k++] = D.b;
                     }
                 }
@@ -2903,7 +2903,7 @@
                 const edge5 = solid5Edge;   // 辺の描き方はどの質感でも（今まで ＋ 奥ほど細く もできる）
                 const rodsOn = edge5 === 'rods' && rhombi.t <= 0;
                 solid5Rods.group.visible = rodsOn;
-                const tierThin = edge5 === 'thin' && solid5LineTint === 'endsinv' && rhombi.t <= 0;   // 手前と奥だけ反転：細い線も段ごとの線で描く（重ね方を段ごとに変えるため）
+                const tierThin = edge5 === 'thin' && (solid5LineTint === 'endsinv' || solid5LineTint === 'ends' || solid5LineTint === 'inv') && rhombi.t <= 0;   // 手前と奥だけ補色・反転：細い線も段ごとの線で描く（重ね方を段ごとに変えるため）
                 cellObjects5D.forEach(cell => { if (cell.wire) cell.wire.visible = (edge5 === 'thin' && !tierThin) || ((edge5 === 'rods' || edge5 === 'depth') && rhombi.t > 0); });
                 if (solid5Depth) {   // 奥ほど細く：全部の見せる胞の辺を、奥行きの段（edgeLvl5：0＝外側・手前 〜 3＝いちばん内側・奥）ごとに集めて、段ごとの太さで
                     const on = (edge5 === 'depth' || tierThin) && rhombi.t <= 0;
@@ -2915,25 +2915,38 @@
                         const srt = eds.map(x => x[2]).sort((a, b) => a - b), qa = t => srt[Math.min(srt.length - 1, Math.floor(t * srt.length))] || 0;
                         const q1 = qa(0.25), q2 = qa(0.5), q3 = qa(0.75);
                         const bp = [[], [], [], []], bc = [[], [], [], []];
-                        const eInv = solid5LineTint === 'endsinv', qs = [q1, q2, q3], HB = 0.15 * (q3 - q1) + 1e-6, iK = 1 - 0.45 * sm(progress), nE = T5_EDGES.length, D = { r: 0, g: 0, b: 0 };   // 手前と奥だけ反転：段 0・3 は反転の色（組み上がるほど控えめ）
-                        if (eInv && (!update5D._tier || update5D._tier.length !== cellObjects5D.length * nE)) update5D._tier = new Int8Array(cellObjects5D.length * nE).fill(-1);
+                        // 手前と奥だけ補色・反転：間の段（1・2）は面と同系色の濃いめ（乗算＝色の違う面に重なっても浮かない）、両端の段（0・3）はその補色（補色＝ふつうに重ねる／反転＝白い線で下の色を反転＝下の面の本当の補色。反転は 2 回重ねると元に戻るので、同じ場所に重なる辺は 1 本だけ）
+                        const eEnds = solid5LineTint === 'ends' || solid5LineTint === 'endsinv', eInv = solid5LineTint === 'endsinv', eAll = solid5LineTint === 'inv', qs = [q1, q2, q3], HB = 0.15 * (q3 - q1) + 1e-6, nE = T5_EDGES.length, D = { r: 0, g: 0, b: 0 }, seen = eInv || eAll ? new Set() : null, IW = 0.75;   // IW＝反転の白い線の明るさ
+                        if (!update5D._tier || update5D._tier.length !== cellObjects5D.length * nE) update5D._tier = new Int8Array(cellObjects5D.length * nE).fill(-1);
+                        const kq = (P, o) => Math.round(P[o] * 400) + ',' + Math.round(P[o + 1] * 400) + ',' + Math.round(P[o + 2] * 400);
                         eds.forEach(([ci, e, d]) => {
                             let k = d < q1 ? 0 : d < q2 ? 1 : d < q3 ? 2 : 3; const cell = cellObjects5D[ci];
-                            if (eInv) { const id = ci * nE + e, pk = update5D._tier[id]; if (pk >= 0 && Math.abs(pk - k) === 1 && Math.abs(d - qs[Math.min(pk, k)]) < HB) k = pk; update5D._tier[id] = k; }   // 境目の近くでは前の段のまま（重ね方が段ごとに変わるので、境目で行ったり来たりするとちらつく）
+                            { const id = ci * nE + e, pk = update5D._tier[id]; if (pk >= 0 && Math.abs(pk - k) === 1 && Math.abs(d - qs[Math.min(pk, k)]) < HB) k = pk; update5D._tier[id] = k; }   // 境目の近くでは前の段のまま（段ごとに太さ・重ね方が変わるので、奥行きの近い辺が境目で行ったり来たりすると線がちらつく。どの線色でも）
                             const P = cell.wireGeo.attributes.position.array, Cc = cell.wireGeo.attributes.color.array;
-                            if (eInv && (k === 0 || k === 3)) {
-                                for (let j = 0; j < 2; j++) { const o = e * 6 + j * 3, tc = sm(1 - Math.min(1, Math.hypot(P[o] - tintCen[0], P[o + 1] - tintCen[1], P[o + 2] - tintCen[2]) / tintR)); tintLineColor(P5_RGB[ci], tc, D, iK, 'inv'); bp[k].push(P[o], P[o + 1], P[o + 2]); bc[k].push(D.r, D.g, D.b); }
+                            if (eAll) {   // 反転（乗算の補色）：全部の段を白い線で反転＝下の面の本当の補色。同じ場所に重なる辺は 1 本だけ（反転は 2 回重ねると元に戻るので）
+                                const a = kq(P, e * 6), b = kq(P, e * 6 + 3), key = a < b ? a + '|' + b : b + '|' + a; if (seen.has(key)) return; seen.add(key);
+                                for (let q = 0; q < 6; q++) { bp[k].push(P[e * 6 + q]); bc[k].push(IW); }
+                            } else if (eEnds) {
+                                const end = k === 0 || k === 3;
+                                if (end && eInv) { const a = kq(P, e * 6), b = kq(P, e * 6 + 3), key = a < b ? a + '|' + b : b + '|' + a; if (seen.has(key)) return; seen.add(key); }   // 反転：同じ場所の辺は 1 本だけ
+                                for (let j = 0; j < 2; j++) {
+                                    const o = e * 6 + j * 3;
+                                    if (end && eInv) { D.r = D.g = D.b = IW; }
+                                    else { const tc = sm(1 - Math.min(1, Math.hypot(P[o] - tintCen[0], P[o + 1] - tintCen[1], P[o + 2] - tintCen[2]) / tintR)); tintLineColor(P5_RGB[ci], tc, D, 1, end ? 'comp' : 'cell'); }
+                                    bp[k].push(P[o], P[o + 1], P[o + 2]); bc[k].push(D.r, D.g, D.b);
+                                }
                             } else for (let q = 0; q < 6; q++) { bp[k].push(P[e * 6 + q]); bc[k].push(Cc[e * 6 + q]); }
                         });
                         const aLine = 0.36 + 0.32 * (1 - sm(progress));   // 1 本ずつの濃さ：展開図 0.68（辺がほとんど重ならない）→ 組み上がり 0.36（4 つの胞が重ねて持つので 4 段階に濃くなる。ユーザー「もう少し強く」で 0.6・0.28 から上げた）
                         const box = document.getElementById(EH_BOX[5]), W0 = 1.1, s5 = line5 > 0 ? line5 : 0.5;   // 手前 1.1px（ユーザーの好み：0.78 → 0.9 → もう少し太く。50% で 1.1・0.85・0.6・0.6px）
                         solid5Depth.forEach((L, k) => {
                             if (!bp[k].length) { L.visible = false; return; }
-                            L.geometry.setPositions(bp[k]); L.geometry.setColors(bc[k]);
+                            L.geometry.setPositions(bp[k]); L.geometry.setColors(bc[k]); delete L.geometry._maxInstanceCount;   // 線の本数が毎コマ変わる：three.js は最初に描いた時の本数を覚えていて、減ると その段がまるごと描かれず（はみ出し読みで描画が止まる）、増えると増えた分が描かれない＝ちらつき・消える線。毎回 数え直させる
                             const kk = Math.min(k, 2);   // 3 段階：いちばん奥（段 3）は段 2 と同じ細さ・薄さ
-                            L.material.linewidth = Math.max(0.15, W0 * (1 - 1.35 * s5 * kk / 3));   // 手前 0.78px → 奥・内側ほど細く（「内側の線を細く」の目盛り。0 の時は 50% として。50% で 0.78・0.6・0.43・0.25px。奥はかすかに）
+                            L.material.linewidth = Math.max(0.5, W0 * (1 - 1.0 * s5 * kk / 3));   // 手前 1.1px → 奥・内側ほど細く（「内側の線を細く」の目盛り。0 の時は 50% として。50% で 1.1・0.92・0.73・0.73px。ユーザー「奥の線が描かれない・ちらつく、奥を少し太く」で 係数 1.35 → 1.0・いちばん細くて 0.15 → 0.5px：1px を大きく割る線は画素にかかったりかからなかったりで消えたりちらついたりする）
                             L.material.opacity = aLine * (1 - 0.5 * s5 * kk / 3);
-                            if (tierThin) { L.material.linewidth = 1; L.material.opacity = k === 0 || k === 3 ? 0.5 : 0.9; }   // 細い線（手前と奥だけ反転の時）：ふだんの細い線と同じ 1px・濃さ 0.9（反転の段は 0.5）   // 1 本ずつはうっすら（手前 0.28）。5次元体では 1 本の辺を 4 つの胞が重ねて持つので、重なった数で 4 段階に濃くなる（1〜4 重：0.28・0.48・0.63・0.73）。奥の段ほどさらに薄く
+                            if (tierThin) { L.material.linewidth = 1; L.material.opacity = k === 0 || k === 3 ? 0.9 : 0.5; }   // 細い線（手前と奥だけ補色・反転の時）：ふだんの細い線と同じ 1px。補色の段 0.9、乗算の段 0.5（線色「面と同系色」の細い線と同じ）
+                            if ((eInv && (k === 0 || k === 3)) || eAll) { L.material.opacity = 0.8; L.material.linewidth = Math.max(tierThin ? 1.8 : 1.5, L.material.linewidth * 1.5); }   // 反転の段：少し太く（細すぎると線のふちの半分だけかかった点が多く、反転した色と下の色がまざって灰色に見える）   // 反転の段：下の色はほとんど残さない（出る色＝0.8 ×（1 − 下の色）× 白 ＋ 0.2 × 下の色）   // 1 本ずつはうっすら（手前 0.28）。5次元体では 1 本の辺を 4 つの胞が重ねて持つので、重なった数で 4 段階に濃くなる（1〜4 重：0.28・0.48・0.63・0.73）。奥の段ほどさらに薄く
                             if (box && box.clientWidth > 0) L.material.resolution.set(box.clientWidth, box.clientHeight);
                         });
                     }
@@ -2976,7 +2989,7 @@
                 }
             }
             updateFatEdges(5, cellObjects5D, scene5D, 'Root5D');   // 強調した辺の太さ
-            lineBlendAll(cellObjects5D, ehFat[5], lineTintMode()); if (solid5Depth) solid5Depth.forEach((L, k) => lineBlend(L.material, solid5LineTint === 'endsinv' ? (k === 0 || k === 3 ? 'inv' : false) : lineTintMode()));   // 線色「面と同系色」は乗算で
+            lineBlendAll(cellObjects5D, ehFat[5], solid5LineTint === 'inv' ? false : lineTintMode()); if (solid5Depth) solid5Depth.forEach((L, k) => lineBlend(L.material, solid5LineTint === 'endsinv' || solid5LineTint === 'ends' ? (k === 0 || k === 3 ? (solid5LineTint === 'endsinv' ? 'inv' : false) : 'mul') : lineTintMode()));   // 反転の時の 管・強調の太い線は補色でふつうに（太い線は胞ごとに重なって反転が打ち消し合うので）   // 線色「面と同系色」は乗算で
             if (solid5Edge === 'none' || solid5Edge === 'depth') Object.keys(ehFat[5]).forEach(k => { if (ehFat[5][k]) ehFat[5][k].visible = false; });   // 質感で「辺：なし」の時は、強調の太い線も出さない
             Object.keys(ehFat[5]).forEach(side => { const F = ehFat[5][side]; if (F && (rhombi.t > 0 || F._rhDim)) { F.material.opacity = 0.95 * (1 - rhombi.t); F._rhDim = rhombi.t > 0; } });   // 菱形二十面体へ：強調した太い辺も消す
             // 既定のピンク・エメラルド（大きさ・表示・重なりの乗算は超立方体と共通の設定）
@@ -3474,7 +3487,7 @@
                         F.renderOrder = 4; F.frustumCulled = false;
                         root.add(F); ehFat[dim][key] = F; setFatResolution();
                     }
-                    F.geometry.setPositions(pos); F.geometry.setColors(col);
+                    F.geometry.setPositions(pos); F.geometry.setColors(col); delete F.geometry._maxInstanceCount;   // 本数が変わることがある（奥行きの段に分けた太い線）：毎回 数え直させる（覚えた本数のままだと消えたりちらついたりする）
                     F.material.linewidth = w; F.visible = true;
                     if (F.material.resolution.x <= 1) setFatResolution();   // 隠れていた画面で作ったときは、出てきたときに大きさを合わせる
                 };
@@ -7703,7 +7716,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-1830';
+        const APP_BUILD = '20261020-2015';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
