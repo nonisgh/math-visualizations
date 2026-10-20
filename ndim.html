@@ -16,6 +16,8 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
 <!-- 視覚効果の共通部品（次元おりがみと同じ。設定は全アプリ共通の vfx キー） -->
 <script src="lib/visual-fx.js"></script>
+<!-- n 次元の計算の共通部品（回転・3D への写し方・形・展開図。6次元アプリと同じ） -->
+<script src="lib/nd-geom.js"></script>
 <style>
     :root {
         --bg: #030712; --card: rgba(9, 14, 28, 0.9); --line: #1e293b; --text: #e2e8f0; --muted: #94a3b8; --faint: #64748b;
@@ -221,7 +223,7 @@ const DEF = () => ({
 });
 let S = DEF();
 const key = (i, j) => `${Math.min(i, j)}-${Math.max(i, j)}`;
-const planes = n => { const p = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) p.push([i, j]); return p; };
+const planes = NDGeom.planes;   // 回転面の一覧（i < j、辞書の順）
 
 // ---------- three.js ----------
 const canvas = $('#cv');
@@ -281,38 +283,23 @@ function buildShape(n, shape) {
     const V = [], E = [], ec = [], F = [], fc = [];
     const addV = v => { V.push(...v); return V.length / n - 1; };
     const edge = (a, b, ca, cb = ca) => { E.push(a, b); ec.push(...ca, ...cb); };
-    if (shape === 'cube') {
-        const nv = 1 << n, sc = 1 / Math.sqrt(n);
-        for (let i = 0; i < nv; i++) { const v = []; for (let k = 0; k < n; k++) v.push(((i >> k) & 1 ? 1 : -1) * sc); addV(v); }
-        for (let i = 0; i < nv; i++) for (let k = 0; k < n; k++) if (!((i >> k) & 1)) { const c = [AXC[k].r, AXC[k].g, AXC[k].b]; edge(i, i | (1 << k), c); }
-        // 2 次元の面（正方形）：軸 a, b の向きに広がる
-        for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
-            const c = mixCol(AXC[a], AXC[b]);
-            for (let i = 0; i < nv; i++) {
-                if ((i >> a) & 1 || (i >> b) & 1) continue;
-                const p = i, q = i | (1 << a), r = i | (1 << a) | (1 << b), s = i | (1 << b);
+    if (shape === 'cube' || shape === 'simplex' || shape === 'cross') {
+        // 頂点・辺・面は nd-geom（並びは前と同じ）。色はここで：辺＝その向きの軸の色、正方形＝2 本の軸の色をまぜた色、単体・軸体は頂点の色
+        //   立方体：±1/√n（頂点が半径 1）。正単体：重心が原点・半径 1。正軸体：±e_k（2k が＋、2k+1 が−）
+        const sh = shape === 'cube' ? NDGeom.cube(n, { size: 1 / Math.sqrt(n) }) : shape === 'simplex' ? NDGeom.simplex(n) : NDGeom.cross(n);
+        V.push(...sh.V);
+        const vc = shape === 'simplex' ? (i => { const c = i < n ? AXC[i] : WHITE; return [c.r, c.g, c.b]; }) : (i => { const c = AXC[i >> 1]; return [c.r, c.g, c.b]; });
+        for (let e = 0; e < sh.ne; e++) {
+            const a = sh.edges[2 * e], b = sh.edges[2 * e + 1];
+            if (sh.edgeAxis) { const c = AXC[sh.edgeAxis[e]]; edge(a, b, [c.r, c.g, c.b]); } else edge(a, b, vc(a), vc(b));
+        }
+        if (shape === 'cube') {   // 正方形 p,q,r,s を三角形 (p,q,r)(p,r,s) に
+            for (let f = 0; f < sh.nq; f++) {
+                const o = f * 4, p = sh.squares[o], q = sh.squares[o + 1], r = sh.squares[o + 2], s = sh.squares[o + 3];
+                const c = mixCol(AXC[sh.squareAxes[2 * f]], AXC[sh.squareAxes[2 * f + 1]]);
                 F.push(p, q, r, p, r, s); for (let t = 0; t < 6; t++) fc.push(...c);
             }
-        }
-    } else if (shape === 'simplex') {
-        // 正単体：n+1 個の頂点（e_0 … e_{n-1} と、(1−√(n+1))/n·(1,…,1)）を、重心を原点に・半径 1 に
-        const pts = [];
-        for (let i = 0; i < n; i++) { const v = new Array(n).fill(0); v[i] = 1; pts.push(v); }
-        pts.push(new Array(n).fill((1 - Math.sqrt(n + 1)) / n));
-        const cen = new Array(n).fill(0); pts.forEach(p => p.forEach((x, k) => { cen[k] += x / (n + 1); }));
-        const r = Math.hypot(...pts[0].map((x, k) => x - cen[k]));
-        pts.forEach(p => addV(p.map((x, k) => (x - cen[k]) / r)));
-        const vc = i => { const c = i < n ? AXC[i] : WHITE; return [c.r, c.g, c.b]; };
-        for (let a = 0; a <= n; a++) for (let b = a + 1; b <= n; b++) edge(a, b, vc(a), vc(b));
-        for (let a = 0; a <= n; a++) for (let b = a + 1; b <= n; b++) for (let c = b + 1; c <= n; c++) { F.push(a, b, c); fc.push(...vc(a), ...vc(b), ...vc(c)); }
-    } else if (shape === 'cross') {
-        // 正軸体：±e_k（2n 個）、向かい合う 2 点以外は全部つながる
-        for (let k = 0; k < n; k++) for (const s of [1, -1]) { const v = new Array(n).fill(0); v[k] = s; addV(v); }
-        const vc = i => { const c = AXC[i >> 1]; return [c.r, c.g, c.b]; };
-        const nv = 2 * n;
-        for (let a = 0; a < nv; a++) for (let b = a + 1; b < nv; b++) if ((a >> 1) !== (b >> 1)) edge(a, b, vc(a), vc(b));
-        for (let a = 0; a < nv; a++) for (let b = a + 1; b < nv; b++) for (let c = b + 1; c < nv; c++)
-            if ((a >> 1) !== (b >> 1) && (b >> 1) !== (c >> 1) && (a >> 1) !== (c >> 1)) { F.push(a, b, c); fc.push(...vc(a), ...vc(b), ...vc(c)); }
+        } else for (let f = 0; f < sh.nt; f++) { const a = sh.tris[3 * f], b = sh.tris[3 * f + 1], c = sh.tris[3 * f + 2]; F.push(a, b, c); fc.push(...vc(a), ...vc(b), ...vc(c)); }
     } else if (S.sphereModel === 'slices') {
         // 超球を最後の軸の向きに輪切り：x_{n−1} = h の切り口は半径 √(1−h²) の 1 つ下の次元の球。
         // その x・y・z の部分を、超球のバブルアプリと同じ網目の球（緯線・経線）で描く。3 次元の時は 1 個の球
@@ -355,92 +342,35 @@ function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(2 * 
 
 // ---------- 超立方体の展開図：真ん中（最後の軸の −1 側）・まわりの腕 2(n−1) 本・腕 x の先にふた ----------
 let NET = null;
-function buildNet(n) {
-    const N = n - 1, m = n - 1, nl = 1 << m, sc = 1 / Math.sqrt(n);
-    const fac = [{ kind: 'center' }];
-    for (let k = 0; k < N; k++) for (const sg of [1, -1]) fac.push({ kind: 'arm', k, sg });
-    fac.push({ kind: 'cap' });
-    fac.forEach(f => { const fixed = f.kind === 'arm' ? f.k : N; f.free = []; for (let j = 0; j < n; j++) if (j !== fixed) f.free.push(j); });
-    const E = [], ec = [];
-    fac.forEach((f, fi) => {
-        const off = fi * nl;
-        for (let v = 0; v < nl; v++) for (let b = 0; b < m; b++) if (!((v >> b) & 1)) {
-            const ax = f.free[b], c = AXC[ax];
-            E.push(off + v, off + (v | (1 << b))); ec.push(c.r, c.g, c.b, c.r, c.g, c.b);
-        }
-    });
-    return { n, N, nl, sc, fac, E, ec, nv: fac.length * nl, V: new Float64Array(fac.length * nl * n) };
+function buildNet(n) {   // 計算は nd-geom の cubeNet（n次元ビューアの式：ふたは +x の腕の先、真ん中の胞は x_N＝−1 のまま、頂点 ±1/√n）
+    const g = NDGeom.cubeNet(n, { preset: 'ndim' }), N = n - 1, nl = g.nl, sc = 1 / Math.sqrt(n);
+    const fac = g.cells.map(c => ({ kind: c.kind, k: c.axis, sg: c.sign, free: c.free }));   // 前と同じ形（buildNetFaces が使う）
+    const E = Array.from(g.edges), ec = [];
+    for (let e = 0; e < g.edgeAxis.length; e++) { const c = AXC[g.edgeAxis[e]]; ec.push(c.r, c.g, c.b, c.r, c.g, c.b); }
+    return { n, N, nl, sc, fac, E, ec, nv: g.nv, V: g.V, g };
 }
-function netPositions(net, f, seq) {
-    const { n, N, nl, sc, fac, V } = net, T = N + 1;
-    const prog = k => seq ? cl01(f * T - k) : f;          // 腕 k（0 … N−1）とふた（N）の折れ具合
-    const phiOf = k => (1 - prog(k)) * Math.PI / 2;        // 0 = 折りたたみ済み、90° = 平ら
-    const phi0 = phiOf(0), psi = (1 - prog(N)) * Math.PI / 2;
-    fac.forEach((F, fi) => {
-        const off = fi * nl;
-        for (let v = 0; v < nl; v++) {
-            const L = new Array(n).fill(0);
-            F.free.forEach((ax, b) => { L[ax] = (v >> b) & 1 ? 1 : -1; });
-            const x = L.slice();
-            if (F.kind === 'center') x[N] = -1;
-            else if (F.kind === 'arm') {
-                const s = L[N], ph = phiOf(F.k);
-                x[F.k] = F.sg * (1 + (s + 1) * Math.sin(ph));
-                x[N] = -1 + (s + 1) * Math.cos(ph);
-            } else {
-                const c = L[0], al = phi0 + psi;
-                const h0 = 1 + 2 * Math.sin(phi0), hN = -1 + 2 * Math.cos(phi0);
-                x[0] = h0 - (1 - c) * Math.cos(al);
-                x[N] = hN + (1 - c) * Math.sin(al);
-            }
-            for (let k = 0; k < n; k++) V[(off + v) * n + k] = x[k] * sc;
-        }
-    });
-}
-const cl01 = x => Math.max(0, Math.min(1, x));
+// 折り具合 f（0＝平ら、1＝組み上がり）。seq：腕を 1 本ずつ順に、最後にふた（ふだんは全部いっしょ）。進み方は直線
+function netPositions(net, f, seq) { net.g.fold(f, { timing: seq ? 'seq' : 'together' }); }
 
 // ================================================================
 // 回転（n×n）と投影（n 次元 → 3 次元、4 本目から先は 1 本ずつ遠近）
 // ================================================================
 let Rm = new Float64Array(9), RN = 3;
 let axisScale = new Float64Array(NMAX).fill(1);   // 次元を変える時に、新しい軸を 0 から伸ばす／消える軸を縮める
+// 計算は共通部品 nd-geom（lib/nd-geom.js）。回転面を辞書の順に、角度は度
 function buildRot(n) {
-    RN = n; Rm = new Float64Array(n * n);
-    for (let i = 0; i < n; i++) Rm[i * n + i] = 1;
-    planes(n).forEach(([i, j]) => {
-        const a = (S.ang[key(i, j)] || 0) * Math.PI / 180;
-        if (!a) return;
-        const c = Math.cos(a), s = Math.sin(a);
-        for (let col = 0; col < n; col++) {
-            const p = Rm[i * n + col], q = Rm[j * n + col];
-            Rm[i * n + col] = c * p - s * q; Rm[j * n + col] = s * p + c * q;
-        }
-    });
+    RN = n; Rm = NDGeom.rotation(n, S.ang, { deg: true, out: Rm.length === n * n ? Rm : null });
 }
-const DPERS = 2.4;
 let projK = 1;   // いま写した点の見かけの縮み（4 本目から先の遠近の積。大きいほど手前）
-const qbuf = new Float64Array(NMAX);
+let PJ = null;   // 写し方（nd-geom の projector、n次元ビューアの式：D＝2.4 / 遠近の強さ、k ≤ 4、回す前に軸を axisScale 倍）
 function proj(Vsrc, idx, n, out, o) {
-    for (let r = 0; r < n; r++) {
-        let s = 0;
-        for (let c = 0; c < n; c++) s += Rm[r * n + c] * Vsrc[idx * n + c] * axisScale[c];
-        qbuf[r] = s;
-    }
-    projK = 1;
-    for (let m = n - 1; m >= 3; m--) {
-        const k = 1 / Math.max(0.25, 1 - S.pk * qbuf[m] / DPERS);
-        for (let t = 0; t < m; t++) qbuf[t] *= k;
-        projK *= k;
-    }
-    out[o] = qbuf[0]; out[o + 1] = qbuf[1]; out[o + 2] = qbuf[2];
-    return n > 3 ? qbuf[3] : 0;
+    if (!PJ || PJ.n !== n || PJ.pk !== S.pk) { PJ = NDGeom.projector(n, { preset: 'ndim', pk: S.pk, pre: axisScale }); PJ.pk = S.pk; }
+    PJ.R = Rm;
+    projK = PJ.project(Vsrc, out, o, idx * n);
+    return PJ.w;
 }
 // 軸 k が見えている割合（4 本目から先に回った分だけ消える）
-function axisFade(k) {
-    let h = 0;
-    for (let m = 3; m < RN; m++) h += Rm[m * RN + k] * Rm[m * RN + k];
-    return Math.max(0, 1 - h) * axisScale[k];
-}
+function axisFade(k) { return NDGeom.axisVisible(Rm, RN, k) * axisScale[k]; }
 
 // ---------- 画面用の物を作る（形が変わった時） ----------
 let P3 = null;   // 投影した頂点（nv*3）
@@ -607,34 +537,21 @@ const labelPos = [];
 //   超立方体：胞＝±各軸の (n−1) 次元立方体（2n 個）、色＝その軸の ＋／− の色（いちばん上の軸の −側＝中心）、外向き＝±e_k
 //   正単体：胞＝頂点 i の向かいの (n−1) 次元単体（n+1 個）、色＝頂点 i の色、外向き＝−（頂点 i の向き）
 const CELL_SHRINK = 0.85;   // 胞を自分の中心へ縮める割合（胞どうしにすき間ができ、色が混ざらずに分かれて見える）
-function buildCellFaces(src) {
+function buildCellFaces(src) {   // 胞の頂点・面・外向きは nd-geom の cubeCells・simplexCells（並びは前と同じ）
     const n = src.n, cells = [], idx = [], cell = [];
     if (src.shape === 'cube') {
-        const nv = 1 << n;
-        for (let k = 0; k < n; k++) for (const sg of [1, -1]) {
-            const o = [...Array(n).keys()].filter(d => d !== k), fix = sg > 0 ? (1 << k) : 0, ci = cells.length;
-            const verts = []; for (let i = 0; i < nv; i++) if ((i & (1 << k)) === fix) verts.push(i);
-            const nrm = new Float64Array(n); nrm[k] = sg;
-            cells.push({ verts, nrm, ax: k, sg, center: k === n - 1 && sg < 0 });
-            for (let a = 0; a < o.length; a++) for (let b = a + 1; b < o.length; b++) {
-                const rest = o.filter((_, j) => j !== a && j !== b), A = 1 << o[a], B = 1 << o[b];
-                for (let m = 0; m < (1 << rest.length); m++) {
-                    let base = fix; rest.forEach((d, j) => { if ((m >> j) & 1) base |= 1 << d; });
-                    idx.push(base, base | A, base | A | B, base | B); cell.push(ci);
-                }
-            }
-        }
+        NDGeom.cubeCells(n).forEach((c, ci) => {
+            cells.push({ verts: Array.from(c.verts), nrm: c.normal, ax: c.axis, sg: c.sign, center: c.center });
+            for (let f = 0; f < c.quads.length; f++) idx.push(c.quads[f]);
+            for (let f = 0; f < c.quads.length / 4; f++) cell.push(ci);
+        });
         return finishCells(src, { quad: true, n, cells, idx, cell });
     }
     if (src.shape === 'simplex') {
-        for (let i = 0; i <= n; i++) {
-            const verts = [...Array(n + 1).keys()].filter(v => v !== i), ci = cells.length;
-            const nrm = new Float64Array(n); let l = 0;
-            for (let c = 0; c < n; c++) { nrm[c] = -src.V[i * n + c]; l += nrm[c] * nrm[c]; }
-            l = Math.sqrt(l) || 1; for (let c = 0; c < n; c++) nrm[c] /= l;
-            cells.push({ verts, nrm, ax: i < n ? i : -1, sg: 1, center: false });
-            for (let a = 0; a < verts.length; a++) for (let b = a + 1; b < verts.length; b++) for (let c = b + 1; c < verts.length; c++) { idx.push(verts[a], verts[b], verts[c], verts[c]); cell.push(ci); }
-        }
+        NDGeom.simplexCells(n, src).forEach((c, ci) => {
+            cells.push({ verts: Array.from(c.verts), nrm: c.normal, ax: c.axis, sg: 1, center: false });
+            for (let f = 0; f < c.tris.length / 3; f++) { const t = c.tris[3 * f], u = c.tris[3 * f + 1], w = c.tris[3 * f + 2]; idx.push(t, u, w, w); cell.push(ci); }
+        });
         return finishCells(src, { quad: false, n, cells, idx, cell });
     }
     return null;   // 正軸体・超球は色分けしない（正軸体の胞は 2^n 個で、軸の色との対応もない）

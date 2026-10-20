@@ -17,6 +17,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <!-- 視覚効果の共通部品（次元おりがみと同じ。設定は全アプリ共通の vfx キー） -->
     <script src="lib/visual-fx.js"></script>
+    <!-- n 次元の計算の共通部品（回転・3D への写し方・折りたたみ・形。n次元ビューアと同じ） -->
+    <script src="lib/nd-geom.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
         body { font-family: 'Noto Sans JP', 'Inter', sans-serif; background-color: #030712; color: #f3f4f6; overflow: hidden; }
@@ -243,20 +245,17 @@ const CELLS = [{ kind: 'center', a: U, s: -1, name: '−U（中心）' }];
 for (let a = 0; a < 5; a++) for (const s of [1, -1]) CELLS.push({ kind: 'arm', a, s, name: (s > 0 ? '+' : '−') + AXN[a] });
 CELLS.push({ kind: 'cap', a: U, s: 1, name: '+U（蓋）' });
 // ペンテラクト1個の頂点（32）・辺（80）・正方形（80）。固定する軸以外の5軸を、ビットで ±1
+const CUBE5 = NDGeom.cube(5);   // 5次元立方体の辺・正方形の並び（nd-geom。前と同じ並び）
+const pairs = (A, m) => Array.from({ length: A.length / m }, (_, i) => Array.from(A.subarray(i * m, i * m + m)));
 function cellTopo(fixA) {
     const free = [0, 1, 2, 3, 4, 5].filter(k => k !== fixA);
-    const E = [], Q = [];
-    for (let i = 0; i < 32; i++) for (let k = 0; k < 5; k++) { const j = i ^ (1 << k); if (i < j) E.push([i, j]); }
-    for (let p = 0; p < 5; p++) for (let q = p + 1; q < 5; q++) for (let r = 0; r < 32; r++) {
-        if (r & (1 << p) || r & (1 << q)) continue;
-        Q.push([r, r | (1 << p), r | (1 << p) | (1 << q), r | (1 << q)]);
-    }
-    return { free, E, Q };
+    return { free, E: pairs(CUBE5.edges, 2), Q: pairs(CUBE5.squares, 4) };
 }
 CELLS.forEach(C => {
     C.topo = cellTopo(C.a);
     C.base = [];   // 頂点の6次元座標（折りたたんだ＝本来の位置）
     for (let i = 0; i < 32; i++) { const p = [0, 0, 0, 0, 0, 0]; p[C.a] = C.s; C.topo.free.forEach((k, b) => p[k] = (i >> b & 1) ? 1 : -1); C.base.push(p); }
+    C.nd = { kind: C.kind, axis: C.a, sign: C.s };   // nd-geom の foldPoint に渡す形
     C.col = new THREE.Color(); C.K = new Float32Array(32);   // 色は paintCells（共通のパレット）。K＝頂点ごとの見かけの縮み
 });
 function cellNormal(C) { const n = [0, 0, 0, 0, 0, 0]; n[C.a] = C.s; return n; }   // 胞の外向きの向き（中心 −U・腕 ±軸・蓋 +U）
@@ -270,34 +269,34 @@ paintCells();
 
 // ---- 折りたたみ：本来の位置 p → 今の折り具合での6次元の位置 ----
 const smooth = t => t * t * (3 - 2 * t);
+//   計算は nd-geom の foldAngles・foldPoint（6次元アプリの式：腕 0〜0.62・蓋 0.38〜、smoothstep、蓋は +Y の腕の先）。分解（explode）はここで足す
+const FOLD_OPT = NDGeom.PRESETS.hex6app.fold, _ang = { arm: new Float64Array(5), cap: 0 };
 function angles(f) {   // 腕の角度 φ1、蓋の（腕に対する）角度 φ2
-    if (!stagger) { const a = smooth(f) * Math.PI / 2; return [a, a]; }
-    return [smooth(Math.min(1, f / 0.62)) * Math.PI / 2, smooth(Math.max(0, (f - 0.38) / 0.62)) * Math.PI / 2];
+    const a = NDGeom.foldAngles(f, 6, { ...FOLD_OPT, timing: stagger ? 'stagger' : 'together' });
+    return [a.arm[0], a.cap];
 }
 function foldPoint(C, p, f1, f2, out) {
-    for (let k = 0; k < 6; k++) out[k] = p[k];
-    if (C.kind === 'arm') {   // 蝶番：x_a = s, u = -1。u+1 だけ、軸 a の外向き（展開図）→ u の向き（完成）へ
-        const d = p[U] + 1; out[C.a] = C.s + C.s * d * Math.cos(f1); out[U] = -1 + d * Math.sin(f1);
-        if (explode) { out[C.a] += C.s * explode; }
-    } else if (C.kind === 'cap') {   // +Y の腕の先（長さ 2）を蝶番に、腕の向きからさらに φ2
-        const e = 1 - p[1], Ey = 1 + 2 * Math.cos(f1), Eu = -1 + 2 * Math.sin(f1), g = f1 + f2;
-        out[1] = Ey + e * Math.cos(g); out[U] = Eu + e * Math.sin(g);
-        if (explode) { const h = g / 2; out[1] += explode * (Math.cos(f1) + Math.cos(h)); out[U] += explode * (Math.sin(f1) + Math.sin(h)); }
-    } else if (explode) { out[U] -= explode * Math.sin(f1); }
+    _ang.arm.fill(f1); _ang.cap = f2;
+    NDGeom.foldPoint(C.nd, p, _ang, out, 6, FOLD_OPT.capAxis);   // 腕：x_a = s, u = -1 を蝶番に。蓋：+Y の腕の先（長さ 2）を蝶番に、腕の向きからさらに φ2
+    if (!explode) return out;
+    if (C.kind === 'arm') out[C.a] += C.s * explode;
+    else if (C.kind === 'cap') { const g = f1 + f2, h = g / 2; out[1] += explode * (Math.cos(f1) + Math.cos(h)); out[U] += explode * (Math.sin(f1) + Math.sin(h)); }
+    else out[U] -= explode * Math.sin(f1);
     return out;
 }
 // ---- 6次元の回転と、u → v → w の3段の遠近（次元おりがみの5次元の写し方を1段ふやした） ----
-let rotS = [], projK = 1;   // projK：いま写した点の見かけの縮み（u・v・w の遠近の積。大きいほど手前）
-function rot6(q) { for (const [i, j, c, s] of rotS) { const t = q[i] * c - q[j] * s; q[j] = q[i] * s + q[j] * c; q[i] = t; } return q; }
-function mkRot() { rotS = ROT.map(([, i, j], k) => [i, j, Math.cos(ang[k]), Math.sin(ang[k])]); }
-const clampD = (x, D) => Math.min(Math.max(x, -D + 0.6), D - 0.6);
-function project(q, out, k) {
-    for (const [i, j, c, s] of rotS) { const t = q[i] * c - q[j] * s; q[j] = q[i] * s + q[j] * c; q[i] = t; }
-    const ku = DU / (DU - clampD(q[5], DU)); const v = q[4] * ku, w0 = q[3] * ku;
-    const kv = DV / (DV - clampD(v, DV)); const w = w0 * kv;
-    const kw = DW / (DW - clampD(w, DW)), s = ku * kv * kw * 0.75; projK = ku * kv * kw;
-    out[k] = q[0] * s; out[k + 1] = q[1] * s; out[k + 2] = q[2] * s;
-    return w;   // w の段の奥行き（線の濃さに使う）
+//   計算は nd-geom の rotation・projector（6次元アプリの式：ROT の順に回す、D＝DW・DV・DU、±(D−0.6) ではさむ、最後に 0.75 倍）
+let R6 = NDGeom.identity(6), projK = 1;   // projK：いま写した点の見かけの縮み（u・v・w の遠近の積。大きいほど手前）
+const PJ = NDGeom.projector(6, { preset: 'hex6app' });
+function rot6(q) { return NDGeom.apply(R6, 6, q, q); }   // q をその場で回す
+function mkRot() {
+    NDGeom.rotation(6, ROT.map(([, i, j], k) => [i, j, ang[k]]), { out: R6 });
+    PJ.D[3] = DW; PJ.D[4] = DV; PJ.D[5] = DU;   // 遠近の距離（設定の目盛りで変わる）
+}
+function project(q, out, k) {   // q はその場で回る（前と同じ）
+    rot6(q);
+    projK = PJ.project(q, out, k);
+    return PJ.w;   // w の段の奥行き（線の濃さに使う）
 }
 
 // ---- three.js ----
@@ -418,18 +417,14 @@ const CR_NAMES = [['12', '個の5次元立方体（ペンテラクト）'], ['60
 const CR_GAP = [4.0, 2.5, 2.5];   // 段階ごとに、中心の向き P(c) へどれだけ離すか（部品が大きいので大きめに）
 const CR_S = [0.6, 0.55, 0.5], CR_OP = [0.05, 0.08, 0.12];   // 部品の縮め具合・面の濃さ（部品が多い段階ほど、重なりが少ないので濃く）
 const CR_LEVELS = [5, 4, 3].map(k => {   // k＝自由に動く軸の数
-    const pieces = [];
-    const subsets = []; (function rec(st, a) { if (a.length === k) { subsets.push(a.slice()); return; } for (let i = st; i < 6; i++) { a.push(i); rec(i + 1, a); a.pop(); } })(0, []);
-    subsets.forEach(F => {
-        const G = [0, 1, 2, 3, 4, 5].filter(i => !F.includes(i)), nG = G.length;
-        for (let sg = 0; sg < (1 << nG); sg++) {
-            const c = [0, 0, 0, 0, 0, 0]; G.forEach((g, j) => c[g] = (sg >> j & 1) ? 1 : -1);
-            const v6 = []; for (let i = 0; i < (1 << k); i++) { const p = c.slice(); F.forEach((f, j) => p[f] = (i >> j & 1) ? 1 : -1); v6.push(p); }
-            const E = []; for (let i = 0; i < (1 << k); i++) for (let j = 0; j < k; j++) { const t = i ^ (1 << j); if (i < t) E.push([i, t, F[j]]); }
-            const Q = []; for (let a = 0; a < k; a++) for (let b = a + 1; b < k; b++) for (let r = 0; r < (1 << k); r++) { if (r & (1 << a) || r & (1 << b)) continue; Q.push([r, r | (1 << a), r | (1 << a) | (1 << b), r | (1 << b)]); }
-            const col = new THREE.Color(0, 0, 0); G.forEach(g => col.add(new THREE.Color(AXHEX[g]).multiplyScalar(1 / nG)));
-            pieces.push({ v6, E, Q, col, c, Pv: v6.map(PC), Pc: PC(c), pos: new Float32Array(v6.length * 3) });
-        }
+    const pieces = [], loc = NDGeom.cube(k), V6 = NDGeom.cube(6).V;   // 部品＝6次元立方体の中の k 次元の面（nd-geom の cubeFaces。並びは前と同じ）
+    const El = pairs(loc.edges, 2), Ql = pairs(loc.squares, 4);
+    NDGeom.cubeFaces(6, k).forEach(fc => {
+        const F = fc.free, G = [0, 1, 2, 3, 4, 5].filter(i => !F.includes(i)), nG = G.length, c = Array.from(fc.fixed);
+        const v6 = Array.from(fc.verts, v => Array.from(V6.subarray(v * 6, v * 6 + 6)));
+        const E = El.map(([a, b], e) => [a, b, F[loc.edgeAxis[e]]]), Q = Ql.map(q => q.slice());
+        const col = new THREE.Color(0, 0, 0); G.forEach(g => col.add(new THREE.Color(AXHEX[g]).multiplyScalar(1 / nG)));
+        pieces.push({ v6, E, Q, col, c, Pv: v6.map(PC), Pc: PC(c), pos: new Float32Array(v6.length * 3) });
     });
     return { k, pieces };
 });
