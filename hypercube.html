@@ -22,12 +22,12 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
     <!-- 視覚効果の共通部品（パレット・照り返し・軸の札・見切れ防止・高い次元の光・奥／内側を濃く）。設定は全アプリ共通の vfx キー -->
-    <script src="lib/visual-fx.js?b=20261020-1625"></script>
+    <script src="lib/visual-fx.js?b=20261021-1545"></script>
     <script src="lib/ui-dock.js?b=20261020-1625"></script>
     <!-- n 次元の計算の共通部品（回転・3D への写し方・折りたたみ）。6次元アプリ・n次元ビューアと同じ -->
     <script src="lib/nd-geom.js?b=20261020-1625"></script>
     <!-- 高い次元の立体の質感（5次元の面をガラス・結晶・樹脂に、辺を管と玉に）。共通部品/nd-solid -->
-    <script src="lib/nd-solid.js?b=20261021-1530"></script>
+    <script src="lib/nd-solid.js?b=20261021-1545"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
         
@@ -7886,7 +7886,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-1530';
+        const APP_BUILD = '20261021-1545';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
