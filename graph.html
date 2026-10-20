@@ -394,6 +394,16 @@
                 <span class="grow"></span>
                 <input type="checkbox" id="showPts" class="switch">
             </label>
+            <label class="setting" title="交点・解の値が π の分数倍（π/2、3π/4、−2π など）なら、π を使って書く">
+                <span>交点を π で書く</span>
+                <span class="grow"></span>
+                <input type="checkbox" id="piOn" class="switch">
+            </label>
+            <label class="setting" title="Σ の式の下に出る展開を、次数の高い項から並べる（x⁷/7! − x⁵/5! + … の順）">
+                <span>展開を高い次数から</span>
+                <span class="grow"></span>
+                <input type="checkbox" id="descOn" class="switch">
+            </label>
             <details class="hint" id="hintBox">
                 <summary>使い方</summary>
                 x 以外の文字（n, a など）は自動でスライダーになります。<b>y</b> は縦の座標、<b>i</b> は虚数単位です。<br>
@@ -1175,6 +1185,8 @@ let d3 = { R: 6, yaw: -0.65, pitch: 0.5, h: 're', surf: true, floor: true, th: 0
 let d3Scale = { key: '', Yr: 1 };
 let lineW = 1.5;   // 線の太さ（全体）。細めが既定
 let showPts = true;   // 交点（解・グラフどうしの交点）を表示するか
+let piOn = true;      // 交点・解の値を、π の分数倍なら π で書く（π/2、3π/4 など）
+let descOn = false;   // Σ の展開を、次数の高い項から並べる
 const dotR = () => 9;   // 交点の印の外側の大きさ（ラベルをずらす量）
 // '#rrggbb' → 透明度つきの色
 function hexA(c, a) {
@@ -1281,6 +1293,27 @@ function tagLabels(list) {
     ctx.restore();
 }
 
+// π の分数倍（分母 1・2・3・4・6・8・12、|値| ≦ 64π）なら 'π/2' '−3π/4' '2π' のような文字、違えば null
+function piForm(v) {
+    if (!isFinite(v) || Math.abs(v) < 1e-9 || Math.abs(v) > 64 * Math.PI + 1) return null;
+    const t = v / Math.PI, gcd = (a, b) => b ? gcd(b, a % b) : a;
+    for (const q of [1, 2, 3, 4, 6, 8, 12]) {
+        const p = Math.round(t * q);
+        if (p === 0 || Math.abs(v - p * Math.PI / q) > 1e-7 * Math.max(1, Math.abs(v))) continue;
+        const g = gcd(Math.abs(p), q), P = Math.abs(p) / g, Q = q / g;
+        return (p < 0 ? '−' : '') + (P === 1 ? '' : P) + 'π' + (Q === 1 ? '' : '/' + Q);
+    }
+    return null;
+}
+const fmtPt = v => (piOn && piForm(v)) || fmtShort(v);    // 交点のラベル
+const fmtSol = v => (piOn && piForm(v)) || fmtFix(v);     // 解の一覧
+// Σ の展開の並び：「高い次数から」の時は次数の大きい順（同じ次数は元の順）。次数が出ない式は逆順に
+function orderTerms(terms) {
+    if (!descOn || !terms || terms.length < 2) return terms;
+    const ds = terms.map(termDeg);
+    if (ds.every(d => d !== null)) return terms.map((t, i) => [t, ds[i], i]).sort((a, b) => b[1] - a[1] || a[2] - b[2]).map(a => a[0]);
+    return terms.slice().reverse();
+}
 const fmtShort = v => {
     if (Math.abs(v) < 1e-10) return '0';
     const a = Math.abs(v);
@@ -1565,13 +1598,13 @@ function solText(ex) {
         const j = (isReal(r) && r.re === 0) ? -1 : rs.findIndex((q, k) => !used[k] && near(q, pm));
         if (j >= 0) {
             used[j] = true;
-            if (isReal(r)) items.push('±' + fmtFix(Math.abs(r.re)));
+            if (isReal(r)) items.push('±' + fmtSol(Math.abs(r.re)));
             else {
                 const re = fmtFix(r.re), im = fmtFix(Math.abs(r.im));
                 const ip = (im === '1' ? '' : im) + 'i';
                 items.push(re === '0' ? `±${ip}` : `${re} ± ${ip}`);
             }
-        } else items.push(isReal(r) ? fmtFix(r.re) : fmtC(r.re, r.im));
+        } else items.push(isReal(r) ? fmtSol(r.re) : fmtC(r.re, r.im));
     });
     const MAX = 6;
     const more = items.length > MAX ? `　…ほか ${items.length - MAX} 個` : '';
@@ -1609,7 +1642,7 @@ function renderList() {
         row.querySelector('.exadd').addEventListener('click', () => {
             if (!ex.sum) return;
             const terms = ex.deg ? getPoly(ex, paramEnv()).terms : expandSum(ex.sum.ast, paramEnv());
-            if (terms) addAfter(ex.id, 'y=' + toSrc(termsToAst(terms)));
+            if (terms) addAfter(ex.id, 'y=' + toSrc(termsToAst(orderTerms(terms))));
         });
         row.querySelector('.sol').addEventListener('click', () => {
             setActive(ex.id);
@@ -1688,6 +1721,8 @@ function refreshExpand(ex) {
             if (ds.length) note = `${Math.max(...ds)} 次の多項式`;
         }
     }
+    key += descOn ? '|desc' : '';
+    if (key === ex.expKey) return;
     ex.expKey = key;
     if (!terms) { box.hidden = true; return; }
     box.hidden = false;
@@ -1697,7 +1732,7 @@ function refreshExpand(ex) {
     md.querySelectorAll('button').forEach(b => b.classList.toggle('on', (b.dataset.m === 'd') === !!ex.deg));
     md.querySelector('.exnote').textContent = note;
     box.querySelector('.exmath').innerHTML =
-        `<math><mstyle displaystyle="true"><mo>=</mo>${termsToMathML(terms)}</mstyle></math>`;
+        `<math><mstyle displaystyle="true"><mo>=</mo>${termsToMathML(orderTerms(terms))}</mstyle></math>`;
 }
 
 function setActive(id) {
@@ -2230,7 +2265,7 @@ function drawReal() {
             const px = sx(r.re), py = sy(0);
             if (px < -6 || px > W_ + 6 || py < -6 || py > H_ + 6) return;
             marks.add(px, py, ex.color);
-            if (Math.abs(r.re) > 1e-9) tags.push({ x: px, y: py - 12, align: 'center', text: fmtShort(r.re), color: ex.color });
+            if (Math.abs(r.re) > 1e-9) tags.push({ x: px, y: py - 12, align: 'center', text: fmtPt(r.re), color: ex.color });
         });
         if (ex.kind === 'fn' && ex.fn) {
             env.x = 0;
@@ -2238,7 +2273,7 @@ function drawReal() {
             if (!isFinite(y) || px < -6 || px > W_ + 6 || py < -6 || py > H_ + 6) return;
             marks.add(px, py, ex.color);
             if (Math.abs(y) * sc < 1) return;   // 原点：値のラベルは要らない
-            tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtShort(y), color: ex.color });
+            tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtPt(y), color: ex.color });
         }
     });
 
@@ -2277,7 +2312,7 @@ function drawReal() {
         ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
         ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 4;
         ctx.fillStyle = '#e2e8f0';
-        interU.forEach(o => ctx.fillText(`(${fmtShort(o.x)}, ${fmtShort(o.y)})`, o.px + dotR() + 4, o.py - 3));
+        interU.forEach(o => ctx.fillText(`(${fmtPt(o.x)}, ${fmtPt(o.y)})`, o.px + dotR() + 4, o.py - 3));
         ctx.restore();
     }
 
@@ -2391,7 +2426,7 @@ function drawRotCurves(env, sx, sy, x0, x1, sc) {
         const v = ex.cfn(cenv), px = sx(0), py = sy(v.re);
         if (isFinite(v.re) && Math.abs(v.im) <= 1e-9 * (1 + Math.abs(v.re)) && py > -6 && py < H_ + 6 && px > -6 && px < W_ + 6) {
             marks.add(px, py, ex.color);
-            if (Math.abs(v.re) * sc >= 1) tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtShort(v.re), color: ex.color });
+            if (Math.abs(v.re) * sc >= 1) tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtPt(v.re), color: ex.color });
         }
     });
     marks.draw();
@@ -3387,7 +3422,7 @@ function save() {
     try {
         localStorage.setItem(STORE, JSON.stringify({
             exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible, ...(e.deg ? { deg: true } : {}) })),
-            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, styleVer: 2, xRot,
+            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, piOn, descOn, styleVer: 2, xRot,
         }));
     } catch (_) { /* 保存できない環境では何もしない */ }
 }
@@ -3409,6 +3444,8 @@ function load() {
     // styleVer 2 より前の保存（太い線が既定だった頃）の太さは使わず、新しい細い既定にする
     if (data.styleVer >= 2 && isFinite(data.lineW)) lineW = Math.min(6, Math.max(0.5, data.lineW));
     if (data.showPts === false) showPts = false;
+    if (data.piOn === false) piOn = false;
+    if (data.descOn === true) descOn = true;
     if (data.xRot && isFinite(data.xRot.a)) xRot = { on: !!data.xRot.on, a: +data.xRot.a, spin: !!data.xRot.spin };
     if (data.colorOn === false) colorOn = false;
     if (data.kbOn === false) {
@@ -3549,6 +3586,10 @@ lwEl.addEventListener('input', () => { lineW = +lwEl.value; $('#lineWv').textCon
 const spEl = $('#showPts');
 spEl.checked = showPts;
 spEl.addEventListener('change', () => { showPts = spEl.checked; requestDraw(); save(); });
+const piEl = $('#piOn'), dsEl = $('#descOn');
+piEl.checked = piOn; dsEl.checked = descOn;
+piEl.addEventListener('change', () => { piOn = piEl.checked; exprs.forEach(refreshRow); requestDraw(); save(); });
+dsEl.addEventListener('change', () => { descOn = dsEl.checked; exprs.forEach(refreshRow); save(); });
 requestDraw();
 })();
 </script>
