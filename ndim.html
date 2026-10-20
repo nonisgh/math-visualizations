@@ -130,7 +130,7 @@
         </div>
     </section>
     <section>
-        <h3>回転面マップ <span class="seg"><button class="btn" id="spinAll" type="button">回す</button><button class="btn" id="randSpin" type="button" title="いくつかの面を選んで回す">おまかせ</button><button class="btn" id="resetAng" type="button" title="全部の角度を 0 に戻す">整列</button></span></h3>
+        <h3>回転面マップ <span class="seg"><button class="btn" id="spinAll" type="button">回す</button><button class="btn" id="spinEvery" type="button" title="全部の回転面（n 次元なら n(n−1)/2 枚）を回す。もう一度押すと全部やめる">全部</button><button class="btn" id="randSpin" type="button" title="いくつかの面を選んで回す">おまかせ</button><button class="btn" id="resetAng" type="button" title="全部の角度を 0 に戻す">整列</button></span></h3>
         <div class="map" id="map"></div>
         <div class="key"><span><i style="background:rgba(71,85,105,.8)"></i>3D の回転</span><span><i style="background:rgba(124,58,237,.65)"></i>軸が消える回転</span><span><i style="background:rgba(13,148,136,.6)"></i>見えない所の回転</span></div>
         <div class="row"><span id="selName" style="min-width:58px">x–w</span><input type="range" id="selAng" min="0" max="360" step="1"><span class="v" id="selAngV"></span></div>
@@ -481,7 +481,7 @@ function makeObjects() {
     // 面（超立方体・正単体・正軸体、展開図の時は出さない）
     //   三角形を 1 つのメッシュにまとめ、毎回遠い順に並べて描く（visual-fx の sortedFaces）。照り返しが効く材質
     if (faceSet) { faceSet.material.dispose(); faceSet = null; }
-    CELLF = S.show.cells && src === G ? buildCellFaces(src) : null;
+    CELLF = src === NET ? buildNetFaces(NET) : S.show.cells ? buildCellFaces(src) : null;   // 展開図は胞を並べたものなので、いつも胞ごとの面で
     if (CELLF) {
         faceSet = VisualFX.sortedFaces(CELLF.count, { renderOrder: 1, material: { roughness: 0.45, metalness: 0 } });
         objs.faces = faceSet.mesh; scene.add(objs.faces);
@@ -526,7 +526,7 @@ function makeObjects() {
 function applyShow() {
     if (objs.edges) objs.edges.visible = S.show.edges;
     shellObjs.forEach(o => { o.wire.visible = S.show.edges; o.solid.visible = S.show.faces; });
-    if (objs.faces) objs.faces.visible = S.show.faces && !(S.net && S.shape === 'cube');
+    if (objs.faces) objs.faces.visible = S.show.faces;
     if (objs.verts) objs.verts.visible = S.shape === 'sphere' ? S.sphereModel === 'circles' : S.show.verts;
     if (objs.axes) objs.axes.visible = S.show.axes;
     originDot.visible = S.show.axes;
@@ -643,22 +643,45 @@ function buildCellFaces(src) {
 function finishCells(src, C) {
     const n = C.n; let tot = 0;
     C.cells.forEach(c => { c.off = tot; tot += c.verts.length; });
-    const V = new Float64Array(tot * n);
-    C.cells.forEach(c => {
-        const cen = new Float64Array(n); c.verts.forEach(v => { for (let q = 0; q < n; q++) cen[q] += src.V[v * n + q] / c.verts.length; });
-        c.local = new Map(c.verts.map((v, j) => [v, c.off + j]));
-        c.verts.forEach((v, j) => { for (let q = 0; q < n; q++) V[(c.off + j) * n + q] = cen[q] + (src.V[v * n + q] - cen[q]) * CELL_SHRINK; });
-    });
+    C.cells.forEach(c => { c.local = new Map(c.verts.map((v, j) => [v, c.off + j])); });
     const idx = new Int32Array(C.idx.length);
     for (let f = 0; f < C.cell.length; f++) { const c = C.cells[C.cell[f]]; for (let j = 0; j < 4; j++) idx[f * 4 + j] = c.local.get(C.idx[f * 4 + j]); }
     const P = new Float32Array(tot * 3);
-    return { quad: C.quad, n, cells: C.cells, idx, cell: Uint16Array.from(C.cell), count: C.cell.length, nv: tot, V, P, K: new Float32Array(tot), Pv: Array.from({ length: tot }, (_, i) => P.subarray(i * 3, i * 3 + 3)) };
+    return { quad: C.quad, n, src, cells: C.cells, idx, cell: Uint16Array.from(C.cell), count: C.cell.length, fcol: C.fcol ? Float32Array.from(C.fcol) : null,
+        nv: tot, V: new Float64Array(tot * n), P, K: new Float32Array(tot), Pv: Array.from({ length: tot }, (_, i) => P.subarray(i * 3, i * 3 + 3)) };
+}
+// 胞の頂点を、胞の中心へ縮めて写す前の n 次元の位置に（展開図は毎回動くので、毎回作る）。縮めるのは「胞で色分け」の時だけ
+function fillCellV(C) {
+    const n = C.n, sV = C.src.V, V = C.V, k = S.show.cells ? CELL_SHRINK : 1, cen = new Float64Array(n);
+    C.cells.forEach(c => {
+        cen.fill(0); const m = c.verts.length;
+        c.verts.forEach(v => { for (let q = 0; q < n; q++) cen[q] += sV[v * n + q] / m; });
+        c.verts.forEach((v, j) => { const o = (c.off + j) * n; for (let q = 0; q < n; q++) V[o + q] = cen[q] + (sV[v * n + q] - cen[q]) * k; });
+    });
+}
+// 展開図の面：展開図の胞（真ん中・腕・ふた）ごとの正方形。色は「胞で色分け」なら胞の色、ふだんは面の 2 本の軸の色をまぜた色
+function buildNetFaces(net) {
+    const { n, nl, fac } = net, m = n - 1, last = n - 1, cells = [], idx = [], cell = [], fcol = [];
+    fac.forEach((F, fi) => {
+        const off = fi * nl, ci = cells.length, ax = F.kind === 'arm' ? F.k : last, sg = F.kind === 'arm' ? F.sg : F.kind === 'cap' ? 1 : -1;
+        const nrm = new Float64Array(n); nrm[ax] = sg;
+        cells.push({ verts: [...Array(nl).keys()].map(v => off + v), nrm, ax, sg, center: F.kind === 'center' });
+        for (let a = 0; a < m; a++) for (let b = a + 1; b < m; b++) {
+            const rest = [...Array(m).keys()].filter(j => j !== a && j !== b), c = mixCol(AXC[F.free[a]], AXC[F.free[b]]);
+            for (let r = 0; r < (1 << rest.length); r++) {
+                let base = 0; rest.forEach((d, j) => { if ((r >> j) & 1) base |= 1 << d; });
+                idx.push(off + base, off + (base | (1 << a)), off + (base | (1 << a) | (1 << b)), off + (base | (1 << b))); cell.push(ci); fcol.push(...c);
+            }
+        }
+    });
+    return finishCells(net, { quad: true, n, cells, idx, cell, fcol });
 }
 const _cc = new THREE.Color(), _co = { r: 0, g: 0, b: 0, a: 1 };
 let _cfK = new Float32Array(0);
 function updateCellFaces() {
     const C = CELLF, n = C.n, idx = C.idx, per = C.quad ? 4 : 3, K = C.K, Pv = C.Pv;
-    for (let i = 0; i < C.nv; i++) { proj(C.V, i, n, C.P, i * 3); K[i] = projK; }   // 縮めた胞の頂点を写す
+    fillCellV(C);
+    for (let i = 0; i < C.nv; i++) { proj(C.V, i, n, C.P, i * 3); K[i] = projK; }   // （縮めた）胞の頂点を写す
     const deep = VisualFX.cellDepth(C.cells.map(c => K.subarray(c.off, c.off + c.verts.length)));   // 奥の胞を濃く：胞ごとの見かけの縮み
     if (_cfK.length < C.count) _cfK = new Float32Array(C.count);
     for (let f = 0; f < C.count; f++) { let k = 0; for (let j = 0; j < per; j++) k += K[idx[f * 4 + j]]; _cfK[f] = k / per; }
@@ -671,10 +694,12 @@ function updateCellFaces() {
     });
     const cols = C.cells.map(c => { _cc.setHex(c.ax < 0 ? 0xe2e8f0 : VisualFX.cellHex(AX[c.ax].n, c.sg, c.center)); return { r: _cc.r, g: _cc.g, b: _cc.b }; });
     const a0 = Math.min(0.6, S.faceOp * 1.6 / Math.sqrt(Math.max(1, (n - 2) * C.cells.length / 8)));   // 胞が多いほど 1 枚ずつは薄く（重なりで白くならないように）
+    const byFace = C.fcol && !S.show.cells, fc = { r: 0, g: 0, b: 0 };   // 展開図で「胞で色分け」OFF の時は、面の 2 本の軸の色をまぜた色
     faceSet.clear();
     for (let f = 0; f < C.count; f++) {
         const ci = C.cell[f];
-        VisualFX.shadeFace(cols[ci], { deep: deep[ci], inner: inner[f], lit: lit[ci], alpha: a0 }, _co);
+        if (byFace) { fc.r = C.fcol[f * 3]; fc.g = C.fcol[f * 3 + 1]; fc.b = C.fcol[f * 3 + 2]; }
+        VisualFX.shadeFace(byFace ? fc : cols[ci], { deep: deep[ci], inner: inner[f], lit: lit[ci], alpha: a0 }, _co);
         const o = f * 4;
         if (C.quad) faceSet.quad(Pv[idx[o]], Pv[idx[o + 1]], Pv[idx[o + 2]], Pv[idx[o + 3]], _co);
         else faceSet.tri(Pv[idx[o]], Pv[idx[o + 1]], Pv[idx[o + 2]], _co);
@@ -888,6 +913,7 @@ function syncSelAngle() {
 function syncSpinBtn() {
     $('#spinAll').textContent = S.spinOn ? '止める' : '回す';
     $('#spinAll').classList.toggle('on', S.spinOn);
+    { const ps = G ? planes(G.n) : []; $('#spinEvery').classList.toggle('on', ps.length > 0 && ps.every(([i, j]) => S.spin[key(i, j)])); }
 }
 function renderAxes() {
     const n = G.n;
@@ -932,7 +958,7 @@ function renderNet() {
     if (ok && G) {
         const n = G.n;
         $('#netNote').innerHTML = `${n} 次元の立方体の展開図は、${n - 1} 次元の立方体 <b>${2 * n}</b> 個。真ん中に 1 個、まわりに腕が ${2 * (n - 1)} 本、x の腕の先にふたが 1 個。` +
-            `平らな時は ${n - 1} 次元の中にあり、最後の軸 <b style="color:${AX[n - 1].c}">${AX[n - 1].n}</b> の向きに折りたたむと ${n} 次元の立方体になります。`;
+            `平らな時は ${n - 1} 次元の中にあり、最後の軸 <b style="color:${AX[n - 1].c}">${AX[n - 1].n}</b> の向きに折りたたむと ${n} 次元の立方体になります。面も貼れます（「表示」の「面」。「胞で色分け」で胞ごとの色に）。`;
     }
     syncFold();
 }
@@ -1018,6 +1044,11 @@ $('#nPlus').addEventListener('click', () => changeDim(G.n + 1));
 $('#nRange').addEventListener('change', e => changeDim(+e.target.value));
 document.querySelectorAll('#shapes .btn[data-sh]').forEach(b => b.addEventListener('click', () => { if (dimAnim) return; setShape(G.n, b.dataset.sh); flashT = performance.now(); }));
 $('#spinAll').addEventListener('click', () => { S.spinOn = !S.spinOn; tween = null; syncSpinBtn(); save(); });
+$('#spinEvery').addEventListener('click', () => {   // 全部の回転面を回す（全部回っている時は、全部やめる）
+    const ps = planes(G.n), all = ps.every(([i, j]) => S.spin[key(i, j)]);
+    S.spin = {}; if (!all) { ps.forEach(([i, j]) => { S.spin[key(i, j)] = true; }); S.spinOn = true; }
+    tween = null; renderMap(); syncSel(); syncSpinBtn(); save();
+});
 $('#randSpin').addEventListener('click', () => {
     const ps = planes(G.n).filter(([i, j]) => j >= 3);   // 軸が消える回転・見えない所の回転から選ぶ
     S.spin = {};
