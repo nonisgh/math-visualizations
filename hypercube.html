@@ -8058,7 +8058,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-0911';
+        const APP_BUILD = '20261020-0914';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
@@ -8389,7 +8389,7 @@
     let speedK = 1;
     const axOn = AX.map(() => true);
     let on = false, panel = null, renderer = null, scene, camera, controls, raf = 0, last = 0;
-    let fold = 1, playing = false, playDir = -1, hold = 0, sideBySide = true, paused = false, showMat = window.innerHeight >= 700;   // 縦が短い画面では、マトリクスは最初しまっておく
+    let fold = 1, explode = 0, playing = false, playDir = -1, hold = 0, sideBySide = true, paused = false, showMat = window.innerHeight >= 700;   // 縦が短い画面では、マトリクスは最初しまっておく
     const smooth = t => (typeof smootherstep === 'function' ? smootherstep(t) : t * t * (3 - 2 * t));
     function cellVerts6(ci, pr) {   // 折りたたみ後の 32 頂点の 6D 座標（回転の前）。cellVerts5D を 1 次元上げたもの
         const st = typeof enableStagger === 'undefined' || enableStagger;
@@ -8405,7 +8405,8 @@
                 if (cell.sign > 0) { const l = c[k] + HS; c[k] = HS + l * Math.cos(a1); u = l * Math.sin(a1); }
                 else { const l = c[k] - HS; c[k] = -HS + l * Math.cos(a1); u = -l * Math.sin(a1); }
             }
-            c.push(u - PIV); return c;
+            c.push(u - PIV);
+            return c;
         });
     }
     function rot6(p) {
@@ -8453,9 +8454,32 @@
     function fillView(V) {   // 形を作り、半径（カメラの距離合わせ用）を返す
         const fd = V.foldFn(), P = V.P, K = V.K, cam = V.cam.position;
         let rMax = 0;
-        CELLS.forEach((_, ci) => {
-            const vs = cellVerts6(ci, fd);
-            for (let i = 0; i < 32; i++) { const r = proj6(rot6(vs[i].slice())); P[ci][i * 3] = r[0]; P[ci][i * 3 + 1] = r[1]; P[ci][i * 3 + 2] = r[2]; K[ci][i] = r[3]; rMax = Math.max(rMax, Math.hypot(r[0], r[1], r[2])); }
+        // 分解（6次元アプリと同じ考え方）：w・v・u の向きは奥行きなので、6D でずらしても真ん中に固まって見える。
+        //   そこで ①各胞を 6D の中で中心の胞（−U）の位置へ寄せて同じ大きさの箱にし（分解 0.4 で完全に）、②3D で脇へずらす。
+        //   ずらす向き：±X・±Y・±Z＝その軸が今写っている向き（回すとついていく。写りが短い時は x・y・z の向き）、
+        //   ±W・±V＝斜め下 4 方向、蓋＝上（+Y の胞のさらに先）。中心は動かない
+        const all = CELLS.map((_, ci) => cellVerts6(ci, fd));
+        const cen = all.map(vs => { const m = [0, 0, 0, 0, 0, 0]; vs.forEach(v => { for (let k = 0; k < 6; k++) m[k] += v[k] / 32; }); return m; });
+        const tE = Math.min(1, explode / 0.4), D = SS * 1.7 * explode;
+        CELLS.forEach((cell, ci) => {
+            const vs = all[ci], off = [0, 0, 0];
+            if (explode > 0 && ci !== 0) {
+                let d;
+                if (cell.cap) d = [0, 2, 0];
+                else if (cell.axis < 3) {
+                    const e = [0, 0, 0, 0, 0, 0]; e[cell.axis] = cell.sign; const r = rot6(e), l = Math.hypot(r[0], r[1], r[2]);
+                    d = l > 0.35 ? [r[0] / l, r[1] / l, r[2] / l] : [0, 1, 2].map(k => k === cell.axis ? cell.sign : 0);
+                } else d = { '3,1': [1, -0.9, 1], '3,-1': [-1, -0.9, -1], '4,1': [1, -0.9, -1], '4,-1': [-1, -0.9, 1] }[cell.axis + ',' + cell.sign];
+                const l = Math.hypot(d[0], d[1], d[2]) / (cell.cap ? 2 : cell.axis >= 3 ? 1.7 : 1);   // 斜めの ±W・±V は遠めに（中心と重ならないように）
+                off[0] = d[0] / l * D; off[1] = d[1] / l * D; off[2] = d[2] / l * D;
+            }
+            for (let i = 0; i < 32; i++) {
+                const q = vs[i].slice();
+                if (tE > 0 && ci !== 0) for (let k = 0; k < 6; k++) q[k] -= tE * (cen[ci][k] - cen[0][k]);
+                const r = proj6(rot6(q));
+                P[ci][i * 3] = r[0] + off[0]; P[ci][i * 3 + 1] = r[1] + off[1]; P[ci][i * 3 + 2] = r[2] + off[2]; K[ci][i] = r[3];
+                rMax = Math.max(rMax, Math.hypot(P[ci][i * 3], P[ci][i * 3 + 1], P[ci][i * 3 + 2]));
+            }
         });
         const cK = K.map(a => a.reduce((s, x) => s + x, 0) / 32), kLo = Math.min(...cK), kSp = Math.max(Math.max(...cK) - kLo, 1e-6);
         for (const q of V.quads) {
@@ -8568,7 +8592,8 @@
             + '<div id="hex6-mat" style="position:absolute;left:8px;top:8px;z-index:2;background:#030712e6;border:1px solid #1e293b;border-radius:10px;padding:6px;max-width:calc(100% - 16px);max-height:calc(100% - 16px);overflow:auto"></div></div>'
             + '<div style="display:flex;align-items:center;gap:8px;padding:6px 12px 8px;border-top:1px solid #1e293b;color:#94a3b8;font-size:12px">'
             + '<span style="white-space:nowrap">展開図</span><input type="range" id="hex6-fold" min="0" max="1" step="0.001" value="1" style="flex:1;min-width:60px;accent-color:#2dd4bf"><span style="white-space:nowrap">6次元立方体</span>'
-            + '<button type="button" id="hex6-play" style="' + B + '">▶ 折る</button><span style="width:14px"></span></div>';
+            + '<button type="button" id="hex6-play" style="' + B + '">▶ 折る</button>'
+            + '<span style="white-space:nowrap;margin-left:6px">分解</span><input type="range" id="hex6-explode" min="0" max="1.5" step="0.01" value="0" style="width:min(140px,18%);accent-color:#f59e0b" title="胞（5次元立方体）を外向きに離す。中心は −u、蓋は +u、ほかは自分の向きの軸の方へ"><span style="width:14px"></span></div>';
         document.body.appendChild(panel);
         placeWin();
         panel.querySelector('#hex6-close').onclick = () => setOn(false);
@@ -8584,6 +8609,7 @@
         panel.querySelector('#hex6-mat-btn').onclick = () => { showMat = !showMat; paintMatrix(); };
         const fs = panel.querySelector('#hex6-fold'), pb = panel.querySelector('#hex6-play');
         fs.oninput = () => { fold = +fs.value; playing = false; pb.textContent = '▶ 折る'; };
+        panel.querySelector('#hex6-explode').oninput = e => { explode = +e.target.value; };
         pb.onclick = () => { playing = !playing; pb.textContent = playing ? '■ 止める' : '▶ 折る'; if (playing) { playDir = fold > 0.5 ? -1 : 1; hold = 0; } };
         {   // 見出しをドラッグで移動（ボタンの上は除く）
             const head = panel.querySelector('#hex6-head'); let d = null;
@@ -8661,7 +8687,7 @@
         else { rememberWin(); cancelAnimationFrame(raf); if (panel) panel.style.display = 'none'; }
     }
     btn.addEventListener('click', () => setOn(!on));
-    window.hex6Test = { setOn, get on() { return on; }, cells: CELLS.length, planes: PLANES, setFold: f => { fold = f; }, get fold() { return fold; }, get views() { return views; }, setSide: b => { sideBySide = !!b; paintMatrix(); } };
+    window.hex6Test = { setOn, get on() { return on; }, cells: CELLS.length, planes: PLANES, setFold: f => { fold = f; }, setExplode: e => { explode = e; }, get fold() { return fold; }, get views() { return views; }, setSide: b => { sideBySide = !!b; paintMatrix(); } };
 })();
 </script>
 </body>
