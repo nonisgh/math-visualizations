@@ -21,6 +21,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegmentsGeometry.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
+    <!-- 視覚効果の共通部品（パレット・照り返し・軸の札・見切れ防止・高い次元の光・奥／内側を濃く）。設定は全アプリ共通の vfx キー -->
+    <script src="lib/visual-fx.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
         
@@ -2250,8 +2252,8 @@
 
             [scene2D, scene3D].forEach(s => {
                 const ambient = new THREE.AmbientLight(0xffffff, 0.9);
-                s.add(ambient); shineAmbients.push(ambient);
-                if (s === scene2D) addShineLight(s, () => camera2D, () => controls2D && controls2D.target); else addShineLight(s, () => camera3D, () => controls3D && controls3D.target);
+                s.add(ambient);
+                if (s === scene2D) addShineLight(s, () => camera2D, () => controls2D && controls2D.target, ambient); else addShineLight(s, () => camera3D, () => controls3D && controls3D.target, ambient);
                 const dir1 = new THREE.DirectionalLight(0x38bdf8, 1.4);
                 dir1.position.set(15, 22, 18);
                 dir1.castShadow = true;
@@ -2582,20 +2584,21 @@
         const PAL_DS = ['d3', 'd4', 'd5'];
         let palRebuild = null, palBuiltFor = null;   // パレットの表を作り直す（4次元⇔5次元モードの切り替えで列が変わる）
         const palCopy = P => ({ d3: Object.assign({}, P.d3), d4: Object.assign({}, P.d4), d5: Object.assign({}, P.d5) });
+        VisualFX.importFrom('hypercube');   // 今までの hypercube… のキーの設定を、共通の vfx キーへ引きつぐ（vfx に無いものだけ。1 回きり）
         let cellPal = palCopy(PAL_DEF);
         try { const o = JSON.parse(localStorage.getItem('hypercubeCellPalette2') || 'null'); if (o) PAL_DS.forEach(d => { if (o[d]) PAL_KEYS.forEach(k => { if (/^#?[0-9a-f]{6}$/i.test(String(o[d][k]))) cellPal[d][k] = parseInt(String(o[d][k]).replace('#', ''), 16); }); }); } catch (_) {}
+        const vfxPalToD5 = () => { const V = VisualFX.get('palette'); PAL_KEYS.forEach(k => { if (isFinite(V[k])) cellPal.d5[k] = V[k]; }); };   // 5D の列は共通のパレット（vfxPalette）から
+        vfxPalToD5();
         // 補色モード：＋の色から −の色を補色（色相を 180° 回す）に自動で決める。
-        let palComp = false; try { palComp = localStorage.getItem('hypercubePalComp') === '1'; } catch (_) {}
+        let palComp = VisualFX.get('palComp');
         // 中心だけ補色：中心の色を、その図形の蓋の色の補色にする（ほかの −はパレットのまま）
-        let palCompCenter = false; try { palCompCenter = localStorage.getItem('hypercubePalCompCenter') === '1'; } catch (_) {}
+        let palCompCenter = VisualFX.get('palCompCenter');
         // 軸の色を立体に合わせる：ON で、x・y・z・w・v の座標軸（線・矢じり・名前）の色を、選んだ側（plus＝＋側／minus＝−側）の立体（胞・面）の色にそろえる。
         //   例：＋側で、パレットの +X を茶色にすると x 軸も茶色。立体の色は変えない（パレットのまま）。左の立方体・超立方体・5次元の軸それぞれ、自分の画面の立体の色に合わせる
-        let axisSync = { on: false, side: 'plus' };
-        try { const o = JSON.parse(localStorage.getItem('hypercubeAxisSync') || 'null'); if (o) axisSync = { on: !!o.on, side: o.side === 'minus' ? 'minus' : 'plus' }; } catch (_) {}
+        let axisSync = VisualFX.get('axisSync');
         const AXIS_HEX = { x: 0xff5d6c, y: 0x3ddc84, z: 0x56a8ff, w: 0xb07cff, v: 0xfbbf24 };   // 座標軸のいつもの色（OFF の時）
         const axisSyncPre = () => axisSync.side === 'minus' ? 'n' : 'p';
-        const _palC = new THREE.Color(), _palH = {};
-        function compHex(v) { _palC.setHex(v).getHSL(_palH); _palC.setHSL((_palH.h + 0.5) % 1, _palH.s, _palH.l); return _palC.getHex(); }
+        function compHex(v) { return VisualFX.compHex(v); }   // 補色（visual-fx.js）
         function effPal(d) {   // 実際に使うパレット（補色モードなら −は＋の補色）
             const P = Object.assign({}, cellPal[d]);
             if (palComp) ['x', 'y', 'z', 'w', 'v'].forEach(a => { P['n' + a] = compHex(P['p' + a]); });
@@ -2611,18 +2614,17 @@
         setCenterColors();
         // 4Dライト（お試し）：5次元空間に固定した光。各胞の外向き法線（5D）を今の回転で回し、光との内積で胞ごとの明るさを決める
         //   ＝3Dの影が同じでも X-W・W-V で回すと光の当たる胞が入れ替わる（4次元・5次元で回っていることが光で分かる）
-        let light5On = false; try { light5On = localStorage.getItem('hypercubeLight5') === '1'; } catch (_) {}
+        let light5On = VisualFX.get('light');
         // 奥の胞を濃く（0〜1）：胞ごとの奥行きで、奥ほど色を濃く（鮮やか・少し暗く）、面を薄くしすぎない＝正面図でも入れ子が奥へ沈んで見える。0＝従来どおり
         // 奥を濃く（4D・お試し）：超立方体の胞の色は変えず、濃さ（不透明度）だけを奥ほど濃く・手前ほど薄く。既定は OFF
         let deep4On = false; try { deep4On = localStorage.getItem('hypercubeDeep4') === '1'; } catch (_) {}
-        let deep5 = 0.5; try { const v = parseFloat(localStorage.getItem('hypercubeDeep5b')); if (isFinite(v)) deep5 = Math.max(0, Math.min(1, v)); } catch (_) {}   // 目盛り 0〜1。効きは 2 倍（50%＝以前の最大）
+        let deep5 = VisualFX.get('deep');   // 目盛り 0〜1。効きは 2 倍（50%＝以前の最大）
         // 入れ子の内側を濃く（0〜1）：各4次元体の中で、見かけ上いちばん縮んで見える面（＝入れ子の内側の立方体）ほど色を濃く・面を少し不透明に。「奥の胞を濃く」に掛け合わせる
-        let inner5 = 0.5; try { const v = parseFloat(localStorage.getItem('hypercubeInner5c')); if (isFinite(v)) inner5 = Math.max(0, Math.min(1, v)); } catch (_) {}
+        let inner5 = VisualFX.get('inner');
         // 内側の線を細く（0〜1）：辺の強調の太い線を、全体の奥行き（見かけの縮み）で4段に分け、内側の段ほど細く（100% でいちばん内側が ×0.25）
         let line5 = 0.5; try { const v = parseFloat(localStorage.getItem('hypercubeLine5b')); if (isFinite(v)) line5 = Math.max(0, Math.min(1, v)); } catch (_) {}
         let edgeLvl5 = null;   // [胞][辺] = 0（外側の段）〜3（いちばん内側の段）。5次元の更新で毎フレーム作る
-        const LIGHT5 = (() => { const v = [0.35, 0.9, 0.5, 0.9, 0.7], l = Math.hypot(...v); return v.map(a => a / l); })();   // w・v 成分を強めに（4次元目・5次元目を向く胞が光る）
-        const LIGHT5_AMB = 0.32;   // 光が当たらない胞の明るさ
+        // 光の向き（w・v 成分を強めに）と、光が当たらない胞の明るさは visual-fx.js の light()（LIGHT5 と同じ）
         function cellNormal5(ci) { const c = P5_CELLS[ci], n = [0, 0, 0, 0, 0]; if (c.cap) n[4] = 1; else if (c.axis !== undefined) n[c.axis] = c.sign; else n[4] = -1; return n; }
         // 胞1つ（超立方体）の頂点16・面24（三角形48）・辺32
         const T5_VERTS = [...Array(16)].map((_, i) => [0, 1, 2, 3].map(d => ((i >> d) & 1) ? HALF_S : -HALF_S));
@@ -2644,43 +2646,16 @@
         // 照り返しライト（モード）：いつもの見た目で面が光を受けて「キラッ」と光るところ（鏡面反射）を強める。全体を明るくはしない。
         //   いつもの2つの光（青・紫）に、白い主光（左上・手前）と逆光（右うしろ上）を足し、面を少しなめらかにして照り返しを鋭く。
         //   シェーダー uShine で鏡面反射を色そのまま＋白で約3倍に強め、照り返しのところだけ不透明にする（透明な面でもキラッと見える）。既定 OFF
-        let shineOn = false; try { shineOn = localStorage.getItem('hypercubeShine') === '1'; } catch (_) {}
-        const shineLights = [], shineAmbients = [];   // { light, scene, cam:()=>camera, tgt:()=>Vector3 } / AmbientLight
-        const _shR = new THREE.Vector3(), _shU = new THREE.Vector3(), _shT = new THREE.Vector3();
-        const shineU = { value: 0 };   // 照り返しの強さぶん不透明度を上げる（1＝ON）
-        function addShineLight(scene, camFn, tgtFn) {
-            const K = new THREE.PointLight(0xffffff, 1.0, 0); K.visible = shineOn; scene.add(K);    // 主光：左上・手前
-            const R = new THREE.PointLight(0xdbeafe, 0.8, 0); R.visible = shineOn; scene.add(R);    // 逆光：右うしろ上（縁が光る）
-            shineLights.push({ light: K, cam: camFn, tgt: tgtFn, kind: 'key' }, { light: R, cam: camFn, tgt: tgtFn, kind: 'rim' });
-        }
-        function patchShine(m) {   // 材質のシェーダーに「照り返しのところは不透明に」を足す（1回だけ）
-            if (!m || m.userData.shinePatched || m.type !== 'MeshStandardMaterial') return;
-            m.userData.shinePatched = true;
-            const prev = m.onBeforeCompile;
-            m.onBeforeCompile = function (sh, r) {
-                if (prev) prev.call(this, sh, r);
-                sh.uniforms.uShine = shineU;
-                sh.fragmentShader = 'uniform float uShine;\n' + sh.fragmentShader.replace('gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
-                    'vec3 shS = reflectedLight.directSpecular; float shSp = max(max(shS.r, shS.g), shS.b);\n\tgl_FragColor = vec4( outgoingLight + uShine * (shS * 3.0 + vec3(shSp * 2.6)), clamp( diffuseColor.a + uShine * shSp * 3.0, 0.0, 1.0 ) );');
-            };
-            m.needsUpdate = true;
-        }
-        function updateShineLights() {   // 描く直前に、光をカメラから見た左上へ（回してもいつも照り返しが見える）
-            if (!shineOn) return;
-            shineLights.forEach(o => {
-                const cam = o.cam(); if (!cam) return;
-                const t = o.tgt ? o.tgt() : null; _shT.set(0, 0, 0); if (t) _shT.copy(t);
-                const D = cam.position.distanceTo(_shT) || 10;
-                _shR.set(1, 0, 0).applyQuaternion(cam.quaternion); _shU.set(0, 1, 0).applyQuaternion(cam.quaternion);
-                const toCam = cam.position.clone().sub(_shT);
-                if (o.kind === 'rim') o.light.position.copy(_shT).addScaledVector(toCam, -0.6).addScaledVector(_shU, D * 0.35).addScaledVector(_shR, D * 0.55);   // 右うしろ上
-                else o.light.position.copy(_shT).addScaledVector(toCam, 0.55).addScaledVector(_shU, D * 0.42).addScaledVector(_shR, -D * 0.32);   // 左上・手前
-            });
-        }
+        let shineOn = VisualFX.get('shine');
+        // 光（主光・逆光）・シェーダーの手入れ（uShine）・光の位置は visual-fx.js の shineRig／patchShine。シーンごとに 1 つ
+        const shineRigs = [];
+        const vfxUiSync = [];   // 視覚効果の設定がほかのタブ・アプリで変わった時に、ボタン・目盛りを描き直す関数
+        VisualFX.requestRender = n => requestRender(n);
+        function addShineLight(scene, camFn, tgtFn, ambient) { shineRigs.push(VisualFX.shineRig({ scene, camera: camFn, target: tgtFn, ambient })); }
+        function patchShine(m) { VisualFX.patchShine(m); }   // 材質のシェーダーに「照り返しのところは不透明に」を足す（1回だけ）。6次元の窓も使う
+        function updateShineLights() { if (shineOn) shineRigs.forEach(r => r.update()); }   // 描く直前に、光をカメラから見た左上へ
         function applyShine() {   // 光の ON/OFF と、面の材質のつや（ざらつき・金属っぽさ）
-            shineLights.forEach(o => { o.light.visible = shineOn; });
-            shineAmbients.forEach(a => { a.intensity = shineOn ? 0.8 : 0.9; });   // 全体は明るくしない（光を足すぶん少しだけ下げる）
-            shineU.value = shineOn ? 1 : 0;
+            shineRigs.forEach(r => r.apply());   // 光・環境光（全体は明るくしない）・uShine
             const mats = [];
             cellObjects3D.forEach(c => mats.push(c.material)); faceObjects2D.forEach(f => mats.push(f.material)); cellObjects5D.forEach(c => c.material && mats.push(c.material));
             if (mergedFaces3D) mats.push(mergedFaces3D.material); if (mergedFaces5D) mats.push(mergedFaces5D.material);
@@ -2828,7 +2803,7 @@
             const end = e => { ptrs.delete(e.pointerId); ptPos.delete(e.pointerId); twistAng = null; drag = false; };
             el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
 
-            { const a5 = new THREE.AmbientLight(0xffffff, 0.9); scene5D.add(a5); shineAmbients.push(a5); addShineLight(scene5D, () => camera5D, () => controls3D && controls3D.target); }
+            { const a5 = new THREE.AmbientLight(0xffffff, 0.9); scene5D.add(a5); addShineLight(scene5D, () => camera5D, () => controls3D && controls3D.target, a5); }
             const d1 = new THREE.DirectionalLight(0x38bdf8, 1.4); d1.position.set(15, 22, 18); scene5D.add(d1);
             const d2 = new THREE.DirectionalLight(0xa855f7, 0.9); d2.position.set(-15, -12, -15); scene5D.add(d2);
 
@@ -2952,7 +2927,7 @@
             // 5次元の面：全胞の四角形を1メッシュにまとめ、毎フレーム「全体で」遠い順に並べ替える＝重なった胞も三角形単位で正しく前後合成（真上でも色が混ざる）
             if (mergedFaces5D) {
                 const useMerged5 = !wireframeOnly && !numTex && rhombi.t < 1;   // 数字テクスチャ・ワイヤーのみ・菱形のときは胞ごと（従来）
-                const cellLit = cellObjects5D.map((_, ci) => { if (!light5On) return 1; const r = rotate5(cellNormal5(ci)); let d = 0; for (let k = 0; k < 5; k++) d += r[k] * LIGHT5[k]; return LIGHT5_AMB + (1 - LIGHT5_AMB) * Math.max(0, d); });   // 4Dライト：胞ごとの明るさ
+                const cellLit = cellObjects5D.map((_, ci) => { return light5On ? VisualFX.light(rotate5(cellNormal5(ci)), true) : 1; });   // 4Dライト：胞ごとの明るさ
                 mergedFaces5D.visible = useMerged5;
                 if (useMerged5) {
                     const quads5 = [];
@@ -2975,7 +2950,7 @@
                     const fLo = cellObjects5D.map(() => 1e9), fHi = cellObjects5D.map(() => -1e9);
                     quads5.forEach((q, i) => { const c = q[0]; if (fDep[i] < fLo[c]) fLo[c] = fDep[i]; if (fDep[i] > fHi[c]) fHi[c] = fDep[i]; });
                     const kI = 3.75 * inner5;   // 入れ子の内側を濃く（効き＝目盛り×3.75。50%＝ユーザーが好んだ強さ）
-                    const deepen = (C, t) => { if (t <= 0) return C; const Y = 0.299 * C.r + 0.587 * C.g + 0.114 * C.b, sat = 1 + 1.0 * t, dk = Math.max(0.18, 1 - 0.45 * t), f = c => Math.max(0, Math.min(1, (Y + (c - Y) * sat) * dk)); return { r: f(C.r), g: f(C.g), b: f(C.b) }; };
+                    const deepen = (C, t) => t <= 0 ? C : VisualFX.deepen(C, t);   // 色を濃く（visual-fx.js）
                     const cDeep = cDepth.map(m => sm((m - cLo) / cSp));
                     // 奥の胞を濃く（効き kD＝目盛り×2）：手前の胞の面は薄く、奥の胞の面は濃く＝奥の濃い色が手前を透かして見える（kD=1 で手前×0.55・奥×1.6）
                     const kD = 2 * deep5;
@@ -3315,11 +3290,7 @@
             const v = effPal(d)[axisSyncPre() + letter];
             return isFinite(v) ? v : defHex;
         }
-        function recolorLabel(sp, css) {   // 軸の名前の札（キャンバスの字）を、その色で描き直す
-            if (!sp || !sp.material || !sp.material.map) return;
-            const L = _labelSprites.find(o => o.tex === sp.material.map); if (!L || L.cssColor === css) return;
-            L.cssColor = css; drawLabel(L.cv, L.text, css); L.tex.needsUpdate = true;
-        }
+        function recolorLabel(sp, css) { VisualFX.recolorLabel(sp, css); }   // 軸の名前の札（キャンバスの字）を、その色で描き直す
         const _hex6 = v => '#' + (v >>> 0).toString(16).padStart(6, '0');
         function applyAxisColors() {
             const paint = (line, cone, sprite, hex) => {
@@ -3686,60 +3657,12 @@
         }
 
         // 軸ラベルの書体：セリフ（TeX の数式用斜体＝Computer Modern）か、サンセリフ（飾りのないまっすぐな字）か。保存キーは前と同じ（'0'＝サンセリフ）
-        let texLabels = true; try { texLabels = localStorage.getItem('hypercubeTexFont') !== '0'; } catch (_) {}
-        let texFontState = 'none';   // none → loading → ready / failed（オフラインなどで読めなければ、いつもの書体のまま）
-        const _labelSprites = [];    // 書体を切り替えたときに描き直すため、作ったラベルを覚えておく
-        function labelFont(text) {
-            if (!texLabels) return '500 44px system-ui, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif';
-            if (texFontState === 'ready') return 'italic 48px TeXMath, Georgia, serif';
-            // TeX の書体が読めない時（オフラインなど）：z だけは Georgia の斜体だと大文字 Z に見えるので、下がくるっと巻いた小文字らしい z の書体（Hoefler Text 斜体）にする
-            return text === 'z' ? 'italic 46px "Hoefler Text", Didot, Georgia, serif' : 'italic 42px Georgia, "Times New Roman", serif';
-        }
-        function drawLabel(cv, text, cssColor) {
-            const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
-            ctx.font = labelFont(text); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(2,6,18,0.9)'; ctx.strokeText(text, 32, 34);
-            ctx.fillStyle = cssColor; ctx.fillText(text, 32, 34);
-        }
-        function makeLabelSprite(text, cssColor) {
-            const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
-            drawLabel(cv, text, cssColor);
-            const tex = new THREE.CanvasTexture(cv);
-            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-            sp.scale.set(0.52, 0.52, 0.52); sp.renderOrder = 1001;
-            sp.onBeforeRender = (r, sc, cam) => keepLabelSize(sp, cam);
-            _labelSprites.push({ cv, tex, text, cssColor });
-            return sp;
-        }
-        // 軸が手前にせり出しても文字が大きくならないように：描く直前に、図形の中心と同じ奥行きにあるときの大きさへ直す
-        //   （カメラのズームで大きさが変わるのは今まで通り。奥へ行っても小さくならない）
-        const _lblV = new THREE.Vector3(), _lblO = new THREE.Vector3();
-        function keepLabelSize(sp, cam) {
-            if (!cam || !cam.isPerspectiveCamera || !sp.parent) return;
-            _lblV.setFromMatrixPosition(sp.matrixWorld).applyMatrix4(cam.matrixWorldInverse);
-            _lblO.setFromMatrixPosition(sp.parent.matrixWorld).applyMatrix4(cam.matrixWorldInverse);
-            const d = -_lblV.z, d0 = -_lblO.z;
-            if (!(d > 0.05) || !(d0 > 0.05)) return;
-            sp.scale.setScalar(0.52 * d / d0);
-            sp.updateMatrix(); sp.matrixWorld.multiplyMatrices(sp.parent.matrixWorld, sp.matrix);   // この描画にすぐ反映
-        }
-        function redrawLabels() {
-            _labelSprites.forEach(L => { drawLabel(L.cv, L.text, L.cssColor); L.tex.needsUpdate = true; });
-            if (typeof requestRender === 'function') requestRender(10);
-        }
-        function loadTexFont() {   // KaTeX の数式用斜体（TeX の cmmi と同じ字形）を読み込む。読めたらラベルを描き直す
-            if (texFontState !== 'none' || typeof FontFace === 'undefined') return;
-            texFontState = 'loading';
-            new FontFace('TeXMath', 'url(https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/fonts/KaTeX_Math-Italic.woff2) format("woff2")', { style: 'italic' }).load()
-                .then(f => { document.fonts.add(f); texFontState = 'ready'; redrawLabels(); })
-                .catch(() => { texFontState = 'failed'; });
-        }
+        let texLabels = VisualFX.get('texFont');   // 軸の名前の書体（TeX の斜体／サンセリフ）。札の描き方・書体の読み込み・大きさを保つのは visual-fx.js
+        function makeLabelSprite(text, cssColor) { return VisualFX.makeLabel(text, cssColor); }
         function applyTexFont() {
-            if (texLabels) loadTexFont();
             document.querySelectorAll('[data-texfont]').forEach(btn => { const on = (btn.dataset.texfont === 'serif') === texLabels; ['bg-sky-900/40', 'border-sky-500/50', 'text-sky-200'].forEach(c => btn.classList.toggle(c, on)); ['bg-slate-800', 'border-slate-600', 'text-slate-300'].forEach(c => btn.classList.toggle(c, !on)); btn.setAttribute('aria-pressed', on ? 'true' : 'false'); });
-            redrawLabels();
         }
-        function setTexFont(serif) { texLabels = !!serif; try { localStorage.setItem('hypercubeTexFont', texLabels ? '1' : '0'); } catch (_) {} applyTexFont(); }
+        function setTexFont(serif) { texLabels = !!serif; VisualFX.set('texFont', texLabels); applyTexFont(); }   // 書体を読み込んで札を描き直すのは部品
 
         function buildAxisGnomon() {
             const root3D = scene3D.getObjectByName('Root3D');
@@ -4012,50 +3935,15 @@
         //   ぶつかってから止めると角が立つので、①枠の手前（25% 内側）から少しずつ縮め始め、枠に近づくほどゆっくり（枠には当たらない）、
         //   ②縮む・伸びるは約 0.2 秒かけて追いかける（速く回してもカクカクしない）。矢じりの大きさ・形はそのまま。
         //   枠：左右 ±0.88、上 0.8（札の分）、下 −0.74（回転バーの分）。原点そのものが画面の外のときは何もしない
-        const _fitV = new THREE.Vector3();
-        const AXFIT = { MX: 0.88, MT: 0.8, MB: 0.74, LK: 1.2, SOFT: 0.75, TAU: 0.22 };
-        let axisFitOn = true; try { axisFitOn = localStorage.getItem('hypercubeAxisFit') !== '0'; } catch (_) {}   // 軸の見切れ防止（既定 ON）
+        let axisFitOn = VisualFX.get('axisFit');   // 軸の見切れ防止（既定 ON）。縮め方は visual-fx.js の fitTip
         function applyAxisFit() {
             const t = document.getElementById('axisfit-text'); if (t) t.textContent = '軸の見切れ防止: ' + (axisFitOn ? 'ON' : 'OFF');
             const b = document.getElementById('axisfit-btn'); if (b) { b.classList.toggle('bg-sky-900/40', axisFitOn); b.classList.toggle('border-sky-500/50', axisFitOn); b.classList.toggle('text-sky-200', axisFitOn); b.classList.toggle('bg-slate-800/80', !axisFitOn); b.classList.toggle('border-slate-700', !axisFitOn); b.classList.toggle('text-slate-300', !axisFitOn); }
             if (typeof requestRender === 'function') requestRender(30);   // 切り替えた時も、長さは約 0.2 秒かけてなめらかに戻る・縮む
         }
-        function toggleAxisFit() { axisFitOn = !axisFitOn; try { localStorage.setItem('hypercubeAxisFit', axisFitOn ? '1' : '0'); } catch (_) {} applyAxisFit(); }
-        function axisFitTarget(tip, root, cam) {
-            if (!axisFitOn || !root || !cam) return 1;
-            const ratio = k => {   // 名前の位置が、枠に対してどこまで来ているか（1＝ちょうど枠）。カメラの後ろなら大きい値
-                _fitV.set(tip[0] * k, tip[1] * k, tip[2] * k); root.localToWorld(_fitV); _fitV.project(cam);
-                if (!(_fitV.z < 1)) return 99;
-                return Math.max(Math.abs(_fitV.x) / AXFIT.MX, _fitV.y >= 0 ? _fitV.y / AXFIT.MT : -_fitV.y / AXFIT.MB);
-            };
-            _fitV.set(0, 0, 0); root.localToWorld(_fitV); _fitV.project(cam);
-            if (!(_fitV.z < 1) || Math.abs(_fitV.x) > 1 || Math.abs(_fitV.y) > 1) return 1;
-            const r = ratio(AXFIT.LK);
-            if (r <= AXFIT.SOFT) return 1;
-            // やわらかい枠：r（そのままの長さでの位置）を、SOFT から先は 1 に近づくだけの位置 q に置きかえる（つなぎ目もなめらか）
-            const s0 = AXFIT.SOFT, q = s0 + (1 - s0) * (1 - Math.exp(-(r - s0) / (1 - s0)));
-            let lo = 0.2, hi = 1;
-            if (ratio(lo * AXFIT.LK) > q) return lo;
-            for (let it = 0; it < 12; it++) { const m = (lo + hi) / 2; if (ratio(m * AXFIT.LK) <= q) lo = m; else hi = m; }
-            return lo;
-        }
-        const _axisFitCur = new Map();   // 軸ごとの今の縮み具合（時間でならす）
-        function fitTip(tip, root, cam, key) {
-            const target = axisFitTarget(tip, root, cam);
-            let k = target;
-            if (key) {
-                const now = performance.now(), st = _axisFitCur.get(key);
-                if (st) {
-                    const dt = Math.min(0.5, Math.max(0, (now - st.t) / 1000));
-                    k = st.k + (target - st.k) * (1 - Math.exp(-dt / AXFIT.TAU));
-                    if (Math.abs(target - k) > 0.003) requestRender(3);   // 止まったあとも、追いつくまでは描く
-                    else k = target;
-                }
-                _axisFitCur.set(key, { k, t: now });
-            }
-            return k < 0.9999 ? [tip[0] * k, tip[1] * k, tip[2] * k] : tip;
-        }
-        function axisFitPrep(root, cam) { if (root) root.updateMatrixWorld(); if (cam) cam.updateMatrixWorld(); }
+        function toggleAxisFit() { axisFitOn = !axisFitOn; VisualFX.set('axisFit', axisFitOn); applyAxisFit(); }
+        function fitTip(tip, root, cam, key) { return VisualFX.fitTip(tip, root, cam, key); }   // 見切れそうな時だけ、なめらかに短く
+        function axisFitPrep(root, cam) { VisualFX.axisFitPrep(root, cam); }
 
         function updateAxisGnomon(progress) {
             updateFixedMarks(progress);   // 既定のピンク・エメラルドは軸の表示と関係なく更新
@@ -7060,7 +6948,7 @@
                 build();
                 sw.className = 'grid gap-0.5 mt-1.5'; sw.style.gridTemplateColumns = 'repeat(' + SW_HUES.length + ', minmax(0, 1fr))';
                 [1, 2, 3].forEach(r => SW_HUES.forEach(h => { const c = h[r], b = document.createElement('button'); b.className = 'h-4 rounded-sm border border-white/15 hover:scale-110 transition'; b.style.background = c; b.title = h[0] + '（' + ['濃', '標準', '薄'][r - 1] + '）' + c; b.addEventListener('click', () => setSel(parseInt(c.slice(1), 16))); sw.appendChild(b); }));
-                const save = () => { try { const o = { d3: {}, d4: {}, d5: {} }; PAL_DS.forEach(d => PAL_KEYS.forEach(k => { o[d][k] = hex(cellPal[d][k]); })); localStorage.setItem('hypercubeCellPalette2', JSON.stringify(o)); } catch (_) {} };
+                const save = () => { try { const o = { d3: {}, d4: {}, d5: {} }; PAL_DS.forEach(d => PAL_KEYS.forEach(k => { o[d][k] = hex(cellPal[d][k]); })); localStorage.setItem('hypercubeCellPalette2', JSON.stringify(o)); } catch (_) {} VisualFX.set('palette', Object.fromEntries(PAL_KEYS.map(k => [k, cellPal.d5[k]]))); };   // 5D の列は共通のパレットにも
                 function paint() {
                     if (palComp && sel.k[0] === 'n') sel = { d: sel.d, k: 'p' + sel.k[1] };   // 補色モードでは −は自動なので ＋を選ぶ
                     const asb = document.getElementById('axis-sync');
@@ -7076,11 +6964,11 @@
                 const ci = document.getElementById('pal-custom'); if (ci) ci.addEventListener('input', e => setSel(parseInt(e.target.value.slice(1), 16)));
                 const pr = document.getElementById('pal-pair'); if (pr) pr.addEventListener('click', () => { const o = (sel.k[0] === 'p' ? 'n' : 'p') + sel.k[1]; cellPal[sel.d][o] = cellPal[sel.d][sel.k]; after(); });
                 const rs = document.getElementById('pal-reset'); if (rs) rs.addEventListener('click', () => { cellPal = palCopy(PAL_DEF); after(); });
-                const cct = document.getElementById('pal-comp-center'); if (cct) cct.addEventListener('click', () => { palCompCenter = !palCompCenter; try { localStorage.setItem('hypercubePalCompCenter', palCompCenter ? '1' : '0'); } catch (_) {} paint(); applyCenterColor(); });
-                const saveAxisSync = () => { try { localStorage.setItem('hypercubeAxisSync', JSON.stringify(axisSync)); } catch (_) {} };
+                const cct = document.getElementById('pal-comp-center'); if (cct) cct.addEventListener('click', () => { palCompCenter = !palCompCenter; VisualFX.set('palCompCenter', palCompCenter); paint(); applyCenterColor(); });
+                const saveAxisSync = () => VisualFX.set('axisSync', axisSync);
                 const asb = document.getElementById('axis-sync'); if (asb) asb.addEventListener('click', () => { axisSync.on = !axisSync.on; saveAxisSync(); paint(); applyCenterColor(); });
                 document.querySelectorAll('[data-axsync-side]').forEach(b => b.addEventListener('click', () => { axisSync.side = b.dataset.axsyncSide === 'minus' ? 'minus' : 'plus'; if (!axisSync.on) axisSync.on = true; saveAxisSync(); paint(); applyCenterColor(); }));
-                const cbt = document.getElementById('pal-comp'); if (cbt) cbt.addEventListener('click', () => { palComp = !palComp; try { localStorage.setItem('hypercubePalComp', palComp ? '1' : '0'); } catch (_) {} paint(); applyCenterColor(); });
+                const cbt = document.getElementById('pal-comp'); if (cbt) cbt.addEventListener('click', () => { palComp = !palComp; VisualFX.set('palComp', palComp); paint(); applyCenterColor(); });
                 paint();
             })();
             applyCenterColor();   // パレットの色を材質とラベルに反映（起動時）
@@ -7144,8 +7032,8 @@
             (function setupShine() {   // 照り返しライト の ON/OFF
                 const b = document.getElementById('shine-btn'); if (!b) return;
                 const paint = () => { const on = shineOn; ['bg-yellow-900/40', 'border-yellow-500/50', 'text-yellow-200'].forEach(c => b.classList.toggle(c, on)); ['bg-slate-800/80', 'border-slate-700', 'text-slate-400'].forEach(c => b.classList.toggle(c, !on)); };
-                b.addEventListener('click', () => { shineOn = !shineOn; try { localStorage.setItem('hypercubeShine', shineOn ? '1' : '0'); } catch (_) {} paint(); applyShine(); });
-                paint(); applyShine();
+                b.addEventListener('click', () => { shineOn = !shineOn; VisualFX.set('shine', shineOn); paint(); applyShine(); });
+                paint(); applyShine(); vfxUiSync.push(paint);
             })();
             (function setupDeep4() {   // 奥を濃く（4D・お試し）の ON/OFF
                 const b = document.getElementById('deep4-btn'); if (!b) return;
@@ -7815,14 +7703,14 @@
             (function setupLight5() {   // 4Dライトのボタン
                 const b = document.getElementById('light5-btn'); if (!b) return;
                 const sync = () => { b.textContent = '→ 4Dライト: ' + (light5On ? 'OFF' : 'ON'); b.classList.toggle('on', light5On); };
-                b.addEventListener('click', () => { light5On = !light5On; try { localStorage.setItem('hypercubeLight5', light5On ? '1' : '0'); } catch (_) {} sync(); updateMorphingGeometry(animationProgress); requestRender(30); });
-                sync();
+                b.addEventListener('click', () => { light5On = !light5On; VisualFX.set('light', light5On); sync(); updateMorphingGeometry(animationProgress); requestRender(30); });
+                sync(); vfxUiSync.push(sync);
             })();
             (function setupDeep5() {   // 奥の胞を濃く
                 const sl = document.getElementById('deep5-slider'), val = document.getElementById('deep5-val'); if (!sl) return;
                 const sync = () => { sl.value = String(deep5); if (val) val.textContent = Math.round(deep5 * 100) + '%'; };
-                sl.addEventListener('input', e => { deep5 = parseFloat(e.target.value); if (val) val.textContent = Math.round(deep5 * 100) + '%'; try { localStorage.setItem('hypercubeDeep5b', String(deep5)); } catch (_) {} updateMorphingGeometry(animationProgress); requestRender(30); });
-                sync();
+                sl.addEventListener('input', e => { deep5 = parseFloat(e.target.value); if (val) val.textContent = Math.round(deep5 * 100) + '%'; VisualFX.set('deep', deep5); updateMorphingGeometry(animationProgress); requestRender(30); });
+                sync(); vfxUiSync.push(sync);
             })();
             (function setupLine5() {   // 内側の線を細く
                 const sl = document.getElementById('line5-slider'), val = document.getElementById('line5-val'); if (!sl) return;
@@ -7831,9 +7719,21 @@
             })();
             (function setupInner5() {   // 入れ子の内側を濃く
                 const sl = document.getElementById('inner5-slider'), val = document.getElementById('inner5-val'); if (!sl) return;
-                sl.value = String(inner5); if (val) val.textContent = Math.round(inner5 * 100) + '%';
-                sl.addEventListener('input', e => { inner5 = parseFloat(e.target.value); if (val) val.textContent = Math.round(inner5 * 100) + '%'; try { localStorage.setItem('hypercubeInner5c', String(inner5)); } catch (_) {} updateMorphingGeometry(animationProgress); requestRender(30); });
+                const sync = () => { sl.value = String(inner5); if (val) val.textContent = Math.round(inner5 * 100) + '%'; };
+                sl.addEventListener('input', e => { inner5 = parseFloat(e.target.value); if (val) val.textContent = Math.round(inner5 * 100) + '%'; VisualFX.set('inner', inner5); updateMorphingGeometry(animationProgress); requestRender(30); });
+                sync(); vfxUiSync.push(sync);
             })();
+            // 視覚効果の設定（全アプリ共通の vfx キー）が、ほかのタブ・ほかのアプリで変わった時も、ここにそろえる
+            VisualFX.onChange(() => {
+                const before = JSON.stringify([shineOn, light5On, deep5, inner5, texLabels, axisFitOn, palComp, palCompCenter, axisSync, cellPal.d5]);
+                shineOn = VisualFX.get('shine'); light5On = VisualFX.get('light'); deep5 = VisualFX.get('deep'); inner5 = VisualFX.get('inner');
+                texLabels = VisualFX.get('texFont'); axisFitOn = VisualFX.get('axisFit');
+                palComp = VisualFX.get('palComp'); palCompCenter = VisualFX.get('palCompCenter'); axisSync = VisualFX.get('axisSync'); vfxPalToD5();
+                if (JSON.stringify([shineOn, light5On, deep5, inner5, texLabels, axisFitOn, palComp, palCompCenter, axisSync, cellPal.d5]) === before) return;   // この画面で変えた時は、もう反映済み
+                vfxUiSync.forEach(f => f()); if (palRebuild) palRebuild();
+                applyShine(); applyTexFont(); applyAxisFit(); applyCenterColor();
+                updateMorphingGeometry(animationProgress); requestRender(30);
+            });
             (function setupExplToggles() {   // 説明文を「[説明]」で開閉（パネル・キー設定・表示設定）。中身がプログラムで変わる行（id 付き）と一覧の中身は対象外
                 const ROOTS = ['ui-overlay', 'keycfg-overlay', 'viewcfg-overlay', 'float-layer', 'dock-left', 'dock-right'].map(id => document.getElementById(id)).filter(Boolean); if (!ROOTS.length) return;
                 // 本のアイコン（フラットデザイン）：開いた本。左右のページを2色、まん中に綴じ目、ページに行
@@ -8058,7 +7958,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261020-0934';
+        const APP_BUILD = '20261020-1000';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
@@ -8179,7 +8079,7 @@
         const gistSkip = k => k === 'hypercubeGithubToken' || k.startsWith('hypercubeGist');
         function gistData() {   // 上げる中身（キー順にそろえて、変わったかを文字列で比べられるように）
             const o = {};
-            try { Object.keys(localStorage).filter(k => k.startsWith('hypercube') && !gistSkip(k)).sort().forEach(k => { o[k] = localStorage.getItem(k); }); } catch (_) {}
+            try { Object.keys(localStorage).filter(k => (k.startsWith('hypercube') || k.startsWith('vfx')) && !gistSkip(k)).sort().forEach(k => { o[k] = localStorage.getItem(k); }); } catch (_) {}
             return o;
         }
         let gistLastData = '', gistTimer = null, gistBusy = false, gistPausedUntil = 0;   // 上限に当たった時は、しばらく自動で上げるのを休む
@@ -8249,7 +8149,7 @@
         }
         function gistApply(o) {   // Gist の状態をこのブラウザに入れて、読み直す（Gist に無いキーは、そもそも書きかえない＝手元のまま）
             Object.keys(o.data).forEach(k => {
-                if (!(k.startsWith('hypercube') && !gistSkip(k) && typeof o.data[k] === 'string')) return;
+                if (!((k.startsWith('hypercube') || k.startsWith('vfx')) && !gistSkip(k) && typeof o.data[k] === 'string')) return;
                 let v = o.data[k];
                 if (k === SESSION_STORE) { try { v = gistMergeJSON(localStorage.getItem(k), v); } catch (_) {} }
                 try { localStorage.setItem(k, v); } catch (_) {}
@@ -8426,9 +8326,7 @@
     // ---- 次元おりがみ本体の見た目の設定をそのまま使う（本体で切り替えると、この窓もすぐ変わる）----
     //   胞の色のパレット（5D の列 ±X〜±V、補色モードも）、軸の色を立体に合わせる、4Dライト（→ 6次元の光）、
     //   奥の胞を濃く、入れ子の内側を濃く、照り返しライト。中心（−U）と蓋（+U）はパレットに無いので青緑のまま
-    const G = name => { try { return eval(name); } catch (_) { return undefined; } };   // 本体の変数（無ければ undefined）
-    const LIGHT6 = (() => { const v = [0.35, 0.9, 0.5, 0.9, 0.7, 0.8], l = Math.hypot(...v); return v.map(a => a / l); })();   // 6次元空間に固定した光（w・v・u も強めに）
-    const LIGHT6_AMB = 0.32;
+    //   設定は visual-fx.js（全アプリ共通の vfx キー）から。6次元の光の向き（w・v・u も強めに）も部品の light()（LIGHT6 と同じ）
     const FX = { col: CELLS.map(c => new THREE.Color(c.color)), lit: CELLS.map(() => 1), kD: 0.5, kI: 0, shine: false, axSync: null, palKey: '' };
     function readFx() {
         let P = null; try { P = typeof effPal === 'function' ? effPal('d5') : null; } catch (_) {}
@@ -8437,22 +8335,16 @@
             FX.palKey = key;
             CELLS.forEach((c, ci) => { let h = c.color; if (P && c.axis !== undefined) { const v = P[(c.sign > 0 ? 'p' : 'n') + 'xyzwv'[c.axis]]; if (isFinite(v)) h = v; } FX.col[ci].setHex(h); });
         }
-        const d5 = G('deep5'), i5 = G('inner5');
-        FX.kD = 2 * (isFinite(d5) ? d5 : 0.5); FX.kI = 3.75 * (isFinite(i5) ? i5 : 0.5);
-        FX.light = !!G('light5On'); FX.shine = !!G('shineOn');
-        const as = G('axisSync'); FX.axSync = as && as.on ? (as.side === 'minus' ? -1 : 1) : null;
+        FX.kD = 2 * VisualFX.get('deep'); FX.kI = 3.75 * VisualFX.get('inner');
+        FX.light = VisualFX.get('light'); FX.shine = VisualFX.get('shine');
+        const as = VisualFX.get('axisSync'); FX.axSync = as && as.on ? (as.side === 'minus' ? -1 : 1) : null;
         if (FX.light) CELLS.forEach((c, ci) => {
             const n = [0, 0, 0, 0, 0, 0]; if (c.cap) n[5] = 1; else if (c.axis !== undefined) n[c.axis] = c.sign; else n[5] = -1;
-            const r = rot6(n); let d = 0; for (let k = 0; k < 6; k++) d += r[k] * LIGHT6[k];
-            FX.lit[ci] = LIGHT6_AMB + (1 - LIGHT6_AMB) * Math.max(0, d);
+            FX.lit[ci] = VisualFX.light(rot6(n), true);
         }); else FX.lit.fill(1);
     }
     const _dc = { r: 0, g: 0, b: 0 };
-    function deepen(C, t, out) {   // 色を濃く（彩度を上げて少し暗く）。本体の「奥の胞を濃く」「入れ子の内側を濃く」と同じ式
-        if (t <= 0) { out.r = C.r; out.g = C.g; out.b = C.b; return out; }
-        const Y = 0.299 * C.r + 0.587 * C.g + 0.114 * C.b, sat = 1 + 1.0 * t, dk = Math.max(0.18, 1 - 0.45 * t), f = c => Math.max(0, Math.min(1, (Y + (c - Y) * sat) * dk));
-        out.r = f(C.r); out.g = f(C.g); out.b = f(C.b); return out;
-    }
+    const deepen = (C, t, out) => VisualFX.deepen(C, t, out);   // 色を濃く（彩度を上げて少し暗く）。本体の「奥の胞を濃く」「入れ子の内側を濃く」と同じ式
     // 1 つの図（展開図用・折る用の 2 つ）。それぞれ自分の面・辺・軸・カメラを持つ
     function makeView(foldFn, title) {
         const V = { foldFn, title, root: new THREE.Group(), axes: [], dist: 0, cam: new THREE.PerspectiveCamera(45, 1, 0.1, 1000), rect: null,
@@ -8481,7 +8373,7 @@
         scene.add(V.root);
         return V;
     }
-    function fillView(V) {   // 形を作り、半径（カメラの距離合わせ用）を返す
+    function fillView(V, posOnly) {   // 形を作り、半径（カメラの距離合わせ用）を返す。posOnly＝胞の位置 V.P だけ（ばらしで胞をしまっている時）
         const fd = V.foldFn(), P = V.P, K = V.K, cam = V.cam.position;
         let rMax = 0;
         // 分解（6次元アプリと同じ考え方）：w・v・u の向きは奥行きなので、6D でずらしても真ん中に固まって見える。
@@ -8511,6 +8403,7 @@
                 rMax = Math.max(rMax, Math.hypot(P[ci][i * 3], P[ci][i * 3 + 1], P[ci][i * 3 + 2]));
             }
         });
+        if (posOnly) return rMax;
         const cK = K.map(a => a.reduce((s, x) => s + x, 0) / 32), kLo = Math.min(...cK), kSp = Math.max(Math.max(...cK) - kLo, 1e-6);
         for (const q of V.quads) {
             const pp = P[q[0]], b = q[1]; let d = 0;
@@ -8561,6 +8454,375 @@
         return rMax;
     }
     let views = [], shine6 = null;
+    // ==== ばらす（6次元アプリ hypercube6d.html の 立方体まで・結晶ばらし・連鎖ばらし を、この窓へ直接移したもの）====
+    //   向こうの座標（[-1,1]⁶、写すと ×0.75）を、こちらの大きさ（±HS）に XK 倍して合わせる。描くのは右（折る方）の図だけ。
+    //   ばらしている間は 1 つの図にして、胞・軸はしまう。出発点＝今の胞の位置（V.P）なので、回転・分解・折りたたみからそのまま続く。
+    const XK = HS / 0.75, XSPD = 1.5;   // 向こうの既定の速さ 1.5
+    const sm3 = t => t * t * (3 - 2 * t), cl01 = t => Math.max(0, Math.min(1, t));
+    let foldTarget = null;              // 折りたたみを自動で動かす行き先（ばらしの出発の形へ）
+    // ---- 立方体まで：160 個の立方体（自由な軸 3 本 F＝20 通り × 残り 3 本を ±1 に固定＝8 通り）を向きの種類ごとに並べる ----
+    let cubeMode = false, cubeT = 0, countK = -1, countOn = false;
+    const CUBE_H = 0.22, CUBE_GAP = 0.42, CELL_SP = 2.0, XG = 3.0, XO = 8.0;
+    const GRPS = [], CUBES = [];
+    const COLS = [{ x: -XO, y: 3.55, text: 'xyz（1組）' }, { x: -XG, y: 3.55, text: '見える2＋奥1（9組）' }, { x: XG, y: 3.55, text: '見える1＋奥2（9組）' }, { x: XO, y: 3.55, text: 'wvu（1組）' }];
+    for (let a = 0; a < 6; a++) for (let b = a + 1; b < 6; b++) for (let c = b + 1; c < 6; c++) {
+        const F = [a, b, c], G = [0, 1, 2, 3, 4, 5].filter(k => !F.includes(k)), h = F.filter(k => k >= 3).length;
+        let ctr;
+        if (h === 0) ctr = [-XO, 0, 0];
+        else if (h === 3) ctr = [XO, 0, 0];
+        else if (h === 1) { const m = [0, 1, 2].find(k => !F.includes(k)), hk = F.find(k => k >= 3); ctr = [-XG + (m - 1) * CELL_SP, (1 - (hk - 3)) * CELL_SP, 0]; }
+        else { const m = [3, 4, 5].find(k => !F.includes(k)), j = F.find(k => k < 3); ctr = [XG + (m - 4) * CELL_SP, (1 - j) * CELL_SP, 0]; }
+        const col = new THREE.Color(0, 0, 0); F.forEach(k => col.add(new THREE.Color(AXC[k]).multiplyScalar(1 / 3)));
+        const g = { F, G, h, ctr, col, el: null, idx: GRPS.length }; GRPS.push(g);
+        for (let sg = 0; sg < 8; sg++) {
+            const S = [0, 1, 2].map(i => (sg >> i & 1) ? 1 : -1), off = [S[0] * CUBE_GAP, S[1] * CUBE_GAP, S[2] * CUBE_GAP], v6 = [], dst = [];
+            for (let i = 0; i < 8; i++) {
+                const p = [0, 0, 0, 0, 0, 0]; G.forEach((k, j) => p[k] = S[j]); F.forEach((k, j) => p[k] = (i >> j & 1) ? 1 : -1); v6.push(p);
+                dst.push([0, 1, 2].map(j => (ctr[j] + off[j] + ((i >> j & 1) ? CUBE_H : -CUBE_H)) * XK));
+            }
+            CUBES.push({ g, v6, dst, pos: new Float32Array(24) });
+        }
+    }
+    CUBES.sort((p, q) => (p.g.ctr[0] - q.g.ctr[0]) || (q.g.ctr[1] - p.g.ctr[1]));   // 並べた順＝数える順（左の列から）
+    const CE = []; for (let i = 0; i < 8; i++) for (let j = 0; j < 3; j++) { const k = i ^ (1 << j); if (i < k) CE.push([i, k, j]); }
+    const CQ = []; for (let j = 0; j < 3; j++) for (const sb of [0, 1]) { const a = (j + 1) % 3, b = (j + 2) % 3, base = sb << j; CQ.push([base, base | (1 << a), base | (1 << a) | (1 << b), base | (1 << b)]); }
+    // ---- 結晶ばらし：6 本の軸を正二十面体の 6 方向に写す（菱形三十面体・菱形二十面体・菱形十二面体・菱形六面体）----
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    const ICO = [[0, 1, PHI], [0, -1, PHI], [1, PHI, 0], [-1, PHI, 0], [PHI, 0, 1], [PHI, 0, -1]].map(v => { const l = Math.hypot(...v); return v.map(x => x / l); });
+    const PC = v => { let x = 0, y = 0, z = 0; for (let k = 0; k < 6; k++) { x += v[k] * ICO[k][0]; y += v[k] * ICO[k][1]; z += v[k] * ICO[k][2]; } return [x, y, z]; };
+    const crys = { active: false, m: 0, e: 0, target: 0, auto: false, hold: 0, lastLv: 0, done: false, chain: false, T: 0, from: 'net', ex0: 0, rot: 0 };
+    let crysFromSel = 'net';   // 出発の形：'net'＝展開図から／'ball'＝組み上がりから
+    const NET_EX = 1.0;        // 展開図から：まず 12 個をこの分解まで離す（こちらの分解の目盛り）
+    const crysVis = () => crys.active || crys.m > 0;
+    const xHide = () => cubeT > 0 || crysVis();   // ばらしている間は胞と軸をしまい、図を 1 つに
+    const CR_NAMES = [['12', '個の5次元立方体（ペンテラクト）'], ['60', '個の4次元立方体（超立方体）'], ['160', '個の立方体']];
+    const CR_GAP = [4.0, 2.5, 2.5], CR_S = [0.6, 0.55, 0.5], CR_OP = [0.05, 0.08, 0.12];
+    const CR_LEVELS = [5, 4, 3].map(k => {   // k＝自由に動く軸の数
+        const pieces = [], subsets = [];
+        (function rec(st, a) { if (a.length === k) { subsets.push(a.slice()); return; } for (let i = st; i < 6; i++) { a.push(i); rec(i + 1, a); a.pop(); } })(0, []);
+        subsets.forEach(F => {
+            const G = [0, 1, 2, 3, 4, 5].filter(i => !F.includes(i)), nG = G.length;
+            for (let sg = 0; sg < (1 << nG); sg++) {
+                const c = [0, 0, 0, 0, 0, 0]; G.forEach((g, j) => c[g] = (sg >> j & 1) ? 1 : -1);
+                const v6 = []; for (let i = 0; i < (1 << k); i++) { const p = c.slice(); F.forEach((f, j) => p[f] = (i >> j & 1) ? 1 : -1); v6.push(p); }
+                const E = []; for (let i = 0; i < (1 << k); i++) for (let j = 0; j < k; j++) { const t = i ^ (1 << j); if (i < t) E.push([i, t, F[j]]); }
+                const Q = []; for (let a = 0; a < k; a++) for (let b = a + 1; b < k; b++) for (let r = 0; r < (1 << k); r++) { if (r & (1 << a) || r & (1 << b)) continue; Q.push([r, r | (1 << a), r | (1 << a) | (1 << b), r | (1 << b)]); }
+                const col = new THREE.Color(0, 0, 0); G.forEach(g => col.add(new THREE.Color(AXC[g]).multiplyScalar(1 / nG)));
+                pieces.push({ v6, E, Q, col, c, Pv: v6.map(PC), Pc: PC(c), pos: new Float32Array(v6.length * 3) });
+            }
+        });
+        return { k, pieces };
+    });
+    // 12 個の 5次元立方体 ⇔ こちらの胞（CELLS）と頂点の対応：組み上がりの頂点（±HS）の符号でそろえる
+    CR_LEVELS[0].pieces.forEach(P => {
+        const a = P.c.findIndex(x => x !== 0), key = v => v.map(x => Math.round(x)).join(',');
+        for (let ci = 0; ci < CELLS.length; ci++) {
+            const q = cellVerts6(ci, 1).map(v => v.map(x => Math.round(x / HS)));
+            if (!q.every(v => v[a] === P.c[a])) continue;
+            const idx = new Map(q.map((v, j) => [key(v), j]));
+            P.ci = ci; P.vmap = P.v6.map(v => idx.get(key(v))); break;
+        }
+    });
+    function netVerts(P, V) {   // 5次元立方体 P の、今の胞の位置（こちらの図の 3D）と重心。使い回す
+        const n = P.v6.length, pp = V.P[P.ci];
+        if (!P._nv) P._nv = { out: Array.from({ length: n }, () => [0, 0, 0]), cen: [0, 0, 0] };
+        const { out, cen } = P._nv; cen[0] = cen[1] = cen[2] = 0;
+        for (let i = 0; i < n; i++) { const j = P.vmap[i] * 3; out[i][0] = pp[j]; out[i][1] = pp[j + 1]; out[i][2] = pp[j + 2]; cen[0] += pp[j] / n; cen[1] += pp[j + 1] / n; cen[2] += pp[j + 2] / n; }
+        return P._nv;
+    }
+    // ---- 連鎖ばらし：5次元立方体 12 → それぞれ 10 個の超立方体（120）→ それぞれ 8 個の立方体（960）----
+    const keyOf = c => c.join(',');
+    const MAP4 = new Map(CR_LEVELS[1].pieces.map(q => [keyOf(q.c), q])), MAP3 = new Map(CR_LEVELS[2].pieces.map(q => [keyOf(q.c), q]));
+    const CH1 = [], CH2 = [], CH3 = [];
+    CR_LEVELS[0].pieces.forEach((p, i) => {
+        const n1 = { p, i, c3: [0, 0, 0], S: 1 }; CH1.push(n1);
+        let k = 0;
+        [0, 1, 2, 3, 4, 5].filter(b => p.c[b] === 0).forEach(b => [1, -1].forEach(sb => {
+            const c2 = p.c.slice(); c2[b] = sb;
+            const n2 = { p: MAP4.get(keyOf(c2)), parent: n1, k: k++, c3: [0, 0, 0], S: 1 }; CH2.push(n2);
+            let kk = 0;
+            [0, 1, 2, 3, 4, 5].filter(d => c2[d] === 0).forEach(d => [1, -1].forEach(sd => { const c3 = c2.slice(); c3[d] = sd; CH3.push({ p: MAP3.get(keyOf(c3)), parent: n2, k: kk++, c3: [0, 0, 0], S: 1 }); }));
+        }));
+    });
+    const CH_G = [4.2, 2.3, 1.7], CH_S = [0.6, 0.42, 0.27], CHN_G = [0, 1.5, 1.0], CHN_S = [0.34, 0.24, 0.16];
+    const chS2 = n1 => 1.9 + n1.i * 0.13, chS3 = n2 => chS2(n2.parent) + 1.5 + n2.k * 0.07;
+    const CH_END = 1.9 + 11 * 0.13 + 1.5 + 9 * 0.07 + 1.1;
+    const EDGE_COL = AXC.map(h => new THREE.Color(h));
+    const crysLv = e => e < 1 ? 0 : e < 2 ? 1 : 2;
+    const crysOff = e => { const L = crysLv(e); return [0, CR_GAP[0], CR_GAP[0] + CR_GAP[1]][L] + CR_GAP[L] * Math.min(1, e - L); };
+    const NETL_S = [0.34, 0.24, 0.16];
+    // ---- three.js の入れ物（右の図の root に入れる）----
+    let X = null;
+    function xBuild(V) {
+        const mk = (nV, faceOp) => {
+            const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nV * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nV * 3), 3));
+            const m = faceOp === undefined ? new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95, fog: false }))
+                : new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: faceOp, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+            m.frustumCulled = false; m.visible = false; V.root.add(m); return m;
+        };
+        const MAXE = Math.max(...CR_LEVELS.map(L => L.pieces.reduce((s, p) => s + p.E.length, 0))), MAXQ = Math.max(...CR_LEVELS.map(L => L.pieces.reduce((s, p) => s + p.Q.length, 0)));
+        X = { V, cubeLine: mk(160 * 12 * 2), cubeFace: mk(160 * 6 * 6, 0.16), crysLine: mk(MAXE * 2), crysFace: mk(MAXQ * 6, 0.13),
+            chainLine: mk((CH1.length * 80 + CH2.length * 32 + CH3.length * 12) * 2), chainFace: mk((CH1.length * 80 + CH2.length * 24 + CH3.length * 6) * 6, 0.08), cen: new THREE.Vector3() };
+        // 札（立方体まで：組の向き 20・列の名前 4）、数える／段階の数字、FLASH
+        if (!document.getElementById('hex6-xstyle')) {
+            const st = document.createElement('style'); st.id = 'hex6-xstyle';
+            st.textContent = '#hex6-count{position:absolute;left:50%;top:34px;transform:translateX(-50%);z-index:3;pointer-events:none;display:none;text-align:center;font-weight:900;color:#fff}'
+                + '#hex6-count .n{font-size:40px;line-height:1;text-shadow:0 0 14px #2dd4bf,0 0 34px #a855f7}#hex6-count .t{font-size:12px;color:#a5f3fc;margin-top:2px}'
+                + '#hex6-count.pop .n{animation:h6cpop .25s ease-out}#hex6-count.done .n{animation:h6cdone 1.2s ease-out}'
+                + '@keyframes h6cpop{0%{transform:scale(1.35)}100%{transform:scale(1)}}@keyframes h6cdone{0%{transform:scale(.4);opacity:0}25%{transform:scale(1.5);opacity:1;text-shadow:0 0 30px #fff,0 0 60px #2dd4bf}100%{transform:scale(1)}}'
+                + '#hex6-flash{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.55),rgba(45,212,191,.18) 35%,transparent 70%)}'
+                + '#hex6-flash.go{animation:h6flash .7s ease-out}@keyframes h6flash{0%{opacity:0}15%{opacity:1}100%{opacity:0}}'
+                + '.hex6-grp{position:absolute;pointer-events:none;transform:translate(-50%,-50%);font:italic 600 14px Georgia,serif;letter-spacing:1px;text-shadow:0 0 3px #020612,0 0 5px #020612;white-space:nowrap}'
+                + '.hex6-col{position:absolute;pointer-events:none;transform:translate(-50%,-50%);font-size:10px;font-weight:700;color:#cbd5e1;background:rgba(2,6,23,.75);border:1px solid #334155;border-radius:999px;padding:1px 9px;white-space:nowrap}';
+            document.head.appendChild(st);
+        }
+        const lab = panel.querySelector('#hex6-xlab');
+        GRPS.forEach(g => { const el = document.createElement('div'); el.className = 'hex6-grp'; el.innerHTML = g.F.map(k => '<span style="color:' + hex(AXC[k]) + '">' + AX[k] + '</span>').join(''); el.style.display = 'none'; lab.appendChild(el); g.el = el; });
+        COLS.forEach(c => { const el = document.createElement('div'); el.className = 'hex6-col'; el.textContent = c.text; el.style.display = 'none'; lab.appendChild(el); c.el = el; });
+    }
+    // 書き込み：P.pos（計算ずみの頂点）を線と面の入れ物へ。半径も測る
+    let _lp = 0, _fp = 0, _xr = 0, _B = null;
+    const xBegin = (line, face) => { _lp = 0; _fp = 0; _B = { pa: line.geometry.attributes.position.array, ca: line.geometry.attributes.color.array, fa: face.geometry.attributes.position.array, fc: face.geometry.attributes.color.array, line, face }; };
+    function xEmit(P) {
+        const { pa, ca, fa, fc } = _B, pos = P.pos;
+        for (let i = 0; i < pos.length; i += 3) _xr = Math.max(_xr, Math.hypot(pos[i], pos[i + 1], pos[i + 2]));
+        for (const [a, b, ax] of P.E) { const c = EDGE_COL[ax]; for (const vi of [a, b]) { pa[_lp] = pos[vi * 3]; pa[_lp + 1] = pos[vi * 3 + 1]; pa[_lp + 2] = pos[vi * 3 + 2]; ca[_lp] = c.r; ca[_lp + 1] = c.g; ca[_lp + 2] = c.b; _lp += 3; } }
+        for (const q of P.Q) for (const vi of [q[0], q[1], q[2], q[0], q[2], q[3]]) { fa[_fp] = pos[vi * 3]; fa[_fp + 1] = pos[vi * 3 + 1]; fa[_fp + 2] = pos[vi * 3 + 2]; fc[_fp] = P.col.r; fc[_fp + 1] = P.col.g; fc[_fp + 2] = P.col.b; _fp += 3; }
+    }
+    function xEnd() {
+        const { line, face } = _B;
+        line.geometry.setDrawRange(0, _lp / 3); face.geometry.setDrawRange(0, _fp / 3);
+        line.geometry.attributes.position.needsUpdate = true; line.geometry.attributes.color.needsUpdate = true;
+        face.geometry.attributes.position.needsUpdate = true; face.geometry.attributes.color.needsUpdate = true;
+    }
+    // 結晶の座標（向こうの単位）→ こちらの 3D：XK 倍して、結晶の回転（y 軸まわり）をかける
+    let _cs = 1, _sn = 0;
+    const W3 = (x, y, z, out) => { out[0] = XK * (x * _cs + z * _sn); out[1] = XK * y; out[2] = XK * (-x * _sn + z * _cs); return out; };
+    const _w = [0, 0, 0], _w2 = [0, 0, 0];
+    function xCubes() {
+        const { cubeLine, cubeFace } = X, on = cubeT > 0; cubeLine.visible = on && showWires; cubeFace.visible = on && showFaces; if (!on) return;
+        const pa = cubeLine.geometry.attributes.position.array, ca = cubeLine.geometry.attributes.color.array, fa = cubeFace.geometry.attributes.position.array, fc = cubeFace.geometry.attributes.color.array;
+        let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z0 = 1e9, z1 = -1e9, lp = 0, fp = 0;
+        const nG = GRPS.length, cx = X.cen, ec = new THREE.Color(), fcc = new THREE.Color(), white = new THREE.Color(1, 1, 1);
+        CUBES.forEach((Q, qi) => {
+            const u = sm3(cl01(cubeT * 1.6 - (Q.g.idx / (nG - 1)) * 0.6));   // 組ごとに少しずつずらして飛び出す
+            for (let i = 0; i < 8; i++) {
+                const r = proj6(rot6(Q.v6[i].map(x => x * HS)));   // 出発点＝組み上がりを今の回転・遠近で写した位置
+                for (let k = 0; k < 3; k++) Q.pos[i * 3 + k] = r[k] + (Q.dst[i][k] - r[k]) * u;
+                const x = Q.pos[i * 3], y = Q.pos[i * 3 + 1], z = Q.pos[i * 3 + 2];
+                if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z;
+            }
+            const counted = countK >= 0 && qi <= countK, now = countOn && qi === Math.floor(countK), lit = now ? 1 : counted ? 0.35 : 0;
+            for (const [a, b, j] of CE) {
+                const c = ec.copy(EDGE_COL[Q.g.F[j]]); if (lit) c.lerp(white, lit);
+                for (const vi of [a, b]) { pa[lp] = Q.pos[vi * 3]; pa[lp + 1] = Q.pos[vi * 3 + 1]; pa[lp + 2] = Q.pos[vi * 3 + 2]; ca[lp] = c.r; ca[lp + 1] = c.g; ca[lp + 2] = c.b; lp += 3; }
+            }
+            const fcol = fcc.copy(Q.g.col).multiplyScalar(now ? 2.2 : counted ? 1.3 : 1);
+            for (const q of CQ) for (const vi of [q[0], q[1], q[2], q[0], q[2], q[3]]) { fa[fp] = Q.pos[vi * 3]; fa[fp + 1] = Q.pos[vi * 3 + 1]; fa[fp + 2] = Q.pos[vi * 3 + 2]; fc[fp] = fcol.r; fc[fp + 1] = fcol.g; fc[fp + 2] = fcol.b; fp += 3; }
+        });
+        // 並べた全体が真ん中に来るように（ゆっくり）。ずらしは線と面の入れ物ごと
+        cx.lerp(new THREE.Vector3(-(x0 + x1) / 2, -(y0 + y1) / 2, -(z0 + z1) / 2), 0.12);
+        cubeLine.position.copy(cx); cubeFace.position.copy(cx);
+        _xr = Math.max(_xr, Math.hypot(Math.max(Math.abs(x0 + cx.x), Math.abs(x1 + cx.x)), Math.max(Math.abs(y0 + cx.y), Math.abs(y1 + cx.y)), Math.max(Math.abs(z0 + cx.z), Math.abs(z1 + cx.z))));
+        cubeLine.geometry.attributes.position.needsUpdate = true; cubeLine.geometry.attributes.color.needsUpdate = true;
+        cubeFace.geometry.attributes.position.needsUpdate = true; cubeFace.geometry.attributes.color.needsUpdate = true;
+    }
+    function xChain(V) {
+        const T = crys.T, m = sm3(crys.m), ez = t => sm3(cl01(t)), net = crys.from === 'net', G = net ? CHN_G : CH_G, SC = net ? CHN_S : CH_S;
+        xBegin(X.chainLine, X.chainFace);
+        const draw = (P, c3, S, NV) => {   // c3＝こちらの 3D の中心、S＝縮め具合。NV があれば（はじめだけ）今の胞の位置から結晶の写し方へ
+            for (let i = 0; i < P.v6.length; i++) {
+                W3(P.Pv[i][0] - P.Pc[0], P.Pv[i][1] - P.Pc[1], P.Pv[i][2] - P.Pc[2], _w);
+                let x = c3[0] + S * _w[0], y = c3[1] + S * _w[1], z = c3[2] + S * _w[2];
+                if (NV && m < 1) { const o = NV[i]; x = o[0] + (x - o[0]) * m; y = o[1] + (y - o[1]) * m; z = o[2] + (z - o[2]) * m; }
+                P.pos[i * 3] = x; P.pos[i * 3 + 1] = y; P.pos[i * 3 + 2] = z;
+            }
+            xEmit(P);
+        };
+        const u1 = ez(T / 1.6);
+        for (const n of CH1) {
+            const nv = netVerts(n.p, V);
+            if (net) {   // 展開図から：離れていく展開図の胞から、その場で結晶の形（菱形二十面体）へ
+                const P = n.p; n.c3 = nv.cen.slice(); n.S = SC[0];
+                if (T > chS2(n)) continue;
+                for (let i = 0; i < P.v6.length; i++) { W3(P.Pv[i][0] - P.Pc[0], P.Pv[i][1] - P.Pc[1], P.Pv[i][2] - P.Pc[2], _w); for (let j = 0; j < 3; j++) { const Xj = nv.cen[j] + SC[0] * _w[j]; P.pos[i * 3 + j] = nv.out[i][j] + (Xj - nv.out[i][j]) * u1; } }
+                xEmit(P); continue;
+            }
+            const k = 1 + G[0] * u1; n.c3 = W3(n.p.Pc[0] * k, n.p.Pc[1] * k, n.p.Pc[2] * k, [0, 0, 0]); n.S = 1 - (1 - SC[0]) * u1;
+            if (T <= chS2(n)) draw(n.p, n.c3, n.S, nv.out);
+        }
+        for (const n of CH2) {   // 親の面にぴったり重なった位置から、親から見た向きへ
+            const P0 = n.parent, t0 = chS2(P0), u = ez((T - t0) / 1.3), f = P0.S + G[1] * u;
+            W3(n.p.Pc[0] - P0.p.Pc[0], n.p.Pc[1] - P0.p.Pc[1], n.p.Pc[2] - P0.p.Pc[2], _w2);
+            for (let j = 0; j < 3; j++) n.c3[j] = P0.c3[j] + f * _w2[j]; n.S = P0.S + (SC[1] - P0.S) * u;
+            if (T > t0 && T <= chS3(n)) draw(n.p, n.c3, n.S, null);
+        }
+        for (const n of CH3) {
+            const P0 = n.parent, t0 = chS3(P0), u = ez((T - t0) / 1.1), f = P0.S + G[2] * u;
+            W3(n.p.Pc[0] - P0.p.Pc[0], n.p.Pc[1] - P0.p.Pc[1], n.p.Pc[2] - P0.p.Pc[2], _w2);
+            for (let j = 0; j < 3; j++) n.c3[j] = P0.c3[j] + f * _w2[j]; n.S = P0.S + (SC[2] - P0.S) * u;
+            if (T > t0) draw(n.p, n.c3, n.S, null);
+        }
+        xEnd();
+    }
+    function xCrystalBall(V) {   // 組み上がりから：球のように放射状に広がる
+        const L = crysLv(crys.e), lv = CR_LEVELS[L], off = crysOff(crys.e), S = L === 0 ? 1 - (1 - CR_S[0]) * sm3(Math.min(1, crys.e / 0.5)) : CR_S[L], m = sm3(crys.m);
+        X.crysFace.material.opacity = CR_OP[L];
+        xBegin(X.crysLine, X.crysFace);
+        for (const P of lv.pieces) {
+            const NV = m < 1 && L === 0 ? netVerts(P, V).out : null;   // はじめだけ：今の胞の位置から、結晶の写し方へなめらかに
+            for (let i = 0; i < P.v6.length; i++) {
+                W3(P.Pc[0] * (1 + off) + S * (P.Pv[i][0] - P.Pc[0]), P.Pc[1] * (1 + off) + S * (P.Pv[i][1] - P.Pc[1]), P.Pc[2] * (1 + off) + S * (P.Pv[i][2] - P.Pc[2]), _w);
+                let [x, y, z] = _w;
+                if (NV) { const o = NV[i]; x = o[0] + (x - o[0]) * m; y = o[1] + (y - o[1]) * m; z = o[2] + (z - o[2]) * m; }
+                P.pos[i * 3] = x; P.pos[i * 3 + 1] = y; P.pos[i * 3 + 2] = z;
+            }
+            xEmit(P);
+        }
+        xEnd();
+    }
+    function xCrystalNet(V) {   // 展開図から：どの部品も、自分を含む 5次元立方体（展開図の胞）の重心の平均に置く＝ハンマーの形のまま分解
+        const e = Math.max(0, crys.e), L = crysLv(e), lv = CR_LEVELS[L], w = sm3(Math.min(1, e - L));
+        const cen = new Map(); CR_LEVELS[0].pieces.forEach(P => { const r = netVerts(P, V); cen.set(keyOf(P.c), r); });
+        const avgOf = (c, sel) => { const a = [0, 0, 0]; let n = 0; c.forEach((x, k) => { if (x === 0 || !sel(k)) return; const q = [0, 0, 0, 0, 0, 0]; q[k] = x; const C = cen.get(keyOf(q)).cen; a[0] += C[0]; a[1] += C[1]; a[2] += C[2]; n++; }); return a.map(v => v / Math.max(1, n)); };
+        const firstK = c => c.findIndex(x => x !== 0);
+        const H = [0, 0, 0]; cen.forEach(r => { H[0] += r.cen[0] / 12; H[1] += r.cen[1] / 12; H[2] += r.cen[2] / 12; });   // ハンマー全体の重心
+        const spread = L === 0 ? 1 : 1 + 0.7 * (L - 1 + w);
+        X.crysFace.material.opacity = CR_OP[L];
+        xBegin(X.crysLine, X.crysFace);
+        for (const P of lv.pieces) {
+            let ctr, S = NETL_S[L], NV = null;
+            if (L === 0) { const r = cen.get(keyOf(P.c)); ctr = r.cen; NV = r.out; }
+            else {
+                const all = avgOf(P.c, () => true), k0 = firstK(P.c);
+                const start = L === 1 ? avgOf(P.c, k => k === k0) : avgOf(P.c, k => k === k0 || k === P.c.findIndex((x, i) => x !== 0 && i > k0));   // 親（の位置）から動き出す
+                const sp0 = 1 + 0.7 * (L - 1);
+                ctr = [0, 1, 2].map(j => { const a = H[j] + (start[j] - H[j]) * sp0, b = H[j] + (all[j] - H[j]) * spread; return a + (b - a) * w; }); S = NETL_S[L - 1] + (NETL_S[L] - NETL_S[L - 1]) * w;
+            }
+            for (let i = 0; i < P.v6.length; i++) {
+                W3(P.Pv[i][0] - P.Pc[0], P.Pv[i][1] - P.Pc[1], P.Pv[i][2] - P.Pc[2], _w);
+                for (let j = 0; j < 3; j++) { let Xj = ctr[j] + S * _w[j]; if (NV) Xj = NV[i][j] + (Xj - NV[i][j]) * w; P.pos[i * 3 + j] = Xj; }
+            }
+            xEmit(P);
+        }
+        xEnd();
+    }
+    function xUpdate(V) {   // 右の図の胞を写した後に呼ぶ。ばらしの形を作り、半径を返す
+        if (!X) return 0;
+        _xr = 0; _cs = Math.cos(crys.rot); _sn = Math.sin(crys.rot);
+        xCubes();
+        const on = crysVis();
+        X.chainLine.visible = on && crys.chain && showWires; X.chainFace.visible = on && crys.chain && showFaces;
+        X.crysLine.visible = on && !crys.chain && showWires; X.crysFace.visible = on && !crys.chain && showFaces;
+        if (on) { if (crys.chain) xChain(V); else if (crys.from === 'net') xCrystalNet(V); else xCrystalBall(V); }
+        return _xr;
+    }
+    function xLabels(V) {   // 立方体まで：組の向きと列の名前の札（右の図のカメラで写す）
+        if (!X) return;
+        const show = cubeT >= 0.75 && V.rect, el = renderer.domElement, H = Math.max(1, el.clientHeight), v = new THREE.Vector3();
+        if (show) { V.cam.updateMatrixWorld(); }
+        const put = (e, x, y, z) => {
+            if (!show) { e.style.display = 'none'; return; }
+            v.set(x * XK + X.cen.x, y * XK + X.cen.y, z * XK + X.cen.z).project(V.cam);
+            const [rx, ry, rw, rh] = V.rect;
+            e.style.display = ''; e.style.left = (rx + (v.x + 1) / 2 * rw) + 'px'; e.style.top = (H - ry - rh + (1 - v.y) / 2 * rh) + 'px';
+        };
+        GRPS.forEach(g => put(g.el, g.ctr[0], g.ctr[1] + 0.9, g.ctr[2]));
+        COLS.forEach(c => put(c.el, c.x, c.y, 0));
+    }
+    function xFlash(n, t) {   // 段階が進んだときの FLASH と段階名
+        const fl = panel.querySelector('#hex6-flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
+        const cc = panel.querySelector('#hex6-count'); cc.style.display = 'block'; cc.querySelector('.n').textContent = n; cc.querySelector('.t').textContent = t;
+        cc.classList.remove('pop', 'done'); void cc.offsetWidth; cc.classList.add('done');
+        clearTimeout(xFlash.tm); xFlash.tm = setTimeout(() => { if (!countOn) cc.style.display = 'none'; }, 2600);
+    }
+    const setFoldTo = f => { foldTarget = f; if (playing) { playing = false; const pb = panel && panel.querySelector('#hex6-play'); if (pb) pb.textContent = '▶ 折る'; } };
+    function crysStart() {   // 始めるとき：出発の形を決めて、展開図からなら展開図へ・組み上がりからなら組み上げる
+        if (crys.m <= 0) { crys.from = crysFromSel; crys.ex0 = explode; }
+        if (autoExSet) autoExSet(false);
+        if (crys.from === 'net') { if (fold > 0.001) setFoldTo(0); } else if (fold < 0.999) setFoldTo(1);
+    }
+    const crysFoldReady = () => crys.from === 'net' ? fold <= 0.001 : fold >= 0.999;
+    let autoExSet = null;   // build() で「自動で離す」を止める関数を入れる
+    const XACT = {
+        chain: () => {
+            if (crys.active) { XACT.crys(); return; }   // どちらかが動いていたら止める（逆にたどって戻る）
+            if (crys.m > 0 && !crys.chain) return;      // 結晶ばらしが戻りきるまで待つ
+            crys.chain = true; crys.T = Math.max(0, crys.T); crys.lastLv = 0; crys.done = false;
+            crys.active = true; cubeMode = false; countOn = false; countK = -1; crysStart();
+        },
+        crys: () => {
+            if (!crys.active && crys.chain && crys.m > 0) return;   // 連鎖が戻りきるまで待つ
+            if (!crys.active) crys.chain = false;
+            crys.active = !crys.active;
+            if (crys.active) { cubeMode = false; countOn = false; countK = -1; crys.auto = true; crys.target = Math.max(crys.target, 0); crys.hold = 0.6; crys.done = false; crysStart(); }
+            else { crys.auto = false; crys.target = 0; }
+        },
+        crysNext: () => { if (!crys.active || crys.chain) { if (crys.chain && crys.active) return; XACT.crys(); crys.auto = false; crys.target = 1; return; } crys.auto = false; crys.target = Math.min(3, Math.floor(crys.e + 1e-6) + 1); },
+        crysPrev: () => { if (!crys.active || crys.chain) return; crys.auto = false; crys.target = Math.max(0, Math.ceil(crys.e - 1e-6) - 1); },
+        cubes: () => { if (crys.active) XACT.crys(); cubeMode = !cubeMode; if (cubeMode && fold < 0.999) setFoldTo(1); if (!cubeMode) { countOn = false; countK = -1; const cc = panel.querySelector('#hex6-count'); if (cc) cc.style.display = 'none'; } },
+        count: () => { if (!cubeMode) XACT.cubes(); countOn = true; countK = -1; const cc = panel.querySelector('#hex6-count'); cc.className = ''; cc.style.display = 'block'; cc.querySelector('.n').textContent = '0'; cc.querySelector('.t').textContent = '/ 160 個の立方体'; },
+    };
+    function xStep(dt) {   // 毎フレームの時間の進み（向こうの loop_ の、ばらしの部分）
+        if (foldTarget !== null) {
+            fold += Math.sign(foldTarget - fold) * Math.min(dt * 0.45 * XSPD, Math.abs(foldTarget - fold));
+            if (Math.abs(foldTarget - fold) < 1e-4) { fold = foldTarget; foldTarget = null; }
+            const fs = panel.querySelector('#hex6-fold'); if (fs) fs.value = fold;
+        }
+        if (crys.active) {
+            if (crysFoldReady()) crys.m = Math.min(1, crys.m + dt * (crys.from === 'net' ? 5 : 0.9) * XSPD);
+            if (crys.m >= 1 && crys.chain) crys.T = Math.min(CH_END, crys.T + dt * 0.75 * XSPD);
+            else if (crys.m >= 1) {
+                if (Math.abs(crys.e - crys.target) > 1e-4) crys.e += Math.sign(crys.target - crys.e) * Math.min(dt * 0.38 * XSPD, Math.abs(crys.target - crys.e));
+                else if (crys.auto && crys.target < 3) { crys.hold += dt * XSPD; if (crys.hold > 1.2) { crys.hold = 0; crys.target = Math.floor(crys.e + 1e-6) + 1; } }
+            }
+            if (crys.from !== 'net') crys.rot += dt * 0.12;   // 結晶がゆっくり回る（展開図からのときはハンマーの向きのまま）
+        } else if (crys.m > 0) {
+            if (crys.chain && crys.T > 0) crys.T = Math.max(0, crys.T - dt * 1.6 * XSPD);
+            else if (!crys.chain && crys.e > 0) crys.e = Math.max(0, crys.e - dt * 0.9 * XSPD); else crys.m = Math.max(0, crys.m - dt * 0.9 * XSPD);
+            if (crys.m <= 0) { crys.rot = 0; crys.lastLv = 0; crys.chain = false; if (crys.from === 'net') { explode = crys.ex0; const es = panel.querySelector('#hex6-explode'); if (es) es.value = explode; } }
+        }
+        if (crysVis() && crys.from === 'net') {   // 展開図から：12 個を分解の要領で離していく。戻ったら元の分解へ
+            const u = crys.chain ? sm3(cl01(crys.T / 1.6)) : sm3(cl01(crys.e));
+            explode = crys.ex0 + (NET_EX - crys.ex0) * u;
+            const es = panel.querySelector('#hex6-explode'); if (es) es.value = explode;
+        }
+        if (crys.chain) {   // 連鎖：割れはじめるたびに FLASH
+            const lv = !crys.active || crys.m < 1 ? 0 : crys.T > chS3(CH2[0]) ? 3 : crys.T > chS2(CH1[0]) ? 2 : crys.T > 0.01 ? 1 : 0;
+            const NM = [['12', '個の5次元立方体に割れる'], ['×10', 'それぞれ10個の超立方体へ（12×10＝120）'], ['×8', 'それぞれ8個の立方体へ（120×8＝960）']];
+            if (lv > crys.lastLv) xFlash(NM[lv - 1][0], NM[lv - 1][1]);
+            crys.lastLv = lv;
+            if (crys.active && crys.T >= CH_END - 1e-4 && !crys.done) { crys.done = true; setTimeout(() => { if (crys.active && crys.chain) xFlash('1 → 12 → 120 → 960', 'となりと共有する面も出るので重複あり。重なりを除くと 12・60・160 種類'); }, 700); }
+        } else {
+            const lv = crys.active && crys.m >= 1 && crys.e > 1e-4 ? Math.min(3, Math.floor(crys.e - 1e-6) + 1) : 0;
+            if (lv > crys.lastLv) xFlash(CR_NAMES[lv - 1][0], CR_NAMES[lv - 1][1]);
+            crys.lastLv = lv;
+            if (crys.active && crys.e >= 3 - 1e-4 && !crys.done) { crys.done = true; setTimeout(() => { if (crys.active && !crys.chain) xFlash('1 → 12 → 60 → 160', '6次元立方体を立方体まで分解（準結晶の形）'); }, 900); }
+        }
+        if (cubeMode && fold >= 0.999) cubeT = Math.min(1, cubeT + dt * 0.42 * XSPD);
+        else if (!cubeMode) cubeT = Math.max(0, cubeT - dt * 0.6 * XSPD);
+        if (cubeMode && cubeT > 0 && cubeT < 1 && camera) {   // 並べた全体が見えるよう、正面へ少しずつ向ける
+            const L = camera.position.length(); camera.position.lerp(new THREE.Vector3(0, 3.4, 24).setLength(L), 0.035).setLength(L);
+        }
+        if (countOn && cubeT >= 1) {   // 数える：1 秒に約 24 個
+            const prev = Math.floor(countK); countK = Math.min(159, countK + dt * 24 * Math.min(2, XSPD));
+            const n = Math.floor(countK) + 1, cc = panel.querySelector('#hex6-count');
+            if (Math.floor(countK) !== prev) { cc.querySelector('.n').textContent = n; cc.classList.remove('pop'); void cc.offsetWidth; cc.classList.add('pop'); }
+            if (countK >= 159) { countOn = false; cc.querySelector('.n').textContent = '160個！'; cc.querySelector('.t').textContent = '20通りの向き × 8個'; cc.classList.remove('pop'); void cc.offsetWidth; cc.classList.add('done'); setTimeout(() => { if (!countOn) { cc.style.display = 'none'; countK = -1; } }, 3200); }
+        }
+        xSync();
+    }
+    let _xsKey = '';
+    function xSync() {   // ボタンの点灯と段階の表示
+        if (!panel) return;
+        const lvTxt = crys.chain && crysVis() ? '12 → 120 → 960' : crysVis() ? (e => Math.abs(e - Math.round(e)) < 0.02 ? '段階 ' + Math.round(e) + ' / 3' : '段階 ' + Math.floor(e) + ' → ' + Math.ceil(e))(Math.max(0, crys.e)) : '段階 0 / 3';
+        const key = [cubeMode, countOn, crys.active, crys.chain, crysFromSel, lvTxt].join('|'); if (key === _xsKey) return; _xsKey = key;
+        const lit = (id, v, c) => { const b = panel.querySelector(id); if (b) { b.style.borderColor = v ? (c || '#2dd4bf') : '#334155'; b.style.background = v ? '#134e4a' : '#0f172a'; } };
+        lit('#hex6-cubes', cubeMode); lit('#hex6-crys', crys.active && !crys.chain); lit('#hex6-chain', crys.active && crys.chain);
+        lit('#hex6-count-btn', countOn);
+        panel.querySelectorAll('[data-hex6-from]').forEach(b => { const v = b.dataset.hex6From === crysFromSel; b.style.borderColor = v ? '#2dd4bf' : '#334155'; b.style.background = v ? '#134e4a' : '#0f172a'; });
+        const lv = panel.querySelector('#hex6-lv'); if (lv) lv.textContent = lvTxt;
+    }
     // ---- 窓の位置と大きさ（このブラウザに覚える） ----
     const WKEY = 'hypercubeHex6Win';
     let win = null; try { win = JSON.parse(localStorage.getItem(WKEY) || 'null'); } catch (_) {}
@@ -8639,6 +8901,7 @@
         appMode = !!v;
         const box = panel.querySelector('#hex6-app'), b = panel.querySelector('#hex6-app-btn'), foot = panel.querySelector('#hex6-foot');
         box.style.display = appMode ? 'block' : 'none'; if (foot) foot.style.display = appMode ? 'none' : 'flex';
+        const foot2 = panel.querySelector('#hex6-foot2'); if (foot2) foot2.style.display = appMode ? 'none' : 'flex';
         b.textContent = appMode ? '← 戻る' : '6次元アプリ'; b.style.borderColor = appMode ? '#2dd4bf' : '#334155';
         ['#hex6-reset', '#hex6-pause', '#hex6-side', '#hex6-mat-btn', '#hex6-cfg-btn'].forEach(q => { const e = panel.querySelector(q); if (e) e.style.display = appMode ? 'none' : ''; });
         if (appMode && !box.firstChild) {
@@ -8665,6 +8928,7 @@
             + '<div id="hex6-view" style="flex:1;position:relative;min-height:0">'
             + '<div id="hex6-lab0" style="position:absolute;left:10px;bottom:6px;color:#94a3b8;font-size:11px;pointer-events:none">展開図</div>'
             + '<div id="hex6-lab1" style="position:absolute;right:10px;bottom:6px;color:#94a3b8;font-size:11px;pointer-events:none"></div>'
+            + '<div id="hex6-xlab" style="position:absolute;inset:0;pointer-events:none;overflow:hidden"></div><div id="hex6-flash"></div><div id="hex6-count"><div class="n"></div><div class="t"></div></div>'
             + '<div id="hex6-cfg" style="display:none;position:absolute;right:8px;top:8px;z-index:2;background:#030712e6;border:1px solid #1e293b;border-radius:10px;padding:8px 10px;font-size:11px;color:#94a3b8;max-height:calc(100% - 16px);overflow:auto;width:230px"></div>'
             + '<div id="hex6-app" style="display:none;position:absolute;inset:0;z-index:5;background:#030712"></div>'
             + '<div id="hex6-mat" style="position:absolute;left:8px;top:8px;z-index:2;background:#030712e6;border:1px solid #1e293b;border-radius:10px;padding:6px;max-width:calc(100% - 16px);max-height:calc(100% - 16px);overflow:auto"></div></div>'
@@ -8672,7 +8936,19 @@
             + '<span style="white-space:nowrap">展開図</span><input type="range" id="hex6-fold" min="0" max="1" step="0.001" value="1" style="flex:1;min-width:60px;accent-color:#2dd4bf"><span style="white-space:nowrap">6次元立方体</span>'
             + '<button type="button" id="hex6-play" style="' + B + '">▶ 折る</button>'
             + '<span style="white-space:nowrap;margin-left:6px">分解</span><input type="range" id="hex6-explode" min="0" max="1.5" step="0.01" value="0" style="width:min(140px,18%);accent-color:#f59e0b" title="胞（5次元立方体）を外向きに離す。中心は −u、蓋は +u、ほかは自分の向きの軸の方へ">'
-            + '<button type="button" id="hex6-autoex" style="' + B + '" title="分解を 0 ⇄ 1.2 で自動で行き来する">自動で離す</button><span style="width:14px"></span></div>';
+            + '<button type="button" id="hex6-autoex" style="' + B + '" title="分解を 0 ⇄ 1.2 で自動で行き来する">自動で離す</button><span style="width:14px"></span></div>'
+            + '<div id="hex6-foot2" style="display:flex;align-items:center;gap:6px;padding:0 12px 8px;color:#94a3b8;font-size:12px;flex-wrap:wrap">'
+            + '<span style="white-space:nowrap;color:#cbd5e1">ばらす</span>'
+            + '<button type="button" id="hex6-cubes" style="' + B + '" title="6次元立方体を 160 個の立方体までバラして、向きの種類ごと（20 通り × 8 個）に並べる。もう一度押すと戻る">立方体まで</button>'
+            + '<button type="button" id="hex6-count-btn" style="' + B + '" title="160 個の立方体を 1 個ずつ光らせて数える">数える</button>'
+            + '<span style="width:8px"></span>'
+            + '<button type="button" id="hex6-crys" style="' + B + '" title="1 段ずつ分解しながら結晶のように広げる：12 個の5次元立方体 → 60 個の超立方体 → 160 個の立方体。もう一度押すと逆にたどって戻る">結晶ばらし</button>'
+            + '<button type="button" id="hex6-cprev" style="' + B + '" title="結晶ばらしを 1 段階もどす">◀</button><span id="hex6-lv" style="white-space:nowrap;min-width:64px;text-align:center;color:#cbd5e1">段階 0 / 3</span><button type="button" id="hex6-cnext" style="' + B + '" title="結晶ばらしを 1 段階すすめる（止まっていれば始める）">▶</button>'
+            + '<span style="white-space:nowrap;margin-left:4px">出発</span>'
+            + '<button type="button" data-hex6-from="net" style="' + B + '" title="展開図（ハンマーの形）のまま分解していく。次に始める時から">展開図から</button>'
+            + '<button type="button" data-hex6-from="ball" style="' + B + '" title="6次元立方体に組み上げてから、球のように広げる。次に始める時から">組み上がりから</button>'
+            + '<span style="width:8px"></span>'
+            + '<button type="button" id="hex6-chain" style="' + B + '" title="割れた部品が次々に自分の面へ割れていく連鎖：12 → 120 → 960。もう一度押すと戻る">連鎖ばらし</button></div>';
         document.body.appendChild(panel);
         placeWin();
         panel.querySelector('#hex6-close').onclick = () => setOn(false);
@@ -8692,10 +8968,18 @@
         const setAutoEx = v => { autoEx = !!v; axB.textContent = autoEx ? '■ 止める' : '自動で離す'; axB.style.borderColor = autoEx ? '#f59e0b' : '#334155'; if (autoEx) exDir = explode > 0.6 ? -1 : 1; };
         exS.oninput = e => { explode = +e.target.value; setAutoEx(false); };
         axB.onclick = () => setAutoEx(!autoEx);
+        autoExSet = setAutoEx;
+        fs.addEventListener('input', () => { foldTarget = null; });
+        {   // ばらす
+            const on = (id, f) => { panel.querySelector(id).onclick = () => { f(); xSync(); }; };
+            on('#hex6-cubes', XACT.cubes); on('#hex6-count-btn', XACT.count); on('#hex6-crys', XACT.crys); on('#hex6-chain', XACT.chain);
+            on('#hex6-cprev', XACT.crysPrev); on('#hex6-cnext', XACT.crysNext);
+            panel.querySelectorAll('[data-hex6-from]').forEach(b => { b.onclick = () => { crysFromSel = b.dataset.hex6From; xSync(); }; });
+        }
         buildCfg();
         panel.querySelector('#hex6-cfg-btn').onclick = () => { const c = panel.querySelector('#hex6-cfg'); const v = c.style.display === 'none'; c.style.display = v ? 'block' : 'none'; panel.querySelector('#hex6-cfg-btn').style.borderColor = v ? '#2dd4bf' : '#334155'; };
         panel.querySelector('#hex6-app-btn').onclick = () => setApp(!appMode);
-        pb.onclick = () => { playing = !playing; pb.textContent = playing ? '■ 止める' : '▶ 折る'; if (playing) { playDir = fold > 0.5 ? -1 : 1; hold = 0; } };
+        pb.onclick = () => { foldTarget = null; playing = !playing; pb.textContent = playing ? '■ 止める' : '▶ 折る'; if (playing) { playDir = fold > 0.5 ? -1 : 1; hold = 0; } };
         {   // 見出しをドラッグで移動（ボタンの上は除く）
             const head = panel.querySelector('#hex6-head'); let d = null;
             head.addEventListener('pointerdown', e => { if (e.target.closest('button') || maxed) return; const r = panel.getBoundingClientRect(); d = { x: e.clientX - r.left, y: e.clientY - r.top }; try { head.setPointerCapture(e.pointerId); } catch (_) {} });
@@ -8716,14 +9000,22 @@
         const d1 = new THREE.DirectionalLight(0x38bdf8, 1.4); d1.position.set(15, 22, 18); scene.add(d1);
         const d2 = new THREE.DirectionalLight(0xa855f7, 0.9); d2.position.set(-15, -12, -15); scene.add(d2);
         views = [makeView(() => 0, '展開図'), makeView(() => fold, '')];
+        xBuild(views[1]); xSync();
         buildMatrix();
-        window.addEventListener('resize', () => { if (panel && panel.style.display !== 'none') placeWin(); });
+        window.addEventListener('resize', () => { if (panel && panel.style.display !== 'none') { placeWin(); reqDraw(10); } });
+        ['input', 'change', 'click', 'keydown', 'wheel', 'pointerdown', 'pointermove'].forEach(ev => panel.addEventListener(ev, e => { if (ev !== 'pointermove' || e.buttons) reqDraw(60); }, true));   // 窓の中の操作のあとは少し描き続ける
     }
     function layout(w, h) {   // 枠：並べる時は 左＝展開図・右＝折る方（縦長なら 上・下）
-        if (!sideBySide) { views[0].rect = null; views[1].rect = [0, 0, w, h]; return; }
+        if (!sideBySide || xHide()) { views[0].rect = null; views[1].rect = [0, 0, w, h]; return; }   // ばらしている間は 1 つ
         if (w >= h * 0.9) { const hw = Math.floor(w / 2); views[0].rect = [0, 0, hw, h]; views[1].rect = [hw, 0, w - hw, h]; }
         else { const hh = Math.floor(h / 2); views[0].rect = [0, h - hh, w, hh]; views[1].rect = [0, 0, w, h - hh]; }
     }
+    let _rf = 60, lastDraw = -1e9, lastDrawPrev = 0, _distBusy = false, _fxKey = '';
+    const reqDraw = (n = 30) => { _rf = Math.max(_rf, n); };
+    const xBusy = () => {   // ばらしが動いている（向こうの busy と同じ）
+        const crysMoving = crys.active ? (!crysFoldReady() || crys.m < 1 || (crys.chain ? crys.T < CH_END : Math.abs(crys.e - crys.target) > 1e-4)) : crys.m > 0;
+        return foldTarget !== null || (cubeMode ? cubeT < 1 : cubeT > 0) || countOn || (crysVis() && (crysMoving || (crys.active && crys.from !== 'net')));
+    };
     function loop(t) {
         if (!on) return;
         raf = requestAnimationFrame(loop);
@@ -8737,32 +9029,42 @@
             else { fold = Math.max(0, Math.min(1, fold + playDir * dt / 3.2)); if (fold <= 0 || fold >= 1) { playDir = -playDir; hold = 1.2; } }
             const fs = panel.querySelector('#hex6-fold'); if (fs) fs.value = fold;
         }
+        xStep(dt);
         const el = renderer.domElement, w = Math.max(1, el.clientWidth), h = Math.max(1, el.clientHeight), pr = renderer.getPixelRatio();
-        if (el.width !== Math.round(w * pr) || el.height !== Math.round(h * pr)) renderer.setSize(w, h, false);
+        if (el.width !== Math.round(w * pr) || el.height !== Math.round(h * pr)) { renderer.setSize(w, h, false); reqDraw(10); }
+        // 止まっている時は描かない（GPU・発熱を抑える。hypercube6d の軽量化と同じ考え方）：動き・操作・カメラの慣性・距離合わせがある時だけ描く
+        if (controls && controls.update()) reqDraw(2);
+        const fxKey = FX.palKey + '|' + FX.kD + '|' + FX.kI + '|' + FX.light + '|' + FX.shine + '|' + FX.axSync; if (fxKey !== _fxKey) { _fxKey = fxKey; reqDraw(5); }   // 本体で見た目を変えた時
+        if ((!paused && PLANES.some(p => p.dir)) || autoEx || playing || xBusy() || _distBusy) reqDraw(2);
+        if (_rf <= 0 && t - lastDraw < 2000) return;   // 何も動いていない（2 秒に 1 回だけ念のため描く）
+        if (t - lastDraw < 15.5) return;               // 120Hz の画面でも、描くのは最大 60fps
+        lastDraw = t; if (_rf > 0) _rf--;
         layout(w, h);
-        if (controls) controls.update();
         const zoomK = camera.position.length() / 10;   // ホイール・ピンチの寄り具合
         _dir.copy(camera.position).normalize();
         const lab0 = panel.querySelector('#hex6-lab0'), lab1 = panel.querySelector('#hex6-lab1');
         if (lab0) lab0.style.display = views[0].rect ? 'block' : 'none';
-        if (lab1) lab1.textContent = sideBySide ? (fold >= 0.999 ? '6次元立方体' : fold <= 0.001 ? '展開図' : '折りたたみ ' + Math.round(fold * 100) + '%') : '';
+        if (lab1) lab1.textContent = xHide() ? (cubeT > 0 ? '立方体まで' : crys.chain ? '連鎖ばらし' : '結晶ばらし（' + (crys.from === 'net' ? '展開図から' : '組み上がりから') + '）') : sideBySide ? (fold >= 0.999 ? '6次元立方体' : fold <= 0.001 ? '展開図' : '折りたたみ ' + Math.round(fold * 100) + '%') : '';
         renderer.setScissorTest(true);
+        let distBusy = false;
         views.forEach(V => {
             V.root.visible = false;
             if (!V.rect) return;
             const [x, y, vw, vh] = V.rect, asp = vw / vh;
             V.cam.aspect = asp; V.cam.updateProjectionMatrix();
             V.cam.position.copy(_dir).multiplyScalar(V.dist || 10); V.cam.quaternion.copy(camera.quaternion);
-            const r = fillView(V);   // 図の大きさに合わせて距離をゆっくり合わせる
+            let r = fillView(V, V === views[1] && xHide());   // 図の大きさに合わせて距離をゆっくり合わせる
+            if (V === views[1]) { const xr = xUpdate(V); if (xHide()) { r = xr; V.axes.forEach(A => { A.line.visible = A.cone.visible = A.sprite.visible = false; }); } }
             const want = (r * 1.08) / Math.sin(THREE.MathUtils.degToRad(V.cam.fov / 2)) / Math.min(1, asp) * zoomK;
-            V.dist = V.dist ? V.dist + (want - V.dist) * Math.min(1, dt * 2.5) : want;
+            V.dist = V.dist ? V.dist + (want - V.dist) * Math.min(1, Math.max(dt, Math.min(0.1, (t - lastDrawPrev) / 1000)) * 2.5) : want;
+            if (Math.abs(want - V.dist) > V.dist * 0.002) distBusy = true;
             V.cam.position.copy(_dir).multiplyScalar(V.dist);
             V.axes.forEach(A => { A.sprite.scale.setScalar(0.075 * V.dist); A.cone.scale.setScalar(V.dist / 9); });
         });
         views.forEach(V => {
             if (!V.rect) return;
             views.forEach(o => { o.root.visible = o === V; });
-            V.faces.visible = showFaces; V.wires.visible = showWires;
+            const hc = V === views[1] && xHide(); V.faces.visible = showFaces && !hc; V.wires.visible = showWires && !hc;
             if (shine6) {   // 照り返しライト：本体と同じく、カメラから見て左上・手前の主光と右うしろ上の逆光
                 shine6.key.visible = shine6.rim.visible = FX.shine; shine6.amb.intensity = FX.shine ? 0.8 : 0.9;
                 const m = V.faces.material; if (m.userData.r0 === undefined) { m.userData.r0 = m.roughness; if (typeof patchShine === 'function') try { patchShine(m); } catch (_) {} } m.roughness = FX.shine ? m.userData.r0 * 0.8 : m.userData.r0;
@@ -8777,16 +9079,19 @@
             renderer.render(scene, V.cam);
         });
         renderer.setScissorTest(false);
+        _distBusy = distBusy; lastDrawPrev = t;
+        xLabels(views[1]);
         if ((t | 0) % 1000 < 20) rememberWin();
     }
     function setOn(v) {
         on = !!v;
         const t = btn.querySelector('#hex6-text'); if (t) t.textContent = '6次元立方体: ' + (on ? 'ON' : 'OFF');
-        if (on) { if (!panel) build(); panel.style.display = 'flex'; placeWin(); last = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
+        if (on) { if (!panel) build(); panel.style.display = 'flex'; placeWin(); last = 0; reqDraw(60); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
         else { rememberWin(); cancelAnimationFrame(raf); if (panel) panel.style.display = 'none'; }
     }
     btn.addEventListener('click', () => setOn(!on));
-    window.hex6Test = { setOn, get on() { return on; }, cells: CELLS.length, planes: PLANES, setFold: f => { fold = f; }, setExplode: e => { explode = e; }, get fold() { return fold; }, get views() { return views; }, setSide: b => { sideBySide = !!b; paintMatrix(); } };
+    window.hex6Test = { setOn, get on() { return on; }, cells: CELLS.length, planes: PLANES, setFold: f => { fold = f; }, setExplode: e => { explode = e; }, get fold() { return fold; }, get views() { return views; }, setSide: b => { sideBySide = !!b; paintMatrix(); }, x: { act: XACT, crys, get cubeT() { return cubeT; }, get countK() { return countK; }, setFrom: f => { crysFromSel = f; }, get xr() { return _xr; }, get idle() { return _rf <= 0; },
+        bench: n => { const V = views[1], t0 = performance.now(); for (let i = 0; i < n; i++) { fillView(V, xHide()); xUpdate(V); } return (performance.now() - t0) / n; } } };
 })();
 </script>
 </body>
