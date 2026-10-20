@@ -14,6 +14,8 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegmentsGeometry.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
+<!-- 視覚効果の共通部品（次元おりがみと同じ。設定は全アプリ共通の vfx キー） -->
+<script src="lib/visual-fx.js"></script>
 <style>
     :root {
         --bg: #030712; --card: rgba(9, 14, 28, 0.9); --line: #1e293b; --text: #e2e8f0; --muted: #94a3b8; --faint: #64748b;
@@ -23,6 +25,8 @@
     html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, 'Hiragino Sans', sans-serif; overflow: hidden; }
     #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
     #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+    .vfx-tex .lab { font-family: TeXMath, 'Times New Roman', Georgia, serif; font-weight: 400; }
+    .vfx-sans .lab { font-family: system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-style: normal; font-weight: 500; }
     .lab { position: absolute; transform: translate(-50%, -50%); font: italic 600 13px 'Times New Roman', Georgia, serif; white-space: nowrap; text-shadow: 0 0 6px #000, 0 0 2px #000; }
 
     .top { position: fixed; left: 14px; top: 12px; display: flex; align-items: baseline; gap: 12px; z-index: 2; padding-top: env(safe-area-inset-top); }
@@ -161,6 +165,11 @@
         <div class="row">面の濃さ<input type="range" id="faceOp" min="0" max="0.6" step="0.01"><span class="v" id="faceOpV"></span></div>
     </section>
     <section>
+        <h3>見た目の効果</h3>
+        <div id="vfx-box"></div>
+        <div class="note">次元おりがみ・6次元アプリと同じ見た目の効果で、設定も共通です。面は奥から並べて描き、見かけの縮み（遠近）で奥の面ほど濃くします。高い次元の光は、面の向き（n 次元）で明るさが変わります。「入れ子の内側を濃く」は胞ごとに比べる効果なので、このアプリでは効きません。</div>
+    </section>
+    <section>
         <h3>数 <span class="note" style="margin:0" id="fvShape"></span></h3>
         <table class="fv" id="fv"></table>
         <div class="note" id="fvNote"></div>
@@ -194,6 +203,12 @@ const AX = [
 ];
 const NMIN = 3, NMAX = 10;
 const AXC = AX.map(a => new THREE.Color(a.c));
+function vfxAxisColors() {   // 軸の色を部品から（「軸の色を立体に合わせる」が ON ならパレットの色）。変わったら true
+    let ch = false;
+    AX.forEach((a, k) => { const h = VisualFX.axisHex(a.n); if (AXC[k].getHex() !== h) { AXC[k].setHex(h); a.c = VisualFX.hexCss(h); ch = true; } });
+    return ch;
+}
+vfxAxisColors();
 const STORE = 'ndim.v1';
 const DEF = () => ({
     n: 5, shape: 'cube', ang: {}, spin: { '0-3': true, '1-4': true }, spinOn: true, speed: 1, sel: '0-3',
@@ -235,7 +250,8 @@ const mats = {
 const objs = {};
 function drop(k) { if (objs[k]) { scene.remove(objs[k]); objs[k].geometry.dispose(); objs[k] = null; } }
 // 網目の球（超球の輪切り）用の光と、縁ほど暗くする影（バブルアプリと同じ）
-scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+const amb = new THREE.AmbientLight(0xffffff, 0.75); scene.add(amb);
+const shine = VisualFX.shineRig({ scene, camera: () => camera, target: () => controls.target, ambient: amb });   // 照り返しライト
 { const dl = new THREE.DirectionalLight(0xffffff, 0.6); dl.position.set(2, 3, 4); scene.add(dl); }
 let shellObjs = [];
 function dropShells() { shellObjs.forEach(o => { scene.remove(o.solid, o.wire); o.geo.dispose(); o.solid.material.dispose(); o.wire.material.dispose(); }); shellObjs = []; }
@@ -401,6 +417,7 @@ function buildRot(n) {
     });
 }
 const DPERS = 2.4;
+let projK = 1;   // いま写した点の見かけの縮み（4 本目から先の遠近の積。大きいほど手前）
 const qbuf = new Float64Array(NMAX);
 function proj(Vsrc, idx, n, out, o) {
     for (let r = 0; r < n; r++) {
@@ -408,9 +425,11 @@ function proj(Vsrc, idx, n, out, o) {
         for (let c = 0; c < n; c++) s += Rm[r * n + c] * Vsrc[idx * n + c] * axisScale[c];
         qbuf[r] = s;
     }
+    projK = 1;
     for (let m = n - 1; m >= 3; m--) {
         const k = 1 / Math.max(0.25, 1 - S.pk * qbuf[m] / DPERS);
         for (let t = 0; t < m; t++) qbuf[t] *= k;
+        projK *= k;
     }
     out[o] = qbuf[0]; out[o + 1] = qbuf[1]; out[o + 2] = qbuf[2];
     return n > 3 ? qbuf[3] : 0;
@@ -424,10 +443,12 @@ function axisFade(k) {
 
 // ---------- 画面用の物を作る（形が変わった時） ----------
 let P3 = null;   // 投影した頂点（nv*3）
+let K3 = null, P3v = null, faceSet = null, faceDir = null;   // 頂点ごとの見かけの縮み・頂点ごとの [x,y,z]・面のまとめメッシュ（visual-fx）・面の真ん中の向き（n 次元、光用）
 function makeObjects() {
     const src = S.net && S.shape === 'cube' ? NET : G;
     ['edges', 'faces', 'verts'].forEach(drop);
-    P3 = new Float32Array(src.nv * 3);
+    P3 = new Float32Array(src.nv * 3); K3 = new Float32Array(src.nv);
+    P3v = Array.from({ length: src.nv }, (_, i) => P3.subarray(i * 3, i * 3 + 3));
     // 辺：線の太さ 1 は 1px の線、1 より太い時だけ太い線
     if (S.lw > 1.01) {
         const g = new THREE.LineSegmentsGeometry();
@@ -457,12 +478,23 @@ function makeObjects() {
         shellObjs.push({ ...sh, geo: g, solid, wire });
     });
     // 面（超立方体・正単体・正軸体、展開図の時は出さない）
+    //   三角形を 1 つのメッシュにまとめ、毎回遠い順に並べて描く（visual-fx の sortedFaces）。照り返しが効く材質
+    if (faceSet) { faceSet.material.dispose(); faceSet = null; }
     if (src.F && src.F.length) {
-        const g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(src.F.length * 3), 3));
-        g.setAttribute('color', new THREE.BufferAttribute(Float32Array.from(src.fc), 3));
-        objs.faces = new THREE.Mesh(g, mats.faces); objs.faces.frustumCulled = false; objs.faces.renderOrder = 1;
-        scene.add(objs.faces);
+        const nT = src.F.length / 3, n = src.n, F = src.F, sq = src.shape === 'cube';
+        faceSet = VisualFX.sortedFaces(sq ? nT / 2 : nT, { renderOrder: 1, material: { roughness: 0.45, metalness: 0 } });   // 金属っぽさは外す（もとの光の当たらない面に近い明るさ）。照り返しは効く
+        objs.faces = faceSet.mesh; scene.add(objs.faces);
+        shine.addMaterial(faceSet.material);
+        // 面の真ん中の向き（n 次元、長さ 1）。超立方体の正方形は 2 つの三角形 (p,q,r)(p,r,s) なので、対角線 p–r の真ん中＝正方形の真ん中
+        faceDir = new Float64Array(nT * n);
+        for (let t = 0; t < nT; t++) {
+            let l = 0;
+            for (let c = 0; c < n; c++) {
+                const v = sq ? (src.V[F[3 * t] * n + c] + src.V[F[3 * t + 2] * n + c]) / 2 : (src.V[F[3 * t] * n + c] + src.V[F[3 * t + 1] * n + c] + src.V[F[3 * t + 2] * n + c]) / 3;
+                faceDir[t * n + c] = v; l += v * v;
+            }
+            l = Math.sqrt(l) || 1; for (let c = 0; c < n; c++) faceDir[t * n + c] /= l;
+        }
     }
     // 頂点
     {
@@ -506,7 +538,7 @@ function updateGeometry(flash) {
     if (!src) return;
     const n = src.n;
     if (S.net && S.shape === 'cube') netPositions(NET, S.fold, S.seq);
-    for (let i = 0; i < src.nv; i++) proj(src.V, i, n, P3, i * 3);
+    for (let i = 0; i < src.nv; i++) { proj(src.V, i, n, P3, i * 3); K3[i] = projK; }
     // 辺
     if (src.E.length) {
         const fat = !!objs.edges.isLineSegments2;
@@ -527,29 +559,28 @@ function updateGeometry(flash) {
         pa.needsUpdate = true;
         if (o.solid.visible) o.geo.computeVertexNormals();
     });
-    if (objs.faces && objs.faces.visible) {
-        const pa = objs.faces.geometry.attributes.position, F = src.F;
-        for (let i = 0; i < F.length; i++) { const p = F[i] * 3; pa.array[i * 3] = P3[p]; pa.array[i * 3 + 1] = P3[p + 1]; pa.array[i * 3 + 2] = P3[p + 2]; }
-        pa.needsUpdate = true;
-    }
+    if (faceSet && objs.faces.visible) updateFaces(src);
     if (objs.verts && objs.verts.visible) { const pa = objs.verts.geometry.attributes.position; pa.array.set(P3); pa.needsUpdate = true; }
     // 軸（−1.5 〜 +1.5、4 本目から先に回るほど暗く・細い矢じり）
     {
         const ib = objs.axes.geometry.attributes.position, cb = objs.axes.geometry.attributes.color;
         const unit = new Float64Array(NMAX * NMAX);
+        VisualFX.axisFitPrep(scene, camera);
         for (let k = 0; k < NMAX; k++) {
             const o = k * 6;
             if (k >= n || !S.axOn[k]) { ib.array.fill(0, o, o + 6); cb.array.fill(0, o, o + 6); cones[k].visible = false; axEnd[k] = 0; labelPos[k] = null; continue; }
             const L = 1.45;
             for (let c = 0; c < n; c++) unit[c] = c === k ? -L : 0;
             proj(unit, 0, n, tmp3, 0); ib.array[o] = tmp3[0]; ib.array[o + 1] = tmp3[1]; ib.array[o + 2] = tmp3[2];
-            unit[k] = L; proj(unit, 0, n, tmp3, 0); ib.array[o + 3] = tmp3[0]; ib.array[o + 4] = tmp3[1]; ib.array[o + 5] = tmp3[2];
+            unit[k] = L; proj(unit, 0, n, tmp3, 0);
+            const ft = VisualFX.fitTip([tmp3[0], tmp3[1], tmp3[2]], scene, camera, 'nd' + k), fitK = tmp3[0] !== 0 || tmp3[1] !== 0 || tmp3[2] !== 0 ? Math.hypot(ft[0], ft[1], ft[2]) / Math.hypot(tmp3[0], tmp3[1], tmp3[2]) : 1;   // 見切れそうな時だけ短く（原点からの長さを縮める）
+            ib.array[o + 3] = ft[0]; ib.array[o + 4] = ft[1]; ib.array[o + 5] = ft[2];
             const fade = axisFade(k), br = 0.12 + 0.88 * fade, c = AXC[k];
             cb.array.set([c.r * br, c.g * br, c.b * br, c.r * br, c.g * br, c.b * br], o);
             // 矢じり
-            const tip = new THREE.Vector3(tmp3[0], tmp3[1], tmp3[2]);
+            const tip = new THREE.Vector3(ft[0], ft[1], ft[2]);
             unit[k] = L - 0.09; proj(unit, 0, n, tmp3, 0);
-            const back = new THREE.Vector3(tmp3[0], tmp3[1], tmp3[2]), dir = tip.clone().sub(back), len = dir.length();
+            const back = new THREE.Vector3(tmp3[0], tmp3[1], tmp3[2]).multiplyScalar(fitK), dir = tip.clone().sub(back), len = dir.length();
             const cone = cones[k];
             cone.visible = S.show.axes && len > 1e-4;
             if (cone.visible) {
@@ -566,6 +597,34 @@ function updateGeometry(flash) {
     }
 }
 const labelPos = [];
+// 面：見かけの縮みで奥の面ほど濃く・高い次元の光・色はその角の色（visual-fx の shadeFace）
+const _fcC = { r: 0, g: 0, b: 0 }, _fcO = [0, 1, 2, 3].map(() => ({ r: 0, g: 0, b: 0, a: 1 })), _fc3 = _fcO.slice(0, 3);
+let _fK = new Float32Array(0);
+function updateFaces(src) {
+    const F = src.F, nT = F.length / 3, n = src.n, sq = src.shape === 'cube', fc = src.fc;
+    if (_fK.length < nT) _fK = new Float32Array(nT);
+    let lo = 1e9, hi = -1e9;
+    for (let t = 0; t < nT; t++) {
+        const k = sq ? (K3[F[3 * t]] + K3[F[3 * t + 2]]) / 2 : (K3[F[3 * t]] + K3[F[3 * t + 1]] + K3[F[3 * t + 2]]) / 3;
+        _fK[t] = k; if (k < lo) lo = k; if (k > hi) hi = k;
+    }
+    const sp = Math.max(hi - lo, 1e-6), lightOn = VisualFX.get('light'), rb = new Array(n);
+    faceSet.clear();
+    // 超立方体の正方形は 2 つの三角形 (p,q,r)(p,r,s) を 1 枚の四角形 p,q,r,s として並べる（半分ずつ重なり方が変わって斜めの筋が出ないように）
+    for (let t = 0; t < nT; t += sq ? 2 : 1) {
+        const deep = 1 - (_fK[t] - lo) / sp;   // 0＝手前（大きく写る）〜1＝奥
+        let lit = 1;
+        if (lightOn) {   // 面の真ん中の向きを今の回し方で回して、光との内積
+            for (let r = 0; r < n; r++) { let v = 0; for (let c = 0; c < n; c++) v += Rm[r * n + c] * faceDir[t * n + c]; rb[r] = v; }
+            lit = VisualFX.light(rb, true);
+        }
+        const corners = sq ? [3 * t, 3 * t + 1, 3 * t + 2, 3 * t + 5] : [3 * t, 3 * t + 1, 3 * t + 2];
+        corners.forEach((ci, j) => { const q = ci * 3; _fcC.r = fc[q]; _fcC.g = fc[q + 1]; _fcC.b = fc[q + 2]; VisualFX.shadeFace(_fcC, { deep, inner: 0, lit, alpha: S.faceOp }, _fcO[j]); });
+        if (sq) faceSet.quad(P3v[F[3 * t]], P3v[F[3 * t + 1]], P3v[F[3 * t + 2]], P3v[F[3 * t + 5]], _fcO);
+        else faceSet.tri(P3v[F[3 * t]], P3v[F[3 * t + 1]], P3v[F[3 * t + 2]], _fc3);
+    }
+    faceSet.commit(camera);
+}
 
 // ---------- 軸の名前（HTML） ----------
 const labelsEl = $('#labels'), labEls = AX.map(a => { const d = document.createElement('div'); d.className = 'lab'; d.textContent = a.n; d.style.color = a.c; labelsEl.appendChild(d); return d; });
@@ -661,6 +720,7 @@ function frame(t) {
     if (anim || needRender) {
         buildRot(n);
         updateGeometry(fl);
+        shine.update();   // 照り返しの光をカメラの左上へ
         renderer.render(scene, camera);
         updateLabels();
         needRender = false;
@@ -957,6 +1017,19 @@ resize();
 setShape(S.n, S.shape);
 if (fromHash) try { history.replaceState(null, '', location.pathname); } catch (_) { /* 何もしない */ }
 requestAnimationFrame(frame);
+// 見た目の効果（visual-fx）：欄・書体・軸の色。ここ・ほかのタブ・ほかのアプリで設定が変わった時も
+VisualFX.requestRender = () => requestRender();
+VisualFX.mountUI($('#vfx-box'), { axes: 'xyzwvutsrq', title: '' });
+const vfxFont = () => { const tex = VisualFX.get('texFont'); document.body.classList.toggle('vfx-tex', tex); document.body.classList.toggle('vfx-sans', !tex); };
+vfxFont();
+VisualFX.onChange(() => {
+    vfxFont();
+    if (vfxAxisColors()) {   // 軸の色が変わった：矢じり・名前・辺と面の色（形を作り直す）
+        cones.forEach((m, k) => m.material.color.copy(AXC[k])); labEls.forEach((d, k) => { d.style.color = AX[k].c; });
+        setShape(S.n, S.shape);
+    }
+    requestRender();
+});
 })();
 </script>
 </body>
