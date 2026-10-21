@@ -68,6 +68,8 @@
                 <button class="go" data-n="10">10 本</button>
                 <button class="go" data-n="100">100 本</button>
                 <button class="go" data-n="1000">1000 本</button>
+                <button class="go" data-n="10000">1 万本</button>
+                <button class="go" data-n="100000">10 万本</button>
                 <button id="play">▶ 落とし続ける</button>
                 <button id="reset">リセット</button>
             </div>
@@ -170,7 +172,18 @@ function redrawAll() {
 function drop(k) {
     const g = cN.getContext('2d'); g.lineWidth = 1.6; g.lineCap = 'round';
     const before = needleAlpha();
-    for (let i = 0; i < k; i++) {
+    if (k > 200) {   // たくさん（1000 本〜10 万本）：交わった針・交わらない針をそれぞれ 1 本の線の集まりにまとめて、2 回で描く（速い）
+        const pH = new Path2D(), pM = new Path2D();
+        for (let i = 0; i < k; i++) {
+            const n = dropOne();
+            if (ndl.length < 6000) ndl.push(n); else ndl[(S.N) % 6000] = n;
+            const P = n.hit ? pH : pM; P.moveTo(n.x1, n.y1); P.lineTo(n.x2, n.y2);
+            record();
+        }
+        const a = needleAlpha();
+        g.strokeStyle = `rgba(56, 189, 248, ${a * 0.8})`; g.stroke(pM);
+        g.strokeStyle = `rgba(244, 114, 182, ${a})`; g.stroke(pH);
+    } else for (let i = 0; i < k; i++) {
         const n = dropOne();
         if (ndl.length < 6000) ndl.push(n); else ndl[(S.N) % 6000] = n;
         paintNeedle(g, n, needleAlpha());
