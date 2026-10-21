@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>オイラーの等式</title>
+<meta name="apple-mobile-web-app-title" content="オイラーの等式">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#030712">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+    :root { --bg: #030712; --panel: #0b1222; --line: #1e293b; --text: #e2e8f0; --muted: #94a3b8; --faint: #64748b;
+            --re: #38bdf8; --im: #f472b6; --sum: #fbbf24; --goal: #34d399; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.6 'Noto Sans JP', Inter, system-ui, -apple-system, sans-serif; }
+    .app { display: grid; grid-template-columns: 1fr 400px; height: 100%; }
+    @media (max-width: 900px) { .app { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; } }
+    .stage { position: relative; min-height: 320px; overflow: hidden; border-right: 1px solid var(--line); }
+    .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+    .stage .tag { position: absolute; left: 12px; top: 10px; font-size: 12px; color: var(--muted); background: rgba(3, 7, 18, 0.78); border: 1px solid var(--line); padding: 4px 10px; border-radius: 999px; }
+    .stage .zoom { position: absolute; right: 12px; top: 10px; display: flex; gap: 6px; }
+    .side { background: var(--panel); padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+    h1 { font-size: 20px; margin: 0; font-weight: 900; }
+    .sub { color: var(--muted); font-size: 12.5px; margin: 2px 0 0; }
+    .card { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: rgba(15, 23, 42, 0.6); }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    button { font: 700 13px 'Noto Sans JP', Inter, sans-serif; color: var(--text); background: #111a2e; border: 1px solid #334155; border-radius: 10px; padding: 6px 11px; cursor: pointer; }
+    button:hover { background: #1b2740; }
+    button.on { background: rgba(251, 191, 36, 0.18); border-color: var(--sum); color: #fef3c7; }
+    button.go { background: rgba(52, 211, 153, 0.16); border-color: var(--goal); color: #d1fae5; }
+    .row { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 13px; }
+    .row label { min-width: 74px; color: var(--muted); }
+    .row input[type=range] { flex: 1; accent-color: var(--sum); }
+    .row .v { min-width: 64px; text-align: right; font: 700 13px Inter, monospace; }
+    .eq { font: 700 18px Inter, 'Noto Sans JP', serif; text-align: center; margin: 4px 0 2px; }
+    .eq i { font-family: Georgia, serif; }
+    .big { font: 800 22px Inter, ui-monospace, monospace; color: var(--sum); word-break: break-all; }
+    .small { font-size: 12px; color: var(--muted); }
+    .ok { color: var(--goal); font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; font: 12px Inter, ui-monospace, monospace; }
+    th { color: var(--muted); font-weight: 600; text-align: right; padding: 3px 4px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #0d1528; }
+    td { text-align: right; padding: 2px 4px; border-bottom: 1px solid rgba(30, 41, 59, 0.5); white-space: nowrap; }
+    td:first-child, th:first-child { text-align: center; color: var(--muted); }
+    tr.cur td { background: rgba(251, 191, 36, 0.1); }
+    .tbl { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+    .term { font: 600 13.5px Inter, 'Noto Sans JP', serif; line-height: 2; word-break: break-word; }
+    .term span { white-space: nowrap; }
+    details summary { cursor: pointer; font-weight: 700; }
+    details p { color: #cbd5e1; font-size: 13px; }
+    .note { color: var(--faint); font-size: 11.5px; }
+    input.th { width: 120px; font: 600 13px Inter, monospace; background: #0f172a; color: var(--text); border: 1px solid #334155; border-radius: 8px; padding: 4px 8px; }
+</style>
+</head>
+<body>
+<div class="app">
+    <div class="stage" id="stage">
+        <canvas id="cv"></canvas>
+        <div class="tag" id="tag">複素数平面（横＝実部、縦＝虚部）。項を 1 つ足すごとに、矢印を 1 本つなぐ</div>
+        <div class="zoom"><button id="zAll">全体</button><button id="zGoal">ゴール付近</button></div>
+    </div>
+    <div class="side">
+        <div>
+            <h1>オイラーの等式を、展開式だけで確かめる</h1>
+            <p class="sub">e<sup><i>iθ</i></sup> を sin・cos を一切使わず、1 + <i>iθ</i> + (<i>iθ</i>)²/2! + (<i>iθ</i>)³/3! + … と項を足していくだけで計算します。θ ＝ π なら本当に −1 に、θ ＝ τ（＝ 2π）なら本当に 1 に着くか、実験してみましょう。</p>
+        </div>
+
+        <div class="card">
+            <div class="btns">
+                <span class="small">θ ＝</span>
+                <button data-th="pi" class="on">π</button>
+                <button data-th="tau">τ（2π）</button>
+                <button data-th="half">π/2</button>
+                <button data-th="1">1</button>
+                <input class="th" id="thIn" spellcheck="false" title="θ を式で（pi/3、2*pi、tau/4、1.5 など）">
+            </div>
+            <div class="row"><label>足す項の数</label><input id="nS" type="range" min="1" max="45" step="1" value="1"><span class="v" id="nV"></span></div>
+            <div class="btns" style="margin-top:8px">
+                <button id="minus">− 1 項</button>
+                <button id="plus" class="go">＋ 1 項</button>
+                <button id="play">▶ 1 項ずつ足していく</button>
+                <button id="all">全部（45 項）</button>
+                <button id="reset">最初から</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="eq" id="eqHead"></div>
+            <div class="small">いまの合計（<span id="cntTxt"></span> 項まで）</div>
+            <div class="big" id="sumTxt">—</div>
+            <div class="small" id="goalTxt"></div>
+            <div class="small" id="digTxt" style="margin-top:4px"></div>
+        </div>
+
+        <div class="card">
+            <div class="small" style="margin-bottom:4px">足している式（いま足した項は黄色）</div>
+            <div class="term" id="terms"></div>
+        </div>
+
+        <div class="card">
+            <div class="small" style="margin-bottom:6px">1 項ずつの値と、そこまでの合計</div>
+            <div class="tbl"><table><thead><tr><th>n</th><th>(iθ)ⁿ / n!</th><th>合計の実部</th><th>合計の虚部</th></tr></thead><tbody id="tb"></tbody></table></div>
+        </div>
+
+        <details class="card">
+            <summary>どうして sin・cos なしで回るの？</summary>
+            <p>i を掛けるたびに、向きが 90° 回ります（1 → i → −1 → −i → 1）。だから (iθ)ⁿ の項は「右・上・左・下・右…」と向きを変えながら、だんだん短くなります（n! のほうが θⁿ より速く大きくなるので）。</p>
+            <p>その矢印をつなぐと、渦を巻きながら単位円の上の一点に吸い込まれていきます。θ ＝ π なら、円の反対側の −1。θ ＝ τ なら、ぐるっと一周してスタートの 1。</p>
+            <p>実部だけ集めると 1 − θ²/2! + θ⁴/4! − … ＝ cos θ、虚部だけ集めると θ − θ³/3! + … ＝ sin θ。この関係を逆にたどったのがオイラーの公式 e<sup>iθ</sup> ＝ cos θ ＋ i sin θ です。</p>
+            <p class="note">τ のほうが「回り道」が大きい：θ が大きいと途中の項（τ⁶/6! ≈ 85）がとても大きくなり、行ったり来たりしてから 1 に戻ります。最後の桁が少し揺れるのは、コンピュータの数（約 16 桁）の丸めのせい。</p>
+        </details>
+        <details class="card">
+            <summary>このアプリの中身</summary>
+            <p>複素数の足し算と掛け算だけで計算します。前の項に iθ/n を掛けると次の項（(iθ)ⁿ/n! ＝ (iθ)ⁿ⁻¹/(n−1)! × iθ/n）。Math.sin・Math.cos・Math.exp などの三角関数・指数関数は、計算にも矢じりの絵にも一度も使っていません（π の値 3.14159265358979… だけはコンピュータの値を入力に使います）。</p>
+        </details>
+    </div>
+</div>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const MAXN = 45;
+const S = { th: Math.PI, thName: 'π', target: { re: -1, im: 0 }, n: 1, play: false, view: null, viewT: null, mode: 'all' };
+
+// ---- 展開式：項 t_n = (iθ)^n / n! を、前の項に iθ/n を掛けて作る（sin・cos・exp は使わない） ----
+let T = [], P = [];   // T[n]＝項、P[n]＝0〜n 項目までの合計
+function compute() {
+    T = []; P = [];
+    let t = { re: 1, im: 0 }, s = { re: 0, im: 0 };
+    for (let n = 0; n < MAXN; n++) {
+        if (n > 0) { const k = S.th / n; t = { re: -t.im * k, im: t.re * k }; }   // × iθ/n：(a + bi)·(iθ/n) = −bθ/n + aθ/n·i
+        s = { re: s.re + t.re, im: s.im + t.im };
+        T.push(t); P.push(s);
+    }
+}
+// θ の式（pi・tau・π・τ・数・+ − * / ( )）を読む
+function parseTheta(src) {
+    const s = String(src).replace(/π/g, 'pi').replace(/τ/g, 'tau').replace(/\s+/g, '');
+    if (!/^[0-9.+\-*/()a-z]*$/.test(s) || !s) return NaN;
+    const js = s.replace(/tau/g, '(2*Math.PI)').replace(/pi/g, 'Math.PI');
+    if (/[a-zA-Z]/.test(js.replace(/Math\.PI/g, ''))) return NaN;
+    try { const v = Function('"use strict";return (' + js + ')')(); return typeof v === 'number' && isFinite(v) ? v : NaN; } catch (_) { return NaN; }
+}
+// θ の時のゴール（本当の e^{iθ}）：画面の印のためだけに、上の展開式を 120 項（十分）足した値を使う
+function goalOf(th) { let t = { re: 1, im: 0 }, s = { re: 1, im: 0 }; for (let n = 1; n < 120; n++) { const k = th / n; t = { re: -t.im * k, im: t.re * k }; s.re += t.re; s.im += t.im; } return s; }
+
+// ---- 数の書き方 ----
+const fx = (v, d = 12) => { if (Math.abs(v) < 5e-16) v = 0; const a = Math.abs(v); const s = a !== 0 && (a >= 1e6 || a < 1e-4) ? v.toExponential(d > 6 ? 6 : d) : v.toFixed(d); return s.replace('-', '−'); };
+const cplx = (z, d = 12) => fx(z.re, d) + (z.im < 0 && Math.abs(z.im) >= 5e-16 ? ' − ' : ' + ') + fx(Math.abs(z.im) < 5e-16 ? 0 : Math.abs(z.im), d) + ' i';
+const fact = n => { let f = 1; for (let k = 2; k <= n; k++) f *= k; return f; };
+const sup = n => String(n).split('').map(c => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+c]).join('');
+
+// ---- 画面 ----
+const stage = $('stage'), cv = $('cv'); let W = 0, H = 0, DPR = 1;
+function fit() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    const r = stage.getBoundingClientRect(); W = r.width; H = r.height;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); cv.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0);
+    S.view = null; draw();
+}
+// 見せる範囲：全体＝ここまでの合計の点と単位円が全部入る、ゴール付近＝ゴールのまわり（合計の点とのずれが見える大きさ）
+function wantView() {
+    const pts = P.slice(0, S.n).concat([{ re: 0, im: 0 }]);
+    if (S.mode === 'goal') {
+        const g = S.target, last = P[S.n - 1], d = Math.max(Math.hypot(last.re - g.re, last.im - g.im) * 3, 0.15);
+        return { cx: g.re, cy: g.im, r: Math.min(d, 2.5) };
+    }
+    let x0 = -1.2, x1 = 1.2, y0 = -1.2, y1 = 1.2;
+    pts.forEach(p => { x0 = Math.min(x0, p.re); x1 = Math.max(x1, p.re); y0 = Math.min(y0, p.im); y1 = Math.max(y1, p.im); });
+    return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, r: Math.max(x1 - x0, y1 - y0) / 2 * 1.12 };
+}
+function draw() {
+    const want = wantView();
+    if (!S.view) S.view = { ...want };
+    const v = S.view, k = 0.18;   // なめらかに寄る・引く
+    v.cx += (want.cx - v.cx) * k; v.cy += (want.cy - v.cy) * k; v.r *= Math.pow(want.r / v.r, k);
+    const sc = Math.min(W, H) / 2 / v.r, X = x => W / 2 + (x - v.cx) * sc, Y = y => H / 2 - (y - v.cy) * sc;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#030712'; g.fillRect(0, 0, W, H);
+    // 目盛り
+    const step = (() => { const raw = v.r / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p; return (m < 2 ? 1 : m < 5 ? 2 : 5) * p; })();
+    g.strokeStyle = '#0f1a2e'; g.lineWidth = 1; g.font = '10px Inter, sans-serif'; g.fillStyle = '#475569';
+    for (let x = Math.ceil((v.cx - W / 2 / sc) / step) * step; x <= v.cx + W / 2 / sc; x += step) { g.beginPath(); g.moveTo(X(x), 0); g.lineTo(X(x), H); g.stroke(); }
+    for (let y = Math.ceil((v.cy - H / 2 / sc) / step) * step; y <= v.cy + H / 2 / sc; y += step) { g.beginPath(); g.moveTo(0, Y(y)); g.lineTo(W, Y(y)); g.stroke(); }
+    g.strokeStyle = '#334155'; g.beginPath(); g.moveTo(0, Y(0)); g.lineTo(W, Y(0)); g.moveTo(X(0), 0); g.lineTo(X(0), H); g.stroke();
+    g.fillText('実部', W - 30, Y(0) - 6); g.fillText('虚部 i', X(0) + 6, 14);
+    // 単位円と、1・−1・i・−i
+    g.strokeStyle = 'rgba(148, 163, 184, 0.45)'; g.setLineDash([4, 4]); g.beginPath(); g.arc(X(0), Y(0), sc, 0, 7); g.stroke(); g.setLineDash([]);
+    [[1, 0, '1'], [-1, 0, '−1'], [0, 1, 'i'], [0, -1, '−i']].forEach(([a, b, t]) => { g.fillStyle = '#94a3b8'; g.beginPath(); g.arc(X(a), Y(b), 2.5, 0, 7); g.fill(); g.fillText(t, X(a) + 5, Y(b) - 5); });
+    // ゴール
+    const G = S.target; g.strokeStyle = '#34d399'; g.lineWidth = 2; g.beginPath(); g.arc(X(G.re), Y(G.im), 9, 0, 7); g.stroke();
+    g.fillStyle = '#34d399'; g.font = '700 12px Inter, sans-serif'; g.fillText('ゴール e^(i' + S.thName + ')', X(G.re) + 12, Y(G.im) + 18);
+    // 項の矢印（0 項目から順に、向きで色を変える：実部の向き＝水色、虚部の向き＝ピンク）
+    let px = 0, py = 0;
+    for (let n = 0; n < S.n; n++) {
+        const t = T[n], nx = px + t.re, ny = py + t.im, real = n % 2 === 0, last = n === S.n - 1;
+        g.strokeStyle = last ? '#fde68a' : real ? 'rgba(56, 189, 248, 0.9)' : 'rgba(244, 114, 182, 0.9)'; g.lineWidth = last ? 3 : 2;
+        arrow(g, X(px), Y(py), X(nx), Y(ny));
+        if (S.n <= 14 && Math.hypot(X(nx) - X(px), Y(ny) - Y(py)) > 28) { g.fillStyle = '#94a3b8'; g.font = '10px Inter, sans-serif'; g.fillText(n + '', (X(px) + X(nx)) / 2 + 4, (Y(py) + Y(ny)) / 2 - 4); }
+        px = nx; py = ny;
+    }
+    // ここまでの合計の点の跡
+    g.fillStyle = 'rgba(251, 191, 36, 0.5)'; for (let n = 0; n < S.n - 1; n++) { g.beginPath(); g.arc(X(P[n].re), Y(P[n].im), 2, 0, 7); g.fill(); }
+    const L = P[S.n - 1]; g.fillStyle = '#fbbf24'; g.shadowColor = '#fbbf24'; g.shadowBlur = 12; g.beginPath(); g.arc(X(L.re), Y(L.im), 5, 0, 7); g.fill(); g.shadowBlur = 0;
+    const moving = Math.abs(want.cx - v.cx) + Math.abs(want.cy - v.cy) > v.r * 0.002 || Math.abs(Math.log(want.r / v.r)) > 0.002;
+    return moving;
+}
+function arrow(g, x0, y0, x1, y1) {
+    const len = Math.hypot(x1 - x0, y1 - y0); if (len < 0.5) return;
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+    // 矢じり：向きのベクトルを、ひらき具合の 2 つの数（c ＝ 0.9, s ＝ 0.436、c² + s² ＝ 1）で左右に倒すだけ（ここでも三角関数は使わない）
+    const h = Math.min(9, len * 0.35), ux = (x1 - x0) / len, uy = (y1 - y0) / len, c = 0.9, s = 0.436;
+    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x1 - h * (ux * c + uy * s), y1 - h * (uy * c - ux * s)); g.moveTo(x1, y1); g.lineTo(x1 - h * (ux * c - uy * s), y1 - h * (uy * c + ux * s)); g.stroke();
+}
+
+// ---- 文字の表示 ----
+function show() {
+    const n = S.n, L = P[n - 1], G = S.target;
+    $('nS').value = n; $('nV').textContent = n + ' 項';
+    $('cntTxt').textContent = 'n ＝ 0〜' + (n - 1) + ' の ' + n;
+    $('eqHead').innerHTML = 'e<sup><i>i</i>' + S.thName + '</sup> ≈ Σ (<i>i</i>' + S.thName + ')ⁿ / n!';
+    $('sumTxt').textContent = cplx(L, 12);
+    const err = Math.hypot(L.re - G.re, L.im - G.im);
+    $('goalTxt').innerHTML = 'ゴール ' + cplx(G, 0).replace(/\.0+/g, '') + ' までの距離：<b style="color:#e2e8f0">' + (err < 1e-15 ? '0（コンピュータの桁の限界）' : err.toExponential(2).replace('-', '−')) + '</b>';
+    // 実部がゴールと何桁そろったか
+    const tr = G.re.toFixed(14), sr = L.re.toFixed(14); let k = 0; while (k < tr.length && tr[k] === sr[k]) k++;
+    const dot = tr.indexOf('.'), dec = Math.max(0, k - dot - 1);
+    $('digTxt').innerHTML = (S.named && err < 0.5) ? (dec >= 1 ? '<span class="ok">実部が小数第 ' + Math.min(dec, 14) + ' 位までゴールと一致</span>' : '実部はまだゴールと一致していない') + (err < 1e-12 ? '　<span class="ok">ほぼ ' + (S.thName === 'π' ? '−1' : S.thName === 'τ' ? '1' : S.thName === 'π/2' ? 'i' : 'ゴール') + ' ぴったり！</span>' : '') : '';
+    // 式
+    let h = '';
+    for (let i = 0; i < n; i++) {
+        const t = i === 0 ? '1' : i === 1 ? '<i>i</i>' + S.thName : '(<i>i</i>' + S.thName + ')' + sup(i) + '/' + i + '!';
+        h += (i ? ' + ' : '') + '<span' + (i === n - 1 ? ' style="color:#fbbf24"' : '') + '>' + t + '</span>';
+    }
+    if (n < MAXN) h += ' <span style="color:#475569">+ …</span>';
+    $('terms').innerHTML = h;
+    // 表
+    $('tb').innerHTML = T.slice(0, n).map((t, i) => '<tr' + (i === n - 1 ? ' class="cur"' : '') + '><td>' + i + '</td><td style="color:' + (i % 2 ? '#f472b6' : '#38bdf8') + '">' + (i % 2 ? fx(t.im, 9) + ' i' : fx(t.re, 9)) + '</td><td>' + fx(P[i].re, 12) + '</td><td>' + fx(P[i].im, 12) + '</td></tr>').join('');
+    const cur = $('tb').querySelector('tr.cur'); if (cur) cur.scrollIntoView({ block: 'nearest' });
+}
+
+// ---- 操作 ----
+function setTheta(th, name, named) {
+    S.th = th; S.thName = name; S.named = named; S.target = goalOf(th);
+    if (named) { if (name === 'π') S.target = { re: -1, im: 0 }; if (name === 'τ') S.target = { re: 1, im: 0 }; }   // 印は本当の答え（ずれを測る相手）
+    compute(); S.view = null; show(); kick();
+}
+document.querySelectorAll('[data-th]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-th]').forEach(x => x.classList.toggle('on', x === b)); $('thIn').value = '';
+    const k = b.dataset.th;
+    if (k === 'pi') setTheta(Math.PI, 'π', true);
+    else if (k === 'tau') setTheta(2 * Math.PI, 'τ', true);
+    else if (k === 'half') setTheta(Math.PI / 2, 'π/2', true);
+    else setTheta(1, '1', true);
+}));
+$('thIn').addEventListener('input', e => {
+    const v = parseTheta(e.target.value); e.target.style.borderColor = isFinite(v) ? '#334155' : '#f43f5e';
+    if (!isFinite(v)) return;
+    document.querySelectorAll('[data-th]').forEach(x => x.classList.remove('on'));
+    setTheta(v, '(' + e.target.value.replace(/pi/g, 'π').replace(/tau/g, 'τ').replace(/\*/g, '') + ')', false);
+});
+const setN = n => { S.n = Math.max(1, Math.min(MAXN, n)); show(); kick(); };
+$('nS').addEventListener('input', e => setN(+e.target.value));
+$('plus').addEventListener('click', () => setN(S.n + 1));
+$('minus').addEventListener('click', () => setN(S.n - 1));
+$('all').addEventListener('click', () => setN(MAXN));
+$('reset').addEventListener('click', () => { S.play = false; syncPlay(); setN(1); });
+const syncPlay = () => { $('play').textContent = S.play ? '■ 止める' : '▶ 1 項ずつ足していく'; $('play').classList.toggle('on', S.play); };
+let playT = 0;
+$('play').addEventListener('click', () => { S.play = !S.play; if (S.play && S.n >= MAXN) S.n = 1; syncPlay(); playT = 0; kick(); });
+$('zAll').addEventListener('click', () => { S.mode = 'all'; $('zAll').classList.add('on'); $('zGoal').classList.remove('on'); kick(); });
+$('zGoal').addEventListener('click', () => { S.mode = 'goal'; $('zGoal').classList.add('on'); $('zAll').classList.remove('on'); kick(); });
+document.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return; if (e.key === 'ArrowRight' || e.key === '+') setN(S.n + 1); if (e.key === 'ArrowLeft' || e.key === '-') setN(S.n - 1); });
+
+// 描く：寄せている途中と、1 項ずつ足している間だけ動く
+let raf = 0, lastT = 0;
+function kick() { if (!raf) raf = requestAnimationFrame(loop); }
+function loop(now) {
+    raf = 0;
+    if (S.play) {
+        playT += lastT ? now - lastT : 0;
+        const wait = S.n < 12 ? 650 : 280;
+        if (playT > wait) { playT = 0; if (S.n < MAXN) setN(S.n + 1); else { S.play = false; syncPlay(); } }
+    }
+    lastT = now;
+    const moving = draw();
+    if (moving || S.play) raf = requestAnimationFrame(loop); else lastT = 0;
+}
+window.addEventListener('resize', fit);
+$('zAll').classList.add('on');
+compute(); S.named = true; S.target = { re: -1, im: 0 }; fit(); show(); kick();
+window.euler = { S, P, T };   // 確かめ用
+})();
+</script>
+</body>
+</html>

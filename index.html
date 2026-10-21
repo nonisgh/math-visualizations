@@ -327,6 +327,18 @@
                 </div>
             </a>
 
+            <a class="card" href="euler.html" style="--accent: #fbbf24;">
+                <div class="thumb"><svg data-thumb="euler" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>オイラーの等式</h3><span class="new">NEW</span></div>
+                    <p>e<sup>iθ</sup> を sin・cos を使わずに、展開式 1 + iθ + (iθ)²/2! + … の項を 1 つずつ足して計算。矢印が 90° ずつ曲がりながら渦を巻き、θ ＝ π で本当に −1 に、τ（2π）で本当に 1 に着くかを確かめます。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d2">2D</span></div>
+                        <span class="file">euler.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
+
             <a class="card" href="graph4d.html" style="--accent: var(--d5);">
                 <div class="thumb"><svg data-thumb="graph4d" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
                 <div class="body">
@@ -555,8 +567,24 @@
             });
         }
 
+        // オイラーの等式：e^{iπ} の展開式の項を矢印でつないだ渦（90° ずつ曲がる）と、単位円・−1
+        function drawEuler(svg) {
+            const k = 13;
+            svg.appendChild(el('circle', { cx: 0, cy: 0, r: k, fill: 'none', stroke: '#94a3b8', 'stroke-width': 0.8, 'stroke-dasharray': '2 2', opacity: 0.6 }));
+            let t = [1, 0], p = [0, 0], d = '';
+            const P = q => `${(q[0] * k + 8).toFixed(1)} ${(-q[1] * k).toFixed(1)}`;
+            for (let n = 0; n < 12; n++) {
+                if (n > 0) { const f = Math.PI / n; t = [-t[1] * f, t[0] * f]; }
+                const q = [p[0] + t[0], p[1] + t[1]];
+                d += `M${P(p)}L${P(q)}`; p = q;
+            }
+            svg.appendChild(el('path', { ...stroke, d, 'stroke-width': 1.6 }));
+            svg.appendChild(el('circle', { cx: (-k + 8).toFixed(1), cy: 0, r: 3.2, fill: '#34d399' }));
+        }
+
         document.querySelectorAll('svg[data-thumb]').forEach(svg => {
             switch (svg.dataset.thumb) {
+                case 'euler':   drawEuler(svg); break;
                 case 'buffon':  drawBuffon(svg); break;
                 case 'star':    drawStar(svg, 7, 3, 42); break;
                 case 'graph':   drawGraph(svg); break;
