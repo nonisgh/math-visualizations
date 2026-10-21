@@ -27,7 +27,7 @@
     <!-- n 次元の計算の共通部品（回転・3D への写し方・折りたたみ）。6次元アプリ・n次元ビューアと同じ -->
     <script src="lib/nd-geom.js?b=20261020-1625"></script>
     <!-- 高い次元の立体の質感（5次元の面をガラス・結晶・樹脂に、辺を管と玉に）。共通部品/nd-solid -->
-    <script src="lib/nd-solid.js?b=20261021-1545"></script>
+    <script src="lib/nd-solid.js?b=20261021-1558"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
         
@@ -731,7 +731,7 @@
                     <div class="vm-row"><span class="vm-h">おすすめ</span><button data-vpreset="fat" title="3D展開＝同じ展開図（4次元の十字架）を、w の腕2本を奥に畳んで、3次元の十字架のように見る。しまう・展開図・斜め・遠近。±W の胞が中心の手前と奥に重なって、真ん中が大きくふくらむ。4次元体（超立方体）は x・y・z の伸びた十字架">3D展開</button><button data-vpreset="arms" title="4D展開＝展開図を4次元の形のまま見る。w を出す・展開図・斜め・平行。10個の超立方体でできた4次元の十字架の、8方向の腕が全部見える">4D展開</button><button data-vpreset="onept" title="5D等角図＝等角図「w と v」・正面・組み上がり・平行投影を一発で。5本の軸が同じ長さ（77%）になり、ピンク（手前の頂点）とエメラルド（奥の頂点）が真ん中で1点に重なる。輪郭は正十角形">5D等角図</button><button data-vpreset="anyang" title="六角柱＝5次元立方体を「立方体(x,y,z) × 正方形(w,v)」と見て、それぞれを対角線の方向から見た形。上から見ると正六角形、横から見ると四角。(1,1,1,1,1) の方向を投影でつぶす向き（4次元の等角図と同じ仕組み）。手前と奥の頂点が3Dの原点に重なるので、ドラッグでどの角度から回しても1点のまま。そのかわり軸の長さは x・y・z が82%、w・v が71%（5本をそろえることは3次元では不可能）。「5D等角図」は5本とも77%だが、真正面からしか重ならない">六角柱</button></div>
                     <div class="vm-row fx-moved" style="display:none"><span class="vm-h">分ける</span><button id="solid5-split" title="展開図（折りたたみの途中もふくむ）と、組み上がり（100%）で、質感と辺を別々に選ぶ。組み上がった瞬間に切りかわる">展開図と組み上がりで別々: OFF</button><button data-solid5edit="net" title="下の質感・辺のボタンで、展開図（と折りたたみの途中）の設定を選ぶ">展開図の設定</button><button data-solid5edit="full" title="下の質感・辺のボタンで、組み上がり（100%）の設定を選ぶ">組み上がりの設定</button></div>
                     <div class="vm-row fx-moved" style="display:none"><span class="vm-h">質感</span><button data-solid5="classic" title="今まで：薄い面と細い線">今まで</button><button data-solid5="glass" title="擦りガラス：正面は透け、斜めの面ほど濃く光る。縁が光り、周りが映り込む。辺は管、頂点は玉。面ごとに 5次元の陰影">擦りガラス</button><button data-solid5="crystal" title="結晶：色が鮮やかで、照り返しが強い。辺は管、頂点は玉">結晶</button><button data-solid5="resin" title="樹脂：明るいパステルの、つや消しの半透明。辺は管、頂点は玉">樹脂</button><button data-solid5="vivid" title="ビビッド：面を濃いめ・色を鮮やかに、つやのあるプラスチック。線にたよらず、色の面で胞の形を見せる">ビビッド</button><button data-solid5="film" title="透明プラスチック（乗算）：色つきのセロハンを重ねたように、重なるほど色が深くなる。明るい背景で見る。線にたよらず、重なりと奥行きで立体感">透明プラスチック</button><button data-solid5="holo" title="ホログラム（加算）：暗い背景で、重なるほど光が足されて明るく光る。縁がふわっと光る">ホログラム</button><button data-solid4 title="上の 4次元（超立方体）と左の 3次元（立方体）にも、同じ質感と線色をかける">4次元にも</button></div>
-                    <div class="vm-row fx-moved" style="display:none"><span class="vm-h">辺</span><button data-solid5e="rods" title="辺を光と影のある管に、頂点を玉に">管と玉</button><button data-solid5e="thin" title="辺は今までと同じ細い線">細い線</button><button data-solid5e="none" title="辺を描かず、面だけで形を見せる（強調の太い線も出さない）">なし</button><button data-solid5e="depth" title="全部の胞の辺を、奥行きで 4 段に分けた線で描き、奥・内側ほど細く（「内側の線を細く」の目盛りが効く）。色は線の色（手前の強調の色・奥ほど灰色）">奥ほど細く</button><button data-solid5e="depthrev" title="奥ほど細くの逆：同じ 4 段の線で、奥・内側ほど太く濃く、手前ほど細く（「内側の線を細く」の目盛りで差の大きさが変わる）">奥ほど太く</button><span class="text-[10px] text-slate-500">（どの質感でも。奥ほど細くは「内側の線を細く」の目盛りが効く）</span></div>
+                    <div class="vm-row fx-moved" style="display:none"><span class="vm-h">辺</span><button data-solid5e="rods" title="辺を、少し太めの丸い管のフレームに。角は少しだけふくらむ。色は線と同じ">フレーム</button><button data-solid5e="thin" title="辺は今までと同じ細い線">細い線</button><button data-solid5e="none" title="辺を描かず、面だけで形を見せる（強調の太い線も出さない）">なし</button><button data-solid5e="depth" title="全部の胞の辺を、奥行きで 4 段に分けた線で描き、奥・内側ほど細く（「内側の線を細く」の目盛りが効く）。色は線の色（手前の強調の色・奥ほど灰色）">奥ほど細く</button><button data-solid5e="depthrev" title="奥ほど細くの逆：同じ 4 段の線で、奥・内側ほど太く濃く、手前ほど細く（「内側の線を細く」の目盛りで差の大きさが変わる）">奥ほど太く</button><span class="text-[10px] text-slate-500">（どの質感でも。奥ほど細くは「内側の線を細く」の目盛りが効く）</span></div>
                     <div class="vm-row fx-moved" style="display:none"><span class="vm-h">線色</span><button data-linetint="default" title="いつもの色：手前の強調の色・奥ほど灰色">いつもの色</button><button data-linetint="comp" title="補色：線を面の補色（色相を 180° 回した色）にして、ふつうに重ねる。真ん中ほど濃く">補色</button><button data-linetint="compmul" title="補色（乗算）：補色を下の面の色に掛け合わせる（色が打ち消し合って暗い墨の輪郭のようになる）">補色（乗算）</button><button data-linetint="inv" title="反転（乗算の補色）：白い線で下の色を反転する＝線が通る場所ごとに、下の面の本当の補色の線になる（色の違う面をまたぐと色が変わる。同じ場所に重なる線は 1 本だけ）。暗い背景の上では明るい線。強調の太い線・管は補色。5次元（4次元・3次元は前のまま）">反転（乗算の補色）</button><button data-linetint="ends" title="手前と奥だけ補色：奥行きで 4 段に分けた線の、いちばん手前の段といちばん奥の段だけ補色、間の 2 段は面と同系色（乗算）（「奥ほど細く」の 1 段目と 4 段目が補色。5次元だけ）">手前と奥だけ補色</button><button data-linetint="endsinv" title="手前と奥だけ反転（乗算の補色）：いちばん手前の段といちばん奥の段の線だけ「反転（乗算の補色）」の重ね方（白い線で下の色を反転＝下の面の補色）、間は面と同系色（乗算）。細い線・奥ほど細くで（管では効かない。5次元だけ）">手前と奥だけ反転</button><button data-linetint="compout" title="外側だけ補色：外側の線は補色、真ん中に向かうほど同系色に（ふつうに重ねる）">外側だけ補色</button><button data-linetint="cell" title="面と同系色の濃いめ：線をその胞の面の色にそろえ、立体の真ん中に近いほど濃く（鮮やかに暗く）、外側ほど明るめに。線は乗算で描く（下の面の色に掛け合わせる＝色の違う面に重なっても浮かない）。「4次元にも」が ON なら 4次元・3次元にも">面と同系色（濃いめ）</button></div>
                     <div class="vm-row fx-moved" style="display:none"><span class="vm-h">組上</span><button id="autolight5-btn" title="組み上がったら 4Dライト：4Dライトが OFF でも、組み上がる直前に光が少しずつ効いてきて、組み上がった瞬間に面がふわっと光る（4Dライトが ON の時はいつも効く）">組み上がったら 4Dライト: ON</button></div>
                     <div class="vm-row fx-moved" style="display:none"><span class="vm-h">光</span><button id="light5-btn" title="4Dライト（お試し）。5次元空間に固定した光で、各胞（超立方体）の向きごとに明るさを変える。X-W・W-V など4次元・5次元の回転で光の当たる胞が入れ替わるので、3Dの形が同じでも『回っている』ことが光で分かる">→ 4Dライト: OFF</button></div>
@@ -2516,7 +2516,31 @@
         }
         const lineBlendAll = (objs, fat, mul) => { objs.forEach(o => { if (o && o.wire) lineBlend(o.wire.material, mul); }); if (fat) Object.keys(fat).forEach(k => { if (fat[k]) lineBlend(fat[k].material, mul); }); };   // 質感の数（部品が古くて名前が見つからない時は「今まで」として描く＝落ちない）
         let solid5 = 'glass'; try { const v = localStorage.getItem('hypercubeSolid5'); if (v && NDSolid.LOOKS[v]) solid5 = v; } catch (_) {}
-        let solid5Rods = null;   // 辺の管・頂点の玉（build5D で作る）
+        let solid5Rods = null;
+        // 4D（超立方体）・3D（立方体）の辺の描き方：'thin'＝細い線（今まで）・'frame'＝丸い管のフレーム、角に小さなふくらみ（5D の「フレーム」と同じ部品）。窓ごとに別々
+        let edge4 = 'thin', edge3 = 'thin';
+        try { if (localStorage.getItem('hypercubeEdge4') === 'frame') edge4 = 'frame'; if (localStorage.getItem('hypercubeEdge3') === 'frame') edge3 = 'frame'; } catch (_) {}
+        // 1 つの窓の辺をフレームで描く。verts＝胞（面）ごとの頂点、edges＝[[a,b],…]、wires＝胞ごとの線の色の入れ物、K＝頂点の見かけの縮み（遠いほど細く、無ければ null）
+        function drawFrames(holder, on, objs, verts, edges, dim, K) {
+            objs.forEach(o => { if (o.wire) o.wire.visible = !on; });
+            if (!on) { if (holder.r) holder.r.group.visible = false; return; }
+            const per = verts[0] ? verts[0].length : 0, ne = edges.length;
+            if (!holder.r) {
+                const sc = dim === 3 ? scene3D : scene2D, root = sc && sc.getObjectByName(dim === 3 ? 'Root3D' : 'Root2D'), rr = dim === 3 ? renderer3D : renderer2D;
+                if (!root) return;
+                holder.r = NDSolid.rods(objs.length * ne, objs.length * per, rr, { look: 'glass', shape: 'frame' }); root.add(holder.r.group);
+            }
+            const nv = objs.length * per, P = new Float32Array(nv * 3), KK = K ? new Float32Array(nv) : null, E = [], EC = [];
+            verts.forEach((cv, ci) => cv.forEach((v, i) => { const j = ci * per + i; P[j * 3] = v[0]; P[j * 3 + 1] = v[1]; P[j * 3 + 2] = v[2]; if (KK) KK[j] = K[ci][i]; }));
+            objs.forEach((o, ci) => {
+                if (!xpVisible(dim === 3 ? 3 : 2, ci)) return;
+                const wc = o.wireGeo.attributes.color ? o.wireGeo.attributes.color.array : null;
+                edges.forEach(([a, b], e) => { E.push(ci * per + a, ci * per + b); const k = e * 6; if (wc) EC.push((wc[k] + wc[k + 3]) / 2, (wc[k + 1] + wc[k + 4]) / 2, (wc[k + 2] + wc[k + 5]) / 2); else EC.push(0.9, 0.92, 1); });
+            });
+            holder.r.update(P, E, EC, KK, null, nv); holder.r.group.visible = true;
+            const fat = ehFat[dim === 3 ? 3 : 2]; if (fat) Object.keys(fat).forEach(k => { if (fat[k]) fat[k].visible = false; });   // 辺の強調の太い線は、フレームの時は出さない（色はフレームに入っている）
+        }
+        const fr4 = { r: null }, fr3 = { r: null };   // 4D・3D のフレームの部品（NDSolid.rods、使う時に作る）   // 辺の管・頂点の玉（build5D で作る）
         // 辺の描き方（今まで以外の質感の時）：'rods'＝管と玉・'thin'＝細い線・'none'＝なし（面だけで形を見せる。強調の太い線も出さない）・
         //   'depth'＝奥ほど細く（全部の胞の辺を、奥行きの 4 段に分けた太い線で。奥・内側ほど細く）・'depthrev'＝奥ほど太く（同じ 4 段の線で、太さ・濃さの順を逆に＝奥・内側ほど太く濃く）
         let solid5Edge = 'thin'; try { const v = localStorage.getItem('hypercubeSolid5Edge'); if (['rods', 'thin', 'none', 'depth', 'depthrev'].includes(v)) solid5Edge = v; } catch (_) {}   // 既定は細い線（今まで と同じ）
@@ -2766,7 +2790,7 @@
                     const tm = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
                     shineThru5D = new THREE.Mesh(tg, tm); shineThru5D.frustumCulled = false; shineThru5D.renderOrder = -0.5; shineThru5D.visible = false; root.add(shineThru5D);   // 中心ほど濃くの乗算（−0.9〜−0.6）のあと＝暗くされない
                 }
-                solid5Rods = NDSolid.rods(P5_CELLS.length * T5_EDGES.length, P5_CELLS.length * 16, renderer5D, { look: solid5 });   // 辺の管・頂点の玉
+                solid5Rods = NDSolid.rods(P5_CELLS.length * T5_EDGES.length, P5_CELLS.length * 16, renderer5D, { look: solid5, shape: 'frame' });   // 辺のフレーム（丸い管＋角の小さなふくらみ。前は管と玉）   // 辺の管・頂点の玉
                 root.add(solid5Rods.group);
                 if (THREE.LineSegments2 && THREE.LineMaterial) solid5Depth = [0, 1, 2, 3].map(() => {   // 奥ほど細く：段ごとに 1 本
                     const L = new THREE.LineSegments2(new THREE.LineSegmentsGeometry(), new THREE.LineMaterial({ vertexColors: true, linewidth: 2, transparent: true, opacity: 0.95, depthWrite: false }));
@@ -4497,7 +4521,8 @@
                 const tintOn = zwViz.tint && zwOn;
                 // 線色「面と同系色」を 3次元にも（「4次元にも」が ON の時）：立方体の真ん中（全部の頂点の重心）と、いちばん遠い頂点までの距離
                 let tint3Cen = null, tint3R = 1;
-                if (line3Tint !== 'default') {   // 3次元（立方体）の線色（4次元・5次元とは別に選ぶ）
+                const tint3 = line3Tint !== 'default' ? line3Tint : edge3 === 'frame' ? 'cell' : 'default';   // フレームの時は「今まで」でも面と同系色
+                if (tint3 !== 'default') {   // 3次元（立方体）の線色（4次元・5次元とは別に選ぶ）
                     tint3Cen = [0, 0, 0]; let nv = 0;
                     faceVerts.forEach(cv => cv.forEach(v => { tint3Cen[0] += v[0]; tint3Cen[1] += v[1]; tint3Cen[2] += v[2]; nv++; }));
                     tint3Cen = tint3Cen.map(x => x / Math.max(1, nv));
@@ -4568,7 +4593,7 @@
                         const C = new THREE.Color(faceConfigs2D[fi].color), D = { r: 0, g: 0, b: 0 }, smT = t => t * t * (3 - 2 * t);
                         for (let e = 0, k = 0; e < face.quadEdges.length; e++) for (const vi of face.quadEdges[e]) {
                             const v = currentVerts[vi], tc = smT(1 - Math.min(1, Math.hypot(v[0] - tint3Cen[0], v[1] - tint3Cen[1], v[2] - tint3Cen[2]) / tint3R));
-                            tintLineColor(C, tc, D, 1, line3Tint);   // 同系色・補色・外側だけ補色（3次元の線色）
+                            tintLineColor(C, tc, D, 1, tint3);   // 同系色・補色・外側だけ補色（3次元の線色）
                             colArrL[k++] = D.r; colArrL[k++] = D.g; colArrL[k++] = D.b;
                         }
                     }
@@ -4576,7 +4601,8 @@
                     if (colAttrL) colAttrL.needsUpdate = true;
                 });
                 updateFatEdges(2, faceObjects2D, scene2D, 'Root2D');   // 強調した辺の太さ
-                lineBlendAll(faceObjects2D, ehFat[2], tint3Cen ? lineTintModeOf(line3Tint) : false);   // 線色「面と同系色」（4次元にも＝3次元にも）は乗算で
+                drawFrames(fr3, edge3 === 'frame', faceObjects2D, faceVerts, faceObjects2D[0] ? faceObjects2D[0].quadEdges : [], 2, null);   // 3D の辺の描き方：フレーム
+                lineBlendAll(faceObjects2D, ehFat[2], tint3Cen ? lineTintModeOf(tint3) : false);   // 線色「面と同系色」（4次元にも＝3次元にも）は乗算で
             }
 
             if (dim5 && displayMode !== 'cube') update5D(progress);   // 5次元モード：右の5次元超立方体
@@ -4656,7 +4682,8 @@
 
                 // 線色「面と同系色」を 4次元にも（「4次元にも」が ON の時）：立体の真ん中（写した全部の頂点の重心）と、いちばん遠い頂点までの距離
                 let tint4Cen = null, tint4R = 1;
-                if (line4Tint !== 'default') {   // 4次元の線色（5次元とは別に選ぶ）
+                const tint4 = line4Tint !== 'default' ? line4Tint : edge4 === 'frame' ? 'cell' : 'default';   // フレームの時は「今まで」でも面と同系色
+                if (tint4 !== 'default') {   // 4次元の線色（5次元とは別に選ぶ）
                     tint4Cen = [0, 0, 0]; let nv = 0;
                     cellVerts.forEach(cv => cv.forEach(v => { tint4Cen[0] += v[0]; tint4Cen[1] += v[1]; tint4Cen[2] += v[2]; nv++; }));
                     tint4Cen = tint4Cen.map(x => x / Math.max(1, nv));
@@ -4715,7 +4742,7 @@
                         const C = CELL_RGB[ci], D = { r: 0, g: 0, b: 0 }, smT = t => t * t * (3 - 2 * t);
                         for (let e = 0, k = 0; e < cubeEdges.length; e++) for (const vi of cubeEdges[e]) {
                             const v = currentVerts[vi], tc = smT(1 - Math.min(1, Math.hypot(v[0] - tint4Cen[0], v[1] - tint4Cen[1], v[2] - tint4Cen[2]) / tint4R));
-                            tintLineColor(C, tc, D, 1, line4Tint);   // 同系色・補色・外側だけ補色（4次元の線色）
+                            tintLineColor(C, tc, D, 1, tint4);   // 同系色・補色・外側だけ補色（4次元の線色）
                             colArr[k++] = D.r; colArr[k++] = D.g; colArr[k++] = D.b;
                         }
                     }
@@ -4723,7 +4750,11 @@
                     if (colAttr) colAttr.needsUpdate = true;
                 });
                 updateFatEdges(3, cellObjects3D, scene3D, 'Root3D');   // 強調した辺の太さ
-                lineBlendAll(cellObjects3D, ehFat[3], tint4Cen ? lineTintModeOf(line4Tint) : false);   // 線色「面と同系色」（4次元にも）は乗算で
+                {   // 4D の辺の描き方：フレーム（遠い＝ w の遠近で小さく写る所ほど細く）
+                    const pbF = projBlendNow();
+                    drawFrames(fr4, edge4 === 'frame' && rhombi.t <= 0, cellObjects3D, cellVerts, cubeEdges, 3, edge4 === 'frame' ? cellVerts.map(cv => cv.map(v => ndWScale(v[3] || 0, pbF))) : null);
+                }
+                lineBlendAll(cellObjects3D, ehFat[3], tint4Cen ? lineTintModeOf(tint4) : false);   // 線色「面と同系色」（4次元にも）は乗算で
 
                 // 正確透過モード：全胞の三角形を1つにまとめ、毎フレーム「全体で」カメラから遠い順に並べ替えて描く。
                 // 入れ子（内外の立方体）の前後も三角形単位で正しく決まる＝奥の面もちゃんと透ける。
@@ -6818,7 +6849,7 @@
             ];
             // 色と見え方の設定（パレット・補色・頂点の目印の色・辺の強調・表示設定・奥を濃く・照り返し・4Dライト・ズームの大きさ・移動パッドなど）を1つの JSON に
             const COLOR_KEYS = ['hypercubeCellPalette2', 'hypercubePalComp', 'hypercubePalCompCenter', 'hypercubeMarkCol', 'hypercubeFixedMarks', 'hypercubeEdgeHi', 'hypercubeViewCfg',
-                'hypercubeDeep4', 'hypercubeWrap4', 'hypercubeWrap5', 'hypercubeShineThru', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
+                'hypercubeDeep4', 'hypercubeWrap4', 'hypercubeWrap5', 'hypercubeShineThru', 'hypercubeEdge4', 'hypercubeEdge3', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
                 'hypercubePanPad', 'hypercubePanPadPos', 'hypercubeEco', 'hypercubeNumTex', 'hypercubeDiePips', 'hypercubeDieKind', 'hypercubeAxisSync'];
             const COLOR_FILE = 'hypercube-colors.json';
             const colorsToJSON = () => { const o = {}; COLOR_KEYS.forEach(k => { try { const v = localStorage.getItem(k); if (v !== null) o[k] = v; } catch (_) {} }); return JSON.stringify({ app: 'hypercube', kind: 'colors', v: 1, data: o }, null, 1) + '\n'; };
@@ -7793,6 +7824,8 @@
                     edge5: { list: fromBtns('[data-solid5e]', 'solid5e'), get: () => cur5().edge, set: v => click('[data-solid5e="' + v + '"]') },
                     tint5: { list: tints5, get: () => solid5LineTint, set: v => click('[data-linetint="' + v + '"]') },
                     tint4: { list: tints4, get: () => line4Tint, set: v => { line4Tint = v; try { localStorage.setItem('hypercubeLine4Tint', v); } catch (_) {} redraw(); } },
+                    edge4: { list: [['thin', '細い線'], ['frame', 'フレーム']], get: () => edge4, set: v => { edge4 = v === 'frame' ? 'frame' : 'thin'; try { localStorage.setItem('hypercubeEdge4', edge4); } catch (_) {} redraw(); } },
+                    edge3: { list: [['thin', '細い線'], ['frame', 'フレーム']], get: () => edge3, set: v => { edge3 = v === 'frame' ? 'frame' : 'thin'; try { localStorage.setItem('hypercubeEdge3', edge3); } catch (_) {} redraw(); } },
                     tint3: { list: tints4, get: () => line3Tint, set: v => { line3Tint = v; try { localStorage.setItem('hypercubeLine3Tint', v); } catch (_) {} redraw(); } },
                     line5: { list: pct, get: () => line5, set: v => slide('line5-slider', v) },
                     deep5: { list: pct, get: () => deep5, set: v => slide('deep5-slider', v) },
@@ -7817,7 +7850,7 @@
                 const ROWS = [
                     ['質感', '面の質感。窓ごとに別々に選べる', { 5: 'look5', 4: 'look4', 3: 'look3' }],
                     ['別々', '5D：展開図（折りたたみの途中もふくむ）と組み上がり（100%）で、質感と辺を別々にする。別々の時は、どちらを選ぶか', { 5: 'split5' }],
-                    ['辺', '5D の辺の描き方', { 5: 'edge5' }],
+                    ['辺', '辺の描き方。窓ごとに別々に選べる。フレーム＝少し太めの丸い管で、角は少しふくらむ（色は線と同じ）。5D はほかに なし・奥ほど細く など', { 5: 'edge5', 4: 'edge4', 3: 'edge3' }],
                     ['線色', '線の色。窓ごとに別々に選べる（手前と奥だけ… は 5D だけ）', { 5: 'tint5', 4: 'tint4', 3: 'tint3' }],
                     ['線の細さ', '5D：内側の線を細く（辺の強調の太い線・奥ほど細く／太くの段の差）', { 5: 'line5' }],
                     ['奥を濃く', '4D：超立方体の奥の胞を濃く（色は変えずに濃さだけ）。5D：奥の胞ほど色を濃く', { 5: 'deep5', 4: 'deep4' }],
@@ -8068,7 +8101,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-1553';
+        const APP_BUILD = '20261021-1558';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
