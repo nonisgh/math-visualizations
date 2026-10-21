@@ -469,6 +469,7 @@
                 <b>3D</b> は x と y を両方複素数にした4次元を、床＝x（実軸・虚軸）、高さ＝y の実部、色＝y の虚部で表示します。<span style="color:#fde047">黄＝普通のグラフ</span>、<span style="color:#4ade80">緑＝x が複素数でも y が実数になる所</span>、●＝解（グラフと同じ色）。上のボタンで曲面・床をオンオフ、ドラッグで回転、ホイール／ピンチで範囲を変更。<br>
                 Σ は <code>Σ(k=0,n, 式)</code>、階乗は <code>(2k+1)!</code>、× は省略できます（<code>2x</code>, <code>3sin(x)</code>）。<br>
                 ^ を打たなくても、1 文字の変数のすぐ後の数字は指数になります（<code>x2</code> → x²、<code>3x2-2x</code> → 3x²−2x、<code>a10</code> → a¹⁰）。<code>i2</code> → i²、<code>π2</code>・<code>pi2</code> → π²、<code>tau2</code> → τ² も同じ。<code>e2</code> → e² ですが、後ろに文字やかっこが続く <code>e2x</code> は e×2x のまま。小数は除く（<code>x2.5</code> は x×2.5）。<br>τ（タウ）は <code>τ</code> か <code>tau</code>（τ＝2π）。<b>e のすぐ後に i</b> を書くと「e の i… 乗」になります（<code>eix</code> → e^(ix)、<code>eiπ</code> → e^(iπ)、<code>eitau</code> → e^(iτ)）。指数が式の時は今まで通り <code>x^(2k+1)</code>、<code>e^x</code>。<br>
+                全角でも書けます（<code>２ｘ＋１</code>、<code>ｓｉｎ（ｘ）</code>、<code>２ー３</code> の「ー」はマイナス、「×」「÷」「・」も使えます）。<br>
                 グラフはドラッグで移動、ホイール／ピンチで拡大、タップで値を表示。
             </details>
         </div>
@@ -530,6 +531,16 @@ const FUNCS = {
 const VARIADIC = new Set(['max', 'min']);
 const NAMES = [...Object.keys(FUNCS), 'sum', 'prod', 'pi', 'tau'].sort((a, b) => b.length - a.length);
 const UNI = { '×': '*', '·': '*', '∙': '*', '÷': '/', '−': '-', '–': '-' };
+// 全角でも書けるように：全角の英数字・記号（！〜～）を半角に、全角の空白を空白に、
+//   ー（長音）・‐―−–（いろいろな横棒）を −、×・✕・・（中黒）を ×、÷ を ÷ として読む（² ³ π τ Σ √ などはそのまま）
+function normIn(s) {
+    return String(s)
+        .replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+        .replace(/\u3000/g, ' ')
+        .replace(/[ー‐―−–]/g, '-')
+        .replace(/[×✕・]/g, '*')
+        .replace(/÷/g, '/');
+}
 
 function ParseError(msg) { const e = new Error(msg); e.isParse = true; return e; }
 
@@ -549,6 +560,7 @@ function shortPow(i, strictE) {
     return j;
 }
 function tokenize(s) {
+    s = normIn(s);
     const t = [];
     const prevTk = _tk; _tk = { s, t };   // shortPow が読む（e のすぐ後の i で中を読み直す時も、終わったら元に戻す）
     let i = 0;
@@ -968,7 +980,7 @@ function toPlain(n) {
 // 入力欄の文字（y= や f(x)= や = の式も）を、コンピュータ用の書き方に
 //   env を渡すと Google 電卓用：「y =」を外し、スライダーの文字を今の値に、Σ を今の値で書き出す（Google 電卓は Σ・スライダーを知らないため）
 function plainOfText(text, env) {
-    const src = String(text).replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');
+    const src = normIn(text).replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');
     const conv = a => toPlain(env ? forGoogle(a, env) : a);
     const at = splitTop(src);
     if (at < 0) return conv(parse(closeParens(src)));
@@ -1673,7 +1685,7 @@ function closeParens(s) {
 function analyze(ex) {
     ex.fn = null; ex.F = null; ex.cfn = null; ex.kind = ''; ex.err = ''; ex.free = []; ex.math = '';
     ex.roots = null; ex.rootKey = null; ex.sum = null; ex.expKey = null; ex.constEq = null; ex.calc = false;
-    let src = ex.text.replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');
+    let src = normIn(ex.text).replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');   // 全角でも読めるように先にそろえる
     if (isBlank(src)) return;
     const pre = src.match(/^\s*[yY]\s*=([\s\S]*)$/);
     if (pre) { try { if (splitTop(pre[1]) >= 0) src = pre[1]; } catch (_) { /* = が多すぎる場合は下でエラー表示 */ } }
@@ -1791,7 +1803,7 @@ function refreshSol(ex) {
 
 // 「x に入れる値」を式として読む（空なら null。x・y を含む時や読めない時はエラー）
 function copyXAst() {
-    const t = copyX.trim(); if (!t) return null;
+    const t = normIn(copyX).trim(); if (!t) return null;
     const a = parse(closeParens(t)), fr = allFree(a);
     if (fr.has('x') || fr.has('y')) throw ParseError('x に入れる値に x・y は使えません');
     return a;
