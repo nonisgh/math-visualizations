@@ -1002,7 +1002,7 @@
                         <span id="panpad-text" class="text-[11px]">→ 移動パッド: OFF</span>
                     </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button>
-                    <div id="texfont-group" class="flex items-center gap-2 pl-2.5 pr-2 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前の札（x y z w v、6次元の窓では u も）の書体と、小文字／大文字。セリフ＝数学の教科書・論文と同じ TeX の斜体、サンセリフ＝飾りのないまっすぐな字（3D ソフト風）。説明の文字（+X の胞、X-W の回転など）は変わらない。同じ部品を使う 6次元アプリ・n次元ビューアにも効く"><span class="flex items-center gap-1"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px]">軸の書体</span></span><div style="display:grid;grid-template-columns:auto auto auto;gap:3px 4px;align-items:center"><span></span><span class="text-[10px] text-slate-500 text-center">小文字</span><span class="text-[10px] text-slate-500 text-center">大文字</span><span class="text-[10px] text-slate-400">セリフ</span><button type="button" data-texfont="serif" data-case="lower" title="セリフ・小文字（教科書の書き方）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">xyz</button><button type="button" data-texfont="serif" data-case="upper" title="セリフ・大文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">XYZ</button><span class="text-[10px] text-slate-400">サンセリフ</span><button type="button" data-texfont="sans" data-case="lower" title="サンセリフ・小文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">xyz</button><button type="button" data-texfont="sans" data-case="upper" title="サンセリフ・大文字（3D ソフト風）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">XYZ</button></div></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。展開図の並べ表示・回転マトリクス・分解・見え方。下の段の「ばらす」で立方体まで・結晶ばらし・連鎖ばらし（「6次元アプリ」で元のアプリも開ける）。ほかの画面には影響しない"><i data-lucide="box" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体: OFF</span></button><div id="wslice-group" class="flex items-center gap-1.5 flex-wrap pl-1 pr-2 py-1 bg-slate-800/80 border border-pink-700/50 text-slate-300 rounded-xl text-xs" title="w の輪切り：超立方体の中には、同じ大きさの立方体が w の方向に無限に重なって詰まっています（立方体の中に正方形が無限に重なっているのと同じ）。そのうちの w ＝ 一定の 1 枚（断面）を描きます。遠近では、底（−W の胞＝内側の小さい立方体）から、ふた（+W の胞＝外側の大きい立方体）まで、膨らみながら動いて見えます。左の立方体には、1 次元下げた同じもの＝z の輪切り（正方形）を同じ位置に描きます（立方体を真上から見ると、正方形が入れ子に重なって見え、超立方体の見え方と比べられます）。組み上がっている時だけ"><button id="wslice-btn" type="button" class="flex items-center gap-1 px-1.5 py-0.5 rounded-lg hover:bg-slate-700 transition"><i data-lucide="layers" class="w-3.5 h-3.5 text-pink-300"></i><span id="wslice-text" class="text-[11px]">w の輪切り: OFF</span></button><input id="wslice-slider" type="range" min="-100" max="100" step="1" value="0" style="width:96px;accent-color:#f472b6" title="輪切りの位置 w（左端＝底 −W、右端＝ふた +W）"><span id="wslice-val" class="text-[10px] text-slate-400" style="min-width:76px">w = 0.00</span><button id="wslice-play" type="button" class="px-1.5 py-0.5 rounded-lg border border-slate-600 hover:bg-slate-700 text-[11px]" title="底からふたまで、輪切りを行ったり来たり動かす">▶ 動かす</button><select id="wslice-n" class="bg-slate-900 border border-slate-600 rounded-md text-[11px] px-1 py-0.5" title="同時に描く輪切りの枚数（何枚も描くと、中身が詰まっている様子＝入れ子の立方体の重なりが見える）"><option value="1">1 枚</option><option value="5">5 枚</option><option value="9">9 枚</option><option value="17">17 枚</option></select></div></div>
+                    <div id="texfont-group" class="flex items-center gap-2 pl-2.5 pr-2 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前の札（x y z w v、6次元の窓では u も）の書体と、小文字／大文字。セリフ＝数学の教科書・論文と同じ TeX の斜体、サンセリフ＝飾りのないまっすぐな字（3D ソフト風）。説明の文字（+X の胞、X-W の回転など）は変わらない。同じ部品を使う 6次元アプリ・n次元ビューアにも効く"><span class="flex items-center gap-1"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px]">軸の書体</span></span><div style="display:grid;grid-template-columns:auto auto auto;gap:3px 4px;align-items:center"><span></span><span class="text-[10px] text-slate-500 text-center">小文字</span><span class="text-[10px] text-slate-500 text-center">大文字</span><span class="text-[10px] text-slate-400">セリフ</span><button type="button" data-texfont="serif" data-case="lower" title="セリフ・小文字（教科書の書き方）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">xyz</button><button type="button" data-texfont="serif" data-case="upper" title="セリフ・大文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">XYZ</button><span class="text-[10px] text-slate-400">サンセリフ</span><button type="button" data-texfont="sans" data-case="lower" title="サンセリフ・小文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">xyz</button><button type="button" data-texfont="sans" data-case="upper" title="サンセリフ・大文字（3D ソフト風）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">XYZ</button></div></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。展開図の並べ表示・回転マトリクス・分解・見え方。下の段の「ばらす」で立方体まで・結晶ばらし・連鎖ばらし（「6次元アプリ」で元のアプリも開ける）。ほかの画面には影響しない"><i data-lucide="box" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体: OFF</span></button><div id="wslice-group" class="flex items-center gap-1.5 flex-wrap pl-1 pr-2 py-1 bg-slate-800/80 border border-pink-700/50 text-slate-300 rounded-xl text-xs" title="w の輪切り：超立方体の中には、同じ大きさの立方体が w の方向に無限に重なって詰まっています（立方体の中に正方形が無限に重なっているのと同じ）。そのうちの w ＝ 一定の 1 枚（断面）を描きます。遠近では、底（−W の胞＝内側の小さい立方体）から、ふた（+W の胞＝外側の大きい立方体）まで、膨らみながら動いて見えます。左の立方体には、1 次元下げた同じもの＝z の輪切り（正方形）を同じ位置に描きます（立方体を真上から見ると、正方形が入れ子に重なって見え、超立方体の見え方と比べられます）。組み上がっている時だけ"><button id="wslice-btn" type="button" class="flex items-center gap-1 px-1.5 py-0.5 rounded-lg hover:bg-slate-700 transition"><i data-lucide="layers" class="w-3.5 h-3.5 text-pink-300"></i><span id="wslice-text" class="text-[11px]">w の輪切り: OFF</span></button><input id="wslice-slider" type="range" min="-100" max="100" step="1" value="0" style="width:96px;accent-color:#f472b6" title="輪切りの位置 w（左端＝底 −W、右端＝ふた +W）"><span id="wslice-val" class="text-[10px] text-slate-400" style="min-width:76px">w = 0.00</span><button id="wslice-play" type="button" class="px-1.5 py-0.5 rounded-lg border border-slate-600 hover:bg-slate-700 text-[11px]" title="底からふたまで、輪切りを行ったり来たり動かす">▶ 動かす</button><button id="wslice-stack" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="重ねる：手前（ふた +W）から奥（底 −W）へ、走る 1 枚が通ったあとに輪切りの立方体を置いていく。1 周ごとに間を半分に割って枚数を倍に（2 → 3 → 5 → 9 → … → 257 枚）。いくら細かくしても、間にまだ入る＝超立方体の中には立方体が無限に詰まっている。左の立方体にも同じように正方形を重ねる。くり返し動く">▶ 重ねる</button><button id="wslice-tour" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="横から見る：① X-W を 90° 回して平行投影へ＝w の方向が画面の横の幅になる（輪切りは横に並ぶ板、両端が ふた +W と 底 −W）。② 輪切りを 1 枚ずつ取り出して、フィルムのコマのように横一列に並べる（どれもふつうの立方体。最初より前・最後より後のコマは無い＝奥の立方体の裏は超立方体の外）。③ もとに戻す。約 18 秒。左の立方体の正方形も同じ手順">▶ 横から見る</button><button id="wslice-tourin" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="外から重ねる（横から見る の逆）：① w を横に倒した超立方体（中身は空）へ、② 同じ大きさの立方体が外から 1 個ずつやって来て、w の方向につぶれて（平面化して）中を埋めていく（だんだん速く、15 個）、③ w を奥行きに戻すと、入れ子の立方体＝超立方体の中身になる。④ 横に倒して、今度は取り出す（板が壁まで滑り、立方体に戻って外へ）。敷きつめる⇔取り出す を止めるまでくり返す。左の立方体の正方形も同じ手順">▶ 外から重ねる</button><button id="wslice-tourcmp" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="見比べる：輪切り 1 枚を 底 ⇔ ふた に動かし続けたまま、w を「奥行き」⇔「横の幅」に何度も切り替える（止めるまでくり返す、1 回り約 20 秒）。奥行きの時は真ん中の立方体をすり抜けて膨らむように見え、横の時は壁で止まる＝あいだには w の空（くう）がある。左の立方体の z の輪切り（正方形）も同じ">▶ 見比べる</button><select id="wslice-n" class="bg-slate-900 border border-slate-600 rounded-md text-[11px] px-1 py-0.5" title="同時に描く輪切りの枚数（何枚も描くと、中身が詰まっている様子＝入れ子の立方体の重なりが見える）"><option value="1">1 枚</option><option value="5">5 枚</option><option value="9">9 枚</option><option value="17">17 枚</option></select></div></div>
                 <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
@@ -4197,16 +4197,144 @@
         //   x・y・z は超立方体と同じ ±HALF_S（お遊びのつぶしも同じ）、w だけ一定。超立方体と同じ 4D 回転・同じ写し方（遠近⇔平行）で Root3D に。
         //   遠近では w が大きいほど大きく写る＝底（−W、内側の小さい立方体）からふた（+W、外側の大きい立方体）へ膨らんで見える。
         //   何枚も描く時は、選んだ位置を真ん中に等間隔（端を越えたら折り返さず、底〜ふたの全部に均等）。色は w− ＝水色、w＋ ＝ピンク（ZW の色の約束）
-        const wSlice = { on: false, t: 0, play: false, dir: 1, n: 1, line: null, face: null, last: 0 };
+        const wSlice = { on: false, t: 0, play: false, dir: 1, n: 1, line: null, face: null, last: 0, stack: false, st: 0 };
         const WS_EDGES = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
         const WS_QUADS = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]];
-        function wSliceTs() {   // 描く輪切りの位置（−1＝底 … 1＝ふた）
-            if (wSlice.n <= 1) return [wSlice.t];
-            const n = wSlice.n; return Array.from({ length: n }, (_, i) => -1 + 2 * i / (n - 1));
+        // 「重ねる」アニメーション：手前（ふた +W）から奥（底 −W）へ、走る 1 枚が通ったあとに輪切りを置いていく。
+        //   1 周ごとに間を半分に割って枚数を増やす（2 → 3 → 5 → 9 → … → 257 枚）＝いくら細かくしても間にまだ入る＝無限に詰まっている。最後は「∞」で少し止めて、くり返す
+        const WSTACK_LV = 8, WSTACK_HOLD = 0.5, WSTACK_END = 2.6, WSTACK_FADE = 0.8;
+        const wStackDur = lv => lv === 0 ? 2.2 : lv < 3 ? 1.6 : 1.2;   // 1 周（手前→奥）の秒数
+        function wStackPhase() {   // 今の段（lv）と、走る 1 枚の位置 s（1＝手前 … −1＝奥）。終わりの止め・消えるところも
+            let t = wSlice.st;
+            for (let lv = 0; lv <= WSTACK_LV; lv++) {
+                const d = wStackDur(lv);
+                if (t < d) return { lv, s: 1 - 2 * t / d, fade: 1 };
+                t -= d;
+                if (lv < WSTACK_LV) { if (t < WSTACK_HOLD) return { lv, s: -2, fade: 1 }; t -= WSTACK_HOLD; }
+            }
+            if (t < WSTACK_END) return { lv: WSTACK_LV, s: -2, fade: 1, end: true };
+            t -= WSTACK_END;
+            if (t < WSTACK_FADE) return { lv: WSTACK_LV, s: -2, fade: 1 - t / WSTACK_FADE, end: true };
+            wSlice.st = 0; return { lv: 0, s: 1, fade: 1 };   // くり返す
+        }
+        // 「横から見る」アニメーション：① X-W を 90° 回して平行投影へ＝w の方向が画面の横の幅になる（輪切りは横に並ぶ板）。
+        //   ② 輪切りを 1 枚ずつ取り出して、フィルムのコマのように横一列に並べる（どれもふつうの立方体。最初より前・最後より後のコマは無い）。③ もとへ戻す
+        //   奥の立方体（底 −W）の裏側は超立方体の「外」＝何もない、を目で見るため。左の立方体の z の輪切り（正方形）も同じ手順
+        //   「外から重ねる」はその逆：横に倒した超立方体（中身は空）へ、同じ大きさの立方体が外から 1 個ずつやって来て、w の方向につぶれて（平面化して）
+        //   中を埋めていく（だんだん速く）。最後に w を奥行きへ戻すと、入れ子の立方体＝超立方体の中身になる
+        //   台本の各場面：d＝秒、rot＝X-W を倒す割合、film＝コマに並べる割合、hide＝超立方体を薄くする割合（無ければ film）、fill＝外から来て埋める進み（「外から重ねる」だけ）
+        var wTour = { on: false, t: 0, last: 0, ax0: 0, pj0: 0, cap: null, rot: 0, film: 0, hide: 0, fill: -1, script: null, btn: null };
+        const WTOUR_SIDE = [
+            { d: 3.0, rot: [0, 1], film: [0, 0], cap: 'w の方向を横に倒していく（X-W を 90°、平行投影へ）' },
+            { d: 3.2, rot: [1, 1], film: [0, 0], cap: 'w の長さが、横の幅に。両端が ふた（+W）と 底（−W）。その先には何もない' },
+            { d: 3.0, rot: [1, 1], film: [0, 1], cap: '輪切りを 1 枚ずつ取り出して、フィルムのように並べると…' },
+            { d: 4.5, rot: [1, 1], film: [1, 1], cap: 'どれも ふつうの立方体。最初のコマより前・最後のコマより後は無い＝奥の立方体の裏は、超立方体の「外」' },
+            { d: 2.2, rot: [1, 1], film: [1, 0], cap: 'もとに戻します' },
+            { d: 2.5, rot: [1, 0], film: [0, 0], cap: 'もとに戻します' },
+        ];
+        const WTOUR_IN = [
+            { d: 2.6, rot: [0, 1], film: [0, 0], hide: [0, 1], fill: [0, 0], cap: '超立方体を、w の方向を横に倒して見る（中身は空っぽにしておく）' },
+            { d: 9.0, rot: [1, 1], film: [0, 0], hide: [1, 1], fill: [0, 1], lin: true, cap: '同じ大きさの立方体が外から飛んできて、壁に押しつぶされて（平面化して）中へ入り、埋めていく（イメージ）' },
+            { d: 3.4, rot: [1, 1], film: [0, 0], hide: [1, 0], fill: [1, 1], cap: '横の幅＝w の長さ。同じ大きさの立方体が、ぎっしり重なって中身になる（※本当は、w の方向から見ると立方体は初めから厚みゼロ。つぶれる所はイメージ）' },
+            { d: 3.0, rot: [1, 0], film: [0, 0], hide: [0, 0], fill: [1, 1], cap: 'w を奥行きに戻すと…' },
+            { d: 3.5, rot: [0, 0], film: [0, 0], hide: [0, 0], fill: [1, 1], cap: '入れ子の立方体＝超立方体の中に重なった、同じ大きさの立方体（底 −W が内側、ふた +W が外側）' },
+            { d: 2.6, rot: [0, 1], film: [0, 0], hide: [0, 1], fill: [1, 1], cap: 'もう一度 w を横に倒して…' },
+            { d: 7.0, rot: [1, 1], film: [0, 0], hide: [1, 1], fill: [1, 0], lin: true, cap: '今度は取り出す：板が壁まで滑って、ふくらんで立方体に戻り、外へ飛んでいく（あとから入ったものから）' },
+            { d: 1.4, rot: [1, 1], film: [0, 0], hide: [1, 1], fill: [0, 0], cap: '空っぽ。また敷きつめる…' },
+        ];
+        WTOUR_IN.loop = true; WTOUR_IN.loopFrom = 1;   // 敷きつめる⇔取り出す をくり返す（2 回目からは、横に倒したところから）
+        // 「見比べる」：輪切り 1 枚を 底 ⇔ ふた に動かし続けたまま、w を「奥行き」⇔「横の幅」に何度も切り替える（止めるまでくり返す）。
+        //   奥行きの時は真ん中の立方体をすり抜けて膨らむように見え、横の時は壁（底・ふた）で止まる＝あいだには w の空（くう）がある。左の立方体の z の輪切りも同じ
+        const WTOUR_CMP = [
+            { d: 8.0, rot: [0, 0], film: [0, 0], cap: 'w を奥行きにして見る：輪切りが、真ん中の立方体をすり抜けて膨らんでいくように見える' },
+            { d: 2.2, rot: [0, 1], film: [0, 0], cap: '同じものを、w を横に倒して見ると…' },
+            { d: 8.0, rot: [1, 1], film: [0, 0], cap: 'w を横に見る：輪切りは壁（底 −W・ふた +W）で止まる。真ん中の立方体とのあいだには、w の空（くう）がある' },
+            { d: 2.2, rot: [1, 0], film: [0, 0], cap: 'もう一度、w を奥行きに戻すと…' },
+        ];
+        WTOUR_CMP.loop = true; WTOUR_CMP.osc = 4.0;   // くり返す・輪切りが 底→ふた→底 と 1 往復する秒数
+        const WTOUR_IN_N = 15, WTOUR_ENTER = 6;   // 外から来る立方体の数・出発点（ふた +W の先、HALF_S の何倍か）
+        const WTOUR_IN_SCHED = (() => {   // 底（−W）側の段から順に。1 個目はゆっくり、だんだん速く（前の立方体が半分来たら次が出る）
+            const D = Array.from({ length: WTOUR_IN_N }, (_, k) => Math.max(0.45, 1.7 * Math.pow(0.84, k))), st = [0];
+            for (let k = 1; k < WTOUR_IN_N; k++) st.push(st[k - 1] + 0.5 * D[k - 1]);
+            const T = st[WTOUR_IN_N - 1] + D[WTOUR_IN_N - 1];
+            return { D, st, T };
+        })();
+        const WTOUR_N = 7, WTOUR_SC = 0.36, WTOUR_SPREAD = 2.6;   // 並べる枚数・並べた時の立方体の大きさ・広げ方
+        function wTourDim() { return wTour && wTour.on ? 1 - 0.8 * wTour.hide : 1; }   // 並べている・埋めている間は、超立方体そのものを薄く（var＝形を作る処理が先に走っても大丈夫）
+        function wTourCaption(text) {
+            if (!wTour.cap) {
+                const host = renderer3D && renderer3D.domElement.parentElement; if (!host) return;
+                if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+                wTour.cap = document.createElement('div');
+                wTour.cap.style.cssText = 'position:absolute;left:50%;bottom:84px;transform:translateX(-50%);max-width:92%;padding:6px 12px;border-radius:12px;background:rgba(15,23,42,0.82);border:1px solid rgba(244,114,182,0.5);color:#fbcfe8;font-size:12px;line-height:1.5;text-align:center;pointer-events:none;z-index:30;transition:opacity .3s';
+                host.appendChild(wTour.cap);
+            }
+            wTour.cap.textContent = text || ''; wTour.cap.style.opacity = text ? 1 : 0;
+        }
+        function wTourStop() {
+            if (!wTour.on) return;
+            wTour.on = false; wTour.rot = wTour.film = 0;
+            linkAngleX = wTour.ax0; projAnim = null; parallel4D = wTour.pj0 === 1;
+            wTour.hide = 0; wTour.fill = -1;
+            wTourCaption(''); syncWSliceUI(); requestRender(30);
+        }
+        function wTourStart(script, btn) {
+            wSlice.stack = false; wSlice.play = false; wSlice.on = true;
+            linkSpin = spinX = spinY = soloSpinZW = false; if (typeof updateSpinBtns === 'function') updateSpinBtns();
+            axisTween = null;
+            wTour.ax0 = linkAngleX; wTour.pj0 = projAnim !== null ? projAnim : (parallel4D ? 1 : 0);
+            wTour.on = true; wTour.t = 0; wTour.oscT = 0; wTour.last = 0; wTour.script = script || WTOUR_SIDE; wTour.btn = btn || 'wslice-tour';
+            if (animationProgress < 0.92) wTourCaption('超立方体を組み上がった状態（100%）にしてから見てください');
+            syncWSliceUI(); requestRender(30);
+        }
+        function stepWTour() {   // 毎フレーム、形を作る前に：角度と投影を進める
+            if (!wTour.on) return;
+            const now = performance.now(), dt = Math.min(0.1, (now - (wTour.last || now)) / 1000); wTour.last = now;
+            wTour.t += dt;
+            let t = wTour.t, ph = null;
+            for (const p of wTour.script) { if (t < p.d) { ph = p; break; } t -= p.d; }
+            if (!ph && wTour.script.loop) { const total = wTour.script.reduce((a, p) => a + p.d, 0), from = wTour.script.slice(0, wTour.script.loopFrom || 0).reduce((a, p) => a + p.d, 0); wTour.t -= total - from; t = wTour.t; for (const p of wTour.script) { if (t < p.d) { ph = p; break; } t -= p.d; } }
+            if (!ph) { wTourStop(); return; }
+            if (wTour.script.osc) { wTour.oscT = (wTour.oscT || 0) + dt; if (typeof syncWSliceUI === 'function') syncWSliceUI(); }   // 輪切りの往復は、場面の切り替えとは別に続ける
+            const f = ph.lin ? t / ph.d : smootherstep(t / ph.d), mix = a => a[0] + (a[1] - a[0]) * f;
+            wTour.rot = mix(ph.rot); wTour.film = mix(ph.film); wTour.hide = ph.hide ? mix(ph.hide) : wTour.film; wTour.fill = ph.fill ? mix(ph.fill) : -1;
+            linkAngleX = wTour.ax0 + (Math.PI / 2 - wTour.ax0) * wTour.rot;
+            projAnim = wTour.pj0 + (1 - wTour.pj0) * wTour.rot;
+            if (animationProgress >= 0.92) wTourCaption(ph.cap);
+            requestRender(2);
+        }
+        function wSliceList() {   // 描く輪切り：[{ t（−1＝底 … 1＝ふた）, a（濃さ 0〜1）, one（1 枚だけの濃さで描く） }]
+            if (wTour.on && wTour.script && wTour.script.osc) return [{ t: -Math.cos(2 * Math.PI * (wTour.oscT || 0) / wTour.script.osc), a: 1, one: true }];   // 見比べる：1 枚が 底 ⇔ ふた を往復
+            if (wTour.on && wTour.fill >= 0) {   // 外から重ねる：段 k（0＝底 −W）の立方体は、外（ふた +W の先）から飛んできて（u 0〜0.4）、ふた の壁に押しつぶされて板になり（〜0.65）、板のまま自分の段まで滑り込む（〜1）
+                const S_ = WTOUR_IN_SCHED, ft = wTour.fill * S_.T, sm = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+                const out = [];
+                for (let k = 0; k < WTOUR_IN_N; k++) {
+                    const u = (ft - S_.st[k]) / S_.D[k]; if (u <= 0) continue;
+                    out.push({ t: -1 + 2 * k / (WTOUR_IN_N - 1), a: Math.min(1, u * 6), aF: 0.7, film: 1 - sm((u - 0.4) / 0.25), arr: sm(u / 0.4), slide: sm((u - 0.65) / 0.35), sc: 1 });
+                }
+                return out;
+            }
+            if (wTour.on) return Array.from({ length: WTOUR_N }, (_, i) => ({ t: -1 + 2 * i / (WTOUR_N - 1), a: 1, aF: 0.8 }));
+            if (wSlice.stack) {
+                const ph = wStackPhase(), out = [], m = 1 << ph.lv;
+                let shown = 0;
+                for (let i = 0; i <= m; i++) {
+                    const t = 1 - 2 * i / m, isNew = ph.lv === 0 || (i % 2 === 1);
+                    const a = isNew ? Math.max(0, Math.min(1, (t - ph.s) / 0.12)) : 1;   // 走る 1 枚が通ったところから、ふわっと出る
+                    if (t >= ph.s - 1e-9 || !isNew) { out.push({ t, a: a * ph.fade }); shown++; }
+                }
+                const k = Math.min(1, 2.6 / Math.sqrt(Math.max(1, shown)));   // 枚数が増えるほど 1 枚ずつは淡く（全体は霧のように詰まって見える）
+                out.forEach(o => { o.aL = k; o.aF = Math.min(1, 4 / Math.max(1, shown)); });
+                if (ph.s > -1.01) out.push({ t: Math.max(-1, ph.s), a: ph.fade, one: true });   // 走る 1 枚（はっきり）
+                wSlice.stackN = ph.end ? Infinity : Math.max(1, shown);
+                return out;
+            }
+            if (wSlice.n <= 1) return [{ t: wSlice.t, a: 1, one: true }];
+            const n = wSlice.n; return Array.from({ length: n }, (_, i) => ({ t: -1 + 2 * i / (n - 1), a: 1 }));
         }
         function updateWSlice(progress) {
             const r3 = scene3D && scene3D.getObjectByName('Root3D'); if (!r3) return;
-            const MAXN = 17;
+            const MAXN = 260;
             if (!wSlice.line) {
                 const lg = new THREE.BufferGeometry();
                 lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXN * 24 * 3), 3));
@@ -4224,7 +4352,9 @@
             wSlice.line.visible = wSlice.face.visible = k > 0.01;
             if (!(k > 0.01)) { updateZSlice(progress, 0); return; }
             const now = performance.now(), dt = Math.min(0.1, (now - (wSlice.last || now)) / 1000); wSlice.last = now;
-            if (wSlice.play && wSlice.n <= 1) {   // 底 ⇔ ふた を約 3 秒で行き来
+            if (wSlice.stack) {   // 重ねるアニメーション
+                wSlice.st += dt; requestRender(2);
+            } else if (wSlice.play && wSlice.n <= 1) {   // 底 ⇔ ふた を約 3 秒で行き来
                 wSlice.t += wSlice.dir * dt / 1.5;
                 if (wSlice.t > 1) { wSlice.t = 1; wSlice.dir = -1; } else if (wSlice.t < -1) { wSlice.t = -1; wSlice.dir = 1; }
                 syncWSliceUI(); requestRender(2);
@@ -4234,16 +4364,33 @@
             const FP = wSlice.face.geometry.attributes.position.array, FC = wSlice.face.geometry.attributes.color.array;
             const col = new THREE.Color(), base = new THREE.Color(0xf8fafc);
             let li = 0, fi = 0;
-            wSliceTs().forEach(t => {
+            const list = wSliceList(); if (wSlice.stack) syncWSliceUI();
+            list.forEach(({ t, a, one, aL = 1, aF = 1, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD }) => {
                 const w = t * HALF_S;
-                const vs = unitCubeVertices.map(u => {
+                let vs = unitCubeVertices.map(u => {
                     const g = [u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), w];
                     return ndProject(NDGeom.rotatePoint(g, rot), pb);
                 });
+                const fm = film !== undefined ? film : wTour.on ? wTour.film : 0;
+                if (slide !== undefined) {   // 外から重ねる：立方体（中心は ふた の壁のすぐ外、さらに外から飛んでくる）→ 壁でつぶれて板 → 板のまま自分の段へ
+                    const rot0 = rot4List(0, linkAngleY), c = ndProject(NDGeom.rotatePoint([0, 0, 0, w], rot), pb), top = ndProject(NDGeom.rotatePoint([0, 0, 0, HALF_S], rot), pb);
+                    const tl = Math.hypot(top[0], top[1], top[2]) || 1, out = HALF_S * (1 + (1 - arr) * WTOUR_ENTER) / tl;
+                    vs = vs.map((v, j) => {
+                        const u = unitCubeVertices[j], q = ndProject(NDGeom.rotatePoint([u[0] * S * sc, u[1] * S * sc, u[2] * S * sc, 0], rot0), pb);
+                        return [0, 1, 2].map(d => (v[d] + (top[d] - c[d]) * (1 - slide)) * (1 - fm) + (q[d] + top[d] + top[d] * out) * fm);
+                    });
+                } else if (fm > 0) {   // フィルム：横に倒した輪切りの位置から、ふつうの向きの立方体へ（sc＝大きさ、sp＝間の広げ方。外から来る時は ふた +W の先からずらす）
+                    const rot0 = rot4List(0, linkAngleY), c = ndProject(NDGeom.rotatePoint([0, 0, 0, w], rot), pb);
+                    const top = ndProject(NDGeom.rotatePoint([0, 0, 0, HALF_S], rot), pb), tl = Math.hypot(top[0], top[1], top[2]) || 1, E = (1 - arr) * WTOUR_ENTER * HALF_S / tl;
+                    vs = vs.map((v, j) => {
+                        const u = unitCubeVertices[j], q = ndProject(NDGeom.rotatePoint([u[0] * S * sc, u[1] * S * sc, u[2] * S * sc, 0], rot0), pb);
+                        return [0, 1, 2].map(d => v[d] + (q[d] + c[d] * sp + top[d] * E - v[d]) * fm);
+                    });
+                }
                 col.copy(base).lerp(t >= 0 ? ZW_TINT_POS : ZW_TINT_NEG, Math.min(1, Math.abs(t) * 0.9 + 0.1));
-                const L = (wSlice.n <= 1 ? 1 : 0.75) * k;
+                const L = (one ? 1 : 0.75 * aL) * a * k;
                 WS_EDGES.forEach(([a, b]) => { [vs[a], vs[b]].forEach(v => { P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * L; C[li + 1] = col.g * L; C[li + 2] = col.b * L; li += 3; }); });
-                const F = (wSlice.n <= 1 ? 1 : 0.45) * k;
+                const F = (one ? 1 : 0.45 * aF) * a * k;
                 WS_QUADS.forEach(q => { [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(i => { const v = vs[i]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * F; FC[fi + 1] = col.g * F; FC[fi + 2] = col.b * F; fi += 3; }); });
             });
             wSlice.line.geometry.setDrawRange(0, li / 3); wSlice.face.geometry.setDrawRange(0, fi / 3);
@@ -4255,7 +4402,7 @@
         //   立方体の中にも、同じ大きさの正方形が z の方向に無限に重なって詰まっている。正方形は立方体の面と同じ手順（X-Z・Y-Z → ZW 連動の遠近 → 3D 回転）で写す
         function updateZSlice(progress, kW) {
             const r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r2) return;
-            const MAXN = 17;
+            const MAXN = 260;
             if (!wSlice.line2) {
                 const lg = new THREE.BufferGeometry();
                 lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXN * 8 * 3), 3));
@@ -4273,9 +4420,9 @@
             if (!show) return;
             const zwOn = zwLink && soloAngleZW !== 0, zc = Math.cos(soloAngleZW), zs = Math.sin(soloAngleZW), pbL = projBlendNow();
             const ax = linkAngleX, ay = linkAngleY, cX = Math.cos(ax), sX = Math.sin(ax), cY = Math.cos(ay), sY = Math.sin(ay), rot3 = rotXY !== 0 || rotXZ !== 0 || rotYZ !== 0;
-            const pt = (x, y, z) => {   // calculateFoldedFaceVertices2D と updateMorphingGeometry の左の立方体と同じ手順
+            const pt = (x, y, z, noAx) => {   // calculateFoldedFaceVertices2D と updateMorphingGeometry の左の立方体と同じ手順（noAx＝X-Z を回さない＝フィルムの正方形）
                 x *= sqK('x'); y *= sqK('y'); z *= sqK('z');
-                if (ax !== 0) { const rx = x * cX - z * sX, rz = x * sX + z * cX; x = rx; z = rz; }
+                if (ax !== 0 && !noAx) { const rx = x * cX - z * sX, rz = x * sX + z * cX; x = rx; z = rz; }
                 if (ay !== 0) { const ry = y * cY - z * sY, rz = y * sY + z * cY; y = ry; z = rz; }
                 if (zwOn) { const sc = ndWScale(z * zs, pbL); x *= sc; y *= sc; z = (z * zc) * sc; }
                 if (rot3) { const r = rot3DLeft(x, y, z); x = r[0]; y = r[1]; z = r[2]; }
@@ -4285,10 +4432,20 @@
             const FP = wSlice.face2.geometry.attributes.position.array, FC = wSlice.face2.geometry.attributes.color.array;
             const col = new THREE.Color(), base = new THREE.Color(0xf8fafc), H = HALF_S;
             let li = 0, fi = 0;
-            wSliceTs().forEach(t => {
-                const z = t * H, vs = [pt(-H, -H, z), pt(H, -H, z), pt(H, H, z), pt(-H, H, z)];
+            wSliceList().forEach(({ t, a, one, aL = 1, aF = 1, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD }) => {
+                const z = t * H; let vs = [pt(-H, -H, z), pt(H, -H, z), pt(H, H, z), pt(-H, H, z)];
+                const fm = film !== undefined ? film : wTour.on ? wTour.film : 0;
+                if (slide !== undefined) {   // 外から重ねる：正方形が飛んできて、ふた の壁でつぶれて線（板）になり、自分の段へ
+                    const c = pt(0, 0, z), top = pt(0, 0, H), tl = Math.hypot(top[0], top[1], top[2]) || 1, out = H * (1 + (1 - arr) * WTOUR_ENTER) / tl, K = sc;
+                    const fv = [pt(-H * K, -H * K, 0, true), pt(H * K, -H * K, 0, true), pt(H * K, H * K, 0, true), pt(-H * K, H * K, 0, true)];
+                    vs = vs.map((v, j) => [0, 1, 2].map(d => (v[d] + (top[d] - c[d]) * (1 - slide)) * (1 - fm) + (fv[j][d] + top[d] + top[d] * out) * fm));
+                } else if (fm > 0) {   // フィルム：正方形を ふつうの向きの正方形にして横一列に（外から来る時は ふた の先からずらす）
+                    const c = pt(0, 0, z), K = sc, top = pt(0, 0, H), tl = Math.hypot(top[0], top[1], top[2]) || 1, E = (1 - arr) * WTOUR_ENTER * H / tl;
+                    const fv = [pt(-H * K, -H * K, 0, true), pt(H * K, -H * K, 0, true), pt(H * K, H * K, 0, true), pt(-H * K, H * K, 0, true)];
+                    vs = vs.map((v, j) => [0, 1, 2].map(d => v[d] + (fv[j][d] + c[d] * sp + top[d] * E - v[d]) * fm));
+                }
                 col.copy(base).lerp(t >= 0 ? ZW_TINT_POS : ZW_TINT_NEG, Math.min(1, Math.abs(t) * 0.9 + 0.1));
-                const L = (wSlice.n <= 1 ? 1 : 0.75) * kW, F = (wSlice.n <= 1 ? 1 : 0.45) * kW;
+                const L = (one ? 1 : 0.75 * aL) * a * kW, F = (one ? 1 : 0.45 * aF) * a * kW;
                 [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { [vs[a], vs[b]].forEach(v => { P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * L; C[li + 1] = col.g * L; C[li + 2] = col.b * L; li += 3; }); });
                 [0, 1, 2, 0, 2, 3].forEach(i => { const v = vs[i]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * F; FC[fi + 1] = col.g * F; FC[fi + 2] = col.b * F; fi += 3; });
             });
@@ -4301,17 +4458,24 @@
             if ($('wslice-text')) $('wslice-text').textContent = 'w の輪切り: ' + (wSlice.on ? 'ON' : 'OFF');
             const b = $('wslice-btn'); if (b) b.classList.toggle('text-pink-200', wSlice.on);
             const sl = $('wslice-slider'); if (sl && document.activeElement !== sl) sl.value = String(Math.round(wSlice.t * 100));
-            if (sl) sl.disabled = wSlice.n > 1;
+            if (sl) sl.disabled = wSlice.n > 1 || wSlice.stack;
             const v = $('wslice-val');
-            if (v) v.textContent = wSlice.n > 1 ? '底〜ふた ' + wSlice.n + ' 枚' : (dim5 ? 'w = ' : 'z・w = ') + (wSlice.t * HALF_S >= 0 ? '+' : '−') + Math.abs(wSlice.t * HALF_S).toFixed(2) + (wSlice.t <= -0.995 ? '（底）' : wSlice.t >= 0.995 ? '（ふた）' : Math.abs(wSlice.t) < 0.005 ? '（真ん中）' : '');
-            const pl = $('wslice-play'); if (pl) { pl.textContent = wSlice.play ? '■ 止める' : '▶ 動かす'; pl.disabled = wSlice.n > 1; pl.style.opacity = wSlice.n > 1 ? 0.4 : 1; }
+            if (v) v.textContent = wTour.on && wTour.script && wTour.script.osc ? (() => { const t = -Math.cos(2 * Math.PI * (wTour.oscT || 0) / wTour.script.osc); return 'w = ' + (t >= 0 ? '+' : '−') + Math.abs(t * HALF_S).toFixed(2); })() : wTour.on ? '横から見る' : wSlice.stack ? (wSlice.stackN === Infinity ? '∞ 枚（無限）' : (wSlice.stackN || 1) + ' 枚 重ねた') : wSlice.n > 1 ? '底〜ふた ' + wSlice.n + ' 枚' : (dim5 ? 'w = ' : 'z・w = ') + (wSlice.t * HALF_S >= 0 ? '+' : '−') + Math.abs(wSlice.t * HALF_S).toFixed(2) + (wSlice.t <= -0.995 ? '（底）' : wSlice.t >= 0.995 ? '（ふた）' : Math.abs(wSlice.t) < 0.005 ? '（真ん中）' : '');
+            const pl = $('wslice-play'); if (pl) { pl.textContent = wSlice.play ? '■ 止める' : '▶ 動かす'; pl.disabled = wSlice.n > 1 || wSlice.stack; pl.style.opacity = wSlice.n > 1 || wSlice.stack ? 0.4 : 1; }
+            [['wslice-tour', '▶ 横から見る'], ['wslice-tourin', '▶ 外から重ねる'], ['wslice-tourcmp', '▶ 見比べる']].forEach(([id, label]) => { const b = $(id); if (!b) return; const me = wTour.on && wTour.btn === id; b.textContent = me ? '■ 止める' : label; b.classList.toggle('text-pink-200', me); });
+            const sk = $('wslice-stack'); if (sk) { sk.textContent = wSlice.stack ? '■ 止める' : '▶ 重ねる'; sk.classList.toggle('text-pink-200', wSlice.stack); }
+            const sn = $('wslice-n'); if (sn) sn.disabled = wSlice.stack || wTour.on;
         }
         (function setupWSlice() {
             const $ = id => document.getElementById(id);
             if (!$('wslice-btn')) return;
-            $('wslice-btn').addEventListener('click', () => { wSlice.on = !wSlice.on; if (!wSlice.on) wSlice.play = false; wSlice.last = 0; syncWSliceUI(); requestRender(30); });
+            $('wslice-btn').addEventListener('click', () => { wSlice.on = !wSlice.on; if (!wSlice.on) { wSlice.play = wSlice.stack = false; wTourStop(); } wSlice.last = 0; syncWSliceUI(); requestRender(30); });
             $('wslice-slider').addEventListener('input', e => { wSlice.t = parseFloat(e.target.value) / 100; wSlice.play = false; if (!wSlice.on) wSlice.on = true; syncWSliceUI(); requestRender(30); });
             $('wslice-play').addEventListener('click', () => { wSlice.play = !wSlice.play; if (wSlice.play) wSlice.on = true; wSlice.last = 0; syncWSliceUI(); requestRender(30); });
+            if ($('wslice-tour')) $('wslice-tour').addEventListener('click', () => { const me = wTour.on && wTour.btn === 'wslice-tour'; wTourStop(); if (!me) wTourStart(WTOUR_SIDE, 'wslice-tour'); });
+            if ($('wslice-tourcmp')) $('wslice-tourcmp').addEventListener('click', () => { const me = wTour.on && wTour.btn === 'wslice-tourcmp'; wTourStop(); if (!me) wTourStart(WTOUR_CMP, 'wslice-tourcmp'); });
+            if ($('wslice-tourin')) $('wslice-tourin').addEventListener('click', () => { const me = wTour.on && wTour.btn === 'wslice-tourin'; wTourStop(); if (!me) wTourStart(WTOUR_IN, 'wslice-tourin'); });
+            if ($('wslice-stack')) $('wslice-stack').addEventListener('click', () => { wTourStop(); wSlice.stack = !wSlice.stack; wSlice.st = 0; wSlice.stackN = 0; if (wSlice.stack) { wSlice.on = true; wSlice.play = false; } wSlice.last = 0; syncWSliceUI(); requestRender(30); });
             $('wslice-n').addEventListener('change', e => { wSlice.n = parseInt(e.target.value, 10) || 1; if (wSlice.n > 1) { wSlice.on = true; wSlice.play = false; } syncWSliceUI(); requestRender(30); e.target.blur(); });
             syncWSliceUI();
         })();
@@ -4713,7 +4877,7 @@
                     }
                     posAttr.needsUpdate = true;
                     if (fcolAttr) fcolAttr.needsUpdate = true;
-                    cell.material.opacity = Math.min(0.97, faceOpacity * cellFocus(3, ci).face * (dA4 ? dA4[ci] * (1 + 0.5 * tIn4[ci].reduce((t, x) => t + x, 0) / 6) : 1)) * (diePips ? 0.55 : 1) * wrapA(ci);   // 展開図は濃いめ／組み上がりは薄め。玉モードはシースルー（手前の面が読める）
+                    cell.material.opacity = Math.min(0.97, faceOpacity * cellFocus(3, ci).face * (dA4 ? dA4[ci] * (1 + 0.5 * tIn4[ci].reduce((t, x) => t + x, 0) / 6) : 1)) * (diePips ? 0.55 : 1) * wrapA(ci) * wTourDim();   // 展開図は濃いめ／組み上がりは薄め。玉モードはシースルー（手前の面が読める）
                     cell.geometry.computeVertexNormals();
 
                     const wireAttr = cell.wireGeo.attributes.position;
@@ -4738,7 +4902,7 @@
                     }
                     if (cell.wire && cell.wire.parent) cell.wire.parent.visible = xpVisible(3, ci);   // 見せる胞（表だけ・裏だけ）
                     paintEdgeHi(cell, ci, cellObjects3D.length - 1, colArr, E_NEAR[0]);   // 手前と奥の胞の辺を色で強調
-                    { const fe = cellFocus(3, ci).edge; if (fe !== 1 && colArr) for (let k = 0; k < colArr.length; k++) colArr[k] *= fe; }
+                    { const fe = cellFocus(3, ci).edge * wTourDim(); if (fe !== 1 && colArr) for (let k = 0; k < colArr.length; k++) colArr[k] *= fe; }
                     if (tint4Cen && colArr) {   // 線色：面と同系色の濃いめ（5次元と同じ）。真ん中に近いほど濃く（鮮やかに・暗く）、外側ほど明るめ
                         const C = CELL_RGB[ci], D = { r: 0, g: 0, b: 0 }, smT = t => t * t * (3 - 2 * t);
                         for (let e = 0, k = 0; e < cubeEdges.length; e++) for (const vi of cubeEdges[e]) {
@@ -5149,6 +5313,7 @@
             _lastRenderT = _now;
             // カメラを回している最中も「手前=はっきり/奥=ダーク」を毎フレーム再評価する
             //   （辺・面の濃淡はカメラ距離ベースなので、カメラ移動でも更新が要る）。描画直前に更新。
+            stepWTour();   // 「横から見る」の角度・投影を進める（形を作る前に）
             updateMorphingGeometry(animationProgress);
             updateWSlice(animationProgress);   // w の輪切り（ON の時だけ描く）
             updateShineLights();   // 照り返しライトの位置（カメラの左上）
@@ -8105,7 +8270,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-1602';
+        const APP_BUILD = '20261021-1943';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
