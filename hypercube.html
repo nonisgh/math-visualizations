@@ -4537,7 +4537,7 @@
             const N = n * n, gmin = Math.max(0.0012, Math.min(0.1, 6 / N)), st = [0];
             for (let k = 1; k < N; k++) st.push(st[k - 1] + Math.max(gmin, 0.22 * Math.pow(0.93, k - 1)));
             const fill = st[N - 1] + WDBL.D;
-            return (wDbl.sched = { n, st, fill, cycle: fill + WDBL.HOLD + WDBL.FADE + WDBL.EMPTY });
+            return (wDbl.sched = { n, st, fill, cycle: 2 * fill + WDBL.HOLD + WDBL.EMPTY });   // 敷きつめる → 止める → 取り出す（あとから入ったマスから）→ 空 → くり返す（暗転はしない）
         }
         function wDblMk(root, nv, withFace) {
             const lg = new THREE.BufferGeometry();
@@ -4563,7 +4563,7 @@
             if (!show) { updateDblHUD(false, false); return; }
             const now = performance.now(), dt = Math.min(0.1, (now - (wDbl.last || now)) / 1000); wDbl.last = now;
             const sc = wDblSched(), n = sc.n, N = n * n; wDbl.t = (wDbl.t + dt) % sc.cycle; requestRender(2);
-            const t = wDbl.t, fade = t < sc.fill + WDBL.HOLD ? 1 : Math.max(0, 1 - (t - sc.fill - WDBL.HOLD) / WDBL.FADE);
+            const t = wDbl.t, filling = t < sc.fill + WDBL.HOLD, fade = 1;
             const sm = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
             const ai = { x: 0, y: 1, z: 2 }[wDbl.axis], fr = [0, 1, 2].filter(d => d !== ai), H = HALF_S;
             const rot = rot4List(linkAngleX, linkAngleY), pb = projBlendNow(), col = new THREE.Color();
@@ -4587,7 +4587,8 @@
             const P2 = wDbl.line2 ? wDbl.line2.geometry.attributes.position.array : null, C2 = wDbl.line2 ? wDbl.line2.geometry.attributes.color.array : null;
             let li = 0, fi = 0, li2 = 0, sum = 0, lastI = 0, lastJ = 0;
             for (let c = 0; c < N; c++) {
-                const p = Math.max(0, Math.min(1, (t - sc.st[c]) / WDBL.D)); if (p <= 0) break;
+                const p = filling ? Math.max(0, Math.min(1, (t - sc.st[c]) / WDBL.D)) : 1 - Math.max(0, Math.min(1, (t - sc.fill - WDBL.HOLD - sc.st[N - 1 - c]) / WDBL.D));   // 取り出し：あとから入ったマスから
+                if (p <= 0) { if (filling) break; continue; }
                 const i = Math.floor(c / n), j = c % n, e = sm(p), al = Math.min(1, p * 3) * fade * k;
                 sum += e; lastI = i; lastJ = j;
                 const cw = -1 + (2 * i + 1) / n, ca = -1 + (2 * j + 1) / n, s2 = (0.35 + 0.65 * e) * 0.94;   // 少し小さくして格子のすき間を見せる
@@ -4608,7 +4609,7 @@
                     [pt(A[0], A[1], A[2]), pt(B[0], B[1], B[2])].forEach(v => { if (li2 + 3 > P2.length) return; P2[li2] = v[0]; P2[li2 + 1] = v[1]; P2[li2 + 2] = v[2]; C2[li2] = col.r * al; C2[li2 + 1] = col.g * al; C2[li2 + 2] = col.b * al; li2 += 3; });
                 }
             }
-            wDbl.sum = sum; wDbl.fade = fade; wDbl.i = lastI; wDbl.j = lastJ;
+            wDbl.sum = sum; wDbl.fade = fade; wDbl.i = lastI; wDbl.j = lastJ; wDbl.filling = filling;
             wDbl.line.geometry.setDrawRange(0, li / 3); wDbl.face.geometry.setDrawRange(0, fi / 3);
             wDbl.line.geometry.attributes.position.needsUpdate = wDbl.line.geometry.attributes.color.needsUpdate = true;
             wDbl.face.geometry.attributes.position.needsUpdate = wDbl.face.geometry.attributes.color.needsUpdate = true;
@@ -4632,7 +4633,7 @@
             set(renderer3D, 'hud', show, '<div style="font-size:16px;font-family:TeXMath,Georgia,serif">' + I + I + ' A(' + a + ', w) d' + a + ' dw　＝　' + I + I + ' 4 d' + a + ' dw　＝　4 × 2 × 2</div>'
                 + '<div style="color:#cbd5e1">A ＝ ' + fr[0] + fr[1] + ' の正方形の面積 2²＝4　（いま w の層 ' + (wDbl.i + 1) + '／' + n + '・' + a + ' の列 ' + (wDbl.j + 1) + '／' + n + '）</div>'
                 + bar(Math.min(100, frac * 100))
-                + '<div>＝ <b style="font-size:16px;color:#ddd6fe">' + (16 * frac).toFixed(3) + '</b> ／ 16（超立方体の 4次元の体積）</div>'
+                + '<div>＝ <b style="font-size:16px;color:#ddd6fe">' + (16 * frac).toFixed(3) + '</b> ／ 16（超立方体の 4次元の体積）' + (wDbl.filling === false ? '　取り出し中' : '　敷きつめ中') + '</div>'
                 + '<div style="color:#64748b;font-size:10px">演出：格子 ' + n + '×' + n + (WPACK.N > n ? '（区分求積 n＝' + WPACK.N + '、格子は 64×64 まで）' : '') + '（1 マス＝Δ' + a + '×Δw＝' + (2 / n).toFixed(3) + '²）。どの 2 方向で積分しても 16（フビニの定理）</div>',
                 '∫∫ 4 d' + a + ' dw ＝ <b style="color:#ddd6fe">' + (16 * frac).toFixed(3) + '</b> ／ 16' + hudBar(frac * 100, HUD_RAINBOW));
             const b = a === 'x' ? 'y' : 'x';
@@ -8956,7 +8957,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-2348';
+        const APP_BUILD = '20261021-2357';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
