@@ -4508,9 +4508,10 @@ dsEl.addEventListener('change', () => { descOn = dsEl.checked; exprs.forEach(ref
 requestDraw();
 
 // ---------- Gist 同期（共通部品 state-sync）：graphcalc で始まる保存（編集中の式・設定・保存した式）をシークレット Gist に上げ、別の端末では新しい方にそろえる ----------
-//   画面の状態はもともと graphcalc.v1 に保存しているので、snapshot・restore は空。鍵と Gist ID はほかのアプリと共通（gistSyncToken・gistSyncId）
+//   画面の状態はもともと graphcalc.v1 に保存しているので、snapshot・restore は空。
+//   鍵と Gist ID は次元おりがみと同じもの（hypercubeGistToken・hypercubeGistId）：どちらで入れても両方で使え、同じ Gist の中にファイルが並ぶ（hypercube-state.json と graphcalc-state.json。上げる時は自分のファイルだけ書きかえる）
 if (window.StateSync) {
-    const sync = StateSync.create({ app: 'graphcalc', build: '20261021-1122', snapshot: () => ({}), restore: () => {}, exclude: ['graphcalc.test'] });
+    const sync = StateSync.create({ app: 'graphcalc', build: '20261021-1122', tokenKey: 'hypercubeGistToken', idKey: 'hypercubeGistId', snapshot: () => ({}), restore: () => {}, exclude: ['graphcalc.test'] });
     sync.start();
     sync.mountUI($('#syncBox'));
     try { if (localStorage.getItem('graphcalcGistAuto') === '1') $('#syncWrap').open = true; } catch (_) {}
