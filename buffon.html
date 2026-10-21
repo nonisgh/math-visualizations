@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ビュフォンの針</title>
+<meta name="apple-mobile-web-app-title" content="ビュフォンの針">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#030712">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+    :root { --bg: #030712; --panel: #0b1222; --line: #1e293b; --text: #e2e8f0; --muted: #94a3b8; --faint: #64748b;
+            --hit: #f472b6; --miss: #38bdf8; --pi: #fbbf24; --ok: #34d399; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.6 'Noto Sans JP', Inter, system-ui, -apple-system, sans-serif; }
+    .app { display: grid; grid-template-columns: 1fr 360px; height: 100%; }
+    @media (max-width: 860px) { .app { grid-template-columns: 1fr; grid-template-rows: 56vh auto; height: auto; } }
+    .stage { position: relative; min-height: 320px; overflow: hidden; border-right: 1px solid var(--line); }
+    .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .stage .tag { position: absolute; left: 12px; top: 10px; display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); background: rgba(3, 7, 18, 0.75); border: 1px solid var(--line); padding: 4px 10px; border-radius: 999px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .side { background: var(--panel); padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+    h1 { font-size: 20px; margin: 0; font-weight: 900; letter-spacing: 0.02em; }
+    .sub { color: var(--muted); font-size: 12.5px; margin: 2px 0 0; }
+    .card { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: rgba(15, 23, 42, 0.6); }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    button { font: 700 13px 'Noto Sans JP', Inter, sans-serif; color: var(--text); background: #111a2e; border: 1px solid #334155; border-radius: 10px; padding: 7px 12px; cursor: pointer; }
+    button:hover { background: #1b2740; }
+    button.go { background: rgba(244, 114, 182, 0.18); border-color: var(--hit); color: #fce7f3; }
+    button.on { background: rgba(52, 211, 153, 0.2); border-color: var(--ok); color: #d1fae5; }
+    .row { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 13px; }
+    .row label { min-width: 92px; color: var(--muted); }
+    .row input[type=range] { flex: 1; accent-color: var(--hit); }
+    .row .v { min-width: 54px; text-align: right; font: 700 13px Inter, monospace; }
+    .stats { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 13.5px; }
+    .stats .k { color: var(--muted); }
+    .stats .n { font: 700 15px Inter, ui-monospace, monospace; text-align: right; }
+    .big { font: 800 30px Inter, ui-monospace, monospace; color: var(--pi); letter-spacing: 0.01em; }
+    .err { font-size: 12px; color: var(--muted); }
+    .digits b { color: var(--ok); }
+    .chart { width: 100%; height: 170px; display: block; }
+    details summary { cursor: pointer; font-weight: 700; }
+    details p, details li { color: #cbd5e1; font-size: 13px; }
+    .formula { font: 600 15px Inter, 'Noto Sans JP', serif; text-align: center; margin: 8px 0; color: #f8fafc; }
+    .note { color: var(--faint); font-size: 11.5px; }
+    a { color: #7dd3fc; }
+</style>
+</head>
+<body>
+<div class="app">
+    <div class="stage" id="stage">
+        <canvas id="bg"></canvas>
+        <canvas id="needles"></canvas>
+        <canvas id="fresh"></canvas>
+        <div class="tag"><span class="dot" style="background:var(--hit)"></span>線と交わった針 <span class="dot" style="background:var(--miss);margin-left:6px"></span>交わらない針</div>
+    </div>
+    <div class="side">
+        <div>
+            <h1>ビュフォンの針</h1>
+            <p class="sub">等しい間隔 d の平行線に、長さ L の針をでたらめに落とす。線と交わる割合は、L ＝ d のとき <b style="color:var(--pi)">2/π</b>（約 63.66%）に近づく。だから、落とすだけで π が求まる。</p>
+        </div>
+
+        <div class="card">
+            <div class="btns">
+                <button class="go" data-n="1">1 本</button>
+                <button class="go" data-n="10">10 本</button>
+                <button class="go" data-n="100">100 本</button>
+                <button class="go" data-n="1000">1000 本</button>
+                <button id="play">▶ 落とし続ける</button>
+                <button id="reset">リセット</button>
+            </div>
+            <div class="row"><label>落とす速さ</label><input id="speed" type="range" min="0" max="5" step="1" value="2"><span class="v" id="speedV"></span></div>
+            <div class="row"><label>針の長さ L/d</label><input id="len" type="range" min="0.2" max="2" step="0.05" value="1"><span class="v" id="lenV"></span></div>
+            <div class="row"><label>線の間隔 d</label><input id="gap" type="range" min="40" max="160" step="5" value="90"><span class="v" id="gapV"></span></div>
+        </div>
+
+        <div class="card">
+            <div class="stats">
+                <span class="k">落とした針</span><span class="n" id="sN">0</span>
+                <span class="k">線と交わった針</span><span class="n" id="sH" style="color:var(--hit)">0</span>
+                <span class="k">交わった割合</span><span class="n" id="sP">—</span>
+                <span class="k">理論の割合</span><span class="n" id="sT">—</span>
+            </div>
+            <div style="margin-top:10px" id="piBox">
+                <div class="k" style="color:var(--muted);font-size:12.5px">針から求めた π ＝ 2L·(落とした数) ÷ (d·交わった数)</div>
+                <div class="big" id="sPi">—</div>
+                <div class="err digits" id="sDig"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="font-size:12.5px;color:var(--muted)" id="chartTitle">求めた π の移り変わり（横は落とした数、目盛りは 10 倍ごと）</div>
+            <canvas class="chart" id="chart"></canvas>
+        </div>
+
+        <details class="card">
+            <summary>なぜ 2/π になるの？</summary>
+            <p>針の真ん中から、いちばん近い線までの距離を y（0〜d/2）、針と線の角度を θ（0〜90°）とします。針が線と交わるのは、針の半分の「縦の長さ」が y より長い時です。</p>
+            <div class="formula">y ≦ (L/2)·sin θ</div>
+            <p>y と θ はどちらもでたらめ（一様）なので、交わる確率は「(L/2)·sin θ のグラフの下の面積」÷「長方形 d/2 × π/2 の面積」です。</p>
+            <div class="formula">P = ∫₀^{π/2} (L/2) sin θ dθ ÷ (d/2 · π/2) = 2L / (π d)</div>
+            <p>L ＝ d なら P ＝ 2/π。円の話をしていないのに π が出てくるのは、針の向き（角度）が「ぐるっと一回り」の中で一様だからです。</p>
+            <p>逆に解くと π ＝ 2L·N ÷ (d·H)（N＝落とした数、H＝交わった数）。1777 年にビュフォンが考えた問題で、本当に針を何千回も投げて π を求めた人もいます。</p>
+            <p class="note">針が線の間隔より長い（L ＞ d）時の確率は P ＝ (2/π)·(x − √(x² − 1) + arccos(1/x))、x ＝ L/d。この時、π の式は使えないので、π の欄は消えます。</p>
+        </details>
+
+        <details class="card">
+            <summary>このシミュレーションの中身</summary>
+            <p>針の真ん中の位置は、線と線の間ちょうど何個ぶんかの帯の中で一様に（半端な間が混ざると、そこだけ多く落ちて割合がずれるため）。針の向きは、正方形の中にでたらめな点を打って、円の中に入った点の向きを使います（円の外の点は捨てる）。</p>
+            <p><b>π を一度も使わずに</b>向きを作っているので、出てくる π はズルなしで「針から」出てきた値です。</p>
+            <p class="note">交わる判定：針の両端の高さを線の間隔 d で割って、整数の部分（何本目の線の間か）が違えば交わっている。</p>
+        </details>
+    </div>
+</div>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const stage = $('stage'), cBg = $('bg'), cN = $('needles'), cF = $('fresh'), cChart = $('chart');
+const S = { N: 0, H: 0, L: 1, d: 90, hist: [], play: false, speed: 2, queue: 0, fresh: [] };
+let W = 0, H = 0, DPR = 1;
+
+// ---- 大きさ ----
+function fit() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    const r = stage.getBoundingClientRect(); W = r.width; H = r.height;
+    [cBg, cN, cF].forEach(c => { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); c.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0); });
+    const cr = cChart.getBoundingClientRect(); cChart.width = Math.round(cr.width * DPR); cChart.height = Math.round(cr.height * DPR); cChart.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawLines(); redrawAll(); drawChart();
+}
+// 平行線：上から d ごと（真ん中に 1 本がくるように）
+const lineOff = () => (H / 2) % S.d;
+function drawLines() {
+    const g = cBg.getContext('2d');
+    g.fillStyle = '#030712'; g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(226, 232, 240, 0.55)'; g.lineWidth = 1.5;
+    for (let y = lineOff(); y <= H; y += S.d) { g.beginPath(); g.moveTo(0, Math.round(y) + 0.5); g.lineTo(W, Math.round(y) + 0.5); g.stroke(); }
+    g.fillStyle = '#64748b'; g.font = '600 11px Inter, sans-serif';
+    const y0 = lineOff() + S.d * Math.floor((H / 2 - lineOff()) / S.d);
+    g.fillText('d', W - 18, y0 + S.d / 2 + 4);
+    g.strokeStyle = '#64748b'; g.lineWidth = 1; g.beginPath(); g.moveTo(W - 24, y0 + 3); g.lineTo(W - 24, y0 + S.d - 3); g.stroke();
+}
+
+// ---- 針を 1 本：真ん中は一様、向きは「円の中のでたらめな点」の向き（π を使わない） ----
+function dropOne() {
+    let ux, uy, r2;
+    do { ux = Math.random() * 2 - 1; uy = Math.random() * 2 - 1; r2 = ux * ux + uy * uy; } while (r2 > 1 || r2 < 1e-12);
+    const r = Math.sqrt(r2), dx = ux / r, dy = uy / r;
+    // 真ん中の高さは「線と線の間」をちょうど K 個ぶんの帯の中で一様に（画面の高さで取ると、端の半端な間だけ多く落ちて割合がずれる）
+    const off = lineOff(), K = Math.max(1, Math.floor((H - off) / S.d));
+    const len = S.L * S.d, cx = Math.random() * W, cy = off + Math.random() * K * S.d;
+    const x1 = cx - dx * len / 2, y1 = cy - dy * len / 2, x2 = cx + dx * len / 2, y2 = cy + dy * len / 2;
+    const hit = Math.floor((y1 - off) / S.d) !== Math.floor((y2 - off) / S.d);
+    S.N++; if (hit) S.H++;
+    return { x1, y1, x2, y2, hit };
+}
+// 落とした針は層に描き足す（多くなったら薄く）。最近の針は上の層で光らせる
+const ndl = [];   // 描き直し用に覚えておく（最大 6000 本）
+function paintNeedle(g, n, a) {
+    g.strokeStyle = n.hit ? `rgba(244, 114, 182, ${a})` : `rgba(56, 189, 248, ${a * 0.8})`;
+    g.beginPath(); g.moveTo(n.x1, n.y1); g.lineTo(n.x2, n.y2); g.stroke();
+}
+const needleAlpha = () => S.N < 300 ? 0.95 : S.N < 3000 ? 0.55 : S.N < 20000 ? 0.3 : 0.16;
+function redrawAll() {
+    const g = cN.getContext('2d'); g.clearRect(0, 0, W, H); g.lineWidth = 1.6; g.lineCap = 'round';
+    const a = needleAlpha(); ndl.forEach(n => paintNeedle(g, n, a));
+}
+function drop(k) {
+    const g = cN.getContext('2d'); g.lineWidth = 1.6; g.lineCap = 'round';
+    const before = needleAlpha();
+    for (let i = 0; i < k; i++) {
+        const n = dropOne();
+        if (ndl.length < 6000) ndl.push(n); else ndl[(S.N) % 6000] = n;
+        paintNeedle(g, n, needleAlpha());
+        if (k <= 60) S.fresh.push({ n, t: performance.now() });
+        record();
+    }
+    if (needleAlpha() !== before) redrawAll();
+    show();
+}
+// π の移り変わりを、落とした数がだいたい 1.05 倍になるごとに覚える（グラフ用）
+let nextRec = 1;
+function record() {
+    if (S.N < nextRec) return;
+    nextRec = Math.max(S.N + 1, Math.floor(S.N * 1.05));
+    S.hist.push([S.N, S.H > 0 ? 2 * S.L * S.N / S.H : NaN]);
+}
+
+// ---- 理論の確率 ----
+function theory(x) {   // x = L/d
+    if (x <= 1) return 2 * x / Math.PI;
+    return (2 / Math.PI) * (x - Math.sqrt(x * x - 1) + Math.acos(1 / x));
+}
+// ---- 表示 ----
+function show() {
+    $('sN').textContent = S.N.toLocaleString();
+    $('sH').textContent = S.H.toLocaleString();
+    $('sP').textContent = S.N ? (100 * S.H / S.N).toFixed(2) + '%' : '—';
+    $('sT').textContent = (100 * theory(S.L)).toFixed(2) + '%' + (S.L === 1 ? '（2/π）' : '');
+    const short = S.L <= 1;
+    $('piBox').style.opacity = short ? 1 : 0.35;
+    if (short && S.H > 0) {
+        const est = 2 * S.L * S.N / S.H, s = est.toFixed(6), t = Math.PI.toFixed(6);
+        let k = 0; while (k < s.length && s[k] === t[k]) k++;
+        $('sPi').textContent = s;
+        $('sDig').innerHTML = '本当の π ＝ ' + t.slice(0, k) + '<span style="color:#64748b">' + t.slice(k) + '…</span>　'
+            + (k >= 4 ? '<b>小数第 ' + (k - 2) + ' 位まで一致</b>' : k >= 2 ? '<b>3 まで一致</b>' : '　まだ一致なし') + '　ずれ ' + ((est - Math.PI) / Math.PI * 100).toFixed(3) + '%';
+    } else {
+        $('sPi').textContent = short ? '—' : '（L ＞ d では使えない）';
+        $('sDig').textContent = '';
+    }
+    drawChart();
+}
+// ---- グラフ：横は落とした数（10 倍ごとの目盛り）、縦は求めた π（π の線と ±5%） ----
+function drawChart() {
+    const g = cChart.getContext('2d'), w = cChart.width / DPR, h = cChart.height / DPR;
+    g.clearRect(0, 0, w, h);
+    const padL = 36, padR = 8, padT = 8, padB = 18, iw = w - padL - padR, ih = h - padT - padB;
+    const lo = Math.PI * 0.9, hi = Math.PI * 1.1;
+    const nMax = Math.max(100, S.N), lx = n => padL + iw * Math.log10(n) / Math.log10(nMax), ly = v => padT + ih * (1 - (v - lo) / (hi - lo));
+    g.font = '10px Inter, sans-serif'; g.fillStyle = '#64748b'; g.strokeStyle = '#1e293b'; g.lineWidth = 1;
+    for (let p = 1; p <= nMax; p *= 10) { const x = lx(p); g.beginPath(); g.moveTo(x, padT); g.lineTo(x, padT + ih); g.stroke(); g.fillText(p >= 1000 ? (p / 1000) + 'k' : String(p), x - 6, h - 4); }
+    [lo, Math.PI, hi].forEach(v => { g.fillText(v.toFixed(2), 2, ly(v) + 3); });
+    const short = S.L <= 1;
+    g.strokeStyle = 'rgba(251, 191, 36, 0.9)'; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(padL, ly(Math.PI)); g.lineTo(padL + iw, ly(Math.PI)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#fbbf24'; g.fillText('π', padL + iw - 10, ly(Math.PI) - 4);
+    if (!short) { g.fillStyle = '#94a3b8'; g.fillText('L ＞ d では π は求められません', padL + 8, padT + 14); return; }
+    g.strokeStyle = '#f472b6'; g.lineWidth = 1.6; g.beginPath(); let started = false;
+    S.hist.forEach(([n, v]) => {
+        if (!isFinite(v)) return;
+        const x = lx(n), y = ly(Math.max(lo, Math.min(hi, v)));
+        if (!started) { g.moveTo(x, y); started = true; } else g.lineTo(x, y);
+    });
+    g.stroke();
+}
+
+// ---- 最近の針を光らせる層 ----
+function frame() {
+    requestAnimationFrame(frame);
+    if (S.play) {
+        const per = [1, 3, 10, 40, 200, 1000][S.speed];
+        drop(per);
+    }
+    const g = cF.getContext('2d'); g.clearRect(0, 0, W, H);
+    const now = performance.now();
+    S.fresh = S.fresh.filter(f => now - f.t < 700);
+    g.lineCap = 'round';
+    S.fresh.forEach(f => {
+        const a = 1 - (now - f.t) / 700;
+        g.lineWidth = 3.5; g.shadowBlur = 12; g.shadowColor = f.n.hit ? '#f472b6' : '#38bdf8';
+        g.strokeStyle = f.n.hit ? `rgba(252, 231, 243, ${a})` : `rgba(224, 242, 254, ${a})`;
+        g.beginPath(); g.moveTo(f.n.x1, f.n.y1); g.lineTo(f.n.x2, f.n.y2); g.stroke();
+        if (f.n.hit) {   // 線と交わった所に小さな印
+            const off = lineOff(), k = Math.max(Math.floor((f.n.y1 - off) / S.d), Math.floor((f.n.y2 - off) / S.d)), yl = off + k * S.d;
+            const t = (yl - f.n.y1) / (f.n.y2 - f.n.y1);
+            if (t >= 0 && t <= 1) { g.shadowBlur = 0; g.fillStyle = `rgba(251, 191, 36, ${a})`; g.beginPath(); g.arc(f.n.x1 + (f.n.x2 - f.n.x1) * t, yl, 4, 0, Math.PI * 2); g.fill(); }
+        }
+    });
+    g.shadowBlur = 0;
+}
+
+// ---- 操作 ----
+function reset() { S.N = 0; S.H = 0; S.hist = []; S.fresh = []; ndl.length = 0; nextRec = 1; redrawAll(); show(); }
+document.querySelectorAll('[data-n]').forEach(b => b.addEventListener('click', () => drop(+b.dataset.n)));
+$('play').addEventListener('click', () => { S.play = !S.play; $('play').textContent = S.play ? '■ 止める' : '▶ 落とし続ける'; $('play').classList.toggle('on', S.play); });
+$('reset').addEventListener('click', reset);
+const speedNames = ['ゆっくり', '少し', 'ふつう', '速い', 'とても速い', '最速'];
+$('speed').addEventListener('input', e => { S.speed = +e.target.value; $('speedV').textContent = speedNames[S.speed]; });
+$('len').addEventListener('input', e => { S.L = +e.target.value; $('lenV').textContent = S.L.toFixed(2); reset(); });
+$('gap').addEventListener('input', e => { S.d = +e.target.value; $('gapV').textContent = S.d + 'px'; drawLines(); reset(); });
+$('speedV').textContent = speedNames[S.speed]; $('lenV').textContent = S.L.toFixed(2); $('gapV').textContent = S.d + 'px';
+window.addEventListener('resize', () => { fit(); });
+fit(); show(); requestAnimationFrame(frame);
+window.buffon = S;   // 確かめ用
+})();
+</script>
+</body>
+</html>

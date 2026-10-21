@@ -424,6 +424,27 @@
         </div>
     </section>
 
+    <!-- 確率と実験 -->
+    <section>
+        <div class="sec-head">
+            <h2>確率と実験</h2>
+            <span class="path">でたらめから数が出てくる</span>
+        </div>
+        <div class="grid">
+            <a class="card" href="buffon.html" style="--accent: #f472b6;">
+                <div class="thumb"><svg data-thumb="buffon" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>ビュフォンの針</h3><span class="new">NEW</span></div>
+                    <p>等しい間隔の平行線に、その間隔と同じ長さの針をでたらめに落とすと、線と交わる割合は 2/π に近づきます。何万本も落として、針だけから π を求める実験です。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d2">2D</span></div>
+                        <span class="file">buffon.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </section>
+
     <footer>Interactive Geometry Visualization Suite</footer>
 </div>
 
@@ -523,8 +544,20 @@
             });
         }
 
+        // ビュフォンの針：平行線と、線と交わる針（ピンク）・交わらない針（薄い）
+        function drawBuffon(svg) {
+            for (const y of [-30, 0, 30]) svg.appendChild(el('line', { x1: -44, y1: y, x2: 44, y2: y, stroke: '#cbd5e1', 'stroke-width': 1, opacity: 0.45 }));
+            const N = [[-30, -18, 40], [-6, 10, 115], [22, -9, 160], [30, 18, 70], [-26, 20, 10], [6, -22, 95], [-14, -6, 15], [14, 24, 135]];
+            N.forEach(([cx, cy, a]) => {
+                const r = a * Math.PI / 180, dx = 15 * Math.cos(r), dy = 15 * Math.sin(r);
+                const hit = [-30, 0, 30].some(y => Math.min(cy - dy, cy + dy) <= y && y <= Math.max(cy - dy, cy + dy));   // 本当に線と交わるか
+                svg.appendChild(el('line', { x1: (cx - dx).toFixed(1), y1: (cy - dy).toFixed(1), x2: (cx + dx).toFixed(1), y2: (cy + dy).toFixed(1), stroke: hit ? 'var(--accent)' : '#38bdf8', 'stroke-width': 2, 'stroke-linecap': 'round', opacity: hit ? 1 : 0.55 }));
+            });
+        }
+
         document.querySelectorAll('svg[data-thumb]').forEach(svg => {
             switch (svg.dataset.thumb) {
+                case 'buffon':  drawBuffon(svg); break;
                 case 'star':    drawStar(svg, 7, 3, 42); break;
                 case 'graph':   drawGraph(svg); break;
                 case 'graph4d': drawGraph4d(svg); break;
