@@ -454,6 +454,18 @@
                     </div>
                 </div>
             </a>
+
+            <a class="card" href="monty.html" style="--accent: #34d399;">
+                <div class="thumb"><svg data-thumb="monty" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>モンティ・ホール問題</h3><span class="new">NEW</span></div>
+                    <p>3 つのドアの 1 つに車。選んだあと、司会者がヤギのドアを開けて「選び直しますか？」。自分で遊んだり、100 万回自動で試したりして、変えると本当に当たる確率が 2 倍になるのかを確かめます。ドアは 20 枚まで増やせます。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d2">2D</span></div>
+                        <span class="file">monty.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
         </div>
     </section>
 
@@ -582,8 +594,20 @@
             svg.appendChild(el('circle', { cx: (-k + 8).toFixed(1), cy: 0, r: 3.2, fill: '#34d399' }));
         }
 
+        // モンティ・ホール：ドア 3 枚（1 枚は開いてヤギ、選んだドアは黄色の枠、残った 1 枚は緑）
+        function drawMonty(svg) {
+            [[-31, '#f5d0fe', 'pick'], [0, null, 'open'], [31, null, 'left']].forEach(([x, , kind]) => {
+                const w = 24, h = 40, y = -14;
+                svg.appendChild(el('rect', { x: x - w / 2, y: y - h / 2, width: w, height: h, rx: 3, fill: kind === 'open' ? '#0b1222' : 'rgba(139, 92, 246, 0.55)', stroke: kind === 'pick' ? '#fbbf24' : kind === 'left' ? 'var(--accent)' : '#475569', 'stroke-width': kind === 'open' ? 1 : 2 }));
+                if (kind !== 'open') svg.appendChild(el('circle', { cx: x + 7, cy: y + 2, r: 1.6, fill: '#fbbf24' }));
+            });
+            const t = el('text', { x: 0, y: -8, 'text-anchor': 'middle', 'font-size': 15 }); t.textContent = '🐐'; svg.appendChild(t);
+            const q = el('text', { x: 0, y: 26, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--accent)', 'font-weight': 700 }); q.textContent = '1/3 → 2/3'; svg.appendChild(q);
+        }
+
         document.querySelectorAll('svg[data-thumb]').forEach(svg => {
             switch (svg.dataset.thumb) {
+                case 'monty':   drawMonty(svg); break;
                 case 'euler':   drawEuler(svg); break;
                 case 'buffon':  drawBuffon(svg); break;
                 case 'star':    drawStar(svg, 7, 3, 42); break;

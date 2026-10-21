@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>モンティ・ホール問題</title>
+<meta name="apple-mobile-web-app-title" content="モンティ・ホール">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#030712">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+    :root { --bg: #030712; --panel: #0b1222; --line: #1e293b; --text: #e2e8f0; --muted: #94a3b8; --faint: #64748b;
+            --sw: #34d399; --st: #f472b6; --pick: #fbbf24; --door: #7c3aed; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font: 14px/1.6 'Noto Sans JP', Inter, system-ui, -apple-system, sans-serif; }
+    .app { display: grid; grid-template-columns: 1fr 380px; min-height: 100vh; }
+    @media (max-width: 900px) { .app { grid-template-columns: 1fr; } }
+    .main { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; border-right: 1px solid var(--line); }
+    .side { background: var(--panel); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    h1 { font-size: 22px; margin: 0; font-weight: 900; }
+    h2 { font-size: 15px; margin: 0 0 6px; }
+    .sub { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+    .card { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: rgba(15, 23, 42, 0.6); }
+    button { font: 700 13px 'Noto Sans JP', Inter, sans-serif; color: var(--text); background: #111a2e; border: 1px solid #334155; border-radius: 10px; padding: 7px 12px; cursor: pointer; }
+    button:hover { background: #1b2740; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    button.sw { background: rgba(52, 211, 153, 0.16); border-color: var(--sw); color: #d1fae5; }
+    button.st { background: rgba(244, 114, 182, 0.16); border-color: var(--st); color: #fce7f3; }
+    button.on { background: rgba(251, 191, 36, 0.18); border-color: var(--pick); color: #fef3c7; }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    /* ドア */
+    .doors { display: grid; gap: 12px; justify-content: center; padding: 8px 0; }
+    .door { position: relative; aspect-ratio: 3 / 4.6; border-radius: 12px 12px 4px 4px; cursor: pointer; perspective: 600px; user-select: none; }
+    .door .back { position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(ellipse at 50% 70%, #1e293b, #0b1222); border: 2px solid #334155; display: flex; align-items: center; justify-content: center; font-size: var(--prize, 52px); }
+    .door .front { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(160deg, #8b5cf6, #5b21b6 60%, #3b0a7a); border: 2px solid #a78bfa; transform-origin: left center; transition: transform 0.7s cubic-bezier(.3,.7,.3,1), box-shadow 0.3s; display: flex; align-items: center; justify-content: center; font: 900 var(--num, 34px) Inter, sans-serif; color: #ede9fe; box-shadow: inset 0 0 0 6px rgba(255,255,255,0.06); }
+    .door .front::after { content: ''; position: absolute; right: 12%; top: 52%; width: 9%; aspect-ratio: 1; border-radius: 50%; background: #fbbf24; box-shadow: 0 0 6px #fbbf24; }
+    .door.open .front { transform: rotateY(-100deg); box-shadow: 0 0 0 transparent; }
+    .door.pick .front { border-color: var(--pick); box-shadow: 0 0 0 3px var(--pick), 0 0 24px rgba(251, 191, 36, 0.6); }
+    .door .tag { position: absolute; left: 50%; bottom: -24px; transform: translateX(-50%); font-size: 11.5px; white-space: nowrap; color: var(--pick); font-weight: 700; }
+    .msg { min-height: 52px; font-size: 15px; text-align: center; padding: 6px 4px; margin-top: 18px; }
+    .msg b.sw { color: var(--sw); } .msg b.st { color: var(--st); }
+    .stats { display: grid; grid-template-columns: auto 1fr auto auto; gap: 4px 10px; align-items: center; font-size: 13.5px; }
+    .bar { height: 10px; border-radius: 999px; background: #1e293b; overflow: hidden; }
+    .bar > div { height: 100%; transition: width 0.2s; }
+    .num { font: 700 14px Inter, ui-monospace, monospace; text-align: right; }
+    .k { color: var(--muted); }
+    .row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+    .row input[type=range] { flex: 1; accent-color: var(--pick); }
+    .chart { width: 100%; height: 180px; display: block; }
+    details summary { cursor: pointer; font-weight: 700; }
+    details p { color: #cbd5e1; font-size: 13px; }
+    .note { color: var(--faint); font-size: 11.5px; }
+    .big { font: 800 26px Inter, ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<div class="app">
+    <div class="main">
+        <div>
+            <h1>モンティ・ホール問題</h1>
+            <p class="sub">ドアのどれか 1 つの後ろに車、ほかはヤギ。あなたが 1 つ選ぶと、答えを知っている司会者が、残りのドアから<b>ヤギのドアを開けて</b>見せます。そこで「選び直しますか？」と聞かれたら……変えた方が得？ 本当に確率は 2 倍になる？</p>
+        </div>
+        <div class="card">
+            <div class="row" style="margin-bottom:6px"><span class="k">ドアの数</span><input id="nD" type="range" min="3" max="20" step="1" value="3"><b id="nDV" class="num" style="min-width:60px">3 枚</b></div>
+            <div class="doors" id="doors"></div>
+            <div class="msg" id="msg"></div>
+            <div class="btns" style="justify-content:center">
+                <button class="st" id="stay" disabled>そのまま（変えない）</button>
+                <button class="sw" id="switch" disabled>選び直す（変える）</button>
+                <button id="again" disabled>もう 1 回</button>
+            </div>
+        </div>
+        <div class="card">
+            <h2>あなたの成績</h2>
+            <div class="stats">
+                <span class="k">変えなかった</span><div class="bar"><div id="myStB" style="background:var(--st);width:0"></div></div><span class="num" id="mySt">0 / 0</span><span class="num" id="myStP">—</span>
+                <span class="k">変えた</span><div class="bar"><div id="mySwB" style="background:var(--sw);width:0"></div></div><span class="num" id="mySw">0 / 0</span><span class="num" id="mySwP">—</span>
+            </div>
+            <p class="note" style="margin:6px 0 0">何回か遊ぶと、変えた方がよく当たるのが見えてきます。でも数回では偶然に左右されるので、右の「自動で何万回も」で確かめてみましょう。</p>
+        </div>
+    </div>
+    <div class="side">
+        <div class="card">
+            <h2>自動で何回も（両方の作戦で同時に）</h2>
+            <p class="note" style="margin:0 0 8px">コンピュータが、ドアを選ぶ → 司会者がヤギのドアを開ける → 「変えない」人と「変える」人がそれぞれ答える、を何回もくり返します。</p>
+            <div class="btns">
+                <button data-n="1">1 回</button><button data-n="10">10 回</button><button data-n="100">100 回</button><button data-n="1000">1000 回</button>
+                <button data-n="10000">1 万回</button><button data-n="100000">10 万回</button><button data-n="1000000">100 万回</button><button id="simReset">リセット</button>
+            </div>
+            <div class="stats" style="margin-top:10px">
+                <span class="k">変えない</span><div class="bar"><div id="stB" style="background:var(--st);width:0"></div></div><span class="num" id="stN">—</span><span class="num" id="stP" style="color:var(--st)">—</span>
+                <span class="k">変える</span><div class="bar"><div id="swB" style="background:var(--sw);width:0"></div></div><span class="num" id="swN">—</span><span class="num" id="swP" style="color:var(--sw)">—</span>
+            </div>
+            <div style="margin-top:8px;font-size:13px" id="ratio"></div>
+            <div class="note" id="theory"></div>
+        </div>
+        <div class="card">
+            <div class="note" style="margin-bottom:4px">当たった割合の移り変わり（横は回数、目盛りは 10 倍ごと）</div>
+            <canvas class="chart" id="chart"></canvas>
+        </div>
+        <details class="card">
+            <summary>どうして変えると 2 倍になるの？</summary>
+            <p>最初に選んだドアが当たりの確率は 1/3。<b>司会者がヤギを見せても、この 1/3 は変わりません</b>（司会者は、あなたのドアがどちらでも、必ずヤギのドアを開けられるので、何も新しいことがわからない）。</p>
+            <p>残りの 2/3 は「ほかのドア全部」にあります。司会者はその中のヤギを取り除いてくれたので、2/3 がまるごと、閉まったまま残った 1 枚に集まります。だから変えると 2/3、変えないと 1/3。ちょうど 2 倍です。</p>
+            <p>ドアを 20 枚にするとわかりやすくなります。あなたが 1 枚選び、司会者が残り 19 枚のうち 18 枚のヤギを開けて、1 枚だけ閉めたまま残します。最初の 1 枚が当たりの確率は 1/20。残された 1 枚には 19/20。変えない理由がありません。</p>
+            <p class="note">大事なのは、司会者が<b>答えを知っていて、わざとヤギを開ける</b>こと。もし司会者が答えを知らずにでたらめに開けて、たまたまヤギだった、という場合は、変えても変えなくても 1/2 になります。</p>
+        </details>
+        <details class="card">
+            <summary>このシミュレーションの中身</summary>
+            <p>1 回ごとに、車のドアと最初に選ぶドアを、でたらめ（Math.random）に決めます。司会者は「選ばれていない、車でもないドア」を開けて、1 枚だけ閉めて残します（最初のドアが車なら、残す 1 枚はでたらめ）。「変えない」人は最初のドア、「変える」人は残された 1 枚を答えます。確率の式は一度も使っていません。</p>
+        </details>
+    </div>
+</div>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const ri = n => Math.floor(Math.random() * n);   // 0〜n−1 のでたらめな整数
+
+// ---- 自分で遊ぶ ----
+const G = { n: 3, car: 0, pick: -1, left: -1, phase: 'pick', my: { st: [0, 0], sw: [0, 0] } };   // st・sw＝[当たり, 回数]
+function newGame() {
+    G.car = ri(G.n); G.pick = -1; G.left = -1; G.phase = 'pick'; G.final = -1;
+    buildDoors(); say('ドアを 1 つ選んでください。');
+    $('stay').disabled = $('switch').disabled = true; $('again').disabled = true;
+}
+function buildDoors() {
+    const box = $('doors'), n = G.n, w = n <= 3 ? 150 : n <= 6 ? 105 : n <= 10 ? 78 : 58;
+    box.style.gridTemplateColumns = `repeat(${Math.min(n, n <= 10 ? n : 10)}, ${w}px)`;
+    box.style.setProperty('--num', Math.round(w * 0.24) + 'px'); box.style.setProperty('--prize', Math.round(w * 0.36) + 'px');
+    box.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+        const d = document.createElement('div'); d.className = 'door'; d.dataset.i = i;
+        d.innerHTML = `<div class="back">${i === G.car ? '🚗' : '🐐'}</div><div class="front">${i + 1}</div><div class="tag"></div>`;
+        d.addEventListener('click', () => clickDoor(i));
+        box.appendChild(d);
+    }
+}
+const doorEl = i => $('doors').children[i];
+function say(h) { $('msg').innerHTML = h; }
+function clickDoor(i) {
+    if (G.phase === 'pick') {
+        G.pick = i; doorEl(i).classList.add('pick'); doorEl(i).querySelector('.tag').textContent = 'あなた';
+        // 司会者：選ばれていないドアのうち、車でないものを全部開けて、1 枚だけ閉めて残す（選んだのが車なら、残す 1 枚はでたらめ）
+        const others = [...Array(G.n).keys()].filter(k => k !== i);
+        G.left = i === G.car ? others[ri(others.length)] : G.car;
+        G.phase = 'opening';
+        say('司会者が、ヤギのドアを開けます……');
+        const toOpen = others.filter(k => k !== G.left);
+        toOpen.forEach((k, j) => setTimeout(() => doorEl(k).classList.add('open'), 350 + j * Math.min(250, 1600 / toOpen.length)));
+        setTimeout(() => {
+            G.phase = 'decide';
+            say(`開いたドアは全部ヤギ。閉まっているのは、あなたの <b>${i + 1} 番</b>と <b>${G.left + 1} 番</b>だけ。<br>選び直しますか？`);
+            $('stay').disabled = $('switch').disabled = false;
+        }, 450 + toOpen.length * Math.min(250, 1600 / toOpen.length));
+    }
+}
+function decide(sw) {
+    if (G.phase !== 'decide') return;
+    G.phase = 'done'; $('stay').disabled = $('switch').disabled = true;
+    const fin = sw ? G.left : G.pick, win = fin === G.car;
+    if (sw) { doorEl(G.pick).classList.remove('pick'); doorEl(G.pick).querySelector('.tag').textContent = ''; doorEl(fin).classList.add('pick'); doorEl(fin).querySelector('.tag').textContent = 'あなた'; }
+    setTimeout(() => { doorEl(G.pick).classList.add('open'); doorEl(G.left).classList.add('open'); }, 300);
+    const rec = sw ? G.my.sw : G.my.st; rec[1]++; if (win) rec[0]++;
+    setTimeout(() => {
+        say((win ? '🎉 <b>車！ 当たり！</b>' : 'ざんねん、ヤギでした。') + `　（${sw ? '<b class="sw">変えた</b>' : '<b class="st">変えなかった</b>'}。車は ${G.car + 1} 番）`);
+        showMine(); $('again').disabled = false;
+    }, 900);
+}
+function showMine() {
+    const f = (r, b, t, p) => { $(t).textContent = r[0] + ' / ' + r[1]; $(p).textContent = r[1] ? (100 * r[0] / r[1]).toFixed(0) + '%' : '—'; $(b).style.width = (r[1] ? 100 * r[0] / r[1] : 0) + '%'; };
+    f(G.my.st, 'myStB', 'mySt', 'myStP'); f(G.my.sw, 'mySwB', 'mySw', 'mySwP');
+}
+$('stay').addEventListener('click', () => decide(false));
+$('switch').addEventListener('click', () => decide(true));
+$('again').addEventListener('click', newGame);
+$('nD').addEventListener('input', e => { G.n = +e.target.value; $('nDV').textContent = G.n + ' 枚'; newGame(); simReset(); });
+
+// ---- 自動で何回も ----
+const M = { N: 0, st: 0, sw: 0, hist: [], next: 1 };
+function simulate(k) {
+    const n = G.n;
+    for (let t = 0; t < k; t++) {
+        const car = ri(n), pick = ri(n);
+        // 司会者が 1 枚だけ閉めて残すドア（選んだのが車なら、ほかからでたらめに 1 枚）
+        let left;
+        if (pick === car) { left = ri(n - 1); if (left >= pick) left++; } else left = car;
+        M.N++; if (pick === car) M.st++; if (left === car) M.sw++;
+        if (M.N >= M.next) { M.next = Math.max(M.N + 1, Math.floor(M.N * 1.06)); M.hist.push([M.N, M.st / M.N, M.sw / M.N]); }
+    }
+    showSim();
+}
+function simReset() { M.N = 0; M.st = 0; M.sw = 0; M.hist = []; M.next = 1; showSim(); }
+function showSim() {
+    const n = G.n, pSt = 1 / n, pSw = (n - 1) / n;
+    const f = (w, b, t, p) => { $(t).textContent = M.N ? w.toLocaleString() + ' / ' + M.N.toLocaleString() : '—'; $(p).textContent = M.N ? (100 * w / M.N).toFixed(2) + '%' : '—'; $(b).style.width = (M.N ? 100 * w / M.N : 0) + '%'; };
+    f(M.st, 'stB', 'stN', 'stP'); f(M.sw, 'swB', 'swN', 'swP');
+    $('ratio').innerHTML = M.st > 0 ? '変えた方が <b class="big" style="color:var(--sw)">' + (M.sw / M.st).toFixed(3) + '</b> 倍 当たった' : '';
+    $('theory').textContent = `理論：変えない ${n === 3 ? '1/3' : '1/' + n}（${(100 * pSt).toFixed(2)}%）、変える ${n === 3 ? '2/3' : (n - 1) + '/' + n}（${(100 * pSw).toFixed(2)}%）、ちょうど ${n - 1} 倍`;
+    drawChart();
+}
+const cv = $('chart'); let DPR = 1;
+function fitChart() { DPR = Math.min(2, window.devicePixelRatio || 1); const r = cv.getBoundingClientRect(); cv.width = Math.round(r.width * DPR); cv.height = Math.round(r.height * DPR); cv.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0); drawChart(); }
+function drawChart() {
+    const g = cv.getContext('2d'), w = cv.width / DPR, h = cv.height / DPR; g.clearRect(0, 0, w, h);
+    const padL = 34, padR = 8, padT = 8, padB = 18, iw = w - padL - padR, ih = h - padT - padB;
+    const nMax = Math.max(100, M.N), lx = n => padL + iw * Math.log10(n) / Math.log10(nMax), ly = v => padT + ih * (1 - v);
+    g.font = '10px Inter, sans-serif'; g.strokeStyle = '#1e293b'; g.fillStyle = '#64748b'; g.lineWidth = 1;
+    for (let p = 1; p <= nMax; p *= 10) { const x = lx(p); g.beginPath(); g.moveTo(x, padT); g.lineTo(x, padT + ih); g.stroke(); g.fillText(p >= 1e6 ? (p / 1e6) + 'M' : p >= 1000 ? (p / 1000) + 'k' : String(p), x - 6, h - 4); }
+    [0, 0.5, 1].forEach(v => g.fillText((v * 100) + '%', 2, ly(v) + 3));
+    const n = G.n;
+    [[1 / n, '#f472b6'], [(n - 1) / n, '#34d399']].forEach(([v, c]) => { g.strokeStyle = c; g.globalAlpha = 0.6; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(padL, ly(v)); g.lineTo(padL + iw, ly(v)); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; });
+    [[1, '#f472b6'], [2, '#34d399']].forEach(([k, c]) => {
+        g.strokeStyle = c; g.lineWidth = 1.8; g.beginPath(); M.hist.forEach(([N, ...v], i) => { const x = lx(N), y = ly(v[k - 1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+    });
+}
+document.querySelectorAll('[data-n]').forEach(b => b.addEventListener('click', () => simulate(+b.dataset.n)));
+$('simReset').addEventListener('click', simReset);
+window.addEventListener('resize', fitChart);
+newGame(); showMine(); fitChart(); showSim();
+window.monty = { G, M };   // 確かめ用
+})();
+</script>
+</body>
+</html>
