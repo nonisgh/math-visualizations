@@ -1086,8 +1086,15 @@ function foldNum(n) {
     }
     return n;
 }
-// 定積分の数値計算：適応シンプソン法（相対誤差 1e-10 くらいまで、深さ 18 まで）
+// 定積分の数値計算：x = a + (b − a)(3u² − 2u³) と置きかえて u（0〜1）で積分する。端の近くを細かく見るので、
+//   √(4 − x²) の x = 2 のように端で傾きが無限になる式や、1/√x のように端で無限になる式でも精度が落ちない
+const smoothX = (a, b, u) => a + (b - a) * u * u * (3 - 2 * u), smoothW = (a, b, u) => 6 * u * (1 - u) * (b - a);
 function integrate(f, a, b) {
+    if (a === b) return 0;
+    return integrateRaw(u => { const w = smoothW(a, b, u); return w === 0 ? 0 : f(smoothX(a, b, u)) * w; }, 0, 1);
+}
+// 適応シンプソン法（相対誤差 1e-10 くらいまで、深さ 18 まで）
+function integrateRaw(f, a, b) {
     const simpson = (a, b, fa, fm, fb) => (b - a) / 6 * (fa + 4 * fm + fb);
     const rec = (a, b, fa, fm, fb, whole, eps, depth) => {
         const m = (a + b) / 2, lm = (a + m) / 2, rm = (m + b) / 2, flm = f(lm), frm = f(rm);
@@ -1379,11 +1386,12 @@ function compileC(n, bound = new Set()) {
                 if (Math.abs(A.im) > 1e-12 * (1 + Math.abs(A.re)) || Math.abs(Bv.im) > 1e-12 * (1 + Math.abs(Bv.re))) return C(NaN, NaN);
                 const a = A.re, b = Bv.re;
                 if (!isFinite(a) || !isFinite(b)) return C(NaN, NaN);
-                const N = 400, h = (b - a) / N, old = env.loop[v];
+                if (a === b) return C(0);
+                const N = 400, h = 1 / N, old = env.loop[v];   // 実数の積分と同じく u で置きかえて（端で √ のようになる式も正確に）
                 let sr = 0, si = 0;
-                for (let k = 0; k <= N; k++) {
-                    env.loop[v] = a + k * h;
-                    const w = k === 0 || k === N ? 1 : k % 2 ? 4 : 2, t = body(env);
+                for (let k = 1; k < N; k++) {   // u = 0・1 では重み dx/du が 0
+                    const u = k * h; env.loop[v] = smoothX(a, b, u);
+                    const w = (k % 2 ? 4 : 2) * smoothW(a, b, u), t = body(env);
                     sr += w * t.re; si += w * t.im;
                 }
                 env.loop[v] = old;
