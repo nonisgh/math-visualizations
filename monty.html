@@ -53,6 +53,26 @@
     details p { color: #cbd5e1; font-size: 13px; }
     .note { color: var(--faint); font-size: 11.5px; }
     .big { font: 800 26px Inter, ui-monospace, monospace; }
+    .piles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
+    .pile-col { border: 1px solid var(--line); border-radius: 12px; padding: 8px; background: rgba(3, 7, 18, 0.5); }
+    .pile-col.st { border-color: rgba(244, 114, 182, 0.5); } .pile-col.sw { border-color: rgba(52, 211, 153, 0.5); }
+    .pile-head { display: flex; justify-content: space-between; align-items: baseline; }
+    .pile-col.st .pile-head b { color: var(--st); } .pile-col.sw .pile-head b { color: var(--sw); }
+    .pnum { font: 800 24px Inter, ui-monospace, monospace; }
+    .pile { display: flex; flex-wrap: wrap-reverse; align-content: flex-start; gap: 2px; min-height: 120px; max-height: 220px; overflow: hidden; margin-top: 6px; font-size: 14px; line-height: 1; }
+    .pile span { animation: drop .35s ease-out; }
+    @keyframes drop { from { transform: translateY(-16px) scale(1.6); opacity: 0; } to { transform: none; opacity: 1; } }
+    .pile .unit { font-size: 11px; color: var(--muted); width: 100%; order: 999; }
+    .strip { display: flex; gap: 2px; margin-top: 8px; height: 10px; }
+    .strip i { flex: 1; border-radius: 2px; }
+    #sDoors .door .front { transition-duration: var(--dur, 0.5s); }
+    #sDoors .door.win .back { box-shadow: 0 0 0 3px var(--wc), 0 0 22px var(--wc); }
+    #sDoors .who { position: absolute; left: 0; right: 0; top: -20px; display: flex; justify-content: center; gap: 4px; font-size: 11px; font-weight: 800; }
+    #sDoors .who span { padding: 0 6px; border-radius: 999px; }
+    #sDoors .who .st { background: var(--st); color: #500724; } #sDoors .who .sw { background: var(--sw); color: #052e16; }
+    #sDoors { margin-top: 18px; }
+    #sDoors.snap .door .front { transition: none; }
+
 </style>
 </head>
 <body>
@@ -61,6 +81,24 @@
         <div>
             <h1>モンティ・ホール問題</h1>
             <p class="sub">ドアのどれか 1 つの後ろに車、ほかはヤギ。あなたが 1 つ選ぶと、答えを知っている司会者が、残りのドアから<b>ヤギのドアを開けて</b>見せます。そこで「選び直しますか？」と聞かれたら……変えた方が得？ 本当に確率は 2 倍になる？</p>
+        </div>
+        <div class="card" id="show">
+            <h2>見て確かめる：2 人が延々と遊び続ける</h2>
+            <p class="note" style="margin:0 0 6px">毎回、同じゲームを<b style="color:var(--st)">「そのまま派」</b>と<b style="color:var(--sw)">「変える派」</b>の 2 人が遊びます。当たった人の山に 🚗 が 1 台ずつ積まれていきます。どっちの山が大きくなるかな？</p>
+            <div class="btns" style="justify-content:center;margin-bottom:6px">
+                <button class="on" id="sPlay">▶ 延々と遊ぶ</button>
+                <span class="k" style="font-size:12.5px">速さ</span>
+                <button data-sp="0">ゆっくり</button><button data-sp="1" class="on">ふつう</button><button data-sp="2">速い</button><button data-sp="3">超速</button><button data-sp="4">最速</button>
+                <button id="sReset">山をくずす</button>
+            </div>
+            <div class="doors" id="sDoors"></div>
+            <div class="msg" id="sMsg" style="min-height:30px;margin-top:20px;font-size:14px"></div>
+            <div class="piles">
+                <div class="pile-col st"><div class="pile-head"><b>そのまま派</b><span class="pnum" id="pStN">0</span></div><div class="pile" id="pSt"></div></div>
+                <div class="pile-col sw"><div class="pile-head"><b>変える派</b><span class="pnum" id="pSwN">0</span></div><div class="pile" id="pSw"></div></div>
+            </div>
+            <div class="msg" id="sRatio" style="min-height:0;margin-top:8px"></div>
+            <div class="strip" id="sStrip" title="最近の 60 回、どちらが当たったか（ピンク＝そのまま派、緑＝変える派）"></div>
         </div>
         <div class="card">
             <div class="row" style="margin-bottom:6px"><span class="k">ドアの数</span><input id="nD" type="range" min="3" max="20" step="1" value="3"><b id="nDV" class="num" style="min-width:60px">3 枚</b></div>
@@ -219,6 +257,87 @@ function drawChart() {
 document.querySelectorAll('[data-n]').forEach(b => b.addEventListener('click', () => simulate(+b.dataset.n)));
 $('simReset').addEventListener('click', simReset);
 window.addEventListener('resize', fitChart);
+
+// ---- 見て確かめる：2 人（そのまま派・変える派）が同じゲームを延々と遊ぶアニメーション ----
+//   1 回ごと：車を隠す → 2 人が同じドアを選ぶ → 司会者がヤギのドアを開ける → そのまま派は最初のドア、変える派は残された 1 枚 → 全部開けて、当たった方の山に 🚗
+//   速さ：ゆっくり 2.4 秒／ふつう 1.1 秒／速い 0.45 秒／超速 0.12 秒（ドアは瞬時）／最速（1 コマに何回も、ドアの絵は時々だけ）
+const SP = [2400, 1100, 450, 120, 0];
+const A = { on: true, sp: 1, st: 0, sw: 0, n: 0, game: null, t0: 0, strip: [], unit: 1 };
+function sDoorsBuild() {
+    const box = $('sDoors'), n = G.n, w = n <= 3 ? 110 : n <= 6 ? 80 : n <= 10 ? 56 : 40;
+    box.style.gridTemplateColumns = `repeat(${Math.min(n, 10)}, ${w}px)`;
+    box.style.setProperty('--num', Math.round(w * 0.26) + 'px'); box.style.setProperty('--prize', Math.round(w * 0.38) + 'px');
+    box.innerHTML = '';
+    for (let i = 0; i < n; i++) { const d = document.createElement('div'); d.className = 'door'; d.innerHTML = '<div class="back"></div><div class="front">' + (i + 1) + '</div><div class="who"></div>'; box.appendChild(d); }
+}
+const sDoor = i => $('sDoors').children[i];
+function newShowGame() {
+    const n = G.n, car = ri(n), pick = ri(n);
+    let left; if (pick === car) { left = ri(n - 1); if (left >= pick) left++; } else left = car;   // 司会者が閉めたまま残す 1 枚（上の自動と同じ決め方）
+    return { car, pick, left, phase: 0 };
+}
+function paintShow(g, phase) {   // phase 0：閉じる 1：選ぶ 2：司会者が開ける 3：2 人の答え 4：全部開けて結果
+    const n = G.n;
+    for (let i = 0; i < n; i++) {
+        const d = sDoor(i); if (!d) continue;
+        if (phase === 0) { $('sDoors').classList.add('snap'); d.className = 'door'; d.querySelector('.back').textContent = i === g.car ? '🚗' : '🐐'; d.querySelector('.who').innerHTML = ''; }
+        const who = [];
+        if (phase >= 1 && phase < 3 && i === g.pick) who.push('<span class="st">そのまま</span><span class="sw">変える</span>');
+        if (phase >= 3) { if (i === g.pick) who.push('<span class="st">そのまま</span>'); if (i === g.left) who.push('<span class="sw">変える</span>'); }
+        d.querySelector('.who').innerHTML = who.join('');
+        d.classList.toggle('pick', phase >= 1 && phase < 3 && i === g.pick);
+        if (phase >= 2 && i !== g.pick && i !== g.left) d.classList.add('open');
+        if (phase >= 4) { d.classList.add('open'); if (i === g.car) { d.classList.add('win'); d.style.setProperty('--wc', g.car === g.pick ? '#f472b6' : '#34d399'); } }
+    }
+    if (phase >= 1) $('sDoors').classList.remove('snap');   // 閉じる時は一瞬で（中身が見えないように）、開ける時はゆっくり
+    const M_ = ['車をどれかのドアに隠しました……', '2 人とも ' + (g.pick + 1) + ' 番を選びました', '司会者が、ヤギのドアを開けました', 'そのまま派は ' + (g.pick + 1) + ' 番、変える派は ' + (g.left + 1) + ' 番', g.car === g.pick ? '<b class="st">そのまま派</b>の当たり！' : '<b class="sw">変える派</b>の当たり！'];
+    $('sMsg').innerHTML = M_[phase];
+}
+function scoreShow(g) {
+    A.n++; const stWin = g.car === g.pick, swWin = g.car === g.left;
+    if (stWin) A.st++; if (swWin) A.sw++;
+    A.strip.push(stWin ? 'st' : 'sw'); if (A.strip.length > 60) A.strip.shift();
+    // 山：🚗 1 台＝ unit 回。多くなったら 1 台＝10 回、100 回…にまとめ直す
+    const need = Math.max(A.st, A.sw) / A.unit;
+    if (need > 150) { A.unit *= 10; drawPiles(); }   // 山の箱に収まるように
+    else { if (stWin && A.st % A.unit === 0) addTok('pSt'); if (swWin && A.sw % A.unit === 0) addTok('pSw'); }
+}
+function addTok(id) { const s = document.createElement('span'); s.textContent = '🚗'; $(id).insertBefore(s, $(id).querySelector('.unit')); }
+function drawPiles() {
+    [['pSt', A.st], ['pSw', A.sw]].forEach(([id, v]) => {
+        const k = Math.floor(v / A.unit);
+        $(id).innerHTML = Array.from({ length: k }, () => '<span style="animation:none">🚗</span>').join('') + (A.unit > 1 ? '<div class="unit">🚗 1 台 ＝ ' + A.unit.toLocaleString() + ' 回</div>' : '');
+    });
+}
+function showScore() {
+    $('pStN').textContent = A.st.toLocaleString(); $('pSwN').textContent = A.sw.toLocaleString();
+    $('sRatio').innerHTML = A.n ? A.n.toLocaleString() + ' 回遊んで、変える派は そのまま派の <b class="big" style="color:var(--sw)">' + (A.st ? (A.sw / A.st).toFixed(2) : '—') + '</b> 倍 当たった' + (A.n < 30 ? '<br><span class="note">（まだ回数が少ないので、ばらつきます）</span>' : '') : '';
+    $('sStrip').innerHTML = A.strip.map(w => '<i style="background:' + (w === 'st' ? '#f472b6' : '#34d399') + '"></i>').join('');
+}
+function showReset() { A.st = A.sw = A.n = 0; A.strip = []; A.unit = 1; A.game = null; drawPiles(); showScore(); sDoorsBuild(); }
+let sRaf = 0;
+function showLoop(now) {
+    sRaf = 0; if (!A.on) return;
+    const T = SP[A.sp];
+    if (T === 0) {   // 最速：1 コマに 300 回。ドアの絵は 1 コマに 1 回だけ（最後のゲーム）
+        let g = null; for (let k = 0; k < 300; k++) { g = newShowGame(); scoreShow(g); }
+        $('sDoors').style.setProperty('--dur', '0s'); paintShow(g, 0); paintShow(g, 4); showScore();
+    } else {
+        $('sDoors').style.setProperty('--dur', (T < 300 ? 0 : Math.min(0.5, T / 2600)) + 's');
+        if (!A.game) { A.game = newShowGame(); A.t0 = now; paintShow(A.game, 0); }
+        const f = (now - A.t0) / T, ph = f < 0.12 ? 0 : f < 0.32 ? 1 : f < 0.55 ? 2 : f < 0.72 ? 3 : 4;
+        if (ph !== A.game.phase) { for (let p = A.game.phase + 1; p <= ph; p++) paintShow(A.game, p); A.game.phase = ph; if (ph === 4) { scoreShow(A.game); showScore(); } }
+        if (f >= 1) A.game = null;
+    }
+    sRaf = requestAnimationFrame(showLoop);
+}
+const sStart = () => { if (!sRaf && A.on) sRaf = requestAnimationFrame(showLoop); };
+$('sPlay').addEventListener('click', () => { A.on = !A.on; $('sPlay').textContent = A.on ? '■ 止める' : '▶ 延々と遊ぶ'; $('sPlay').classList.toggle('on', A.on); if (A.on) { A.game = null; sStart(); } });
+document.querySelectorAll('[data-sp]').forEach(b => b.addEventListener('click', () => { A.sp = +b.dataset.sp; document.querySelectorAll('[data-sp]').forEach(x => x.classList.toggle('on', x === b)); A.game = null; }));
+$('sReset').addEventListener('click', showReset);
+$('nD').addEventListener('input', () => showReset());
+$('sPlay').textContent = '■ 止める';
+showReset(); sStart();
 newGame(); showMine(); fitChart(); showSim();
 window.monty = { G, M };   // 確かめ用
 })();
