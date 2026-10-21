@@ -1002,7 +1002,7 @@
                         <span id="panpad-text" class="text-[11px]">→ 移動パッド: OFF</span>
                     </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button>
-                    <div id="texfont-group" class="flex items-center gap-2 pl-2.5 pr-2 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前の札（x y z w v、6次元の窓では u も）の書体と、小文字／大文字。セリフ＝数学の教科書・論文と同じ TeX の斜体、サンセリフ＝飾りのないまっすぐな字（3D ソフト風）。説明の文字（+X の胞、X-W の回転など）は変わらない。同じ部品を使う 6次元アプリ・n次元ビューアにも効く"><span class="flex items-center gap-1"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px]">軸の書体</span></span><div style="display:grid;grid-template-columns:auto auto auto;gap:3px 4px;align-items:center"><span></span><span class="text-[10px] text-slate-500 text-center">小文字</span><span class="text-[10px] text-slate-500 text-center">大文字</span><span class="text-[10px] text-slate-400">セリフ</span><button type="button" data-texfont="serif" data-case="lower" title="セリフ・小文字（教科書の書き方）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">xyz</button><button type="button" data-texfont="serif" data-case="upper" title="セリフ・大文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">XYZ</button><span class="text-[10px] text-slate-400">サンセリフ</span><button type="button" data-texfont="sans" data-case="lower" title="サンセリフ・小文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">xyz</button><button type="button" data-texfont="sans" data-case="upper" title="サンセリフ・大文字（3D ソフト風）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">XYZ</button></div></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。展開図の並べ表示・回転マトリクス・分解・見え方。下の段の「ばらす」で立方体まで・結晶ばらし・連鎖ばらし（「6次元アプリ」で元のアプリも開ける）。ほかの画面には影響しない"><i data-lucide="box" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体: OFF</span></button><div id="wslice-group" class="flex items-center gap-1.5 flex-wrap pl-1 pr-2 py-1 bg-slate-800/80 border border-pink-700/50 text-slate-300 rounded-xl text-xs" title="w の輪切り：超立方体の中には、同じ大きさの立方体が w の方向に無限に重なって詰まっています（立方体の中に正方形が無限に重なっているのと同じ）。そのうちの w ＝ 一定の 1 枚（断面）を描きます。遠近では、底（−W の胞＝内側の小さい立方体）から、ふた（+W の胞＝外側の大きい立方体）まで、膨らみながら動いて見えます。左の立方体には、1 次元下げた同じもの＝z の輪切り（正方形）を同じ位置に描きます（立方体を真上から見ると、正方形が入れ子に重なって見え、超立方体の見え方と比べられます）。組み上がっている時だけ"><button id="wslice-btn" type="button" class="flex items-center gap-1 px-1.5 py-0.5 rounded-lg hover:bg-slate-700 transition"><i data-lucide="layers" class="w-3.5 h-3.5 text-pink-300"></i><span id="wslice-text" class="text-[11px]">w の輪切り: OFF</span></button><input id="wslice-slider" type="range" min="-100" max="100" step="1" value="0" style="width:96px;accent-color:#f472b6" title="輪切りの位置 w（左端＝底 −W、右端＝ふた +W）"><span id="wslice-val" class="text-[10px] text-slate-400" style="min-width:76px">w = 0.00</span><button id="wslice-play" type="button" class="px-1.5 py-0.5 rounded-lg border border-slate-600 hover:bg-slate-700 text-[11px]" title="底からふたまで、輪切りを行ったり来たり動かす">▶ 動かす</button><button id="wslice-stack" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="重ねる：手前（ふた +W）から奥（底 −W）へ、走る 1 枚が通ったあとに輪切りの立方体を置いていく。1 周ごとに間を半分に割って枚数を倍に（2 → 3 → 5 → 9 → … → 257 枚）。いくら細かくしても、間にまだ入る＝超立方体の中には立方体が無限に詰まっている。左の立方体にも同じように正方形を重ねる。くり返し動く">▶ 重ねる</button><button id="wslice-pack" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="4D空間積分（重ねる のくり返し版。超立方体の 4次元の体積を ∫ V(w) dw で求めるのを目で見る）：立方体が w の外（ふた +W のさらに先＝大きく写る）から w の方向に 1 個ずつ入ってきて（41 個、だんだん速く）、奥（底 −W）から順に敷きつめ、いっぱいになったら手前から順に外へ出していく。これだけを止めるまでくり返す（1 回り約 20 秒）。外から来る立方体も窓に収まるように、その間は少し引いて見せる。回転には触らないので、全軸を回しながら見られる。左の立方体には正方形が上から入ってくる">▶ 4D空間積分</button><button id="wslice-packpause" type="button" disabled class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" style="opacity:0.4" title="4D空間積分を一時停止／再開。止めている間も、形と式はそのまま見られ、回転・拡大もできる">⏸ 一時停止</button><span class="flex items-center gap-1" title="区分求積：w の −1〜+1 を n 個に分けて、立方体（体積 8）× Δw（＝2/n）を n 個足す。超立方体は断面がどこでも同じ立方体なので、n をいくつにしても和は 16 ぴったり（超球のように断面が変わる形だと、n を増やすほど本当の値に近づく）"><span class="text-[10px] text-slate-400">区分求積</span><input id="wslice-packn" type="range" min="2" max="128" step="1" value="41" style="width:84px;accent-color:#f472b6"><span id="wslice-packn-val" class="text-[10px] text-slate-400" style="min-width:92px">n＝41</span></span><button id="wslice-tour" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="横から見る：① X-W を 90° 回して平行投影へ＝w の方向が画面の横の幅になる（輪切りは横に並ぶ板、両端が ふた +W と 底 −W）。② 輪切りを 1 枚ずつ取り出して、フィルムのコマのように横一列に並べる（どれもふつうの立方体。最初より前・最後より後のコマは無い＝奥の立方体の裏は超立方体の外）。③ もとに戻す。約 18 秒。左の立方体の正方形も同じ手順">▶ 横から見る</button><button id="wslice-tourin" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="外から重ねる（横から見る の逆）：① w を横に倒した超立方体（中身は空）へ、② 同じ大きさの立方体が外から 1 個ずつやって来て、w の方向につぶれて（平面化して）中を埋めていく（だんだん速く、15 個）、③ w を奥行きに戻すと、入れ子の立方体＝超立方体の中身になる。④ 横に倒して、今度は取り出す（板が壁まで滑り、立方体に戻って外へ）。敷きつめる⇔取り出す を止めるまでくり返す。左の立方体の正方形も同じ手順">▶ 外から重ねる</button><button id="wslice-tourcmp" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="見比べる：輪切り 1 枚を 底 ⇔ ふた に動かし続けたまま、w を「奥行き」⇔「横の幅」に何度も切り替える（止めるまでくり返す、1 回り約 20 秒）。奥行きの時は真ん中の立方体をすり抜けて膨らむように見え、横の時は壁で止まる＝あいだには w の空（くう）がある。左の立方体の z の輪切り（正方形）も同じ">▶ 見比べる</button><select id="wslice-n" class="bg-slate-900 border border-slate-600 rounded-md text-[11px] px-1 py-0.5" title="同時に描く輪切りの枚数（何枚も描くと、中身が詰まっている様子＝入れ子の立方体の重なりが見える）"><option value="1">1 枚</option><option value="5">5 枚</option><option value="9">9 枚</option><option value="17">17 枚</option></select></div></div>
+                    <div id="texfont-group" class="flex items-center gap-2 pl-2.5 pr-2 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前の札（x y z w v、6次元の窓では u も）の書体と、小文字／大文字。セリフ＝数学の教科書・論文と同じ TeX の斜体、サンセリフ＝飾りのないまっすぐな字（3D ソフト風）。説明の文字（+X の胞、X-W の回転など）は変わらない。同じ部品を使う 6次元アプリ・n次元ビューアにも効く"><span class="flex items-center gap-1"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px]">軸の書体</span></span><div style="display:grid;grid-template-columns:auto auto auto;gap:3px 4px;align-items:center"><span></span><span class="text-[10px] text-slate-500 text-center">小文字</span><span class="text-[10px] text-slate-500 text-center">大文字</span><span class="text-[10px] text-slate-400">セリフ</span><button type="button" data-texfont="serif" data-case="lower" title="セリフ・小文字（教科書の書き方）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">xyz</button><button type="button" data-texfont="serif" data-case="upper" title="セリフ・大文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">XYZ</button><span class="text-[10px] text-slate-400">サンセリフ</span><button type="button" data-texfont="sans" data-case="lower" title="サンセリフ・小文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">xyz</button><button type="button" data-texfont="sans" data-case="upper" title="サンセリフ・大文字（3D ソフト風）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">XYZ</button></div></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。展開図の並べ表示・回転マトリクス・分解・見え方。下の段の「ばらす」で立方体まで・結晶ばらし・連鎖ばらし（「6次元アプリ」で元のアプリも開ける）。ほかの画面には影響しない"><i data-lucide="box" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体: OFF</span></button><div id="wslice-group" class="flex items-center gap-1.5 flex-wrap pl-1 pr-2 py-1 bg-slate-800/80 border border-pink-700/50 text-slate-300 rounded-xl text-xs" title="w の輪切り：超立方体の中には、同じ大きさの立方体が w の方向に無限に重なって詰まっています（立方体の中に正方形が無限に重なっているのと同じ）。そのうちの w ＝ 一定の 1 枚（断面）を描きます。遠近では、底（−W の胞＝内側の小さい立方体）から、ふた（+W の胞＝外側の大きい立方体）まで、膨らみながら動いて見えます。左の立方体には、1 次元下げた同じもの＝z の輪切り（正方形）を同じ位置に描きます（立方体を真上から見ると、正方形が入れ子に重なって見え、超立方体の見え方と比べられます）。組み上がっている時だけ"><button id="wslice-btn" type="button" class="flex items-center gap-1 px-1.5 py-0.5 rounded-lg hover:bg-slate-700 transition"><i data-lucide="layers" class="w-3.5 h-3.5 text-pink-300"></i><span id="wslice-text" class="text-[11px]">w の輪切り: OFF</span></button><input id="wslice-slider" type="range" min="-100" max="100" step="1" value="0" style="width:96px;accent-color:#f472b6" title="輪切りの位置 w（左端＝底 −W、右端＝ふた +W）"><span id="wslice-val" class="text-[10px] text-slate-400" style="min-width:76px">w = 0.00</span><button id="wslice-play" type="button" class="px-1.5 py-0.5 rounded-lg border border-slate-600 hover:bg-slate-700 text-[11px]" title="底からふたまで、輪切りを行ったり来たり動かす">▶ 動かす</button><button id="wslice-stack" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="重ねる：手前（ふた +W）から奥（底 −W）へ、走る 1 枚が通ったあとに輪切りの立方体を置いていく。1 周ごとに間を半分に割って枚数を倍に（2 → 3 → 5 → 9 → … → 257 枚）。いくら細かくしても、間にまだ入る＝超立方体の中には立方体が無限に詰まっている。左の立方体にも同じように正方形を重ねる。くり返し動く">▶ 重ねる</button><button id="wslice-pack" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="4D空間積分（重ねる のくり返し版。超立方体の 4次元の体積を ∫ V(w) dw で求めるのを目で見る）：立方体が w の外（ふた +W のさらに先＝大きく写る）から w の方向に 1 個ずつ入ってきて（41 個、だんだん速く）、奥（底 −W）から順に敷きつめ、いっぱいになったら手前から順に外へ出していく。これだけを止めるまでくり返す（1 回り約 20 秒）。外から来る立方体も窓に収まるように、その間は少し引いて見せる。回転には触らないので、全軸を回しながら見られる。左の立方体には正方形が上から入ってくる">▶ 4D空間積分</button><button id="wslice-packpause" type="button" disabled class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" style="opacity:0.4" title="4D空間積分を一時停止／再開。止めている間も、形と式はそのまま見られ、回転・拡大もできる">⏸ 一時停止</button><button id="wslice-rainbow" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="4D空間積分の区分（1 個ずつの立方体）を、w の位置ごとにレインボーに（底 −W＝赤 … ふた +W＝紫）。色が並んでいく方向が、目に見えない w の方向＝謎の空間">🌈 レインボー: ON</button><button id="wslice-skin" type="button" class="px-1.5 py-0.5 rounded-lg border border-amber-600/60 hover:bg-slate-700 text-[11px]" title="皮の輪切り（展開図・折りたたみの途中でも見られる）：模型の 8 個の胞（3次元の皮）を w ＝ 一定で切る。w に傾いた胞の断面は平らな板（3次元の体積 0）、w に厚みの無い胞はちょうどその w の一瞬だけ立方体まるごと。だから ∫ V(w) dw ＝ 0＝皮には 4次元の体積が無い。折りたたみのスライダーを動かしながら見られる">▶ 皮の輪切り</button><span class="flex items-center gap-1" title="区分求積：w の −1〜+1 を n 個に分けて、立方体（体積 8）× Δw（＝2/n）を n 個足す。超立方体は断面がどこでも同じ立方体なので、n をいくつにしても和は 16 ぴったり（超球のように断面が変わる形だと、n を増やすほど本当の値に近づく）"><span class="text-[10px] text-slate-400">区分求積</span><input id="wslice-packn" type="range" min="2" max="128" step="1" value="41" style="width:84px;accent-color:#f472b6"><span id="wslice-packn-val" class="text-[10px] text-slate-400" style="min-width:92px">n＝41</span></span><button id="wslice-tour" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="横から見る：① X-W を 90° 回して平行投影へ＝w の方向が画面の横の幅になる（輪切りは横に並ぶ板、両端が ふた +W と 底 −W）。② 輪切りを 1 枚ずつ取り出して、フィルムのコマのように横一列に並べる（どれもふつうの立方体。最初より前・最後より後のコマは無い＝奥の立方体の裏は超立方体の外）。③ もとに戻す。約 18 秒。左の立方体の正方形も同じ手順">▶ 横から見る</button><button id="wslice-tourin" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="外から重ねる（横から見る の逆）：① w を横に倒した超立方体（中身は空）へ、② 同じ大きさの立方体が外から 1 個ずつやって来て、w の方向につぶれて（平面化して）中を埋めていく（だんだん速く、15 個）、③ w を奥行きに戻すと、入れ子の立方体＝超立方体の中身になる。④ 横に倒して、今度は取り出す（板が壁まで滑り、立方体に戻って外へ）。敷きつめる⇔取り出す を止めるまでくり返す。左の立方体の正方形も同じ手順">▶ 外から重ねる</button><button id="wslice-tourcmp" type="button" class="px-1.5 py-0.5 rounded-lg border border-pink-700/60 hover:bg-slate-700 text-[11px]" title="見比べる：輪切り 1 枚を 底 ⇔ ふた に動かし続けたまま、w を「奥行き」⇔「横の幅」に何度も切り替える（止めるまでくり返す、1 回り約 20 秒）。奥行きの時は真ん中の立方体をすり抜けて膨らむように見え、横の時は壁で止まる＝あいだには w の空（くう）がある。左の立方体の z の輪切り（正方形）も同じ">▶ 見比べる</button><select id="wslice-n" class="bg-slate-900 border border-slate-600 rounded-md text-[11px] px-1 py-0.5" title="同時に描く輪切りの枚数（何枚も描くと、中身が詰まっている様子＝入れ子の立方体の重なりが見える）"><option value="1">1 枚</option><option value="5">5 枚</option><option value="9">9 枚</option><option value="17">17 枚</option></select></div></div>
                 <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
@@ -4296,7 +4296,7 @@
             wTourCaption(''); syncWSliceUI(); requestRender(30);
         }
         function wTourStart(script, btn) {
-            wSlice.stack = false; wSlice.pack = false; wSlice.play = false; wSlice.on = true;
+            wSlice.stack = false; wSlice.pack = false; wSlice.play = false; wSlice.on = true; wSkin.on = false;
             linkSpin = spinX = spinY = soloSpinZW = false; if (typeof updateSpinBtns === 'function') updateSpinBtns();
             axisTween = null;
             wTour.ax0 = linkAngleX; wTour.pj0 = projAnim !== null ? projAnim : (parallel4D ? 1 : 0);
@@ -4322,6 +4322,7 @@
         }
         // 「敷きつめる」：立方体が w の外（ふた +W のさらに先、遠近で大きく写る）から w の方向に 1 個ずつ入ってきて、奥（底 −W）から順に敷きつめ、
         //   いっぱいになったら（暗くなる前に）手前から順に外へ出していく。これだけを止めるまでくり返す。回転には触らない＝全軸を回しながら見られる
+        let wPackRainbow = true; try { wPackRainbow = localStorage.getItem('hypercubePackRainbow') !== '0'; } catch (_) {}   // 4D空間積分の区分をレインボーに（w の方向＝謎の空間が色の並びで見える）
         const WPACK = { N: 41, OUT: 3.0, D: 1.3, HOLD: 1.4, EMPTY: 0.8 };   // 個数・出発点（t、1＝ふた）・1 個の移動秒・いっぱいで止める秒・空で止める秒
         let WPACK_ST = [];   // 次が出るまで：はじめはゆっくり、だんだん速く（空間を積分していく感じ）。分割数が多いほど後半を速く（1 回りの長さはだいたい同じ）
         function wPackSetN(n) {
@@ -4340,7 +4341,9 @@
                 const p = filling ? Math.max(0, Math.min(1, (t - WPACK_ST[k]) / P.D)) : 1 - Math.max(0, Math.min(1, (t - fillT - P.HOLD - WPACK_ST[P.N - 1 - k]) / P.D));   // 入る：奥の段から／出る：手前の段から
                 if (p <= 0) continue;
                 const tt = P.OUT + (tk - P.OUT) * sm(p);
-                out.push({ t: tt, a: Math.max(0, Math.min(1, (P.OUT - tt) / 0.6)) });
+                const o = { t: tt, a: Math.max(0, Math.min(1, (P.OUT - tt) / 0.6)) };
+                if (wPackRainbow) { const c = new THREE.Color().setHSL(0.82 * k / Math.max(1, P.N - 1), 1, 0.58); o.rgb = [c.r, c.g, c.b]; }   // レインボー：w の位置ごとに色（底 −W＝赤 … ふた +W＝紫）
+                out.push(o);
                 sum += sm((p - 0.85) / 0.15);   // 自分の段に着いた分だけ足す（積分の Σ）
             }
             wSlice.packSum = sum;
@@ -4363,6 +4366,107 @@
             wSlice.packN = out.length; wSlice.packIn = filling;
             return out;
         }
+        // ===== 皮の輪切り（展開図・折りたたみの途中でも）=====
+        //   超立方体の模型（展開図・組み上がり）は 8 個の胞＝3次元の「皮」だけ。w ＝ c の超平面で切ると、w の方向に傾いた胞の断面は平らな板（多角形）＝3次元の体積 0。
+        //   w の方向に厚みの無い胞（展開図の全部・組み上がりの底とふた）は、ちょうどその w の時だけ立方体まるごと現れる（幅 0 の一瞬）。
+        //   なので ∫ V(w) dw ＝ 0（皮には 4次元の体積が無い）。断面の面積の合計 A(w) と、皮の 3次元の体積 8×8＝64 も出す
+        const wSkin = { on: false, t: 0, last: 0, line: null, face: null, c: 0, area: 0, flat: 0, hud: null };
+        const WSKIN_PERIOD = 7;   // 輪切りが 下→上→下 と 1 往復する秒数
+        function updateSkinSlice(progress) {
+            const r3 = scene3D && scene3D.getObjectByName('Root3D'); if (!r3) return;
+            const MAXV = 1200;
+            if (!wSkin.line) {
+                const lg = new THREE.BufferGeometry();
+                lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXV * 3), 3));
+                lg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXV * 3), 3));
+                wSkin.line = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 1, depthTest: false }));
+                const fg = new THREE.BufferGeometry();
+                fg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXV * 3), 3));
+                fg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXV * 3), 3));
+                wSkin.face = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+                wSkin.line.renderOrder = 999; wSkin.face.renderOrder = 998; wSkin.line.frustumCulled = wSkin.face.frustumCulled = false;
+                r3.add(wSkin.face, wSkin.line);
+            }
+            const show = wSkin.on && explodeE() < 0.05;
+            wSkin.line.visible = wSkin.face.visible = show;
+            updateSkinHUD(show);
+            if (!show) return;
+            const now = performance.now(), dt = Math.min(0.1, (now - (wSkin.last || now)) / 1000); wSkin.last = now;
+            wSkin.t += dt; requestRender(2);
+            // いまの折りたたみでの 8 個の胞（4D、回す前）
+            const cells = [0, 1, 2, 3, 4, 5, 6, 7].map(c => cellVerts4D(c, progress));
+            let wMin = -HALF_S, wMax = HALF_S;
+            cells.forEach(v => v.forEach(q => { wMin = Math.min(wMin, q[3]); wMax = Math.max(wMax, q[3]); }));
+            const pad = 0.12, lo = wMin - pad, hi = wMax + pad;
+            const c = lo + (hi - lo) * (0.5 - 0.5 * Math.cos(2 * Math.PI * wSkin.t / WSKIN_PERIOD));
+            wSkin.c = c;
+            const rot = rot4List(linkAngleX, linkAngleY), pb = projBlendNow();
+            const toScreen = g => ndProject(NDGeom.rotatePoint([g[0] * sqK('x'), g[1] * sqK('y'), g[2] * sqK('z'), g[3]], rot), pb);
+            const P = wSkin.line.geometry.attributes.position.array, C = wSkin.line.geometry.attributes.color.array;
+            const FP = wSkin.face.geometry.attributes.position.array, FC = wSkin.face.geometry.attributes.color.array;
+            let li = 0, fi = 0, area = 0, flat = 0, flatW = 0;
+            const col = new THREE.Color();
+            const putL = (a, b, k) => { [a, b].forEach(v => { if (li + 3 > P.length) return; P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * k; C[li + 1] = col.g * k; C[li + 2] = col.b * k; li += 3; }); };
+            const putT = (a, b, d, k) => { [a, b, d].forEach(v => { if (fi + 3 > FP.length) return; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * k; FC[fi + 1] = col.g * k; FC[fi + 2] = col.b * k; fi += 3; }); };
+            cells.forEach((v, ci) => {
+                const rgb = CELL_RGB[ci] || { r: 1, g: 1, b: 1 }; col.setRGB(rgb.r, rgb.g, rgb.b).lerp(new THREE.Color(1, 1, 1), 0.35);
+                const ws = v.map(q => q[3]), w0 = Math.min(...ws), w1 = Math.max(...ws);
+                if (w1 - w0 < 1e-6) {   // w に厚みの無い胞：輪切りがちょうど通る時だけ、立方体まるごと（幅 0 の一瞬）
+                    const k = Math.max(0, 1 - Math.abs(c - w0) / 0.15); if (k <= 0) return;   // 一瞬だと見逃すので、前後 0.15 で ふわっと出して消す
+                    if (Math.abs(c - w0) < 0.05) { flat++; flatW = w0; }
+                    const vs = v.map(toScreen);
+                    WS_EDGES.forEach(([a, b]) => putL(vs[a], vs[b], 0.95 * k));
+                    WS_QUADS.forEach(q => { putT(vs[q[0]], vs[q[1]], vs[q[2]], 0.25 * k); putT(vs[q[0]], vs[q[2]], vs[q[3]], 0.25 * k); });
+                    return;
+                }
+                if (c < w0 || c > w1) return;
+                // 傾いた胞：12 本の辺と超平面 w＝c の交点 → 平らな多角形（断面）
+                const pts = [];
+                WS_EDGES.forEach(([a, b]) => {
+                    const A = v[a], B = v[b], da = A[3] - c, db = B[3] - c;
+                    if ((da < 0 && db < 0) || (da > 0 && db > 0) || Math.abs(da - db) < 1e-12) return;
+                    const s = da / (da - db), q = [0, 1, 2, 3].map(i => A[i] + (B[i] - A[i]) * s);
+                    if (!pts.some(o => Math.hypot(o[0] - q[0], o[1] - q[1], o[2] - q[2], o[3] - q[3]) < 1e-6)) pts.push(q);
+                });
+                if (pts.length < 3) return;
+                // 断面の平面の中で角度順に並べる（重心から 2 本の直交する向き）
+                const cen = [0, 1, 2, 3].map(i => pts.reduce((t, q) => t + q[i], 0) / pts.length);
+                const sub = (a, b) => a.map((x, i) => x - b[i]), dot = (a, b) => a.reduce((t, x, i) => t + x * b[i], 0);
+                let e1 = sub(pts[0], cen); const n1 = Math.hypot(...e1); if (n1 < 1e-9) return; e1 = e1.map(x => x / n1);
+                let e2 = null;
+                for (const q of pts) { let d = sub(q, cen); d = d.map((x, i) => x - dot(d, e1) * e1[i]); const n = Math.hypot(...d); if (n > 1e-6) { e2 = d.map(x => x / n); break; } }
+                if (!e2) return;
+                const poly = pts.map(q => { const d = sub(q, cen); return { q, x: dot(d, e1), y: dot(d, e2) }; }).sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x));
+                for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; area += (a.x * b.y - b.x * a.y) / 2; }
+                const vs = poly.map(o => toScreen(o.q)), vc = toScreen(cen);
+                for (let i = 0; i < vs.length; i++) { const a = vs[i], b = vs[(i + 1) % vs.length]; putL(a, b, 1); putT(vc, a, b, 0.5); }
+            });
+            wSkin.area = Math.abs(area); wSkin.flat = flat;
+            if (flat) { wSkin.flatHold = 1.0; wSkin.flatN = flat; wSkin.flatW = flatW; } else wSkin.flatHold = Math.max(0, (wSkin.flatHold || 0) - dt);   // 字幕は 1 秒残す
+            wSkin.line.geometry.setDrawRange(0, li / 3); wSkin.face.geometry.setDrawRange(0, fi / 3);
+            wSkin.line.geometry.attributes.position.needsUpdate = wSkin.line.geometry.attributes.color.needsUpdate = true;
+            wSkin.face.geometry.attributes.position.needsUpdate = wSkin.face.geometry.attributes.color.needsUpdate = true;
+        }
+        function updateSkinHUD(show) {
+            let el = wSkin.hud;
+            if (!show) { if (el) el.style.display = 'none'; return; }
+            if (!el) {
+                const host = renderer3D && renderer3D.domElement.parentElement; if (!host) return;
+                if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+                el = wSkin.hud = document.createElement('div');
+                el.style.cssText = 'position:absolute;left:50%;bottom:84px;transform:translateX(-50%);min-width:250px;max-width:94%;padding:7px 14px 9px;border-radius:14px;background:rgba(15,23,42,0.84);border:1px solid rgba(251,191,36,0.5);color:#f8fafc;font-size:12px;line-height:1.55;text-align:center;pointer-events:none;z-index:30;font-variant-numeric:tabular-nums';
+                host.appendChild(el);
+            }
+            el.style.display = '';
+            const u = 2 / S, sg = x => (x < -0.0005 ? '−' : '+') + Math.abs(x).toFixed(2);   // 表示は一辺 2（−1〜+1）にそろえる
+            const cw = wSkin.c * u, A = wSkin.area * u * u, pct = Math.round(animationProgress * 100);
+            el.innerHTML = '<div style="color:#fde68a">皮（8 個の胞）の輪切り　折りたたみ ' + pct + '%</div>'
+                + '<div>w ＝ <b style="color:#fde68a">' + sg(cw) + '</b>　断面：' + (A > 1e-4 ? '平らな板　面積 A(w) ＝ <b>' + A.toFixed(2) + '</b>' : 'なし') + '</div>'
+                + (wSkin.flatHold > 0 ? '<div style="color:#fde68a">w ＝ ' + sg(wSkin.flatW * u) + ' の一瞬だけ：立方体まるごと ' + wSkin.flatN + ' 個（w の幅 0 ＝ 積分には効かない）</div>' : '')
+                + '<div>断面の 3次元の体積 V(w) ＝ <b>0</b></div>'
+                + '<div style="font-size:15px;font-family:TeXMath,Georgia,serif"><span style="font-size:20px">∫</span> V(w) dw ＝ <b style="color:#fde68a">0</b>　（皮には 4次元の体積が無い）</div>'
+                + '<div style="color:#94a3b8;font-size:10px">皮の 3次元の体積は 8 個 × 8 ＝ 64。中身（4次元の体積 16）は「▶ 4D空間積分」で</div>';
+        }
         // 敷きつめるの「積分」表示：着いた立方体の体積 × Δw を足していく（リーマン和）→ 全部そろうと超立方体の 4次元の体積 2⁴＝16。左の立方体は 正方形の面積 × Δz → 体積 8
         const wPackHUD = { 3: null, 2: null };
         function updatePackHUD() {
@@ -4383,7 +4487,7 @@
                 const sg = x => (x < -0.0005 ? '−' : '+') + Math.abs(x).toFixed(2);
                 el.innerHTML = '<div style="font-size:17px;font-family:TeXMath,Georgia,serif"><span style="font-size:24px">∫</span><sub>−1</sub><sup style="color:#fbcfe8">' + sg(wf) + '</sup> V(' + ax + ') d' + ax + '　＝　<span style="font-size:24px">∫</span><sub>−1</sub><sup style="color:#fbcfe8">' + sg(wf) + '</sup> ' + unit + ' d' + ax + '　＝　' + unit + '（' + ax + '＋1）</div>'
                     + '<div style="color:#cbd5e1">いま ' + ax + ' ＝ <b style="color:#fbcfe8">' + sg(wf) + '</b> まで敷きつめた（' + what + '）</div>'
-                    + '<div style="margin:5px 0 3px;height:8px;border-radius:5px;background:rgba(148,163,184,0.25);overflow:hidden"><div style="height:100%;width:' + pct.toFixed(1) + '%;background:linear-gradient(90deg,#22d3ee,#f472b6)"></div></div>'
+                    + '<div style="margin:5px 0 3px;height:8px;border-radius:5px;background:rgba(148,163,184,0.25);overflow:hidden"><div style="height:100%;width:' + pct.toFixed(1) + '%;background:' + (wPackRainbow ? 'linear-gradient(90deg,#ff4d4d,#ffb84d,#f5f54d,#4dff6a,#4dd2ff,#7a5cff,#d24dff);background-size:' + (100 / Math.max(0.01, pct / 100)).toFixed(0) + '% 100%' : 'linear-gradient(90deg,#22d3ee,#f472b6)') + '"></div></div>'
                     + '<div>＝ <b style="font-size:16px;color:#fbcfe8">' + val.toFixed(3) + '</b> ／ ' + full + '（' + fullName + '）' + (wSlice.packIn ? '　敷きつめ中' : '　取り出し中') + '</div>'
                     + '<div style="color:#64748b;font-size:10px">演出：区分求積 n＝' + N + '（立方体 1 個＝厚み Δ' + ax + '＝' + (2 / N).toFixed(3) + '）</div>';
             });
@@ -4453,7 +4557,7 @@
             const col = new THREE.Color(), base = new THREE.Color(0xf8fafc);
             let li = 0, fi = 0;
             const list = wSliceList(); if (wSlice.stack || wSlice.pack) syncWSliceUI();
-            list.forEach(({ t, a, one, aL = 1, aF = 1, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD, wh = 0 }) => {
+            list.forEach(({ t, a, one, aL = 1, aF = 1, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD, wh = 0, rgb }) => {
                 const w = t * HALF_S;
                 let vs = unitCubeVertices.map(u => {
                     const g = [u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), w];
@@ -4476,6 +4580,7 @@
                     });
                 }
                 col.copy(base).lerp(t >= 0 ? ZW_TINT_POS : ZW_TINT_NEG, Math.min(1, Math.abs(t) * 0.9 + 0.1) * (1 - wh));   // wh＝白寄りにする割合（敷きつめる）
+                if (rgb) col.setRGB(rgb[0], rgb[1], rgb[2]);   // レインボー（4D空間積分）
                 const L = (one ? 1 : 0.75 * aL) * a * k;
                 WS_EDGES.forEach(([a, b]) => { [vs[a], vs[b]].forEach(v => { P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * L; C[li + 1] = col.g * L; C[li + 2] = col.b * L; li += 3; }); });
                 const F = (one ? 1 : 0.45 * aF) * a * k;
@@ -4522,7 +4627,7 @@
             const FP = wSlice.face2.geometry.attributes.position.array, FC = wSlice.face2.geometry.attributes.color.array;
             const col = new THREE.Color(), base = new THREE.Color(0xf8fafc), H = HALF_S;
             let li = 0, fi = 0;
-            wSliceList().forEach(({ t, a, one, aL = 1, aF = 1, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD, wh = 0 }) => {
+            wSliceList().forEach(({ t, a, one, aL = 1, aF = 1, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD, wh = 0, rgb }) => {
                 const z = t * H; let vs = [pt(-H, -H, z), pt(H, -H, z), pt(H, H, z), pt(-H, H, z)];
                 const fm = film !== undefined ? film : wTour.on ? wTour.film : 0;
                 if (slide !== undefined) {   // 外から重ねる：正方形が飛んできて、ふた の壁でつぶれて線（板）になり、自分の段へ
@@ -4535,6 +4640,7 @@
                     vs = vs.map((v, j) => [0, 1, 2].map(d => v[d] + (fv[j][d] + c[d] * sp + top[d] * E - v[d]) * fm));
                 }
                 col.copy(base).lerp(t >= 0 ? ZW_TINT_POS : ZW_TINT_NEG, Math.min(1, Math.abs(t) * 0.9 + 0.1) * (1 - wh));   // wh＝白寄りにする割合（敷きつめる）
+                if (rgb) col.setRGB(rgb[0], rgb[1], rgb[2]);   // レインボー（4D空間積分）
                 const L = (one ? 1 : 0.75 * aL) * a * kW, F = (one ? 1 : 0.45 * aF) * a * kW;
                 [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { [vs[a], vs[b]].forEach(v => { P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * L; C[li + 1] = col.g * L; C[li + 2] = col.b * L; li += 3; }); });
                 [0, 1, 2, 0, 2, 3].forEach(i => { const v = vs[i]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * F; FC[fi + 1] = col.g * F; FC[fi + 2] = col.b * F; fi += 3; });
@@ -4554,6 +4660,8 @@
             if (v) v.textContent = wSlice.pack ? (wSlice.packIn ? '敷きつめ ' : '取り出し ') + (wSlice.packN || 0) + ' 個' : wTour.on && wTour.script && wTour.script.osc ? (() => { const t = -Math.cos(2 * Math.PI * (wTour.oscT || 0) / wTour.script.osc); return 'w = ' + (t >= 0 ? '+' : '−') + Math.abs(t * HALF_S).toFixed(2); })() : wTour.on ? '横から見る' : wSlice.stack ? (wSlice.stackN === Infinity ? '∞ 枚（無限）' : (wSlice.stackN || 1) + ' 枚 重ねた') : wSlice.n > 1 ? '底〜ふた ' + wSlice.n + ' 枚' : (dim5 ? 'w = ' : 'z・w = ') + (wSlice.t * HALF_S >= 0 ? '+' : '−') + Math.abs(wSlice.t * HALF_S).toFixed(2) + (wSlice.t <= -0.995 ? '（底）' : wSlice.t >= 0.995 ? '（ふた）' : Math.abs(wSlice.t) < 0.005 ? '（真ん中）' : '');
             const pl = $('wslice-play'); if (pl) { pl.textContent = wSlice.play ? '■ 止める' : '▶ 動かす'; pl.disabled = wSlice.n > 1 || wSlice.stack || wSlice.pack; pl.style.opacity = wSlice.n > 1 || wSlice.stack || wSlice.pack ? 0.4 : 1; }
             const pk = $('wslice-pack'); if (pk) { pk.textContent = wSlice.pack ? '■ 止める' : '▶ 4D空間積分';
+            const rb = $('wslice-rainbow'); if (rb) { rb.textContent = wPackRainbow ? '🌈 レインボー: ON' : '🌈 レインボー: OFF'; rb.classList.toggle('text-pink-200', wPackRainbow); }
+            const sk2 = $('wslice-skin'); if (sk2) { sk2.textContent = wSkin.on ? '■ 止める' : '▶ 皮の輪切り'; sk2.classList.toggle('text-amber-200', wSkin.on); }
             const pp = $('wslice-packpause'); if (pp) { pp.textContent = wSlice.packPause ? '▶ 再開' : '⏸ 一時停止'; pp.disabled = !wSlice.pack; pp.style.opacity = wSlice.pack ? 1 : 0.4; pp.classList.toggle('text-pink-200', !!(wSlice.pack && wSlice.packPause)); }
             const pn = $('wslice-packn'), pv = $('wslice-packn-val'); if (pn && document.activeElement !== pn) pn.value = String(WPACK.N); if (pv) pv.textContent = 'n＝' + WPACK.N + '（Δw＝' + (2 / WPACK.N).toFixed(3) + '）'; pk.classList.toggle('text-pink-200', wSlice.pack); }
             [['wslice-tour', '▶ 横から見る'], ['wslice-tourin', '▶ 外から重ねる'], ['wslice-tourcmp', '▶ 見比べる']].forEach(([id, label]) => { const b = $(id); if (!b) return; const me = wTour.on && wTour.btn === id; b.textContent = me ? '■ 止める' : label; b.classList.toggle('text-pink-200', me); });
@@ -4570,11 +4678,13 @@
             if ($('wslice-tourcmp')) $('wslice-tourcmp').addEventListener('click', () => { const me = wTour.on && wTour.btn === 'wslice-tourcmp'; wTourStop(); if (!me) wTourStart(WTOUR_CMP, 'wslice-tourcmp'); });
             if ($('wslice-tourin')) $('wslice-tourin').addEventListener('click', () => { const me = wTour.on && wTour.btn === 'wslice-tourin'; wTourStop(); if (!me) wTourStart(WTOUR_IN, 'wslice-tourin'); });
             if ($('wslice-packn')) $('wslice-packn').addEventListener('input', e => { wPackSetN(parseInt(e.target.value, 10)); wSlice.packSum = 0; syncWSliceUI(); requestRender(30); });
+            if ($('wslice-skin')) $('wslice-skin').addEventListener('click', () => { wSkin.on = !wSkin.on; wSkin.t = 0; wSkin.last = 0; if (wSkin.on) { wTourStop(); wSlice.pack = wSlice.stack = wSlice.play = false; wSlice.on = false; } syncWSliceUI(); requestRender(30); });
+            if ($('wslice-rainbow')) $('wslice-rainbow').addEventListener('click', () => { wPackRainbow = !wPackRainbow; try { localStorage.setItem('hypercubePackRainbow', wPackRainbow ? '1' : '0'); } catch (_) {} syncWSliceUI(); requestRender(30); });
             if ($('wslice-packpause')) $('wslice-packpause').addEventListener('click', () => { if (!wSlice.pack) return; wSlice.packPause = !wSlice.packPause; wSlice.last = 0; syncWSliceUI(); requestRender(30); });
-            if ($('wslice-pack')) $('wslice-pack').addEventListener('click', () => { wTourStop(); wSlice.stack = false; wSlice.packPause = false; wSlice.pack = !wSlice.pack; wSlice.pt = 0; wSlice.packN = 0; if (wSlice.pack) { wSlice.on = true; wSlice.play = false; } wSlice.last = 0; syncWSliceUI(); requestRender(30); });
-            if ($('wslice-stack')) $('wslice-stack').addEventListener('click', () => { wTourStop(); wSlice.pack = false; wSlice.stack = !wSlice.stack; wSlice.st = 0; wSlice.stackN = 0; if (wSlice.stack) { wSlice.on = true; wSlice.play = false; } wSlice.last = 0; syncWSliceUI(); requestRender(30); });
+            if ($('wslice-pack')) $('wslice-pack').addEventListener('click', () => { wTourStop(); wSkin.on = false; wSlice.stack = false; wSlice.packPause = false; wSlice.pack = !wSlice.pack; wSlice.pt = 0; wSlice.packN = 0; if (wSlice.pack) { wSlice.on = true; wSlice.play = false; } wSlice.last = 0; syncWSliceUI(); requestRender(30); });
+            if ($('wslice-stack')) $('wslice-stack').addEventListener('click', () => { wTourStop(); wSkin.on = false; wSlice.pack = false; wSlice.stack = !wSlice.stack; wSlice.st = 0; wSlice.stackN = 0; if (wSlice.stack) { wSlice.on = true; wSlice.play = false; } wSlice.last = 0; syncWSliceUI(); requestRender(30); });
             $('wslice-n').addEventListener('change', e => { wSlice.n = parseInt(e.target.value, 10) || 1; if (wSlice.n > 1) { wSlice.on = true; wSlice.play = false; } syncWSliceUI(); requestRender(30); e.target.blur(); });
-            syncWSliceUI();
+            syncWSliceUI(); setTimeout(syncWSliceUI, 0);   // 読み込みの最後にもう一度（保存した設定がボタンの字に出るように）
         })();
         function updateZwGhost(progress, zwOn, visible) {
             const r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r2) return;
@@ -5413,6 +5523,7 @@
             stepWTour();   // 「横から見る」の角度・投影を進める（形を作る前に）
             updateMorphingGeometry(animationProgress);
             updateWSlice(animationProgress);   // w の輪切り（ON の時だけ描く）
+            updateSkinSlice(animationProgress);   // 皮の輪切り（展開図・折りたたみ中でも）
             updateShineLights();   // 照り返しライトの位置（カメラの左上）
             if (show2D) renderer2D.render(scene2D, camera2D);
             if (show3D) renderer3D.render(scene3D, camera3D);
@@ -7116,7 +7227,7 @@
             ];
             // 色と見え方の設定（パレット・補色・頂点の目印の色・辺の強調・表示設定・奥を濃く・照り返し・4Dライト・ズームの大きさ・移動パッドなど）を1つの JSON に
             const COLOR_KEYS = ['hypercubeCellPalette2', 'hypercubePalComp', 'hypercubePalCompCenter', 'hypercubeMarkCol', 'hypercubeFixedMarks', 'hypercubeEdgeHi', 'hypercubeViewCfg',
-                'hypercubeDeep4', 'hypercubeWrap4', 'hypercubeWrap5', 'hypercubeShineThru', 'hypercubeEdge4', 'hypercubeEdge3', 'hypercubeFrameK', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
+                'hypercubeDeep4', 'hypercubeWrap4', 'hypercubeWrap5', 'hypercubeShineThru', 'hypercubeEdge4', 'hypercubeEdge3', 'hypercubeFrameK', 'hypercubePackRainbow', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
                 'hypercubePanPad', 'hypercubePanPadPos', 'hypercubeEco', 'hypercubeNumTex', 'hypercubeDiePips', 'hypercubeDieKind', 'hypercubeAxisSync'];
             const COLOR_FILE = 'hypercube-colors.json';
             const colorsToJSON = () => { const o = {}; COLOR_KEYS.forEach(k => { try { const v = localStorage.getItem(k); if (v !== null) o[k] = v; } catch (_) {} }); return JSON.stringify({ app: 'hypercube', kind: 'colors', v: 1, data: o }, null, 1) + '\n'; };
@@ -8371,7 +8482,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-2044';
+        const APP_BUILD = '20261021-2107';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
