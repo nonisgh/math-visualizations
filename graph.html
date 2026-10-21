@@ -1447,7 +1447,7 @@ function tagLabels(list) {
     ctx.font = '500 10.5px ui-monospace, Menlo, monospace';
     ctx.shadowColor = 'rgba(3,7,18,1)'; ctx.shadowBlur = 5;
     const boxes = [];
-    list.forEach(o => {
+    list.map((o, i) => [o, i]).sort((a, b) => (b[0].rank || 0) - (a[0].rank || 0) || a[1] - b[1]).forEach(([o]) => {   // 優先度（重なりの前後）の高い式から置く
         const w = ctx.measureText(o.text).width;
         let bx = o.align === 'center' ? o.x - w / 2 : o.align === 'right' ? o.x - w : o.x;
         bx = Math.max(2, Math.min(W_ - w - 2, bx));
@@ -2540,7 +2540,7 @@ function drawReal() {
             const px = sx(r.re), py = sy(0);
             if (px < -6 || px > W_ + 6 || py < -6 || py > H_ + 6) return;
             marks.add(px, py, ex.color);
-            if (Math.abs(r.re) > 1e-9) tags.push({ x: px, y: py - 12, align: 'center', text: fmtPt(r.re), color: ex.color });
+            if (Math.abs(r.re) > 1e-9) tags.push({ x: px, y: py - 12, align: 'center', text: fmtPt(r.re), color: ex.color, rank: drawRank(ex) });
         });
         if (ex.kind === 'fn' && ex.fn && !ex.calc) {
             env.x = 0;
@@ -2548,7 +2548,7 @@ function drawReal() {
             if (!isFinite(y) || px < -6 || px > W_ + 6 || py < -6 || py > H_ + 6) return;
             marks.add(px, py, ex.color);
             if (Math.abs(y) * sc < 1) return;   // 原点：値のラベルは要らない
-            tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtPt(y), color: ex.color });
+            tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtPt(y), color: ex.color, rank: drawRank(ex) });
         }
     });
 
@@ -2574,13 +2574,15 @@ function drawReal() {
             if (!isFinite(y) || y < y0 - 1e-9 || y > y1 + 1e-9) return;
             const px = sx(x), py = sy(y);
             if (inter.some(o => Math.hypot(o.px - px, o.py - py) < 2 && o.ca === A.color && o.cb === B.color)) return;
-            inter.push({ x, y, px, py, ca: A.color, cb: B.color, front: drawRank(A) > drawRank(B) ? A.color : B.color });
+            const fr = drawRank(A) > drawRank(B) ? A : B;
+            inter.push({ x, y, px, py, ca: A.color, cb: B.color, front: fr.color, fRank: drawRank(fr) });
         });
     }
     inter.forEach(o => marks.add(o.px, o.py, o.ca, o.cb));
     marks.draw();
     tagLabels(tags);
-    const interU = inter.filter((o, i) => inter.findIndex(q => Math.hypot(q.px - o.px, q.py - o.py) < 3) === i);   // 同じ点のラベルは1つだけ
+    const interU = inter.filter((o, i) => inter.findIndex(q => Math.hypot(q.px - o.px, q.py - o.py) < 3) === i)   // 同じ点のラベルは1つだけ
+        .map(o => { const top = inter.filter(q => Math.hypot(q.px - o.px, q.py - o.py) < 3).reduce((m, q) => q.fRank > m.fRank ? q : m, o); return { ...o, front: top.front }; });   // 何本も通る点は、いちばん優先度の高い式の色
     if (interU.length && interU.length <= 16) {
         ctx.save();
         ctx.font = '600 11px ui-monospace, Menlo, monospace';
@@ -2720,13 +2722,13 @@ function drawRotCurves(env, sx, sy, x0, x1, sc) {
             const px = sx(t), py = sy(0);
             if (px < -6 || px > W_ + 6 || py < -6 || py > H_ + 6) return;
             marks.add(px, py, ex.color);
-            if (cabs(r) > 1e-9) tags.push({ x: px, y: py - 12, align: 'center', text: fmtC(r.re, r.im), color: ex.color });
+            if (cabs(r) > 1e-9) tags.push({ x: px, y: py - 12, align: 'center', text: fmtC(r.re, r.im), color: ex.color, rank: drawRank(ex) });
         });
         cenv.z = C(0); cenv.loop = {};
         const v = ex.cfn(cenv), px = sx(0), py = sy(v.re);
         if (isFinite(v.re) && Math.abs(v.im) <= 1e-9 * (1 + Math.abs(v.re)) && py > -6 && py < H_ + 6 && px > -6 && px < W_ + 6) {
             marks.add(px, py, ex.color);
-            if (Math.abs(v.re) * sc >= 1) tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtPt(v.re), color: ex.color });
+            if (Math.abs(v.re) * sc >= 1) tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtPt(v.re), color: ex.color, rank: drawRank(ex) });
         }
     });
     marks.draw();
