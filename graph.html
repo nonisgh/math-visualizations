@@ -1701,11 +1701,28 @@ function eForm(v) {
 //   ② (p/q)·C·√m：π√2/2、e√3 など
 //   ③ e の半分の累乗：e√e（＝e^(3/2)）、e²√e、1/√e
 //   ④ (a ± b·r)/q（r＝√n・√e・√π・e・π など。√2、(1 + √5)/2、√e + 1、(1 + √e)/2、e − 1、π − 3。b は 1〜8、q は 1・2・3・4・6、|a| ≦ 24）。
+//   ⑤ √(a ± b·C)：√(e + 1)、√(π − 1)、√((e + 1)/2)。
 //   有理数（0.5、2 など）はこれまでどおり小数。ぴったり（相対 1e−11）の時だけ使う
 const SQFREE = [2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23, 26, 29, 30, 31, 33, 34, 35, 37, 38, 39, 41, 42, 43, 46, 47];
 // x が p/q（q は 1・2・3・4・6、|p| ≦ 24）なら [p, q]、違えば null
 function smallFrac(x, tolRel) {
     for (const q of [1, 2, 3, 4, 6]) { const p = Math.round(x * q); if (p !== 0 && Math.abs(p) <= 24 && Math.abs(x * q - p) <= tolRel * Math.max(1, Math.abs(x * q))) { const g = (a, b) => b ? g(b, a % b) : a, d = g(Math.abs(p), q); return [p / d, q / d]; } }
+    return null;
+}
+// (a ± b·r)/q の形を探す（r は RAD の [文字, 値]）。noPure＝a が 0（b·r/q だけ）は使わない
+function linForm(v, RAD, noPure) {
+    const tol = 1e-11 * Math.max(1, Math.abs(v));   // ぴったりの時だけ（でたらめな数が (123 − 2√42)/6 のように見えないよう、きびしめ）
+    for (const q of [1, 2, 3, 4, 6]) for (let b = 1; b <= 8; b++) for (const [rs, r] of RAD) {
+        for (const bb of [b, -b]) {
+            const A = v * q - bb * r, ai = Math.round(A);
+            if (Math.abs(A - ai) > tol * q || Math.abs(ai) > 24 || (noPure && ai === 0)) continue;
+            const term = (b === 1 ? '' : b) + rs;
+            if (ai === 0) return (bb < 0 ? '−' : '') + term + (q === 1 ? '' : '/' + q);
+            const num = bb > 0 && /^[√eπτ]/.test(rs) && !/^√\d/.test(rs) && q === 1 ? term + (ai < 0 ? ' − ' : ' + ') + Math.abs(ai)   // √e + 1・e − 1 のように定数を前に
+                : String(ai).replace('-', '−') + (bb < 0 ? ' − ' : ' + ') + term;
+            return q === 1 ? num : '(' + num + ')/' + q;
+        }
+    }
     return null;
 }
 function sqrtForm(v) {
@@ -1724,20 +1741,13 @@ function sqrtForm(v) {
     for (const k of [3, 5, 7]) if (Math.abs(a - Math.exp(k / 2)) <= tolR * a) return (v < 0 ? '−' : '') + 'e' + (k === 3 ? '' : ({ 5: '²', 7: '³' })[k]) + '√e';   // ③
     if (Math.abs(a - Math.exp(-0.5)) <= tolR) return (v < 0 ? '−' : '') + '1/√e';
     // ④ (a ± b·r)/q：r は √n（平方因子の無い 2〜47）・√e・√π（τ）・√(2e) など・e・π（τ）→ √2、(1 + √5)/2、√e + 1、(1 + √e)/2、e − 1、π − 3、(π + 1)/2
-    const tol = 1e-11 * Math.max(1, a);   // ぴったりの時だけ（でたらめな数が (123 − 2√42)/6 のように見えないよう、きびしめ）
     const [cs, cv] = CS[1];
     const RAD = SQFREE.map(n => ['√' + n, Math.sqrt(n)]).concat([['√e', Math.sqrt(Math.E)], ['√' + cs, Math.sqrt(cv)], ['√(2e)', Math.sqrt(2 * Math.E)], ['√(2' + cs + ')', Math.sqrt(2 * cv)], ['e', Math.E], [cs, cv]]);
-    for (const q of [1, 2, 3, 4, 6]) for (let b = 1; b <= 8; b++) for (const [rs, r] of RAD) {
-        for (const bb of [b, -b]) {
-            const A = v * q - bb * r, ai = Math.round(A);
-            if (Math.abs(A - ai) > tol * q || Math.abs(ai) > 24) continue;
-            const term = (b === 1 ? '' : b) + rs;
-            if (ai === 0) return (bb < 0 ? '−' : '') + term + (q === 1 ? '' : '/' + q);
-            const num = bb > 0 && /^[√eπτ]/.test(rs) && !/^√\d/.test(rs) && q === 1 ? term + (ai < 0 ? ' − ' : ' + ') + Math.abs(ai)   // √e + 1・e − 1 のように定数を前に
-                : String(ai).replace('-', '−') + (bb < 0 ? ' − ' : ' + ') + term;
-            return q === 1 ? num : '(' + num + ')/' + q;
-        }
-    }
+    const lin = linForm(v, RAD);
+    if (lin) return lin;
+    // ⑤ √((a ± b·C)/q)：値の 2 乗が「整数 ± 定数」の形（C＝e・π（τ））→ √(e + 1)、√(π − 1)、√((e + 1)/2)
+    const inner = linForm(v * v, [['e', Math.E], [cs, cv]], true);
+    if (inner) return (v < 0 ? '−' : '') + '√(' + inner + ')';
     return null;
 }
 const constOf = v => ptMode !== 'const' ? null : (piSym === 'tau' ? tauForm(v) : piForm(v)) || eForm(v) || sqrtForm(v);
