@@ -3178,7 +3178,7 @@ function draw3D() {
         const f4 = !ex || !ex.cfn ? null : ex.kind === 'implicit' ? solveLinearY(ex.cfn) : ex.cfn;
         if (f4) { draw4D(ex, f4); return; }
     }
-    const R = d3.R, N = 48, n1 = N + 1;
+    const R = d3.R, CX = d3.cx || 0, N = 60, n1 = N + 1;   // CX＝真ん中の Re x（2D で見ていた所から 3D にした時、その範囲・中心のまま）
     const cyw = Math.cos(d3.yaw), syw = Math.sin(d3.yaw), cp = Math.cos(d3.pitch), sp = Math.sin(d3.pitch);
     const S = Math.min(W_, H_) * 0.33, Dd = 5;
     // 世界座標 X = Re x / R, Z = −Im x / R（奥が +Im）, Y = 高さ
@@ -3200,10 +3200,8 @@ function draw3D() {
         ctx.lineWidth = 1;
         ctx.strokeStyle = '#1a2438';
         ctx.beginPath();
-        for (let t = Math.ceil(-R / step) * step; t <= R + 1e-9; t += step) {
-            line([t / R, 0, -1], [t / R, 0, 1]);
-            line([-1, 0, -t / R], [1, 0, -t / R]);
-        }
+        for (let t = Math.ceil(-R / step) * step; t <= R + 1e-9; t += step) line([-1, 0, -t / R], [1, 0, -t / R]);
+        for (let t = Math.ceil((CX - R) / step) * step; t <= CX + R + 1e-9; t += step) line([(t - CX) / R, 0, -1], [(t - CX) / R, 0, 1]);
         ctx.stroke();
         ctx.fillStyle = 'rgba(30, 41, 59, 0.18)';
         ctx.beginPath();
@@ -3212,20 +3210,24 @@ function draw3D() {
         ctx.strokeStyle = '#334155'; ctx.stroke();
     }
     ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.4;
-    ctx.beginPath(); line([-1.15, 0, 0], [1.15, 0, 0]); line([0, 0, 1.15], [0, 0, -1.15]); ctx.stroke();
+    const OX = Math.abs(CX / R) <= 1 ? -CX / R : 0;   // Im x の軸（Re x = 0）の位置。範囲の外なら真ん中に
+    ctx.beginPath(); line([-1.15, 0, 0], [1.15, 0, 0]); line([OX, 0, 1.15], [OX, 0, -1.15]); ctx.stroke();
     arrowTip(proj(1.0, 0, 0), proj(1.18, 0, 0), '#94a3b8');     // Re x の +
-    arrowTip(proj(0, 0, -1.0), proj(0, 0, -1.18), '#94a3b8');   // Im x の +（奥）
+    arrowTip(proj(OX, 0, -1.0), proj(OX, 0, -1.18), '#94a3b8');   // Im x の +（奥）
 
     ctx.font = '500 10.5px Inter, system-ui, sans-serif'; ctx.textBaseline = 'middle';
-    for (let t = Math.ceil(-R / step) * step; t <= R + 1e-9; t += step) {
+    for (let t = Math.ceil((CX - R) / step) * step; t <= CX + R + 1e-9; t += step) {   // Re x の目盛り（真ん中が CX）
+        if (Math.abs(t) < step * 1e-6) continue;
+        label(fmtTick(t, step), [(t - CX) / R, 0, 0.08], '#64748b');
+    }
+    for (let t = Math.ceil(-R / step) * step; t <= R + 1e-9; t += step) {   // Im x の目盛り
         if (Math.abs(t) < step * 1e-6) continue;
         const s = fmtTick(t, step);
-        label(s, [t / R, 0, 0.08], '#64748b');
-        label(s === '1' ? 'i' : s === '−1' ? '−i' : s + 'i', [0.07, 0, -t / R], '#64748b', 'left');
+        label(s === '1' ? 'i' : s === '−1' ? '−i' : s + 'i', [OX + 0.07, 0, -t / R], '#64748b', 'left');
     }
     ctx.font = '700 12px Inter, system-ui, sans-serif';
     label('Re x', [1.28, 0, 0], '#e2e8f0');
-    label('Im x', [0, 0, -1.3], '#e2e8f0');
+    label('Im x', [OX, 0, -1.3], '#e2e8f0');
 
     // y+25=x^2 のように y について1次の式は、y = … に解いてから描く
     const fC = !ex || !ex.cfn ? null : ex.kind === 'implicit' ? solveLinearY(ex.cfn) : ex.cfn;
@@ -3245,7 +3247,7 @@ function draw3D() {
     for (let j = 0; j < n1; j++) {
         const b = -R + 2 * R * j / N;
         for (let i = 0; i < n1; i++) {
-            const a = -R + 2 * R * i / N;
+            const a = CX - R + 2 * R * i / N;
             env.z = C(a, b); env.loop = {};
             const v = fC(env), k = j * n1 + i;
             if (mode3 === 're') { Hv[k] = v.re; Cv[k] = v.im; }
@@ -3254,7 +3256,7 @@ function draw3D() {
         }
     }
     // 高さの目盛り：式・範囲・種類が変わった時だけ決め直す（n を動かしても揺れないように）
-    const key = [ex.id, ex.text, R, mode3].join('|');
+    const key = [ex.id, ex.text, R, CX, mode3].join('|');
     if (d3Scale.key !== key) {
         const arr = [];
         for (let k = 0; k < Hv.length; k++) if (isFinite(Hv[k])) arr.push(Math.abs(Hv[k]));
@@ -3320,7 +3322,7 @@ function draw3D() {
     ctx.strokeStyle = 'rgba(226,232,240,0.55)'; ctx.lineWidth = 1.2;
     ctx.beginPath(); line([0, -1.5, 0], [0, 1.5, 0]); ctx.stroke();
     arrowTip(proj(0, 1.35, 0), proj(0, 1.55, 0), 'rgba(226,232,240,0.85)');   // 高さの +
-    originDot(proj(0, 0, 0));
+    if (Math.abs(CX / R) <= 1) originDot(proj(-CX / R, 0, 0));
     const ys = niceStep(Yr / 2);
     ctx.font = '500 10.5px Inter, system-ui, sans-serif';
     ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 3;
@@ -3367,15 +3369,15 @@ function draw3D() {
         ctx.strokeStyle = REAL_C; ctx.lineWidth = lineW;
         ctx.beginPath();
         let pen = false;
-        const M = 400;
+        const M = 800;
         for (let m = 0; m <= M; m++) {
-            const a = -R + 2 * R * m / M;
+            const a = CX - R + 2 * R * m / M;
             env.z = C(a, 0); env.loop = {};
             const v = fC(env);
             const Y = v.re / Yr;
             const ok = isFinite(Y) && Math.abs(Y) < CLIP && Math.abs(v.im) <= 1e-9 * (1 + Math.abs(v.re));
             if (!ok) { pen = false; continue; }
-            const p = proj(a / R, Y, 0);
+            const p = proj((a - CX) / R, Y, 0);
             if (pen) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]);
             pen = true;
         }
@@ -3386,8 +3388,8 @@ function draw3D() {
     ctx.shadowBlur = 4; ctx.shadowColor = 'rgba(0,0,0,1)';
     ctx.font = '600 12px ui-monospace, Menlo, monospace';
     (showPts ? ex.roots || [] : []).forEach(r => {
-        if (Math.abs(r.re) > R || Math.abs(r.im) > R) return;
-        const p = proj(r.re / R, 0, -r.im / R);
+        if (Math.abs(r.re - CX) > R || Math.abs(r.im) > R) return;
+        const p = proj((r.re - CX) / R, 0, -r.im / R);
         ringDot(p[0], p[1], ex.color);
         ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
         ctx.fillText(fmtC(r.re, r.im), p[0] + dotR() + 4, p[1] - 3);
@@ -3453,7 +3455,7 @@ function zoomAt(f, px = W_ / 2, py = H_ / 2) {
 $('#zin').addEventListener('click', () => zoomAt(1.5));
 $('#zout').addEventListener('click', () => zoomAt(1 / 1.5));
 $('#zhome').addEventListener('click', () => {
-    if (mode === '3d') Object.assign(d3, { R: 6, yaw: -0.65, pitch: 0.5 });
+    if (mode === '3d') Object.assign(d3, { R: 6, cx: 0, yaw: -0.65, pitch: 0.5 });
     else if (mode === 'c') fitRootsC(); else applyFit({ w: 20, h: 12 }, 'r');
     viewChanged(); save();
 });
@@ -3484,7 +3486,15 @@ function syncModeUI() {
 }
 function setMode(m) {
     if (m !== '4d' && g4) { g4.classList.remove('on'); g4Leaving = false; }
+    const rise = m === '3d' && mode === 'r';
+    if (rise) {   // 2D で見ていた範囲（横幅）と真ん中のまま 3D に。2D と同じ正面から始めて、斜め上へ立ち上がる（x の虚部の向きが奥から現れる）
+        const w = W_ > 50 ? W_ : canvas.getBoundingClientRect().width;   // 読み込み直後で幅がまだ決まっていない時は直接測る
+        d3.R = w > 50 ? Math.max(0.5, w / 2 / view.scale) : 6; d3.cx = view.cx;
+        if (d3.h === '4d') d3.h = 're';
+        d3.yaw = 0; d3.pitch = 0.02;
+    }
     mode = m;
+    if (rise) setTimeout(() => { if (mode === '3d') startCamTween({ yaw: -0.65, pitch: 0.5 }, false); }, 350);
     if (m === '4d') { g4Frame(); if (g4Ready) g4Unfold(); }
     traceX = null; traceZ = null;
     syncModeUI();
@@ -3713,7 +3723,7 @@ function loadPreset(p) {
     syncParams();
     applyFit(p.fit, 'r');
     if (p.fitC) applyFit(p.fitC, 'c');
-    Object.assign(d3, { R: 6, yaw: -0.65, pitch: 0.5, h: 're' }, p.d3 || {});   // 曲面・床のオンオフはそのまま
+    Object.assign(d3, { R: 6, cx: 0, yaw: -0.65, pitch: 0.5, h: 're' }, p.d3 || {});   // 曲面・床のオンオフはそのまま
     xRot = { on: false, a: 0, spin: false, ...(p.xrot || {}) };
     setMode(p.mode || 'r');
 }

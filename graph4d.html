@@ -87,6 +87,13 @@
     }
     .legend i { font-style: normal; font-weight: 700; }
     /* グラフ電卓の中にはめ込んだ時（?embed=1） */
+    .cyc { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+    .cyc button { pointer-events: auto; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid #334155; background: rgba(11,18,34,0.85); color: #cbd5e1; font: 600 12px system-ui, sans-serif; cursor: pointer; }
+    .cyc button.on { border-color: #a3e635; color: #ecfccb; background: rgba(54,83,20,0.55); }
+    #combo { padding: 5px 12px; border-radius: 10px; background: rgba(3,7,18,0.82); border: 1px solid #1e293b; color: #e2e8f0; font: 600 13px system-ui, sans-serif; white-space: nowrap; }
+    #combo b { color: #a3e635; }
+    #combo small { color: #94a3b8; font-weight: 500; margin-left: 8px; }
+    body:not(.embed) .cyc { top: 64px; }
     body.embed .top { display: none; }
     body.embed .panel-btn { left: 10px; right: auto; top: 10px; bottom: auto; }
     body.embed .panel { left: 10px; right: auto; top: 58px; bottom: 10px; width: 290px; max-height: none; }
@@ -113,6 +120,7 @@
 </header>
 <div class="err" id="err" hidden></div>
 <button class="panel-btn" id="panelBtn" type="button" title="パネルの表示／非表示">⚙</button>
+<div class="cyc"><button type="button" id="cycleBtn" title="Re x・Im x・Re y・Im y の 4 本のうち 3 本の組み合わせ（4 通り）を、4 次元の回転で順に巡る。もう一度押すと止まる">⟳ 3 本の組み合わせを巡る</button><div id="combo" hidden></div></div>
 <aside class="panel" id="panel">
     <section class="popout" style="border-bottom:0;padding-bottom:0">
         <a class="btn popout" id="popout" href="graph4d.html" target="_blank" rel="noopener">別ページで大きく開く ↗</a>
@@ -1591,6 +1599,29 @@ function updateLabels() {
 
 // ---------- 描画ループ（必要な時だけ描く・時間基準） ----------
 let needRender = true, lastT = 0, tween = null, flashT = 0;
+// 3 本の組み合わせを巡る：4 本（Re x・Im x・Re y・Im y）から 3 本を選ぶ 4 通りを、4 次元の回転で順に（1 つ 1.5 秒で回して 2.2 秒見せる）
+const CYCLE = [
+    { v: 'base', show: 'Re x・Im x・Re y', hide: 'Im y は色で' },
+    { v: 'imy', show: 'Re x・Im x・Im y', hide: 'Re y が消える' },
+    { v: 'noimx', show: 'Re x・Re y・Im y', hide: 'Im x が消える' },
+    { v: 'norex', show: 'Im x・Re y・Im y', hide: 'Re x が消える' },
+];
+const cyc = { on: false, i: 0, next: 0 };
+function cycleTo(i) {
+    cyc.i = i;
+    const c = CYCLE[i], v = VIEWS.find(x => x.k === c.v);
+    startTween(v.ang, 'side');
+    cyc.next = performance.now() + 1500 + 2200;
+    const el = $('#combo'); el.hidden = false;
+    el.innerHTML = `いま見えている 3 本：<b>${c.show}</b><small>${c.hide}</small>`;
+}
+function setCycle(on) {
+    cyc.on = !!on;
+    const b = $('#cycleBtn'); if (b) { b.classList.toggle('on', cyc.on); b.textContent = cyc.on ? '■ 巡るのを止める' : '⟳ 3 本の組み合わせを巡る'; }
+    if (cyc.on) { S.spinOn = false; cycleTo(0); }
+    else { const el = $('#combo'); if (el) el.hidden = true; }
+    requestRender();
+}
 const requestRender = () => { needRender = true; };
 controls.addEventListener('change', requestRender);
 function resize() {
@@ -1683,6 +1714,7 @@ function frame(t) {
         anim = true;
     }
     if (unf) { stepUnfold(); anim = true; }
+    if (cyc.on) { if (!tween && !unf && performance.now() >= cyc.next) cycleTo((cyc.i + 1) % CYCLE.length); anim = true; }
     let fl = 0;
     if (flashT) {
         const u = (performance.now() - flashT) / 1700;
@@ -1730,6 +1762,7 @@ function renderViews() {
     $('#views').innerHTML = VIEWS.map(v => `<button class="btn" type="button" data-v="${v.k}">${v.name}<small>${v.sub}</small></button>`).join('');
     document.querySelectorAll('#views .btn').forEach(b => b.addEventListener('click', () => {
         const v = VIEWS.find(x => x.k === b.dataset.v);
+        setCycle(false);
         startTween(v.ang, v.cam);
     }));
 }
@@ -1850,7 +1883,7 @@ PRESETS.forEach((p, i) => { const o = document.createElement('option'); o.value 
 $('#preset').addEventListener('change', e => { const i = e.target.value; e.target.value = ''; if (i !== '') loadPreset(PRESETS[+i]); });
 let exprTimer = null;
 $('#expr').addEventListener('input', e => { clearTimeout(exprTimer); exprTimer = setTimeout(() => setExpr(e.target.value, true), 350); });
-$('#spinAll').addEventListener('click', () => { S.spinOn = !S.spinOn; tween = null; syncUI(); save(); });
+$('#spinAll').addEventListener('click', () => { setCycle(false); S.spinOn = !S.spinOn; tween = null; syncUI(); save(); });
 $('#speed').addEventListener('input', e => { S.speed = +e.target.value; $('#speedV').textContent = S.speed.toFixed(2); saveSoon(); });
 $('#range').addEventListener('input', e => { S.R = +e.target.value; $('#rangeV').textContent = S.R.toFixed(1); scheduleRebuild(false); saveSoon(); });
 $('#persp').addEventListener('input', e => { S.pk = +e.target.value; $('#perspV').textContent = S.pk.toFixed(2); requestRender(); saveSoon(); });
@@ -1860,6 +1893,7 @@ document.querySelectorAll('#colors .btn').forEach(b => b.addEventListener('click
 document.querySelectorAll('#looks .btn').forEach(b => b.addEventListener('click', () => { S.look = b.dataset.l; syncUI(); save(); }));
 document.querySelectorAll('#shows .btn').forEach(b => b.addEventListener('click', () => { S.show[b.dataset.s] = !S.show[b.dataset.s]; syncUI(); save(); }));
 $('#panelBtn').addEventListener('click', () => { $('#panel').hidden = !$('#panel').hidden; });
+$('#cycleBtn').addEventListener('click', () => setCycle(!cyc.on));
 if (window.innerWidth <= 760) $('#panel').hidden = true;
 
 // ---------- 開始 ----------
