@@ -217,6 +217,11 @@
     .setting { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); font-size: 13px; color: var(--muted); }
     .setting input[type=range] { flex: 1; accent-color: var(--d2); }
     .setting .grow { flex: 1; }
+    .cpx { flex: 1; min-width: 0; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: #0b1222; color: #e2e8f0; font: 500 13px ui-monospace, Menlo, monospace; padding: 0 8px; }
+    .cpx.bad { border-color: #fb7185; }
+    .cpxbtn { flex: none; height: 28px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; }
+    .cpxbtn:hover { color: #e0f2fe; border-color: #38bdf8; }
+    #copyXrow[hidden] { display: none; }
     label.setting { cursor: pointer; }
     .switch {
         -webkit-appearance: none; appearance: none; flex: none; margin: 0;
@@ -337,6 +342,8 @@
         .expr { grid-template-columns: 34px 1fr 34px; }
         .del { width: 34px; height: 34px; font-size: 20px; }
         .cp { width: 34px; height: 30px; font-size: 16px; }
+        .cpx { font-size: 16px; height: 34px; }
+        .cpxbtn { height: 34px; }
         .play { width: 38px; height: 38px; }
         /* iPad は 16px 未満の入力欄をタップすると画面が拡大されるので 16px に */
         .param input[type=number], .prange input[type=number] { font-size: 16px; padding: 4px 6px; }
@@ -418,6 +425,11 @@
                 <span>コピーの形</span>
                 <span class="grow"></span>
                 <span class="ptseg" id="copyMode"><button type="button" data-m="google">Google 電卓</button><button type="button" data-m="app">このアプリ</button></span>
+            </div>
+            <div class="setting" id="copyXrow" title="Google 電卓用のコピーで、x にこの値を入れる（空なら x のまま）。2、−1.5、pi/4、tau/8 のように式でも書ける。「タップした所」で、グラフをタップ（クリック）した所の x を入れる">
+                <span>x に入れる値</span>
+                <input type="text" id="copyX" class="cpx" placeholder="そのまま" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">
+                <button type="button" id="copyXtap" class="cpxbtn">タップした所</button>
             </div>
             <label class="setting" title="Σ の式の下に出る展開を、次数の高い項から並べる（x⁷/7! − x⁵/5! + … の順）">
                 <span>展開を高い次数から</span>
@@ -947,6 +959,7 @@ function forGoogle(n, env, bound = new Set()) {
     const g = m => forGoogle(m, env, bound);
     switch (n.t) {
         case 'var': {
+            if (n.name === 'x' && googleX && !bound.has('x')) return forGoogle(googleX, env);   // x に入れる値（その中のスライダーの文字も今の値に）
             if (RESERVED.has(n.name) || bound.has(n.name) || !(n.name in env) || !isFinite(env[n.name])) return n;
             return NUM(+(+env[n.name]).toPrecision(12));
         }
@@ -1287,6 +1300,9 @@ let lineW = 1.5;   // 線の太さ（全体）。細めが既定
 let showPts = true;   // 交点（解・グラフどうしの交点）を表示するか
 let ptMode = 'pi';    // 交点・解の値の書き方：'dec' 小数／'pi' π の分数倍なら π で／'tau' τ（＝2π）の分数倍なら τ で
 let descOn = false;   // Σ の展開を、次数の高い項から並べる
+let copyX = '';        // Google 電卓用のコピーで x に入れる値（式の文字。空なら x のまま）
+let lastTapX = null;   // グラフをタップ（クリック）した所の x（「タップした所」のボタン用）
+let googleX = null;    // コピーの間だけ使う：x の代わりの式
 let copyMode = 'google';   // ⧉ でコピーする形：'google' Google 電卓用（y= なし・文字は今の値・Σ は書き出す）／'app' このアプリ用（省略を書いただけ）
 const dotR = () => 9;   // 交点の印の外側の大きさ（ラベルをずらす量）
 // '#rrggbb' → 透明度つきの色
@@ -1731,22 +1747,32 @@ function refreshSol(ex) {
     if (ex.row) ex.row.querySelector('.sol').textContent = solText(ex);
 }
 
+// 「x に入れる値」を式として読む（空なら null。x・y を含む時や読めない時はエラー）
+function copyXAst() {
+    const t = copyX.trim(); if (!t) return null;
+    const a = parse(closeParens(t)), fr = allFree(a);
+    if (fr.has('x') || fr.has('y')) throw ParseError('x に入れる値に x・y は使えません');
+    return a;
+}
 // 式をコンピュータ用の書き方でコピーして、ボタンのそばに中身を少し出す
 function copyPlain(ex, btn) {
     let txt;
     try {
         if (copyMode === 'google') {
             const env = paramEnv();
+            googleX = copyXAst();
             // 「次数で指定」の Σ は、今の次数で切った多項式をそのまま
             if (ex.sum && ex.deg && ex.kind === 'fn') txt = toPlain(forGoogle(termsToAst(orderTerms(getPoly(ex, env).terms)), env));
             else txt = plainOfText(ex.text, env);
         } else txt = plainOfText(ex.text);
     } catch (e) { txt = null; }
+    const xNote = copyMode === 'google' && googleX ? `・x = ${toPlain(googleX)}` : '';
+    googleX = null;
     const tip = document.createElement('div'); tip.className = 'cptip';
     const r = btn.getBoundingClientRect();
     tip.style.left = Math.max(8, Math.min(window.innerWidth - 300, r.left - 8)) + 'px'; tip.style.top = (r.bottom + 6) + 'px';
     const done = ok => {
-        tip.innerHTML = ok ? `<b>コピーしました（${copyMode === 'google' ? 'Google 電卓用' : 'このアプリ用'}）</b>` : '<b>コピーできませんでした</b>';
+        tip.innerHTML = ok ? `<b>コピーしました（${copyMode === 'google' ? 'Google 電卓用' + xNote : 'このアプリ用'}）</b>` : '<b>コピーできませんでした</b>';
         if (txt) tip.appendChild(document.createTextNode(txt));
         document.body.appendChild(tip);
         if (ok) { btn.classList.add('done'); btn.textContent = '✓'; }
@@ -3508,6 +3534,7 @@ function endPointer(e) {
         } else {
             if (touch && traceX !== null && Math.abs((w.x - traceX) * sc) < 16) traceX = null;
             else traceX = w.x;
+            lastTapX = simplestIn(w.x - 2 / sc, w.x + 2 / sc);   // 「タップした所」用：そばのいちばん簡単な数
         }
         requestDraw();
     }
@@ -3566,7 +3593,7 @@ function save() {
     try {
         localStorage.setItem(STORE, JSON.stringify({
             exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible, ...(e.deg ? { deg: true } : {}) })),
-            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, ptMode, descOn, copyMode, styleVer: 2, xRot,
+            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, ptMode, descOn, copyMode, copyX, styleVer: 2, xRot,
         }));
     } catch (_) { /* 保存できない環境では何もしない */ }
 }
@@ -3591,6 +3618,7 @@ function load() {
     if (['dec', 'pi', 'tau'].includes(data.ptMode)) ptMode = data.ptMode; else if (data.piOn === false) ptMode = 'dec';
     if (data.descOn === true) descOn = true;
     if (data.copyMode === 'app' || data.copyMode === 'google') copyMode = data.copyMode;
+    if (typeof data.copyX === 'string') copyX = data.copyX.slice(0, 80);
     if (data.xRot && isFinite(data.xRot.a)) xRot = { on: !!data.xRot.on, a: +data.xRot.a, spin: !!data.xRot.spin };
     if (data.colorOn === false) colorOn = false;
     if (data.kbOn === false) {
@@ -3736,8 +3764,18 @@ dsEl.checked = descOn;
 const paintPt = () => document.querySelectorAll('#ptMode button').forEach(b => b.classList.toggle('on', b.dataset.m === ptMode));
 document.querySelectorAll('#ptMode button').forEach(b => b.addEventListener('click', () => { ptMode = b.dataset.m; paintPt(); exprs.forEach(refreshRow); requestDraw(); save(); }));
 paintPt();
-const paintCm = () => document.querySelectorAll('#copyMode button').forEach(b => b.classList.toggle('on', b.dataset.m === copyMode));
+let paintCm = () => document.querySelectorAll('#copyMode button').forEach(b => b.classList.toggle('on', b.dataset.m === copyMode));
 document.querySelectorAll('#copyMode button').forEach(b => b.addEventListener('click', () => { copyMode = b.dataset.m; paintCm(); save(); }));
+const cxEl = $('#copyX'), cxRow = $('#copyXrow');
+const checkCx = () => { let bad = false; try { copyXAst(); } catch (_) { bad = true; } cxEl.classList.toggle('bad', bad); };
+cxEl.value = copyX; checkCx();
+cxEl.addEventListener('input', () => { copyX = cxEl.value; checkCx(); saveSoon(); });
+$('#copyXtap').addEventListener('click', () => {
+    if (lastTapX === null) { cxEl.placeholder = '先にグラフをタップ'; setTimeout(() => { cxEl.placeholder = 'そのまま'; }, 1600); return; }
+    copyX = constOf(lastTapX) ? toPlain(parse(constOf(lastTapX).replace('−', '-'))) : String(+lastTapX.toPrecision(10));
+    cxEl.value = copyX; checkCx(); save();
+});
+paintCm = (orig => () => { orig(); cxRow.hidden = copyMode !== 'google'; })(paintCm);
 paintCm();
 dsEl.addEventListener('change', () => { descOn = dsEl.checked; exprs.forEach(refreshRow); save(); });
 requestDraw();
