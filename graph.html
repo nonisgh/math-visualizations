@@ -453,7 +453,7 @@
                 <span class="grow"></span>
                 <span class="ptseg" id="ptStyle"><button type="button" data-m="reticle">照準</button><button type="button" data-m="dot">小さい点</button><button type="button" data-m="num">数字だけ</button></span>
             </div>
-            <div class="setting" title="交点・解の値の書き方。小数＝いつも小数。定数＝π・e を使って書ける値はそう書く（π/2、3π/4、2e、e²、1/e、ln2 など）">
+            <div class="setting" title="交点・解の値の書き方。小数＝いつも小数。定数＝π・e・√ を使って書ける値はそう書く（π/2、3π/4、2e、e²、1/e、ln2、√e、√2/2、(1 + √5)/2 など）">
                 <span>交点の書き方</span>
                 <span class="grow"></span>
                 <span class="ptseg" id="ptMode"><button type="button" data-m="dec">小数</button><button type="button" data-m="const">定数</button></span>
@@ -1696,9 +1696,34 @@ function eForm(v) {
     for (const n of [2, 3, 5, 6, 7, 10]) if (near(a, Math.log(n))) return sg + 'ln' + n;
     return null;
 }
-const constOf = v => ptMode !== 'const' ? null : (piSym === 'tau' ? tauForm(v) : piForm(v)) || eForm(v);
+// √ の書き方：① 定数の √（√e、√π、√(2π)、√(e/2) など＝値の 2 乗が π・e の書き方になる時）
+//   ② (a ＋ b√n)/q（√2、√3/2、2√5、(1 + √5)/2、(3 − √7)/4 など。n は平方因子の無い 2〜47、b は 1〜12、q は 1・2・3・4・6）。
+//   有理数（0.5、2 など）はこれまでどおり小数。ぴったり（相対 1e−9）の時だけ使う
+// 定数の書き方の文字（'2π/3'・'e/2' など）の値
+const constVal = t => { const m = t.match(/^(−?)(\d*)([πτe])(?:\/(\d+))?$/); if (!m) return NaN; const C = { 'π': Math.PI, 'τ': 2 * Math.PI, 'e': Math.E }[m[3]]; return (m[1] ? -1 : 1) * (m[2] ? +m[2] : 1) * C / (m[4] ? +m[4] : 1); };
+const SQFREE = [2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23, 26, 29, 30, 31, 33, 34, 35, 37, 38, 39, 41, 42, 43, 46, 47];
+function sqrtForm(v) {
+    if (!isFinite(v) || Math.abs(v) < 1e-9 || Math.abs(v) > 1e4) return null;
+    const sg = v < 0 ? '−' : '', a = Math.abs(v), sq = a * a;
+    const c = (piSym === 'tau' ? tauForm(sq) : piForm(sq)) || constForm(sq, Math.E, 'e', [1, 2, 3, 4, 6]);
+    if (c && !/^−?([7-9]|\d\d)/.test(c) && Math.abs(Math.sqrt(constVal(c)) - a) <= 1e-11 * Math.max(1, a)) return sg + (/^[πτe]$/.test(c) ? '√' + c : '√(' + c + ')');   // 中の数は 6 まで（√(271π/8) のような偶然の一致を出さない）
+    const tol = 1e-11 * Math.max(1, a);   // ぴったりの時だけ（でたらめな数が (123 − 2√42)/6 のように見えないよう、きびしめ）
+    for (const q of [1, 2, 3, 4, 6]) for (let b = 1; b <= 8; b++) for (const n of SQFREE) {
+        const s = Math.sqrt(n);
+        for (const bb of [b, -b]) {
+            const A = v * q - bb * s, ai = Math.round(A);
+            if (Math.abs(A - ai) > tol * q || Math.abs(ai) > 24) continue;
+            const term = (b === 1 ? '' : b) + '√' + n;
+            if (ai === 0) return (bb < 0 ? '−' : '') + term + (q === 1 ? '' : '/' + q);
+            const num = String(ai).replace('-', '−') + (bb < 0 ? ' − ' : ' + ') + term;
+            return q === 1 ? num : '(' + num + ')/' + q;
+        }
+    }
+    return null;
+}
+const constOf = v => ptMode !== 'const' ? null : (piSym === 'tau' ? tauForm(v) : piForm(v)) || eForm(v) || sqrtForm(v);
 // 定数の書き方の文字を、式として読める形に（ln2 → ln(2)、e² → e^2）
-const constSrc = t => t.replace(/−/g, '-').replace(/ln(\d+)/g, 'ln($1)').replace(/[²³⁴⁵]/g, c => '^' + ({ '²': 2, '³': 3, '⁴': 4, '⁵': 5 })[c]);
+const constSrc = t => t.replace(/−/g, '-').replace(/√\(/g, 'sqrt(').replace(/√([0-9]+|[πτe])/g, 'sqrt($1)').replace(/ln(\d+)/g, 'ln($1)').replace(/[²³⁴⁵]/g, c => '^' + ({ '²': 2, '³': 3, '⁴': 4, '⁵': 5 })[c]);
 const fmtPt = v => constOf(v) || fmtShort(v);    // 交点のラベル
 const fmtSol = v => constOf(v) || fmtFix(v);     // 解の一覧
 // Σ の展開の並び：「高い次数から」の時は次数の大きい順（同じ次数は元の順）。次数が出ない式は逆順に
