@@ -268,7 +268,8 @@
     }
     .kb[hidden] { display: none; }
     .krow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 5px; }
-    .kbar { grid-template-columns: repeat(8, 1fr); margin-bottom: 0; }
+    .kbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin-bottom: 0; }   /* 下の段はキーの数だけ等分（増えても 1 段に収まる） */
+    .top .sm { display: none; }
     .key {
         height: 40px; border-radius: 9px; border: 1px solid var(--line); background: var(--key);
         color: var(--text); font: 600 16px 'Inter', 'Noto Sans JP', sans-serif;
@@ -379,6 +380,42 @@
         .addbtn { height: 44px; }
         .sol { padding: 6px 0 4px; }
     }
+    /* ---- スマホ（幅 600px まで）：ヘッダーを 1 段に、グラフ・式・キーボードを縦に詰める ---- */
+    @media (max-width: 600px) {
+        .top { gap: 6px; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+        .top h1 { display: none; }   /* 名前はタブやホーム画面に出るので、ボタンの場所を優先 */
+        .top select { flex: 1; min-width: 0; max-width: none; }
+        .top .tbtn { white-space: nowrap; padding: 0 9px; flex: none; }
+        .top .lg { display: none; } .top .sm { display: inline; }
+        .graph { flex-basis: 40%; }
+        .app:has(.kb:not([hidden])) .graph { flex-basis: 34%; }   /* キーボードを出している時は、式の欄が隠れないようにグラフを少し小さく */
+        .list { padding: 8px; }
+        .kb { padding: 5px 5px max(5px, env(safe-area-inset-bottom)); }
+        .krow { gap: 4px; margin-bottom: 4px; }
+        .key { height: 36px; font-size: 15px; border-radius: 8px; }
+        .key.v { font-size: 18px; }
+        .key.f { font-size: 13px; }
+    }
+    /* ---- 横向きのスマホ（背が低くて横長）：PC と同じく左に式とキーボード、右にグラフ。キーは小さく ---- */
+    @media (max-height: 560px) and (orientation: landscape) {
+        .app { display: grid; grid-template-columns: minmax(300px, 46%) 1fr; grid-template-rows: auto 1fr; }
+        .top { grid-column: 1 / -1; padding-top: max(4px, env(safe-area-inset-top)); padding-bottom: 4px; }
+        .top select, .top .tbtn { height: 32px; font-size: 14px; }
+        .graph { grid-column: 2; grid-row: 2; min-height: 0; }
+        .panel { grid-column: 1; grid-row: 2; border-top: 0; border-right: 1px solid var(--line); padding-left: env(safe-area-inset-left); }
+        .kb { padding: 4px 4px max(4px, env(safe-area-inset-bottom)); }
+        .krow { gap: 3px; margin-bottom: 3px; }
+        .key { height: 27px; font-size: 13px; border-radius: 7px; }
+        .key.v { font-size: 16px; }
+        .key.f, .key.act { font-size: 12px; }
+        .list { padding: 6px; }
+    }
+    /* ---- グラフの右のボタンが縦に収まらない時（スマホ・横向きのスマホ）：2 列に並べる（右の列から） ---- */
+    @media (max-width: 600px), (max-height: 560px) {
+        .gbtns { display: grid; grid-template-rows: repeat(4, auto); grid-auto-flow: column; direction: rtl; gap: 6px; right: 8px; top: 8px; }   /* 上から 4 つずつ、右の列（表示の切り替え）→ 左の列（拡大・縮小など） */
+        .gbtns button { direction: ltr; width: 40px; height: 40px; font-size: 17px; }
+        .hsel { max-width: calc(100% - 110px); }
+    }
     button, .key, select { touch-action: manipulation; }
     .graph, #cv { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 </style>
@@ -391,7 +428,7 @@
         <select id="preset" aria-label="例を読み込む">
             <option value="">例を読み込む…</option>
         </select>
-        <a class="tbtn" href="vec3d.html" title="空間ベクトル 3D：ベクトル・点・直線・平面を x・y・z の空間に描く（和・内積・外積も）" style="display:inline-flex;align-items:center;text-decoration:none">空間ベクトル</a>
+        <a class="tbtn" href="vec3d.html" title="空間ベクトル 3D：ベクトル・点・直線・平面を x・y・z の空間に描く（和・内積・外積も）" style="display:inline-flex;align-items:center;text-decoration:none"><span class="lg">空間ベクトル</span><span class="sm">ベクトル</span></a>
         <button class="tbtn" id="savesBtn" type="button" title="保存した式">保存</button>
         <button class="tbtn on" id="kbToggle" type="button" title="数式キーボードの表示切替">⌨</button>
     </header>
