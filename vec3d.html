@@ -48,6 +48,14 @@
     details.hint code { font-family: ui-monospace, Menlo, monospace; color: var(--muted); background: #0b1222; padding: 0 4px; border-radius: 4px; }
     .hud { position: absolute; left: 10px; bottom: 10px; font-size: 11px; color: var(--faint); pointer-events: none; }
     .homebtn { position: absolute; right: 10px; top: 10px; height: 32px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(11,18,34,0.85); color: var(--muted); cursor: pointer; }
+    body.embed header, body.embed .panel { display: none; }
+    body.embed .hud { display: none; }
+    body.embed .homebtn { right: auto; left: 186px; }   /* はめ込みでは右側にグラフ電卓のボタンが重なるので左へ */
+    .sty { position: absolute; left: 10px; top: 10px; display: none; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: rgba(11,18,34,0.85); }
+    body.embed .sty { display: inline-flex; }
+    .sty button { border: 0; background: transparent; color: var(--muted); font: 600 12px system-ui, sans-serif; padding: 6px 11px; cursor: pointer; }
+    .sty button + button { border-left: 1px solid var(--line); }
+    .sty button.on { background: rgba(56,189,248,0.18); color: #e0f2fe; }
     @media (max-width: 760px) {
         main { flex-direction: column-reverse; }
         .panel { width: 100%; max-width: none; height: 46vh; border-right: 0; border-top: 1px solid var(--line); }
@@ -78,7 +86,7 @@
             全角でも書けます（<code>ａ＝（１，２，３）</code>、× は外積、・は内積）。ドラッグで回す、ホイール・ピンチで寄る。
         </details>
     </div>
-    <div id="view"><button class="homebtn" id="homeBtn" type="button" title="全部が見える向き・大きさに戻す">⌂ 全体</button><div class="hud" id="hud"></div></div>
+    <div id="view"><button class="homebtn" id="homeBtn" type="button" title="全部が見える向き・大きさに戻す">⌂ 全体</button><div class="sty" id="sty" title="面の見せ方"><button type="button" data-s="face">透過</button><button type="button" data-s="mesh">メッシュ</button><button type="button" data-s="both">両方</button></div><div class="hud" id="hud"></div></div>
 </main>
 <script>
 (() => {
@@ -470,6 +478,7 @@ function buildWorld() {
     requestRender();
 }
 function fitRange(keepCam) {
+    if (EMBED) return;   // はめ込み：範囲はグラフ電卓から受け取る
     let m = 3;
     const take = a => { if (isV(a)) a.forEach(v => { if (isFinite(v)) m = Math.max(m, Math.abs(v)); }); };
     rows.forEach(r => {
@@ -498,6 +507,44 @@ function loop() {
     if (controls.update()) need = true;
     if (need) { need = false; renderer.render(scene, camera); }
 }
+
+// ================= はめ込み（グラフ電卓の xyz 空間）：面・輪切りの線・xy 平面の曲線を受け取って描く =================
+const EMBED = new URLSearchParams(location.search).has('embed');
+if (EMBED) document.body.classList.add('embed');
+const extG = new THREE.Group(); scene.add(extG);
+let surfStyle = 'both'; try { const v = localStorage.getItem('vec3d.surfStyle'); if (['face', 'mesh', 'both'].includes(v)) surfStyle = v; } catch (_) {}
+let lastScene = null, homed = false;
+function paintSty() { document.querySelectorAll('#sty button').forEach(b => b.classList.toggle('on', b.dataset.s === surfStyle)); }
+document.querySelectorAll('#sty button').forEach(b => b.addEventListener('click', () => { surfStyle = b.dataset.s; try { localStorage.setItem('vec3d.surfStyle', surfStyle); } catch (_) {} paintSty(); if (lastScene) buildExternal(lastScene.items); }));
+const toThree = a => { const o = new Float32Array(a.length); for (let i = 0; i < a.length; i += 3) { o[i] = a[i]; o[i + 1] = a[i + 2]; o[i + 2] = -a[i + 1]; } return o; };   // 数学の (x, y, z) → three の (x, z, −y)
+function buildExternal(items) {
+    disposeTree(extG);
+    const clipP = clip();
+    (items || []).forEach(it => {
+        const col = new THREE.Color(it.color);
+        if (!it.pos || !it.pos.length) return;
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(toThree(it.pos), 3));
+        if (it.kind === 'tri') {
+            if (surfStyle === 'mesh') return;
+            if (it.nrm) g.setAttribute('normal', new THREE.BufferAttribute(toThree(it.nrm), 3)); else g.computeVertexNormals();
+            const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: col, transparent: true, opacity: surfStyle === 'face' ? 0.55 : 0.4, side: THREE.DoubleSide, depthWrite: false, roughness: 0.45, metalness: 0.1, clippingPlanes: clipP }));
+            m.renderOrder = 1; extG.add(m);
+        } else if (it.kind === 'mesh') {
+            if (surfStyle === 'face') return;
+            extG.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: col.clone().lerp(new THREE.Color(0xffffff), 0.25), transparent: true, opacity: surfStyle === 'mesh' ? 0.9 : 0.6, clippingPlanes: clipP })));
+        } else if (it.kind === 'curve') {
+            const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: col, clippingPlanes: clipP })); l.renderOrder = 2; extG.add(l);
+        }
+    });
+    requestRender();
+}
+window.addEventListener('message', e => {
+    const m = e.data || {}; if (m.type !== 'scene') return;
+    lastScene = m;
+    const R = +m.R; if (isFinite(R) && R > 0 && R !== RANGE) { RANGE = R; buildAxes(); homed = false; }
+    buildExternal(m.items);
+    if (!homed) { homed = true; home(); }
+});
 
 // ================= 行の UI =================
 let rows = [];
@@ -545,11 +592,12 @@ if (window.VisualFX) VisualFX.onChange(() => { buildAxes(); buildWorld(); });   
 if (document.fonts) document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', () => { buildAxes(); buildWorld(); });
 
 // 起動
-let data = null; try { data = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (_) {}
+let data = null; try { data = EMBED ? null : JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (_) {}
 if (data && Array.isArray(data.rows) && data.rows.length) { data.rows.forEach(d => { const r = newRow(String(d.text || ''), d.color); r.visible = d.visible !== false; rows.push(r); }); showGrid = data.grid !== false; showTicks = data.ticks !== false; }
-else EXAMPLES[0].rows.forEach(t => rows.push(newRow(t)));
+else if (!EMBED) EXAMPLES[0].rows.forEach(t => rows.push(newRow(t)));
 $('#gridOn').checked = showGrid; $('#tickOn').checked = showTicks;
 render(); resize(); buildAxes(); refresh(false); loop();
+if (EMBED) { paintSty(); window.parent.postMessage({ type: 'ready' }, '*'); }
 })();
 </script>
 </body>

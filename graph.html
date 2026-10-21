@@ -79,6 +79,8 @@
     /* 4D（three.js の graph4d.html をグラフの場所にはめ込む） */
     #g4 { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; opacity: 0; pointer-events: none; transition: opacity 0.35s; z-index: 1; background: transparent; }
     #g4.on { opacity: 1; pointer-events: auto; }
+    #g3 { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; opacity: 0; pointer-events: none; transition: opacity 0.35s; z-index: 1; background: #030712; }
+    #g3.on { opacity: 1; pointer-events: auto; }
     .hsel { position: absolute; left: 10px; top: 10px; display: flex; gap: 4px; }
     .hsel[hidden] { display: none; }
     .hsel button {
@@ -413,6 +415,7 @@
             <button type="button" id="modeBtn" title="複素数平面に切り替え">ℂ</button>
             <button type="button" id="d3Btn" title="3D：床を x の複素数平面、高さを y に">3D</button>
             <button type="button" id="d4Btn" title="4D：普通のグラフを、x も y も複素数の 4 次元の面に広げる（three.js）">4D</button>
+            <button type="button" id="dzBtn" title="xyz 空間：z の入った式（x2+y2+z2=1、z=x2-y2 など）を立体に。2D のグラフは xy 平面（z = 0）に描く。z の式を書くと自動でこの表示になる">xyz</button>
             <button type="button" id="colorBtn" title="色分けの表示切替" hidden>◐</button>
             <button type="button" id="zin" title="拡大">＋</button>
             <button type="button" id="zout" title="縮小">−</button>
@@ -828,7 +831,7 @@ function compile(n) {
 }
 
 // ---------- 自由な文字（x, y, i 以外はパラメータ） ----------
-const RESERVED = new Set(['x', 'y', 'pi', 'tau', 'e', 'i']);
+const RESERVED = new Set(['x', 'y', 'z', 'pi', 'tau', 'e', 'i']);   // z は xyz 空間の 3 本目の軸（スライダーにしない）
 function allFree(n, bound = new Set(), out = new Set()) {
     switch (n.t) {
         case 'var': if (!bound.has(n.name)) out.add(n.name); break;
@@ -1870,7 +1873,7 @@ function closeParens(s) {
 // kind: 'fn' = y=f(x) / 'implicit' = x と y の式 = 0 / 'eqx' = x だけの方程式
 function analyze(ex) {
     ex.fn = null; ex.F = null; ex.cfn = null; ex.kind = ''; ex.err = ''; ex.free = []; ex.math = '';
-    ex.roots = null; ex.rootKey = null; ex.sum = null; ex.expKey = null; ex.constEq = null; ex.calc = false; ex.intg = null;
+    ex.roots = null; ex.rootKey = null; ex.sum = null; ex.expKey = null; ex.constEq = null; ex.calc = false; ex.intg = null; ex.F3 = null; ex.Z3 = null;
     let src = normIn(ex.text).replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');   // 全角でも読めるように先にそろえる
     if (isBlank(src)) return;
     const pre = src.match(/^\s*[yY]\s*=([\s\S]*)$/);
@@ -1882,15 +1885,22 @@ function analyze(ex) {
             ast = parse(closeParens(src));
             math = toMathML(ast);
             kind = 'fn';
-            if (allFree(ast).has('y')) { kind = 'implicit'; math += '<mo>=</mo><mn>0</mn>'; }
+            if (allFree(ast).has('z')) { kind = 'surf3'; math += '<mo>=</mo><mn>0</mn>'; ex.F3 = compile(ast); }   // z の入った式＝0 は xyz 空間の面
+            else if (allFree(ast).has('y')) { kind = 'implicit'; math += '<mo>=</mo><mn>0</mn>'; }
         } else {
             const ls = src.slice(0, at), rs = src.slice(at + 1);
             if (!ls.trim()) throw ParseError('「=」の左側が空です');
             if (!rs.trim()) throw ParseError('「=」の右側が空です');
             const L = parse(closeParens(ls)), R = parse(closeParens(rs));
             math = toMathML(L) + '<mo>=</mo>' + toMathML(R);
-            const isY = n => n.t === 'var' && n.name === 'y';
-            if (isY(L) && !allFree(R).has('y')) { ast = R; kind = 'fn'; }
+            const isY = n => n.t === 'var' && n.name === 'y', isZ = n => n.t === 'var' && n.name === 'z';
+            if (allFree(L).has('z') || allFree(R).has('z')) {   // z の入った式は xyz 空間の面（z = f(x, y) か、F(x, y, z) = G の形）
+                kind = 'surf3';
+                if (isZ(L) && !allFree(R).has('z')) { ast = R; ex.Z3 = compile(R); }
+                else if (isZ(R) && !allFree(L).has('z')) { ast = L; ex.Z3 = compile(L); }
+                else { ast = { t: 'bin', op: '-', l: L, r: R }; ex.F3 = compile(ast); }
+            }
+            else if (isY(L) && !allFree(R).has('y')) { ast = R; kind = 'fn'; }
             else if (isY(R) && !allFree(L).has('y')) { ast = L; kind = 'fn'; }
             else {
                 ast = { t: 'bin', op: '-', l: L, r: R };
@@ -1923,7 +1933,7 @@ function analyze(ex) {
             const sumM = `<mrow><munderover><mo>∑</mo><mrow><mi>${ast.v}</mi><mo>=</mo>${toMathML(ast.from)}</mrow><mi>∞</mi></munderover>${W(ast.body, 2)}</mrow>`;
             math = sumM;
         }
-        ex.cfn = cf;
+        ex.cfn = kind === 'surf3' ? null : cf;   // xyz 空間の面は 2D・複素数の計算をしない
         ex.math = math;
         // x も y も無い式（2+3、sqrt(2)、2a など）は「ただの電卓」：答えを出すだけで、グラフには描かない
         ex.calc = kind === 'fn' && !(ex.sum && ex.deg) && !allFree(ast).has('x');
@@ -1948,6 +1958,7 @@ function analyze(ex) {
 }
 
 function solText(ex) {
+    if (ex.kind === 'surf3') return ex.Z3 ? 'z = f(x, y) の面（xyz 空間に表示）' : '3D の面（xyz 空間に表示）';
     if (ex.calc) return calcText(ex);
     if (ex.constEq) {   // x の無い等式：両辺の値と、成り立つかどうか
         try {
@@ -2228,7 +2239,9 @@ function setActive(id) {
 }
 
 function onExprChange(ex) {
+    const was3 = ex.kind === 'surf3';
     analyze(ex);
+    if (ex.kind === 'surf3' && !was3 && mode !== 'xyz') setTimeout(() => setMode('xyz'), 0);   // z の入った式を書いたら xyz 空間へ
     refreshRow(ex);
     syncParams();
     save();
@@ -2601,6 +2614,7 @@ function draw() {
     if (!W_ || !H_) return;
     exprs.forEach(refreshExpand);
     refreshFx();
+    if (mode === 'xyz') { legendEl.hidden = true; traceEl.hidden = true; g3Send(); return; }   // xyz 空間：はめ込んだ 3D（vec3d.html）に送るだけ
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (mode === 'c') drawComplex(); else if (mode === '3d') draw3D(); else { legendEl.hidden = true; drawReal(); }
     if (mode === '4d') g4Send();
@@ -3794,7 +3808,8 @@ function syncModeUI() {
     $('#modeBtn').classList.toggle('on', mode === 'c');
     $('#d3Btn').classList.toggle('on', mode === '3d');
     $('#d4Btn').classList.toggle('on', mode === '4d');
-    ['#zin', '#zout', '#zhome'].forEach(id => { $(id).hidden = mode === '4d'; });
+    $('#dzBtn').classList.toggle('on', mode === 'xyz');
+    ['#zin', '#zout', '#zhome'].forEach(id => { $(id).hidden = mode === '4d' || mode === 'xyz'; });
     $('#hsel').hidden = mode !== '3d';
     document.querySelectorAll('#hsel button[data-h]').forEach(b => b.classList.toggle('on', b.dataset.h === d3.h));
     document.querySelectorAll('#hsel button[data-t]').forEach(b => b.classList.toggle('on', d3[b.dataset.t] !== false));
@@ -3806,6 +3821,8 @@ function syncModeUI() {
 }
 function setMode(m) {
     if (m !== '4d' && g4) { g4.classList.remove('on'); g4Leaving = false; }
+    if (m !== 'xyz' && g3) g3.classList.remove('on');
+    if (m === 'xyz') { g3Frame(); g3.classList.add('on'); g3Last = ''; }
     const rise = m === '3d' && mode === 'r';
     if (rise) {   // 2D で見ていた範囲（横幅）と真ん中のまま 3D に。2D と同じ正面から始めて、斜め上へ立ち上がる（x の虚部の向きが奥から現れる）
         const w = W_ > 50 ? W_ : canvas.getBoundingClientRect().width;   // 読み込み直後で幅がまだ決まっていない時は直接測る
@@ -3823,6 +3840,7 @@ function setMode(m) {
 }
 $('#modeBtn').addEventListener('click', () => setMode(mode === 'c' ? 'r' : 'c'));
 $('#d3Btn').addEventListener('click', () => setMode(mode === '3d' ? 'r' : '3d'));
+$('#dzBtn').addEventListener('click', () => setMode(mode === 'xyz' ? 'r' : 'xyz'));
 // 4D：もう一度押すと、面をたたんで普通のグラフに戻る
 $('#d4Btn').addEventListener('click', () => {
     if (mode !== '4d') { setMode('4d'); return; }
@@ -3862,6 +3880,149 @@ function g4Send(extra) {
     if (!extra && key === g4Last) return;
     g4Last = key;
     g4.contentWindow.postMessage({ type: 'set', ...p, ...(extra || {}) }, '*');
+}
+// ---------- xyz 空間：空間ベクトル 3D（vec3d.html?embed=1）をはめ込み、面・輪切りの線・xy 平面の曲線を計算して送る ----------
+let g3 = null, g3Ready = false, g3Last = '', g3T = 0;
+function g3Frame() {
+    if (!g3) {
+        g3 = document.createElement('iframe');
+        g3.id = 'g3'; g3.title = 'xyz 空間'; g3.src = 'vec3d.html?embed=1';
+        canvas.insertAdjacentElement('afterend', g3);
+    }
+    return g3;
+}
+function g3Send() {
+    if (!g3 || !g3Ready) return;
+    const key = JSON.stringify([exprs.map(e => [e.text, e.visible, e.color]), paramEnv(), Math.round(view.scale * 100), Math.round(W_), Math.round(H_)]);
+    if (key === g3Last) return;
+    g3Last = key;
+    clearTimeout(g3T);
+    g3T = setTimeout(() => { try { g3.contentWindow.postMessage({ type: 'scene', ...build3Scene() }, '*'); } catch (e) { console.warn(e); } }, 40);
+}
+window.addEventListener('message', e => {
+    if (!g3 || e.source !== g3.contentWindow) return;
+    if ((e.data || {}).type === 'ready') { g3Ready = true; g3Last = ''; g3Send(); }
+});
+const niceUp = x => { const p = Math.pow(10, Math.floor(Math.log10(x))), m = x / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; };
+// 2 次元の等高線 f(u, v) = 0（マーチングスクエア）。[-R, R]² を n×n に分けて、線分の両端 [u1, v1, u2, v2, …] を返す
+function msLines(f, R, n) {
+    const h = 2 * R / n, n1 = n + 1, val = new Float64Array(n1 * n1), out = [];
+    for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) val[j * n1 + i] = f(-R + i * h, -R + j * h);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+        const a = val[j * n1 + i], b = val[j * n1 + i + 1], c = val[(j + 1) * n1 + i + 1], d = val[(j + 1) * n1 + i];
+        if (!(isFinite(a) && isFinite(b) && isFinite(c) && isFinite(d))) continue;
+        const u = -R + i * h, v = -R + j * h, ps = [];
+        if ((a > 0) !== (b > 0)) ps.push(u + h * a / (a - b), v);
+        if ((b > 0) !== (c > 0)) ps.push(u + h, v + h * b / (b - c));
+        if ((d > 0) !== (c > 0)) ps.push(u + h * d / (d - c), v + h);
+        if ((a > 0) !== (d > 0)) ps.push(u, v + h * a / (a - d));
+        if (ps.length >= 4) out.push(ps[0], ps[1], ps[2], ps[3]);
+        if (ps.length === 8) out.push(ps[4], ps[5], ps[6], ps[7]);
+    }
+    return out;
+}
+// 陰関数の面 F(x, y, z) = 0（マーチング四面体）：立方体を 6 つの四面体に分けて、符号が変わる所に三角形。法線は F の勾配
+function marchTet(F, R, N) {
+    const h = 2 * R / N, n1 = N + 1, val = new Float64Array(n1 * n1 * n1);
+    for (let k = 0; k < n1; k++) for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) val[(k * n1 + j) * n1 + i] = F(-R + i * h, -R + j * h, -R + k * h);
+    const C = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]];
+    const TET = [[0, 5, 1, 6], [0, 1, 2, 6], [0, 2, 3, 6], [0, 3, 7, 6], [0, 7, 4, 6], [0, 4, 5, 6]];
+    const pos = [], P = new Array(8), V = new Array(8);
+    const cut = (a, b) => { const t = V[a] / (V[a] - V[b]); return [P[a][0] + (P[b][0] - P[a][0]) * t, P[a][1] + (P[b][1] - P[a][1]) * t, P[a][2] + (P[b][2] - P[a][2]) * t]; };
+    for (let k = 0; k < N; k++) for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        let pos0 = 0, neg = 0, bad = false;
+        for (let c = 0; c < 8; c++) {
+            const ii = i + C[c][0], jj = j + C[c][1], kk = k + C[c][2], v = val[(kk * n1 + jj) * n1 + ii];
+            if (!isFinite(v)) { bad = true; break; }
+            V[c] = v; P[c] = [-R + ii * h, -R + jj * h, -R + kk * h]; if (v > 0) pos0++; else neg++;
+        }
+        if (bad || !pos0 || !neg) continue;
+        for (const t of TET) {
+            const ins = t.filter(c => V[c] <= 0), out = t.filter(c => V[c] > 0);
+            if (ins.length === 0 || ins.length === 4) continue;
+            if (ins.length === 1 || ins.length === 3) {
+                const lone = ins.length === 1 ? ins[0] : out[0], oth = ins.length === 1 ? out : ins;
+                pos.push(...cut(lone, oth[0]), ...cut(lone, oth[1]), ...cut(lone, oth[2]));
+            } else {
+                const p1 = cut(ins[0], out[0]), p2 = cut(ins[0], out[1]), p3 = cut(ins[1], out[1]), p4 = cut(ins[1], out[0]);
+                pos.push(...p1, ...p2, ...p3, ...p1, ...p3, ...p4);
+            }
+        }
+    }
+    const nrm = new Float32Array(pos.length), e = h * 0.25;
+    for (let q = 0; q < pos.length; q += 3) {
+        const x = pos[q], y = pos[q + 1], z = pos[q + 2];
+        let gx = F(x + e, y, z) - F(x - e, y, z), gy = F(x, y + e, z) - F(x, y - e, z), gz = F(x, y, z + e) - F(x, y, z - e);
+        const L = Math.hypot(gx, gy, gz) || 1; nrm[q] = gx / L; nrm[q + 1] = gy / L; nrm[q + 2] = gz / L;
+    }
+    return { pos: new Float32Array(pos), nrm };
+}
+// xyz 空間に送るもの：範囲 R（2D で見ていた広さ。陰関数の面だけの時は面の大きさに合わせて詰める）と、式ごとの面・線
+function build3Scene() {
+    const env = paramEnv(), rows = exprs.filter(e => e.visible && !e.err && e.kind);
+    const R0 = Math.max(1, Math.min(60, Math.min(W_ || 600, H_ || 400) / 2 / view.scale));
+    let R = R0;
+    const imp = rows.filter(e => e.F3), F3of = e => (x, y, z) => { env.x = x; env.y = y; env.z = z; return e.F3(env); };
+    if (imp.length && !rows.some(e => e.Z3)) {   // 面のある所の広さを粗く調べる
+        const Rs = Math.max(R0 * 2, 4), N = 22, h = 2 * Rs / N; let ext = 0;
+        imp.forEach(e => {
+            const F = F3of(e);
+            for (let k = 0; k < N; k++) for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+                const x = -Rs + (i + 0.5) * h, y = -Rs + (j + 0.5) * h, z = -Rs + (k + 0.5) * h, v = F(x, y, z);
+                if (!isFinite(v)) continue;
+                const g = Math.abs(F(x + h / 2, y, z) - v) + Math.abs(F(x, y + h / 2, z) - v) + Math.abs(F(x, y, z + h / 2) - v);
+                if (Math.abs(v) <= g * 1.8) ext = Math.max(ext, Math.abs(x) + h, Math.abs(y) + h, Math.abs(z) + h);
+            }
+        });
+        if (ext > 0) R = Math.min(Rs, niceUp(ext * 1.15));
+    }
+    const step = niceStep(R / 3), levels = []; for (let t = Math.ceil(-R / step + 1e-9) * step; t < R - 1e-9; t += step) levels.push(t);
+    const items = [];
+    rows.forEach(e => {
+        const col = e.color;
+        if (e.F3) {   // 陰関数の面：三角形＋輪切りの線（x・y・z 一定の面で切った線）
+            const F = F3of(e), surf = marchTet(F, R, 44);
+            items.push({ kind: 'tri', color: col, pos: surf.pos, nrm: surf.nrm });
+            const seg = [], P = surf.pos, lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+            for (let q = 0; q < P.length; q += 3) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], P[q + a]); hi[a] = Math.max(hi[a], P[q + a]); }
+            // 輪切りの線は、面そのものの大きさを 1 つの向きにつき 6 本くらいに分けた所で（範囲全体からではなく）
+            const lv = a => { if (!(hi[a] > lo[a])) return []; const st = niceStep((hi[a] - lo[a]) / 7), out = []; for (let t = Math.ceil(lo[a] / st - 1e-9) * st; t < hi[a] - 1e-9; t += st) if (t > lo[a] + 1e-9) out.push(t); return out; };
+            lv(2).forEach(c => msLines((u, v) => F(u, v, c), R, 72).forEach((q, i, A) => { if (i % 2 === 0) seg.push(q, A[i + 1], c); }));   // z 一定
+            lv(0).forEach(c => msLines((u, v) => F(c, u, v), R, 72).forEach((q, i, A) => { if (i % 2 === 0) seg.push(c, q, A[i + 1]); }));   // x 一定
+            lv(1).forEach(c => msLines((u, v) => F(u, c, v), R, 72).forEach((q, i, A) => { if (i % 2 === 0) seg.push(q, c, A[i + 1]); }));   // y 一定
+            items.push({ kind: 'mesh', color: col, pos: new Float32Array(seg) });
+        } else if (e.Z3) {   // z = f(x, y)：格子の面＋格子の線
+            const n = 72, h = 2 * R / n, n1 = n + 1, Z = new Float64Array(n1 * n1);
+            for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) { env.x = -R + i * h; env.y = -R + j * h; Z[j * n1 + i] = e.Z3(env); }
+            const pos = [], nrm = [], seg = [];
+            const nAt = (i, j) => { const zx = (Z[j * n1 + Math.min(n, i + 1)] - Z[j * n1 + Math.max(0, i - 1)]) / (2 * h), zy = (Z[Math.min(n, j + 1) * n1 + i] - Z[Math.max(0, j - 1) * n1 + i]) / (2 * h), L = Math.hypot(zx, zy, 1); return [-zx / L, -zy / L, 1 / L]; };
+            const P = (i, j) => [-R + i * h, -R + j * h, Z[j * n1 + i]];
+            for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+                const q = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]];
+                if (q.some(([a, b]) => !isFinite(Z[b * n1 + a]))) continue;
+                [[0, 1, 2], [0, 2, 3]].forEach(t => t.forEach(c => { pos.push(...P(...q[c])); nrm.push(...nAt(...q[c])); }));
+            }
+            const every = Math.max(1, Math.round(step / h / 2));   // 線は目盛りの半分ごと
+            for (let j = 0; j < n1; j += every) for (let i = 0; i < n; i++) { const a = P(i, j), b = P(i + 1, j); if (isFinite(a[2]) && isFinite(b[2])) seg.push(...a, ...b); }
+            for (let i = 0; i < n1; i += every) for (let j = 0; j < n; j++) { const a = P(i, j), b = P(i, j + 1); if (isFinite(a[2]) && isFinite(b[2])) seg.push(...a, ...b); }
+            items.push({ kind: 'tri', color: col, pos: new Float32Array(pos), nrm: new Float32Array(nrm) });
+            items.push({ kind: 'mesh', color: col, pos: new Float32Array(seg) });
+        } else if (e.kind === 'fn' && e.fn && !e.calc) {   // 2D の y = f(x)：xy 平面（z = 0）に
+            const M = 900, seg = []; let prev = null;
+            for (let m = 0; m <= M; m++) {
+                env.x = -R + 2 * R * m / M; const y = e.fn(env);
+                const pt = isFinite(y) && Math.abs(y) <= R * 1.02 ? [env.x, y, 0] : null;
+                if (pt && prev) seg.push(...prev, ...pt);
+                prev = pt;
+            }
+            items.push({ kind: 'curve', color: col, pos: new Float32Array(seg) });
+        } else if (e.kind === 'implicit' && e.F) {   // 2D の陰関数（円など）：xy 平面に
+            const seg = [];
+            msLines((u, v) => { env.x = u; env.y = v; return e.F(env); }, R, 220).forEach((q, i, A) => { if (i % 2 === 0) seg.push(q, A[i + 1], 0); });
+            items.push({ kind: 'curve', color: col, pos: new Float32Array(seg) });
+        }
+    });
+    return { R, items };
 }
 // 普通のグラフ（いまの表示範囲）とぴったり同じ見え方から、4D に広げる
 function g4Unfold() {
@@ -4072,7 +4233,7 @@ function load() {
     if (data.view && isFinite(data.view.scale)) view = data.view;
     if (data.kbTab && KB[data.kbTab]) kbTab = data.kbTab;
     if (data.viewC && isFinite(data.viewC.scale)) viewC = data.viewC;
-    if (data.mode === 'c' || data.mode === '3d') mode = data.mode;
+    if (data.mode === 'c' || data.mode === '3d' || data.mode === 'xyz') mode = data.mode;
     if (data.d3 && isFinite(data.d3.R)) Object.assign(d3, data.d3);
     // styleVer 2 より前の保存（太い線が既定だった頃）の太さは使わず、新しい細い既定にする
     if (data.styleVer >= 2 && isFinite(data.lineW)) lineW = Math.min(6, Math.max(0.5, data.lineW));
@@ -4251,6 +4412,7 @@ $('#copyXtap').addEventListener('click', () => {
 paintCm();
 dsEl.addEventListener('change', () => { descOn = dsEl.checked; exprs.forEach(refreshRow); save(); });
 requestDraw();
+if (mode === 'xyz') { mode = 'r'; setMode('xyz'); }
 })();
 </script>
 </body>
