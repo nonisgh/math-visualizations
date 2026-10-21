@@ -4346,7 +4346,38 @@
         let wPackRainbow = true; try { wPackRainbow = localStorage.getItem('hypercubePackRainbow') !== '0'; } catch (_) {}
         let wPackRbStyle = 'spec'; try { const v = localStorage.getItem('hypercubePackRbStyle'); if (v === 'w' || v === 'spec') wPackRbStyle = v; } catch (_) {}   // 虹の付け方：'spec'＝どの立方体も同じ七色（下 赤→上 紫）で積み重なる、'w'＝層ごとに 1 色（w の位置で赤→紫）
         const SPEC_K = 7;   // 七色の立方体：y の方向に 7 つに分けて塗る
-        const specCol = (f, col) => col.setHSL(0.82 * Math.max(0, Math.min(1, f)), 1, 0.58);   // f＝0（下）… 1（上）   // 4D空間積分の区分をレインボーに（w の方向＝謎の空間が色の並びで見える）
+        const specCol = (f, col) => col.setHSL(0.82 * Math.max(0, Math.min(1, f)), 1, 0.58);   // f＝0（下）… 1（上）
+        const lerp3s = (A, B, f) => [A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f, A[2] + (B[2] - A[2]) * f];
+        // 七色の立方体（共通）：写した 8 頂点 vs を、立方体の座標 gi（0＝1 本目…）の方向に 赤→紫 で塗る。pL(v, f)＝線、pF(v, f)＝面（f＝0〜1 の位置の色で）
+        function specCubeEmit(vs, gi, pL, pF, faceOn) {
+            const g = i => unitCubeVertices[i][gi] + 0.5, oth = [0, 1, 2].filter(x => x !== gi);
+            WS_EDGES.forEach(([e0, e1]) => {
+                if (g(e0) === g(e1)) { pL(vs[e0], g(e0)); pL(vs[e1], g(e1)); return; }
+                const lo = g(e0) < g(e1) ? e0 : e1, hi = lo === e0 ? e1 : e0;
+                for (let m = 0; m < SPEC_K; m++) { const fm = (m + 0.5) / SPEC_K; pL(lerp3s(vs[lo], vs[hi], m / SPEC_K), fm); pL(lerp3s(vs[lo], vs[hi], (m + 1) / SPEC_K), fm); }
+            });
+            if (!faceOn) return;
+            WS_QUADS.forEach(q => {
+                const gs = q.map(g);
+                if (gs.every(x => x === gs[0])) { [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(i => pF(vs[i], gs[0])); return; }
+                const bot = q.filter(i => g(i) === 0), top = bot.map(b => q.find(i => g(i) === 1 && oth.every(o => unitCubeVertices[i][o] === unitCubeVertices[b][o])));
+                for (let m = 0; m < SPEC_K; m++) {
+                    const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K;
+                    const A0 = lerp3s(vs[bot[0]], vs[top[0]], f0), B0 = lerp3s(vs[bot[1]], vs[top[1]], f0), B1 = lerp3s(vs[bot[1]], vs[top[1]], f1), A1 = lerp3s(vs[bot[0]], vs[top[0]], f1);
+                    [A0, B0, B1, A0, B1, A1].forEach(v => pF(v, fm));
+                }
+            });
+        }
+        // 七色の正方形（共通）：写した 4 角 q（0 1 2 3 の順に回る）を、下の辺 bot[0]→bot[1] から上の辺 top[0]→top[1] へ 赤→紫
+        function specQuadEmit(bot, top, pL, pF, faceOn) {
+            pL(bot[0], 0); pL(bot[1], 0); pL(top[0], 1); pL(top[1], 1);
+            for (let m = 0; m < SPEC_K; m++) {
+                const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K;
+                const A0 = lerp3s(bot[0], top[0], f0), B0 = lerp3s(bot[1], top[1], f0), B1 = lerp3s(bot[1], top[1], f1), A1 = lerp3s(bot[0], top[0], f1);
+                pL(A0, fm); pL(A1, fm); pL(B0, fm); pL(B1, fm);
+                if (faceOn) [A0, B0, B1, A0, B1, A1].forEach(v => pF(v, fm));
+            }
+        }   // 4D空間積分の区分をレインボーに（w の方向＝謎の空間が色の並びで見える）
         const WPACK = { N: 41, OUT: 3.0, D: 1.3, HOLD: 1.4, EMPTY: 0.8 };   // 個数・出発点（t、1＝ふた）・1 個の移動秒・いっぱいで止める秒・空で止める秒
         let WPACK_ST = [];   // 次が出るまで：はじめはゆっくり、だんだん速く（空間を積分していく感じ）。分割数が多いほど後半を速く（1 回りの長さはだいたい同じ）
         function wPackSetN(n) {
@@ -4524,7 +4555,7 @@
         }
         function updateDblSlice(progress) {
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r3) return;
-            if (!wDbl.line) { const m = wDblMk(r3, WDBL.MAXC * 8, true); wDbl.line = m.line; wDbl.face = m.face; }
+            if (!wDbl.line) { const m = wDblMk(r3, WDBL.MAXC * 32, true); wDbl.line = m.line; wDbl.face = m.face; }   // 七色は 1 マス 32 頂点まで
             if (!wDbl.line2 && r2) wDbl.line2 = wDblMk(r2, WDBL.MAXC * 2, false).line;
             const k = wDbl.on ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
             const show = k > 0.01, show2 = show && !dim5 && wDbl.axis !== 'z';
@@ -4540,6 +4571,8 @@
             const P = wDbl.line.geometry.attributes.position.array, C = wDbl.line.geometry.attributes.color.array;
             const FP = wDbl.face.geometry.attributes.position.array, FC = wDbl.face.geometry.attributes.color.array;
             const fs = Math.max(1, Math.ceil(N / 120)), fA = Math.min(0.6, 14 / Math.min(N, 120));   // 面は 120 マスくらいまでに間引く（重ね描きで重くならないように）
+            const dSpec = wPackRainbow && wPackRbStyle === 'spec', gAx = fr.includes(1) ? 1 : fr[1], gi = fr.indexOf(gAx);   // 七色：正方形の y の方向（y が無い時は 2 本目）に 赤→紫
+            wSliceFaceMode(wDbl.face, dSpec, 0.3);
             // 左の立方体（a＝x・y）：updateZSlice と同じ写し方
             const zwOn = zwLink && soloAngleZW !== 0, zc = Math.cos(soloAngleZW), zs = Math.sin(soloAngleZW), pbL = projBlendNow();
             const ax = linkAngleX, ay = linkAngleY, cX = Math.cos(ax), sX = Math.sin(ax), cY = Math.cos(ay), sY = Math.sin(ay), rot3 = rotXY !== 0 || rotXZ !== 0 || rotYZ !== 0;
@@ -4561,8 +4594,14 @@
                 col.setHSL(0.82 * i / Math.max(1, n - 1), 1, 0.45 + 0.22 * j / Math.max(1, n - 1));
                 const corner = (u1, u2) => { const g = [0, 0, 0, cw * H]; g[ai] = ca * H; g[fr[0]] = u1 * H * s2; g[fr[1]] = u2 * H * s2; return toS(g); };
                 const q = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)];
+                if (dSpec) {   // 七色の正方形（どのマスも同じ）
+                    const pL = (v, f) => { if (li + 3 > P.length) return; specCol(f, col); P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * al; C[li + 1] = col.g * al; C[li + 2] = col.b * al; li += 3; };
+                    const pF = (v, f) => { if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * al; FC[fi + 1] = col.g * al; FC[fi + 2] = col.b * al; fi += 3; };
+                    if (gi === 1) specQuadEmit([q[0], q[1]], [q[3], q[2]], pL, pF, c % fs === 0); else specQuadEmit([q[0], q[3]], [q[1], q[2]], pL, pF, c % fs === 0);
+                } else {
                 for (let m = 0; m < 4; m++) [q[m], q[(m + 1) % 4]].forEach(v => { if (li + 3 > P.length) return; P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * al; C[li + 1] = col.g * al; C[li + 2] = col.b * al; li += 3; });
                 if (c % fs === 0) [0, 1, 2, 0, 2, 3].forEach(m => { if (fi + 3 > FP.length) return; const v = q[m]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * al * fA; FC[fi + 1] = col.g * al * fA; FC[fi + 2] = col.b * al * fA; fi += 3; });
+                }
                 if (show2 && P2) {   // 左：a ＝ ca・z ＝ cw の線分（残りの 1 軸に長さ 2）
                     const b = ai === 0 ? 1 : 0, A = [0, 0, 0], B = [0, 0, 0];
                     A[ai] = B[ai] = ca * H; A[2] = B[2] = cw * H; A[b] = -H * s2; B[b] = H * s2;
@@ -4575,7 +4614,7 @@
             wDbl.face.geometry.attributes.position.needsUpdate = wDbl.face.geometry.attributes.color.needsUpdate = true;
             if (wDbl.line2) { wDbl.line2.geometry.setDrawRange(0, li2 / 3); wDbl.line2.geometry.attributes.position.needsUpdate = wDbl.line2.geometry.attributes.color.needsUpdate = true; }
             updateDblHUD(true, show2);   // 式は今のフレームの値で
-            drawTiles4('mesh', r3, k * fade, rot, pb, 3, n, -1 + 2 * sum / N, tileRainbow(n));   // 胞の面にも w の虹の縞（敷きつめた w の層まで）
+            drawTiles4('mesh', r3, k * fade, rot, pb, 3, n, -1 + 2 * sum / N, tileRainbow(n), dSpec ? gAx : undefined);   // 胞の面にも w の虹の縞（敷きつめた w の層まで）
         }
         function updateDblHUD(show, show2) {
             const mk = (rr, key) => {
@@ -4610,7 +4649,7 @@
         const WDUO = { OUT: 2.2, D: 1.3, HOLD: 1.4, EMPTY: 0.7 };
         function updateDuoSlice(progress) {
             const r3 = scene3D && scene3D.getObjectByName('Root3D'); if (!r3) return;
-            if (!wDuo.line) { const m = wDblMk(r3, 1030 * 36, true); wDuo.line = m.line; wDuo.face = m.face; }   // 2 組 × 512 枚まで（面 36 頂点・線 24 頂点）
+            if (!wDuo.line) { const m = wDblMk(r3, 1030 * 72, true); wDuo.line = m.line; wDuo.face = m.face; }   // 2 組 × 512 枚まで（七色は線 72 頂点）
             const k = wDuo.on ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
             const show = k > 0.01;
             wDuo.line.visible = wDuo.face.visible = show;
@@ -4629,6 +4668,8 @@
             const gold = new THREE.Color(0xfbbf24), teal = new THREE.Color(0x2dd4bf);
             let li = 0, fi = 0, sw = 0, sz = 0;
             const fs = Math.max(1, Math.ceil(N / 48)), fA = Math.min(0.5, 6 * fs / N), lA = Math.min(1, 3.2 / Math.sqrt(N));   // 面は 1 組 48 枚くらいまでに間引く（線は全部）
+            const dSpec = wPackRainbow && wPackRbStyle === 'spec';   // 七色：w の組は上下（y）、z の組は左右（x）に 赤→紫
+            wSliceFaceMode(wDuo.face, dSpec, 0.3);
             for (let i = 0; i < N; i++) {
                 const p = filling ? Math.max(0, Math.min(1, (t - st[i]) / WDUO.D)) : 1 - Math.max(0, Math.min(1, (t - fillT - WDUO.HOLD - st[N - 1 - i]) / WDUO.D));   // 入る：−側から／出る：＋側から
                 if (p <= 0) continue;
@@ -4642,6 +4683,12 @@
                         return toS(g);
                     });
                     const L = lA * a, F = fA * a;
+                    if (dSpec) {
+                        const LS = Math.max(L, 0.85 * a);   // 七色の線は明るめ
+                        const pL = (v, f) => { if (li + 3 > P.length) return; specCol(f, col); P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * LS; C[li + 1] = col.g * LS; C[li + 2] = col.b * LS; li += 3; };
+                        const pF = (v, f) => { if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * a; FC[fi + 1] = col.g * a; FC[fi + 2] = col.b * a; fi += 3; };
+                        specCubeEmit(vs, fam === 0 ? 1 : 0, pL, pF, i % fs === 0); return;
+                    }
                     WS_EDGES.forEach(([e0, e1]) => [vs[e0], vs[e1]].forEach(v => { if (li + 3 > P.length) return; P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * L; C[li + 1] = col.g * L; C[li + 2] = col.b * L; li += 3; }));
                     if (i % fs === 0) WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => { if (fi + 3 > FP.length) return; const v = vs[m]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * F; FC[fi + 1] = col.g * F; FC[fi + 2] = col.b * F; fi += 3; }));
                 });
@@ -4651,8 +4698,9 @@
             wDuo.line.geometry.attributes.position.needsUpdate = wDuo.line.geometry.attributes.color.needsUpdate = true;
             wDuo.face.geometry.attributes.position.needsUpdate = wDuo.face.geometry.attributes.color.needsUpdate = true;
             updateDuoHUD(true);
-            drawTiles4('mesh', r3, k, rot, pb, 3, N, -1 + 2 * wDuo.sw, tileRainbow(N));   // 胞の面にも：w の方向は虹の縞
-            drawTiles4('meshZ', r3, k, rot, pb, 2, N, -1 + 2 * wDuo.sz, (i, c) => c.copy(gold).lerp(teal, i / Math.max(1, N - 1)));   // z の方向は 金→青緑 の縞
+            const dSpecT = wPackRainbow && wPackRbStyle === 'spec';
+            drawTiles4('mesh', r3, k, rot, pb, 3, N, -1 + 2 * wDuo.sw, tileRainbow(N), dSpecT ? 1 : undefined);   // 胞の面にも：w の方向は虹の縞（七色なら上下）
+            drawTiles4('meshZ', r3, k, rot, pb, 2, N, -1 + 2 * wDuo.sz, (i, c) => c.copy(gold).lerp(teal, i / Math.max(1, N - 1)), dSpecT ? 0 : undefined);   // z の方向は 金→青緑 の縞（七色なら左右）
         }
         function updateDuoHUD(show) {
             let el = wDuo.hud;
@@ -4705,11 +4753,13 @@
             }
             if (ready && wDbl.on && wDbl.n) {   // 二重積分：w と a の両端
                 const e = sm(((wDbl.sum || 0) / (wDbl.n * wDbl.n) * (wDbl.fade !== undefined ? wDbl.fade : 1) - 0.92) / 0.08), ai = { x: 0, y: 1, z: 2 }[wDbl.axis];
-                add(3, '-', RED, e); add(3, '+', VIO, e); add(ai, '-', DIM, e); add(ai, '+', WHITE, e);
+                const sp = wPackRainbow && wPackRbStyle === 'spec';
+                add(3, '-', sp ? WHITE : RED, e); add(3, '+', sp ? WHITE : VIO, e); add(ai, '-', sp ? WHITE : DIM, e); add(ai, '+', WHITE, e);
             }
             if (ready && wDuo.on) {   // w と z から同時に：w と z の両端
                 const e = sm((((wDuo.sw || 0) + (wDuo.sz || 0)) / 2 - 0.92) / 0.08);
-                add(3, '-', RED, e); add(3, '+', VIO, e); add(2, '-', GOLD, e); add(2, '+', TEAL, e);
+                const sp = wPackRainbow && wPackRbStyle === 'spec';
+                add(3, '-', sp ? WHITE : RED, e); add(3, '+', sp ? WHITE : VIO, e); add(2, '-', sp ? WHITE : GOLD, e); add(2, '+', sp ? WHITE : TEAL, e);
             }
             endTint.want = want;
         }
@@ -4748,9 +4798,10 @@
             m.renderOrder = 996; m.frustumCulled = false; root.add(m); return m;
         }
         // 4次元の窓のタイル（共通）：軸 d（3＝w、2＝z…）の方向にのびた面＝残り 3 軸の立方体の 12 辺 × d の帯。帯 i の色は colorOf(i)。先頭 front（−1〜+1）まで
-        function drawTiles4(key, r3, k, rot, pb, d, N, front, colorOf, spec) {   // spec＝七色（y の方向に 赤→紫、y にのびた辺は 7 つに分ける）
+        function drawTiles4(key, r3, k, rot, pb, d, N, front, colorOf, spec) {   // spec＝七色（true＝残り 3 軸の 2 本目＝ふつう y、数＝その番目の方向に 赤→紫、のびた辺は 7 つに分ける）
+            const si = spec === true ? 1 : (typeof spec === 'number' ? spec : -1); spec = si >= 0;
             if (!r3 || !(k > 0.01)) { if (wTile[key]) wTile[key].visible = false; return; }
-            if (!wTile[key]) wTile[key] = wTileMk(r3, 64 * 36 * 6);   // 七色は 1 帯 36 枚（12 辺のうち y の 4 辺を 7 つ）
+            if (!wTile[key]) wTile[key] = wTileMk(r3, 64 * 36 * 6);   // （spec は下で決め直す）   // 七色は 1 帯 36 枚（12 辺のうち y の 4 辺を 7 つ）
             const mesh = wTile[key]; mesh.visible = true;
             const stp = Math.max(1, Math.ceil((N - 1) / (spec ? 24 : 64))), H = HALF_S, oth = [0, 1, 2, 3].filter(x => x !== d), col = new THREE.Color();
             const toS = g => ndProject(NDGeom.rotatePoint([g[0] * sqK('x'), g[1] * sqK('y'), g[2] * sqK('z'), g[3]], rot), pb);
@@ -4765,7 +4816,7 @@
                 WS_EDGES.forEach(([e0, e1]) => {
                     const u = unitCubeVertices[e0], v = unitCubeVertices[e1];
                     if (!spec) { const A0 = at(u, t0), B0 = at(v, t0), B1 = at(v, t1), A1 = at(u, t1); [A0, B0, B1, A0, B1, A1].forEach(put); return; }
-                    const yu = u[1] + 0.5, yv = v[1] + 0.5, K = yu === yv ? 1 : SPEC_K;   // 七色：y にのびた辺は 7 つに分ける
+                    const yu = u[si] + 0.5, yv = v[si] + 0.5, K = yu === yv ? 1 : SPEC_K;   // 七色：その方向にのびた辺は 7 つに分ける
                     for (let m = 0; m < K; m++) {
                         const f0 = m / K, f1 = (m + 1) / K, p0 = [0, 1, 2].map(j => u[j] + (v[j] - u[j]) * f0), p1 = [0, 1, 2].map(j => u[j] + (v[j] - u[j]) * f1);
                         specCol(yu + (yv - yu) * (m + 0.5) / K, col);
@@ -8905,7 +8956,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-2340';
+        const APP_BUILD = '20261021-2348';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
