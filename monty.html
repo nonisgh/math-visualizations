@@ -63,8 +63,24 @@
     .pile span { animation: drop .35s ease-out; }
     @keyframes drop { from { transform: translateY(-16px) scale(1.6); opacity: 0; } to { transform: none; opacity: 1; } }
     .pile .unit { font-size: 11px; color: var(--muted); width: 100%; order: 999; }
-    .strip { display: flex; gap: 2px; margin-top: 8px; height: 10px; }
-    .strip i { flex: 1; border-radius: 2px; }
+    .strip { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
+    .strip .srow { display: flex; gap: 2px; height: 8px; }
+    .strip i { flex: 1; border-radius: 2px; background: #1e293b; }
+    .venues { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .venues.two { grid-template-columns: 1fr 1fr; }
+    @media (max-width: 640px) { .venues.two { grid-template-columns: 1fr; } }
+    .venue { border-radius: 12px; }
+    .venues.two .venue { border: 1px solid var(--line); padding: 4px 6px 2px; background: rgba(3, 7, 18, 0.4); }
+    .vtitle { display: none; text-align: center; font-size: 12.5px; font-weight: 700; margin-top: 2px; }
+    .venues.two .vtitle { display: block; }
+    .vtitle.st b { color: var(--st); } .vtitle.sw b { color: var(--sw); }
+    #sDoors2 .door .front { transition-duration: var(--dur, 0.5s); }
+    #sDoors2 .door.win .back { box-shadow: 0 0 0 3px var(--wc), 0 0 22px var(--wc); }
+    #sDoors2 .who { position: absolute; left: 0; right: 0; top: -20px; display: flex; justify-content: center; gap: 4px; font-size: 11px; font-weight: 800; }
+    #sDoors2 .who span { padding: 0 6px; border-radius: 999px; }
+    #sDoors2 .who .sw { background: var(--sw); color: #052e16; }
+    #sDoors2 { margin-top: 18px; }
+    #sDoors2.snap .door .front { transition: none; }
     #sDoors .door .front { transition-duration: var(--dur, 0.5s); }
     #sDoors .door.win .back { box-shadow: 0 0 0 3px var(--wc), 0 0 22px var(--wc); }
     #sDoors .who { position: absolute; left: 0; right: 0; top: -20px; display: flex; justify-content: center; gap: 4px; font-size: 11px; font-weight: 800; }
@@ -84,21 +100,29 @@
         </div>
         <div class="card" id="show">
             <h2>見て確かめる：2 人が延々と遊び続ける</h2>
-            <p class="note" style="margin:0 0 6px">毎回、同じゲームを<b style="color:var(--st)">「そのまま派」</b>と<b style="color:var(--sw)">「変える派」</b>の 2 人が遊びます。当たった人の山に 🚗 が 1 台ずつ積まれていきます。どっちの山が大きくなるかな？</p>
+            <p class="note" style="margin:0 0 6px" id="showNote"></p>
+            <div class="btns" style="justify-content:center;margin-bottom:6px">
+                <span class="k" style="font-size:12.5px">遊び方</span>
+                <button data-mode="same" class="on" title="1 つの会場で、同じゲームを 2 人が同時に遊ぶ（車の場所も、最初に選ぶドアも同じ）">同じゲームを 2 人で</button>
+                <button data-mode="two" title="会場を 2 つ用意して、それぞれ別々のでたらめなゲーム（車の場所も別）。左の会場はずっとそのままの人、右の会場はいつも変える人">会場を 2 つ（別々のゲーム）</button>
+            </div>
             <div class="btns" style="justify-content:center;margin-bottom:6px">
                 <button class="on" id="sPlay">▶ 延々と遊ぶ</button>
                 <span class="k" style="font-size:12.5px">速さ</span>
                 <button data-sp="0">ゆっくり</button><button data-sp="1" class="on">ふつう</button><button data-sp="2">速い</button><button data-sp="3">超速</button><button data-sp="4">最速</button>
                 <button id="sReset">山をくずす</button>
             </div>
-            <div class="doors" id="sDoors"></div>
+            <div class="venues" id="venues">
+                <div class="venue"><div class="vtitle st">会場 A：ずっと<b>そのまま</b>の人</div><div class="doors" id="sDoors"></div></div>
+                <div class="venue" id="venue2"><div class="vtitle sw">会場 B：いつも<b>変える</b>人</div><div class="doors" id="sDoors2"></div></div>
+            </div>
             <div class="msg" id="sMsg" style="min-height:30px;margin-top:20px;font-size:14px"></div>
             <div class="piles">
                 <div class="pile-col st"><div class="pile-head"><b>そのまま派</b><span class="pnum" id="pStN">0</span></div><div class="pile" id="pSt"></div></div>
                 <div class="pile-col sw"><div class="pile-head"><b>変える派</b><span class="pnum" id="pSwN">0</span></div><div class="pile" id="pSw"></div></div>
             </div>
             <div class="msg" id="sRatio" style="min-height:0;margin-top:8px"></div>
-            <div class="strip" id="sStrip" title="最近の 60 回、どちらが当たったか（ピンク＝そのまま派、緑＝変える派）"></div>
+            <div class="strip" id="sStrip" title="最近の 60 回の結果（上の段＝そのまま派、下の段＝変える派。色がついている所が当たり）"></div>
         </div>
         <div class="card">
             <div class="row" style="margin-bottom:6px"><span class="k">ドアの数</span><input id="nD" type="range" min="3" max="20" step="1" value="3"><b id="nDV" class="num" style="min-width:60px">3 枚</b></div>
@@ -258,45 +282,73 @@ document.querySelectorAll('[data-n]').forEach(b => b.addEventListener('click', (
 $('simReset').addEventListener('click', simReset);
 window.addEventListener('resize', fitChart);
 
-// ---- 見て確かめる：2 人（そのまま派・変える派）が同じゲームを延々と遊ぶアニメーション ----
-//   1 回ごと：車を隠す → 2 人が同じドアを選ぶ → 司会者がヤギのドアを開ける → そのまま派は最初のドア、変える派は残された 1 枚 → 全部開けて、当たった方の山に 🚗
-//   速さ：ゆっくり 2.4 秒／ふつう 1.1 秒／速い 0.45 秒／超速 0.12 秒（ドアは瞬時）／最速（1 コマに何回も、ドアの絵は時々だけ）
+// ---- 見て確かめる：2 人（そのまま派・変える派）が延々と遊ぶアニメーション ----
+//   遊び方 same＝1 つの会場で同じゲームを 2 人で（毎回どちらか片方が当たる）
+//         two ＝会場を 2 つ、それぞれ別々のでたらめなゲーム（会場 A はずっとそのまま、会場 B はいつも変える。2 人とも当たる・2 人ともはずれる回もある）
+//   1 回ごと：車を隠す → ドアを選ぶ → 司会者がヤギのドアを開ける → 答える（そのまま／変える）→ 全部開けて、当たった人の山に 🚗
+//   速さ：ゆっくり 2.4 秒／ふつう 1.1 秒／速い 0.45 秒／超速 0.12 秒（ドアは瞬時）／最速（1 コマに 300 回、ドアの絵は最後の 1 回だけ）
 const SP = [2400, 1100, 450, 120, 0];
-const A = { on: true, sp: 1, st: 0, sw: 0, n: 0, game: null, t0: 0, strip: [], unit: 1 };
-function sDoorsBuild() {
-    const box = $('sDoors'), n = G.n, w = n <= 3 ? 110 : n <= 6 ? 80 : n <= 10 ? 56 : 40;
+const A = { on: true, sp: 1, mode: 'same', st: 0, sw: 0, n: 0, game: null, game2: null, t0: 0, strip: [], unit: 1 };
+const NOTE = {
+    same: '毎回、<b style="color:var(--st)">「そのまま派」</b>と<b style="color:var(--sw)">「変える派」</b>の 2 人が、<b>同じゲーム</b>を遊びます。当たった人の山に 🚗 が 1 台ずつ積まれていきます。どっちの山が大きくなるかな？',
+    two: '会場を 2 つ用意しました。どちらの会場でも、車の場所も選ぶドアも<b>別々にでたらめ</b>。会場 A の人は<b style="color:var(--st)">ずっとそのまま</b>、会場 B の人は<b style="color:var(--sw)">いつも変える</b>。2 人とも当たる回も、2 人ともはずれる回もあります。それでも山は……？',
+};
+function buildBox(box, n, w) {
     box.style.gridTemplateColumns = `repeat(${Math.min(n, 10)}, ${w}px)`;
     box.style.setProperty('--num', Math.round(w * 0.26) + 'px'); box.style.setProperty('--prize', Math.round(w * 0.38) + 'px');
     box.innerHTML = '';
     for (let i = 0; i < n; i++) { const d = document.createElement('div'); d.className = 'door'; d.innerHTML = '<div class="back"></div><div class="front">' + (i + 1) + '</div><div class="who"></div>'; box.appendChild(d); }
 }
-const sDoor = i => $('sDoors').children[i];
+function sDoorsBuild() {
+    const n = G.n, two = A.mode === 'two';
+    const w = two ? (n <= 3 ? 78 : n <= 6 ? 52 : n <= 10 ? 36 : 26) : (n <= 3 ? 110 : n <= 6 ? 80 : n <= 10 ? 56 : 40);
+    buildBox($('sDoors'), n, w); buildBox($('sDoors2'), n, w);
+    $('venue2').style.display = two ? '' : 'none'; $('venues').classList.toggle('two', two);
+    $('showNote').innerHTML = NOTE[A.mode];
+}
 function newShowGame() {
     const n = G.n, car = ri(n), pick = ri(n);
     let left; if (pick === car) { left = ri(n - 1); if (left >= pick) left++; } else left = car;   // 司会者が閉めたまま残す 1 枚（上の自動と同じ決め方）
     return { car, pick, left, phase: 0 };
 }
-function paintShow(g, phase) {   // phase 0：閉じる 1：選ぶ 2：司会者が開ける 3：2 人の答え 4：全部開けて結果
-    const n = G.n;
+// 1 つの会場を描く。who＝'both'（2 人で同じゲーム）・'st'（そのままの人だけ）・'sw'（変える人だけ）
+function paintBox(box, g, phase, who) {
+    const n = G.n, lab = { st: '<span class="st">そのまま</span>', sw: '<span class="sw">変える</span>' };
+    if (phase === 0) box.classList.add('snap'); else box.classList.remove('snap');   // 閉じる時は一瞬で（中身が見えないように）、開ける時はゆっくり
     for (let i = 0; i < n; i++) {
-        const d = sDoor(i); if (!d) continue;
-        if (phase === 0) { $('sDoors').classList.add('snap'); d.className = 'door'; d.querySelector('.back').textContent = i === g.car ? '🚗' : '🐐'; d.querySelector('.who').innerHTML = ''; }
-        const who = [];
-        if (phase >= 1 && phase < 3 && i === g.pick) who.push('<span class="st">そのまま</span><span class="sw">変える</span>');
-        if (phase >= 3) { if (i === g.pick) who.push('<span class="st">そのまま</span>'); if (i === g.left) who.push('<span class="sw">変える</span>'); }
-        d.querySelector('.who').innerHTML = who.join('');
+        const d = box.children[i]; if (!d) continue;
+        if (phase === 0) { d.className = 'door'; d.querySelector('.back').textContent = i === g.car ? '🚗' : '🐐'; }
+        const tags = [];
+        if (phase >= 1 && phase < 3 && i === g.pick) tags.push(who === 'both' ? lab.st + lab.sw : lab[who]);
+        if (phase >= 3) { if (i === g.pick && who !== 'sw') tags.push(lab.st); if (i === g.left && who !== 'st') tags.push(lab.sw); }
+        d.querySelector('.who').innerHTML = tags.join('');
         d.classList.toggle('pick', phase >= 1 && phase < 3 && i === g.pick);
         if (phase >= 2 && i !== g.pick && i !== g.left) d.classList.add('open');
-        if (phase >= 4) { d.classList.add('open'); if (i === g.car) { d.classList.add('win'); d.style.setProperty('--wc', g.car === g.pick ? '#f472b6' : '#34d399'); } }
+        if (phase >= 4) {
+            d.classList.add('open');
+            if (i === g.car) {   // 車のドアを、当たった人の色で光らせる（その会場の人がはずれたら灰色）
+                const c = who === 'both' ? (g.car === g.pick ? '#f472b6' : '#34d399') : who === 'st' ? (g.car === g.pick ? '#f472b6' : '#475569') : (g.car === g.left ? '#34d399' : '#475569');
+                d.classList.add('win'); d.style.setProperty('--wc', c);
+            }
+        }
     }
-    if (phase >= 1) $('sDoors').classList.remove('snap');   // 閉じる時は一瞬で（中身が見えないように）、開ける時はゆっくり
-    const M_ = ['車をどれかのドアに隠しました……', '2 人とも ' + (g.pick + 1) + ' 番を選びました', '司会者が、ヤギのドアを開けました', 'そのまま派は ' + (g.pick + 1) + ' 番、変える派は ' + (g.left + 1) + ' 番', g.car === g.pick ? '<b class="st">そのまま派</b>の当たり！' : '<b class="sw">変える派</b>の当たり！'];
-    $('sMsg').innerHTML = M_[phase];
 }
-function scoreShow(g) {
-    A.n++; const stWin = g.car === g.pick, swWin = g.car === g.left;
+function paintShow(phase) {
+    const g = A.game;
+    if (A.mode === 'same') {
+        paintBox($('sDoors'), g, phase, 'both');
+        $('sMsg').innerHTML = ['車をどれかのドアに隠しました……', '2 人とも ' + (g.pick + 1) + ' 番を選びました', '司会者が、ヤギのドアを開けました', 'そのまま派は ' + (g.pick + 1) + ' 番、変える派は ' + (g.left + 1) + ' 番', g.car === g.pick ? '<b class="st">そのまま派</b>の当たり！' : '<b class="sw">変える派</b>の当たり！'][phase];
+    } else {
+        const h = A.game2;
+        paintBox($('sDoors'), g, phase, 'st'); paintBox($('sDoors2'), h, phase, 'sw');
+        const r = (win, cls, name) => win ? `<b class="${cls}">${name} 当たり！</b>` : `${name} はずれ`;
+        $('sMsg').innerHTML = ['2 つの会場で、それぞれ別の場所に車を隠しました……', '会場 A は ' + (g.pick + 1) + ' 番、会場 B は ' + (h.pick + 1) + ' 番を選びました', 'どちらの会場でも、司会者がヤギのドアを開けました', '会場 A の人はそのまま、会場 B の人は ' + (h.left + 1) + ' 番に変えました', r(g.car === g.pick, 'st', 'そのまま派') + '　／　' + r(h.car === h.left, 'sw', '変える派')][phase];
+    }
+}
+function scoreShow(g, h) {
+    A.n++; const stWin = g.car === g.pick, swWin = (h || g).car === (h || g).left;
     if (stWin) A.st++; if (swWin) A.sw++;
-    A.strip.push(stWin ? 'st' : 'sw'); if (A.strip.length > 60) A.strip.shift();
+    A.strip.push([stWin, swWin]); if (A.strip.length > 60) A.strip.shift();
     // 山：🚗 1 台＝ unit 回。多くなったら 1 台＝10 回、100 回…にまとめ直す
     const need = Math.max(A.st, A.sw) / A.unit;
     if (need > 150) { A.unit *= 10; drawPiles(); }   // 山の箱に収まるように
@@ -312,21 +364,24 @@ function drawPiles() {
 function showScore() {
     $('pStN').textContent = A.st.toLocaleString(); $('pSwN').textContent = A.sw.toLocaleString();
     $('sRatio').innerHTML = A.n ? A.n.toLocaleString() + ' 回遊んで、変える派は そのまま派の <b class="big" style="color:var(--sw)">' + (A.st ? (A.sw / A.st).toFixed(5) : '—') + '</b> 倍 当たった' + (A.n < 30 ? '<br><span class="note">（まだ回数が少ないので、ばらつきます）</span>' : '') : '';
-    $('sStrip').innerHTML = A.strip.map(w => '<i style="background:' + (w === 'st' ? '#f472b6' : '#34d399') + '"></i>').join('');
+    const row = k => '<div class="srow">' + A.strip.map(w => '<i' + (w[k] ? ' style="background:' + (k ? '#34d399' : '#f472b6') + '"' : '') + '></i>').join('') + '</div>';
+    $('sStrip').innerHTML = A.strip.length ? row(0) + row(1) : '';
 }
-function showReset() { A.st = A.sw = A.n = 0; A.strip = []; A.unit = 1; A.game = null; drawPiles(); showScore(); sDoorsBuild(); }
+function showReset() { A.st = A.sw = A.n = 0; A.strip = []; A.unit = 1; A.game = A.game2 = null; drawPiles(); showScore(); sDoorsBuild(); }
 let sRaf = 0;
+function newRound(now) { A.game = newShowGame(); A.game2 = A.mode === 'two' ? newShowGame() : null; A.t0 = now; paintShow(0); }
 function showLoop(now) {
     sRaf = 0; if (!A.on) return;
-    const T = SP[A.sp];
-    if (T === 0) {   // 最速：1 コマに 300 回。ドアの絵は 1 コマに 1 回だけ（最後のゲーム）
-        let g = null; for (let k = 0; k < 300; k++) { g = newShowGame(); scoreShow(g); }
-        $('sDoors').style.setProperty('--dur', '0s'); paintShow(g, 0); paintShow(g, 4); showScore();
+    const T = SP[A.sp], boxes = [$('sDoors'), $('sDoors2')];
+    if (T === 0) {   // 最速：1 コマに 300 回。ドアの絵は最後の 1 回だけ
+        boxes.forEach(b => b.style.setProperty('--dur', '0s'));
+        for (let k = 0; k < 300; k++) { A.game = newShowGame(); A.game2 = A.mode === 'two' ? newShowGame() : null; scoreShow(A.game, A.game2); }
+        paintShow(0); paintShow(4); showScore(); A.game = null;
     } else {
-        $('sDoors').style.setProperty('--dur', (T < 300 ? 0 : Math.min(0.5, T / 2600)) + 's');
-        if (!A.game) { A.game = newShowGame(); A.t0 = now; paintShow(A.game, 0); }
+        boxes.forEach(b => b.style.setProperty('--dur', (T < 300 ? 0 : Math.min(0.5, T / 2600)) + 's'));
+        if (!A.game) newRound(now);
         const f = (now - A.t0) / T, ph = f < 0.12 ? 0 : f < 0.32 ? 1 : f < 0.55 ? 2 : f < 0.72 ? 3 : 4;
-        if (ph !== A.game.phase) { for (let p = A.game.phase + 1; p <= ph; p++) paintShow(A.game, p); A.game.phase = ph; if (ph === 4) { scoreShow(A.game); showScore(); } }
+        if (ph !== A.game.phase) { for (let p = A.game.phase + 1; p <= ph; p++) paintShow(p); A.game.phase = ph; if (ph === 4) { scoreShow(A.game, A.game2); showScore(); } }
         if (f >= 1) A.game = null;
     }
     sRaf = requestAnimationFrame(showLoop);
@@ -334,6 +389,7 @@ function showLoop(now) {
 const sStart = () => { if (!sRaf && A.on) sRaf = requestAnimationFrame(showLoop); };
 $('sPlay').addEventListener('click', () => { A.on = !A.on; $('sPlay').textContent = A.on ? '■ 止める' : '▶ 延々と遊ぶ'; $('sPlay').classList.toggle('on', A.on); if (A.on) { A.game = null; sStart(); } });
 document.querySelectorAll('[data-sp]').forEach(b => b.addEventListener('click', () => { A.sp = +b.dataset.sp; document.querySelectorAll('[data-sp]').forEach(x => x.classList.toggle('on', x === b)); A.game = null; }));
+document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { A.mode = b.dataset.mode; document.querySelectorAll('[data-mode]').forEach(x => x.classList.toggle('on', x === b)); showReset(); }));   // 遊び方を変えたら山をくずして最初から
 $('sReset').addEventListener('click', showReset);
 $('nD').addEventListener('input', () => showReset());
 $('sPlay').textContent = '■ 止める';
