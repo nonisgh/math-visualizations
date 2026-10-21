@@ -28,6 +28,8 @@
     .btns { display: flex; flex-wrap: wrap; gap: 6px; }
     button { font: 700 13px 'Noto Sans JP', Inter, sans-serif; color: var(--text); background: #111a2e; border: 1px solid #334155; border-radius: 10px; padding: 7px 12px; cursor: pointer; }
     button:hover { background: #1b2740; }
+    button:disabled { opacity: 0.4; cursor: wait; }
+    button.big-n { background: rgba(251, 191, 36, 0.14); border-color: #fbbf24; color: #fef3c7; }
     button.go { background: rgba(244, 114, 182, 0.18); border-color: var(--hit); color: #fce7f3; }
     button.on { background: rgba(52, 211, 153, 0.2); border-color: var(--ok); color: #d1fae5; }
     .row .btns button { padding: 4px 10px; font-size: 12px; }
@@ -71,8 +73,15 @@
                 <button class="go" data-n="1000">1000 本</button>
                 <button class="go" data-n="10000">1 万本</button>
                 <button class="go" data-n="100000">10 万本</button>
+                <button class="go big-n" data-huge="1e7" title="1000 万本。パソコンのコア（CPU）を何個も同時に使って計算する。画面には一部だけ描く">10⁷ 本</button>
+                <button class="go big-n" data-huge="1e8" title="1 億本。何個ものコアで同時に計算（数秒）">10⁸ 本</button>
+                <button class="go big-n" data-huge="1e9" title="10 億本。何個ものコアで同時に計算（数十秒かかることも。途中で止められる）">10⁹ 本</button>
                 <button id="play">▶ 落とし続ける</button>
                 <button id="reset">リセット</button>
+            </div>
+            <div id="hugeBox" style="display:none;margin-top:8px">
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)"><span id="hugeTxt"></span><button id="hugeStop" style="padding:2px 10px;font-size:12px">中止</button></div>
+                <div style="height:8px;border-radius:999px;background:#1e293b;overflow:hidden;margin-top:4px"><div id="hugeBar" style="height:100%;width:0;background:linear-gradient(90deg,#f472b6,#fbbf24);transition:width .15s"></div></div>
             </div>
             <div class="row"><label>乱数</label><div class="btns"><button data-rng="math" class="on" title="ブラウザの標準の乱数（Math.random。xorshift128+ など、速くてシミュレーション向き）">ふつう（Math.random）</button><button data-rng="crypto" title="暗号用の乱数（crypto.getRandomValues。次の数を予想できない。53 ビットの細かさにそろえて使う）">暗号用</button></div></div>
             <div class="row"><label>落とす速さ</label><input id="speed" type="range" min="0" max="5" step="1" value="2"><span class="v" id="speedV"></span></div>
@@ -228,7 +237,7 @@ function show() {
     const short = S.L <= 1;
     $('piBox').style.opacity = short ? 1 : 0.35;
     if (short && S.H > 0) {
-        const est = 2 * S.L * S.N / S.H, s = est.toFixed(6), t = Math.PI.toFixed(6);
+        const est = 2 * S.L * S.N / S.H, D = S.N >= 1e8 ? 8 : 6, s = est.toFixed(D), t = Math.PI.toFixed(D);
         let k = 0; while (k < s.length && s[k] === t[k]) k++;
         $('sPi').textContent = s;
         $('sDig').innerHTML = '本当の π ＝ ' + t.slice(0, k) + '<span style="color:#64748b">' + t.slice(k) + '…</span>　'
@@ -247,7 +256,7 @@ function drawChart() {
     const lo = Math.PI * 0.9, hi = Math.PI * 1.1;
     const nMax = Math.max(100, S.N), lx = n => padL + iw * Math.log10(n) / Math.log10(nMax), ly = v => padT + ih * (1 - (v - lo) / (hi - lo));
     g.font = '10px Inter, sans-serif'; g.fillStyle = '#64748b'; g.strokeStyle = '#1e293b'; g.lineWidth = 1;
-    for (let p = 1; p <= nMax; p *= 10) { const x = lx(p); g.beginPath(); g.moveTo(x, padT); g.lineTo(x, padT + ih); g.stroke(); g.fillText(p >= 1000 ? (p / 1000) + 'k' : String(p), x - 6, h - 4); }
+    for (let p = 1; p <= nMax; p *= 10) { const x = lx(p); g.beginPath(); g.moveTo(x, padT); g.lineTo(x, padT + ih); g.stroke(); g.fillText(p >= 1e9 ? (p / 1e9) + 'G' : p >= 1e6 ? (p / 1e6) + 'M' : p >= 1000 ? (p / 1000) + 'k' : String(p), x - 6, h - 4); }
     [lo, Math.PI, hi].forEach(v => { g.fillText(v.toFixed(2), 2, ly(v) + 3); });
     const short = S.L <= 1;
     g.strokeStyle = 'rgba(251, 191, 36, 0.9)'; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(padL, ly(Math.PI)); g.lineTo(padL + iw, ly(Math.PI)); g.stroke(); g.setLineDash([]);
@@ -291,7 +300,69 @@ function frame() {
 document.querySelectorAll('[data-rng]').forEach(b => b.addEventListener('click', () => {   // 乱数を変えたら最初から（比べやすいように）
     rngMode = b.dataset.rng; document.querySelectorAll('[data-rng]').forEach(x => x.classList.toggle('on', x === b)); reset();
 }));
-function reset() { S.N = 0; S.H = 0; S.hist = []; S.fresh = []; ndl.length = 0; nextRec = 1; redrawAll(); show(); }
+function reset() { stopHuge(); S.N = 0; S.H = 0; S.hist = []; S.fresh = []; ndl.length = 0; nextRec = 1; redrawAll(); show(); }
+
+// ---- 10⁷〜10⁹ 本：Web Worker（別の CPU コア）を何個も同時に動かして数える。画面には最初の 2 万本だけ描く ----
+//   各 Worker は線の間隔を 1 として、針の真ん中の高さを 0〜1 で一様に、向きは円の中のでたらめな点（π を使わない）で、同じ判定（両端の高さの整数の部分が違えば交わる）。
+//   100 万本ごとに「何本落として何本交わったか」を返す → 合計・グラフ・表に足していく
+const WORKER_SRC = `
+self.onmessage = e => {
+    const { n, half, mode } = e.data;
+    let rnd = Math.random;
+    if (mode === 'crypto') { const buf = new Uint32Array(4096); let pos = buf.length; rnd = () => { if (pos >= buf.length) { crypto.getRandomValues(buf); pos = 0; } const a = buf[pos++] >>> 5, b = buf[pos++] >>> 6; return (a * 67108864 + b) / 9007199254740992; }; }
+    let done = 0;
+    while (done < n) {
+        const m = Math.min(1000000, n - done); let hits = 0;
+        for (let i = 0; i < m; i++) {
+            let ux, uy, r2;
+            do { ux = rnd() * 2 - 1; uy = rnd() * 2 - 1; r2 = ux * ux + uy * uy; } while (r2 > 1 || r2 < 1e-12);
+            const dy = uy / Math.sqrt(r2) * half, cy = rnd();
+            if (Math.floor(cy - dy) !== Math.floor(cy + dy)) hits++;
+        }
+        done += m; postMessage({ m, hits });
+    }
+    postMessage({ fin: true });
+};`;
+let huge = null;
+function stopHuge() {
+    if (!huge) return;
+    huge.workers.forEach(w => w.terminate()); URL.revokeObjectURL(huge.url); huge = null;
+    $('hugeBox').style.display = 'none'; document.querySelectorAll('[data-n],[data-huge]').forEach(b => b.disabled = false);
+}
+function runHuge(total) {
+    if (huge) return;
+    S.play = false; $('play').textContent = '▶ 落とし続ける'; $('play').classList.remove('on');
+    const shown = Math.min(20000, total); drop(shown);   // 見た目用に 2 万本だけ描く（数にも入る）
+    const rest = total - shown, cores = Math.max(1, Math.min(16, (navigator.hardwareConcurrency || 4) - 1));
+    const url = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }));
+    huge = { workers: [], url, total: rest, done: 0, t0: performance.now(), cores, fin: 0, dirty: false };
+    document.querySelectorAll('[data-n],[data-huge]').forEach(b => b.disabled = true);
+    $('hugeBox').style.display = '';
+    const per = Math.floor(rest / cores);
+    for (let c = 0; c < cores; c++) {
+        const w = new Worker(url), n = c === cores - 1 ? rest - per * (cores - 1) : per;
+        w.onmessage = e => {
+            if (!huge) return;
+            const d = e.data;
+            if (d.fin) { if (++huge.fin === huge.workers.length) { const sec = (performance.now() - huge.t0) / 1000; stopHuge(); $('hugeBox').style.display = ''; $('hugeStop').style.display = 'none'; $('hugeBar').style.width = '100%'; $('hugeTxt').textContent = '終わり：' + total.toLocaleString() + ' 本を ' + sec.toFixed(1) + ' 秒（' + cores + ' コアで同時に）'; show(); } return; }
+            S.N += d.m; S.H += d.hits; huge.done += d.m; record(); huge.dirty = true;
+        };
+        w.postMessage({ n, half: S.L / 2, mode: rngMode });
+        huge.workers.push(w);
+    }
+    $('hugeStop').style.display = '';
+    const tick = () => {   // 表示は 1 コマに 1 回だけ
+        if (!huge) return;
+        if (huge.dirty) { huge.dirty = false; show(); }
+        const f = huge.done / Math.max(1, huge.total), sec = (performance.now() - huge.t0) / 1000;
+        $('hugeBar').style.width = (100 * f).toFixed(1) + '%';
+        $('hugeTxt').textContent = '計算中 ' + (100 * f).toFixed(1) + '%（' + huge.cores + ' コアで同時に、' + sec.toFixed(1) + ' 秒）' + (f > 0.02 ? '　あと約 ' + Math.max(0, sec / f - sec).toFixed(0) + ' 秒' : '');
+        requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+}
+document.querySelectorAll('[data-huge]').forEach(b => b.addEventListener('click', () => runHuge(Math.round(+b.dataset.huge))));
+$('hugeStop').addEventListener('click', () => { const n = huge ? huge.done : 0; stopHuge(); $('hugeBox').style.display = ''; $('hugeStop').style.display = 'none'; $('hugeTxt').textContent = '中止しました（' + n.toLocaleString() + ' 本ぶんは数に入っています）'; show(); });
 document.querySelectorAll('[data-n]').forEach(b => b.addEventListener('click', () => drop(+b.dataset.n)));
 $('play').addEventListener('click', () => { S.play = !S.play; $('play').textContent = S.play ? '■ 止める' : '▶ 落とし続ける'; $('play').classList.toggle('on', S.play); });
 $('reset').addEventListener('click', reset);
