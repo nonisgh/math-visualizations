@@ -4663,6 +4663,62 @@
                 + '<div>＝ <b style="font-size:16px;color:#fde68a">' + (vw + vz).toFixed(2) + '</b> ／ 32　' + (wDuo.fill ? '敷きつめ中' : '取り出し中') + '</div>'
                 + '<div style="color:#94a3b8;font-size:10px">イメージ：同じ中身（4次元の体積 16）を w からと z からの 2 回数えているので 32。本当の体積は 16</div>';
         }
+        // ===== 積分がいっぱいになったら、両端の胞も染めて「閉じる」=====
+        //   積分の範囲 −1〜+1 は両端もふくむ（閉区間）。端の胞（w の積分なら底 −W とふた +W）は最初と最後の層そのもの。
+        //   いっぱいになった時に、端の胞を最初・最後の層の色にふわっと染める（4次元の体積は 0 なので値は変わらない）。取り出し始めたら戻す。
+        //   胞の色は updateMorphingGeometry が毎フレーム書くので、書き直されていない時は元に戻してから染める（重ねがけしない）
+        const endTint = { cells: null };
+        function endCellIds() {   // 組み上がりで、軸 d の −側・＋側にある胞の番号
+            if (endTint.cells) return endTint.cells;
+            const r = {}, H = HALF_S;
+            for (let c = 0; c < 8; c++) {
+                const v = cellVerts4D(c, 1);
+                for (let d = 0; d < 4; d++) {
+                    if (v.every(q => Math.abs(q[d] + H) < 1e-6)) r[d + '-'] = c;
+                    if (v.every(q => Math.abs(q[d] - H) < 1e-6)) r[d + '+'] = c;
+                }
+            }
+            return (endTint.cells = r);
+        }
+        function applyEndTint() {
+            if (!cellObjects3D || !cellObjects3D.length) return;
+            const sm = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+            const hsl = h => { const c = new THREE.Color().setHSL(h, 1, 0.58); return [c.r, c.g, c.b]; };
+            const RED = hsl(0), VIO = hsl(0.82), WHITE = [0.95, 0.95, 1], DIM = [0.55, 0.6, 0.72], GOLD = [0.98, 0.75, 0.14], TEAL = [0.18, 0.83, 0.75];
+            const want = new Map(), ids = endCellIds();
+            const add = (d, sg, rgb, e) => { if (!(e > 0.001)) return; const c = ids[d + sg]; if (c !== undefined) want.set(c, { rgb, e }); };
+            const ready = animationProgress >= 0.92 && explodeE() < 0.05;
+            if (ready && wSlice.on && wSlice.pack) {   // 4D空間積分：w の両端
+                const e = sm(((wSlice.packFront !== undefined ? wSlice.packFront : -1) - 0.9) / 0.1);
+                add(3, '-', wPackRainbow ? RED : WHITE, e); add(3, '+', wPackRainbow ? VIO : WHITE, e);
+            }
+            if (ready && wDbl.on && wDbl.n) {   // 二重積分：w と a の両端
+                const e = sm(((wDbl.sum || 0) / (wDbl.n * wDbl.n) * (wDbl.fade !== undefined ? wDbl.fade : 1) - 0.92) / 0.08), ai = { x: 0, y: 1, z: 2 }[wDbl.axis];
+                add(3, '-', RED, e); add(3, '+', VIO, e); add(ai, '-', DIM, e); add(ai, '+', WHITE, e);
+            }
+            if (ready && wDuo.on) {   // w と z から同時に：w と z の両端
+                const e = sm((((wDuo.sw || 0) + (wDuo.sz || 0)) / 2 - 0.92) / 0.08);
+                add(3, '-', RED, e); add(3, '+', VIO, e); add(2, '-', GOLD, e); add(2, '+', TEAL, e);
+            }
+            cellObjects3D.forEach((cell, ci) => {
+                const w = want.get(ci), C0 = cell.material && cell.material.color;
+                const one = (attr, tint) => {
+                    if (!attr) return;
+                    const fresh = attr._tv !== attr.version;   // アプリが書き直した（または まだ染めていない）
+                    if (!fresh && attr._orig) attr.array.set(attr._orig);   // 前のフレームで染めた分を元に戻す
+                    if (w) {
+                        attr._orig = attr.array.slice(); tint(attr.array);
+                        attr.needsUpdate = true; attr._tv = attr.version;
+                    } else if (!fresh && attr._orig) { attr._orig = null; attr.needsUpdate = true; attr._tv = -1; }
+                };
+                one(cell.geometry.attributes.color, a => {   // 面：頂点の色は胞の色（material.color）への掛け算
+                    const m = [0, 1, 2].map(k => (w.rgb[k] + 0.02) / ((C0 ? [C0.r, C0.g, C0.b][k] : 1) + 0.02));
+                    for (let i = 0; i < a.length; i++) a[i] *= 1 + (m[i % 3] - 1) * w.e;
+                });
+                one(cell.wireGeo && cell.wireGeo.attributes.color, a => { for (let i = 0; i < a.length; i++) a[i] += (w.rgb[i % 3] * 0.95 - a[i]) * w.e; });   // 線：色そのもの
+                if (w && cell.material) cell.material.opacity = Math.max(cell.material.opacity, 0.5 * w.e);
+            });
+        }
         // 敷きつめるの「積分」表示：着いた立方体の体積 × Δw を足していく（リーマン和）→ 全部そろうと超立方体の 4次元の体積 2⁴＝16。左の立方体は 正方形の面積 × Δz → 体積 8
         const wPackHUD = { 3: null, 2: null };
         function updatePackHUD() {
@@ -5728,6 +5784,7 @@
             updateSkinSlice(animationProgress);   // 皮の輪切り（展開図・折りたたみ中でも）
             updateDblSlice(animationProgress);   // 二重積分（w と x・y・z のどれか、格子）
             updateDuoSlice(animationProgress);   // w と z から同時に（イメージ）
+            applyEndTint();   // 積分がいっぱいになったら両端の胞も染めて閉じる
             updateShineLights();   // 照り返しライトの位置（カメラの左上）
             if (show2D) renderer2D.render(scene2D, camera2D);
             if (show3D) renderer3D.render(scene3D, camera3D);
@@ -8688,7 +8745,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-2157';
+        const APP_BUILD = '20261021-2203';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
