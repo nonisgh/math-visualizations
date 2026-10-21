@@ -113,6 +113,10 @@
     .sol:empty { display: none; }
     .sol::before { content: '◎ '; color: var(--c); }
     .sol:hover { color: var(--c); }
+    .fx { font: 600 12.5px ui-monospace, 'SF Mono', Menlo, monospace; color: #fde68a; padding: 1px 0 2px; cursor: pointer; overflow-wrap: anywhere; }
+    .fx:empty { display: none; }
+    .fx::before { content: '▸ '; color: var(--c); }
+    .fx:hover { color: #fef3c7; text-decoration: underline dotted; }
     .trace {
         position: absolute; left: 10px; top: 10px; max-width: 70%;
         background: rgba(5, 10, 24, 0.88); border: 1px solid var(--line); border-radius: 10px;
@@ -426,8 +430,8 @@
                 <span class="grow"></span>
                 <span class="ptseg" id="copyMode"><button type="button" data-m="google">Google 電卓</button><button type="button" data-m="app">このアプリ</button></span>
             </div>
-            <div class="setting" id="copyXrow" title="Google 電卓用のコピーで、x にこの値を入れる（空なら x のまま）。2、−1.5、pi/4、tau/8 のように式でも書ける。「タップした所」で、グラフをタップ（クリック）した所の x を入れる">
-                <span>x に入れる値</span>
+            <div class="setting" id="copyXrow" title="x にこの値を入れて、各式の下に答え f(値) を出し、グラフにその点を描く。Google 電卓用のコピー（⧉）でも x をこの値にする。2、−1.5、pi/4、tau/8 のように式でも書ける（空なら使わない）。「タップした所」で、グラフをタップ（クリック）した所の x を入れる">
+                <span>x に代入</span>
                 <input type="text" id="copyX" class="cpx" placeholder="そのまま" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">
                 <button type="button" id="copyXtap" class="cpxbtn">タップした所</button>
             </div>
@@ -1754,11 +1758,37 @@ function copyXAst() {
     if (fr.has('x') || fr.has('y')) throw ParseError('x に入れる値に x・y は使えません');
     return a;
 }
+// x に代入：今の x の値（読めない・空なら null）と、各式の f(値)
+function substX() {
+    let a; try { a = copyXAst(); } catch (_) { return null; }
+    if (!a) return null;
+    let v; try { v = compile(a)(paramEnv()); } catch (_) { return null; }
+    return isFinite(v) ? { ast: a, v, label: toSrc(a) } : null;
+}
+function fxValue(ex, X) {   // y=f(x) の式の f(X.v)（複素数）。答えが出せなければ null
+    if (!X || ex.kind !== 'fn' || !ex.cfn) return null;
+    try { const v = ex.cfn({ z: C(X.v), y: C(0), p: paramEnv(), loop: {} }); return isFinite(v.re) && isFinite(v.im) ? v : null; } catch (_) { return null; }
+}
+function fmtFx(v) {   // 実数なら π/τ の書き方も（設定に合わせる）、複素数なら a + bi
+    const eps = 1e-12 * Math.max(1, cabs(v));
+    if (Math.abs(v.im) <= eps) return constOf(v.re) || fmtSig(Math.abs(v.re) < eps ? 0 : v.re);
+    return fmtCv(v);
+}
+function refreshFx() {
+    const X = substX();
+    exprs.forEach(ex => {
+        if (!ex.row) return;
+        const v = fxValue(ex, X);
+        const t = v ? `f(${X.label}) = ${fmtFx(v)}` : '';
+        if (ex.fxText !== t) { ex.fxText = t; ex.row.querySelector('.fx').textContent = t; }
+    });
+}
 // 式をコンピュータ用の書き方でコピーして、ボタンのそばに中身を少し出す
-function copyPlain(ex, btn) {
+function copyPlain(ex, btn, force) {
+    const cm = force || copyMode, isBtn = btn.classList.contains('cp');
     let txt;
     try {
-        if (copyMode === 'google') {
+        if (cm === 'google') {
             const env = paramEnv();
             googleX = copyXAst();
             // 「次数で指定」の Σ は、今の次数で切った多項式をそのまま
@@ -1766,17 +1796,17 @@ function copyPlain(ex, btn) {
             else txt = plainOfText(ex.text, env);
         } else txt = plainOfText(ex.text);
     } catch (e) { txt = null; }
-    const xNote = copyMode === 'google' && googleX ? `・x = ${toPlain(googleX)}` : '';
+    const xNote = cm === 'google' && googleX ? `・x = ${toPlain(googleX)}` : '';
     googleX = null;
     const tip = document.createElement('div'); tip.className = 'cptip';
     const r = btn.getBoundingClientRect();
     tip.style.left = Math.max(8, Math.min(window.innerWidth - 300, r.left - 8)) + 'px'; tip.style.top = (r.bottom + 6) + 'px';
     const done = ok => {
-        tip.innerHTML = ok ? `<b>コピーしました（${copyMode === 'google' ? 'Google 電卓用' + xNote : 'このアプリ用'}）</b>` : '<b>コピーできませんでした</b>';
+        tip.innerHTML = ok ? `<b>コピーしました（${cm === 'google' ? 'Google 電卓用' + xNote : 'このアプリ用'}）</b>` : '<b>コピーできませんでした</b>';
         if (txt) tip.appendChild(document.createTextNode(txt));
         document.body.appendChild(tip);
-        if (ok) { btn.classList.add('done'); btn.textContent = '✓'; }
-        setTimeout(() => { tip.remove(); btn.classList.remove('done'); btn.textContent = '⧉'; }, 1800);
+        if (ok && isBtn) { btn.classList.add('done'); btn.textContent = '✓'; }
+        setTimeout(() => { tip.remove(); if (isBtn) { btn.classList.remove('done'); btn.textContent = '⧉'; } }, 1800);
     };
     if (!txt) { tip.innerHTML = '<b>式を読めないのでコピーできません</b>'; document.body.appendChild(tip); setTimeout(() => tip.remove(), 1800); return; }
     const fallback = () => { const ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'position:fixed;left:-9999px'; document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (_) {} ta.remove(); done(ok); };
@@ -1793,7 +1823,7 @@ function renderList() {
         row.innerHTML =
             `<button class="sw" type="button" title="表示／非表示">${i + 1}</button>` +
             `<div class="ebody"><input class="ein" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="式を入力（例: sin(x)）">` +
-            `<div class="preview"></div><div class="expand" hidden><div class="exmode" hidden><button type="button" data-m="n"></button><button type="button" data-m="d">次数で指定</button><span class="exnote"></span></div><div class="exmath"></div><button class="exadd" type="button" title="書き出した式を新しい行に追加">＋ この形で式に追加</button></div><div class="sol" title="複素数平面で見る"></div><div class="err"></div></div>` +
+            `<div class="preview"></div><div class="expand" hidden><div class="exmode" hidden><button type="button" data-m="n"></button><button type="button" data-m="d">次数で指定</button><span class="exnote"></span></div><div class="exmath"></div><button class="exadd" type="button" title="書き出した式を新しい行に追加">＋ この形で式に追加</button></div><div class="sol" title="複素数平面で見る"></div><div class="fx" title="押すと、x に値を入れた式をコピー（Google 電卓用の形）"></div><div class="err"></div></div>` +
             `<div class="eact"><button class="del" type="button" title="削除">×</button><button class="cp" type="button" title="式をコピー（x2 → x^2、eiπ → e^(i*pi) のように ^ と * を書いた形。設定の「コピーの形」で Google 電卓用／このアプリ用）">⧉</button></div>`;
         const inp = row.querySelector('.ein');
         inp.value = ex.text;
@@ -1808,6 +1838,7 @@ function renderList() {
         });
         row.querySelector('.del').addEventListener('click', () => removeExpr(ex.id));
         row.querySelector('.cp').addEventListener('click', e => copyPlain(ex, e.currentTarget));
+        row.querySelector('.fx').addEventListener('click', e => copyPlain(ex, e.currentTarget, 'google'));
         row.querySelectorAll('.exmode button').forEach(b => b.addEventListener('click', () => setDegMode(ex, b.dataset.m === 'd')));
         row.querySelector('.exadd').addEventListener('click', () => {
             if (!ex.sum) return;
@@ -1836,6 +1867,7 @@ function refreshRow(ex) {
     r.querySelector('.err').textContent = ex.err;
     r.querySelector('.sol').textContent = solText(ex);
     ex.expKey = null; refreshExpand(ex);
+    ex.fxText = null; refreshFx();
 }
 
 // n で指定 ⇔ 次数で指定。切り替えてもグラフが変わらないように、相手側の値を合わせる
@@ -2277,6 +2309,7 @@ function applyFit(f, which = 'r') {
 function draw() {
     if (!W_ || !H_) return;
     exprs.forEach(refreshExpand);
+    refreshFx();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (mode === 'c') drawComplex(); else if (mode === '3d') draw3D(); else { legendEl.hidden = true; drawReal(); }
     if (mode === '4d') g4Send();
@@ -2484,6 +2517,32 @@ function drawReal() {
         ctx.fillStyle = '#e2e8f0';
         interU.forEach(o => ctx.fillText(`(${fmtPt(o.x)}, ${fmtPt(o.y)})`, o.px + dotR() + 4, o.py - 3));
         ctx.restore();
+    }
+
+    // x に代入した所：縦の点線と、各グラフの上の点（答えの値つき）
+    const X = substX();
+    if (X && X.v >= x0 - 1 / sc && X.v <= x1 + 1 / sc) {
+        const px = sx(X.v);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(251,191,36,0.55)'; ctx.lineWidth = 1; ctx.setLineDash([2, 5]);
+        ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H_); ctx.stroke(); ctx.setLineDash([]);
+        ctx.font = '600 11px ui-monospace, Menlo, monospace'; ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 4; ctx.fillStyle = '#fbbf24';
+        ctx.fillText(`x = ${X.label}`, px, 6);
+        ctx.restore();
+        exprs.forEach(ex => {
+            if (!ex.visible) return;
+            const v = fxValue(ex, X);
+            if (!v || Math.abs(v.im) > 1e-9 * Math.max(1, cabs(v))) return;   // 実数の答えだけ点にする
+            const py = sy(v.re);
+            if (py < -6 || py > H_ + 6) return;
+            reticle(px, py, [ex.color]);
+            ctx.save();
+            ctx.font = '600 11px ui-monospace, Menlo, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+            ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 4; ctx.fillStyle = '#fde68a';
+            ctx.fillText(`(${X.label}, ${fmtFx(v)})`, px + dotR() + 4, py - 3);
+            ctx.restore();
+        });
     }
 
     // トレース
@@ -3769,13 +3828,12 @@ document.querySelectorAll('#copyMode button').forEach(b => b.addEventListener('c
 const cxEl = $('#copyX'), cxRow = $('#copyXrow');
 const checkCx = () => { let bad = false; try { copyXAst(); } catch (_) { bad = true; } cxEl.classList.toggle('bad', bad); };
 cxEl.value = copyX; checkCx();
-cxEl.addEventListener('input', () => { copyX = cxEl.value; checkCx(); saveSoon(); });
+cxEl.addEventListener('input', () => { copyX = cxEl.value; checkCx(); saveSoon(); requestDraw(); });
 $('#copyXtap').addEventListener('click', () => {
     if (lastTapX === null) { cxEl.placeholder = '先にグラフをタップ'; setTimeout(() => { cxEl.placeholder = 'そのまま'; }, 1600); return; }
     copyX = constOf(lastTapX) ? toPlain(parse(constOf(lastTapX).replace('−', '-'))) : String(+lastTapX.toPrecision(10));
-    cxEl.value = copyX; checkCx(); save();
+    cxEl.value = copyX; checkCx(); save(); requestDraw();
 });
-paintCm = (orig => () => { orig(); cxRow.hidden = copyMode !== 'google'; })(paintCm);
 paintCm();
 dsEl.addEventListener('change', () => { descOn = dsEl.checked; exprs.forEach(refreshRow); save(); });
 requestDraw();
