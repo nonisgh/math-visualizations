@@ -22,7 +22,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
     <!-- 視覚効果の共通部品（パレット・照り返し・軸の札・見切れ防止・高い次元の光・奥／内側を濃く）。設定は全アプリ共通の vfx キー -->
-    <script src="lib/visual-fx.js?b=20261021-1545"></script>
+    <script src="lib/visual-fx.js?b=20261021-1546"></script>
     <script src="lib/ui-dock.js?b=20261020-1625"></script>
     <!-- n 次元の計算の共通部品（回転・3D への写し方・折りたたみ）。6次元アプリ・n次元ビューアと同じ -->
     <script src="lib/nd-geom.js?b=20261020-1625"></script>
@@ -1002,7 +1002,7 @@
                         <span id="panpad-text" class="text-[11px]">→ 移動パッド: OFF</span>
                     </button>
                     <button id="eco-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="省電力モード：回転など動いている間だけ、約30fpsに間引き＋解像度を少し下げて、GPU（ファン）を楽にします。止まっているときは影響なし。5次元の回転で重いときに。見た目は少しだけ粗く・なめらかさが半分になります"><i data-lucide="leaf" class="w-3.5 h-3.5"></i><span id="eco-text" class="text-[11px]">省電力モード: OFF</span></button>
-                    <div id="texfont-group" class="flex items-center gap-2 pl-2.5 pr-2 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前の札（x y z w v、6次元の窓では u も）の書体と、小文字／大文字。セリフ＝数学の教科書・論文と同じ TeX の斜体、サンセリフ＝飾りのないまっすぐな字（3D ソフト風）。説明の文字（+X の胞、X-W の回転など）は変わらない。同じ部品を使う 6次元アプリ・n次元ビューアにも効く"><span class="flex items-center gap-1"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px]">軸の書体</span></span><div style="display:grid;grid-template-columns:auto auto auto;gap:3px 4px;align-items:center"><span></span><span class="text-[10px] text-slate-500 text-center">小文字</span><span class="text-[10px] text-slate-500 text-center">大文字</span><span class="text-[10px] text-slate-400">セリフ</span><button type="button" data-texfont="serif" data-case="lower" title="セリフ・小文字（教科書の書き方）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">xyz</button><button type="button" data-texfont="serif" data-case="upper" title="セリフ・大文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">XYZ</button><span class="text-[10px] text-slate-400">サンセリフ</span><button type="button" data-texfont="sans" data-case="lower" title="サンセリフ・小文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">xyz</button><button type="button" data-texfont="sans" data-case="upper" title="サンセリフ・大文字（3D ソフト風）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">XYZ</button></div></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。展開図の並べ表示・回転マトリクス・分解・見え方。下の段の「ばらす」で立方体まで・結晶ばらし・連鎖ばらし（「6次元アプリ」で元のアプリも開ける）。ほかの画面には影響しない"><i data-lucide="box" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体: OFF</span></button></div>
+                    <div id="texfont-group" class="flex items-center gap-2 pl-2.5 pr-2 py-1 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs" title="軸の名前の札（x y z w v、6次元の窓では u も）の書体と、小文字／大文字。セリフ＝数学の教科書・論文と同じ TeX の斜体、サンセリフ＝飾りのないまっすぐな字（3D ソフト風）。説明の文字（+X の胞、X-W の回転など）は変わらない。同じ部品を使う 6次元アプリ・n次元ビューアにも効く"><span class="flex items-center gap-1"><i data-lucide="type" class="w-3.5 h-3.5"></i><span class="text-[11px]">軸の書体</span></span><div style="display:grid;grid-template-columns:auto auto auto;gap:3px 4px;align-items:center"><span></span><span class="text-[10px] text-slate-500 text-center">小文字</span><span class="text-[10px] text-slate-500 text-center">大文字</span><span class="text-[10px] text-slate-400">セリフ</span><button type="button" data-texfont="serif" data-case="lower" title="セリフ・小文字（教科書の書き方）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">xyz</button><button type="button" data-texfont="serif" data-case="upper" title="セリフ・大文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:TeXMath,Georgia,serif;font-style:italic">XYZ</button><span class="text-[10px] text-slate-400">サンセリフ</span><button type="button" data-texfont="sans" data-case="lower" title="サンセリフ・小文字" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">xyz</button><button type="button" data-texfont="sans" data-case="upper" title="サンセリフ・大文字（3D ソフト風）" class="px-1.5 py-0.5 rounded-md border text-[12px] leading-none transition bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700" style="min-width:42px;font-family:system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-weight:500">XYZ</button></div></div><button id="axisfit-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-700 transition text-xs" title="軸の見切れ防止：座標軸が画面の外にはみ出しそうな時、その軸を一時的に短くして、矢じりと名前（x y z w v）が画面に入るようにします。OFF＝いつも同じ長さ（はみ出すことがあります）"><i data-lucide="shrink" class="w-3.5 h-3.5"></i><span id="axisfit-text" class="text-[11px]">軸の見切れ防止: ON</span></button><button id="hex6-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 border border-teal-700/60 text-teal-200 rounded-xl hover:bg-slate-700 transition text-xs" title="6次元立方体を別の窓に描く。4D・5D と同じ方式（12 個の胞＝5次元立方体の展開図を折りたたむ、半透明の面、軸 x〜u）。展開図の並べ表示・回転マトリクス・分解・見え方。下の段の「ばらす」で立方体まで・結晶ばらし・連鎖ばらし（「6次元アプリ」で元のアプリも開ける）。ほかの画面には影響しない"><i data-lucide="box" class="w-3.5 h-3.5"></i><span id="hex6-text" class="text-[11px]">6次元立方体: OFF</span></button><div id="wslice-group" class="flex items-center gap-1.5 flex-wrap pl-1 pr-2 py-1 bg-slate-800/80 border border-pink-700/50 text-slate-300 rounded-xl text-xs" title="w の輪切り：超立方体の中には、同じ大きさの立方体が w の方向に無限に重なって詰まっています（立方体の中に正方形が無限に重なっているのと同じ）。そのうちの w ＝ 一定の 1 枚（断面）を描きます。遠近では、底（−W の胞＝内側の小さい立方体）から、ふた（+W の胞＝外側の大きい立方体）まで、膨らみながら動いて見えます。組み上がった超立方体のときだけ"><button id="wslice-btn" type="button" class="flex items-center gap-1 px-1.5 py-0.5 rounded-lg hover:bg-slate-700 transition"><i data-lucide="layers" class="w-3.5 h-3.5 text-pink-300"></i><span id="wslice-text" class="text-[11px]">w の輪切り: OFF</span></button><input id="wslice-slider" type="range" min="-100" max="100" step="1" value="0" style="width:96px;accent-color:#f472b6" title="輪切りの位置 w（左端＝底 −W、右端＝ふた +W）"><span id="wslice-val" class="text-[10px] text-slate-400" style="min-width:76px">w = 0.00</span><button id="wslice-play" type="button" class="px-1.5 py-0.5 rounded-lg border border-slate-600 hover:bg-slate-700 text-[11px]" title="底からふたまで、輪切りを行ったり来たり動かす">▶ 動かす</button><select id="wslice-n" class="bg-slate-900 border border-slate-600 rounded-md text-[11px] px-1 py-0.5" title="同時に描く輪切りの枚数（何枚も描くと、中身が詰まっている様子＝入れ子の立方体の重なりが見える）"><option value="1">1 枚</option><option value="5">5 枚</option><option value="9">9 枚</option><option value="17">17 枚</option></select></div></div>
                 <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
                     <button id="zoom-btn" class="flex items-center gap-1 px-2.5 py-1.5 bg-violet-900/40 border border-violet-500/50 text-violet-200 rounded-xl hover:bg-violet-800/50 transition text-xs" title="組み上げ時に大きさを自動で合わせる（ズーム）か。OFFで今の大きさのまま折りたためる">
                         <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-violet-400"></i>
@@ -4149,6 +4149,82 @@
 
         const _zwBase = new THREE.Color(), _zwMix = new THREE.Color();
         // ===== Z-W のときの立方体の表現：輪郭（回す前）・ダイヤル =====
+        // ===== w の輪切り：超立方体の中身＝w の方向に無限に重なった立方体のうち、w ＝ 一定の断面（立方体）を描く =====
+        //   x・y・z は超立方体と同じ ±HALF_S（お遊びのつぶしも同じ）、w だけ一定。超立方体と同じ 4D 回転・同じ写し方（遠近⇔平行）で Root3D に。
+        //   遠近では w が大きいほど大きく写る＝底（−W、内側の小さい立方体）からふた（+W、外側の大きい立方体）へ膨らんで見える。
+        //   何枚も描く時は、選んだ位置を真ん中に等間隔（端を越えたら折り返さず、底〜ふたの全部に均等）。色は w− ＝水色、w＋ ＝ピンク（ZW の色の約束）
+        const wSlice = { on: false, t: 0, play: false, dir: 1, n: 1, line: null, face: null, last: 0 };
+        const WS_EDGES = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+        const WS_QUADS = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]];
+        function wSliceTs() {   // 描く輪切りの位置（−1＝底 … 1＝ふた）
+            if (wSlice.n <= 1) return [wSlice.t];
+            const n = wSlice.n; return Array.from({ length: n }, (_, i) => -1 + 2 * i / (n - 1));
+        }
+        function updateWSlice(progress) {
+            const r3 = scene3D && scene3D.getObjectByName('Root3D'); if (!r3) return;
+            const MAXN = 17;
+            if (!wSlice.line) {
+                const lg = new THREE.BufferGeometry();
+                lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXN * 24 * 3), 3));
+                lg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXN * 24 * 3), 3));
+                wSlice.line = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 1, depthTest: false }));
+                const fg = new THREE.BufferGeometry();
+                fg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXN * 36 * 3), 3));
+                fg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXN * 36 * 3), 3));
+                wSlice.face = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+                wSlice.line.renderOrder = 998; wSlice.face.renderOrder = 997; wSlice.line.frustumCulled = wSlice.face.frustumCulled = false;
+                r3.add(wSlice.face, wSlice.line);
+            }
+            // 組み上がった超立方体のときだけ（折りたたみの途中・分解中は消していく）
+            const k = wSlice.on ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
+            wSlice.line.visible = wSlice.face.visible = k > 0.01;
+            if (!(k > 0.01)) return;
+            const now = performance.now(), dt = Math.min(0.1, (now - (wSlice.last || now)) / 1000); wSlice.last = now;
+            if (wSlice.play && wSlice.n <= 1) {   // 底 ⇔ ふた を約 3 秒で行き来
+                wSlice.t += wSlice.dir * dt / 1.5;
+                if (wSlice.t > 1) { wSlice.t = 1; wSlice.dir = -1; } else if (wSlice.t < -1) { wSlice.t = -1; wSlice.dir = 1; }
+                syncWSliceUI(); requestRender(2);
+            }
+            const rot = rot4List(linkAngleX, linkAngleY), pb = projBlendNow();
+            const P = wSlice.line.geometry.attributes.position.array, C = wSlice.line.geometry.attributes.color.array;
+            const FP = wSlice.face.geometry.attributes.position.array, FC = wSlice.face.geometry.attributes.color.array;
+            const col = new THREE.Color(), base = new THREE.Color(0xf8fafc);
+            let li = 0, fi = 0;
+            wSliceTs().forEach(t => {
+                const w = t * HALF_S;
+                const vs = unitCubeVertices.map(u => {
+                    const g = [u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), w];
+                    return ndProject(NDGeom.rotatePoint(g, rot), pb);
+                });
+                col.copy(base).lerp(t >= 0 ? ZW_TINT_POS : ZW_TINT_NEG, Math.min(1, Math.abs(t) * 0.9 + 0.1));
+                const L = (wSlice.n <= 1 ? 1 : 0.75) * k;
+                WS_EDGES.forEach(([a, b]) => { [vs[a], vs[b]].forEach(v => { P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * L; C[li + 1] = col.g * L; C[li + 2] = col.b * L; li += 3; }); });
+                const F = (wSlice.n <= 1 ? 1 : 0.45) * k;
+                WS_QUADS.forEach(q => { [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(i => { const v = vs[i]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * F; FC[fi + 1] = col.g * F; FC[fi + 2] = col.b * F; fi += 3; }); });
+            });
+            wSlice.line.geometry.setDrawRange(0, li / 3); wSlice.face.geometry.setDrawRange(0, fi / 3);
+            wSlice.line.geometry.attributes.position.needsUpdate = wSlice.line.geometry.attributes.color.needsUpdate = true;
+            wSlice.face.geometry.attributes.position.needsUpdate = wSlice.face.geometry.attributes.color.needsUpdate = true;
+        }
+        function syncWSliceUI() {
+            const $ = id => document.getElementById(id);
+            if ($('wslice-text')) $('wslice-text').textContent = 'w の輪切り: ' + (wSlice.on ? 'ON' : 'OFF');
+            const b = $('wslice-btn'); if (b) b.classList.toggle('text-pink-200', wSlice.on);
+            const sl = $('wslice-slider'); if (sl && document.activeElement !== sl) sl.value = String(Math.round(wSlice.t * 100));
+            if (sl) sl.disabled = wSlice.n > 1;
+            const v = $('wslice-val');
+            if (v) v.textContent = wSlice.n > 1 ? '底〜ふた ' + wSlice.n + ' 枚' : 'w = ' + (wSlice.t * HALF_S >= 0 ? '+' : '−') + Math.abs(wSlice.t * HALF_S).toFixed(2) + (wSlice.t <= -0.995 ? '（底）' : wSlice.t >= 0.995 ? '（ふた）' : Math.abs(wSlice.t) < 0.005 ? '（真ん中）' : '');
+            const pl = $('wslice-play'); if (pl) { pl.textContent = wSlice.play ? '■ 止める' : '▶ 動かす'; pl.disabled = wSlice.n > 1; pl.style.opacity = wSlice.n > 1 ? 0.4 : 1; }
+        }
+        (function setupWSlice() {
+            const $ = id => document.getElementById(id);
+            if (!$('wslice-btn')) return;
+            $('wslice-btn').addEventListener('click', () => { wSlice.on = !wSlice.on; if (!wSlice.on) wSlice.play = false; wSlice.last = 0; syncWSliceUI(); requestRender(30); });
+            $('wslice-slider').addEventListener('input', e => { wSlice.t = parseFloat(e.target.value) / 100; wSlice.play = false; if (!wSlice.on) wSlice.on = true; syncWSliceUI(); requestRender(30); });
+            $('wslice-play').addEventListener('click', () => { wSlice.play = !wSlice.play; if (wSlice.play) wSlice.on = true; wSlice.last = 0; syncWSliceUI(); requestRender(30); });
+            $('wslice-n').addEventListener('change', e => { wSlice.n = parseInt(e.target.value, 10) || 1; if (wSlice.n > 1) { wSlice.on = true; wSlice.play = false; } syncWSliceUI(); requestRender(30); e.target.blur(); });
+            syncWSliceUI();
+        })();
         function updateZwGhost(progress, zwOn, visible) {
             const r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r2) return;
             if (!zwGhost) {
@@ -4959,6 +5035,7 @@
             // カメラを回している最中も「手前=はっきり/奥=ダーク」を毎フレーム再評価する
             //   （辺・面の濃淡はカメラ距離ベースなので、カメラ移動でも更新が要る）。描画直前に更新。
             updateMorphingGeometry(animationProgress);
+            updateWSlice(animationProgress);   // w の輪切り（ON の時だけ描く）
             updateShineLights();   // 照り返しライトの位置（カメラの左上）
             if (show2D) renderer2D.render(scene2D, camera2D);
             if (show3D) renderer3D.render(scene3D, camera3D);
@@ -7899,7 +7976,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-1546';
+        const APP_BUILD = '20261021-1547';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
