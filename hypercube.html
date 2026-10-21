@@ -2459,6 +2459,7 @@
         // 奥を濃く（4D・お試し）：超立方体の胞の色は変えず、濃さ（不透明度）だけを奥ほど濃く・手前ほど薄く。既定は OFF
         let deep4On = false; try { deep4On = localStorage.getItem('hypercubeDeep4') === '1'; } catch (_) {}
         let wrap4 = 0; try { const v = parseFloat(localStorage.getItem('hypercubeWrap4')); if (isFinite(v)) wrap4 = Math.max(0, Math.min(2, v)); } catch (_) {}   // 包み込む胞のトーンを落とす強さ（0＝OFF、1＝強く、2＝無色＝包みきると面の色が 0）
+        let wrap5 = 0; try { const v = parseFloat(localStorage.getItem('hypercubeWrap5')); if (isFinite(v)) wrap5 = Math.max(0, Math.min(2, v)); } catch (_) {}   // 5D：外側から包み込む 4次元体（最初は +V と +W）のトーンを落とす強さ（wrap4 と同じ段階）
         let deep5 = VisualFX.get('deep');   // 目盛り 0〜1。効きは 2 倍（50%＝以前の最大）
         // 入れ子の内側を濃く（0〜1）：各4次元体の中で、見かけ上いちばん縮んで見える面（＝入れ子の内側の立方体）ほど色を濃く・面を少し不透明に。「奥の胞を濃く」に掛け合わせる
         let inner5 = VisualFX.get('inner');
@@ -2937,8 +2938,24 @@
                     const kD = 2 * deep5;
                     const aOf = ci => { const cdM = cMean[ci], df0 = 1 - 0.62 * sm((cdM - dMin) / span), df = (df0 + (1 - df0) * Math.min(1, kD)) * Math.max(0.12, 1 - 0.45 * kD + 1.05 * kD * cDeep[ci]); return Math.min(0.97, seeThru5 * op * cellFocus(5, ci).face * (!edgeHi.on ? 1 : EH_MID5.includes(ci) ? edgeHi.faceMid : EH_ARM5.includes(ci) ? edgeHi.faceArm : 1) * df) * (1 - rhombi.t) * (xpVisible(5, ci) ? 1 : 0); };
                     // 色：奥の胞ほど鮮やか（彩度を上げる）＋少し暗く＝「濃い」色
+                    const cWrap5 = P5_RGB.map(() => 1);   // 包む胞を淡く：胞ごとの濃さの倍率（下で決める）
                     const cCol = P5_RGB.map((C, ci) => { const t = kD * cDeep[ci], Y = 0.299 * C.r + 0.587 * C.g + 0.114 * C.b, sat = 1 + 0.8 * t, dk = 1 - 0.35 * t, f = c => Math.max(0, Math.min(1, (Y + (c - Y) * sat) * dk)); return { r: f(C.r), g: f(C.g), b: f(C.b) }; });
-                    const aFac = cellObjects5D.map((_, ci) => aOf(ci));
+                    // 包む胞を淡く（5D）：外側から全体を包み込む 4次元体（5次元で手前に来た胞。最初は +V）ほど、色を灰色寄り・薄く（無色では 0 まで）。
+                    //   包み具合は回した後の胞の中心の v（5 本目、−1〜1）と w（4 本目）で、4D の「包む胞を淡く」と同じ式（遠近は v・w、平行は |v|・|w|、0.5〜0.95 でなめらかに）。
+                    //   5D は v → w の 2 段で写すので、外側を包むのは v で手前の 4次元体（+V）と、w で手前の 4次元体（+W）の両方＝大きい方を使う
+                    const kW5 = wrap5 > 0 ? Math.min(1, wrap5) * sm(Math.max(0, Math.min(1, (progress - 0.35) / 0.65))) * Math.max(0, 1 - 4 * explodeE()) * (1 - rhombi.t) : 0;
+                    if (kW5 > 0) {
+                        const clr = wrap5 > 1, fW = x => sm(Math.max(0, Math.min(1, (x - 0.5) / 0.45)));
+                        verts5.forEach((cv, ci) => {
+                            const sv = cv.reduce((t, p) => t + p[4], 0) / cv.length / HALF_S, sw = cv.reduce((t, p) => t + p[3], 0) / cv.length / HALF_S;
+                            const wr = x => (1 - pb) * fW(x) + pb * fW(Math.abs(x)), e = kW5 * Math.max(wr(sv), wr(sw));
+                            if (!(e > 0)) return;
+                            const C = cCol[ci], g = (0.299 * C.r + 0.587 * C.g + 0.114 * C.b) * 0.8, d = (clr ? 1 : 0.85) * e;
+                            cCol[ci] = { r: C.r + (g - C.r) * d, g: C.g + (g - C.g) * d, b: C.b + (g - C.b) * d };
+                            cWrap5[ci] = 1 - (clr ? 1 : 0.65) * e;
+                        });
+                    }
+                    const aFac = cellObjects5D.map((_, ci) => aOf(ci) * cWrap5[ci]);
                     // 質感（nd-solid）：濃さを質感の割合に、色を質感に合わせて整え、面ごとに 5次元の陰影（回したあとの 5次元の座標で、面の平面と光の角度）
                     const SL5 = solidLookOf(solid5), solidOn = solid5 !== 'classic' && !!NDSolid.LOOKS[solid5], solidMul = SL5.blend === 'multiply', solidK = SL5.k5 !== undefined ? SL5.k5 : SL5.base / NDSolid.LOOKS.classic.base, L5 = VisualFX.lightDir(5), _st = { r: 0, g: 0, b: 0 };
                     const v5f = solidOn ? verts5.map(cv => { const f = new Float64Array(cv.length * 5); cv.forEach((p, i) => { for (let k = 0; k < 5; k++) f[i * 5 + k] = p[k]; }); return f; }) : null;
@@ -6754,7 +6771,7 @@
             ];
             // 色と見え方の設定（パレット・補色・頂点の目印の色・辺の強調・表示設定・奥を濃く・照り返し・4Dライト・ズームの大きさ・移動パッドなど）を1つの JSON に
             const COLOR_KEYS = ['hypercubeCellPalette2', 'hypercubePalComp', 'hypercubePalCompCenter', 'hypercubeMarkCol', 'hypercubeFixedMarks', 'hypercubeEdgeHi', 'hypercubeViewCfg',
-                'hypercubeDeep4', 'hypercubeWrap4', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
+                'hypercubeDeep4', 'hypercubeWrap4', 'hypercubeWrap5', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
                 'hypercubePanPad', 'hypercubePanPadPos', 'hypercubeEco', 'hypercubeNumTex', 'hypercubeDiePips', 'hypercubeDieKind', 'hypercubeAxisSync'];
             const COLOR_FILE = 'hypercube-colors.json';
             const colorsToJSON = () => { const o = {}; COLOR_KEYS.forEach(k => { try { const v = localStorage.getItem(k); if (v !== null) o[k] = v; } catch (_) {} }); return JSON.stringify({ app: 'hypercube', kind: 'colors', v: 1, data: o }, null, 1) + '\n'; };
@@ -7733,6 +7750,7 @@
                     line5: { list: pct, get: () => line5, set: v => slide('line5-slider', v) },
                     deep5: { list: pct, get: () => deep5, set: v => slide('deep5-slider', v) },
                     deep4: { list: onoff, get: () => deep4On ? 1 : 0, set: v => { if ((v === '1') !== deep4On) click('#deep4-btn'); } },
+                    wrap5: { list: [['0', 'OFF'], ['0.5', '弱く'], ['0.75', 'ふつう'], ['1', '強く'], ['2', '無色']], get: () => { const o = [0, 0.5, 0.75, 1, 2]; return o.reduce((b, x) => Math.abs(x - wrap5) < Math.abs(b - wrap5) ? x : b, 0); }, set: v => { wrap5 = parseFloat(v) || 0; try { localStorage.setItem('hypercubeWrap5', String(wrap5)); } catch (_) {} redraw(); } },
                     wrap4: { list: [['0', 'OFF'], ['0.5', '弱く'], ['0.75', 'ふつう'], ['1', '強く'], ['2', '無色']], get: () => { const o = [0, 0.5, 0.75, 1, 2]; return o.reduce((b, x) => Math.abs(x - wrap4) < Math.abs(b - wrap4) ? x : b, 0); }, set: v => { wrap4 = parseFloat(v) || 0; try { localStorage.setItem('hypercubeWrap4', String(wrap4)); } catch (_) {} redraw(); } },
                     inner5: { list: pct, get: () => inner5, set: v => slide('inner5-slider', v) },
                     light5: { list: onoff, get: () => light5On ? 1 : 0, set: v => { if ((v === '1') !== light5On) click('#light5-btn'); } },
@@ -7753,7 +7771,7 @@
                     ['線色', '線の色。窓ごとに別々に選べる（手前と奥だけ… は 5D だけ）', { 5: 'tint5', 4: 'tint4', 3: 'tint3' }],
                     ['線の細さ', '5D：内側の線を細く（辺の強調の太い線・奥ほど細く／太くの段の差）', { 5: 'line5' }],
                     ['奥を濃く', '4D：超立方体の奥の胞を濃く（色は変えずに濃さだけ）。5D：奥の胞ほど色を濃く', { 5: 'deep5', 4: 'deep4' }],
-                    ['包む胞を淡く', '4D：外側から全体を包み込む胞（4次元で手前に来た胞。最初は +W の紫）ほど、色を灰色寄り・薄くして、中の胞の色が見えるように。無色＝包みきると面の色が 0（辺だけ）。回して包まなくなると、なめらかに元の色へ戻る', { 4: 'wrap4' }],
+                    ['包む胞を淡く', '外側から全体を包み込む胞ほど、色を灰色寄り・薄くして、中の胞の色が見えるように。4D：4次元で手前に来た胞（最初は +W の紫）。5D：5次元で外側を包む 4次元体（最初は +V と +W）。無色＝包みきると面の色が 0（辺だけ）。回して包まなくなると、なめらかに元の色へ戻る', { 5: 'wrap5', 4: 'wrap4' }],
                     ['内側を濃く', '5D：入れ子の内側を濃く（中心の立方体ほど濃くの強さも）', { 5: 'inner5' }],
                     ['4Dライト', '5D：4Dライト（5次元空間に固定した光で、胞の向きごとに明るさを変える）', { 5: 'light5' }],
                     ['組み上がりの光', '5D：組み上がる直前に 4Dライトが少しずつ効いて、組み上がった瞬間にふわっと光る', { 5: 'auto5' }],
@@ -7997,7 +8015,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-1548';
+        const APP_BUILD = '20261021-1549';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
