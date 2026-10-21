@@ -4133,6 +4133,12 @@ function curveAt(px, py) {
     return null;
 }
 
+// Shift を押している間は手のひら（離すと元に）。つかんで動かしている間は握った手
+let shiftHeld = false;
+function shiftCursor() { canvas.style.cursor = gesture && gesture.type === 'shift' ? 'grabbing' : shiftHeld && mode === 'r' ? 'grab' : ''; }
+window.addEventListener('keydown', e => { if (e.key === 'Shift' && !shiftHeld) { shiftHeld = true; shiftCursor(); } });
+window.addEventListener('keyup', e => { if (e.key === 'Shift') { shiftHeld = false; shiftCursor(); } });
+window.addEventListener('blur', () => { shiftHeld = false; shiftCursor(); });   // 押したまま別の窓へ行った時も戻す
 const pts = new Map();
 let gesture = null;
 const pos = e => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
@@ -4178,7 +4184,7 @@ canvas.addEventListener('pointermove', e => {
     }
     if (!pts.has(e.pointerId)) {
         if (e.pointerType === 'mouse' || e.pointerType === 'pen') {   // マウス／Apple Pencil のホバーで値を表示
-            canvas.style.cursor = e.shiftKey && mode === 'r' && curveAt(p.x, p.y) ? 'grab' : '';   // Shift を押してグラフに乗ると、つかめる印
+            if (e.shiftKey !== shiftHeld) { shiftHeld = e.shiftKey; shiftCursor(); }   // キーを他の所で押した時も合わせる
             const w = toWorld(p);
             if (mode === 'c') traceZ = w; else traceX = w.x;
             requestDraw();
@@ -4228,7 +4234,7 @@ function endPointer(e) {
         return;
     }
     const p = pos(e);
-    if (gesture && gesture.type === 'shift') { const ex = gesture.ex; pts.delete(e.pointerId); gesture = null; canvas.style.cursor = ''; onExprChange(ex); return; }
+    if (gesture && gesture.type === 'shift') { const ex = gesture.ex; pts.delete(e.pointerId); gesture = null; shiftCursor(); onExprChange(ex); return; }
     if (gesture && gesture.type === 'pan' && !gesture.moved && pts.size === 1) {
         // タップ：その位置の値を表示（同じ所をもう一度タップで消す）
         const w = toWorld(p), sc = V().scale, touch = e.pointerType !== 'mouse';
