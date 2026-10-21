@@ -4894,8 +4894,8 @@
                     }
                     for (let i = 0; i <= G; i += 2) for (let j = 0; j < G; j++) {   // 水面の網目（揺れが見えるように）
                         const e = i === 0 || i === G ? 0.95 : 0.45;
-                        L(grid[i][j].v, 0.55 * e, 0.92 * e, 1.0 * e); L(grid[i][j + 1].v, 0.55 * e, 0.92 * e, 1.0 * e);
-                        L(grid[j][i].v, 0.55 * e, 0.92 * e, 1.0 * e); L(grid[j + 1][i].v, 0.55 * e, 0.92 * e, 1.0 * e);
+                        L(grid[i][j].v, 0.28 * e, 0.68 * e, 1.0 * e); L(grid[i][j + 1].v, 0.28 * e, 0.68 * e, 1.0 * e);
+                        L(grid[j][i].v, 0.28 * e, 0.68 * e, 1.0 * e); L(grid[j + 1][i].v, 0.28 * e, 0.68 * e, 1.0 * e);
                     }
                 }
                 // 壁に触れている面：立方体の 12 本の辺 × w（底 −H から水面まで）
@@ -4906,10 +4906,10 @@
                         const ua = U(i), ub = U(i + 1), wa = surfW(ua), wb = surfW(ub);
                         const A0 = toS([ua[0] * H, ua[1] * H, ua[2] * H, -H]), B0 = toS([ub[0] * H, ub[1] * H, ub[2] * H, -H]), A1 = toS([ua[0] * H, ua[1] * H, ua[2] * H, wa]), B1 = toS([ub[0] * H, ub[1] * H, ub[2] * H, wb]);
                         [A0, B0, B1, A0, B1, A1].forEach(v => F(v, 0.1, 0.4, 0.95));
-                        L(A1, 0.85, 0.97, 1); L(B1, 0.85, 0.97, 1);   // 水際の線
+                        L(A1, 0.38, 0.78, 1); L(B1, 0.38, 0.78, 1);   // 水際の線
                     }
                 }
-                for (const c of unitCubeVertices) { const u = c.map(x => Math.sign(x)); L(toS([u[0] * H, u[1] * H, u[2] * H, -H]), 0.2, 0.5, 0.95); L(toS([u[0] * H, u[1] * H, u[2] * H, surfW(u)]), 0.45, 0.85, 1); }   // 角の縦の線（w の方向）
+                for (const c of unitCubeVertices) { const u = c.map(x => Math.sign(x)); L(toS([u[0] * H, u[1] * H, u[2] * H, -H]), 0.12, 0.42, 0.95); L(toS([u[0] * H, u[1] * H, u[2] * H, surfW(u)]), 0.3, 0.7, 1); }   // 角の縦の線（w の方向）
                 WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => { const c = unitCubeVertices[m]; F(toS([Math.sign(c[0]) * H, Math.sign(c[1]) * H, Math.sign(c[2]) * H, -H]), 0.05, 0.25, 0.7); }));   // 底の立方体（w ＝ −1）
             }
             // 水の筋：ふたの先（w ＝ TOP×H）から水面まで、w の方向に落ちる（止めた後は、しっぽが落ちていく）
@@ -4920,12 +4920,12 @@
                     const a = n === 0 ? 1 : 0.6, x = sx + ox * H, z = sz + oz * H, M = 10;
                     for (let m = 0; m < M; m++) {
                         const w0 = top + (surfS - top) * m / M, w1 = top + (surfS - top) * (m + 1) / M, wob = 0.012 * H * Math.sin(T * 20 + m * 1.7 + n);
-                        L(toS([x + wob, sy, z, w0]), 0.6 * a, 0.9 * a, 1 * a); L(toS([x - wob, sy, z, w1]), 0.6 * a, 0.9 * a, 1 * a);
+                        L(toS([x + wob, sy, z, w0]), 0.3 * a, 0.7 * a, 1 * a); L(toS([x - wob, sy, z, w1]), 0.3 * a, 0.7 * a, 1 * a);
                     }
                 });
                 for (let m = 0; m < 7; m++) {   // 筋の中を落ちていく粒
                     const f = ((T * 1.6 + m / 7) % 1), w = top + (surfS - top) * f;
-                    L(toS([sx, sy, sz, w + 0.05 * H]), 1, 1, 1); L(toS([sx, sy, sz, w - 0.05 * H]), 1, 1, 1);
+                    L(toS([sx, sy, sz, w + 0.05 * H]), 0.5, 0.85, 1); L(toS([sx, sy, sz, w - 0.05 * H]), 0.5, 0.85, 1);
                 }
             }
             // しぶき：筋が水面に当たる所から跳ねて、また落ちる
@@ -4938,7 +4938,7 @@
                 for (let i = 0; i < 3; i++) if (Math.abs(d.p[i]) > H) { d.p[i] = Math.sign(d.p[i]) * H; d.v[i] *= -0.5; }
                 const u = [d.p[0] / H, d.p[1] / H, d.p[2] / H];
                 if (d.life <= 0 || (d.out ? d.p[3] < -H - W.FALL * H * 1.2 : d.v[3] < 0 && d.p[3] < surfW(u))) return false;
-                L(toS(d.p), 0.9, 0.98, 1); L(toS([d.p[0] - d.v[0] * 0.04, d.p[1] - d.v[1] * 0.04, d.p[2] - d.v[2] * 0.04, d.p[3] - d.v[3] * 0.04]), 0.4, 0.75, 1);
+                L(toS(d.p), 0.45, 0.8, 1); L(toS([d.p[0] - d.v[0] * 0.04, d.p[1] - d.v[1] * 0.04, d.p[2] - d.v[2] * 0.04, d.p[3] - d.v[3] * 0.04]), 0.2, 0.5, 0.95);
                 return true;
             });
             if (wWater.drops.length > 160) wWater.drops.splice(0, wWater.drops.length - 160);
@@ -4953,13 +4953,13 @@
                         const wa = out.top + (out.bot - out.top) * m / M, wb = out.top + (out.bot - out.top) * (m + 1) / M, fa = fd(wa), fb = fd(wb);
                         const qa = [toS([A[0], A[1], A[2], wa]), toS([B[0], B[1], B[2], wa])], qb = [toS([A[0], A[1], A[2], wb]), toS([B[0], B[1], B[2], wb])];
                         [[qa[0], fa], [qa[1], fa], [qb[1], fb], [qa[0], fa], [qb[1], fb], [qb[0], fb]].forEach(([v, f]) => F(v, 0.12 * f, 0.45 * f, 0.98 * f));
-                        L(qa[0], 0.45 * fa, 0.82 * fa, fa); L(qb[0], 0.45 * fb, 0.82 * fb, fb);
+                        L(qa[0], 0.25 * fa, 0.6 * fa, fa); L(qb[0], 0.25 * fb, 0.6 * fb, fb);
                     }
                 }
                 for (let i = 0; i < 4; i++) {   // 流れていく断面（立方体の枠が下へ滑っていく）
                     const f = (T * 2.2 + i / 4) % 1, w = out.top + (out.bot - out.top) * f, a = fd(w);
                     const vs = unitCubeVertices.map(c => toS([Math.sign(c[0]) * H, Math.sign(c[1]) * H, Math.sign(c[2]) * H, w]));
-                    WS_EDGES.forEach(([e0, e1]) => { L(vs[e0], 0.7 * a, 0.95 * a, a); L(vs[e1], 0.7 * a, 0.95 * a, a); });
+                    WS_EDGES.forEach(([e0, e1]) => { L(vs[e0], 0.35 * a, 0.75 * a, a); L(vs[e1], 0.35 * a, 0.75 * a, a); });
                 }
                 if (wWater.phase === 'drain') for (let n = 0; n < Math.round(45 * dt + Math.random() * 0.6); n++) {   // 底の縁からこぼれるしぶき
                     const p = [(Math.random() * 2 - 1) * H, (Math.random() * 2 - 1) * H, (Math.random() * 2 - 1) * H, -H];
@@ -4990,12 +4990,12 @@
                     const grid = [];
                     for (let i = 0; i <= G; i++) { grid.push([]); for (let j = 0; j <= G; j++) { const u = [-1 + 2 * i / G, -1 + 2 * j / G], z = sZ(u); grid[i].push({ v: pt(u[0] * H, u[1] * H, z), d: z / H - h }); } }
                     for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) { const q = [grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]], s = shine((q[0].d + q[2].d) / 2); [0, 1, 2, 0, 2, 3].forEach(m => F2(q[m].v, 0.32 * s, 0.78 * s, s)); }
-                    for (let i = 0; i <= G; i += 4) for (let j = 0; j < G; j++) { const e = i === 0 || i === G ? 0.95 : 0.45; L2(grid[i][j].v, 0.55 * e, 0.92 * e, e); L2(grid[i][j + 1].v, 0.55 * e, 0.92 * e, e); L2(grid[j][i].v, 0.55 * e, 0.92 * e, e); L2(grid[j + 1][i].v, 0.55 * e, 0.92 * e, e); }
+                    for (let i = 0; i <= G; i += 4) for (let j = 0; j < G; j++) { const e = i === 0 || i === G ? 0.95 : 0.45; L2(grid[i][j].v, 0.28 * e, 0.68 * e, e); L2(grid[i][j + 1].v, 0.28 * e, 0.68 * e, e); L2(grid[j][i].v, 0.28 * e, 0.68 * e, e); L2(grid[j + 1][i].v, 0.28 * e, 0.68 * e, e); }
                     [[0, -1], [0, 1], [1, -1], [1, 1]].forEach(([a, s]) => {   // 4 枚の壁（水の側面）
                         for (let i = 0; i < G; i++) {
                             const ua = [0, 0], ub = [0, 0]; ua[a] = ub[a] = s; ua[1 - a] = -1 + 2 * i / G; ub[1 - a] = -1 + 2 * (i + 1) / G;
                             const A0 = pt(ua[0] * H, ua[1] * H, -H), B0 = pt(ub[0] * H, ub[1] * H, -H), A1 = pt(ua[0] * H, ua[1] * H, sZ(ua)), B1 = pt(ub[0] * H, ub[1] * H, sZ(ub));
-                            [A0, B0, B1, A0, B1, A1].forEach(v => F2(v, 0.1, 0.4, 0.95)); L2(A1, 0.85, 0.97, 1); L2(B1, 0.85, 0.97, 1);
+                            [A0, B0, B1, A0, B1, A1].forEach(v => F2(v, 0.1, 0.4, 0.95)); L2(A1, 0.38, 0.78, 1); L2(B1, 0.38, 0.78, 1);
                         }
                     });
                     const b = [[-H, -H], [H, -H], [H, H], [-H, H]].map(([x, y]) => pt(x, y, -H)); [0, 1, 2, 0, 2, 3].forEach(m => F2(b[m], 0.05, 0.25, 0.7));   // 底
@@ -9420,7 +9420,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-0808';
+        const APP_BUILD = '20261022-0815';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
