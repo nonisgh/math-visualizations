@@ -2458,6 +2458,7 @@
         // 奥の胞を濃く（0〜1）：胞ごとの奥行きで、奥ほど色を濃く（鮮やか・少し暗く）、面を薄くしすぎない＝正面図でも入れ子が奥へ沈んで見える。0＝従来どおり
         // 奥を濃く（4D・お試し）：超立方体の胞の色は変えず、濃さ（不透明度）だけを奥ほど濃く・手前ほど薄く。既定は OFF
         let deep4On = false; try { deep4On = localStorage.getItem('hypercubeDeep4') === '1'; } catch (_) {}
+        let wrap4 = 0; try { const v = parseFloat(localStorage.getItem('hypercubeWrap4')); if (isFinite(v)) wrap4 = Math.max(0, Math.min(2, v)); } catch (_) {}   // 包み込む胞のトーンを落とす強さ（0＝OFF、1＝強く、2＝無色＝包みきると面の色が 0）
         let deep5 = VisualFX.get('deep');   // 目盛り 0〜1。効きは 2 倍（50%＝以前の最大）
         // 入れ子の内側を濃く（0〜1）：各4次元体の中で、見かけ上いちばん縮んで見える面（＝入れ子の内側の立方体）ほど色を濃く・面を少し不透明に。「奥の胞を濃く」に掛け合わせる
         let inner5 = VisualFX.get('inner');
@@ -4571,6 +4572,24 @@
                     });
                 }
 
+                // 包み込む胞のトーンを落とす（4D）：4次元で手前に来た胞＝遠近では外側から全体を包む大きな立方体ほど、色を灰色寄り・薄くして、
+                //   中の胞の色が透けて見えるように（全体が w の紫などに染まって見えるのを防ぐ）。回して手前から離れると元の色へ。
+                //   包み具合＝胞の中心の w（回した後、−1〜1）で決める：遠近では w が大きい胞だけ（0.5 から効きはじめ 0.95 でいっぱい）、
+                //   平行では ±w の両方が全体に重なるので |w|。遠近⇔平行の途中は混ぜる。回すと w が連続に変わるので、なめらかに変わる
+                let wrapE = null;
+                const kW4 = wrap4 > 0 ? Math.min(1, wrap4) * sm(Math.max(0, Math.min(1, (progress - 0.35) / 0.65))) * Math.max(0, 1 - 4 * explodeE()) : 0;
+                if (kW4 > 0) {
+                    const pbW = projBlendNow(), fW = x => sm(Math.max(0, Math.min(1, (x - 0.5) / 0.45)));
+                    wrapE = cellVerts.map(cv => { const sw = cv.reduce((t, v) => t + (v[3] || 0), 0) / cv.length / HALF_S; return kW4 * ((1 - pbW) * fW(sw) + pbW * fW(Math.abs(sw))); });
+                }
+                const wrapClear = wrap4 > 1;   // 無色：包みきった胞は面の色も濃さも 0（辺だけ残る）
+                const wrapCol = (C, e) => {   // 灰色寄り（彩度を落とす）・少し暗く
+                    if (!(e > 0)) return C;
+                    const g = (0.299 * C.r + 0.587 * C.g + 0.114 * C.b) * 0.8, d = (wrapClear ? 1 : 0.85) * e;
+                    return { r: C.r + (g - C.r) * d, g: C.g + (g - C.g) * d, b: C.b + (g - C.b) * d };
+                };
+                const wrapA = ci => wrapE ? 1 - (wrapClear ? 1 : 0.65) * wrapE[ci] : 1;   // 濃さも下げる（無色では 0 まで）
+
                 // 線色「面と同系色」を 4次元にも（「4次元にも」が ON の時）：立体の真ん中（写した全部の頂点の重心）と、いちばん遠い頂点までの距離
                 let tint4Cen = null, tint4R = 1;
                 if (line4Tint !== 'default') {   // 4次元の線色（5次元とは別に選ぶ）
@@ -4596,13 +4615,13 @@
                         posArr[ptr++] = v[2];
                         if (fcolArr) {   // 奥ほど暗く＝立体感・コントラスト
                             const bt = brightOf(cellDist[ci][vIdx]);
-                            if (fCol4) { const C0 = CELL_RGB[ci], C1 = fCol4[ci][(i / 6) | 0]; fcolArr[fcp++] = bt * (C1.r + 0.02) / (C0.r + 0.02); fcolArr[fcp++] = bt * (C1.g + 0.02) / (C0.g + 0.02); fcolArr[fcp++] = bt * (C1.b + 0.02) / (C0.b + 0.02); }   // 奥を濃く：材質の色に対する深い色の比
+                            if (fCol4 || wrapE) { const C0 = CELL_RGB[ci], C1 = wrapCol(fCol4 ? fCol4[ci][(i / 6) | 0] : C0, wrapE ? wrapE[ci] : 0); fcolArr[fcp++] = bt * (C1.r + 0.02) / (C0.r + 0.02); fcolArr[fcp++] = bt * (C1.g + 0.02) / (C0.g + 0.02); fcolArr[fcp++] = bt * (C1.b + 0.02) / (C0.b + 0.02); }   // 奥を濃く：材質の色に対する深い色の比
                             else { fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; fcolArr[fcp++] = bt; }
                         }
                     }
                     posAttr.needsUpdate = true;
                     if (fcolAttr) fcolAttr.needsUpdate = true;
-                    cell.material.opacity = Math.min(0.97, faceOpacity * cellFocus(3, ci).face * (dA4 ? dA4[ci] * (1 + 0.5 * tIn4[ci].reduce((t, x) => t + x, 0) / 6) : 1)) * (diePips ? 0.55 : 1);   // 展開図は濃いめ／組み上がりは薄め。玉モードはシースルー（手前の面が読める）
+                    cell.material.opacity = Math.min(0.97, faceOpacity * cellFocus(3, ci).face * (dA4 ? dA4[ci] * (1 + 0.5 * tIn4[ci].reduce((t, x) => t + x, 0) / 6) : 1)) * (diePips ? 0.55 : 1) * wrapA(ci);   // 展開図は濃いめ／組み上がりは薄め。玉モードはシースルー（手前の面が読める）
                     cell.geometry.computeVertexNormals();
 
                     const wireAttr = cell.wireGeo.attributes.position;
@@ -4669,14 +4688,14 @@
                     const mcol = mergedFaces3D.geometry.attributes.color.array;
                     let mp = 0, mc = 0;
                     for (let qi = 0; qi < quads.length; qi++) {
-                        const ci = quads[qi][0], base = quads[qi][1], cv = cellVerts[ci], C = fCol4 ? fCol4[ci][base / 6] : CELL_RGB[ci];   // 奥を濃く：深い色のトーン
+                        const ci = quads[qi][0], base = quads[qi][1], cv = cellVerts[ci], C = wrapCol(fCol4 ? fCol4[ci][base / 6] : CELL_RGB[ci], wrapE ? wrapE[ci] : 0);   // 奥を濃く：深い色のトーン／包み込む胞はトーンを落とす
                         const fcen = [0, 0, 0];
                         for (let k = 0; k < 6; k++) { const v = cv[cubeIndices[base + k]]; fcen[0] += v[0] / 6; fcen[1] += v[1] / 6; fcen[2] += v[2] / 6; }
                         const [qa, qs, qg] = faceShade(cv[cubeIndices[base]], cv[cubeIndices[base + 1]], cv[cubeIndices[base + 2]], fcen, cellCtr[ci], camL, backA, lightL, cfgFaceShade);
                         for (let k = 0; k < 6; k++) {   // 面の2三角形を連続で書く＝斜線が出ない
                             const idx = cubeIndices[base + k], v = cv[idx], bt = brightOf(cellDist[ci][idx]) * qs;   // 奥行きの明暗 × 面の向きの陰影
                             mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
-                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = xpVisible(3, ci) ? (dA4 ? Math.min(Math.max(1, 0.97 / Math.max(faceOpacity, 1e-3)), qa * cellFocus(3, ci).face * dA4[ci] * (1 + 0.5 * tIn4[ci][base / 6])) : Math.min(1, qa * cellFocus(3, ci).face)) : 0;   // 奥ほど暗く＝遠近感。裏向きの面は透明に
+                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = xpVisible(3, ci) ? (dA4 ? Math.min(Math.max(1, 0.97 / Math.max(faceOpacity, 1e-3)), qa * cellFocus(3, ci).face * dA4[ci] * (1 + 0.5 * tIn4[ci][base / 6])) : Math.min(1, qa * cellFocus(3, ci).face)) * wrapA(ci) : 0;   // 奥ほど暗く＝遠近感。裏向きの面は透明に。包み込む胞は薄く
                         }
                     }
                     mergedFaces3D.geometry.attributes.position.needsUpdate = true;
@@ -6735,7 +6754,7 @@
             ];
             // 色と見え方の設定（パレット・補色・頂点の目印の色・辺の強調・表示設定・奥を濃く・照り返し・4Dライト・ズームの大きさ・移動パッドなど）を1つの JSON に
             const COLOR_KEYS = ['hypercubeCellPalette2', 'hypercubePalComp', 'hypercubePalCompCenter', 'hypercubeMarkCol', 'hypercubeFixedMarks', 'hypercubeEdgeHi', 'hypercubeViewCfg',
-                'hypercubeDeep4', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
+                'hypercubeDeep4', 'hypercubeWrap4', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
                 'hypercubePanPad', 'hypercubePanPadPos', 'hypercubeEco', 'hypercubeNumTex', 'hypercubeDiePips', 'hypercubeDieKind', 'hypercubeAxisSync'];
             const COLOR_FILE = 'hypercube-colors.json';
             const colorsToJSON = () => { const o = {}; COLOR_KEYS.forEach(k => { try { const v = localStorage.getItem(k); if (v !== null) o[k] = v; } catch (_) {} }); return JSON.stringify({ app: 'hypercube', kind: 'colors', v: 1, data: o }, null, 1) + '\n'; };
@@ -7714,6 +7733,7 @@
                     line5: { list: pct, get: () => line5, set: v => slide('line5-slider', v) },
                     deep5: { list: pct, get: () => deep5, set: v => slide('deep5-slider', v) },
                     deep4: { list: onoff, get: () => deep4On ? 1 : 0, set: v => { if ((v === '1') !== deep4On) click('#deep4-btn'); } },
+                    wrap4: { list: [['0', 'OFF'], ['0.5', '弱く'], ['0.75', 'ふつう'], ['1', '強く'], ['2', '無色']], get: () => { const o = [0, 0.5, 0.75, 1, 2]; return o.reduce((b, x) => Math.abs(x - wrap4) < Math.abs(b - wrap4) ? x : b, 0); }, set: v => { wrap4 = parseFloat(v) || 0; try { localStorage.setItem('hypercubeWrap4', String(wrap4)); } catch (_) {} redraw(); } },
                     inner5: { list: pct, get: () => inner5, set: v => slide('inner5-slider', v) },
                     light5: { list: onoff, get: () => light5On ? 1 : 0, set: v => { if ((v === '1') !== light5On) click('#light5-btn'); } },
                     auto5: { list: onoff, get: () => autoLight5 ? 1 : 0, set: v => { if ((v === '1') !== autoLight5) click('#autolight5-btn'); } },
@@ -7733,6 +7753,7 @@
                     ['線色', '線の色。窓ごとに別々に選べる（手前と奥だけ… は 5D だけ）', { 5: 'tint5', 4: 'tint4', 3: 'tint3' }],
                     ['線の細さ', '5D：内側の線を細く（辺の強調の太い線・奥ほど細く／太くの段の差）', { 5: 'line5' }],
                     ['奥を濃く', '4D：超立方体の奥の胞を濃く（色は変えずに濃さだけ）。5D：奥の胞ほど色を濃く', { 5: 'deep5', 4: 'deep4' }],
+                    ['包む胞を淡く', '4D：外側から全体を包み込む胞（4次元で手前に来た胞。最初は +W の紫）ほど、色を灰色寄り・薄くして、中の胞の色が見えるように。無色＝包みきると面の色が 0（辺だけ）。回して包まなくなると、なめらかに元の色へ戻る', { 4: 'wrap4' }],
                     ['内側を濃く', '5D：入れ子の内側を濃く（中心の立方体ほど濃くの強さも）', { 5: 'inner5' }],
                     ['4Dライト', '5D：4Dライト（5次元空間に固定した光で、胞の向きごとに明るさを変える）', { 5: 'light5' }],
                     ['組み上がりの光', '5D：組み上がる直前に 4Dライトが少しずつ効いて、組み上がった瞬間にふわっと光る', { 5: 'auto5' }],
@@ -7976,7 +7997,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-1547';
+        const APP_BUILD = '20261021-1548';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
