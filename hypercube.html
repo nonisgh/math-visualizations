@@ -22,7 +22,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
     <!-- 視覚効果の共通部品（パレット・照り返し・軸の札・見切れ防止・高い次元の光・奥／内側を濃く）。設定は全アプリ共通の vfx キー -->
-    <script src="lib/visual-fx.js?b=20261021-1546"></script>
+    <script src="lib/visual-fx.js?b=20261021-1553"></script>
     <script src="lib/ui-dock.js?b=20261020-1625"></script>
     <!-- n 次元の計算の共通部品（回転・3D への写し方・折りたたみ）。6次元アプリ・n次元ビューアと同じ -->
     <script src="lib/nd-geom.js?b=20261020-1625"></script>
@@ -1677,6 +1677,7 @@
         let wireframeOnly = false;
         let accurateFaces = false;   // 面透過：ON=毎フレーム奥から並べ直し＋depthWrite無効で正しく合成。OFF=今の立体感重視
         let mergedFaces3D = null;    // 正確透過モード用：全胞の面をまとめた1メッシュ（毎フレーム全三角形を深度ソート）
+        let shineThruOn = true; try { shineThruOn = localStorage.getItem('hypercubeShineThru') !== '0'; } catch (_) {}   // 5D：照り返しの透け（内側の面にも白いキラッを足す）を使うか
         let shineThru5D = null;      // 5次元：照り返しライトの光が内側の面まで透けて届いて照り返す（足し算のメッシュ、build5D で作る）
         let stackFaces5D = null;     // 5次元：入れ子の立方体（正面から見える 4 つ）ごとに面を乗算で重ねるメッシュ 4 枚（build5D で作る）。中心の立方体ほど重なる数が多く＝濃く
         let mergedFaces5D = null;    // 5次元：全胞の面を1メッシュにして毎フレーム面単位で深度ソート（重なった胞も正しく前後合成＝真上でも色が混ざる）
@@ -2966,7 +2967,7 @@
                     const st0C = [0, 0, 0]; let st0n = 0; if (stK > 0) verts.forEach((cv, ci) => cv.forEach((v, i) => { if (nestStep[ci][i] < 0.15) { st0C[0] += v[0]; st0C[1] += v[1]; st0C[2] += v[2]; st0n++; } })); if (st0n) { st0C[0] /= st0n; st0C[1] /= st0n; st0C[2] /= st0n; }
                     const stCam = (update5D._stCam || (update5D._stCam = new THREE.Vector3())).copy(camera5D.position); if (mat) stCam.applyMatrix4((update5D._stIM || (update5D._stIM = new THREE.Matrix4())).copy(mat).invert());   // 立方体ごとの乗算の濃さ（「入れ子の内側を濃く」50% で 0.22＝中心は 4 回で 外の約 4 割の明るさ）。透明プラスチック（もともと乗算）では使わない
                     // 照り返しの透け：光の位置（主光・逆光）とカメラを、この入れ物（root）の中の座標に直す
-                    const thOn = shineOn && !!shineThru5D, rig5 = thOn ? shineRigs.find(r => r.key.parent === scene5D) : null, TP = thOn ? shineThru5D.geometry.attributes.position.array : null, TC = thOn ? shineThru5D.geometry.attributes.color.array : null; let tN = 0;
+                    const thOn = shineOn && shineThruOn && !!shineThru5D, rig5 = thOn ? shineRigs.find(r => r.key.parent === scene5D) : null, TP = thOn ? shineThru5D.geometry.attributes.position.array : null, TC = thOn ? shineThru5D.geometry.attributes.color.array : null; let tN = 0;
                     const _thC = { r: 0, g: 0, b: 0 }, thSeen = thOn ? new Set() : null, thV = update5D._thV || (update5D._thV = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Matrix4()]);
                     if (thOn && rig5) { thV[3].copy(mat || new THREE.Matrix4()).invert(); thV[0].copy(rig5.key.position).applyMatrix4(thV[3]); thV[1].copy(rig5.rim.position).applyMatrix4(thV[3]); thV[2].copy(camera5D.position).applyMatrix4(thV[3]); }
                     for (let qi = 0; qi < quads5.length; qi++) {
@@ -6817,7 +6818,7 @@
             ];
             // 色と見え方の設定（パレット・補色・頂点の目印の色・辺の強調・表示設定・奥を濃く・照り返し・4Dライト・ズームの大きさ・移動パッドなど）を1つの JSON に
             const COLOR_KEYS = ['hypercubeCellPalette2', 'hypercubePalComp', 'hypercubePalCompCenter', 'hypercubeMarkCol', 'hypercubeFixedMarks', 'hypercubeEdgeHi', 'hypercubeViewCfg',
-                'hypercubeDeep4', 'hypercubeWrap4', 'hypercubeWrap5', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
+                'hypercubeDeep4', 'hypercubeWrap4', 'hypercubeWrap5', 'hypercubeShineThru', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
                 'hypercubePanPad', 'hypercubePanPadPos', 'hypercubeEco', 'hypercubeNumTex', 'hypercubeDiePips', 'hypercubeDieKind', 'hypercubeAxisSync'];
             const COLOR_FILE = 'hypercube-colors.json';
             const colorsToJSON = () => { const o = {}; COLOR_KEYS.forEach(k => { try { const v = localStorage.getItem(k); if (v !== null) o[k] = v; } catch (_) {} }); return JSON.stringify({ app: 'hypercube', kind: 'colors', v: 1, data: o }, null, 1) + '\n'; };
@@ -7807,6 +7808,9 @@
                     shineK: vfxNum('shineK', [[0.5, '弱く 0.5×'], [1, '今まで 1×'], [1.5, '1.5×'], [2, '2×'], [3, '強く 3×'], [4, 'とても強く 4×']]),
                     shineSpread: vfxNum('shineSpread', [[-1, '鋭く小さく'], [-0.5, '少し鋭く'], [0, '今まで'], [0.35, '少し広く'], [0.7, '広く'], [1, 'とても広く']]),
                     shineAz: vfxNum('shineAz', [[-150, '左うしろ 150°'], [-90, '左 90°'], [-60, '左 60°'], [-30, '左 30°（今まで）'], [0, '正面'], [30, '右 30°'], [60, '右 60°'], [90, '右 90°'], [150, '右うしろ 150°'], [180, 'うしろ 180°']]),
+                    glare: vfxNum('glare', [[0, 'OFF'], [0.35, '弱く'], [0.6, 'ふつう'], [1, '強く']]),
+                    vivid: vfxNum('vivid', [[0, '今まで'], [0.3, '少し'], [0.6, 'もっと'], [1, 'とても']]),
+                    thru5: { list: onoff, get: () => shineThruOn ? 1 : 0, set: v => { shineThruOn = v === '1'; try { localStorage.setItem('hypercubeShineThru', shineThruOn ? '1' : '0'); } catch (_) {} redraw(); } },
                     shineEl: vfxNum('shineEl', [[-60, '下 60°'], [-30, '下 30°'], [0, '水平'], [15, '上 15°'], [33, '上 33°（今まで）'], [50, '上 50°'], [70, '上 70°'], [85, '真上近く 85°']]),
                 };
                 // 行：見出し・説明・次元ごとのプルダウン（'both'＝両方の列にまたがる共通）
@@ -7826,6 +7830,9 @@
                     ['照りの広さ', '照り返しの光る範囲。鋭く＝小さくキラッ、広く＝ふんわり大きく。全部の窓で共通', 'both:shineSpread'],
                     ['光の左右', '照り返しの主光の向き（カメラから見て左右）。逆光はその反対側に回る。全部の窓で共通', 'both:shineAz'],
                     ['光の上下', '照り返しの主光の高さ（カメラから見て上下）。全部の窓で共通', 'both:shineEl'],
+                    ['鮮やかさ', '面の色の鮮やかさ（彩度）を上げる。明るさはそのまま。照り返し・グレアとは別に効く。全部の窓で共通', 'both:vivid'],
+                    ['照り返しの透け', '5D：照り返しライトの光が内側の面まで透けて届いて、内側の面にも白いキラッを足す（ON の時は内側が白っぽく明るく見える）。照り返しライトが ON の時だけ', { 5: 'thru5' }],
+                    ['グレア', 'つやのある光沢画面のような見た目：色を少し深く鮮やかに、面のふちほど白く光り、画面を斜めに横切るやわらかい映り込みの帯。照り返しライトとは別に効く（両方使うと、照り返し＋グレア）。全部の窓で共通', 'both:glare'],
                     ['面透過', '4D：面透過（立体感＝今の見た目／正確＝毎回奥から並べて正しく重ねる）', { 4: 'xp4' }],
                 ];
                 let built = null;
@@ -7856,7 +7863,7 @@
                 setInterval(() => { if (grid.offsetParent || built !== dim5) sync(); }, 500);   // キー操作・ほかの所で変わった時も、表を今の設定にそろえる
             })();
             // 照りの広さ・強さ・光の向きが変わったら、面のつやを付け直して描き直す（光の位置は描くたびに共通部品が置く）
-            VisualFX.onChange(n => { if (n === 'shineSpread' || n === 'shineK' || n === 'shineAz' || n === 'shineEl' || n === '*') { if (shineOn) applyShine(); requestRender(30); } });
+            VisualFX.onChange(n => { if (n === 'shineSpread' || n === 'shineK' || n === 'shineAz' || n === 'shineEl' || n === '*') { if (shineOn) applyShine(); requestRender(30); } if (n === 'glare' || n === 'vivid' || n === '*') { applyShine(); updateMorphingGeometry(animationProgress); requestRender(30); } });   // グレアは材質のシェーダーに入るので、全部の面に手入れ（applyShine）を通す
             // 視覚効果の設定（全アプリ共通の vfx キー）が、ほかのタブ・ほかのアプリで変わった時も、ここにそろえる
             VisualFX.onChange(() => {
                 const before = JSON.stringify([shineOn, light5On, deep5, inner5, texLabels, axisFitOn, palComp, palCompCenter, axisSync, cellPal.d5]);
@@ -8061,7 +8068,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-1550';
+        const APP_BUILD = '20261021-1553';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
