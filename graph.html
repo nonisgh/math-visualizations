@@ -2133,11 +2133,25 @@ function calcRowText(ex, op) {
     if (splitTop(src) >= 0) return null;   // = の式（陰関数）は対象外
     let ast; try { ast = parse(closeParens(src)); } catch (_) { return null; }
     if (op === 'd') return `d/dx(${toSrc(ast)})`;
+    if (op === 't') return tangentText(ex, ast);
     const used = allFree(ast), v = ['t', 'u', 's', 'w'].find(c => !used.has(c)) || 't';   // 積分の変数（式に無い文字）
     const body = toSrc(substAst(ast, 'x', { t: 'var', name: v }));
     if (op === 'i') return `∫(${v}=0,x,${body})`;
     const X = substX(), b = X ? X.label : '1';
     return `∫(${v}=0,${b},${body})`;
+}
+// 「接線を追加」：「x に代入」の点 a（無ければ 1）での接線を y = mx + b の式に。傾き m は式のまま微分して a を入れた値（できなければ数値の差分）
+function tangentText(ex, ast) {
+    const X = substX() || { v: 1, label: '1' }, a = X.v, env = paramEnv();
+    let m = NaN;
+    try { m = compile(simp(diff(ast, 'x')))({ ...env, x: a }); } catch (_) { /* 下で数値の差分 */ }
+    if (!isFinite(m)) m = slopeAt(ex, X);
+    env.x = a; const fa = ex.fn ? ex.fn(env) : NaN;
+    if (!isFinite(m) || !isFinite(fa)) return null;
+    // 数を式に書く：定数の書き方（π・e）が使えればそれで、整数に近ければ整数、ほかは 6 桁
+    const nice = v => { const c = constOf(v); if (c) return constSrc(c); const r = Math.round(v); return Math.abs(v - r) < 1e-9 * Math.max(1, Math.abs(v)) ? String(r) : String(+v.toPrecision(6)); };
+    const b = fa - m * a;
+    try { return 'y = ' + toSrc(foldNum(simp(parse(`(${nice(m)})*x+(${nice(b)})`)))); } catch (_) { return null; }
 }
 // 式の並びを 1 つ上・下へ（色・中身はそのまま）
 function moveExpr(id, d) {
@@ -2156,7 +2170,7 @@ function renderList() {
         row.innerHTML =
             `<button class="sw" type="button" title="表示／非表示">${i + 1}</button>` +
             `<div class="ebody"><input class="ein" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="式を入力（例: sin(x)）">` +
-            `<div class="preview"></div><div class="expand" hidden><div class="exmode" hidden><button type="button" data-m="n"></button><button type="button" data-m="d">次数で指定</button><span class="exnote"></span></div><div class="exmath"></div><button class="exadd" type="button" title="書き出した式を新しい行に追加">＋ この形で式に追加</button></div><div class="sol" title="複素数平面で見る"></div><div class="fx" title="押すと、x に値を入れた式をコピー（Google 電卓用の形）"></div><div class="calcx" hidden><button type="button" data-op="d" title="この式を x で微分した式（導関数）を、すぐ下に追加">d/dx を追加</button><button type="button" data-op="i" title="この式を 0 から x まで積分した式（原始関数）を、すぐ下に追加">∫ を追加</button><button type="button" data-op="a" title="この式の定積分（面積）を、すぐ下に追加。範囲は「x に代入」の値があれば 0〜その値、無ければ 0〜1">面積を追加</button></div><div class="err"></div></div>` +
+            `<div class="preview"></div><div class="expand" hidden><div class="exmode" hidden><button type="button" data-m="n"></button><button type="button" data-m="d">次数で指定</button><span class="exnote"></span></div><div class="exmath"></div><button class="exadd" type="button" title="書き出した式を新しい行に追加">＋ この形で式に追加</button></div><div class="sol" title="複素数平面で見る"></div><div class="fx" title="押すと、x に値を入れた式をコピー（Google 電卓用の形）"></div><div class="calcx" hidden><button type="button" data-op="d" title="この式を x で微分した式（導関数）を、すぐ下に追加">d/dx を追加</button><button type="button" data-op="i" title="この式を 0 から x まで積分した式（原始関数）を、すぐ下に追加">∫ を追加</button><button type="button" data-op="a" title="この式の定積分（面積）を、すぐ下に追加。範囲は「x に代入」の値があれば 0〜その値、無ければ 0〜1">面積を追加</button><button type="button" data-op="t" title="接線の式 y = (傾き)x + (切片) を、すぐ下に追加。接する点は「x に代入」の値（無ければ x = 1）。傾きは式のまま微分した値">接線を追加</button></div><div class="err"></div></div>` +
             `<div class="eact"><button class="del" type="button" title="削除">×</button><button class="mv" type="button" data-d="-1" title="上へ動かす">▲</button><button class="mv" type="button" data-d="1" title="下へ動かす">▼</button><button class="cp" type="button" title="式をコピー（x2 → x^2、eiπ → e^(i*pi) のように ^ と * を書いた形。設定の「コピーの形」で Google 電卓用／このアプリ用）">⧉</button></div>`;
         const inp = row.querySelector('.ein');
         inp.value = ex.text;
