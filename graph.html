@@ -456,6 +456,11 @@
                 <input type="text" id="copyX" class="cpx" placeholder="そのまま" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">
                 <button type="button" id="copyXtap" class="cpxbtn">タップした所</button>
             </div>
+            <label class="setting" title="x に代入した点で、各グラフの接線を点線で引き、傾き f′(a) を答えの横に出す">
+                <span>代入した点で接線と傾き</span>
+                <span class="grow"></span>
+                <input type="checkbox" id="tanOn" class="switch">
+            </label>
             <label class="setting" title="Σ の式の下に出る展開を、次数の高い項から並べる（x⁷/7! − x⁵/5! + … の順）">
                 <span>展開を高い次数から</span>
                 <span class="grow"></span>
@@ -470,6 +475,7 @@
                 <b>3D</b> は x と y を両方複素数にした4次元を、床＝x（実軸・虚軸）、高さ＝y の実部、色＝y の虚部で表示します。<span style="color:#fde047">黄＝普通のグラフ</span>、<span style="color:#4ade80">緑＝x が複素数でも y が実数になる所</span>、●＝解（グラフと同じ色）。上のボタンで曲面・床をオンオフ、ドラッグで回転、ホイール／ピンチで範囲を変更。<br>
                 Σ は <code>Σ(k=0,n, 式)</code>、階乗は <code>(2k+1)!</code>、× は省略できます（<code>2x</code>, <code>3sin(x)</code>）。<br>
                 ^ を打たなくても、1 文字の変数のすぐ後の数字は指数になります（<code>x2</code> → x²、<code>3x2-2x</code> → 3x²−2x、<code>a10</code> → a¹⁰）。<code>i2</code> → i²、<code>π2</code>・<code>pi2</code> → π²、<code>tau2</code> → τ²、かっこの後の <code>(x-4)2</code> → (x−4)² も同じ。<code>e2</code> → e² ですが、後ろに文字やかっこが続く <code>e2x</code> は e×2x のまま。小数は除く（<code>x2.5</code> は x×2.5）。<br>τ（タウ）は <code>τ</code> か <code>tau</code>（τ＝2π）。<b>e のすぐ後に i</b> を書くと「e の i… 乗」になります（<code>eix</code> → e^(ix)、<code>eiπ</code> → e^(iπ)、<code>eitau</code> → e^(iτ)）。指数が式の時は今まで通り <code>x^(2k+1)</code>、<code>e^x</code>。<br>
+                <b>微分・積分</b>：<code>d/dx(x^3)</code> → 3x²（式のまま微分して、グラフも描く）。<code>∫(0, π, sin(x))</code> → = 2（定積分。グラフと x 軸の間を塗る）。<code>∫(t=0, x, sin(t))</code> は原始関数のグラフ。キーボードの「微積」から入れられます。「x に代入」した点では接線と傾き f′(a) も出ます。<br>
                 全角でも書けます（<code>２ｘ＋１</code>、<code>ｓｉｎ（ｘ）</code>、<code>２ー３</code> の「ー」はマイナス、「×」「÷」「・」も使えます）。<br>
                 グラフはドラッグで移動、ホイール／ピンチで拡大、タップで値を表示。
             </details>
@@ -530,7 +536,7 @@ const FUNCS = {
     max: Math.max, min: Math.min, gamma: gamma,
 };
 const VARIADIC = new Set(['max', 'min']);
-const NAMES = [...Object.keys(FUNCS), 'sum', 'prod', 'pi', 'tau'].sort((a, b) => b.length - a.length);
+const NAMES = [...Object.keys(FUNCS), 'sum', 'prod', 'pi', 'tau', 'integral'].sort((a, b) => b.length - a.length);
 const UNI = { '×': '*', '·': '*', '∙': '*', '÷': '/', '−': '-', '–': '-' };
 // 全角でも書けるように：全角の英数字・記号（！〜～）を半角に、全角の空白を空白に、
 //   ー（長音）・‐―−–（いろいろな横棒）を −、×・✕・・（中黒）を ×、÷ を ÷ として読む（² ³ π τ Σ √ などはそのまま）
@@ -583,6 +589,8 @@ function tokenize(s) {
         }
         if (ch === 'π' || ch === 'τ') { t.push({ k: 'id', v: ch === 'π' ? 'pi' : 'tau' }); i++; i = shortPow(i, false); continue; }
         if (ch === 'Σ' || ch === '∑') { t.push({ k: 'fn', v: 'sum' }); i++; continue; }
+        if (ch === '∫') { t.push({ k: 'fn', v: 'int' }); i++; continue; }
+        if (s.startsWith('d/dx', i)) { t.push({ k: 'fn', v: 'deriv' }); i += 4; continue; }   // 微分 d/dx( 式 )
         if (ch === 'Π' || ch === '∏') { t.push({ k: 'fn', v: 'prod' }); i++; continue; }
         if (ch === '√') { t.push({ k: 'fn', v: 'sqrt' }); i++; continue; }
         if (ch === '∛') { t.push({ k: 'fn', v: 'cbrt' }); i++; continue; }
@@ -591,6 +599,7 @@ function tokenize(s) {
             const m = NAMES.find(nm => low.startsWith(nm));
             if (m) {
                 if (m === 'pi' || m === 'tau') { t.push({ k: 'id', v: m }); i += m.length; i = shortPow(i, false); continue; }
+                if (m === 'integral') { t.push({ k: 'fn', v: 'int' }); i += m.length; continue; }
                 t.push({ k: 'fn', v: m });
                 i += m.length; continue;
             }
@@ -693,6 +702,24 @@ function parse(src) {
         if (tk.k === 'fn') {
             p++;
             const name = tk.v;
+            if (name === 'deriv') {   // d/dx( 式 )：x で微分した式（式のまま）にして返す
+                expect('(');
+                if (isOp(')')) throw ParseError('d/dx( ) の中が空です');
+                const e = expr(); expect(')');
+                return foldNum(simp(diff(e, 'x')));
+            }
+            if (name === 'int') {   // ∫(a, b, 式)＝x で a から b まで。∫(t=a, b, 式) のように変数も書ける
+                expect('(');
+                let v = 'x';
+                if (toks[p] && toks[p].k === 'id' && toks[p + 1] && toks[p + 1].k === 'op' && toks[p + 1].v === '=') { v = toks[p].v; p += 2; }
+                if (isOp(',') || isOp(')')) throw ParseError('∫ の下の端（開始）が空です（例: ∫(0, 1, x^2)）');
+                const from = expr(); expect(',');
+                if (isOp(',') || isOp(')')) throw ParseError('∫ の上の端（終わり）が空です');
+                const to = expr(); expect(',');
+                if (isOp(')') || p >= toks.length) throw ParseError('∫ の中の式が空です');
+                const body = expr(); expect(')');
+                return { t: 'sum', kind: 'int', v, from, to, body };
+            }
             if (name === 'sum' || name === 'prod') {
                 const sym = name === 'sum' ? 'Σ' : 'Π';
                 expect('(');
@@ -769,6 +796,15 @@ function compile(n) {
         case 'sum': {
             const fr = compile(n.from), to = compile(n.to), body = compile(n.body);
             const v = n.v, isProd = n.kind === 'prod';
+            if (n.kind === 'int') return env => {   // 定積分：適応シンプソン法（端が無限・値が出ない所は NaN）
+                const a = fr(env), b = to(env);
+                if (!isFinite(a) || !isFinite(b)) return NaN;
+                if (a === b) return 0;
+                const old = env[v], f = t => { env[v] = t; return body(env); };
+                const r = integrate(f, a, b);
+                env[v] = old;
+                return r;
+            };
             return env => {
                 const a = Math.ceil(fr(env) - 1e-9), b = Math.floor(to(env) + 1e-9);
                 if (!isFinite(a) || !isFinite(b) || b - a > 100000) return NaN;
@@ -856,6 +892,7 @@ function toMathML(n) {
             return `<mrow><mi>${n.name}</mi><mo>&#x2061;</mo>${paren(a.map(toMathML).join('<mo>,</mo>'))}</mrow>`;
         }
         case 'sum':
+            if (n.kind === 'int') return `<mrow><msubsup><mo>∫</mo>${toMathML(n.from)}${toMathML(n.to)}</msubsup>${W(n.body, 2)}<mspace width="0.2em"/><mi mathvariant="normal">d</mi><mi>${n.v}</mi></mrow>`;
             return `<mrow><munderover><mo>${n.kind === 'sum' ? '∑' : '∏'}</mo>` +
                 `<mrow><mi>${n.v}</mi><mo>=</mo>${toMathML(n.from)}</mrow>${toMathML(n.to)}</munderover>` +
                 `${W(n.body, 2)}</mrow>`;
@@ -934,6 +971,128 @@ function subst(n, v, val) {
     }
     return n;
 }
+// ---------- 微分（式のまま）と、数値積分 ----------
+const V1 = v => ({ t: 'num', v, raw: String(v) });
+const B = (op, l, r) => ({ t: 'bin', op, l, r });
+const CALL = (name, a) => ({ t: 'call', name, args: [a] });
+const POW = (b, e) => ({ t: 'pow', b, e });
+const hasVar = (n, v) => allFree(n).has(v);
+// 式の中の変数 v を、式 rep に置きかえる（Σ・∫ の中の同じ名前の変数は別物なのでそのまま）
+function substAst(n, v, rep) {
+    switch (n.t) {
+        case 'var': return n.name === v ? rep : n;
+        case 'neg': case 'fact': return { ...n, a: substAst(n.a, v, rep) };
+        case 'bin': return { ...n, l: substAst(n.l, v, rep), r: substAst(n.r, v, rep) };
+        case 'pow': return { ...n, b: substAst(n.b, v, rep), e: substAst(n.e, v, rep) };
+        case 'call': return { ...n, args: n.args.map(a => substAst(a, v, rep)) };
+        case 'sum': return { ...n, from: substAst(n.from, v, rep), to: substAst(n.to, v, rep), body: n.v === v ? n.body : substAst(n.body, v, rep) };
+    }
+    return n;
+}
+// d/dv（v で微分）。積の微分・商の微分・合成関数の微分・指数／対数。∫ は微分積分学の基本定理（ライプニッツの規則）
+function diff(n, v) {
+    if (!hasVar(n, v)) return V1(0);
+    switch (n.t) {
+        case 'var': return V1(n.name === v ? 1 : 0);
+        case 'neg': return { t: 'neg', a: diff(n.a, v) };
+        case 'bin': {
+            const dl = diff(n.l, v), dr = diff(n.r, v);
+            if (n.op === '+' || n.op === '-') return B(n.op, dl, dr);
+            if (n.op === '*') return B('+', B('*', dl, n.r), B('*', n.l, dr));
+            if (n.op === '/') return B('/', B('-', B('*', dl, n.r), B('*', n.l, dr)), POW(n.r, V1(2)));
+            break;
+        }
+        case 'pow': {
+            const hb = hasVar(n.b, v), he = hasVar(n.e, v);
+            if (hb && !he) return B('*', B('*', n.e, POW(n.b, B('-', n.e, V1(1)))), diff(n.b, v));   // (u^n)' = n u^(n−1) u'
+            if (!hb && he) return n.b.t === 'var' && n.b.name === 'e' ? B('*', n, diff(n.e, v))       // (e^u)' = e^u · u'
+                : B('*', B('*', n, CALL('ln', n.b)), diff(n.e, v));                                      // (a^u)' = a^u ln a · u'
+            return B('*', n, B('+', B('*', diff(n.e, v), CALL('ln', n.b)), B('/', B('*', n.e, diff(n.b, v)), n.b)));
+        }
+        case 'call': {
+            if (n.args.length !== 1) break;
+            const a = n.args[0], da = diff(a, v), ch = outer => B('*', outer, da);
+            const one = V1(1), sq = x => POW(x, V1(2));
+            switch (n.name) {
+                case 'sin': return ch(CALL('cos', a));
+                case 'cos': return ch({ t: 'neg', a: CALL('sin', a) });
+                case 'tan': return ch(B('/', one, sq(CALL('cos', a))));
+                case 'sec': return ch(B('*', CALL('sec', a), CALL('tan', a)));
+                case 'csc': return ch({ t: 'neg', a: B('*', CALL('csc', a), CALL('cot', a)) });
+                case 'cot': return ch({ t: 'neg', a: B('/', one, sq(CALL('sin', a))) });
+                case 'asin': case 'arcsin': return ch(B('/', one, CALL('sqrt', B('-', one, sq(a)))));
+                case 'acos': case 'arccos': return ch({ t: 'neg', a: B('/', one, CALL('sqrt', B('-', one, sq(a)))) });
+                case 'atan': case 'arctan': return ch(B('/', one, B('+', one, sq(a))));
+                case 'sinh': return ch(CALL('cosh', a));
+                case 'cosh': return ch(CALL('sinh', a));
+                case 'tanh': return ch(B('/', one, sq(CALL('cosh', a))));
+                case 'asinh': return ch(B('/', one, CALL('sqrt', B('+', sq(a), one))));
+                case 'acosh': return ch(B('/', one, CALL('sqrt', B('-', sq(a), one))));
+                case 'atanh': return ch(B('/', one, B('-', one, sq(a))));
+                case 'exp': return ch(CALL('exp', a));
+                case 'ln': return ch(B('/', one, a));
+                case 'log': return ch(B('/', one, B('*', a, CALL('ln', V1(10)))));
+                case 'sqrt': return ch(B('/', one, B('*', V1(2), CALL('sqrt', a))));
+                case 'cbrt': return ch(B('/', one, B('*', V1(3), sq(CALL('cbrt', a)))));
+                case 'abs': return ch(B('/', a, CALL('abs', a)));
+                case 'sign': case 'floor': case 'ceil': case 'round': return V1(0);   // 段になっている所以外は 0
+            }
+            throw ParseError(`${n.name} の微分にはまだ対応していません`);
+        }
+        case 'sum': {
+            if (n.kind === 'sum' && !hasVar(n.from, v) && !hasVar(n.to, v) && n.v !== v) return { ...n, body: diff(n.body, v) };
+            if (n.kind === 'int') {   // d/dv ∫(u=a,b, f) = f(b)·b′ − f(a)·a′ ＋ ∫(u=a,b, ∂f/∂v)
+                const fb = substAst(n.body, n.v, n.to), fa = substAst(n.body, n.v, n.from);
+                let r = B('-', B('*', fb, diff(n.to, v)), B('*', fa, diff(n.from, v)));
+                if (n.v !== v && hasVar(n.body, v)) r = B('+', r, { ...n, body: diff(n.body, v) });
+                return r;
+            }
+            break;
+        }
+    }
+    throw ParseError('この式の微分にはまだ対応していません');
+}
+// 掛け算の中の数をまとめる：4(3x²) → 12x²、2(−3x) → −6x（微分を重ねた時の見た目のため）
+function foldNum(n) {
+    switch (n.t) {
+        case 'neg': { const a = foldNum(n.a); return a.t === 'neg' ? a.a : { ...n, a }; }
+        case 'fact': return { ...n, a: foldNum(n.a) };
+        case 'pow': return { ...n, b: foldNum(n.b), e: foldNum(n.e) };
+        case 'call': return { ...n, args: n.args.map(foldNum) };
+        case 'sum': return { ...n, body: foldNum(n.body) };
+        case 'bin': {
+            const l = foldNum(n.l), r = foldNum(n.r);
+            if (n.op === '*' && numOf(r) !== null && numOf(l) === null) return foldNum(B('*', r, l));   // e^(2x)·2 → 2e^(2x)
+            if (n.op === '*') {
+                const lv = numOf(l);
+                if (lv !== null && r.t === 'bin' && r.op === '*' && numOf(r.l) !== null) { const k = lv * numOf(r.l); return foldNum(B('*', NUM(+k.toPrecision(15)), r.r)); }
+                if (lv !== null && r.t === 'neg') return foldNum(B('*', NUM(-lv), r.a));
+                if (lv === 1) return r;
+            }
+            return { ...n, l, r };
+        }
+    }
+    return n;
+}
+// 定積分の数値計算：適応シンプソン法（相対誤差 1e-10 くらいまで、深さ 18 まで）
+function integrate(f, a, b) {
+    const simpson = (a, b, fa, fm, fb) => (b - a) / 6 * (fa + 4 * fm + fb);
+    const rec = (a, b, fa, fm, fb, whole, eps, depth) => {
+        const m = (a + b) / 2, lm = (a + m) / 2, rm = (m + b) / 2, flm = f(lm), frm = f(rm);
+        const left = simpson(a, m, fa, flm, fm), right = simpson(m, b, fm, frm, fb), d = left + right - whole;
+        if (depth <= 0 || !isFinite(d) || Math.abs(d) <= 15 * eps) return left + right + d / 15;
+        return rec(a, m, fa, flm, fm, left, eps / 2, depth - 1) + rec(m, b, fm, frm, fb, right, eps / 2, depth - 1);
+    };
+    // 細かい波でも取りこぼさないよう、まず 16 に分けてから
+    const n = 16, h = (b - a) / n;
+    let sum = 0;
+    for (let k = 0; k < n; k++) {
+        const x0 = a + k * h, x1 = x0 + h, f0 = f(x0), fm = f((x0 + x1) / 2), f1 = f(x1);
+        const w = simpson(x0, x1, f0, fm, f1);
+        sum += rec(x0, x1, f0, fm, f1, w, 1e-11 * (1 + Math.abs(w)), 14);
+    }
+    return sum;
+}
 // 入力欄に戻せる文字の式にする
 function tprec(n) {
     if (n.t === 'bin') return n.op === '+' || n.op === '-' ? 1 : 2;
@@ -948,7 +1107,7 @@ function toSrc(n) {
         case 'fact': return w(n.a, n.a.t === 'num' || n.a.t === 'var') + '!';
         case 'pow': return w(n.b, tprec(n.b) >= 10 && n.b.t !== 'neg') + '^' + w(n.e, (n.e.t === 'num' || n.e.t === 'var'));
         case 'call': return `${n.name}(${n.args.map(toSrc).join(',')})`;
-        case 'sum': return `${n.kind === 'sum' ? 'Σ' : 'Π'}(${n.v}=${toSrc(n.from)},${toSrc(n.to)},${toSrc(n.body)})`;
+        case 'sum': return `${n.kind === 'sum' ? 'Σ' : n.kind === 'int' ? '∫' : 'Π'}(${n.v}=${toSrc(n.from)},${toSrc(n.to)},${toSrc(n.body)})`;
         case 'bin': {
             if (n.op === '+' || n.op === '-') return `${toSrc(n.l)} ${n.op} ${w(n.r, tprec(n.r) >= 2 && n.r.t !== 'neg')}`;
             if (n.op === '/') return w(n.l, tprec(n.l) >= 2) + '/' + w(n.r, tprec(n.r) >= 7);
@@ -970,7 +1129,7 @@ function toPlain(n) {
         case 'fact': return w(n.a, n.a.t === 'num' || n.a.t === 'var') + '!';   // τ は (2*pi) とかっこ付きで出るので、かっこを足さない
         case 'pow': return w(n.b, tprec(n.b) >= 10 && n.b.t !== 'neg') + '^' + w(n.e, n.e.t === 'num' || n.e.t === 'var');
         case 'call': return `${n.name}(${n.args.map(toPlain).join(', ')})`;
-        case 'sum': return `${n.kind === 'sum' ? 'sum' : 'prod'}(${n.v}=${toPlain(n.from)}, ${toPlain(n.to)}, ${toPlain(n.body)})`;
+        case 'sum': return `${n.kind === 'sum' ? 'sum' : n.kind === 'int' ? 'integral' : 'prod'}(${n.v}=${toPlain(n.from)}, ${toPlain(n.to)}, ${toPlain(n.body)})`;
         case 'bin': {
             if (n.op === '+' || n.op === '-') return `${toPlain(n.l)} ${n.op} ${w(n.r, tprec(n.r) >= 2 && n.r.t !== 'neg')}`;
             if (n.op === '/') return w(n.l, tprec(n.l) >= 2) + '/' + w(n.r, tprec(n.r) >= 7);
@@ -1007,6 +1166,10 @@ function forGoogle(n, env, bound = new Set()) {
         case 'bin': return { ...n, l: g(n.l), r: g(n.r) };
         case 'call': return { ...n, args: n.args.map(g) };
         case 'sum': {
+            if (n.kind === 'int') {   // 定積分：x などが入っていなければ、値（数）にして渡す（Google 電卓は ∫ を知らない）
+                const af = allFree(n);
+                if (!af.has('x') && !af.has('y') && !(googleX && af.has('x'))) { try { const v = compile(n)(env); if (isFinite(v)) return NUM(+v.toPrecision(12)); } catch (_) {} }
+            }
             const terms = n.kind === 'sum' ? expandSum(n, env) : null;
             if (terms) return g(termsToAst(orderTerms(terms)));
             const b2 = new Set(bound); b2.add(n.v);
@@ -1198,6 +1361,22 @@ function compileC(n, bound = new Set()) {
             const b2 = new Set(bound); b2.add(n.v);
             const body = compileC(n.body, b2);
             const v = n.v, isProd = n.kind === 'prod';
+            if (n.kind === 'int') return env => {   // 定積分（複素数）：端の実部の間を、実数の上でシンプソン法（400 区間）
+                const A = fr(env), Bv = to(env);
+                // 端が複素数（x が複素数の所の原始関数など）は、実数の上の積分では正しく出せないので「計算しない」
+                if (Math.abs(A.im) > 1e-12 * (1 + Math.abs(A.re)) || Math.abs(Bv.im) > 1e-12 * (1 + Math.abs(Bv.re))) return C(NaN, NaN);
+                const a = A.re, b = Bv.re;
+                if (!isFinite(a) || !isFinite(b)) return C(NaN, NaN);
+                const N = 400, h = (b - a) / N, old = env.loop[v];
+                let sr = 0, si = 0;
+                for (let k = 0; k <= N; k++) {
+                    env.loop[v] = a + k * h;
+                    const w = k === 0 || k === N ? 1 : k % 2 ? 4 : 2, t = body(env);
+                    sr += w * t.re; si += w * t.im;
+                }
+                env.loop[v] = old;
+                return C(sr * h / 3, si * h / 3);
+            };
             return env => {
                 const a = Math.ceil(fr(env).re - 1e-9), b = Math.floor(to(env).re + 1e-9);
                 if (!isFinite(a) || !isFinite(b) || b - a > 100000) return C(NaN, NaN);
@@ -1342,6 +1521,7 @@ let copyX = '';        // Google 電卓用のコピーで x に入れる値（�
 let lastTapX = null;   // グラフをタップ（クリック）した所の x（「タップした所」のボタン用）
 let googleX = null;    // コピーの間だけ使う：x の代わりの式
 let copyMode = 'google';   // ⧉ でコピーする形：'google' Google 電卓用（y= なし・文字は今の値・Σ は書き出す）／'app' このアプリ用（省略を書いただけ）
+let tanOn = true;   // x に代入した点で接線を引き、傾きを出す
 let frontTop = false;   // 重なり：false＝下の式が前（後に描く）、true＝上の式が前
 const drawOrder = () => frontTop ? exprs.slice().reverse() : exprs;
 const drawRank = ex => { const i = exprs.indexOf(ex); return frontTop ? exprs.length - i : i; };   // 大きいほど前
@@ -1686,7 +1866,7 @@ function closeParens(s) {
 // kind: 'fn' = y=f(x) / 'implicit' = x と y の式 = 0 / 'eqx' = x だけの方程式
 function analyze(ex) {
     ex.fn = null; ex.F = null; ex.cfn = null; ex.kind = ''; ex.err = ''; ex.free = []; ex.math = '';
-    ex.roots = null; ex.rootKey = null; ex.sum = null; ex.expKey = null; ex.constEq = null; ex.calc = false;
+    ex.roots = null; ex.rootKey = null; ex.sum = null; ex.expKey = null; ex.constEq = null; ex.calc = false; ex.intg = null;
     let src = normIn(ex.text).replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');   // 全角でも読めるように先にそろえる
     if (isBlank(src)) return;
     const pre = src.match(/^\s*[yY]\s*=([\s\S]*)$/);
@@ -1743,6 +1923,9 @@ function analyze(ex) {
         ex.math = math;
         // x も y も無い式（2+3、sqrt(2)、2a など）は「ただの電卓」：答えを出すだけで、グラフには描かない
         ex.calc = kind === 'fn' && !(ex.sum && ex.deg) && !allFree(ast).has('x');
+        // 定積分 ∫(a, b, f) だけの式：グラフに f と、a〜b の面積を塗るための手がかり
+        ex.intg = kind === 'fn' && ast.t === 'sum' && ast.kind === 'int' && !allFree(ast.from).has('x') && !allFree(ast.to).has('x')
+            ? { v: ast.v, body: compile(ast.body), from: compile(ast.from), to: compile(ast.to) } : null;
         if (kind === 'implicit') ex.F = compile(ast);
         else if (kind === 'fn') {
             if (allFree(ast).has('i')) {
@@ -1830,6 +2013,14 @@ function fxValue(ex, X) {   // y=f(x) の式の f(X.v)（複素数）。答え�
     if (!X || ex.kind !== 'fn' || !ex.cfn || ex.calc) return null;
     try { const v = ex.cfn({ z: C(X.v), y: C(0), p: paramEnv(), loop: {} }); return isFinite(v.re) && isFinite(v.im) ? v : null; } catch (_) { return null; }
 }
+// その点の傾き f′(X)（数値の中心差分）。y=f(x) の実数のグラフだけ
+function slopeAt(ex, X) {
+    if (!X || ex.kind !== 'fn' || !ex.fn || ex.calc) return null;
+    const env = paramEnv(), h = 1e-5 * (1 + Math.abs(X.v));
+    env.x = X.v + h; const a = ex.fn(env); env.x = X.v - h; const b = ex.fn(env);
+    const sl = (a - b) / (2 * h);
+    return isFinite(sl) ? (Math.abs(sl) < 1e-9 ? 0 : sl) : null;
+}
 function fmtFx(v) {   // 実数なら π/τ の書き方も（設定に合わせる）、複素数なら a + bi
     const eps = 1e-12 * Math.max(1, cabs(v));
     if (Math.abs(v.im) <= eps) return constOf(v.re) || fmtSig(Math.abs(v.re) < eps ? 0 : v.re);
@@ -1842,7 +2033,8 @@ function refreshFx() {
         if (ex.calc) { const c = calcText(ex); if (ex.calcShown !== c) { ex.calcShown = c; ex.row.querySelector('.sol').textContent = c; } ex.row.classList.add('calc'); }
         else ex.row.classList.remove('calc');
         const v = fxValue(ex, X);
-        const t = v ? `f(${X.label}) = ${fmtFx(v)}` : '';
+        const sl = v && tanOn ? slopeAt(ex, X) : null;
+        const t = v ? `f(${X.label}) = ${fmtFx(v)}` + (sl !== null ? `　傾き f′(${X.label}) = ${fmtSig(sl)}` : '') : '';
         if (ex.fxText !== t) { ex.fxText = t; ex.row.querySelector('.fx').textContent = t; }
     });
 }
@@ -2208,6 +2400,13 @@ const KB = {
         [T('Σ', 'Σ(k=0,n,)', -1, 'f big'), T('Π', 'Π(k=1,n,)', -1, 'f big'), T('n!', '!', 0, 'f'), T('|x|', 'abs()', -1, 'f'), T('Γ', 'gamma()', -1, 'f big'), T('max', 'max(,)', -2, 'f'), T('min', 'min(,)', -2, 'f')],
         [T('(', '(', 0, 'o'), T(')', ')', 0, 'o'), T(',', ',', 0, 'o'), T('x<sup>y</sup>', '^', 0, 'o'), T('x²', '^2', 0, 'o'), T('π', 'π', 0, 'v'), T('e', 'e', 0, 'v')],
     ],
+    '微積': [
+        [T('d/dx', 'd/dx()', -1, 'f'), T('d²/dx²', 'd/dx(d/dx())', -2, 'f'), T('∫<sub>a</sub><sup>b</sup>', '∫(0,1,)', -1, 'f big'), T('∫<sub>0</sub><sup>x</sup>', '∫(t=0,x,)', -1, 'f'), T('(', '(', 0, 'o'), T(')', ')', 0, 'o'), T(',', ',', 0, 'o')],
+        [T('x', 'x', 0, 'v'), T('t', 't', 0, 'v'), T('π', 'π', 0, 'v'), T('e', 'e', 0, 'v'), T('x<sup>y</sup>', '^', 0, 'o'), T('x²', '^2', 0, 'o'), T('√', 'sqrt()', -1, 'f big')],
+        [T('sin', 'sin()', -1, 'f'), T('cos', 'cos()', -1, 'f'), T('tan', 'tan()', -1, 'f'), T('e<sup>x</sup>', 'e^()', -1, 'f'), T('ln', 'ln()', -1, 'f'), T('1/x', '1/()', -1, 'f'), T('|x|', 'abs()', -1, 'f')],
+        [T('7'), T('8'), T('9'), T('÷', '/', 0, 'o'), T('×', '*', 0, 'o'), T('−', '-', 0, 'o'), T('+', '+', 0, 'o')],
+        [T('4'), T('5'), T('6'), T('1'), T('2'), T('3'), T('0')],
+    ],
     'abc': [
         'abcdefg'.split('').map(c => T(c, c, 0, 'v')),
         'hijklmn'.split('').map(c => T(c, c, 0, 'v')),
@@ -2237,7 +2436,7 @@ function insertText(str, back) {
     commit(ex, inp);
 }
 
-const KB_NAMES = [...NAMES.filter(n => n !== 'pi' && n !== 'tau'), 'Σ', 'Π', '√', '∛'].sort((a, b) => b.length - a.length);
+const KB_NAMES = [...NAMES.filter(n => n !== 'pi' && n !== 'tau'), 'Σ', 'Π', '√', '∛', '∫', 'd/dx'].sort((a, b) => b.length - a.length);   // ⌫ で「d/dx(」「∫(」もまとめて消す
 function backspace() {
     const { ex, inp } = target();
     const s = inp.selectionStart, e = inp.selectionEnd, v = inp.value;
@@ -2316,7 +2515,7 @@ function buildBar() {
         bar.appendChild(b);
         return b;
     };
-    ['123', 'f(x)', 'abc'].forEach(t => {
+    ['123', 'f(x)', '微積', 'abc'].forEach(t => {
         const b = add(t, 'tab', () => { kbTab = t; renderKB(); save(); });
         b.dataset.tab = t;
     });
@@ -2570,6 +2769,36 @@ function drawReal() {
         }
         glowStroke(ex.color);
     };
+    // 定積分 ∫(a, b, f(x)) の式：f のグラフを薄く描いて、a〜b の間の x 軸との間を塗る（上は濃く、下は少し薄く）
+    drawOrder().forEach(ex => {
+        if (!ex.visible || !ex.intg) return;
+        const I = ex.intg, e2 = { ...env };
+        let a, b; try { a = I.from(e2); b = I.to(e2); } catch (_) { return; }
+        if (!isFinite(a) || !isFinite(b)) return;
+        const lo = Math.min(a, b), hi = Math.max(a, b), f = t => { e2[I.v] = t; e2.x = t; return I.body(e2); };
+        ctx.save();
+        ctx.beginPath(); let pen = false;   // f の全体（薄く）
+        for (let i = 0; i <= N; i++) { const t = x0 + i / sc, y = f(t); if (!isFinite(y)) { pen = false; continue; } const py = Math.max(-1e4, Math.min(H_ + 1e4, sy(y))); if (pen) ctx.lineTo(i, py); else ctx.moveTo(i, py); pen = true; }
+        ctx.globalAlpha = 0.45; ctx.strokeStyle = ex.color; ctx.lineWidth = Math.max(1, lineW * 0.8); ctx.setLineDash([5, 4]); ctx.stroke(); ctx.setLineDash([]);
+        const i0 = Math.max(0, Math.floor(sx(lo))), i1 = Math.min(N, Math.ceil(sx(hi)));
+        if (i1 > i0) {
+            const pts = [];
+            for (let i = i0; i <= i1; i++) { const t = Math.min(hi, Math.max(lo, x0 + i / sc)), y = f(t); pts.push([sx(t), isFinite(y) ? Math.max(-1e4, Math.min(H_ + 1e4, sy(y))) : sy(0)]); }
+            const ay = sy(0);
+            [[1, 0.28], [-1, 0.16]].forEach(([sg, al]) => {   // x 軸より上（＋）と下（−）を分けて塗る
+                ctx.beginPath(); ctx.moveTo(pts[0][0], ay);
+                pts.forEach(([px, py]) => ctx.lineTo(px, sg > 0 ? Math.min(py, ay) : Math.max(py, ay)));
+                ctx.lineTo(pts[pts.length - 1][0], ay); ctx.closePath();
+                ctx.globalAlpha = al; ctx.fillStyle = ex.color; ctx.fill();
+            });
+            ctx.globalAlpha = 0.9; ctx.lineWidth = lineW; ctx.strokeStyle = ex.color;   // a〜b の間の f は濃く
+            ctx.beginPath(); pts.forEach(([px, py], k) => k ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); ctx.stroke();
+            ctx.globalAlpha = 0.7; ctx.setLineDash([2, 3]);   // 端の縦線
+            [lo, hi].forEach(t => { const px = sx(t), y = f(t); if (!isFinite(y)) return; ctx.beginPath(); ctx.moveTo(px, sy(0)); ctx.lineTo(px, sy(y)); ctx.stroke(); });
+            ctx.setLineDash([]);
+        }
+        ctx.restore();
+    });
     drawOrder().forEach(ex => { drawFnCurve(ex); drawImplicit(ex); });   // 後に描いた式が前（設定「重なり」）
 
     // 軸との交点に印：x 軸（実数の解）と y 軸（x = 0 の値）
@@ -2657,6 +2886,12 @@ function drawReal() {
             if (!v || Math.abs(v.im) > 1e-9 * Math.max(1, cabs(v))) return;   // 実数の答えだけ点にする
             const py = sy(v.re);
             if (py < -6 || py > H_ + 6) return;
+            const sl = tanOn ? slopeAt(ex, X) : null;
+            if (sl !== null) {   // 接線 y = f(X) + f′(X)(x − X)
+                ctx.save(); ctx.strokeStyle = ex.color; ctx.globalAlpha = 0.75; ctx.lineWidth = Math.max(1, lineW * 0.8); ctx.setLineDash([7, 4]);
+                ctx.beginPath(); ctx.moveTo(sx(x0), sy(v.re + sl * (x0 - X.v))); ctx.lineTo(sx(x1), sy(v.re + sl * (x1 - X.v))); ctx.stroke();
+                ctx.restore();
+            }
             reticle(px, py, [ex.color]);
             ctx.save();
             ctx.font = '600 11px ui-monospace, Menlo, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
@@ -3470,6 +3705,11 @@ function computeRoots() {
         const key = ex.text + '|' + pk;
         if (ex.rootKey === key) return;
         ex.roots = findRoots(ex.cfn, pe, rect, playing.size ? 120 : 500);
+        // x の入った積分（原始関数 ∫(t=0, x, …) など）は複素数の解き方が使えないので、実数の解だけを x 軸の上で探す
+        if ((!ex.roots || !ex.roots.length) && ex.kind === 'fn' && ex.fn && !ex.calc && /∫|integral/.test(normIn(ex.text))) {
+            const env = { ...pe }, f = x => { env.x = x; return ex.fn(env); };
+            try { ex.roots = realZeros(f, x => Math.abs(f(x)), -40, 40, 1600).sort((p, q) => Math.abs(p) - Math.abs(q) || p - q).map(x => C(x, 0)); } catch (_) {}
+        }
         ex.rootKey = key;
         refreshSol(ex);
     });
@@ -3783,7 +4023,7 @@ function save() {
     try {
         localStorage.setItem(STORE, JSON.stringify({
             exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible, ...(e.deg ? { deg: true } : {}) })),
-            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, ptMode, ptStyle, frontTop, descOn, copyMode, copyX, styleVer: 2, xRot,
+            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, ptMode, ptStyle, frontTop, tanOn, descOn, copyMode, copyX, styleVer: 2, xRot,
         }));
     } catch (_) { /* 保存できない環境では何もしない */ }
 }
@@ -3809,6 +4049,7 @@ function load() {
     if (data.descOn === true) descOn = true;
     if (['reticle', 'dot', 'num'].includes(data.ptStyle)) ptStyle = data.ptStyle;
     if (data.frontTop === true) frontTop = true;
+    if (data.tanOn === false) tanOn = false;
     if (data.copyMode === 'app' || data.copyMode === 'google') copyMode = data.copyMode;
     if (typeof data.copyX === 'string') copyX = data.copyX.slice(0, 80);
     if (data.xRot && isFinite(data.xRot.a)) xRot = { on: !!data.xRot.on, a: +data.xRot.a, spin: !!data.xRot.spin };
@@ -3951,6 +4192,8 @@ lwEl.addEventListener('input', () => { lineW = +lwEl.value; $('#lineWv').textCon
 const spEl = $('#showPts');
 spEl.checked = showPts;
 spEl.addEventListener('change', () => { showPts = spEl.checked; requestDraw(); save(); });
+const tnEl = $('#tanOn'); tnEl.checked = tanOn;
+tnEl.addEventListener('change', () => { tanOn = tnEl.checked; exprs.forEach(e => { e.fxText = null; }); requestDraw(); save(); });
 const dsEl = $('#descOn');
 dsEl.checked = descOn;
 const paintPt = () => document.querySelectorAll('#ptMode button').forEach(b => b.classList.toggle('on', b.dataset.m === ptMode));
