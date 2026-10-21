@@ -188,6 +188,9 @@
         color: var(--faint); font-size: 14px; cursor: pointer;
     }
     .cp:hover { color: #7dd3fc; background: #0b1a2a; }
+    .mv { width: 26px; height: 16px; border-radius: 6px; border: 0; background: transparent; color: var(--faint); font-size: 9px; line-height: 1; cursor: pointer; padding: 0; }
+    .mv:hover:not(:disabled) { color: #e2e8f0; background: #111a2e; }
+    .mv:disabled { opacity: 0.25; cursor: default; }
     .cp.done { color: #86efac; }
     .cptip { position: fixed; z-index: 50; max-width: min(420px, 80vw); padding: 6px 10px; border-radius: 8px; background: #0b1222; border: 1px solid #1e3a5f;
         color: #e2e8f0; font: 500 12px ui-monospace, Menlo, monospace; box-shadow: 0 6px 20px #000a; pointer-events: none; word-break: break-all; }
@@ -227,17 +230,17 @@
     .cpxbtn:hover { color: #e0f2fe; border-color: #38bdf8; }
     #copyXrow[hidden] { display: none; }
     label.setting { cursor: pointer; }
-    .switch {
+    .switch {   /* 小さくシンプルなスイッチ */
         -webkit-appearance: none; appearance: none; flex: none; margin: 0;
-        width: 46px; height: 28px; border-radius: 999px; background: #1e293b; position: relative;
+        width: 30px; height: 17px; border-radius: 999px; background: #1e293b; position: relative;
         cursor: pointer; transition: background 0.15s; border: 1px solid #334155;
     }
     .switch::after {
-        content: ''; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%;
+        content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%;
         background: #94a3b8; transition: transform 0.15s, background 0.15s;
     }
-    .switch:checked { background: var(--d2); border-color: var(--d2); }
-    .switch:checked::after { transform: translateX(18px); background: #fff; }
+    .switch:checked { background: color-mix(in srgb, var(--d2) 55%, #0b1222); border-color: var(--d2); }
+    .switch:checked::after { transform: translateX(13px); background: #fff; }
     .setting #lineWv { font: 500 13px ui-monospace, Menlo, monospace; color: var(--text); width: 28px; text-align: right; }
     .hint { font-size: 12px; color: var(--faint); line-height: 1.7; padding: 4px 2px 8px; }
     .hint summary { cursor: pointer; color: var(--muted); font-weight: 700; padding: 4px 0; list-style: none; }
@@ -346,6 +349,10 @@
         .expr { grid-template-columns: 34px 1fr 34px; }
         .del { width: 34px; height: 34px; font-size: 20px; }
         .cp { width: 34px; height: 30px; font-size: 16px; }
+        .mv { width: 34px; height: 24px; font-size: 11px; }
+        .switch { width: 38px; height: 22px; }
+        .switch::after { width: 16px; height: 16px; }
+        .switch:checked::after { transform: translateX(16px); }
         .cpx { font-size: 16px; height: 34px; }
         .cpxbtn { height: 34px; }
         .play { width: 38px; height: 38px; }
@@ -420,6 +427,11 @@
                 <span class="grow"></span>
                 <input type="checkbox" id="showPts" class="switch">
             </label>
+            <div class="setting" title="グラフが重なった所で、どちらの式を前（上）に描くか。▲▼ で式の並びを変えられる。交点の数字の色も前の式の色になる">
+                <span>重なり（前に描く式）</span>
+                <span class="grow"></span>
+                <span class="ptseg" id="frontTop"><button type="button" data-m="bottom">下の式</button><button type="button" data-m="top">上の式</button></span>
+            </div>
             <div class="setting" title="交点の印の形。照準＝光るリングと目盛り、小さい点＝グラフの色の小さな点、数字だけ＝印は描かず座標の数字だけ">
                 <span>交点の印</span>
                 <span class="grow"></span>
@@ -1313,6 +1325,9 @@ let copyX = '';        // Google 電卓用のコピーで x に入れる値（�
 let lastTapX = null;   // グラフをタップ（クリック）した所の x（「タップした所」のボタン用）
 let googleX = null;    // コピーの間だけ使う：x の代わりの式
 let copyMode = 'google';   // ⧉ でコピーする形：'google' Google 電卓用（y= なし・文字は今の値・Σ は書き出す）／'app' このアプリ用（省略を書いただけ）
+let frontTop = false;   // 重なり：false＝下の式が前（後に描く）、true＝上の式が前
+const drawOrder = () => frontTop ? exprs.slice().reverse() : exprs;
+const drawRank = ex => { const i = exprs.indexOf(ex); return frontTop ? exprs.length - i : i; };   // 大きいほど前
 let ptStyle = 'reticle';   // 交点の印：'reticle' 照準／'dot' 小さい点／'num' 数字だけ（印なし）
 const dotR = () => ptStyle === 'reticle' ? 9 : ptStyle === 'dot' ? lineW / 2 + 2 : 1;   // 交点の印の外側の大きさ（ラベルをずらす量）
 // '#rrggbb' → 透明度つきの色
@@ -1831,6 +1846,14 @@ function copyPlain(ex, btn, force) {
     else fallback();
 }
 
+// 式の並びを 1 つ上・下へ（色・中身はそのまま）
+function moveExpr(id, d) {
+    const i = exprs.findIndex(e => e.id === id), j = i + d;
+    if (i < 0 || j < 0 || j >= exprs.length) return;
+    [exprs[i], exprs[j]] = [exprs[j], exprs[i]];
+    renderList(); save(); requestDraw();
+}
+
 function renderList() {
     exprsEl.innerHTML = '';
     exprs.forEach((ex, i) => {
@@ -1841,7 +1864,7 @@ function renderList() {
             `<button class="sw" type="button" title="表示／非表示">${i + 1}</button>` +
             `<div class="ebody"><input class="ein" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="式を入力（例: sin(x)）">` +
             `<div class="preview"></div><div class="expand" hidden><div class="exmode" hidden><button type="button" data-m="n"></button><button type="button" data-m="d">次数で指定</button><span class="exnote"></span></div><div class="exmath"></div><button class="exadd" type="button" title="書き出した式を新しい行に追加">＋ この形で式に追加</button></div><div class="sol" title="複素数平面で見る"></div><div class="fx" title="押すと、x に値を入れた式をコピー（Google 電卓用の形）"></div><div class="err"></div></div>` +
-            `<div class="eact"><button class="del" type="button" title="削除">×</button><button class="cp" type="button" title="式をコピー（x2 → x^2、eiπ → e^(i*pi) のように ^ と * を書いた形。設定の「コピーの形」で Google 電卓用／このアプリ用）">⧉</button></div>`;
+            `<div class="eact"><button class="del" type="button" title="削除">×</button><button class="mv" type="button" data-d="-1" title="上へ動かす">▲</button><button class="mv" type="button" data-d="1" title="下へ動かす">▼</button><button class="cp" type="button" title="式をコピー（x2 → x^2、eiπ → e^(i*pi) のように ^ と * を書いた形。設定の「コピーの形」で Google 電卓用／このアプリ用）">⧉</button></div>`;
         const inp = row.querySelector('.ein');
         inp.value = ex.text;
         inp.inputMode = kbOn ? 'none' : 'text';
@@ -1855,6 +1878,7 @@ function renderList() {
         });
         row.querySelector('.del').addEventListener('click', () => removeExpr(ex.id));
         row.querySelector('.cp').addEventListener('click', e => copyPlain(ex, e.currentTarget));
+        row.querySelectorAll('.mv').forEach(b => { const d = +b.dataset.d; b.disabled = (d < 0 && i === 0) || (d > 0 && i === exprs.length - 1); b.addEventListener('click', () => moveExpr(ex.id, d)); });
         row.querySelector('.fx').addEventListener('click', e => copyPlain(ex, e.currentTarget, 'google'));
         row.querySelectorAll('.exmode button').forEach(b => b.addEventListener('click', () => setDegMode(ex, b.dataset.m === 'd')));
         row.querySelector('.exadd').addEventListener('click', () => {
@@ -2430,7 +2454,7 @@ function drawReal() {
     traceEl.classList.toggle('low', rot);
     if (rot) { drawRotCurves(env, sx, sy, x0, x1, sc); return; }
     const N = Math.ceil(W_);
-    exprs.forEach(ex => {
+    const drawFnCurve = ex => {
         if (!ex.visible || !ex.fn) return;
         ctx.beginPath();
         let pen = false, prev = 0;
@@ -2447,10 +2471,10 @@ function drawReal() {
             pen = true;
         }
         glowStroke(ex.color);
-    });
+    };
 
     // 陰関数（x と y の式 = 0）：マーチングスクエア
-    exprs.forEach(ex => {
+    const drawImplicit = ex => {
         if (!ex.visible || ex.kind !== 'implicit' || !ex.F) return;
         const st = 4, nx = Math.ceil(W_ / st) + 1, ny = Math.ceil(H_ / st) + 1;
         const vals = new Float64Array(nx * ny);
@@ -2474,7 +2498,8 @@ function drawReal() {
             }
         }
         glowStroke(ex.color);
-    });
+    };
+    drawOrder().forEach(ex => { drawFnCurve(ex); drawImplicit(ex); });   // 後に描いた式が前（設定「重なり」）
 
     // 軸との交点に印：x 軸（実数の解）と y 軸（x = 0 の値）
     const tags = [], marks = markSet();
@@ -2519,7 +2544,7 @@ function drawReal() {
             if (!isFinite(y) || y < y0 - 1e-9 || y > y1 + 1e-9) return;
             const px = sx(x), py = sy(y);
             if (inter.some(o => Math.hypot(o.px - px, o.py - py) < 2 && o.ca === A.color && o.cb === B.color)) return;
-            inter.push({ x, y, px, py, ca: A.color, cb: B.color });
+            inter.push({ x, y, px, py, ca: A.color, cb: B.color, front: drawRank(A) > drawRank(B) ? A.color : B.color });
         });
     }
     inter.forEach(o => marks.add(o.px, o.py, o.ca, o.cb));
@@ -2531,8 +2556,7 @@ function drawReal() {
         ctx.font = '600 11px ui-monospace, Menlo, monospace';
         ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
         ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 4;
-        ctx.fillStyle = '#e2e8f0';
-        interU.forEach(o => ctx.fillText(`(${fmtPt(o.x)}, ${fmtPt(o.y)})`, o.px + dotR() + 4, o.py - 3));
+        interU.forEach(o => { ctx.fillStyle = o.front; ctx.fillText(`(${fmtPt(o.x)}, ${fmtPt(o.y)})`, o.px + dotR() + 4, o.py - 3); });   // 数字の色は前に描いたグラフの色
         ctx.restore();
     }
 
@@ -2623,7 +2647,7 @@ function drawRotCurves(env, sx, sy, x0, x1, sc) {
     const a = xRot.a * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
     const cenv = { z: null, y: C(0), p: env, loop: {} };
     const N = Math.ceil(W_), fl = rotFlashAmt();
-    const rows = exprs.filter(ex => ex.visible && ex.cfn && ex.kind === 'fn');
+    const rows = drawOrder().filter(ex => ex.visible && ex.cfn && ex.kind === 'fn');   // 重なりの設定の順に描く
     rows.forEach(ex => {
         const re = new Float64Array(N + 1), im = new Float64Array(N + 1);
         for (let i = 0; i <= N; i++) {
@@ -3669,7 +3693,7 @@ function save() {
     try {
         localStorage.setItem(STORE, JSON.stringify({
             exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible, ...(e.deg ? { deg: true } : {}) })),
-            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, ptMode, ptStyle, descOn, copyMode, copyX, styleVer: 2, xRot,
+            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, ptMode, ptStyle, frontTop, descOn, copyMode, copyX, styleVer: 2, xRot,
         }));
     } catch (_) { /* 保存できない環境では何もしない */ }
 }
@@ -3694,6 +3718,7 @@ function load() {
     if (['dec', 'pi', 'tau'].includes(data.ptMode)) ptMode = data.ptMode; else if (data.piOn === false) ptMode = 'dec';
     if (data.descOn === true) descOn = true;
     if (['reticle', 'dot', 'num'].includes(data.ptStyle)) ptStyle = data.ptStyle;
+    if (data.frontTop === true) frontTop = true;
     if (data.copyMode === 'app' || data.copyMode === 'google') copyMode = data.copyMode;
     if (typeof data.copyX === 'string') copyX = data.copyX.slice(0, 80);
     if (data.xRot && isFinite(data.xRot.a)) xRot = { on: !!data.xRot.on, a: +data.xRot.a, spin: !!data.xRot.spin };
@@ -3844,6 +3869,9 @@ paintPt();
 const paintPs = () => document.querySelectorAll('#ptStyle button').forEach(b => b.classList.toggle('on', b.dataset.m === ptStyle));
 document.querySelectorAll('#ptStyle button').forEach(b => b.addEventListener('click', () => { ptStyle = b.dataset.m; paintPs(); requestDraw(); save(); }));
 paintPs();
+const paintFt = () => document.querySelectorAll('#frontTop button').forEach(b => b.classList.toggle('on', (b.dataset.m === 'top') === frontTop));
+document.querySelectorAll('#frontTop button').forEach(b => b.addEventListener('click', () => { frontTop = b.dataset.m === 'top'; paintFt(); requestDraw(); save(); }));
+paintFt();
 let paintCm = () => document.querySelectorAll('#copyMode button').forEach(b => b.classList.toggle('on', b.dataset.m === copyMode));
 document.querySelectorAll('#copyMode button').forEach(b => b.addEventListener('click', () => { copyMode = b.dataset.m; paintCm(); save(); }));
 const cxEl = $('#copyX'), cxRow = $('#copyXrow');
