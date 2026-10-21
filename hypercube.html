@@ -4570,6 +4570,7 @@
             wDbl.face.geometry.attributes.position.needsUpdate = wDbl.face.geometry.attributes.color.needsUpdate = true;
             if (wDbl.line2) { wDbl.line2.geometry.setDrawRange(0, li2 / 3); wDbl.line2.geometry.attributes.position.needsUpdate = wDbl.line2.geometry.attributes.color.needsUpdate = true; }
             updateDblHUD(true, show2);   // 式は今のフレームの値で
+            drawTiles4('mesh', r3, k * fade, rot, pb, 3, n, -1 + 2 * sum / N, tileRainbow(n));   // 胞の面にも w の虹の縞（敷きつめた w の層まで）
         }
         function updateDblHUD(show, show2) {
             const mk = (rr, key) => {
@@ -4606,7 +4607,7 @@
             const k = wDuo.on ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
             const show = k > 0.01;
             wDuo.line.visible = wDuo.face.visible = show;
-            if (!show) { updateDuoHUD(false); return; }
+            if (!show) { updateDuoHUD(false); if (wTile.meshZ) wTile.meshZ.visible = false; return; }
             const now = performance.now(), dt = Math.min(0.1, (now - (wDuo.last || now)) / 1000); wDuo.last = now;
             const N = wDuo.n = WPACK.N, gmin = Math.max(0.008, Math.min(0.25, 4 / N)), st = [0];   // 区分求積のスライダーと共用
             for (let i = 1; i < N; i++) st.push(st[i - 1] + Math.max(gmin, 0.5 * Math.pow(0.88, i - 1)));
@@ -4643,6 +4644,8 @@
             wDuo.line.geometry.attributes.position.needsUpdate = wDuo.line.geometry.attributes.color.needsUpdate = true;
             wDuo.face.geometry.attributes.position.needsUpdate = wDuo.face.geometry.attributes.color.needsUpdate = true;
             updateDuoHUD(true);
+            drawTiles4('mesh', r3, k, rot, pb, 3, N, -1 + 2 * wDuo.sw, tileRainbow(N));   // 胞の面にも：w の方向は虹の縞
+            drawTiles4('meshZ', r3, k, rot, pb, 2, N, -1 + 2 * wDuo.sz, (i, c) => c.copy(gold).lerp(teal, i / Math.max(1, N - 1)));   // z の方向は 金→青緑 の縞
         }
         function updateDuoHUD(show) {
             let el = wDuo.hud;
@@ -4723,6 +4726,68 @@
                 if (w && cell.material) cell.material.opacity = Math.max(cell.material.opacity, 0.35 * w.e);
             });
         }
+        // ===== 4D空間積分（レインボー）：胞の面にも虹のタイル =====
+        //   超立方体の 2次元の面のうち w の方向にのびた面（立方体の 12 本の辺 × w）を、層と層のあいだ（w の帯）ごとに、その層の色で塗る。
+        //   敷きつめた先頭（packFront）までの帯だけ＝タイルが w の方向に積み上がっていき、横から見ても虹の縞に見える。
+        //   左の立方体も同じ：正方形の 4 本の辺 × z の帯
+        const wTile = { mesh: null, mesh2: null, meshZ: null };
+        function wTileMk(root, nv) {
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3));
+            g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nv * 3), 3));
+            const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
+            m.renderOrder = 996; m.frustumCulled = false; root.add(m); return m;
+        }
+        // 4次元の窓のタイル（共通）：軸 d（3＝w、2＝z…）の方向にのびた面＝残り 3 軸の立方体の 12 辺 × d の帯。帯 i の色は colorOf(i)。先頭 front（−1〜+1）まで
+        function drawTiles4(key, r3, k, rot, pb, d, N, front, colorOf) {
+            if (!r3 || !(k > 0.01)) { if (wTile[key]) wTile[key].visible = false; return; }
+            if (!wTile[key]) wTile[key] = wTileMk(r3, 64 * 12 * 6);
+            const mesh = wTile[key]; mesh.visible = true;
+            const stp = Math.max(1, Math.ceil((N - 1) / 64)), H = HALF_S, oth = [0, 1, 2, 3].filter(x => x !== d), col = new THREE.Color();
+            const toS = g => ndProject(NDGeom.rotatePoint([g[0] * sqK('x'), g[1] * sqK('y'), g[2] * sqK('z'), g[3]], rot), pb);
+            const at = (u, t) => { const g = [0, 0, 0, 0]; g[oth[0]] = u[0] * S; g[oth[1]] = u[1] * S; g[oth[2]] = u[2] * S; g[d] = t * H; return toS(g); };
+            const P = mesh.geometry.attributes.position.array, C = mesh.geometry.attributes.color.array; let pi = 0;
+            const put = q => { if (pi + 3 > P.length) return; P[pi] = q[0]; P[pi + 1] = q[1]; P[pi + 2] = q[2]; C[pi] = col.r * k; C[pi + 1] = col.g * k; C[pi + 2] = col.b * k; pi += 3; };
+            const tAt = i => -1 + 2 * i / Math.max(1, N - 1);
+            for (let i = 0; i < N - 1; i += stp) {
+                const t0 = tAt(i), t1 = Math.min(tAt(Math.min(N - 1, i + stp)), front);
+                if (t1 <= t0 + 1e-6) break;
+                colorOf(i + stp / 2, col);
+                WS_EDGES.forEach(([e0, e1]) => { const u = unitCubeVertices[e0], v = unitCubeVertices[e1]; const A0 = at(u, t0), B0 = at(v, t0), B1 = at(v, t1), A1 = at(u, t1); [A0, B0, B1, A0, B1, A1].forEach(put); });
+            }
+            mesh.geometry.setDrawRange(0, pi / 3); mesh.geometry.attributes.position.needsUpdate = mesh.geometry.attributes.color.needsUpdate = true;
+        }
+        const tileRainbow = N => (i, col) => col.setHSL(0.82 * i / Math.max(1, N - 1), 1, 0.55);
+        function drawPackTiles(r3, r2, k, rot, pb, pt) {   // 4次元の窓（r3・rot）か、左の立方体（r2・pt）のどちらか一方。k＝見せる強さ（組み上がり・バラし）
+            const is3 = !!r3, key = is3 ? 'mesh' : 'mesh2', root = is3 ? r3 : r2;
+            const on = wSlice.pack && wPackRainbow && k > 0.01;
+            if (wTile[key]) wTile[key].visible = on;
+            if (!on || !root) return;
+            if (!wTile[key]) wTile[key] = wTileMk(root, 64 * (is3 ? 12 : 4) * 6);
+            const N = WPACK.N, stp = Math.max(1, Math.ceil((N - 1) / 64)), front = wSlice.packFront !== undefined ? wSlice.packFront : -1, H = HALF_S, col = new THREE.Color();
+            const toS = is3 ? (g => ndProject(NDGeom.rotatePoint([g[0] * sqK('x'), g[1] * sqK('y'), g[2] * sqK('z'), g[3]], rot), pb)) : null;
+            const mesh = wTile[key], P = mesh.geometry.attributes.position.array, C = mesh.geometry.attributes.color.array;
+            let pi = 0;
+            const put = (q, a) => { if (pi + 3 > P.length) return; P[pi] = q[0]; P[pi + 1] = q[1]; P[pi + 2] = q[2]; C[pi] = col.r * a; C[pi + 1] = col.g * a; C[pi + 2] = col.b * a; pi += 3; };
+            const tAt = i => -1 + 2 * i / (N - 1), sq = [[-H, -H], [H, -H], [H, H], [-H, H]];
+            for (let i = 0; i < N - 1; i += stp) {   // 帯 [t_i, t_{i+stp}]（多い時はまとめて 64 本くらいに）。敷きつめた先頭まで
+                const t0 = tAt(i), t1 = Math.min(tAt(Math.min(N - 1, i + stp)), front);
+                if (t1 <= t0 + 1e-6) break;
+                col.setHSL(0.82 * (i + stp / 2) / Math.max(1, N - 1), 1, 0.55);
+                const w0 = t0 * H, w1 = t1 * H;
+                if (is3) WS_EDGES.forEach(([e0, e1]) => {   // 立方体の 12 本の辺 × w の帯＝超立方体の w の方向にのびた面
+                    const u = unitCubeVertices[e0], v = unitCubeVertices[e1];
+                    const A0 = toS([u[0] * S, u[1] * S, u[2] * S, w0]), B0 = toS([v[0] * S, v[1] * S, v[2] * S, w0]), B1 = toS([v[0] * S, v[1] * S, v[2] * S, w1]), A1 = toS([u[0] * S, u[1] * S, u[2] * S, w1]);
+                    [A0, B0, B1, A0, B1, A1].forEach(q => put(q, k));
+                });
+                else for (let m = 0; m < 4; m++) {   // 左：正方形の 4 辺 × z の帯＝立方体の側面
+                    const p0 = sq[m], p1 = sq[(m + 1) % 4];
+                    const A0 = pt(p0[0], p0[1], w0), B0 = pt(p1[0], p1[1], w0), B1 = pt(p1[0], p1[1], w1), A1 = pt(p0[0], p0[1], w1);
+                    [A0, B0, B1, A0, B1, A1].forEach(q => put(q, k));
+                }
+            }
+            mesh.geometry.setDrawRange(0, pi / 3); mesh.geometry.attributes.position.needsUpdate = mesh.geometry.attributes.color.needsUpdate = true;
+        }
         // 敷きつめるの「積分」表示：着いた立方体の体積 × Δw を足していく（リーマン和）→ 全部そろうと超立方体の 4次元の体積 2⁴＝16。左の立方体は 正方形の面積 × Δz → 体積 8
         const wPackHUD = { 3: null, 2: null };
         function updatePackHUD() {
@@ -4796,7 +4861,7 @@
             // 組み上がった超立方体のときだけ（折りたたみの途中・分解中は消していく）
             const k = wSlice.on ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
             wSlice.line.visible = wSlice.face.visible = k > 0.01;
-            if (!(k > 0.01)) { wSliceFitNote(3, null); updatePackHUD(); updateZSlice(progress, 0); return; }
+            if (!(k > 0.01)) { wSliceFitNote(3, null); updatePackHUD(); if (wTile.mesh) wTile.mesh.visible = false; if (wTile.mesh2) wTile.mesh2.visible = false; updateZSlice(progress, 0); return; }
             const now = performance.now(), dt = Math.min(0.1, (now - (wSlice.last || now)) / 1000); wSlice.last = now;
             if (wSlice.pack) {   // 敷きつめる（くり返し）。一時停止中は時間を止める（形と式はそのまま、回転はできる）
                 if (!wSlice.packPause) { wSlice.pt += dt; requestRender(2); }
@@ -4846,6 +4911,7 @@
             wSlice.line.geometry.attributes.position.needsUpdate = wSlice.line.geometry.attributes.color.needsUpdate = true;
             wSlice.face.geometry.attributes.position.needsUpdate = wSlice.face.geometry.attributes.color.needsUpdate = true;
             wSliceFitNote(3, wSlice.line.geometry, r3, camera3D);   // 敷きつめるの間の引き具合
+            if (wSlice.pack && wPackRainbow) drawTiles4('mesh', r3, k, rot, pb, 3, WPACK.N, wSlice.packFront !== undefined ? wSlice.packFront : -1, tileRainbow(WPACK.N)); else if (wTile.mesh) wTile.mesh.visible = false;   // 胞の面にも虹のタイル（4次元）
             updatePackHUD();   // 敷きつめるの「積分」表示
             updateZSlice(progress, k);
         }
@@ -4868,7 +4934,7 @@
             }
             const show = !dim5 && kW > 0.01;
             wSlice.line2.visible = wSlice.face2.visible = show;
-            if (!show) { wSliceFitNote(2, null); return; }
+            if (!show) { wSliceFitNote(2, null); if (wTile.mesh2) wTile.mesh2.visible = false; return; }
             const zwOn = zwLink && soloAngleZW !== 0, zc = Math.cos(soloAngleZW), zs = Math.sin(soloAngleZW), pbL = projBlendNow();
             const ax = linkAngleX, ay = linkAngleY, cX = Math.cos(ax), sX = Math.sin(ax), cY = Math.cos(ay), sY = Math.sin(ay), rot3 = rotXY !== 0 || rotXZ !== 0 || rotYZ !== 0;
             const pt = (x, y, z, noAx) => {   // calculateFoldedFaceVertices2D と updateMorphingGeometry の左の立方体と同じ手順（noAx＝X-Z を回さない＝フィルムの正方形）
@@ -4905,6 +4971,7 @@
             wSlice.line2.geometry.attributes.position.needsUpdate = wSlice.line2.geometry.attributes.color.needsUpdate = true;
             wSlice.face2.geometry.attributes.position.needsUpdate = wSlice.face2.geometry.attributes.color.needsUpdate = true;
             wSliceFitNote(2, wSlice.line2.geometry, r2, camera2D);
+            drawPackTiles(null, r2, kW, null, null, pt);   // 左の立方体の面にも虹のタイル
         }
         function syncWSliceUI() {
             const $ = id => document.getElementById(id);
@@ -8752,7 +8819,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-2215';
+        const APP_BUILD = '20261021-2331';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
