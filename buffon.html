@@ -30,6 +30,7 @@
     button:hover { background: #1b2740; }
     button.go { background: rgba(244, 114, 182, 0.18); border-color: var(--hit); color: #fce7f3; }
     button.on { background: rgba(52, 211, 153, 0.2); border-color: var(--ok); color: #d1fae5; }
+    .row .btns button { padding: 4px 10px; font-size: 12px; }
     .row { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 13px; }
     .row label { min-width: 92px; color: var(--muted); }
     .row input[type=range] { flex: 1; accent-color: var(--hit); }
@@ -73,6 +74,7 @@
                 <button id="play">▶ 落とし続ける</button>
                 <button id="reset">リセット</button>
             </div>
+            <div class="row"><label>乱数</label><div class="btns"><button data-rng="math" class="on" title="ブラウザの標準の乱数（Math.random。xorshift128+ など、速くてシミュレーション向き）">ふつう（Math.random）</button><button data-rng="crypto" title="暗号用の乱数（crypto.getRandomValues。次の数を予想できない。53 ビットの細かさにそろえて使う）">暗号用</button></div></div>
             <div class="row"><label>落とす速さ</label><input id="speed" type="range" min="0" max="5" step="1" value="2"><span class="v" id="speedV"></span></div>
             <div class="row"><label>針の長さ L/d</label><input id="len" type="range" min="0.2" max="2" step="0.05" value="1"><span class="v" id="lenV"></span></div>
             <div class="row"><label>線の間隔 d</label><input id="gap" type="range" min="40" max="160" step="5" value="90"><span class="v" id="gapV"></span></div>
@@ -112,6 +114,7 @@
             <summary>このシミュレーションの中身</summary>
             <p>針の真ん中の位置は、線と線の間ちょうど何個ぶんかの帯の中で一様に（半端な間が混ざると、そこだけ多く落ちて割合がずれるため）。針の向きは、正方形の中にでたらめな点を打って、円の中に入った点の向きを使います（円の外の点は捨てる）。</p>
             <p><b>π を一度も使わずに</b>向きを作っているので、出てくる π はズルなしで「針から」出てきた値です。</p>
+            <p>乱数は「ふつう（Math.random）」と「暗号用（crypto.getRandomValues）」を切り替えられます。どちらでも、割合のずれは本数で決まる偶然のゆらぎ（およそ 1/√本数）の中に入り、結果はほとんど変わりません。</p>
             <p class="note">交わる判定：針の両端の高さを線の間隔 d で割って、整数の部分（何本目の線の間か）が違えば交わっている。</p>
         </details>
     </div>
@@ -145,14 +148,24 @@ function drawLines() {
     g.strokeStyle = '#64748b'; g.lineWidth = 1; g.beginPath(); g.moveTo(W - 24, y0 + 3); g.lineTo(W - 24, y0 + S.d - 3); g.stroke();
 }
 
+// ---- 乱数：ふつう＝Math.random（ブラウザの標準。xorshift128+ など）、暗号用＝crypto.getRandomValues（予想できない乱数）。
+//   暗号用は 32 ビットの数を 2 つずつ使って、Math.random と同じ 53 ビットの細かさの 0〜1 の数にする（まとめて 2048 個ずつ取り出す）
+let rngMode = 'math';
+const cbuf = new Uint32Array(2048); let cpos = cbuf.length;
+function rndCrypto() {
+    if (cpos >= cbuf.length) { crypto.getRandomValues(cbuf); cpos = 0; }
+    const a = cbuf[cpos++] >>> 5, b = cbuf[cpos++] >>> 6;   // 27 ビット ＋ 26 ビット ＝ 53 ビット
+    return (a * 67108864 + b) / 9007199254740992;
+}
+const rnd = () => rngMode === 'crypto' ? rndCrypto() : Math.random();
 // ---- 針を 1 本：真ん中は一様、向きは「円の中のでたらめな点」の向き（π を使わない） ----
 function dropOne() {
     let ux, uy, r2;
-    do { ux = Math.random() * 2 - 1; uy = Math.random() * 2 - 1; r2 = ux * ux + uy * uy; } while (r2 > 1 || r2 < 1e-12);
+    do { ux = rnd() * 2 - 1; uy = rnd() * 2 - 1; r2 = ux * ux + uy * uy; } while (r2 > 1 || r2 < 1e-12);
     const r = Math.sqrt(r2), dx = ux / r, dy = uy / r;
     // 真ん中の高さは「線と線の間」をちょうど K 個ぶんの帯の中で一様に（画面の高さで取ると、端の半端な間だけ多く落ちて割合がずれる）
     const off = lineOff(), K = Math.max(1, Math.floor((H - off) / S.d));
-    const len = S.L * S.d, cx = Math.random() * W, cy = off + Math.random() * K * S.d;
+    const len = S.L * S.d, cx = rnd() * W, cy = off + rnd() * K * S.d;
     const x1 = cx - dx * len / 2, y1 = cy - dy * len / 2, x2 = cx + dx * len / 2, y2 = cy + dy * len / 2;
     const hit = Math.floor((y1 - off) / S.d) !== Math.floor((y2 - off) / S.d);
     S.N++; if (hit) S.H++;
@@ -275,6 +288,9 @@ function frame() {
 }
 
 // ---- 操作 ----
+document.querySelectorAll('[data-rng]').forEach(b => b.addEventListener('click', () => {   // 乱数を変えたら最初から（比べやすいように）
+    rngMode = b.dataset.rng; document.querySelectorAll('[data-rng]').forEach(x => x.classList.toggle('on', x === b)); reset();
+}));
 function reset() { S.N = 0; S.H = 0; S.hist = []; S.fresh = []; ndl.length = 0; nextRec = 1; redrawAll(); show(); }
 document.querySelectorAll('[data-n]').forEach(b => b.addEventListener('click', () => drop(+b.dataset.n)));
 $('play').addEventListener('click', () => { S.play = !S.play; $('play').textContent = S.play ? '■ 止める' : '▶ 落とし続ける'; $('play').classList.toggle('on', S.play); });
