@@ -172,6 +172,8 @@
     .ptseg button { border: 0; background: transparent; color: var(--muted); font: 600 12px ui-monospace, Menlo, monospace; padding: 3px 9px; cursor: pointer; }
     .ptseg button + button { border-left: 1px solid var(--line); }
     .ptseg button.on { background: rgba(56, 189, 248, 0.16); color: #e0f2fe; }
+    .setting.sub { padding-left: 18px; }   /* 上の設定の中の細かい選択 */
+    .setting.sub[hidden] { display: none; }
     .exnote { margin-left: 6px; font: 500 11px ui-monospace, Menlo, monospace; color: var(--faint); }
     .exmath math { font-size: 1.02rem; padding: 2px 0; }
     .calcx { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 3px; }
@@ -451,10 +453,15 @@
                 <span class="grow"></span>
                 <span class="ptseg" id="ptStyle"><button type="button" data-m="reticle">照準</button><button type="button" data-m="dot">小さい点</button><button type="button" data-m="num">数字だけ</button></span>
             </div>
-            <div class="setting" title="交点・解の値の書き方。π＝π の分数倍なら π/2、3π/4 のように。τ＝τ（＝2π）の分数倍なら τ/4、3τ/8 のように。小数＝いつも小数">
+            <div class="setting" title="交点・解の値の書き方。小数＝いつも小数。定数＝π・e を使って書ける値はそう書く（π/2、3π/4、2e、e²、1/e、ln2 など）">
                 <span>交点の書き方</span>
                 <span class="grow"></span>
-                <span class="ptseg" id="ptMode"><button type="button" data-m="dec">小数</button><button type="button" data-m="pi">π</button><button type="button" data-m="tau">τ</button></span>
+                <span class="ptseg" id="ptMode"><button type="button" data-m="dec">小数</button><button type="button" data-m="const">定数</button></span>
+            </div>
+            <div class="setting sub" id="piSymRow" title="定数で書く時の円周率。π＝π の分数倍なら π/2、3π/4 のように。τ＝τ（＝2π）の分数倍なら τ/4、3τ/8 のように">
+                <span>円周率</span>
+                <span class="grow"></span>
+                <span class="ptseg" id="piSym"><button type="button" data-m="pi">π</button><button type="button" data-m="tau">τ</button></span>
             </div>
             <div class="setting" title="式の右の ⧉ でコピーする形。Google 電卓用＝y= を外し、スライダーの文字（n・a など）を今の値に、Σ は今の値で書き出す。このアプリ用＝x2 → x^2 のように省略を書いただけ（Σ・文字のまま、貼り直すと同じ式）">
                 <span>コピーの形</span>
@@ -1503,7 +1510,7 @@ function fmtComplex(re, im, f) {
     if (Math.abs(re) < 1e-12 * big) re = 0;
     const sr = f(re), si = f(Math.abs(im));
     if (si === '0') return sr;
-    const ip = (si === '1' ? '' : si) + 'i';
+    const ip = (si === '1' ? '' : /\//.test(si) ? '(' + si + ')' : si) + 'i';   // π/2 のような分数は (π/2)i に
     if (sr === '0') return (im < 0 ? '−' : '') + ip;
     return `${sr} ${im < 0 ? '−' : '+'} ${ip}`;
 }
@@ -1535,7 +1542,8 @@ let d3 = { R: 6, yaw: -0.65, pitch: 0.5, h: 're', surf: true, floor: true, th: 0
 let d3Scale = { key: '', Yr: 1 };
 let lineW = 1.5;   // 線の太さ（全体）。細めが既定
 let showPts = true;   // 交点（解・グラフどうしの交点）を表示するか
-let ptMode = 'pi';    // 交点・解の値の書き方：'dec' 小数／'pi' π の分数倍なら π で／'tau' τ（＝2π）の分数倍なら τ で
+let ptMode = 'const';   // 交点・解の値の書き方：'dec' 小数／'const' π・e を使って書ける値は定数で
+let piSym = 'pi';       // 定数で書く時の円周率：'pi' π の分数倍で／'tau' τ（＝2π）の分数倍で
 let descOn = false;   // Σ の展開を、次数の高い項から並べる
 let copyX = '';        // Google 電卓用のコピーで x に入れる値（式の文字。空なら x のまま）
 let lastTapX = null;   // グラフをタップ（クリック）した所の x（「タップした所」のボタン用）
@@ -1677,7 +1685,20 @@ function constForm(v, c, sym, qs) {
 }
 const piForm = v => constForm(v, Math.PI, 'π', [1, 2, 3, 4, 6, 8, 12]);
 const tauForm = v => constForm(v, 2 * Math.PI, 'τ', [1, 2, 3, 4, 6, 8, 12, 16, 24]);   // π/2＝τ/4、π/6＝τ/12
-const constOf = v => ptMode === 'pi' ? piForm(v) : ptMode === 'tau' ? tauForm(v) : null;
+// e の書き方：e の分数倍（2e、e/2、3e/4）、e の累乗（e²、e³、1/e、1/e²）、自然対数 ln n（e^x = 2 の解 x = ln2 など）
+const SUP = { 2: '²', 3: '³', 4: '⁴', 5: '⁵' };
+function eForm(v) {
+    const m = constForm(v, Math.E, 'e', [1, 2, 3, 4, 6]);
+    if (m) return m;
+    const a = Math.abs(v), sg = v < 0 ? '−' : '', near = (x, y) => Math.abs(x - y) <= 1e-9 * Math.max(1, Math.abs(y));
+    for (let k = 2; k <= 5; k++) if (near(a, Math.exp(k))) return sg + 'e' + SUP[k];
+    for (let k = 1; k <= 3; k++) if (near(a, Math.exp(-k))) return sg + '1/e' + (k > 1 ? SUP[k] : '');
+    for (const n of [2, 3, 5, 6, 7, 10]) if (near(a, Math.log(n))) return sg + 'ln' + n;
+    return null;
+}
+const constOf = v => ptMode !== 'const' ? null : (piSym === 'tau' ? tauForm(v) : piForm(v)) || eForm(v);
+// 定数の書き方の文字を、式として読める形に（ln2 → ln(2)、e² → e^2）
+const constSrc = t => t.replace(/−/g, '-').replace(/ln(\d+)/g, 'ln($1)').replace(/[²³⁴⁵]/g, c => '^' + ({ '²': 2, '³': 3, '⁴': 4, '⁵': 5 })[c]);
 const fmtPt = v => constOf(v) || fmtShort(v);    // 交点のラベル
 const fmtSol = v => constOf(v) || fmtFix(v);     // 解の一覧
 // Σ の展開の並び：「高い次数から」の時は次数の大きい順（同じ次数は元の順）。次数が出ない式は逆順に
@@ -1979,7 +2000,7 @@ function solText(ex) {
             const l = ex.constEq.L(env), r = ex.constEq.R(env);
             const ok = cabs(csub(l, r)) <= 1e-9 * Math.max(1, cabs(l), cabs(r));
             const eps = 1e-12 * Math.max(1, cabs(l), cabs(r));   // 計算の誤差（e^(iπ)+1 の 1.2e−16i など）は 0 として出す
-            const show = z => { z = C(Math.abs(z.re) < eps ? 0 : z.re, Math.abs(z.im) < eps ? 0 : z.im); const re = z.im === 0 && constOf(z.re); return re || fmtCv(z); };
+            const show = z => { z = C(Math.abs(z.re) < eps ? 0 : z.re, Math.abs(z.im) < eps ? 0 : z.im); return fmtComplex(z.re, z.im, v => constOf(v) || fmtSig(v)); };   // 定数の時は実部・虚部とも π・e で
             return `${ok ? '✓ 成り立つ' : '✗ 成り立たない'}　左辺 = ${show(l)}、右辺 = ${show(r)}`;
         } catch (_) { return ''; }
     }
@@ -1999,11 +2020,11 @@ function solText(ex) {
             used[j] = true;
             if (isReal(r)) items.push('±' + fmtSol(Math.abs(r.re)));
             else {
-                const re = fmtFix(r.re), im = fmtFix(Math.abs(r.im));
-                const ip = (im === '1' ? '' : im) + 'i';
+                const re = fmtSol(r.re), im = fmtSol(Math.abs(r.im));   // 定数の時は ln2 ± 2πi のように
+                const ip = (im === '1' ? '' : /\//.test(im) ? '(' + im + ')' : im) + 'i';
                 items.push(re === '0' ? `±${ip}` : `${re} ± ${ip}`);
             }
-        } else items.push(isReal(r) ? fmtSol(r.re) : fmtC(r.re, r.im));
+        } else items.push(isReal(r) ? fmtSol(r.re) : fmtComplex(r.re, r.im, fmtSol));
     });
     const MAX = 6;
     const more = items.length > MAX ? `　…ほか ${items.length - MAX} 個` : '';
@@ -4316,7 +4337,7 @@ function save() {
     try {
         localStorage.setItem(STORE, JSON.stringify({
             exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible, ...(e.deg ? { deg: true } : {}) })),
-            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, ptMode, ptStyle, frontTop, tanOn, descOn, copyMode, copyX, styleVer: 2, xRot,
+            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, ptMode, piSym, ptStyle, frontTop, tanOn, descOn, copyMode, copyX, styleVer: 2, xRot,
         }));
     } catch (_) { /* 保存できない環境では何もしない */ }
 }
@@ -4340,7 +4361,10 @@ function load() {
     // styleVer 2 より前の保存（太い線が既定だった頃）の太さは使わず、新しい細い既定にする
     if (data.styleVer >= 2 && isFinite(data.lineW)) lineW = Math.min(6, Math.max(0.5, data.lineW));
     if (data.showPts === false) showPts = false;
-    if (['dec', 'pi', 'tau'].includes(data.ptMode)) ptMode = data.ptMode; else if (data.piOn === false) ptMode = 'dec';
+    if (['dec', 'const'].includes(data.ptMode)) ptMode = data.ptMode;
+    else if (data.ptMode === 'pi' || data.ptMode === 'tau') { ptMode = 'const'; piSym = data.ptMode; }   // 前の保存（小数／π／τ の 3 つだった頃）
+    else if (data.piOn === false) ptMode = 'dec';
+    if (['pi', 'tau'].includes(data.piSym)) piSym = data.piSym;
     if (data.descOn === true) descOn = true;
     if (['reticle', 'dot', 'num'].includes(data.ptStyle)) ptStyle = data.ptStyle;
     if (data.frontTop === true) frontTop = true;
@@ -4491,7 +4515,12 @@ const tnEl = $('#tanOn'); tnEl.checked = tanOn;
 tnEl.addEventListener('change', () => { tanOn = tnEl.checked; exprs.forEach(e => { e.fxText = null; }); requestDraw(); save(); });
 const dsEl = $('#descOn');
 dsEl.checked = descOn;
-const paintPt = () => document.querySelectorAll('#ptMode button').forEach(b => b.classList.toggle('on', b.dataset.m === ptMode));
+const paintPt = () => {
+    document.querySelectorAll('#ptMode button').forEach(b => b.classList.toggle('on', b.dataset.m === ptMode));
+    document.querySelectorAll('#piSym button').forEach(b => b.classList.toggle('on', b.dataset.m === piSym));
+    $('#piSymRow').hidden = ptMode !== 'const';   // 円周率の選択は「定数」の時だけ
+};
+document.querySelectorAll('#piSym button').forEach(b => b.addEventListener('click', () => { piSym = b.dataset.m; paintPt(); exprs.forEach(refreshRow); requestDraw(); save(); }));
 document.querySelectorAll('#ptMode button').forEach(b => b.addEventListener('click', () => { ptMode = b.dataset.m; paintPt(); exprs.forEach(refreshRow); requestDraw(); save(); }));
 paintPt();
 const paintPs = () => document.querySelectorAll('#ptStyle button').forEach(b => b.classList.toggle('on', b.dataset.m === ptStyle));
@@ -4508,7 +4537,7 @@ cxEl.value = copyX; checkCx();
 cxEl.addEventListener('input', () => { copyX = cxEl.value; checkCx(); saveSoon(); requestDraw(); });
 $('#copyXtap').addEventListener('click', () => {
     if (lastTapX === null) { cxEl.placeholder = '先にグラフをタップ'; setTimeout(() => { cxEl.placeholder = 'そのまま'; }, 1600); return; }
-    copyX = constOf(lastTapX) ? toPlain(parse(constOf(lastTapX).replace('−', '-'))) : String(+lastTapX.toPrecision(10));
+    copyX = constOf(lastTapX) ? toPlain(parse(constSrc(constOf(lastTapX)))) : String(+lastTapX.toPrecision(10));
     cxEl.value = copyX; checkCx(); save(); requestDraw();
 });
 paintCm();
