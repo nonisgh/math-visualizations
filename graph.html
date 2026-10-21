@@ -172,6 +172,10 @@
     .ptseg button.on { background: rgba(56, 189, 248, 0.16); color: #e0f2fe; }
     .exnote { margin-left: 6px; font: 500 11px ui-monospace, Menlo, monospace; color: var(--faint); }
     .exmath math { font-size: 1.02rem; padding: 2px 0; }
+    .calcx { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 3px; }
+    .calcx[hidden] { display: none; }
+    .calcx button { height: 22px; padding: 0 8px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--c) 35%, var(--line)); background: transparent; color: var(--faint); font: 600 11px system-ui, sans-serif; cursor: pointer; }
+    .calcx button:hover { color: var(--c); border-color: var(--c); }
     .exadd {
         margin-top: 4px; height: 24px; padding: 0 10px; border-radius: 7px; cursor: pointer;
         border: 1px solid color-mix(in srgb, var(--c) 45%, var(--line)); background: transparent;
@@ -2069,6 +2073,19 @@ function copyPlain(ex, btn, force) {
     else fallback();
 }
 
+// 「d/dx を追加」「∫ を追加」「面積を追加」：この式（y = f(x) の右側）から、導関数・原始関数・定積分の式を作る
+function calcRowText(ex, op) {
+    let src = normIn(ex.text).replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');
+    const m = src.match(/^\s*[yY]\s*=([\s\S]*)$/); if (m) src = m[1];
+    if (splitTop(src) >= 0) return null;   // = の式（陰関数）は対象外
+    let ast; try { ast = parse(closeParens(src)); } catch (_) { return null; }
+    if (op === 'd') return `d/dx(${toSrc(ast)})`;
+    const used = allFree(ast), v = ['t', 'u', 's', 'w'].find(c => !used.has(c)) || 't';   // 積分の変数（式に無い文字）
+    const body = toSrc(substAst(ast, 'x', { t: 'var', name: v }));
+    if (op === 'i') return `∫(${v}=0,x,${body})`;
+    const X = substX(), b = X ? X.label : '1';
+    return `∫(${v}=0,${b},${body})`;
+}
 // 式の並びを 1 つ上・下へ（色・中身はそのまま）
 function moveExpr(id, d) {
     const i = exprs.findIndex(e => e.id === id), j = i + d;
@@ -2086,7 +2103,7 @@ function renderList() {
         row.innerHTML =
             `<button class="sw" type="button" title="表示／非表示">${i + 1}</button>` +
             `<div class="ebody"><input class="ein" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="式を入力（例: sin(x)）">` +
-            `<div class="preview"></div><div class="expand" hidden><div class="exmode" hidden><button type="button" data-m="n"></button><button type="button" data-m="d">次数で指定</button><span class="exnote"></span></div><div class="exmath"></div><button class="exadd" type="button" title="書き出した式を新しい行に追加">＋ この形で式に追加</button></div><div class="sol" title="複素数平面で見る"></div><div class="fx" title="押すと、x に値を入れた式をコピー（Google 電卓用の形）"></div><div class="err"></div></div>` +
+            `<div class="preview"></div><div class="expand" hidden><div class="exmode" hidden><button type="button" data-m="n"></button><button type="button" data-m="d">次数で指定</button><span class="exnote"></span></div><div class="exmath"></div><button class="exadd" type="button" title="書き出した式を新しい行に追加">＋ この形で式に追加</button></div><div class="sol" title="複素数平面で見る"></div><div class="fx" title="押すと、x に値を入れた式をコピー（Google 電卓用の形）"></div><div class="calcx" hidden><button type="button" data-op="d" title="この式を x で微分した式（導関数）を、すぐ下に追加">d/dx を追加</button><button type="button" data-op="i" title="この式を 0 から x まで積分した式（原始関数）を、すぐ下に追加">∫ を追加</button><button type="button" data-op="a" title="この式の定積分（面積）を、すぐ下に追加。範囲は「x に代入」の値があれば 0〜その値、無ければ 0〜1">面積を追加</button></div><div class="err"></div></div>` +
             `<div class="eact"><button class="del" type="button" title="削除">×</button><button class="mv" type="button" data-d="-1" title="上へ動かす">▲</button><button class="mv" type="button" data-d="1" title="下へ動かす">▼</button><button class="cp" type="button" title="式をコピー（x2 → x^2、eiπ → e^(i*pi) のように ^ と * を書いた形。設定の「コピーの形」で Google 電卓用／このアプリ用）">⧉</button></div>`;
         const inp = row.querySelector('.ein');
         inp.value = ex.text;
@@ -2103,6 +2120,7 @@ function renderList() {
         row.querySelector('.cp').addEventListener('click', e => copyPlain(ex, e.currentTarget));
         row.querySelectorAll('.mv').forEach(b => { const d = +b.dataset.d; b.disabled = (d < 0 && i === 0) || (d > 0 && i === exprs.length - 1); b.addEventListener('click', () => moveExpr(ex.id, d)); });
         row.querySelector('.fx').addEventListener('click', e => copyPlain(ex, e.currentTarget, 'google'));
+        row.querySelectorAll('.calcx button').forEach(b => b.addEventListener('click', () => { const t = calcRowText(ex, b.dataset.op); if (t) addAfter(ex.id, t); }));
         row.querySelectorAll('.exmode button').forEach(b => b.addEventListener('click', () => setDegMode(ex, b.dataset.m === 'd')));
         row.querySelector('.exadd').addEventListener('click', () => {
             if (!ex.sum) return;
@@ -2130,6 +2148,7 @@ function refreshRow(ex) {
     r.querySelector('.preview').innerHTML = ex.math
         ? `<math><mstyle displaystyle="true">${ex.math}</mstyle></math>` : '';
     r.querySelector('.err').textContent = ex.err;
+    r.querySelector('.calcx').hidden = !(ex.kind === 'fn' && ex.cfn && !ex.calc && !ex.err);
     r.querySelector('.sol').textContent = solText(ex);
     ex.expKey = null; refreshExpand(ex);
     ex.fxText = null; refreshFx();
