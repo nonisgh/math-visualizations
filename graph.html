@@ -469,7 +469,7 @@
                 右上の <b>4D</b> で、普通のグラフがそのまま 4 次元の面に広がります（x も y も複素数、three.js）。式やスライダーを変えると 4D もすぐ変わります。左上の ⚙ で、4 本の軸を回して消す・解の一覧・蛍光・∞ など。もう一度 <b>4D</b> を押すと、面をたたんで普通のグラフに戻ります。<br>
                 <b>3D</b> は x と y を両方複素数にした4次元を、床＝x（実軸・虚軸）、高さ＝y の実部、色＝y の虚部で表示します。<span style="color:#fde047">黄＝普通のグラフ</span>、<span style="color:#4ade80">緑＝x が複素数でも y が実数になる所</span>、●＝解（グラフと同じ色）。上のボタンで曲面・床をオンオフ、ドラッグで回転、ホイール／ピンチで範囲を変更。<br>
                 Σ は <code>Σ(k=0,n, 式)</code>、階乗は <code>(2k+1)!</code>、× は省略できます（<code>2x</code>, <code>3sin(x)</code>）。<br>
-                ^ を打たなくても、1 文字の変数のすぐ後の数字は指数になります（<code>x2</code> → x²、<code>3x2-2x</code> → 3x²−2x、<code>a10</code> → a¹⁰）。<code>i2</code> → i²、<code>π2</code>・<code>pi2</code> → π²、<code>tau2</code> → τ² も同じ。<code>e2</code> → e² ですが、後ろに文字やかっこが続く <code>e2x</code> は e×2x のまま。小数は除く（<code>x2.5</code> は x×2.5）。<br>τ（タウ）は <code>τ</code> か <code>tau</code>（τ＝2π）。<b>e のすぐ後に i</b> を書くと「e の i… 乗」になります（<code>eix</code> → e^(ix)、<code>eiπ</code> → e^(iπ)、<code>eitau</code> → e^(iτ)）。指数が式の時は今まで通り <code>x^(2k+1)</code>、<code>e^x</code>。<br>
+                ^ を打たなくても、1 文字の変数のすぐ後の数字は指数になります（<code>x2</code> → x²、<code>3x2-2x</code> → 3x²−2x、<code>a10</code> → a¹⁰）。<code>i2</code> → i²、<code>π2</code>・<code>pi2</code> → π²、<code>tau2</code> → τ²、かっこの後の <code>(x-4)2</code> → (x−4)² も同じ。<code>e2</code> → e² ですが、後ろに文字やかっこが続く <code>e2x</code> は e×2x のまま。小数は除く（<code>x2.5</code> は x×2.5）。<br>τ（タウ）は <code>τ</code> か <code>tau</code>（τ＝2π）。<b>e のすぐ後に i</b> を書くと「e の i… 乗」になります（<code>eix</code> → e^(ix)、<code>eiπ</code> → e^(iπ)、<code>eitau</code> → e^(iτ)）。指数が式の時は今まで通り <code>x^(2k+1)</code>、<code>e^x</code>。<br>
                 全角でも書けます（<code>２ｘ＋１</code>、<code>ｓｉｎ（ｘ）</code>、<code>２ー３</code> の「ー」はマイナス、「×」「÷」「・」も使えます）。<br>
                 グラフはドラッグで移動、ホイール／ピンチで拡大、タップで値を表示。
             </details>
@@ -616,6 +616,7 @@ function tokenize(s) {
             i = shortPow(i, v === 'e');
             continue;
         }
+        if (ch === ')') { t.push({ k: 'op', v: ch }); i++; i = shortPow(i, false); continue; }   // (x-4)2 → (x-4)^2、sin(x)2 → (sin x)^2
         if ('+-*/^(),=!|'.includes(ch)) { t.push({ k: 'op', v: ch }); i++; continue; }
         throw ParseError(`使えない文字です: ${ch}`);
     }
@@ -2387,6 +2388,45 @@ function draw() {
     if (mode === '4d') g4Send();
 }
 
+// 2 つの陰関数 F(x, y) = 0・G(x, y) = 0 の交点（いまの画面の中）。
+//   1) 約 7px のマスの角で F・G を計算し、両方の符号が変わるマス（＝両方の線が通るマス）を候補に
+//   2) マスの真ん中から 2 次元のニュートン法（ヤコビ行列は差分）で詰める。マスの外へ大きく逃げたら捨てる
+//   3) 詰まった点の近くの重なりは 1 つに
+function implicitPairZeros(F, G, env, x0, x1, y0, y1, sc) {
+    const st = 7 / sc, nx = Math.ceil((x1 - x0) / st) + 1, ny = Math.ceil((y1 - y0) / st) + 1;
+    if (nx * ny > 60000) return [];
+    const fv = new Float64Array(nx * ny), gv = new Float64Array(nx * ny);
+    const ev = (f, x, y) => { env.x = x; env.y = y; return f(env); };
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const x = x0 + i * st, y = y0 + j * st; fv[j * nx + i] = ev(F, x, y); gv[j * nx + i] = ev(G, x, y); }
+    const chg = (a, b, c, d) => { const s = [a, b, c, d].filter(isFinite); return s.length === 4 && Math.min(...s) <= 0 && Math.max(...s) >= 0; };
+    const out = [];
+    for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+        const k = j * nx + i;
+        if (!chg(fv[k], fv[k + 1], fv[k + nx], fv[k + nx + 1]) || !chg(gv[k], gv[k + 1], gv[k + nx], gv[k + nx + 1])) continue;
+        let x = x0 + (i + 0.5) * st, y = y0 + (j + 0.5) * st, ok = false;
+        for (let it = 0; it < 40; it++) {
+            const f = ev(F, x, y), g = ev(G, x, y), h = 1e-7 * (1 + Math.abs(x) + Math.abs(y));
+            const fx = (ev(F, x + h, y) - f) / h, fy = (ev(F, x, y + h) - f) / h, gx = (ev(G, x + h, y) - g) / h, gy = (ev(G, x, y + h) - g) / h;
+            const det = fx * gy - fy * gx;
+            if (!isFinite(det) || Math.abs(det) < 1e-300) break;
+            const dx = (f * gy - g * fy) / det, dy = (g * fx - f * gx) / det;
+            x -= dx; y -= dy;
+            if (Math.abs(x - (x0 + (i + 0.5) * st)) > 2 * st || Math.abs(y - (y0 + (j + 0.5) * st)) > 2 * st) break;
+            if (Math.abs(dx) + Math.abs(dy) < 1e-12 * (1 + Math.abs(x) + Math.abs(y))) {
+                // 線までの距離（値 ÷ 傾きの大きさ）が十分小さい時だけ交点とする
+                const df = Math.abs(ev(F, x, y)) / (Math.hypot(fx, fy) || 1), dg = Math.abs(ev(G, x, y)) / (Math.hypot(gx, gy) || 1);
+                ok = df < 1e-7 * (1 + Math.abs(x) + Math.abs(y)) && dg < 1e-7 * (1 + Math.abs(x) + Math.abs(y));
+                break;
+            }
+        }
+        if (!ok || x < x0 || x > x1 || y < y0 || y > y1) continue;
+        if (out.some(([a, b]) => Math.hypot(a - x, b - y) < st * 0.5)) continue;
+        // 「1.9999999」のような値は、そばの簡単な数に寄せる（誤差の範囲で式を満たす時だけ）
+        const snap = v => { const q = simplestIn(v - 1e-9 * (1 + Math.abs(v)), v + 1e-9 * (1 + Math.abs(v))); return q; };
+        out.push([snap(x), snap(y)]);
+    }
+    return out;
+}
 function drawReal() {
     ctx.fillStyle = '#030712';
     ctx.fillRect(0, 0, W_, H_);
@@ -2563,7 +2603,14 @@ function drawReal() {
             h = x => { env.x = x; const p = A.fn(env); env.x = x; return p - B.fn(env); };
             yOf = x => { env.x = x; return A.fn(env); };
         } else if (A.kind === 'implicit' && B.kind === 'implicit') {
-            continue;   // 陰関数どうしはここでは扱わない
+            // 陰関数どうし（円と円など）：画面を細かいマスに分け、両方の式の符号が変わるマスから 2 次元のニュートン法で詰める
+            implicitPairZeros(A.F, B.F, env, x0, x1, y0, y1, sc).forEach(([x, y]) => {
+                const px = sx(x), py = sy(y);
+                if (inter.some(o => Math.hypot(o.px - px, o.py - py) < 2 && o.ca === A.color && o.cb === B.color)) return;
+                const fr = drawRank(A) > drawRank(B) ? A : B;
+                inter.push({ x, y, px, py, ca: A.color, cb: B.color, front: fr.color, fRank: drawRank(fr) });
+            });
+            continue;
         } else {
             const G = A.kind === 'fn' ? A : B, I = A.kind === 'fn' ? B : A;
             h = x => { env.x = x; const y = G.fn(env); env.x = x; env.y = y; return I.F(env); };
