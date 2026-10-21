@@ -414,6 +414,11 @@
                 <span class="grow"></span>
                 <span class="ptseg" id="ptMode"><button type="button" data-m="dec">小数</button><button type="button" data-m="pi">π</button><button type="button" data-m="tau">τ</button></span>
             </div>
+            <div class="setting" title="式の右の ⧉ でコピーする形。Google 電卓用＝y= を外し、スライダーの文字（n・a など）を今の値に、Σ は今の値で書き出す。このアプリ用＝x2 → x^2 のように省略を書いただけ（Σ・文字のまま、貼り直すと同じ式）">
+                <span>コピーの形</span>
+                <span class="grow"></span>
+                <span class="ptseg" id="copyMode"><button type="button" data-m="google">Google 電卓</button><button type="button" data-m="app">このアプリ</button></span>
+            </div>
             <label class="setting" title="Σ の式の下に出る展開を、次数の高い項から並べる（x⁷/7! − x⁵/5! + … の順）">
                 <span>展開を高い次数から</span>
                 <span class="grow"></span>
@@ -925,11 +930,39 @@ function toPlain(n) {
     return '';
 }
 // 入力欄の文字（y= や f(x)= や = の式も）を、コンピュータ用の書き方に
-function plainOfText(text) {
+//   env を渡すと Google 電卓用：「y =」を外し、スライダーの文字を今の値に、Σ を今の値で書き出す（Google 電卓は Σ・スライダーを知らないため）
+function plainOfText(text, env) {
     const src = String(text).replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');
+    const conv = a => toPlain(env ? forGoogle(a, env) : a);
     const at = splitTop(src);
-    if (at < 0) return toPlain(parse(closeParens(src)));
-    return toPlain(parse(closeParens(src.slice(0, at)))) + ' = ' + toPlain(parse(closeParens(src.slice(at + 1))));
+    if (at < 0) return conv(parse(closeParens(src)));
+    const L = parse(closeParens(src.slice(0, at))), R = parse(closeParens(src.slice(at + 1)));
+    const isY = n => n.t === 'var' && n.name === 'y';
+    if (env && isY(L) && !allFree(R).has('y')) return conv(R);
+    if (env && isY(R) && !allFree(L).has('y')) return conv(L);
+    return conv(L) + ' = ' + conv(R);
+}
+// Google 電卓用に式を直す：スライダーの文字 → 今の値、Σ → 今の値で項を書き出した和（60 項まで。展開の並びの設定も使う）
+function forGoogle(n, env, bound = new Set()) {
+    const g = m => forGoogle(m, env, bound);
+    switch (n.t) {
+        case 'var': {
+            if (RESERVED.has(n.name) || bound.has(n.name) || !(n.name in env) || !isFinite(env[n.name])) return n;
+            return NUM(+(+env[n.name]).toPrecision(12));
+        }
+        case 'neg': return { t: 'neg', a: g(n.a) };
+        case 'fact': return { t: 'fact', a: g(n.a) };
+        case 'pow': return { t: 'pow', b: g(n.b), e: g(n.e) };
+        case 'bin': return { ...n, l: g(n.l), r: g(n.r) };
+        case 'call': return { ...n, args: n.args.map(g) };
+        case 'sum': {
+            const terms = n.kind === 'sum' ? expandSum(n, env) : null;
+            if (terms) return g(termsToAst(orderTerms(terms)));
+            const b2 = new Set(bound); b2.add(n.v);
+            return { ...n, from: g(n.from), to: g(n.to), body: forGoogle(n.body, env, b2) };
+        }
+    }
+    return n;
 }
 // Σ(k=a,b, 式) を、いまのパラメータの値で項ごとに書き出す
 function expandSum(ast, env) {
@@ -1254,6 +1287,7 @@ let lineW = 1.5;   // 線の太さ（全体）。細めが既定
 let showPts = true;   // 交点（解・グラフどうしの交点）を表示するか
 let ptMode = 'pi';    // 交点・解の値の書き方：'dec' 小数／'pi' π の分数倍なら π で／'tau' τ（＝2π）の分数倍なら τ で
 let descOn = false;   // Σ の展開を、次数の高い項から並べる
+let copyMode = 'google';   // ⧉ でコピーする形：'google' Google 電卓用（y= なし・文字は今の値・Σ は書き出す）／'app' このアプリ用（省略を書いただけ）
 const dotR = () => 9;   // 交点の印の外側の大きさ（ラベルをずらす量）
 // '#rrggbb' → 透明度つきの色
 function hexA(c, a) {
@@ -1700,12 +1734,19 @@ function refreshSol(ex) {
 // 式をコンピュータ用の書き方でコピーして、ボタンのそばに中身を少し出す
 function copyPlain(ex, btn) {
     let txt;
-    try { txt = plainOfText(ex.text); } catch (e) { txt = null; }
+    try {
+        if (copyMode === 'google') {
+            const env = paramEnv();
+            // 「次数で指定」の Σ は、今の次数で切った多項式をそのまま
+            if (ex.sum && ex.deg && ex.kind === 'fn') txt = toPlain(forGoogle(termsToAst(orderTerms(getPoly(ex, env).terms)), env));
+            else txt = plainOfText(ex.text, env);
+        } else txt = plainOfText(ex.text);
+    } catch (e) { txt = null; }
     const tip = document.createElement('div'); tip.className = 'cptip';
     const r = btn.getBoundingClientRect();
     tip.style.left = Math.max(8, Math.min(window.innerWidth - 300, r.left - 8)) + 'px'; tip.style.top = (r.bottom + 6) + 'px';
     const done = ok => {
-        tip.innerHTML = ok ? '<b>コピーしました</b>' : '<b>コピーできませんでした</b>';
+        tip.innerHTML = ok ? `<b>コピーしました（${copyMode === 'google' ? 'Google 電卓用' : 'このアプリ用'}）</b>` : '<b>コピーできませんでした</b>';
         if (txt) tip.appendChild(document.createTextNode(txt));
         document.body.appendChild(tip);
         if (ok) { btn.classList.add('done'); btn.textContent = '✓'; }
@@ -1727,7 +1768,7 @@ function renderList() {
             `<button class="sw" type="button" title="表示／非表示">${i + 1}</button>` +
             `<div class="ebody"><input class="ein" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="式を入力（例: sin(x)）">` +
             `<div class="preview"></div><div class="expand" hidden><div class="exmode" hidden><button type="button" data-m="n"></button><button type="button" data-m="d">次数で指定</button><span class="exnote"></span></div><div class="exmath"></div><button class="exadd" type="button" title="書き出した式を新しい行に追加">＋ この形で式に追加</button></div><div class="sol" title="複素数平面で見る"></div><div class="err"></div></div>` +
-            `<div class="eact"><button class="del" type="button" title="削除">×</button><button class="cp" type="button" title="コンピュータ用の式をコピー（x2 → x^2、eiπ → e^(i*pi) のように、^ と * を全部書いた形）">⧉</button></div>`;
+            `<div class="eact"><button class="del" type="button" title="削除">×</button><button class="cp" type="button" title="式をコピー（x2 → x^2、eiπ → e^(i*pi) のように ^ と * を書いた形。設定の「コピーの形」で Google 電卓用／このアプリ用）">⧉</button></div>`;
         const inp = row.querySelector('.ein');
         inp.value = ex.text;
         inp.inputMode = kbOn ? 'none' : 'text';
@@ -3525,7 +3566,7 @@ function save() {
     try {
         localStorage.setItem(STORE, JSON.stringify({
             exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible, ...(e.deg ? { deg: true } : {}) })),
-            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, ptMode, descOn, styleVer: 2, xRot,
+            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, ptMode, descOn, copyMode, styleVer: 2, xRot,
         }));
     } catch (_) { /* 保存できない環境では何もしない */ }
 }
@@ -3549,6 +3590,7 @@ function load() {
     if (data.showPts === false) showPts = false;
     if (['dec', 'pi', 'tau'].includes(data.ptMode)) ptMode = data.ptMode; else if (data.piOn === false) ptMode = 'dec';
     if (data.descOn === true) descOn = true;
+    if (data.copyMode === 'app' || data.copyMode === 'google') copyMode = data.copyMode;
     if (data.xRot && isFinite(data.xRot.a)) xRot = { on: !!data.xRot.on, a: +data.xRot.a, spin: !!data.xRot.spin };
     if (data.colorOn === false) colorOn = false;
     if (data.kbOn === false) {
@@ -3694,6 +3736,9 @@ dsEl.checked = descOn;
 const paintPt = () => document.querySelectorAll('#ptMode button').forEach(b => b.classList.toggle('on', b.dataset.m === ptMode));
 document.querySelectorAll('#ptMode button').forEach(b => b.addEventListener('click', () => { ptMode = b.dataset.m; paintPt(); exprs.forEach(refreshRow); requestDraw(); save(); }));
 paintPt();
+const paintCm = () => document.querySelectorAll('#copyMode button').forEach(b => b.classList.toggle('on', b.dataset.m === copyMode));
+document.querySelectorAll('#copyMode button').forEach(b => b.addEventListener('click', () => { copyMode = b.dataset.m; paintCm(); save(); }));
+paintCm();
 dsEl.addEventListener('change', () => { descOn = dsEl.checked; exprs.forEach(refreshRow); save(); });
 requestDraw();
 })();
