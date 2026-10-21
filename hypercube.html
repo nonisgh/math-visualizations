@@ -2047,6 +2047,14 @@
             container3D.appendChild(renderer3D.domElement);
 
             controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
+            {   // 超立方体の窓で寄った分（ホイール・つまむ）を覚える：OrbitControls はイベントの中で距離を変えるので、親で前（捕まえ）と後（泡）をはさんで測る
+                const par = renderer3D.domElement.parentElement || document.body; let d0 = null;
+                const dist = () => camera3D.position.distanceTo(controls3D.target);
+                ['wheel', 'touchmove', 'pointermove'].forEach(ev => {
+                    par.addEventListener(ev, () => { d0 = dist(); }, { capture: true, passive: true });
+                    par.addEventListener(ev, () => { if (d0 === null) return; const d1 = dist(); if (d0 > 1e-6 && Math.abs(d1 / d0 - 1) > 1e-6) cam4Zoom *= d1 / d0; d0 = null; }, { passive: true });
+                });
+            }
             controls3D.enableDamping = true;
             controls3D.dampingFactor = 0.05;
             controls3D.enableRotate = false;   // 右もドラッグで「超立方体そのもの」を回す（カメラは回さない）＝回した角度がスライダーの数字に出る
@@ -2387,6 +2395,8 @@
         let dim5 = false;   // 5次元β。最初は今までどおり立方体と超立方体（切り替えはこのブラウザに覚える）
         try { const v = localStorage.getItem('hypercubeDim5'); if (v !== null) dim5 = v === '1'; } catch (_) {}
         let scene5D = null, camera5D = null, renderer5D = null, controls5D = null;
+        let cam5Dist = 1;   // 5次元の窓だけの拡大縮小（超立方体のカメラからの距離の倍率）。回す向きは超立方体と共通、遠さだけ別
+        let cam4Zoom = 1;   // 超立方体の窓でホイール・つまむ で寄った分（距離の倍率）。5次元の窓はこれを打ち消す＝4次元の拡大縮小が 5次元に移らない
         let p5XW = 0, p5YW = 0, p5ZW = 0, p5WV = 0;   // 5次元だけの4面（w が絡む回転）
         let spin5XW = false, spin5YW = false, spin5ZW = false, spin5WV = false;
         const anySpin5 = () => spin5XW || spin5YW || spin5ZW || spin5WV;
@@ -2704,6 +2714,17 @@
             controls5D.target = controls3D.target;   // 注視点も同じものを使う
             controls5D.enableDamping = true; controls5D.dampingFactor = 0.05;
             controls5D.enableRotate = false; controls5D.enablePan = true;
+            controls5D.enableZoom = false;   // ホイール・つまむ の拡大縮小は 5次元の窓だけ（cam5Dist）。超立方体のカメラは動かさない
+            {
+                const el5 = renderer5D.domElement, setD = d => { cam5Dist = Math.max(0.15, Math.min(6, d)); requestRender(10); };
+                el5.addEventListener('wheel', e => { e.preventDefault(); setD(cam5Dist * Math.exp(e.deltaY * 0.0015)); }, { passive: false });
+                const pin = new Map(); let pinD = 0;   // 2 本指でつまむ
+                const dist = () => { const p = [...pin.values()]; return p.length === 2 ? Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) : 0; };
+                el5.addEventListener('pointerdown', e => { pin.set(e.pointerId, { x: e.clientX, y: e.clientY }); pinD = dist(); });
+                el5.addEventListener('pointermove', e => { if (!pin.has(e.pointerId)) return; pin.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pin.size === 2) { const d = dist(); if (pinD > 0 && d > 0) setD(cam5Dist * pinD / d); pinD = d; } });
+                const up = e => { pin.delete(e.pointerId); pinD = dist(); };
+                el5.addEventListener('pointerup', up); el5.addEventListener('pointercancel', up);
+            }
             // ドラッグで形を回す（超立方体の画面と同じ操作。3D回転は両方に同じ角度でかかる）
             const el = renderer5D.domElement, ptrs = new Set(), ptPos = new Map();
             let drag = false, rx = 0, ry = 0, twistAng = null, camDrag = false, panDrag = false;
@@ -3147,7 +3168,7 @@
             if (ag) {
                 ag.visible = showAxes;
                 if (showAxes) {   // 5次元の画面は超立方体のカメラの視点を写すので、先に合わせてから見切れを調べる
-                    camera5D.position.copy(camera3D.position); camera5D.quaternion.copy(camera3D.quaternion); camera5D.up.copy(camera3D.up);
+                    camera5D.position.copy(camera3D.position); camera5D.quaternion.copy(camera3D.quaternion); camera5D.up.copy(camera3D.up); { const f5 = cam5Dist / (cam4Zoom || 1); if (Math.abs(f5 - 1) > 1e-9 && controls3D) { const tg = controls3D.target; camera5D.position.sub(tg).multiplyScalar(f5).add(tg); } }   // 5次元の窓だけの遠さ（超立方体の窓で寄った分は打ち消す）
                     if (camera5D.fov !== camera3D.fov) { camera5D.fov = camera3D.fov; camera5D.updateProjectionMatrix(); }
                     axisFitPrep(root, camera5D);
                 }
@@ -5620,7 +5641,7 @@
                         if (axisTween.alignXY) xyManualOff = 0;
                     }
                     if (axisTween.t5) setP5(axisTween.t5.map(wrapPi));
-                    if (axisTween.cam) { camera3D.position.copy(axisTween.cam.p1); camera3D.fov = axisTween.cam.f1; camera3D.updateProjectionMatrix(); }
+                    if (axisTween.cam) { camera3D.position.copy(axisTween.cam.p1); camera3D.fov = axisTween.cam.f1; camera3D.updateProjectionMatrix(); cam4Zoom = 1; }   // 遠さを決め直したので、寄った分は無し
                     if (axisTween.camOrbit) { const co = axisTween.camOrbit; camera3D.position.copy(co.tgt).addScaledVector(co.to, co.r1); camera3D.fov = co.f1; camera3D.updateProjectionMatrix(); }
                     if (axisTween.fog1 !== undefined) scene3D.fog.density = axisTween.fog1;
                     const cb = axisTween.onDone;   // 到達後の処理（投影モード確定・projAnim解除など）
@@ -5711,7 +5732,7 @@
             if (show2D) renderer2D.render(scene2D, camera2D);
             if (show3D) renderer3D.render(scene3D, camera3D);
             if (show5D) {   // 視点は超立方体のカメラを写す（画面の縦横比だけ別）
-                camera5D.position.copy(camera3D.position); camera5D.quaternion.copy(camera3D.quaternion); camera5D.up.copy(camera3D.up);
+                camera5D.position.copy(camera3D.position); camera5D.quaternion.copy(camera3D.quaternion); camera5D.up.copy(camera3D.up); { const f5 = cam5Dist / (cam4Zoom || 1); if (Math.abs(f5 - 1) > 1e-9 && controls3D) { const tg = controls3D.target; camera5D.position.sub(tg).multiplyScalar(f5).add(tg); } }   // 5次元の窓だけの遠さ（超立方体の窓で寄った分は打ち消す）
                 if (camera5D.fov !== camera3D.fov) { camera5D.fov = camera3D.fov; camera5D.updateProjectionMatrix(); }
                 if (scene5D.fog && scene3D.fog) scene5D.fog.density = scene3D.fog.density;
                 renderer5D.render(scene5D, camera5D);
@@ -5743,6 +5764,7 @@
                 if (controls2D && camera2D) { controls2D.target.set(0, 0, 0); camera2D.position.set(0, 0, CAM2D_D(_lastPbL)); camera2D.up.set(0, 1, 0); camera2D.lookAt(0, 0, 0); }   // 立方体の画面の位置（パン）も元へ
                 // 拡大縮小・移動もリセット：移動パッドのずらし・自動ズームの覚えた倍率を消して、どの画面（立方体・超立方体・5次元）も基準の倍率へ
                 [camera2D, camera3D, camera5D].forEach(c => { if (c) { c.userData.panSh = null; applyViewShift(c); } });
+                cam5Dist = 1; cam4Zoom = 1;   // 5次元の窓だけの拡大縮小も元に
                 xpHold[2] = xpHold[3] = xpHold[5] = null;
                 [[camera2D, viewZoom2D()], [camera3D, (dim5 && displayMode === 'hypercube_pip') ? 2.2 : viewZoom()], [camera5D, viewZoom()]].forEach(([c, z]) => { if (c) { c.zoom = z; c.updateProjectionMatrix(); } });
             }
@@ -5847,6 +5869,7 @@
             camera3D.position.set(0, PAN_Y, par ? 46 : 18); camera3D.up.set(0, 1, 0);
             camera3D.fov = par ? 17 : 45; camera3D.updateProjectionMatrix();
             if (controls3D) { controls3D.target.copy(tgt); controls3D.update(); }
+            cam4Zoom = 1;   // カメラの遠さを決め直したので、寄った分は無し
             // 立方体の画面のカメラも正面へ（回り込み・位置の移動・傾きを戻す。距離と画角は今の投影のまま）
             if (camera2D && controls2D) { controls2D.target.set(0, 0, 0); camera2D.position.set(0, 0, CAM2D_D(_lastPbL)); camera2D.up.set(0, 1, 0); camera2D.lookAt(0, 0, 0); controls2D.update(); }
             lastPreset = par ? 'proj' : 'front';
@@ -8665,7 +8688,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-2140';
+        const APP_BUILD = '20261021-2157';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
