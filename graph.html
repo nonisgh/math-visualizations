@@ -2839,6 +2839,19 @@ function drawReal() {
             if (Math.abs(y) * sc < 1) return;   // 原点：値のラベルは要らない
             tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtPt(y), color: ex.color, rank: drawRank(ex) });
         }
+        // 陰関数（円など）の y 軸との交点：x = 0 にした式 F(0, y) = 0 を、画面の y の範囲で解く
+        if (ex.kind === 'implicit' && ex.F) {
+            const px = sx(0);
+            if (px < -6 || px > W_ + 6) return;
+            const e2 = { ...env, x: 0 }, g = y => { e2.x = 0; e2.y = y; return ex.F(e2); };
+            realZeros(g, y => Math.abs(g(y)), y0, y1, Math.ceil(H_ / 2)).forEach(y => {
+                const py = sy(y);
+                if (py < -6 || py > H_ + 6) return;
+                marks.add(px, py, ex.color);
+                if (Math.abs(y) * sc < 1) return;   // 原点はラベルなし
+                tags.push({ x: px + 12, y: py - 5, align: 'left', text: fmtPt(y), color: ex.color, rank: drawRank(ex) });
+            });
+        }
     });
 
 
