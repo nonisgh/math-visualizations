@@ -1907,14 +1907,14 @@ function closeParens(s) {
 // kind: 'fn' = y=f(x) / 'implicit' = x と y の式 = 0 / 'eqx' = x だけの方程式
 function analyze(ex) {
     ex.fn = null; ex.F = null; ex.cfn = null; ex.kind = ''; ex.err = ''; ex.free = []; ex.math = '';
-    ex.roots = null; ex.rootKey = null; ex.sum = null; ex.expKey = null; ex.constEq = null; ex.calc = false; ex.intg = null; ex.F3 = null; ex.Z3 = null;
+    ex.roots = null; ex.rootKey = null; ex.sum = null; ex.expKey = null; ex.constEq = null; ex.calc = false; ex.intg = null; ex.F3 = null; ex.Z3 = null; ex.hline = false; ex.vline = null;
     let src = normIn(ex.text).replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');   // 全角でも読めるように先にそろえる
     if (isBlank(src)) return;
     const pre = src.match(/^\s*[yY]\s*=([\s\S]*)$/);
     if (pre) { try { if (splitTop(pre[1]) >= 0) src = pre[1]; } catch (_) { /* = が多すぎる場合は下でエラー表示 */ } }
     try {
         const at = splitTop(src);
-        let ast, kind, math;
+        let ast, kind, math, yEq = false;   // yEq：「y =」と書いた式（y = 3 は電卓ではなく水平な直線）
         if (at < 0) {
             ast = parse(closeParens(src));
             math = toMathML(ast);
@@ -1934,8 +1934,8 @@ function analyze(ex) {
                 else if (isZ(R) && !allFree(L).has('z')) { ast = L; ex.Z3 = compile(L); }
                 else { ast = { t: 'bin', op: '-', l: L, r: R }; ex.F3 = compile(ast); }
             }
-            else if (isY(L) && !allFree(R).has('y')) { ast = R; kind = 'fn'; }
-            else if (isY(R) && !allFree(L).has('y')) { ast = L; kind = 'fn'; }
+            else if (isY(L) && !allFree(R).has('y')) { ast = R; kind = 'fn'; yEq = true; }
+            else if (isY(R) && !allFree(L).has('y')) { ast = L; kind = 'fn'; yEq = true; }
             else {
                 ast = { t: 'bin', op: '-', l: L, r: R };
                 kind = allFree(ast).has('y') ? 'implicit' : 'eqx';
@@ -1970,11 +1970,17 @@ function analyze(ex) {
         ex.cfn = kind === 'surf3' ? null : cf;   // xyz 空間の面は 2D・複素数の計算をしない
         ex.math = math;
         // x も y も無い式（2+3、sqrt(2)、2a など）は「ただの電卓」：答えを出すだけで、グラフには描かない
-        ex.calc = kind === 'fn' && !(ex.sum && ex.deg) && !allFree(ast).has('x');
+        ex.calc = kind === 'fn' && !yEq && !(ex.sum && ex.deg) && !allFree(ast).has('x');
+        ex.hline = kind === 'fn' && yEq && !(ex.sum && ex.deg) && !allFree(ast).has('x');   // y = 定数：水平な直線
         // 定積分 ∫(a, b, f) だけの式：グラフに f と、a〜b の面積を塗るための手がかり
         ex.intg = kind === 'fn' && ast.t === 'sum' && ast.kind === 'int' && !allFree(ast.from).has('x') && !allFree(ast.to).has('x')
             ? { v: ast.v, body: compile(ast.body), from: compile(ast.from), to: compile(ast.to) } : null;
         if (kind === 'implicit') ex.F = compile(ast);
+        else if (kind === 'eqx' && !ex.constEq) {   // x だけの等式（x = 2、x2 = 4 など）：解の所に縦の直線を引く（陰関数と同じ描き方）
+            ex.F = compile(ast);
+            const isX = n => n.t === 'var' && n.name === 'x';
+            if (ast.t === 'bin' && ((isX(ast.l) && !allFree(ast.r).has('x')) || (isX(ast.r) && !allFree(ast.l).has('x')))) ex.vline = compile(isX(ast.l) ? ast.r : ast.l);   // x = 定数
+        }
         else if (kind === 'fn') {
             if (allFree(ast).has('i')) {
                 // i を含む式：計算結果が実数になる所だけ描く
@@ -2004,6 +2010,8 @@ function solText(ex) {
             return `${ok ? '✓ 成り立つ' : '✗ 成り立たない'}　左辺 = ${show(l)}、右辺 = ${show(r)}`;
         } catch (_) { return ''; }
     }
+    if (ex.vline) { try { const v = ex.vline(paramEnv()); return isFinite(v) ? `縦の直線 x = ${fmtSol(v)}` : ''; } catch (_) { return ''; } }
+    if (ex.hline) { try { const v = ex.fn(paramEnv()); return isFinite(v) ? `水平な直線 y = ${fmtSol(v)}` : ''; } catch (_) { return ''; } }
     if (!ex.cfn || !ex.roots) return '';
     const rs = ex.roots.filter(r => cabs(r) <= 60);
     const head = ex.kind === 'implicit' ? 'y = 0 のとき x =' : ex.kind === 'eqx' ? '解 x =' : 'f(x) = 0 の解 x =';
@@ -2813,7 +2821,7 @@ function drawReal() {
     // 陰関数（x と y の式 = 0）：マーチングスクエア
     const drawImplicit = ex => {
         const sec = ex.kind === 'surf3';   // z の入った式：xy 平面（z = 0）で切った断面を点線で
-        if (!ex.visible || !(sec ? ex.F3 || ex.Z3 : ex.kind === 'implicit' && ex.F)) return;
+        if (!ex.visible || !(sec ? ex.F3 || ex.Z3 : (ex.kind === 'implicit' || ex.kind === 'eqx') && ex.F)) return;
         const Fx = !sec ? ex.F : ex.F3 ? (e => { e.z = 0; return ex.F3(e); }) : (e => ex.Z3(e));
         const st = 4, nx = Math.ceil(W_ / st) + 1, ny = Math.ceil(H_ / st) + 1;
         const vals = new Float64Array(nx * ny);
@@ -2880,7 +2888,7 @@ function drawReal() {
             const px = sx(r.re), py = sy(0);
             if (px < -6 || px > W_ + 6 || py < -6 || py > H_ + 6) return;
             marks.add(px, py, ex.color);
-            if (Math.abs(r.re) > 1e-9) tags.push({ x: px, y: py - 12, align: 'center', text: fmtPt(r.re), color: ex.color, rank: drawRank(ex) });
+            if (Math.abs(r.re) * sc >= 1) tags.push({ x: px, y: py - 12, align: 'center', text: fmtPt(r.re), color: ex.color, rank: drawRank(ex) });
         });
         if (ex.kind === 'fn' && ex.fn && !ex.calc) {
             env.x = 0;
@@ -2907,14 +2915,14 @@ function drawReal() {
 
 
     // グラフどうしの交点（y=f(x) どうし、y=f(x) と陰関数）
-    const rows = showPts ? exprs.filter(e => e.visible && !e.calc && ((e.kind === 'fn' && e.fn) || (e.kind === 'implicit' && e.F))) : [];
+    const rows = showPts ? exprs.filter(e => e.visible && !e.calc && ((e.kind === 'fn' && e.fn) || ((e.kind === 'implicit' || e.kind === 'eqx') && e.F))) : [];   // eqx＝x = 2 などの縦の直線
     const inter = [];
     for (let a = 0; a < rows.length; a++) for (let b = a + 1; b < rows.length; b++) {
         let A = rows[a], B = rows[b], h, yOf;
         if (A.kind === 'fn' && B.kind === 'fn') {
             h = x => { env.x = x; const p = A.fn(env); env.x = x; return p - B.fn(env); };
             yOf = x => { env.x = x; return A.fn(env); };
-        } else if (A.kind === 'implicit' && B.kind === 'implicit') {
+        } else if (A.kind !== 'fn' && B.kind !== 'fn') {
             // 陰関数どうし（円と円など）：画面を細かいマスに分け、両方の式の符号が変わるマスから 2 次元のニュートン法で詰める
             implicitPairZeros(A.F, B.F, env, x0, x1, y0, y1, sc).forEach(([x, y]) => {
                 const px = sx(x), py = sy(y);
