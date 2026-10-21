@@ -4715,12 +4715,12 @@
                         attr.needsUpdate = true; attr._tv = attr.version;
                     } else if (!fresh && attr._orig) { attr._orig = null; attr.needsUpdate = true; attr._tv = -1; }
                 };
-                one(cell.geometry.attributes.color, a => {   // 面：頂点の色は胞の色（material.color）への掛け算
+                one(cell.geometry.attributes.color, a => {   // 面：頂点の色は胞の色（material.color）への掛け算。奥の暗さも外して明るく（黒くならない）
                     const m = [0, 1, 2].map(k => (w.rgb[k] + 0.02) / ((C0 ? [C0.r, C0.g, C0.b][k] : 1) + 0.02));
-                    for (let i = 0; i < a.length; i++) a[i] *= 1 + (m[i % 3] - 1) * w.e;
+                    for (let i = 0; i < a.length; i++) { const t = a[i] * (1 + (m[i % 3] - 1) * w.e); a[i] = t + (m[i % 3] - t) * 0.75 * w.e; }
                 });
                 one(cell.wireGeo && cell.wireGeo.attributes.color, a => { for (let i = 0; i < a.length; i++) a[i] += (w.rgb[i % 3] * 0.95 - a[i]) * w.e; });   // 線：色そのもの
-                if (w && cell.material) cell.material.opacity = Math.max(cell.material.opacity, 0.5 * w.e);
+                if (w && cell.material) cell.material.opacity = Math.max(cell.material.opacity, 0.35 * w.e);
             });
         }
         // 敷きつめるの「積分」表示：着いた立方体の体積 × Δw を足していく（リーマン和）→ 全部そろうと超立方体の 4次元の体積 2⁴＝16。左の立方体は 正方形の面積 × Δz → 体積 8
@@ -5424,9 +5424,9 @@
                         for (let k = 0; k < 6; k++) { const v = cv[cubeIndices[base + k]]; fcen[0] += v[0] / 6; fcen[1] += v[1] / 6; fcen[2] += v[2] / 6; }
                         const [qa, qs, qg] = faceShade(cv[cubeIndices[base]], cv[cubeIndices[base + 1]], cv[cubeIndices[base + 2]], fcen, cellCtr[ci], camL, backA, lightL, cfgFaceShade);
                         for (let k = 0; k < 6; k++) {   // 面の2三角形を連続で書く＝斜線が出ない
-                            const idx = cubeIndices[base + k], v = cv[idx], bt = brightOf(cellDist[ci][idx]) * qs;   // 奥行きの明暗 × 面の向きの陰影
+                            const idx = cubeIndices[base + k], v = cv[idx], bt0 = brightOf(cellDist[ci][idx]) * qs, bt = tw ? bt0 + (1 - bt0) * 0.75 * tw.e : bt0;   // 奥行きの明暗 × 面の向きの陰影（閉じた端の胞は奥でも明るく＝黒くならない）
                             mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
-                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = (xpVisible(3, ci) ? (dA4 ? Math.min(Math.max(1, 0.97 / Math.max(faceOpacity, 1e-3)), qa * cellFocus(3, ci).face * dA4[ci] * (1 + 0.5 * tIn4[ci][base / 6])) : Math.min(1, qa * cellFocus(3, ci).face)) * wrapA(ci) : 0) * (tw ? 1 + 1.5 * tw.e : 1);   // 閉じた端の胞は少し濃く   // 奥ほど暗く＝遠近感。裏向きの面は透明に。包み込む胞は薄く
+                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = (xpVisible(3, ci) ? (dA4 ? Math.min(Math.max(1, 0.97 / Math.max(faceOpacity, 1e-3)), qa * cellFocus(3, ci).face * dA4[ci] * (1 + 0.5 * tIn4[ci][base / 6])) : Math.min(1, qa * cellFocus(3, ci).face)) * wrapA(ci) : 0) * (tw ? 1 + 0.5 * tw.e : 1);   // 閉じた端の胞は少しだけ濃く   // 奥ほど暗く＝遠近感。裏向きの面は透明に。包み込む胞は薄く
                         }
                     }
                     mergedFaces3D.geometry.attributes.position.needsUpdate = true;
@@ -8752,7 +8752,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-2208';
+        const APP_BUILD = '20261021-2215';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
