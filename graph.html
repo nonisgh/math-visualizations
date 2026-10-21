@@ -416,6 +416,21 @@
         .gbtns button { direction: ltr; width: 40px; height: 40px; font-size: 17px; }
         .hsel { max-width: calc(100% - 110px); }
     }
+    /* ---- 電卓モード：グラフを隠して、式と答えを大きく、キーボードを広く ---- */
+    .app.calcmode .graph { display: none; }
+    .app.calcmode { grid-template-columns: 1fr; }
+    .app.calcmode .panel { grid-column: 1; flex: 1 1 auto; height: auto; max-height: none; border-right: 0; }
+    @media (min-width: 700px) { .app.calcmode .panel { display: flex; flex-direction: column; width: min(100%, 760px); margin: 0 auto; border-left: 1px solid var(--line); border-right: 1px solid var(--line); } .app.calcmode .kb { border-left: 0; } }
+    .app.calcmode .ein { font-size: 20px; }
+    .app.calcmode .calc .sol { font-size: 30px; text-align: right; padding: 6px 2px 8px; }
+    .app.calcmode .calc .sol::before { content: ''; }
+    .app.calcmode .key { height: 50px; font-size: 18px; }
+    .app.calcmode .key.v { font-size: 22px; }
+    .app.calcmode .key.f { font-size: 15px; }
+    .app.calcmode .kbar .key { font-size: 14px; }
+    .key { white-space: nowrap; }
+    @media (max-height: 560px) and (orientation: landscape) { .app.calcmode .key { height: 30px; font-size: 14px; } }
+    #calcToggle { white-space: nowrap; }
     button, .key, select { touch-action: manipulation; }
     .graph, #cv { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 </style>
@@ -430,6 +445,7 @@
         </select>
         <a class="tbtn" href="vec3d.html" title="空間ベクトル 3D：ベクトル・点・直線・平面を x・y・z の空間に描く（和・内積・外積も）" style="display:inline-flex;align-items:center;text-decoration:none"><span class="lg">空間ベクトル</span><span class="sm">ベクトル</span></a>
         <button class="tbtn" id="savesBtn" type="button" title="保存した式">保存</button>
+        <button class="tbtn" id="calcToggle" type="button" title="電卓モード：グラフを隠して、式と答えとキーボードだけの電卓に（スマホは電卓から始まる）。もう一度押すとグラフに戻る">電卓</button>
         <button class="tbtn on" id="kbToggle" type="button" title="数式キーボードの表示切替">⌨</button>
     </header>
 
@@ -2589,7 +2605,7 @@ const FRAC = '<span class="fr"><span>a</span><span>b</span></span>';
 const KB = {
     '123': [
         [T('x', 'x', 0, 'v'), T('y', 'y', 0, 'v'), T('n', 'n', 0, 'v'), T('x<sup>y</sup>', '^', 0, 'o'), T('x²', '^2', 0, 'o'), T('√', 'sqrt()', -1, 'f big'), T('π', 'π', 0, 'v')],
-        [T('7'), T('8'), T('9'), T('÷', '/', 0, 'o'), T('(', '(', 0, 'o'), T(')', ')', 0, 'o'), T(FRAC, '()/()', -4, 'f')],
+        [T('7'), T('8'), T('9'), T('/', '/', 0, 'o'), T('(', '(', 0, 'o'), T(')', ')', 0, 'o'), T(FRAC, '()/()', -4, 'f')],
         [T('4'), T('5'), T('6'), T('×', '*', 0, 'o'), T('Σ', 'Σ(k=0,n,)', -1, 'f big'), T('!', '!', 0, 'o'), T('e', 'e', 0, 'v')],
         [T('1'), T('2'), T('3'), T('−', '-', 0, 'o'), T('k', 'k', 0, 'v'), T('sin', 'sin()', -1, 'f'), T('cos', 'cos()', -1, 'f')],
         [T('0'), T('.'), T(',', ',', 0, 'o'), T('+', '+', 0, 'o'), T('=', '=', 0, 'o'), T('i', 'i', 0, 'v'), T('a', 'a', 0, 'v')],
@@ -2605,7 +2621,7 @@ const KB = {
         [T('d/dx', 'd/dx()', -1, 'f'), T('d²/dx²', 'd/dx(d/dx())', -2, 'f'), T('∫<sub>a</sub><sup>b</sup>', '∫(0,1,)', -1, 'f big'), T('∫<sub>0</sub><sup>x</sup>', '∫(t=0,x,)', -1, 'f'), T('(', '(', 0, 'o'), T(')', ')', 0, 'o'), T(',', ',', 0, 'o')],
         [T('x', 'x', 0, 'v'), T('t', 't', 0, 'v'), T('π', 'π', 0, 'v'), T('e', 'e', 0, 'v'), T('x<sup>y</sup>', '^', 0, 'o'), T('x²', '^2', 0, 'o'), T('√', 'sqrt()', -1, 'f big')],
         [T('sin', 'sin()', -1, 'f'), T('cos', 'cos()', -1, 'f'), T('tan', 'tan()', -1, 'f'), T('e<sup>x</sup>', 'e^()', -1, 'f'), T('ln', 'ln()', -1, 'f'), T('1/x', '1/()', -1, 'f'), T('|x|', 'abs()', -1, 'f')],
-        [T('7'), T('8'), T('9'), T('÷', '/', 0, 'o'), T('×', '*', 0, 'o'), T('−', '-', 0, 'o'), T('+', '+', 0, 'o')],
+        [T('7'), T('8'), T('9'), T('/', '/', 0, 'o'), T('×', '*', 0, 'o'), T('−', '-', 0, 'o'), T('+', '+', 0, 'o')],
         [T('4'), T('5'), T('6'), T('1'), T('2'), T('3'), T('0')],
     ],
     'abc': [
@@ -2727,6 +2743,18 @@ function buildBar() {
     add('↵', 'enter', () => addAfter(activeId));
 }
 
+// ---------- 電卓モード：グラフを隠して、式・答え・キーボードだけに。スマホ（幅 600px まで）は電卓から始まる、PC はグラフから ----------
+let calcMode = false;
+function setCalcMode(on) {
+    calcMode = on;
+    document.querySelector('.app').classList.toggle('calcmode', on);
+    $('#calcToggle').classList.toggle('on', on);
+    $('#calcToggle').textContent = on ? 'グラフ' : '電卓';
+    $('#calcToggle').title = on ? 'グラフに戻る（式のグラフ・交点・3D・4D など）' : '電卓モード：グラフを隠して、式と答えとキーボードだけの電卓に（スマホは電卓から始まる）';
+    if (on && !kbOn) $('#kbToggle').click();   // 電卓にはキーボードがいる
+    if (!on) requestDraw();
+}
+$('#calcToggle').addEventListener('click', () => setCalcMode(!calcMode));
 $('#kbToggle').addEventListener('click', () => {
     kbOn = !kbOn;
     $('#kb').hidden = !kbOn;
@@ -3937,6 +3965,7 @@ function computeRoots() {
 
 function resize() {
     const r = canvas.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return;   // 電卓モードでグラフを隠している間は、大きさを覚えたまま
     dpr = window.devicePixelRatio || 1;
     W_ = r.width; H_ = r.height;
     canvas.width = Math.max(1, Math.round(W_ * dpr));
@@ -4679,6 +4708,7 @@ $('#copyXtap').addEventListener('click', () => {
 paintCm();
 dsEl.addEventListener('change', () => { descOn = dsEl.checked; exprs.forEach(refreshRow); save(); });
 requestDraw();
+if (window.matchMedia && window.matchMedia('(max-width: 600px)').matches) setCalcMode(true);   // スマホは電卓から始める（PC・iPad はグラフから）
 
 // ---------- Gist 同期（共通部品 state-sync）：graphcalc で始まる保存（編集中の式・設定・保存した式）をシークレット Gist に上げ、別の端末では新しい方にそろえる ----------
 //   画面の状態はもともと graphcalc.v1 に保存しているので、snapshot・restore は空。
