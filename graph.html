@@ -2778,12 +2778,14 @@ function drawReal() {
 
     // 陰関数（x と y の式 = 0）：マーチングスクエア
     const drawImplicit = ex => {
-        if (!ex.visible || ex.kind !== 'implicit' || !ex.F) return;
+        const sec = ex.kind === 'surf3';   // z の入った式：xy 平面（z = 0）で切った断面を点線で
+        if (!ex.visible || !(sec ? ex.F3 || ex.Z3 : ex.kind === 'implicit' && ex.F)) return;
+        const Fx = !sec ? ex.F : ex.F3 ? (e => { e.z = 0; return ex.F3(e); }) : (e => ex.Z3(e));
         const st = 4, nx = Math.ceil(W_ / st) + 1, ny = Math.ceil(H_ / st) + 1;
         const vals = new Float64Array(nx * ny);
         for (let j = 0; j < ny; j++) {
             env.y = y1 - j * st / sc;
-            for (let i = 0; i < nx; i++) { env.x = x0 + i * st / sc; vals[j * nx + i] = ex.F(env); }
+            for (let i = 0; i < nx; i++) { env.x = x0 + i * st / sc; vals[j * nx + i] = Fx(env); }
         }
         const pt = (i, j, p, q, horiz) => { const t = p / (p - q); return horiz ? [(i + t) * st, j * st] : [i * st, (j + t) * st]; };
         ctx.beginPath();
@@ -2795,12 +2797,13 @@ function drawReal() {
             if ((b > 0) !== (c > 0)) ps.push(pt(i + 1, j, b, c, false));
             if ((d > 0) !== (c > 0)) ps.push(pt(i, j + 1, d, c, true));
             if ((a > 0) !== (d > 0)) ps.push(pt(i, j, a, d, false));
-            if (ps.length >= 2) {
+            if (ps.length >= 2 && !(sec && (Math.floor(i / 2) + Math.floor(j / 2)) & 1)) {   // 断面は 2 マスおきに抜いて点線に
                 ctx.moveTo(ps[0][0], ps[0][1]); ctx.lineTo(ps[1][0], ps[1][1]);
                 if (ps.length === 4) { ctx.moveTo(ps[2][0], ps[2][1]); ctx.lineTo(ps[3][0], ps[3][1]); }
             }
         }
         glowStroke(ex.color);
+        if (sec) delete env.z;
     };
     // 定積分 ∫(a, b, f(x)) の式：f のグラフを薄く描いて、a〜b の間の x 軸との間を塗る（上は濃く、下は少し薄く）
     drawOrder().forEach(ex => {
@@ -3882,7 +3885,7 @@ function g4Send(extra) {
     g4.contentWindow.postMessage({ type: 'set', ...p, ...(extra || {}) }, '*');
 }
 // ---------- xyz 空間：空間ベクトル 3D（vec3d.html?embed=1）をはめ込み、面・輪切りの線・xy 平面の曲線を計算して送る ----------
-let g3 = null, g3Ready = false, g3Last = '', g3T = 0;
+let g3 = null, g3Ready = false, g3Last = '', g3T = 0, g3View = null;   // g3View：xyz 空間でいま見ている所 {R, c}（引いたり動かしたりすると届く）
 function g3Frame() {
     if (!g3) {
         g3 = document.createElement('iframe');
@@ -3893,7 +3896,7 @@ function g3Frame() {
 }
 function g3Send() {
     if (!g3 || !g3Ready) return;
-    const key = JSON.stringify([exprs.map(e => [e.text, e.visible, e.color]), paramEnv(), Math.round(view.scale * 100), Math.round(W_), Math.round(H_)]);
+    const key = JSON.stringify([exprs.map(e => [e.text, e.visible, e.color]), paramEnv(), Math.round(view.scale * 100), Math.round(W_), Math.round(H_), g3View]);
     if (key === g3Last) return;
     g3Last = key;
     clearTimeout(g3T);
@@ -3901,17 +3904,19 @@ function g3Send() {
 }
 window.addEventListener('message', e => {
     if (!g3 || e.source !== g3.contentWindow) return;
-    if ((e.data || {}).type === 'ready') { g3Ready = true; g3Last = ''; g3Send(); }
+    const m = e.data || {};
+    if (m.type === 'ready') { g3Ready = true; g3View = null; g3Last = ''; g3Send(); }
+    if (m.type === 'view' && isFinite(m.R) && m.R > 0 && Array.isArray(m.c)) { g3View = { R: +m.R, c: m.c.map(Number) }; g3Send(); }   // 見ている所が変わった → その周りを計算し直す
 });
 const niceUp = x => { const p = Math.pow(10, Math.floor(Math.log10(x))), m = x / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; };
 // 2 次元の等高線 f(u, v) = 0（マーチングスクエア）。[-R, R]² を n×n に分けて、線分の両端 [u1, v1, u2, v2, …] を返す
-function msLines(f, R, n) {
+function msLines(f, R, n, cu = 0, cv = 0) {   // 真ん中 (cu, cv) のまわり [cu-R, cu+R]×[cv-R, cv+R]
     const h = 2 * R / n, n1 = n + 1, val = new Float64Array(n1 * n1), out = [];
-    for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) val[j * n1 + i] = f(-R + i * h, -R + j * h);
+    for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) val[j * n1 + i] = f(cu - R + i * h, cv - R + j * h);
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
         const a = val[j * n1 + i], b = val[j * n1 + i + 1], c = val[(j + 1) * n1 + i + 1], d = val[(j + 1) * n1 + i];
         if (!(isFinite(a) && isFinite(b) && isFinite(c) && isFinite(d))) continue;
-        const u = -R + i * h, v = -R + j * h, ps = [];
+        const u = cu - R + i * h, v = cv - R + j * h, ps = [];
         if ((a > 0) !== (b > 0)) ps.push(u + h * a / (a - b), v);
         if ((b > 0) !== (c > 0)) ps.push(u + h, v + h * b / (b - c));
         if ((d > 0) !== (c > 0)) ps.push(u + h * d / (d - c), v + h);
@@ -3922,9 +3927,9 @@ function msLines(f, R, n) {
     return out;
 }
 // 陰関数の面 F(x, y, z) = 0（マーチング四面体）：立方体を 6 つの四面体に分けて、符号が変わる所に三角形。法線は F の勾配
-function marchTet(F, R, N) {
-    const h = 2 * R / N, n1 = N + 1, val = new Float64Array(n1 * n1 * n1);
-    for (let k = 0; k < n1; k++) for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) val[(k * n1 + j) * n1 + i] = F(-R + i * h, -R + j * h, -R + k * h);
+function marchTet(F, R, N, C0 = [0, 0, 0]) {   // 真ん中 C0 のまわりの立方体
+    const h = 2 * R / N, n1 = N + 1, val = new Float64Array(n1 * n1 * n1), [ox, oy, oz] = C0.map(c => c - R);
+    for (let k = 0; k < n1; k++) for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) val[(k * n1 + j) * n1 + i] = F(ox + i * h, oy + j * h, oz + k * h);
     const C = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]];
     const TET = [[0, 5, 1, 6], [0, 1, 2, 6], [0, 2, 3, 6], [0, 3, 7, 6], [0, 7, 4, 6], [0, 4, 5, 6]];
     const pos = [], P = new Array(8), V = new Array(8);
@@ -3934,7 +3939,7 @@ function marchTet(F, R, N) {
         for (let c = 0; c < 8; c++) {
             const ii = i + C[c][0], jj = j + C[c][1], kk = k + C[c][2], v = val[(kk * n1 + jj) * n1 + ii];
             if (!isFinite(v)) { bad = true; break; }
-            V[c] = v; P[c] = [-R + ii * h, -R + jj * h, -R + kk * h]; if (v > 0) pos0++; else neg++;
+            V[c] = v; P[c] = [ox + ii * h, oy + jj * h, oz + kk * h]; if (v > 0) pos0++; else neg++;
         }
         if (bad || !pos0 || !neg) continue;
         for (const t of TET) {
@@ -3962,8 +3967,10 @@ function build3Scene() {
     const env = paramEnv(), rows = exprs.filter(e => e.visible && !e.err && e.kind);
     const R0 = Math.max(1, Math.min(60, Math.min(W_ || 600, H_ || 400) / 2 / view.scale));
     let R = R0;
+    const C = g3View ? g3View.c : [0, 0, 0], [cx, cy, cz] = C;   // 引いたり動かしたりした後は、xyz 空間でいま見ている所（2D と同じく、見えている所だけ計算）
+    if (g3View) R = g3View.R;
     const imp = rows.filter(e => e.F3), F3of = e => (x, y, z) => { env.x = x; env.y = y; env.z = z; return e.F3(env); };
-    if (imp.length && !rows.some(e => e.Z3)) {   // 面のある所の広さを粗く調べる
+    if (!g3View && imp.length && !rows.some(e => e.Z3)) {   // 面のある所の広さを粗く調べる
         const Rs = Math.max(R0 * 2, 4), N = 22, h = 2 * Rs / N; let ext = 0;
         imp.forEach(e => {
             const F = F3of(e);
@@ -3981,48 +3988,49 @@ function build3Scene() {
     rows.forEach(e => {
         const col = e.color;
         if (e.F3) {   // 陰関数の面：三角形＋輪切りの線（x・y・z 一定の面で切った線）
-            const F = F3of(e), surf = marchTet(F, R, 44);
+            const F = F3of(e), surf = marchTet(F, R, 60, C);
             items.push({ kind: 'tri', color: col, pos: surf.pos, nrm: surf.nrm });
             const seg = [], P = surf.pos, lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
             for (let q = 0; q < P.length; q += 3) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], P[q + a]); hi[a] = Math.max(hi[a], P[q + a]); }
             // 輪切りの線は、面そのものの大きさを 1 つの向きにつき 6 本くらいに分けた所で（範囲全体からではなく）
             const lv = a => { if (!(hi[a] > lo[a])) return []; const st = niceStep((hi[a] - lo[a]) / 7), out = []; for (let t = Math.ceil(lo[a] / st - 1e-9) * st; t < hi[a] - 1e-9; t += st) if (t > lo[a] + 1e-9) out.push(t); return out; };
-            lv(2).forEach(c => msLines((u, v) => F(u, v, c), R, 72).forEach((q, i, A) => { if (i % 2 === 0) seg.push(q, A[i + 1], c); }));   // z 一定
-            lv(0).forEach(c => msLines((u, v) => F(c, u, v), R, 72).forEach((q, i, A) => { if (i % 2 === 0) seg.push(c, q, A[i + 1]); }));   // x 一定
-            lv(1).forEach(c => msLines((u, v) => F(u, c, v), R, 72).forEach((q, i, A) => { if (i % 2 === 0) seg.push(q, c, A[i + 1]); }));   // y 一定
+            lv(2).forEach(c => msLines((u, v) => F(u, v, c), R, 80, cx, cy).forEach((q, i, A) => { if (i % 2 === 0) seg.push(q, A[i + 1], c); }));   // z 一定
+            lv(0).forEach(c => msLines((u, v) => F(c, u, v), R, 80, cy, cz).forEach((q, i, A) => { if (i % 2 === 0) seg.push(c, q, A[i + 1]); }));   // x 一定
+            lv(1).forEach(c => msLines((u, v) => F(u, c, v), R, 80, cx, cz).forEach((q, i, A) => { if (i % 2 === 0) seg.push(q, c, A[i + 1]); }));   // y 一定
             items.push({ kind: 'mesh', color: col, pos: new Float32Array(seg) });
         } else if (e.Z3) {   // z = f(x, y)：格子の面＋格子の線
-            const n = 72, h = 2 * R / n, n1 = n + 1, Z = new Float64Array(n1 * n1);
-            for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) { env.x = -R + i * h; env.y = -R + j * h; Z[j * n1 + i] = e.Z3(env); }
+            const n = 96, h = 2 * R / n, n1 = n + 1, Z = new Float64Array(n1 * n1);
+            for (let j = 0; j < n1; j++) for (let i = 0; i < n1; i++) { env.x = cx - R + i * h; env.y = cy - R + j * h; Z[j * n1 + i] = e.Z3(env); }
             const pos = [], nrm = [], seg = [];
             const nAt = (i, j) => { const zx = (Z[j * n1 + Math.min(n, i + 1)] - Z[j * n1 + Math.max(0, i - 1)]) / (2 * h), zy = (Z[Math.min(n, j + 1) * n1 + i] - Z[Math.max(0, j - 1) * n1 + i]) / (2 * h), L = Math.hypot(zx, zy, 1); return [-zx / L, -zy / L, 1 / L]; };
-            const P = (i, j) => [-R + i * h, -R + j * h, Z[j * n1 + i]];
+            const P = (i, j) => [cx - R + i * h, cy - R + j * h, Z[j * n1 + i]];
             for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
                 const q = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]];
                 if (q.some(([a, b]) => !isFinite(Z[b * n1 + a]))) continue;
                 [[0, 1, 2], [0, 2, 3]].forEach(t => t.forEach(c => { pos.push(...P(...q[c])); nrm.push(...nAt(...q[c])); }));
             }
-            const every = Math.max(1, Math.round(step / h / 2));   // 線は目盛りの半分ごと
-            for (let j = 0; j < n1; j += every) for (let i = 0; i < n; i++) { const a = P(i, j), b = P(i + 1, j); if (isFinite(a[2]) && isFinite(b[2])) seg.push(...a, ...b); }
-            for (let i = 0; i < n1; i += every) for (let j = 0; j < n; j++) { const a = P(i, j), b = P(i, j + 1); if (isFinite(a[2]) && isFinite(b[2])) seg.push(...a, ...b); }
+            const every = Math.max(1, Math.round(step / h / 2)), i0 = c => (((-Math.round((c - R) / h)) % every) + every) % every;   // 線は目盛りの半分ごと（動かしても線の位置がずれないように揃える）
+            for (let j = i0(cy); j < n1; j += every) for (let i = 0; i < n; i++) { const a = P(i, j), b = P(i + 1, j); if (isFinite(a[2]) && isFinite(b[2])) seg.push(...a, ...b); }
+            for (let i = i0(cx); i < n1; i += every) for (let j = 0; j < n; j++) { const a = P(i, j), b = P(i, j + 1); if (isFinite(a[2]) && isFinite(b[2])) seg.push(...a, ...b); }
             items.push({ kind: 'tri', color: col, pos: new Float32Array(pos), nrm: new Float32Array(nrm) });
             items.push({ kind: 'mesh', color: col, pos: new Float32Array(seg) });
         } else if (e.kind === 'fn' && e.fn && !e.calc) {   // 2D の y = f(x)：xy 平面（z = 0）に
             const M = 900, seg = []; let prev = null;
             for (let m = 0; m <= M; m++) {
-                env.x = -R + 2 * R * m / M; const y = e.fn(env);
-                const pt = isFinite(y) && Math.abs(y) <= R * 1.02 ? [env.x, y, 0] : null;
+                env.x = cx - R + 2 * R * m / M; const y = e.fn(env);
+                const pt = isFinite(y) && Math.abs(y - cy) <= R * 1.02 ? [env.x, y, 0] : null;
                 if (pt && prev) seg.push(...prev, ...pt);
                 prev = pt;
             }
             items.push({ kind: 'curve', color: col, pos: new Float32Array(seg) });
         } else if (e.kind === 'implicit' && e.F) {   // 2D の陰関数（円など）：xy 平面に
             const seg = [];
-            msLines((u, v) => { env.x = u; env.y = v; return e.F(env); }, R, 220).forEach((q, i, A) => { if (i % 2 === 0) seg.push(q, A[i + 1], 0); });
+            msLines((u, v) => { env.x = u; env.y = v; return e.F(env); }, R, 220, cx, cy).forEach((q, i, A) => { if (i % 2 === 0) seg.push(q, A[i + 1], 0); });
             items.push({ kind: 'curve', color: col, pos: new Float32Array(seg) });
         }
     });
-    return { R, items };
+    delete env.z;
+    return { R, c: C, items };
 }
 // 普通のグラフ（いまの表示範囲）とぴったり同じ見え方から、4D に広げる
 function g4Unfold() {
@@ -4068,6 +4076,63 @@ canvas.addEventListener('wheel', e => {
     zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
 }, { passive: false });
 
+// ---------- グラフの平行移動（Shift＋ドラッグ）：x → x − p、y → y − q を式に入れて、(x − 2) − 1 → x − 3 のように数をまとめる ----------
+function foldShift(n) {
+    switch (n.t) {
+        case 'neg': case 'fact': return { ...n, a: foldShift(n.a) };
+        case 'pow': return { ...n, b: foldShift(n.b), e: foldShift(n.e) };
+        case 'call': return { ...n, args: n.args.map(foldShift) };
+        case 'sum': return { ...n, from: foldShift(n.from), to: foldShift(n.to), body: foldShift(n.body) };
+        case 'bin': {
+            const l = foldShift(n.l), r = foldShift(n.r), sg = op => op === '-' ? -1 : 1;
+            if ((n.op === '+' || n.op === '-') && numOf(r) !== null) {
+                let u = l, c = sg(n.op) * numOf(r);
+                if (l.t === 'bin' && (l.op === '+' || l.op === '-') && numOf(l.r) !== null) { u = l.l; c += sg(l.op) * numOf(l.r); }
+                else if (numOf(l) !== null) return NUM(+(numOf(l) + c).toPrecision(12));
+                c = +c.toPrecision(12);
+                if (c === 0) return u;
+                return { t: 'bin', op: c < 0 ? '-' : '+', l: u, r: NUM(Math.abs(c)) };
+            }
+            return { ...n, l, r };
+        }
+    }
+    return n;
+}
+// 式の文字 text を (p, q) だけ平行移動した文字に。y = f(x) は右側だけ、それ以外（円など）は x・y の両方を置きかえる
+function shiftText(text, p, q) {
+    const src = normIn(text), fx = src.match(/^\s*(?:[yY]|[a-zA-Z]\s*\(\s*[xX]\s*\))\s*=/);
+    const X = { t: 'var', name: 'x' }, Y = { t: 'var', name: 'y' };
+    const mv = (a, withY) => {
+        let b = p ? substAst(a, 'x', { t: 'bin', op: '-', l: X, r: NUM(p) }) : a;
+        if (withY && q) b = substAst(b, 'y', { t: 'bin', op: '-', l: Y, r: NUM(q) });
+        return foldShift(b);
+    };
+    const add = a => foldShift(q ? { t: 'bin', op: '+', l: a, r: NUM(q) } : a);
+    if (fx) { const rs = src.slice(fx[0].length); if (splitTop(rs) < 0) return fx[0].trim().replace(/\s*=$/, ' =') + ' ' + toSrc(add(mv(parse(closeParens(rs)), false))); }
+    const at = splitTop(src);
+    if (at < 0) { const a = parse(closeParens(src)); return toSrc(allFree(a).has('y') ? mv(a, true) : add(mv(a, false))); }
+    return toSrc(mv(parse(closeParens(src.slice(0, at))), true)) + ' = ' + toSrc(mv(parse(closeParens(src.slice(at + 1))), true));
+}
+// 画面の点 (px, py) のそばにあるグラフ（いちばん前のもの）
+function curveAt(px, py) {
+    const v = V(), env = paramEnv(), w = { x: v.cx + (px - W_ / 2) / v.scale, y: v.cy - (py - H_ / 2) / v.scale }, tol = 10;
+    const cand = drawOrder().slice().reverse().filter(e => e.visible && !e.err && !e.calc && !e.intg && ((e.kind === 'fn' && e.fn) || (e.kind === 'implicit' && e.F)));
+    for (const e of cand) {
+        if (e.kind === 'fn') {
+            for (let k = -tol; k <= tol; k++) {
+                env.x = w.x + k / v.scale; const y = e.fn(env);
+                if (isFinite(y) && Math.hypot(k, (y - w.y) * v.scale) <= tol) return e;
+            }
+        } else {
+            env.x = w.x; env.y = w.y; const f0 = e.F(env), h = 1e-4 / v.scale * 100;
+            env.x = w.x + h; const fx = (e.F(env) - f0) / h; env.x = w.x; env.y = w.y + h; const fy = (e.F(env) - f0) / h;
+            const dist = Math.abs(f0) / (Math.hypot(fx, fy) || Infinity) * v.scale;
+            if (isFinite(dist) && dist <= tol) return e;
+        }
+    }
+    return null;
+}
+
 const pts = new Map();
 let gesture = null;
 const pos = e => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
@@ -4084,8 +4149,11 @@ canvas.addEventListener('pointerdown', e => {
         else if (pts.size === 2) gesture = { type: 'pinch3', d: Math.hypot(vs[0].x - vs[1].x, vs[0].y - vs[1].y) || 1, R: d3.R };
         return;
     }
-    if (pts.size === 1) startPan(pos(e));
-    else if (pts.size === 2) {
+    if (pts.size === 1) {
+        const p = pos(e), hit = e.shiftKey && mode === 'r' ? curveAt(p.x, p.y) : null;
+        if (hit) { gesture = { type: 'shift', ex: hit, text: hit.text, w0: toWorld(p), p: 0, q: 0 }; canvas.style.cursor = 'grabbing'; return; }   // Shift＋ドラッグ：グラフをつかんで平行移動
+        startPan(p);
+    } else if (pts.size === 2) {
         const [a, b] = [...pts.values()];
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         const w = toWorld(mid);
@@ -4110,6 +4178,7 @@ canvas.addEventListener('pointermove', e => {
     }
     if (!pts.has(e.pointerId)) {
         if (e.pointerType === 'mouse' || e.pointerType === 'pen') {   // マウス／Apple Pencil のホバーで値を表示
+            canvas.style.cursor = e.shiftKey && mode === 'r' && curveAt(p.x, p.y) ? 'grab' : '';   // Shift を押してグラフに乗ると、つかめる印
             const w = toWorld(p);
             if (mode === 'c') traceZ = w; else traceX = w.x;
             requestDraw();
@@ -4119,6 +4188,17 @@ canvas.addEventListener('pointermove', e => {
     pts.set(e.pointerId, p);
     if (!gesture) return;
     const v = V();
+    if (gesture.type === 'shift') {   // 動かした分を、目盛りに合わせたきりのいい数にそろえて式に入れる
+        const w = toWorld(p), st = niceStep(24 / v.scale), sn = t => +(Math.round(t / st) * st).toPrecision(10);
+        const dp = sn(w.x - gesture.w0.x), dq = sn(w.y - gesture.w0.y);
+        if (dp === gesture.p && dq === gesture.q) return;
+        gesture.p = dp; gesture.q = dq;
+        const ex = gesture.ex;
+        try { ex.text = shiftText(gesture.text, dp, dq); } catch (_) { return; }
+        const inp = ex.row && ex.row.querySelector('.ein'); if (inp) inp.value = ex.text;
+        analyze(ex); refreshRow(ex); requestDraw();
+        return;
+    }
     if (gesture.type === 'pan') {
         const dx = p.x - gesture.sx, dy = p.y - gesture.sy;
         if (Math.hypot(dx, dy) > 4) gesture.moved = true;
@@ -4148,6 +4228,7 @@ function endPointer(e) {
         return;
     }
     const p = pos(e);
+    if (gesture && gesture.type === 'shift') { const ex = gesture.ex; pts.delete(e.pointerId); gesture = null; canvas.style.cursor = ''; onExprChange(ex); return; }
     if (gesture && gesture.type === 'pan' && !gesture.moved && pts.size === 1) {
         // タップ：その位置の値を表示（同じ所をもう一度タップで消す）
         const w = toWorld(p), sc = V().scale, touch = e.pointerType !== 'mouse';

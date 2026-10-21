@@ -355,7 +355,9 @@ let need = true; const requestRender = () => { need = true; };
 if (window.VisualFX) VisualFX.requestRender = requestRender;
 const world = new THREE.Group(), axesG = new THREE.Group(); scene.add(axesG, world);
 let RANGE = 5;
-const clip = () => [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map(n => new THREE.Plane(new THREE.Vector3(...n).multiplyScalar(-1), RANGE * 1.02));
+let VIEWR = 0;   // はめ込み：文字・目盛りの大きさの元（見ている距離から。RANGE は計算する広さで、これより広い）
+let CEN = [0, 0, 0];   // 見ている所の真ん中（数学の座標。はめ込みの時にグラフ電卓から受け取る）
+const clip = () => { const T = T3(CEN); return [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map(n => { const v = new THREE.Vector3(...n); return new THREE.Plane(v.clone().multiplyScalar(-1), RANGE * 1.02 + v.dot(T)); }); };
 
 function disposeTree(g) { g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); while (g.children.length) g.remove(g.children[0]); }
 function textSprite(text, color, h, opt = {}) {
@@ -392,19 +394,22 @@ function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(x))), m = x 
 let showGrid = true, showTicks = true;
 function buildAxes() {
     disposeTree(axesG);
-    const R = RANGE, s = R / 5, AX = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+    const R = RANGE, V = Math.min(VIEWR || R, R), s = V / 5, AX = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
     const css = k => (window.VisualFX ? VisualFX.axisCss(k) : { x: '#ff5d6c', y: '#3ddc84', z: '#56a8ff' }[k]);
+    const ci = { x: 0, y: 1, z: 2 };
     Object.entries(AX).forEach(([k, e]) => {
-        const col = new THREE.Color(css(k));
-        const g = new THREE.BufferGeometry().setFromPoints([T3(e.map(v => -v * R)), T3(e.map(v => v * R))]);
+        const col = new THREE.Color(css(k)), c = CEN[ci[k]], lo = c - R, hi = c + R;   // 軸は原点を通り、見ている所の範囲（真ん中 ± R）の長さで
+        if (hi <= 0 && lo < 0 && Math.abs(c) > R * 3) return;
+        const g = new THREE.BufferGeometry().setFromPoints([T3(e.map(v => v * lo)), T3(e.map(v => v * hi))]);
         axesG.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.85 })));
         const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07 * s, 0.24 * s, 16), new THREE.MeshBasicMaterial({ color: col }));
-        tip.position.copy(T3(e.map(v => v * R))); tip.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), T3(e).normalize()); axesG.add(tip);
+        tip.position.copy(T3(e.map(v => v * hi))); tip.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), T3(e).normalize()); axesG.add(tip);
         const lab = window.VisualFX ? VisualFX.makeLabel(k, css(k), { scale: 0.6 * s, keepSize: false }) : textSprite(k, css(k), 0.6 * s);
-        lab.position.copy(T3(e.map(v => v * R * 1.1))); axesG.add(lab);
+        lab.position.copy(T3(e.map(v => v * (V < R * 0.9 && V * 1.1 > lo && V * 1.1 < hi ? V * 1.1 : hi + V * 0.1)))); axesG.add(lab);   // 軸の名前は見える所に
         if (showTicks) {
-            const st = niceStep(R / 4);
-            for (let t = st; t <= R * 0.999; t += st) [t, -t].forEach(v => {
+            const st = niceStep(V / 4);
+            for (let t = Math.ceil(lo / st) * st; t <= hi * 0.999 + 1e-9; t += st) [t].forEach(v => {
+                if (Math.abs(v) < st * 1e-6) return;
                 const sp = textSprite(fmt(v), '#64748b', 0.3 * s, { font: '500 64px ui-monospace, Menlo, monospace' });
                 const off = k === 'z' ? [0.18 * s, 0, 0] : k === 'x' ? [0, -0.25 * s, 0] : [0.25 * s, 0, 0];
                 sp.position.copy(T3(e.map((q, i) => q * v + off[i])));
@@ -412,9 +417,10 @@ function buildAxes() {
             });
         }
     });
-    if (showGrid) {
-        const st = niceStep(R / 5), n = Math.round(2 * R / st);
-        const grid = new THREE.GridHelper(n * st, n, 0x1e293b, 0x152033); axesG.add(grid);
+    if (showGrid) {   // 床（xy 平面）の格子：見ている所の真ん中のまわりに
+        const st = niceStep(V / 5), n = 2 * Math.round(R / st) + 2;
+        const grid = new THREE.GridHelper(n * st, n, 0x1e293b, 0x152033);
+        grid.position.copy(T3([Math.round(CEN[0] / st) * st, Math.round(CEN[1] / st) * st, 0])); axesG.add(grid);
     }
     const o = new THREE.Mesh(new THREE.SphereGeometry(0.05 * s, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff })); axesG.add(o);
     const ol = textSprite('O', '#e2e8f0', 0.3 * s); ol.position.copy(T3([-0.2 * s, -0.2 * s, -0.2 * s])); axesG.add(ol);
@@ -495,7 +501,8 @@ function fitRange(keepCam) {
 }
 function home() {
     const dir = new THREE.Vector3(1.5, 1.1, 1.75).normalize();
-    camera.position.copy(dir.multiplyScalar(RANGE * 3.3)); controls.target.set(0, 0, 0); camera.lookAt(0, 0, 0); controls.update(); requestRender();
+    camera.position.copy(dir.multiplyScalar(RANGE * (EMBED ? 2.6 : 3.3))); controls.target.set(0, 0, 0); camera.lookAt(0, 0, 0); controls.update(); requestRender();
+    if (EMBED) { clearTimeout(viewT); viewT = setTimeout(sendView, 50); }
 }
 function resize() {
     const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return;
@@ -505,6 +512,7 @@ new ResizeObserver(resize).observe(view);
 function loop() {
     requestAnimationFrame(loop);
     if (controls.update()) need = true;
+    if (need && EMBED) { const d = camera.position.distanceTo(controls.target); scene.fog.near = d * 0.9; scene.fog.far = d * 2.1; camera.near = Math.max(1e-3, d / 2000); camera.far = d * 50; camera.updateProjectionMatrix(); }
     if (need) { need = false; renderer.render(scene, camera); }
 }
 
@@ -541,10 +549,25 @@ function buildExternal(items) {
 window.addEventListener('message', e => {
     const m = e.data || {}; if (m.type !== 'scene') return;
     lastScene = m;
-    const R = +m.R; if (isFinite(R) && R > 0 && R !== RANGE) { RANGE = R; buildAxes(); homed = false; }
+    const R = +m.R, c = Array.isArray(m.c) ? m.c.map(Number) : [0, 0, 0];
+    if (isFinite(R) && R > 0 && (R !== RANGE || c.some((v, i) => v !== CEN[i]))) { RANGE = R; CEN = c; VIEWR = homed ? camera.position.distanceTo(controls.target) / 2.6 : R; buildAxes(); }
     buildExternal(m.items);
     if (!homed) { homed = true; home(); }
 });
+// 見ている所が変わったら（引く・寄る・横に動かす）、その広さと真ん中をグラフ電卓に伝える → 計算し直した面・線が届く（2D のグラフと同じ考え方）
+let viewT = 0, sentKey = '';
+function sendView() {
+    if (!EMBED) return;
+    const t = controls.target, d = camera.position.distanceTo(t);
+    const R = niceUpV(d * 0.8), q = R / 4, c = [Math.round(t.x / q) * q, Math.round(-t.z / q) * q, Math.round(t.y / q) * q];
+    const key = [R, ...c].join(',');
+    if (key === sentKey) return;
+    sentKey = key;
+    window.parent.postMessage({ type: 'view', R, c }, '*');
+}
+const niceUpV = x => { const p = Math.pow(10, Math.floor(Math.log10(x))), m = x / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; };
+controls.addEventListener('change', () => { if (!EMBED) return; clearTimeout(viewT); viewT = setTimeout(sendView, 280); });
+if (EMBED) { controls.minDistance = 0.05; controls.maxDistance = 1e5; scene.fog = new THREE.Fog(0x030712, 10, 100); }
 
 // ================= 行の UI =================
 let rows = [];
