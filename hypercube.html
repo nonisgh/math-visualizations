@@ -27,7 +27,7 @@
     <!-- n 次元の計算の共通部品（回転・3D への写し方・折りたたみ）。6次元アプリ・n次元ビューアと同じ -->
     <script src="lib/nd-geom.js?b=20261020-1625"></script>
     <!-- 高い次元の立体の質感（5次元の面をガラス・結晶・樹脂に、辺を管と玉に）。共通部品/nd-solid -->
-    <script src="lib/nd-solid.js?b=20261021-1558"></script>
+    <script src="lib/nd-solid.js?b=20261021-1602"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
         
@@ -2528,7 +2528,7 @@
             if (!holder.r) {
                 const sc = dim === 3 ? scene3D : scene2D, root = sc && sc.getObjectByName(dim === 3 ? 'Root3D' : 'Root2D'), rr = dim === 3 ? renderer3D : renderer2D;
                 if (!root) return;
-                holder.r = NDSolid.rods(objs.length * ne, objs.length * per, rr, { look: 'glass', shape: 'frame' }); root.add(holder.r.group);
+                holder.r = NDSolid.rods(objs.length * ne, objs.length * per, rr, { look: 'glass', shape: 'frame', frameK }); root.add(holder.r.group);
             }
             const nv = objs.length * per, P = new Float32Array(nv * 3), KK = K ? new Float32Array(nv) : null, E = [], EC = [];
             verts.forEach((cv, ci) => cv.forEach((v, i) => { const j = ci * per + i; P[j * 3] = v[0]; P[j * 3 + 1] = v[1]; P[j * 3 + 2] = v[2]; if (KK) KK[j] = K[ci][i]; }));
@@ -2540,6 +2540,7 @@
             holder.r.update(P, E, EC, KK, null, nv); holder.r.group.visible = true;
             const fat = ehFat[dim === 3 ? 3 : 2]; if (fat) Object.keys(fat).forEach(k => { if (fat[k]) fat[k].visible = false; });   // 辺の強調の太い線は、フレームの時は出さない（色はフレームに入っている）
         }
+        let frameK = 0.4; try { const v = parseFloat(localStorage.getItem('hypercubeFrameK')); if (v > 0) frameK = v; } catch (_) {}   // フレームの太さ（管の何倍か。全部の窓で共通）
         const fr4 = { r: null }, fr3 = { r: null };   // 4D・3D のフレームの部品（NDSolid.rods、使う時に作る）   // 辺の管・頂点の玉（build5D で作る）
         // 辺の描き方（今まで以外の質感の時）：'rods'＝管と玉・'thin'＝細い線・'none'＝なし（面だけで形を見せる。強調の太い線も出さない）・
         //   'depth'＝奥ほど細く（全部の胞の辺を、奥行きの 4 段に分けた太い線で。奥・内側ほど細く）・'depthrev'＝奥ほど太く（同じ 4 段の線で、太さ・濃さの順を逆に＝奥・内側ほど太く濃く）
@@ -2790,7 +2791,7 @@
                     const tm = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
                     shineThru5D = new THREE.Mesh(tg, tm); shineThru5D.frustumCulled = false; shineThru5D.renderOrder = -0.5; shineThru5D.visible = false; root.add(shineThru5D);   // 中心ほど濃くの乗算（−0.9〜−0.6）のあと＝暗くされない
                 }
-                solid5Rods = NDSolid.rods(P5_CELLS.length * T5_EDGES.length, P5_CELLS.length * 16, renderer5D, { look: solid5, shape: 'frame' });   // 辺のフレーム（丸い管＋角の小さなふくらみ。前は管と玉）   // 辺の管・頂点の玉
+                solid5Rods = NDSolid.rods(P5_CELLS.length * T5_EDGES.length, P5_CELLS.length * 16, renderer5D, { look: solid5, shape: 'frame', frameK });   // 辺のフレーム（丸い管＋角の小さなふくらみ。前は管と玉）   // 辺の管・頂点の玉
                 root.add(solid5Rods.group);
                 if (THREE.LineSegments2 && THREE.LineMaterial) solid5Depth = [0, 1, 2, 3].map(() => {   // 奥ほど細く：段ごとに 1 本
                     const L = new THREE.LineSegments2(new THREE.LineSegmentsGeometry(), new THREE.LineMaterial({ vertexColors: true, linewidth: 2, transparent: true, opacity: 0.95, depthWrite: false }));
@@ -4521,7 +4522,7 @@
                 const tintOn = zwViz.tint && zwOn;
                 // 線色「面と同系色」を 3次元にも（「4次元にも」が ON の時）：立方体の真ん中（全部の頂点の重心）と、いちばん遠い頂点までの距離
                 let tint3Cen = null, tint3R = 1;
-                const tint3 = line3Tint !== 'default' ? line3Tint : edge3 === 'frame' ? 'cell' : 'default';   // フレームの時は「今まで」でも面と同系色
+                const tint3 = line3Tint;   // フレームの色も線色の設定どおり
                 if (tint3 !== 'default') {   // 3次元（立方体）の線色（4次元・5次元とは別に選ぶ）
                     tint3Cen = [0, 0, 0]; let nv = 0;
                     faceVerts.forEach(cv => cv.forEach(v => { tint3Cen[0] += v[0]; tint3Cen[1] += v[1]; tint3Cen[2] += v[2]; nv++; }));
@@ -4682,7 +4683,7 @@
 
                 // 線色「面と同系色」を 4次元にも（「4次元にも」が ON の時）：立体の真ん中（写した全部の頂点の重心）と、いちばん遠い頂点までの距離
                 let tint4Cen = null, tint4R = 1;
-                const tint4 = line4Tint !== 'default' ? line4Tint : edge4 === 'frame' ? 'cell' : 'default';   // フレームの時は「今まで」でも面と同系色
+                const tint4 = line4Tint;   // フレームの色も線色の設定どおり（色をつけたい時は線色を「面と同系色」に）
                 if (tint4 !== 'default') {   // 4次元の線色（5次元とは別に選ぶ）
                     tint4Cen = [0, 0, 0]; let nv = 0;
                     cellVerts.forEach(cv => cv.forEach(v => { tint4Cen[0] += v[0]; tint4Cen[1] += v[1]; tint4Cen[2] += v[2]; nv++; }));
@@ -6849,7 +6850,7 @@
             ];
             // 色と見え方の設定（パレット・補色・頂点の目印の色・辺の強調・表示設定・奥を濃く・照り返し・4Dライト・ズームの大きさ・移動パッドなど）を1つの JSON に
             const COLOR_KEYS = ['hypercubeCellPalette2', 'hypercubePalComp', 'hypercubePalCompCenter', 'hypercubeMarkCol', 'hypercubeFixedMarks', 'hypercubeEdgeHi', 'hypercubeViewCfg',
-                'hypercubeDeep4', 'hypercubeWrap4', 'hypercubeWrap5', 'hypercubeShineThru', 'hypercubeEdge4', 'hypercubeEdge3', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
+                'hypercubeDeep4', 'hypercubeWrap4', 'hypercubeWrap5', 'hypercubeShineThru', 'hypercubeEdge4', 'hypercubeEdge3', 'hypercubeFrameK', 'hypercubeDeep5b', 'hypercubeInner5c', 'hypercubeLine5b', 'hypercubeShine', 'hypercubeLight5', 'hypercubeZwViz', 'hypercubeZoomFit', 'hypercubeSquash',
                 'hypercubePanPad', 'hypercubePanPadPos', 'hypercubeEco', 'hypercubeNumTex', 'hypercubeDiePips', 'hypercubeDieKind', 'hypercubeAxisSync'];
             const COLOR_FILE = 'hypercube-colors.json';
             const colorsToJSON = () => { const o = {}; COLOR_KEYS.forEach(k => { try { const v = localStorage.getItem(k); if (v !== null) o[k] = v; } catch (_) {} }); return JSON.stringify({ app: 'hypercube', kind: 'colors', v: 1, data: o }, null, 1) + '\n'; };
@@ -7826,6 +7827,8 @@
                     tint4: { list: tints4, get: () => line4Tint, set: v => { line4Tint = v; try { localStorage.setItem('hypercubeLine4Tint', v); } catch (_) {} redraw(); } },
                     edge4: { list: [['thin', '細い線'], ['frame', 'フレーム']], get: () => edge4, set: v => { edge4 = v === 'frame' ? 'frame' : 'thin'; try { localStorage.setItem('hypercubeEdge4', edge4); } catch (_) {} redraw(); } },
                     edge3: { list: [['thin', '細い線'], ['frame', 'フレーム']], get: () => edge3, set: v => { edge3 = v === 'frame' ? 'frame' : 'thin'; try { localStorage.setItem('hypercubeEdge3', edge3); } catch (_) {} redraw(); } },
+                    frameK: { list: [[0.3, 'いちばん細く'], [0.4, 'とても細く（最初）'], [0.55, '細く'], [0.7, '少し細く'], [0.85, 'ふつう'], [1, '太く'], [1.3, 'もっと太く']].map(([v, t]) => [String(v), t]), get: () => [0.3, 0.4, 0.55, 0.7, 0.85, 1, 1.3].reduce((b, x) => Math.abs(x - frameK) < Math.abs(b - frameK) ? x : b),
+                        set: v => { frameK = parseFloat(v) || 0.4; try { localStorage.setItem('hypercubeFrameK', String(frameK)); } catch (_) {} [solid5Rods, fr4.r, fr3.r].forEach(r => { if (r && r.setFrameK) r.setFrameK(frameK); }); redraw(); } },
                     tint3: { list: tints4, get: () => line3Tint, set: v => { line3Tint = v; try { localStorage.setItem('hypercubeLine3Tint', v); } catch (_) {} redraw(); } },
                     line5: { list: pct, get: () => line5, set: v => slide('line5-slider', v) },
                     deep5: { list: pct, get: () => deep5, set: v => slide('deep5-slider', v) },
@@ -7851,6 +7854,7 @@
                     ['質感', '面の質感。窓ごとに別々に選べる', { 5: 'look5', 4: 'look4', 3: 'look3' }],
                     ['別々', '5D：展開図（折りたたみの途中もふくむ）と組み上がり（100%）で、質感と辺を別々にする。別々の時は、どちらを選ぶか', { 5: 'split5' }],
                     ['辺', '辺の描き方。窓ごとに別々に選べる。フレーム＝少し太めの丸い管で、角は少しふくらむ（色は線と同じ）。5D はほかに なし・奥ほど細く など', { 5: 'edge5', 4: 'edge4', 3: 'edge3' }],
+                    ['フレームの太さ', '辺が「フレーム」の時の太さ。全部の窓で共通', 'both:frameK'],
                     ['線色', '線の色。窓ごとに別々に選べる（手前と奥だけ… は 5D だけ）', { 5: 'tint5', 4: 'tint4', 3: 'tint3' }],
                     ['線の細さ', '5D：内側の線を細く（辺の強調の太い線・奥ほど細く／太くの段の差）', { 5: 'line5' }],
                     ['奥を濃く', '4D：超立方体の奥の胞を濃く（色は変えずに濃さだけ）。5D：奥の胞ほど色を濃く', { 5: 'deep5', 4: 'deep4' }],
@@ -8101,7 +8105,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-1558';
+        const APP_BUILD = '20261021-1602';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
