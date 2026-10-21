@@ -4850,7 +4850,7 @@
         }
         function updateWater(progress) {
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r3) return;
-            if (!wWater.line) { const m = wDblMk(r3, 16000, true); wWater.line = m.line; wWater.face = m.face; wWater.face.material.blending = THREE.NormalBlending; wWater.face.material.opacity = 0.4; wWater.face.material.needsUpdate = true; }
+            if (!wWater.line) { const m = wDblMk(r3, 32000, true); wWater.line = m.line; wWater.face = m.face; wWater.face.material.blending = THREE.NormalBlending; wWater.face.material.opacity = 0.4; wWater.face.material.needsUpdate = true; }
             if (!wWater.line2 && r2) { const m = wDblMk(r2, 6000, true); wWater.line2 = m.line; wWater.face2 = m.face; wWater.face2.material.blending = THREE.NormalBlending; wWater.face2.material.opacity = 0.3; wWater.face2.material.needsUpdate = true; }
             const k = wWater.on ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
             const show = k > 0.01, show2 = show && !dim5 && !!wWater.line2;
@@ -4948,28 +4948,33 @@
             if (wWater.drops.length > 160) wWater.drops.splice(0, wWater.drops.length - 160);
             // 泡：水の中を +W（重力と逆）へゆらゆら上がって、水面ではじける。注ぐ時は水の筋が当たった所の下から、抜く時は底（排水口なら穴から ぼこぼこ）
             const inWater = h > -0.97, nRate = r => Math.floor(r * dt + Math.random()), rnd = () => Math.random() * 2 - 1;
-            const newBub = (x, y, z, w) => ({ p: [x, y, z, w], r: (0.02 + Math.random() * 0.035) * H, v: (0.5 + Math.random() * 0.5) * H, ph: Math.random() * 6.3, pop: -1 });
+            const newBub = (x, y, z, w) => ({ p: [x, y, z, w], r: (0.035 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H, ph: Math.random() * 6.3, pop: -1 });
             if (!wWater.bub) wWater.bub = [];
             if (pouring && inWater) for (let q = nRate(26); q > 0; q--) wWater.bub.push(newBub(sx + rnd() * 0.18 * H, sy + rnd() * 0.18 * H, sz + rnd() * 0.18 * H, Math.max(-0.95 * H, surfS - (0.1 + Math.random() * 0.5) * H)));
             if (wWater.phase === 'drain' && inWater) {
                 if (hole) for (let q = nRate(22 * Math.max(0, Math.sin(T * 7))); q > 0; q--) wWater.bub.push(newBub(rnd() * HR, rnd() * HR, rnd() * HR, -0.95 * H));   // 排水口から ぼこっ、ぼこっ
                 else for (let q = nRate(14); q > 0; q--) wWater.bub.push(newBub(rnd() * 0.9 * H, rnd() * 0.9 * H, rnd() * 0.9 * H, -0.95 * H));
             }
-            const ring3 = (c, rs, a) => {   // 泡＝4次元の小さな球（3-球面）。写すと小さな玉なので、3 本の輪で描く
-                for (let pl = 0; pl < 3; pl++) { const i0 = pl, i1 = (pl + 1) % 3; let prev = null;
-                    for (let m = 0; m <= 10; m++) { const th = m / 10 * Math.PI * 2, v = [c[0], c[1], c[2]]; v[i0] += rs * Math.cos(th); v[i1] += rs * Math.sin(th); if (prev) { L(prev, 0.45 * a, 0.8 * a, a); L(v, 0.45 * a, 0.8 * a, a); } prev = v; } }
+            const SHELL = [0.5, 0.25, 0, -0.25, -0.5].map(f => Math.PI * (0.5 + f * 0.8));   // 泡＝小さな超球：w の輪切りの球殻 5 枚の積み重ね（超球ツールと同じ描き方）
+            const hyperBub = (b, rr, a) => {
+                SHELL.forEach((phi, k) => {
+                    const wk = b.p[3] + rr * Math.cos(phi), rk = rr * Math.sin(phi);   // 殻 k：w ＝ 中心＋r cosφ、半径 r sinφ
+                    const c = toS([b.p[0], b.p[1], b.p[2], wk]), e = toS([b.p[0] + rk, b.p[1], b.p[2], wk]), rs = Math.hypot(e[0] - c[0], e[1] - c[1], e[2] - c[2]);
+                    const lt = 0.55 + 0.45 * (1 - k / (SHELL.length - 1)), cr = 0.25 + 0.3 * lt, cg = 0.55 + 0.35 * lt, ca = a * (k === 2 ? 1 : 0.7);   // 上（+W）の殻ほど明るい
+                    for (let pl = 0; pl < 3; pl++) { const i0 = pl, i1 = (pl + 1) % 3; let prev = null;
+                        for (let m = 0; m <= 8; m++) { const th = m / 8 * Math.PI * 2 + b.ph, v = [c[0], c[1], c[2]]; v[i0] += rs * Math.cos(th); v[i1] += rs * Math.sin(th); if (prev) { L(prev, cr * ca, cg * ca, ca); L(v, cr * ca, cg * ca, ca); } prev = v; } }
+                });
             };
             wWater.bub = wWater.bub.filter(b => {
-                const c = toS(b.p), e = toS([b.p[0] + b.r, b.p[1], b.p[2], b.p[3]]), rs = Math.hypot(e[0] - c[0], e[1] - c[1], e[2] - c[2]);
-                if (b.pop >= 0) { b.pop += dt; ring3(c, rs * (1 + 4 * b.pop / 0.25), Math.max(0, 1 - b.pop / 0.25)); return b.pop < 0.25; }   // はじける
+                if (b.pop >= 0) { b.pop += dt; hyperBub(b, b.r * (1 + 3 * b.pop / 0.25), Math.max(0, 1 - b.pop / 0.25)); return b.pop < 0.25; }   // はじける
                 if (!inWater) return false;
                 b.p[3] += b.v * dt; b.p[0] += Math.sin(T * 5 + b.ph) * 0.15 * H * dt; b.p[2] += Math.cos(T * 4.3 + b.ph) * 0.15 * H * dt; b.r *= 1 + 0.15 * dt;   // 上がりながら、ゆらゆら・少しふくらむ
                 for (let i = 0; i < 3; i++) b.p[i] = Math.max(-H + b.r, Math.min(H - b.r, b.p[i]));
                 const top = surfW([b.p[0] / H, b.p[1] / H, b.p[2] / H]);
                 if (b.p[3] + b.r >= top) { b.p[3] = top; b.pop = 0; }
-                ring3(c, rs, 0.85); return true;
+                hyperBub(b, b.r, 0.85); return true;
             });
-            if (wWater.bub.length > 90) wWater.bub.splice(0, wWater.bub.length - 90);
+            if (wWater.bub.length > 70) wWater.bub.splice(0, wWater.bub.length - 70);
             // 底から流れ出る水（じゃぁー）：底 −W の外（w < −H）へ、立方体の断面のまま落ちていく柱。下へ行くほど薄く
             const out = wWater.out;
             if (out && out.top - out.bot > 1e-3) {
@@ -5058,10 +5063,16 @@
                 // 左の立方体の泡：z の方向に上がって、水面（正方形）ではじける
                 if (!wWater.bub2) wWater.bub2 = [];
                 const nR = r => Math.floor(r * dt + Math.random()), rn = () => Math.random() * 2 - 1, inW = h > -0.97;
-                const nb = (x, y, z) => ({ p: [x, y, z], r: (0.025 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H, ph: Math.random() * 6.3, pop: -1 });
+                const nb = (x, y, z) => ({ p: [x, y, z], r: (0.035 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H, ph: Math.random() * 6.3, pop: -1 });
                 if (pouring && inW) for (let q = nR(14); q > 0; q--) wWater.bub2.push(nb(W.US[0] * H + rn() * 0.18 * H, W.US[1] * H + rn() * 0.18 * H, Math.max(-0.95 * H, (h - 0.1 - Math.random() * 0.5) * H)));
                 if (wWater.phase === 'drain' && inW) for (let q = nR(hole ? 14 * Math.max(0, Math.sin(T * 7)) : 9); q > 0; q--) wWater.bub2.push(nb(rn() * (hole ? HR : 0.9 * H), rn() * (hole ? HR : 0.9 * H), -0.95 * H));
-                const ring2 = (b, rr, a) => { for (let pl = 0; pl < 2; pl++) { let prev = null; for (let m = 0; m <= 10; m++) { const th = m / 10 * Math.PI * 2, x = b.p[0] + rr * Math.cos(th), q = rr * Math.sin(th), v = pl ? pt(x, b.p[1], b.p[2] + q) : pt(x, b.p[1] + q, b.p[2]); if (prev) { L2(prev, 0.45 * a, 0.8 * a, a); L2(v, 0.45 * a, 0.8 * a, a); } prev = v; } } };
+                const ring2 = (b, rr, a) => {   // 左の泡＝小さな球：z の輪切りの輪 5 本の積み重ね（超球ツールの左と同じ描き方）
+                    [0.5, 0.25, 0, -0.25, -0.5].forEach((f, k) => {
+                        const phi = Math.PI * (0.5 + f * 0.8), zk = b.p[2] + rr * Math.cos(phi), rk = rr * Math.sin(phi), lt = 0.55 + 0.45 * (1 - k / 4), ca = a * (k === 2 ? 1 : 0.7);
+                        let prev = null;
+                        for (let m = 0; m <= 10; m++) { const th = m / 10 * Math.PI * 2, v = pt(b.p[0] + rk * Math.cos(th), b.p[1] + rk * Math.sin(th), zk); if (prev) { L2(prev, (0.25 + 0.3 * lt) * ca, (0.55 + 0.35 * lt) * ca, ca); L2(v, (0.25 + 0.3 * lt) * ca, (0.55 + 0.35 * lt) * ca, ca); } prev = v; }
+                    });
+                };
                 wWater.bub2 = wWater.bub2.filter(b => {
                     if (b.pop >= 0) { b.pop += dt; ring2(b, b.r * (1 + 4 * b.pop / 0.25), Math.max(0, 1 - b.pop / 0.25)); return b.pop < 0.25; }
                     if (!inW) return false;
@@ -9495,7 +9506,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-0837';
+        const APP_BUILD = '20261022-0838';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
