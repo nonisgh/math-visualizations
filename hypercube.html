@@ -4418,8 +4418,9 @@
             if (faceOn) WS_QUADS.forEach(q => ringQuadFaces(vs[q[0]], vs[q[1]], vs[q[2]], vs[q[3]], pF, ball));
         }
         // ===== レインボー同心球 3Dプリント立方体：立方体の中身に、中心＝赤 → 外＝紫 の同心球の殻を入れる（立方体からはみ出す所は切り取る）。半透明で芯まで見える =====
-        //   色の位置 f ＝ (中心からの距離)² ／ 3（角が 1）。殻は f ＝ 1/7 … 6/7 の 6 枚と、赤い芯の球。殻の形は立方体の座標で 1 回だけ作り、毎回は 8 角から三線形でうつす
+        //   色の位置 f ＝ (中心からの距離)² ／ 3（角が 1）。殻は f ＝ 1/13 … 12/13 の 12 枚と、小さな赤い芯の球。殻の形は立方体の座標で 1 回だけ作り、毎回は 8 角から三線形でうつす
         let _ballGeo = null, _ballGeoT = -1;
+        const BALL_SHELLS = 12, BALL_CORE = 0.18;   // 殻の枚数・芯の球の大きさ（立方体の半分を 1 として）
         let wBallSpin = true; try { wBallSpin = localStorage.getItem('hypercubeBallSpin') !== '0'; } catch (_) {}
         let wBallPaint = 'beach'; try { const v = localStorage.getItem('hypercubeBallPaint'); if (v === 'beach' || v === 'shell') wBallPaint = v; } catch (_) {}   // 球の色：'beach'＝どの球も経線で 7 つに塗り分けた七色（ビーチボールのよう）、'shell'＝殻ごとに 1 色（芯 赤 … 外 紫）   // 中の球を立方体の中で回す（殻ごとに逆回り＝ジャイロのよう）
         function ballGeo() {   // 殻の形（立方体の座標）。回す時は毎フレーム、回してから立方体で切り取り直す（回してもはみ出さない）
@@ -4440,8 +4441,8 @@
                     [[a, b, cc], [a, cc, e]].forEach(tri => { if (tri.every(inside)) tri.forEach(q => { T.push((q[0] + 1) / 2, (q[1] + 1) / 2, (q[2] + 1) / 2); F.push(fc); B.push(br); }); });
                 }
             };
-            for (let k = 6; k >= 1; k--) { const f = k / 7; sphere(Math.sqrt(3 * f), f, k); }   // 外の殻から先に描く＝内側の色が上に乗って、芯まで透けて見える
-            sphere(0.38, 0.0, 0);   // 赤い芯（最後＝いちばん上）
+            for (let k = BALL_SHELLS; k >= 1; k--) { const f = k / (BALL_SHELLS + 1); sphere(Math.sqrt(3 * f), f, k); }   // 外の殻から先に描く＝内側の色が上に乗って、芯まで透けて見える
+            sphere(BALL_CORE, 0.0, 0);   // 赤い芯（小さめ、最後＝いちばん上）
             return (_ballGeo = { T: new Float32Array(T), F: new Float32Array(F), B: new Float32Array(B), n: F.length, paint: wBallPaint });
         }
         const wBall = {};
@@ -4449,10 +4450,10 @@
             if (!root || !list.length) { if (wBall[key]) wBall[key].visible = false; return; }
             const G = ballGeo();
             if (!wBall[key]) {
-                const nv = 7 * 12 * 21 * 6 * 17, g = new THREE.BufferGeometry();   // 切り取らない時の最大（回すと数が変わる）
+                const nv = (BALL_SHELLS + 1) * 12 * 21 * 6 * 17, g = new THREE.BufferGeometry();   // 切り取らない時の最大（回すと数が変わる）
                 g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3));
                 g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nv * 3), 3));
-                const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.26, side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
+                const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false, depthTest: false }));   // 殻が多いので 1 枚ずつは少し薄く
                 m.renderOrder = 997.5; m.frustumCulled = false; root.add(m); wBall[key] = m;   // 立方体の表面（997）の後・線（998〜）の前＝中身の殻が表面に隠れない
             }
             const m = wBall[key], P = m.geometry.attributes.position.array, C = m.geometry.attributes.color.array, col = new THREE.Color();
@@ -5023,7 +5024,7 @@
             cubeView.camera = new THREE.PerspectiveCamera(38, 1, 0.05, 100); cubeView.camera.position.set(3.4, 2.6, 4.4);
             cubeView.controls = new THREE.OrbitControls(cubeView.camera, r.domElement); cubeView.controls.enableDamping = true; cubeView.controls.enablePan = false;
             cubeView.controls.minDistance = 1.5; cubeView.controls.maxDistance = 14;
-            cubeView.face = cubeViewMesh(4000, 'face', 0.2); cubeView.ball = cubeViewMesh(7 * 12 * 21 * 6, 'face', 0.26); cubeView.line = cubeViewMesh(2000, 'line');
+            cubeView.face = cubeViewMesh(4000, 'face', 0.2); cubeView.ball = cubeViewMesh((BALL_SHELLS + 1) * 12 * 21 * 6, 'face', 0.18); cubeView.line = cubeViewMesh(2000, 'line');
             cubeView.face.renderOrder = 1; cubeView.ball.renderOrder = 2; cubeView.line.renderOrder = 3;
             cubeView.scene.add(cubeView.face, cubeView.ball, cubeView.line);
             const loop = () => { if (!cubeView.el) return; cubeView.raf = requestAnimationFrame(loop); cubeViewDraw(); };
@@ -9155,7 +9156,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-0202';
+        const APP_BUILD = '20261022-0709';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
