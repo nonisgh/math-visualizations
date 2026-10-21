@@ -4850,8 +4850,8 @@
         }
         function updateWater(progress) {
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r3) return;
-            if (!wWater.line) { const m = wDblMk(r3, 9000, true); wWater.line = m.line; wWater.face = m.face; wWater.face.material.blending = THREE.NormalBlending; wWater.face.material.opacity = 0.4; wWater.face.material.needsUpdate = true; }
-            if (!wWater.line2 && r2) { const m = wDblMk(r2, 3000, true); wWater.line2 = m.line; wWater.face2 = m.face; wWater.face2.material.blending = THREE.NormalBlending; wWater.face2.material.opacity = 0.3; wWater.face2.material.needsUpdate = true; }
+            if (!wWater.line) { const m = wDblMk(r3, 16000, true); wWater.line = m.line; wWater.face = m.face; wWater.face.material.blending = THREE.NormalBlending; wWater.face.material.opacity = 0.4; wWater.face.material.needsUpdate = true; }
+            if (!wWater.line2 && r2) { const m = wDblMk(r2, 6000, true); wWater.line2 = m.line; wWater.face2 = m.face; wWater.face2.material.blending = THREE.NormalBlending; wWater.face2.material.opacity = 0.3; wWater.face2.material.needsUpdate = true; }
             const k = wWater.on ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
             const show = k > 0.01, show2 = show && !dim5 && !!wWater.line2;
             wWater.line.visible = wWater.face.visible = show; if (wWater.line2) wWater.line2.visible = wWater.face2.visible = show2;
@@ -4946,6 +4946,30 @@
                 return true;
             });
             if (wWater.drops.length > 160) wWater.drops.splice(0, wWater.drops.length - 160);
+            // 泡：水の中を +W（重力と逆）へゆらゆら上がって、水面ではじける。注ぐ時は水の筋が当たった所の下から、抜く時は底（排水口なら穴から ぼこぼこ）
+            const inWater = h > -0.97, nRate = r => Math.floor(r * dt + Math.random()), rnd = () => Math.random() * 2 - 1;
+            const newBub = (x, y, z, w) => ({ p: [x, y, z, w], r: (0.02 + Math.random() * 0.035) * H, v: (0.5 + Math.random() * 0.5) * H, ph: Math.random() * 6.3, pop: -1 });
+            if (!wWater.bub) wWater.bub = [];
+            if (pouring && inWater) for (let q = nRate(26); q > 0; q--) wWater.bub.push(newBub(sx + rnd() * 0.18 * H, sy + rnd() * 0.18 * H, sz + rnd() * 0.18 * H, Math.max(-0.95 * H, surfS - (0.1 + Math.random() * 0.5) * H)));
+            if (wWater.phase === 'drain' && inWater) {
+                if (hole) for (let q = nRate(22 * Math.max(0, Math.sin(T * 7))); q > 0; q--) wWater.bub.push(newBub(rnd() * HR, rnd() * HR, rnd() * HR, -0.95 * H));   // 排水口から ぼこっ、ぼこっ
+                else for (let q = nRate(14); q > 0; q--) wWater.bub.push(newBub(rnd() * 0.9 * H, rnd() * 0.9 * H, rnd() * 0.9 * H, -0.95 * H));
+            }
+            const ring3 = (c, rs, a) => {   // 泡＝4次元の小さな球（3-球面）。写すと小さな玉なので、3 本の輪で描く
+                for (let pl = 0; pl < 3; pl++) { const i0 = pl, i1 = (pl + 1) % 3; let prev = null;
+                    for (let m = 0; m <= 10; m++) { const th = m / 10 * Math.PI * 2, v = [c[0], c[1], c[2]]; v[i0] += rs * Math.cos(th); v[i1] += rs * Math.sin(th); if (prev) { L(prev, 0.45 * a, 0.8 * a, a); L(v, 0.45 * a, 0.8 * a, a); } prev = v; } }
+            };
+            wWater.bub = wWater.bub.filter(b => {
+                const c = toS(b.p), e = toS([b.p[0] + b.r, b.p[1], b.p[2], b.p[3]]), rs = Math.hypot(e[0] - c[0], e[1] - c[1], e[2] - c[2]);
+                if (b.pop >= 0) { b.pop += dt; ring3(c, rs * (1 + 4 * b.pop / 0.25), Math.max(0, 1 - b.pop / 0.25)); return b.pop < 0.25; }   // はじける
+                if (!inWater) return false;
+                b.p[3] += b.v * dt; b.p[0] += Math.sin(T * 5 + b.ph) * 0.15 * H * dt; b.p[2] += Math.cos(T * 4.3 + b.ph) * 0.15 * H * dt; b.r *= 1 + 0.15 * dt;   // 上がりながら、ゆらゆら・少しふくらむ
+                for (let i = 0; i < 3; i++) b.p[i] = Math.max(-H + b.r, Math.min(H - b.r, b.p[i]));
+                const top = surfW([b.p[0] / H, b.p[1] / H, b.p[2] / H]);
+                if (b.p[3] + b.r >= top) { b.p[3] = top; b.pop = 0; }
+                ring3(c, rs, 0.85); return true;
+            });
+            if (wWater.bub.length > 90) wWater.bub.splice(0, wWater.bub.length - 90);
             // 底から流れ出る水（じゃぁー）：底 −W の外（w < −H）へ、立方体の断面のまま落ちていく柱。下へ行くほど薄く
             const out = wWater.out;
             if (out && out.top - out.bot > 1e-3) {
@@ -5031,6 +5055,23 @@
                     });
                     const b = [[-H, -H], [H, -H], [H, H], [-H, H]].map(([x, y]) => pt(x, y, -H)); [0, 1, 2, 0, 2, 3].forEach(m => F2(b[m], 0.05, 0.25, 0.7));   // 底
                 }
+                // 左の立方体の泡：z の方向に上がって、水面（正方形）ではじける
+                if (!wWater.bub2) wWater.bub2 = [];
+                const nR = r => Math.floor(r * dt + Math.random()), rn = () => Math.random() * 2 - 1, inW = h > -0.97;
+                const nb = (x, y, z) => ({ p: [x, y, z], r: (0.025 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H, ph: Math.random() * 6.3, pop: -1 });
+                if (pouring && inW) for (let q = nR(14); q > 0; q--) wWater.bub2.push(nb(W.US[0] * H + rn() * 0.18 * H, W.US[1] * H + rn() * 0.18 * H, Math.max(-0.95 * H, (h - 0.1 - Math.random() * 0.5) * H)));
+                if (wWater.phase === 'drain' && inW) for (let q = nR(hole ? 14 * Math.max(0, Math.sin(T * 7)) : 9); q > 0; q--) wWater.bub2.push(nb(rn() * (hole ? HR : 0.9 * H), rn() * (hole ? HR : 0.9 * H), -0.95 * H));
+                const ring2 = (b, rr, a) => { for (let pl = 0; pl < 2; pl++) { let prev = null; for (let m = 0; m <= 10; m++) { const th = m / 10 * Math.PI * 2, x = b.p[0] + rr * Math.cos(th), q = rr * Math.sin(th), v = pl ? pt(x, b.p[1], b.p[2] + q) : pt(x, b.p[1] + q, b.p[2]); if (prev) { L2(prev, 0.45 * a, 0.8 * a, a); L2(v, 0.45 * a, 0.8 * a, a); } prev = v; } } };
+                wWater.bub2 = wWater.bub2.filter(b => {
+                    if (b.pop >= 0) { b.pop += dt; ring2(b, b.r * (1 + 4 * b.pop / 0.25), Math.max(0, 1 - b.pop / 0.25)); return b.pop < 0.25; }
+                    if (!inW) return false;
+                    b.p[2] += b.v * dt; b.p[0] += Math.sin(T * 5 + b.ph) * 0.15 * H * dt; b.p[1] += Math.cos(T * 4.3 + b.ph) * 0.15 * H * dt; b.r *= 1 + 0.15 * dt;
+                    b.p[0] = Math.max(-H + b.r, Math.min(H - b.r, b.p[0])); b.p[1] = Math.max(-H + b.r, Math.min(H - b.r, b.p[1]));
+                    const top = surfW([b.p[0] / H, b.p[1] / H]);
+                    if (b.p[2] + b.r >= top) { b.p[2] = top; b.pop = 0; }
+                    ring2(b, b.r, 0.85); return true;
+                });
+                if (wWater.bub2.length > 60) wWater.bub2.splice(0, wWater.bub2.length - 60);
                 wWater.line2.geometry.setDrawRange(0, l2 / 3); wWater.face2.geometry.setDrawRange(0, f2 / 3);
                 wWater.line2.geometry.attributes.position.needsUpdate = wWater.line2.geometry.attributes.color.needsUpdate = true;
                 wWater.face2.geometry.attributes.position.needsUpdate = wWater.face2.geometry.attributes.color.needsUpdate = true;
@@ -5050,9 +5091,10 @@
             el.style.display = '';
             const h = wWater.h, V = 8 * (h + 1), st = { open: 'ふたを開けて…', pour: '注いでいる', full: 'いっぱい（ふたを閉じた）', bopen: wWaterDrain === 'hole' ? '排水口の栓を抜いて…' : '底（−W）の栓を抜いて…', drain: wWaterDrain === 'hole' ? '排水口から 渦を巻いて抜けている' : '底から じゃぁー！', bclose: '栓をして…', empty: '空っぽ' }[wWater.phase] || '';
             const bar = hudBar(V / 16 * 100, 'linear-gradient(90deg,#1d4ed8,#38bdf8,#a5f3fc)');
-            if (fitHud(el)) { el.innerHTML = '💧 水位 h＝' + h.toFixed(2) + '　V＝8(h＋1)＝<b style="color:#7dd3fc">' + V.toFixed(2) + '</b> ／ 16' + bar; return; }
+            if (fitHud(el)) { el.innerHTML = '💧 水位 h＝' + h.toFixed(2) + '　V＝8(h＋1)＝<b style="color:#7dd3fc">' + V.toFixed(2) + '</b> ／ 16　⬇ 重力 +W→−W' + bar; return; }
             el.innerHTML = '<div style="font-size:16px;font-family:TeXMath,Georgia,serif"><span style="font-size:22px">∫</span><sub>−1</sub><sup>h</sup> 8 dw ＝ 8(h＋1)</div>'
                 + '<div>💧 水位 h ＝ ' + h.toFixed(2) + '　→　<b style="font-size:16px;color:#7dd3fc">' + V.toFixed(2) + '</b> ／ 16　' + st + '</div>' + bar
+                + '<div style="color:#fcd34d">⬇ 重力：+W → −W（下＝−W・底の胞の方。水平な方向は x・y・z の 3 つ）</div>'
                 + '<div style="color:#94a3b8;font-size:10px">4次元の水面は 3次元の立方体（w ＝ h）。ちゃぷんと揺れても、水の体積は変わらない。左の立方体は ∫ 4 dz ＝ 4(h＋1) ／ 8</div>';
         }
         // ===== 積分がいっぱいになったら、両端の胞も染めて「閉じる」=====
@@ -5636,7 +5678,7 @@
             if ($('wpack-rbstyle')) $('wpack-rbstyle').addEventListener('change', e => { wPackRbStyle = ['w', 'spec', 'ring', 'ball'].includes(e.target.value) ? e.target.value : 'spec'; try { localStorage.setItem('hypercubePackRbStyle', wPackRbStyle); } catch (_) {} syncWSliceUI(); requestRender(30); e.target.blur(); });
             if ($('wslice-rainbow')) $('wslice-rainbow').addEventListener('click', () => { wPackRainbow = !wPackRainbow; try { localStorage.setItem('hypercubePackRainbow', wPackRainbow ? '1' : '0'); } catch (_) {} syncWSliceUI(); requestRender(30); });
             if ($('wduo-btn')) $('wduo-btn').addEventListener('click', () => { wDuo.on = !wDuo.on; wDuo.t = 0; wDuo.last = 0; if (wDuo.on) { wTourStop(); wSkin.on = false; wDbl.on = false; wWater.on = false; wSlice.pack = wSlice.stack = wSlice.play = false; wSlice.on = false; } syncWSliceUI(); requestRender(30); });
-            if ($('wwater-btn')) $('wwater-btn').addEventListener('click', () => { wWater.on = !wWater.on; wWater.t = 0; wWater.last = 0; wWater.amp = wWater.rip = 0; wWater.drops = []; if (wWater.on) { wTourStop(); wSkin.on = false; wDbl.on = false; wDuo.on = false; wSlice.pack = wSlice.stack = wSlice.play = false; wSlice.on = false; } syncWSliceUI(); requestRender(30); });
+            if ($('wwater-btn')) $('wwater-btn').addEventListener('click', () => { wWater.on = !wWater.on; wWater.t = 0; wWater.last = 0; wWater.amp = wWater.rip = 0; wWater.drops = []; wWater.bub = []; wWater.bub2 = []; if (wWater.on) { wTourStop(); wSkin.on = false; wDbl.on = false; wDuo.on = false; wSlice.pack = wSlice.stack = wSlice.play = false; wSlice.on = false; } syncWSliceUI(); requestRender(30); });
             if ($('wwater-drain')) $('wwater-drain').addEventListener('change', e => { wWaterDrain = e.target.value === 'hole' ? 'hole' : 'all'; try { localStorage.setItem('hypercubeWaterDrain', wWaterDrain); } catch (_) {} syncWSliceUI(); requestRender(30); e.target.blur(); });
             if ($('wdbl-btn')) $('wdbl-btn').addEventListener('click', () => { wDuo.on = false; wWater.on = false; wDbl.on = !wDbl.on; wDbl.t = 0; wDbl.last = 0; if (wDbl.on) { wTourStop(); wSkin.on = false; wSlice.pack = wSlice.stack = wSlice.play = false; wSlice.on = false; } syncWSliceUI(); requestRender(30); });
             if ($('wdbl-axis')) $('wdbl-axis').addEventListener('change', e => { wDbl.axis = e.target.value; wDbl.t = 0; try { localStorage.setItem('hypercubeDblAxis', wDbl.axis); } catch (_) {} syncWSliceUI(); requestRender(30); e.target.blur(); });
@@ -9453,7 +9495,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-0826';
+        const APP_BUILD = '20261022-0837';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
