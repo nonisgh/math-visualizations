@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>空間ベクトル 3D</title>
+<link rel="icon" type="image/svg+xml" href="icons/graph.svg">
+<link rel="apple-touch-icon" href="icons/graph-180.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="lib/visual-fx.js"></script>
+<style>
+    :root { --bg: #030712; --panel: #0b1222; --line: #1e293b; --text: #e2e8f0; --muted: #94a3b8; --faint: #64748b; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, 'Hiragino Sans', sans-serif; }
+    body { display: flex; flex-direction: column; }
+    header { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    header a.back { color: var(--faint); text-decoration: none; font-size: 13px; white-space: nowrap; }
+    header h1 { margin: 0; font-size: 16px; white-space: nowrap; }
+    header .grow { flex: 1; }
+    header select { height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 0 8px; max-width: 60vw; }
+    main { flex: 1; display: flex; min-height: 0; }
+    .panel { width: 360px; max-width: 46vw; overflow-y: auto; padding: 10px; border-right: 1px solid var(--line); }
+    #view { flex: 1; position: relative; min-width: 0; }
+    #view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .row { display: grid; grid-template-columns: 26px 1fr 26px; gap: 6px; align-items: start; padding: 8px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+    .row.off { opacity: 0.5; }
+    .row .dot { width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--c); color: #030712; font: 700 11px system-ui; cursor: pointer; margin-top: 3px; }
+    .row.off .dot { background: transparent; border: 2px solid var(--c); color: var(--c); }
+    .row input { width: 100%; height: 30px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--text); font: 500 15px ui-monospace, 'SF Mono', Menlo, monospace; padding: 0 6px; }
+    .row input:focus { outline: none; border-color: var(--c); background: #070d1a; }
+    .row .info { font: 500 12px ui-monospace, Menlo, monospace; color: #cbd5e1; padding: 2px 6px 0; overflow-wrap: anywhere; }
+    .row .info:empty { display: none; }
+    .row .info .k { color: var(--c); font-family: system-ui, sans-serif; font-weight: 600; margin-right: 6px; }
+    .row .err { font-size: 12px; color: #fb7185; padding: 2px 6px 0; }
+    .row .err:empty { display: none; }
+    .row .del { width: 24px; height: 24px; border: 0; border-radius: 8px; background: transparent; color: var(--faint); font-size: 18px; cursor: pointer; margin-top: 3px; }
+    .row .del:hover { color: #fb7185; background: #1a1020; }
+    .add { width: 100%; height: 36px; border-radius: 12px; border: 1px dashed var(--line); background: transparent; color: var(--muted); cursor: pointer; margin-bottom: 10px; }
+    .setting { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 12px; font-size: 13px; color: var(--muted); }
+    .setting .grow { flex: 1; }
+    .sw { -webkit-appearance: none; appearance: none; width: 30px; height: 17px; border-radius: 999px; background: #1e293b; border: 1px solid #334155; position: relative; cursor: pointer; margin: 0; }
+    .sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #94a3b8; transition: transform .15s; }
+    .sw:checked { background: #1e3a5f; border-color: #38bdf8; }
+    .sw:checked::after { transform: translateX(13px); background: #fff; }
+    details.hint { font-size: 12px; color: var(--faint); line-height: 1.75; padding: 4px 2px; }
+    details.hint summary { cursor: pointer; color: var(--muted); font-weight: 700; }
+    details.hint code { font-family: ui-monospace, Menlo, monospace; color: var(--muted); background: #0b1222; padding: 0 4px; border-radius: 4px; }
+    .hud { position: absolute; left: 10px; bottom: 10px; font-size: 11px; color: var(--faint); pointer-events: none; }
+    .homebtn { position: absolute; right: 10px; top: 10px; height: 32px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(11,18,34,0.85); color: var(--muted); cursor: pointer; }
+    @media (max-width: 760px) {
+        main { flex-direction: column-reverse; }
+        .panel { width: 100%; max-width: none; height: 46vh; border-right: 0; border-top: 1px solid var(--line); }
+        .row input { font-size: 16px; }
+    }
+</style>
+</head>
+<body>
+<header>
+    <a class="back" href="graph.html">← グラフ電卓</a>
+    <h1>空間ベクトル 3D</h1>
+    <span class="grow"></span>
+    <select id="examples"><option value="">例を読み込む…</option></select>
+</header>
+<main>
+    <div class="panel">
+        <div id="rows"></div>
+        <button class="add" id="addRow" type="button">＋ 式を追加</button>
+        <label class="setting"><span>床の格子（xy 平面）</span><span class="grow"></span><input type="checkbox" class="sw" id="gridOn"></label>
+        <label class="setting"><span>軸の目盛りの数字</span><span class="grow"></span><input type="checkbox" class="sw" id="tickOn"></label>
+        <details class="hint" open>
+            <summary>書き方</summary>
+            <b>ベクトル</b>：<code>a = (1, 2, 3)</code>（小文字の名前）→ 原点から矢印。<br>
+            <b>点</b>：<code>A = (1, 0, 2)</code>（大文字の名前）→ 点。<code>AB</code> と書くと A から B への矢印（<code>B - A</code> と同じ）。<br>
+            <b>計算</b>：<code>a + b</code>（平行四辺形つき）、<code>a - b</code>、<code>2a</code>、<code>a・b</code> や <code>dot(a, b)</code>（内積となす角）、<code>a × b</code> や <code>cross(a, b)</code>（外積と平行四辺形）、<code>|a|</code>（大きさ）、<code>unit(a)</code>（単位ベクトル）、<code>proj(a, b)</code>（a の b への正射影）、<code>angle(a, b)</code>（なす角・度）。<br>
+            <b>直線</b>：<code>(x, y, z) = (1, 0, 0) + t(1, 2, 1)</code>。<br>
+            <b>平面</b>：<code>x + 2y - z = 3</code>（x・y・z の 1 次式）。<br>
+            全角でも書けます（<code>ａ＝（１，２，３）</code>、× は外積、・は内積）。ドラッグで回す、ホイール・ピンチで寄る。
+        </details>
+    </div>
+    <div id="view"><button class="homebtn" id="homeBtn" type="button" title="全部が見える向き・大きさに戻す">⌂ 全体</button><div class="hud" id="hud"></div></div>
+</main>
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const COLORS = ['#38bdf8', '#f472b6', '#a3e635', '#fbbf24', '#a855f7', '#34d399', '#fb923c', '#60a5fa'];
+const STORE = 'vec3d.v1';
+
+// ================= 読み取り =================
+// 全角を半角に。× ✕ は外積、・ · ∙ は内積として残す（ほかの横棒はマイナス）
+function normIn(s) {
+    return String(s)
+        .replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+        .replace(/　/g, ' ')
+        .replace(/[ー‐―−–]/g, '-')
+        .replace(/✕/g, '×').replace(/[・·∙]/g, '・')
+        .replace(/÷/g, '/');
+}
+const FNS = ['sqrt', 'sin', 'cos', 'tan', 'abs', 'norm', 'dot', 'cross', 'angle', 'unit', 'proj', 'ln', 'exp'].sort((a, b) => b.length - a.length);
+function PErr(m) { const e = new Error(m); e.parse = true; return e; }
+function tokenize(src) {
+    const s = normIn(src), t = [];
+    let i = 0;
+    while (i < s.length) {
+        const c = s[i];
+        if (/\s/.test(c)) { i++; continue; }
+        if (/[0-9.]/.test(c)) {
+            let j = i; while (j < s.length && /[0-9.]/.test(s[j])) j++;
+            const raw = s.slice(i, j); if (!/^(\d+\.?\d*|\.\d+)$/.test(raw)) throw PErr('数の書き方が変です：' + raw);
+            t.push({ k: 'num', v: parseFloat(raw) }); i = j; continue;
+        }
+        if (c === 'π') { t.push({ k: 'id', v: 'pi' }); i++; continue; }
+        if (/[a-zA-Z]/.test(c)) {
+            const rest = s.slice(i).toLowerCase();
+            if (rest.startsWith('pi') && !/[a-z]/i.test(s[i + 2] || '')) { t.push({ k: 'id', v: 'pi' }); i += 2; continue; }
+            const f = FNS.find(n => rest.startsWith(n) && s[i + n.length] === '(');
+            if (f) { t.push({ k: 'fn', v: f }); i += f.length; continue; }
+            t.push({ k: 'id', v: c }); i++; continue;
+        }
+        if ('+-*/^(),|=×・'.includes(c)) { t.push({ k: 'op', v: c }); i++; continue; }
+        throw PErr('使えない文字です：' + c);
+    }
+    return t;
+}
+function parse(src) {
+    const T = tokenize(src); let p = 0, absDepth = 0;
+    const peek = () => T[p], isOp = v => T[p] && T[p].k === 'op' && T[p].v === v;
+    const expect = v => { if (!isOp(v)) throw PErr(`「${v}」が足りません`); p++; };
+    const startsAtom = () => { const k = T[p]; if (!k) return false; if (k.k === 'num' || k.k === 'id' || k.k === 'fn') return true; return k.k === 'op' && (k.v === '(' || (k.v === '|' && absDepth === 0)); };
+    function expr() {
+        let n = term();
+        while (isOp('+') || isOp('-')) { const op = T[p++].v; n = { t: 'bin', op, l: n, r: term() }; }
+        return n;
+    }
+    function term() {
+        let n = unary();
+        for (;;) {
+            if (isOp('*') || isOp('/') || isOp('×') || isOp('・')) { const op = T[p++].v; n = { t: 'bin', op, l: n, r: unary() }; continue; }
+            if (startsAtom()) { n = { t: 'bin', op: '*', l: n, r: power() }; continue; }   // 2a・t(1,2,1) のような掛け算の省略
+            return n;
+        }
+    }
+    function unary() { if (isOp('-')) { p++; return { t: 'neg', a: unary() }; } if (isOp('+')) { p++; return unary(); } return power(); }
+    function power() { const b = atom(); if (isOp('^')) { p++; return { t: 'bin', op: '^', l: b, r: unary() }; } return b; }
+    function atom() {
+        const k = peek(); if (!k) throw PErr('式が途中で終わっています');
+        if (k.k === 'num') { p++; return { t: 'num', v: k.v }; }
+        if (k.k === 'id') {
+            const nx = T[p + 1];   // AB（大文字 2 つ）＝点 A から点 B への矢印。ほかの計算より先にまとめる
+            if (/^[A-Z]$/.test(k.v) && nx && nx.k === 'id' && /^[A-Z]$/.test(nx.v)) { p += 2; return { t: 'seg', a: k.v, b: nx.v }; }
+            p++; return { t: 'id', v: k.v };
+        }
+        if (k.k === 'fn') {
+            p++; expect('(');
+            const args = [expr()]; while (isOp(',')) { p++; args.push(expr()); }
+            expect(')'); return { t: 'fn', f: k.v, args };
+        }
+        if (isOp('(')) {
+            p++; const items = [expr()];
+            while (isOp(',')) { p++; items.push(expr()); }
+            expect(')');
+            if (items.length === 1) return items[0];
+            if (items.length === 3) return { t: 'vec', items };
+            throw PErr('ベクトルは (x, y, z) の 3 つの数で書きます');
+        }
+        if (isOp('|')) { p++; absDepth++; const a = expr(); absDepth--; expect('|'); return { t: 'abs', a }; }
+        throw PErr(`「${k.v}」の位置が変です`);
+    }
+    const n = expr();
+    if (p < T.length) throw PErr(`「${T[p].v}」の位置が変です`);
+    return n;
+}
+
+// ================= 計算（数か、3 つの数の配列＝ベクトル） =================
+const isV = v => Array.isArray(v);
+const add = (a, b) => a.map((x, i) => x + b[i]), sub = (a, b) => a.map((x, i) => x - b[i]), mul = (a, k) => a.map(x => x * k);
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const len = a => Math.hypot(a[0], a[1], a[2]);
+const angDeg = (a, b) => { const d = len(a) * len(b); if (!d) throw PErr('長さ 0 のベクトルとは角度が決まりません'); return Math.acos(Math.max(-1, Math.min(1, dot(a, b) / d))) * 180 / Math.PI; };
+function num(v, what) { if (isV(v)) throw PErr(`${what}には数が要ります（ベクトルが来ました）`); return v; }
+function vec(v, what) { if (!isV(v)) throw PErr(`${what}にはベクトルが要ります（数が来ました）`); return v; }
+function ev(n, env) {
+    switch (n.t) {
+        case 'num': return n.v;
+        case 'id': {
+            if (n.v in env) return env[n.v];
+            if (n.v === 'pi') return Math.PI;
+            if (n.v === 'e') return Math.E;
+            throw PErr(`${n.v} が決まっていません`);
+        }
+        case 'vec': return n.items.map((x, i) => num(ev(x, env), (i + 1) + ' つ目の成分'));
+        case 'seg': { const A = env[n.a], B = env[n.b]; if (!isV(A)) throw PErr(`点 ${n.a} が決まっていません`); if (!isV(B)) throw PErr(`点 ${n.b} が決まっていません`); return sub(B, A); }
+        case 'neg': { const a = ev(n.a, env); return isV(a) ? mul(a, -1) : -a; }
+        case 'abs': { const a = ev(n.a, env); return isV(a) ? len(a) : Math.abs(a); }
+        case 'bin': {
+            const l = ev(n.l, env), r = ev(n.r, env);
+            switch (n.op) {
+                case '+': case '-':
+                    if (isV(l) !== isV(r)) throw PErr('ベクトルと数は足し引きできません');
+                    return isV(l) ? (n.op === '+' ? add(l, r) : sub(l, r)) : (n.op === '+' ? l + r : l - r);
+                case '*': case '・':
+                    if (isV(l) && isV(r)) return dot(l, r);
+                    if (isV(l)) return mul(l, r); if (isV(r)) return mul(r, l);
+                    return l * r;
+                case '×':
+                    if (isV(l) && isV(r)) return cross(l, r);
+                    if (isV(l) || isV(r)) throw PErr('外積（×）はベクトルどうしで使います');
+                    return l * r;
+                case '/': return isV(l) ? mul(l, 1 / num(r, '割る方')) : l / num(r, '割る方');
+                case '^': if (isV(l)) { if (r === 2) return dot(l, l); throw PErr('ベクトルの累乗は 2 乗（大きさの 2 乗）だけです'); } return Math.pow(l, num(r, '指数'));
+            }
+            break;
+        }
+        case 'fn': {
+            const A = n.args.map(a => ev(a, env)), one = () => num(A[0], n.f + ' の中');
+            switch (n.f) {
+                case 'sqrt': return Math.sqrt(one()); case 'sin': return Math.sin(one()); case 'cos': return Math.cos(one()); case 'tan': return Math.tan(one());
+                case 'ln': return Math.log(one()); case 'exp': return Math.exp(one());
+                case 'abs': case 'norm': return isV(A[0]) ? len(A[0]) : Math.abs(A[0]);
+                case 'dot': return dot(vec(A[0], 'dot'), vec(A[1], 'dot'));
+                case 'cross': return cross(vec(A[0], 'cross'), vec(A[1], 'cross'));
+                case 'angle': return angDeg(vec(A[0], 'angle'), vec(A[1], 'angle'));
+                case 'unit': { const v = vec(A[0], 'unit'), L = len(v); if (!L) throw PErr('長さ 0 のベクトルは単位ベクトルにできません'); return mul(v, 1 / L); }
+                case 'proj': { const a = vec(A[0], 'proj'), b = vec(A[1], 'proj'), bb = dot(b, b); if (!bb) throw PErr('長さ 0 のベクトルには射影できません'); return mul(b, dot(a, b) / bb); }
+            }
+        }
+    }
+    throw PErr('式を読み取れません');
+}
+const usesVar = (n, v) => !n ? false : n.t === 'id' ? n.v === v : n.t === 'vec' ? n.items.some(x => usesVar(x, v)) : n.t === 'fn' ? n.args.some(x => usesVar(x, v)) : ['bin'].includes(n.t) ? usesVar(n.l, v) || usesVar(n.r, v) : ['neg', 'abs'].includes(n.t) ? usesVar(n.a, v) : false;
+
+// 数の表示
+const fmt = v => { if (!isFinite(v)) return '—'; if (Math.abs(v) < 1e-10) v = 0; let s = String(+v.toPrecision(6)); return s.replace('-', '−'); };
+const fmtV = a => `(${a.map(fmt).join(', ')})`;
+
+// ================= 行の中身を決める =================
+// kind：point（点）・vector（矢印）・scalar（数）・line（直線）・plane（平面）
+function splitEq(s) { const i = normIn(s).indexOf('='); return i < 0 ? null : [normIn(s).slice(0, i), normIn(s).slice(i + 1)]; }
+function analyzeAll(rows) {
+    const env = {}, defs = [];
+    rows.forEach(r => { r.res = null; r.err = ''; });
+    // 1) 名前の定義（a = …、A = …）を、何回かに分けて順番に解く（後ろの行を使っていてもよい）
+    rows.forEach(r => {
+        const txt = r.text.trim(); if (!txt) return;
+        const eq = splitEq(txt);
+        if (eq && /^\s*[a-zA-Z]\s*$/.test(eq[0]) && !/^\s*[xyzt]\s*$/.test(eq[0])) {
+            try { defs.push({ r, name: eq[0].trim(), ast: parse(eq[1]) }); } catch (e) { r.err = e.parse ? e.message : '式を読み取れません'; }
+        }
+    });
+    let left = defs.slice();
+    for (let pass = 0; pass < defs.length + 1 && left.length; pass++) {
+        const next = [];
+        left.forEach(d => {
+            try {
+                const v = ev(d.ast, env);
+                if (/^[A-Z]$/.test(d.name) && !isV(v)) throw PErr('点（大文字の名前）は (x, y, z) で書きます');
+                env[d.name] = v; d.r.res = { kind: /^[A-Z]$/.test(d.name) ? 'point' : isV(v) ? 'vector' : 'scalar', name: d.name, v, ast: d.ast }; d.r.err = '';
+            } catch (e) { d.r.err = e.parse ? e.message : '計算できません'; next.push(d); }
+        });
+        if (next.length === left.length) break;
+        left = next;
+    }
+    // 2) そのほか：式・直線・平面
+    rows.forEach(r => {
+        const txt = r.text.trim(); if (!txt || r.res || defs.some(d => d.r === r)) return;
+        try {
+            const eq = splitEq(txt);
+            if (eq && /^\s*\(\s*x\s*,\s*y\s*,\s*z\s*\)\s*$/.test(eq[0])) {   // 直線 (x, y, z) = p + t d
+                const ast = parse(eq[1]);
+                const at = t => vec(ev(ast, { ...env, t }), '直線の右側');
+                const p0 = at(0), p1 = at(1), p2 = at(2), d = sub(p1, p0);
+                if (len(sub(p2, add(p0, mul(d, 2)))) > 1e-7 * (1 + len(d))) throw PErr('t について 1 次の式（p + t·d）だけ直線として描けます');
+                if (len(d) < 1e-12) throw PErr('向きのベクトルが 0 です（t が入っていますか？）');
+                r.res = { kind: 'line', p: p0, d };
+                return;
+            }
+            if (eq) {   // 平面：x・y・z の 1 次式 = …
+                const L = parse(eq[0]), R = parse(eq[1]);
+                const f = (x, y, z) => { const e = { ...env, x, y, z }; return num(ev(L, e), '平面の式') - num(ev(R, e), '平面の式'); };
+                const c0 = f(0, 0, 0), n = [f(1, 0, 0) - c0, f(0, 1, 0) - c0, f(0, 0, 1) - c0];
+                const tp = [0.7, -1.3, 2.1];
+                if (Math.abs(f(...tp) - (c0 + dot(n, tp))) > 1e-7 * (1 + Math.abs(c0) + len(n))) throw PErr('平面は x・y・z の 1 次式で書きます（例：x + 2y − z = 3）');
+                if (len(n) < 1e-12) throw PErr('x・y・z が入っていないので平面になりません');
+                r.res = { kind: 'plane', n, d: -c0 };   // n・r = d
+                return;
+            }
+            const ast = parse(txt), v = ev(ast, env);
+            const res = { kind: isV(v) ? 'vector' : 'scalar', v, ast };
+            if (ast.t === 'seg') res.from = env[ast.a];   // AB は A から
+            r.res = res;
+        } catch (e) { r.err = e.parse ? e.message : '式を読み取れません'; }
+    });
+    // 3) 絵の手がかり：和は平行四辺形、外積は面と垂直な矢印、内積はなす角
+    rows.forEach(r => {
+        const R = r.res; if (!R || !R.ast) return;
+        const top = R.ast, sides = (l, rr) => { try { const a = ev(l, env), b = ev(rr, env); return isV(a) && isV(b) ? [a, b] : null; } catch (_) { return null; } };
+        if (top.t === 'bin' && (top.op === '+' || top.op === '-') && R.kind === 'vector') { const s = sides(top.l, top.r); if (s) R.sum = { a: s[0], b: s[1], op: top.op }; }
+        else if ((top.t === 'bin' && top.op === '×') || (top.t === 'fn' && top.f === 'cross')) {
+            const L = top.t === 'fn' ? top.args[0] : top.l, Rr = top.t === 'fn' ? top.args[1] : top.r, s = sides(L, Rr);
+            if (s) {
+                R.cross = { a: s[0], b: s[1], o: [0, 0, 0] };
+                if (L.t === 'seg' && Rr.t === 'seg' && L.a === Rr.a && isV(env[L.a])) { R.cross.o = env[L.a]; R.from = env[L.a]; }   // AB × AC は点 A から
+            }
+        }
+        else if ((top.t === 'bin' && (top.op === '・' || top.op === '*')) || (top.t === 'fn' && (top.f === 'dot' || top.f === 'angle'))) {
+            const s = top.t === 'fn' ? sides(top.args[0], top.args[1]) : sides(top.l, top.r);
+            if (s && R.kind === 'scalar') { R.dotp = { a: s[0], b: s[1] }; R.isAngle = top.t === 'fn' && top.f === 'angle'; try { R.ang = angDeg(s[0], s[1]); } catch (_) {} }
+        }
+    });
+    return env;
+}
+function infoHTML(R) {
+    if (!R) return '';
+    const k = s => `<span class="k">${s}</span>`;
+    switch (R.kind) {
+        case 'point': return k('点') + fmtV(R.v);
+        case 'vector': {
+            let s = k('ベクトル') + '= ' + fmtV(R.v) + (R.name ? `　|${R.name}| = ` : '　大きさ ') + fmt(len(R.v));
+            if (R.cross) s += `　平行四辺形の面積 ${fmt(len(R.v))}`;
+            if (R.from) s += `　（${fmtV(R.from)} から）`;
+            return s;
+        }
+        case 'scalar': return R.isAngle ? k('角度') + '= ' + fmt(R.v) + '°' : k('数') + '= ' + fmt(R.v) + (R.ang !== undefined ? `　なす角 ${fmt(R.ang)}°` + (Math.abs(R.v) < 1e-9 ? '（垂直）' : '') : '');
+        case 'line': return k('直線') + `通る点 ${fmtV(R.p)}・向き ${fmtV(R.d)}`;
+        case 'plane': return k('平面') + `法線 ${fmtV(R.n)}・原点からの距離 ${fmt(Math.abs(R.d) / len(R.n))}`;
+    }
+    return '';
+}
+
+// ================= 3D の描画（数学の x・y・z → three の (x, z, −y)。z が上） =================
+const T3 = a => new THREE.Vector3(a[0], a[2], -a[1]);
+const view = $('#view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setClearColor(0x030712, 1);
+renderer.localClippingEnabled = true;
+view.insertBefore(renderer.domElement, view.firstChild);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 2000);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+const dl = new THREE.DirectionalLight(0xffffff, 0.7); dl.position.set(5, 9, 6); scene.add(dl);
+let need = true; const requestRender = () => { need = true; };
+if (window.VisualFX) VisualFX.requestRender = requestRender;
+const world = new THREE.Group(), axesG = new THREE.Group(); scene.add(axesG, world);
+let RANGE = 5;
+const clip = () => [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map(n => new THREE.Plane(new THREE.Vector3(...n).multiplyScalar(-1), RANGE * 1.02));
+
+function disposeTree(g) { g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); while (g.children.length) g.remove(g.children[0]); }
+function textSprite(text, color, h, opt = {}) {
+    const fs = 64, font = (opt.font || 'italic 600 ' + fs + 'px TeXMath, "Times New Roman", Georgia, serif');
+    const c = document.createElement('canvas'), x = c.getContext('2d');
+    x.font = font; const w = Math.ceil(x.measureText(text).width) + 24;
+    c.width = w; c.height = fs + 24;
+    x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.lineWidth = 7; x.strokeStyle = 'rgba(3,7,18,0.92)'; x.strokeText(text, w / 2, c.height / 2);
+    x.fillStyle = color; x.fillText(text, w / 2, c.height / 2);
+    const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    sp.scale.set(h * w / c.height, h, 1); sp.renderOrder = 20;
+    return sp;
+}
+function arrow(from, to, color, s, opt = {}) {
+    const a = T3(from), b = T3(to), d = b.clone().sub(a), L = d.length(), g = new THREE.Group();
+    if (L < 1e-9) return g;
+    const head = Math.min(0.32 * s, L * 0.4), r = (opt.thin ? 0.012 : 0.026) * s;
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.1, transparent: !!opt.alpha, opacity: opt.alpha || 1 });
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(r, r, L - head, 14), mat);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(r * 3.2, head, 20), mat);
+    shaft.position.y = (L - head) / 2; cone.position.y = L - head / 2;
+    g.add(shaft, cone);
+    g.position.copy(a); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    return g;
+}
+function dashed(p, q, color, s) {
+    const g = new THREE.BufferGeometry().setFromPoints([T3(p), T3(q)]);
+    const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color, dashSize: 0.12 * s, gapSize: 0.08 * s, transparent: true, opacity: 0.75 }));
+    l.computeLineDistances(); return l;
+}
+function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(x))), m = x / p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p; }
+let showGrid = true, showTicks = true;
+function buildAxes() {
+    disposeTree(axesG);
+    const R = RANGE, s = R / 5, AX = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+    const css = k => (window.VisualFX ? VisualFX.axisCss(k) : { x: '#ff5d6c', y: '#3ddc84', z: '#56a8ff' }[k]);
+    Object.entries(AX).forEach(([k, e]) => {
+        const col = new THREE.Color(css(k));
+        const g = new THREE.BufferGeometry().setFromPoints([T3(e.map(v => -v * R)), T3(e.map(v => v * R))]);
+        axesG.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.85 })));
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07 * s, 0.24 * s, 16), new THREE.MeshBasicMaterial({ color: col }));
+        tip.position.copy(T3(e.map(v => v * R))); tip.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), T3(e).normalize()); axesG.add(tip);
+        const lab = window.VisualFX ? VisualFX.makeLabel(k, css(k), { scale: 0.6 * s, keepSize: false }) : textSprite(k, css(k), 0.6 * s);
+        lab.position.copy(T3(e.map(v => v * R * 1.1))); axesG.add(lab);
+        if (showTicks) {
+            const st = niceStep(R / 4);
+            for (let t = st; t <= R * 0.999; t += st) [t, -t].forEach(v => {
+                const sp = textSprite(fmt(v), '#64748b', 0.3 * s, { font: '500 64px ui-monospace, Menlo, monospace' });
+                const off = k === 'z' ? [0.18 * s, 0, 0] : k === 'x' ? [0, -0.25 * s, 0] : [0.25 * s, 0, 0];
+                sp.position.copy(T3(e.map((q, i) => q * v + off[i])));
+                axesG.add(sp);
+            });
+        }
+    });
+    if (showGrid) {
+        const st = niceStep(R / 5), n = Math.round(2 * R / st);
+        const grid = new THREE.GridHelper(n * st, n, 0x1e293b, 0x152033); axesG.add(grid);
+    }
+    const o = new THREE.Mesh(new THREE.SphereGeometry(0.05 * s, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff })); axesG.add(o);
+    const ol = textSprite('O', '#e2e8f0', 0.3 * s); ol.position.copy(T3([-0.2 * s, -0.2 * s, -0.2 * s])); axesG.add(ol);
+}
+function buildWorld() {
+    disposeTree(world);
+    const s = RANGE / 5, clipP = clip();
+    rows.forEach((r, i) => {
+        const R = r.res; if (!R || !r.visible) return;
+        const col = new THREE.Color(r.color);
+        if (R.kind === 'point') {
+            const m = new THREE.Mesh(new THREE.SphereGeometry(0.075 * s, 20, 14), new THREE.MeshStandardMaterial({ color: col, roughness: 0.4 }));
+            m.position.copy(T3(R.v)); world.add(m);
+            const lab = textSprite(`${R.name}${fmtV(R.v)}`, r.color, 0.4 * s); lab.position.copy(T3(R.v).add(new THREE.Vector3(0, 0.3 * s, 0))); world.add(lab);
+        } else if (R.kind === 'vector') {
+            const from = R.from || [0, 0, 0], to = add(from, R.v);
+            world.add(arrow(from, to, col, s));
+            const name = R.name || (r.text.length <= 10 ? normIn(r.text).replace(/\s+/g, '') : '');
+            if (name) { const lab = textSprite(name, r.color, 0.5 * s); lab.position.copy(T3(to).add(T3(R.v).normalize().multiplyScalar(0.3 * s))); world.add(lab); }
+            if (R.sum) {   // 平行四辺形（和）／差は b の先から a の先へ
+                const { a, b, op } = R.sum;
+                if (op === '+') { world.add(dashed(a, add(a, b), r.color, s), dashed(b, add(a, b), r.color, s)); }
+                else world.add(dashed(b, a, r.color, s));
+            }
+            if (R.cross) {   // 外積：a・b が作る平行四辺形を半透明に
+                const { a, b, o } = R.cross, P = [o, add(o, a), add(o, add(a, b)), add(o, b)].map(T3);
+                const g = new THREE.BufferGeometry().setFromPoints([P[0], P[1], P[2], P[0], P[2], P[3]]); g.computeVertexNormals();
+                world.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false })));
+                world.add(arrow(o, add(o, a), col, s, { thin: true, alpha: 0.55 }), arrow(o, add(o, b), col, s, { thin: true, alpha: 0.55 }));
+            }
+        } else if (R.kind === 'scalar' && R.dotp) {   // 内積・なす角：2 本の矢印と、その間の弧
+            const { a, b } = R.dotp, ua = T3(a).normalize(), ub = T3(b).normalize();
+            world.add(arrow([0, 0, 0], a, col, s, { thin: true, alpha: 0.6 }), arrow([0, 0, 0], b, col, s, { thin: true, alpha: 0.6 }));
+            const ang = ua.angleTo(ub), axis = new THREE.Vector3().crossVectors(ua, ub);
+            if (axis.length() > 1e-9 && ang > 1e-3) {
+                axis.normalize(); const pts = [], rad = 0.6 * s;
+                for (let k = 0; k <= 32; k++) pts.push(ua.clone().applyAxisAngle(axis, ang * k / 32).multiplyScalar(rad));
+                world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: col })));
+                const mid = ua.clone().applyAxisAngle(axis, ang / 2).multiplyScalar(rad * 1.45);
+                const lab = textSprite(fmt(R.ang) + '°', r.color, 0.36 * s, { font: '600 64px ui-monospace, Menlo, monospace' }); lab.position.copy(mid); world.add(lab);
+            }
+        } else if (R.kind === 'line') {
+            const far = RANGE * 4, d = mul(R.d, 1 / len(R.d)), p = add(R.p, mul(d, -far)), q = add(R.p, mul(d, far));
+            const A = T3(p), B = T3(q), mid = A.clone().add(B).multiplyScalar(0.5), dir = B.clone().sub(A);
+            const m = new THREE.Mesh(new THREE.CylinderGeometry(0.014 * s, 0.014 * s, dir.length(), 8), new THREE.MeshBasicMaterial({ color: col, clippingPlanes: clipP }));
+            m.position.copy(mid); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()); world.add(m);
+            world.add(arrow(R.p, add(R.p, R.d), col, s, { thin: true }));
+            const pt = new THREE.Mesh(new THREE.SphereGeometry(0.06 * s, 16, 12), new THREE.MeshBasicMaterial({ color: col })); pt.position.copy(T3(R.p)); world.add(pt);
+        } else if (R.kind === 'plane') {
+            const n = R.n, nn = dot(n, n), foot = mul(n, R.d / nn), un = T3(n).normalize();
+            const size = RANGE * 4;
+            const g = new THREE.PlaneGeometry(size, size, 1, 1);
+            const mat = new THREE.MeshStandardMaterial({ color: col, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false, clippingPlanes: clipP, roughness: 0.6 });
+            const m = new THREE.Mesh(g, mat); m.position.copy(T3(foot)); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), un); world.add(m);
+            const eg = new THREE.EdgesGeometry(new THREE.PlaneGeometry(size, size, 16, 16));
+            const grid = new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.PlaneGeometry(size, size, Math.round(size / (RANGE / 5)), Math.round(size / (RANGE / 5)))), new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.22, clippingPlanes: clipP }));
+            grid.position.copy(m.position); grid.quaternion.copy(m.quaternion); world.add(grid); eg.dispose();
+            world.add(arrow(foot, add(foot, mul(n, 1 / Math.sqrt(nn) * RANGE * 0.3)), col, s, { thin: true }));   // 法線の向き
+        }
+    });
+    requestRender();
+}
+function fitRange(keepCam) {
+    let m = 3;
+    const take = a => { if (isV(a)) a.forEach(v => { if (isFinite(v)) m = Math.max(m, Math.abs(v)); }); };
+    rows.forEach(r => {
+        const R = r.res; if (!R || !r.visible) return;
+        if (R.kind === 'point') take(R.v);
+        if (R.kind === 'vector') { take(R.v); if (R.from) { take(R.from); take(add(R.from, R.v)); } if (R.sum) { take(R.sum.a); take(R.sum.b); } if (R.cross) { take(R.cross.a); take(R.cross.b); } }
+        if (R.kind === 'scalar' && R.dotp) { take(R.dotp.a); take(R.dotp.b); }
+        if (R.kind === 'line') { take(R.p); take(add(R.p, R.d)); }
+        if (R.kind === 'plane') take(mul(R.n, R.d / dot(R.n, R.n)));
+    });
+    const st = niceStep(m * 1.25 / 4), nr = Math.max(3, Math.ceil(m * 1.25 / st) * st);
+    if (nr !== RANGE) { RANGE = nr; buildAxes(); }
+    if (!keepCam) home();
+}
+function home() {
+    const dir = new THREE.Vector3(1.5, 1.1, 1.75).normalize();
+    camera.position.copy(dir.multiplyScalar(RANGE * 3.3)); controls.target.set(0, 0, 0); camera.lookAt(0, 0, 0); controls.update(); requestRender();
+}
+function resize() {
+    const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); requestRender();
+}
+new ResizeObserver(resize).observe(view);
+function loop() {
+    requestAnimationFrame(loop);
+    if (controls.update()) need = true;
+    if (need) { need = false; renderer.render(scene, camera); }
+}
+
+// ================= 行の UI =================
+let rows = [];
+let uid = 1;
+const newRow = (text = '', color) => ({ id: uid++, text, color: color || COLORS[(rows.length) % COLORS.length], visible: true, res: null, err: '' });
+function save() { try { localStorage.setItem(STORE, JSON.stringify({ rows: rows.map(r => ({ text: r.text, color: r.color, visible: r.visible })), grid: showGrid, ticks: showTicks })); } catch (_) {} }
+let saveT = 0; const saveSoon = () => { clearTimeout(saveT); saveT = setTimeout(save, 400); };
+function refresh(keepCam = true) {
+    analyzeAll(rows);
+    rows.forEach(r => { if (!r.el) return; r.el.querySelector('.info').innerHTML = infoHTML(r.res); r.el.querySelector('.err').textContent = r.err; });
+    fitRange(keepCam); buildWorld();
+    $('#hud').textContent = `範囲 ±${fmt(RANGE)}　ドラッグで回す・ホイール／ピンチで寄る`;
+}
+function render() {
+    const box = $('#rows'); box.innerHTML = '';
+    rows.forEach((r, i) => {
+        const el = document.createElement('div'); el.className = 'row' + (r.visible ? '' : ' off'); el.style.setProperty('--c', r.color);
+        el.innerHTML = `<button class="dot" type="button" title="表示／非表示">${i + 1}</button><div><input spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="例：a = (1, 2, 3)"><div class="info"></div><div class="err"></div></div><button class="del" type="button" title="削除">×</button>`;
+        const inp = el.querySelector('input'); inp.value = r.text;
+        inp.addEventListener('input', () => { r.text = inp.value; refresh(true); saveSoon(); });
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const n = newRow(''); rows.splice(i + 1, 0, n); render(); refresh(true); save(); box.children[i + 1].querySelector('input').focus(); } });
+        el.querySelector('.dot').addEventListener('click', () => { r.visible = !r.visible; el.classList.toggle('off', !r.visible); refresh(true); save(); });
+        el.querySelector('.del').addEventListener('click', () => { rows.splice(i, 1); if (!rows.length) rows.push(newRow('')); render(); refresh(true); save(); });
+        r.el = el; box.appendChild(el);
+    });
+}
+const EXAMPLES = [
+    { name: '和と差（平行四辺形）', rows: ['a = (2, 1, 0)', 'b = (0, 2, 1)', 'a + b', 'a - b'] },
+    { name: '実数倍と単位ベクトル', rows: ['a = (1, 2, 2)', '2a', '-a', 'unit(a)', '|a|'] },
+    { name: '内積となす角', rows: ['a = (1, 2, 2)', 'b = (2, 0, 1)', 'a・b', 'angle(a, b)'] },
+    { name: '外積（垂直な向きと面積）', rows: ['a = (2, 1, 0)', 'b = (0, 1, 2)', 'a × b', '|a × b|'] },
+    { name: '3 点と平面の法線（AB × AC）', rows: ['A = (2, 0, 0)', 'B = (0, 3, 0)', 'C = (0, 0, 2)', 'AB', 'AC', 'AB × AC', '3x + 2y + 3z = 6'] },
+    { name: '直線', rows: ['P = (1, 0, 0)', 'd = (1, 2, 1)', '(x, y, z) = P + t d'] },
+    { name: '平面と法線ベクトル', rows: ['x + 2y - z = 3', 'n = (1, 2, -1)'] },
+    { name: '正射影', rows: ['a = (3, 1, 2)', 'b = (1, 0, 0)', 'proj(a, b)', 'a - proj(a, b)'] },
+];
+function loadExample(ex) { rows = []; ex.rows.forEach(t => rows.push(newRow(t))); render(); refresh(false); save(); }
+$('#examples').innerHTML += EXAMPLES.map((e, i) => `<option value="${i}">${e.name}</option>`).join('');
+$('#examples').addEventListener('change', e => { const ex = EXAMPLES[+e.target.value]; e.target.value = ''; if (ex) loadExample(ex); });
+$('#addRow').addEventListener('click', () => { rows.push(newRow('')); render(); refresh(true); save(); $('#rows').lastChild.querySelector('input').focus(); });
+$('#homeBtn').addEventListener('click', home);
+$('#gridOn').addEventListener('change', e => { showGrid = e.target.checked; buildAxes(); requestRender(); save(); });
+$('#tickOn').addEventListener('change', e => { showTicks = e.target.checked; buildAxes(); requestRender(); save(); });
+if (window.VisualFX) VisualFX.onChange(() => { buildAxes(); buildWorld(); });   // 書体・軸の色の設定がほかのアプリで変わった時
+if (document.fonts) document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', () => { buildAxes(); buildWorld(); });
+
+// 起動
+let data = null; try { data = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (_) {}
+if (data && Array.isArray(data.rows) && data.rows.length) { data.rows.forEach(d => { const r = newRow(String(d.text || ''), d.color); r.visible = d.visible !== false; rows.push(r); }); showGrid = data.grid !== false; showTicks = data.ticks !== false; }
+else EXAMPLES[0].rows.forEach(t => rows.push(newRow(t)));
+$('#gridOn').checked = showGrid; $('#tickOn').checked = showTicks;
+render(); resize(); buildAxes(); refresh(false); loop();
+})();
+</script>
+</body>
+</html>
