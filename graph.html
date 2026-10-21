@@ -159,6 +159,10 @@
         border: 1px solid var(--line); background: transparent; color: var(--faint);
     }
     .exmode button.on { color: var(--c); border-color: color-mix(in srgb, var(--c) 70%, transparent); background: color-mix(in srgb, var(--c) 12%, transparent); }
+    .ptseg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .ptseg button { border: 0; background: transparent; color: var(--muted); font: 600 12px ui-monospace, Menlo, monospace; padding: 3px 9px; cursor: pointer; }
+    .ptseg button + button { border-left: 1px solid var(--line); }
+    .ptseg button.on { background: rgba(56, 189, 248, 0.16); color: #e0f2fe; }
     .exnote { margin-left: 6px; font: 500 11px ui-monospace, Menlo, monospace; color: var(--faint); }
     .exmath math { font-size: 1.02rem; padding: 2px 0; }
     .exadd {
@@ -394,11 +398,11 @@
                 <span class="grow"></span>
                 <input type="checkbox" id="showPts" class="switch">
             </label>
-            <label class="setting" title="交点・解の値が π の分数倍（π/2、3π/4、−2π など）なら、π を使って書く">
-                <span>交点を π で書く</span>
+            <div class="setting" title="交点・解の値の書き方。π＝π の分数倍なら π/2、3π/4 のように。τ＝τ（＝2π）の分数倍なら τ/4、3τ/8 のように。小数＝いつも小数">
+                <span>交点の書き方</span>
                 <span class="grow"></span>
-                <input type="checkbox" id="piOn" class="switch">
-            </label>
+                <span class="ptseg" id="ptMode"><button type="button" data-m="dec">小数</button><button type="button" data-m="pi">π</button><button type="button" data-m="tau">τ</button></span>
+            </div>
             <label class="setting" title="Σ の式の下に出る展開を、次数の高い項から並べる（x⁷/7! − x⁵/5! + … の順）">
                 <span>展開を高い次数から</span>
                 <span class="grow"></span>
@@ -412,7 +416,7 @@
                 右上の <b>4D</b> で、普通のグラフがそのまま 4 次元の面に広がります（x も y も複素数、three.js）。式やスライダーを変えると 4D もすぐ変わります。左上の ⚙ で、4 本の軸を回して消す・解の一覧・蛍光・∞ など。もう一度 <b>4D</b> を押すと、面をたたんで普通のグラフに戻ります。<br>
                 <b>3D</b> は x と y を両方複素数にした4次元を、床＝x（実軸・虚軸）、高さ＝y の実部、色＝y の虚部で表示します。<span style="color:#fde047">黄＝普通のグラフ</span>、<span style="color:#4ade80">緑＝x が複素数でも y が実数になる所</span>、●＝解（グラフと同じ色）。上のボタンで曲面・床をオンオフ、ドラッグで回転、ホイール／ピンチで範囲を変更。<br>
                 Σ は <code>Σ(k=0,n, 式)</code>、階乗は <code>(2k+1)!</code>、× は省略できます（<code>2x</code>, <code>3sin(x)</code>）。<br>
-                ^ を打たなくても、1 文字の変数のすぐ後の数字は指数になります（<code>x2</code> → x²、<code>3x2-2x</code> → 3x²−2x、<code>a10</code> → a¹⁰）。ただし <b>e と i は除く</b>（<code>e2</code> は e×2、<code>i2</code> は i×2）、小数も除く（<code>x2.5</code> は x×2.5）。指数が式の時は今まで通り <code>x^(2k+1)</code>、<code>e^x</code>。<br>
+                ^ を打たなくても、1 文字の変数のすぐ後の数字は指数になります（<code>x2</code> → x²、<code>3x2-2x</code> → 3x²−2x、<code>a10</code> → a¹⁰）。<code>i2</code> → i²、<code>π2</code>・<code>pi2</code> → π²、<code>tau2</code> → τ² も同じ。<code>e2</code> → e² ですが、後ろに文字やかっこが続く <code>e2x</code> は e×2x のまま。小数は除く（<code>x2.5</code> は x×2.5）。<br>τ（タウ）は <code>τ</code> か <code>tau</code>（τ＝2π）。<b>e のすぐ後に i</b> を書くと「e の i… 乗」になります（<code>eix</code> → e^(ix)、<code>eiπ</code> → e^(iπ)、<code>eitau</code> → e^(iτ)）。指数が式の時は今まで通り <code>x^(2k+1)</code>、<code>e^x</code>。<br>
                 グラフはドラッグで移動、ホイール／ピンチで拡大、タップで値を表示。
             </details>
         </div>
@@ -472,14 +476,29 @@ const FUNCS = {
     max: Math.max, min: Math.min, gamma: gamma,
 };
 const VARIADIC = new Set(['max', 'min']);
-const NAMES = [...Object.keys(FUNCS), 'sum', 'prod', 'pi'].sort((a, b) => b.length - a.length);
+const NAMES = [...Object.keys(FUNCS), 'sum', 'prod', 'pi', 'tau'].sort((a, b) => b.length - a.length);
 const UNI = { '×': '*', '·': '*', '∙': '*', '÷': '/', '−': '-', '–': '-' };
 
 function ParseError(msg) { const e = new Error(msg); e.isParse = true; return e; }
 
 // ---------- 字句解析 ----------
+// ^ を打たない指数：位置 i から数字が続けば「^ 数字」を足して、読み終えた位置を返す（数字が無ければ i のまま）
+//   strictE＝e の時：数字の後に文字・かっこが続くなら指数にしない
+let _tk = null;
+function shortPow(i, strictE) {
+    const s = _tk.s, t = _tk.t;
+    if (!/[0-9]/.test(s[i] || '')) return i;
+    let j = i;
+    while (j < s.length && /[0-9]/.test(s[j])) j++;
+    if (s[j] === '.') return i;
+    if (strictE && j < s.length && /[a-zA-Zα-ωΑ-Ωπτ(]/.test(s[j])) return i;
+    const raw = s.slice(i, j);
+    t.push({ k: 'op', v: '^' }, { k: 'num', v: parseFloat(raw), raw });
+    return j;
+}
 function tokenize(s) {
     const t = [];
+    const prevTk = _tk; _tk = { s, t };   // shortPow が読む（e のすぐ後の i で中を読み直す時も、終わったら元に戻す）
     let i = 0;
     while (i < s.length) {
         let ch = s[i];
@@ -497,7 +516,7 @@ function tokenize(s) {
             t.push({ k: 'op', v: '^' }, { k: 'num', v: ch === '²' ? 2 : 3, raw: ch === '²' ? '2' : '3' });
             i++; continue;
         }
-        if (ch === 'π') { t.push({ k: 'id', v: 'pi' }); i++; continue; }
+        if (ch === 'π' || ch === 'τ') { t.push({ k: 'id', v: ch === 'π' ? 'pi' : 'tau' }); i++; i = shortPow(i, false); continue; }
         if (ch === 'Σ' || ch === '∑') { t.push({ k: 'fn', v: 'sum' }); i++; continue; }
         if (ch === 'Π' || ch === '∏') { t.push({ k: 'fn', v: 'prod' }); i++; continue; }
         if (ch === '√') { t.push({ k: 'fn', v: 'sqrt' }); i++; continue; }
@@ -506,28 +525,36 @@ function tokenize(s) {
             const low = s.slice(i, i + 8).toLowerCase();
             const m = NAMES.find(nm => low.startsWith(nm));
             if (m) {
-                t.push(m === 'pi' ? { k: 'id', v: 'pi' } : { k: 'fn', v: m });
+                if (m === 'pi' || m === 'tau') { t.push({ k: 'id', v: m }); i += m.length; i = shortPow(i, false); continue; }
+                t.push({ k: 'fn', v: m });
                 i += m.length; continue;
             }
             const v = ch === 'X' ? 'x' : ch === 'Y' ? 'y' : ch;
             t.push({ k: 'id', v });
             i++;
-            // ^ を打たない書き方：1 文字の変数のすぐ後の数字は指数（x2 → x²、a10 → a¹⁰）
-            // e と i は除く（e2x・3i2 などが紛らわしいので、そのまま掛け算）。小数（x2.5）も除く。関数名は上で先に読むので関係しない
-            if (v !== 'e' && v !== 'i' && /[0-9]/.test(s[i] || '')) {
-                let j = i;
-                while (j < s.length && /[0-9]/.test(s[j])) j++;
-                if (s[j] !== '.') {
-                    const raw = s.slice(i, j);
-                    t.push({ k: 'op', v: '^' }, { k: 'num', v: parseFloat(raw), raw });
-                    i = j;
+            // e のすぐ後に i が続く時は「e の i… 乗」と読む（eix → e^(ix)、eiπ → e^(iπ)、eitau → e^(iτ)）。
+            //   指数はそこから、つぎの + − × ÷ = , ) や空白の手前まで（かっこは中ごと含める）
+            if (v === 'e' && s[i] === 'i') {
+                let j = i, depth = 0;
+                while (j < s.length) {
+                    const c = s[j];
+                    if (c === '(') depth++;
+                    else if (c === ')') { if (depth === 0) break; depth--; }
+                    else if (depth === 0 && ' +-*/^,=!|'.includes(c)) break;
+                    j++;
                 }
+                t.push({ k: 'op', v: '^' }, { k: 'op', v: '(' }, ...tokenize(s.slice(i, j)), { k: 'op', v: ')' });
+                i = j; continue;
             }
+            // ^ を打たない書き方：1 文字の変数（i・π・τ も）のすぐ後の数字は指数（x2 → x²、a10 → a¹⁰、i2 → i²）。小数（x2.5）は除く。
+            //   e だけは、数字の後に文字やかっこが続く時（e2x）は今まで通り掛け算（e^(2x) のつもりの書き方と取りちがえないように）
+            i = shortPow(i, v === 'e');
             continue;
         }
         if ('+-*/^(),=!|'.includes(ch)) { t.push({ k: 'op', v: ch }); i++; continue; }
         throw ParseError(`使えない文字です: ${ch}`);
     }
+    _tk = prevTk;
     return t;
 }
 
@@ -649,6 +676,7 @@ function compile(n) {
         case 'num': { const v = n.v; return () => v; }
         case 'var': {
             if (n.name === 'pi') return () => Math.PI;
+            if (n.name === 'tau') return () => 2 * Math.PI;
             if (n.name === 'e') return () => Math.E;
             const nm = n.name;
             return env => env[nm];
@@ -694,7 +722,7 @@ function compile(n) {
 }
 
 // ---------- 自由な文字（x, y, i 以外はパラメータ） ----------
-const RESERVED = new Set(['x', 'y', 'pi', 'e', 'i']);
+const RESERVED = new Set(['x', 'y', 'pi', 'tau', 'e', 'i']);
 function allFree(n, bound = new Set(), out = new Set()) {
     switch (n.t) {
         case 'var': if (!bound.has(n.name)) out.add(n.name); break;
@@ -730,7 +758,7 @@ function startsNum(n) {
         default: return false;
     }
 }
-const GREEK_NAME = { pi: 'π' };
+const GREEK_NAME = { pi: 'π', tau: 'τ' };
 function toMathML(n) {
     switch (n.t) {
         case 'num': return `<mn>${n.raw}</mn>`;
@@ -849,7 +877,7 @@ function toSrc(n) {
     const w = (m, ok) => ok ? toSrc(m) : `(${toSrc(m)})`;
     switch (n.t) {
         case 'num': return n.raw;
-        case 'var': return n.name === 'pi' ? 'π' : n.name;
+        case 'var': return n.name === 'pi' ? 'π' : n.name === 'tau' ? 'τ' : n.name;
         case 'neg': return '-' + w(n.a, tprec(n.a) >= 2);
         case 'fact': return w(n.a, n.a.t === 'num' || n.a.t === 'var') + '!';
         case 'pow': return w(n.b, tprec(n.b) >= 10 && n.b.t !== 'neg') + '^' + w(n.e, (n.e.t === 'num' || n.e.t === 'var'));
@@ -1021,6 +1049,7 @@ function compileC(n, bound = new Set()) {
             if (nm === 'x') return env => env.z;
             if (nm === 'y') return env => env.y;
             if (nm === 'pi') { const v = C(Math.PI); return () => v; }
+            if (nm === 'tau') { const v = C(2 * Math.PI); return () => v; }
             if (nm === 'e') { const v = C(Math.E); return () => v; }
             if (nm === 'i') return () => CI;
             return env => C(env.p[nm]);
@@ -1185,7 +1214,7 @@ let d3 = { R: 6, yaw: -0.65, pitch: 0.5, h: 're', surf: true, floor: true, th: 0
 let d3Scale = { key: '', Yr: 1 };
 let lineW = 1.5;   // 線の太さ（全体）。細めが既定
 let showPts = true;   // 交点（解・グラフどうしの交点）を表示するか
-let piOn = true;      // 交点・解の値を、π の分数倍なら π で書く（π/2、3π/4 など）
+let ptMode = 'pi';    // 交点・解の値の書き方：'dec' 小数／'pi' π の分数倍なら π で／'tau' τ（＝2π）の分数倍なら τ で
 let descOn = false;   // Σ の展開を、次数の高い項から並べる
 const dotR = () => 9;   // 交点の印の外側の大きさ（ラベルをずらす量）
 // '#rrggbb' → 透明度つきの色
@@ -1293,20 +1322,23 @@ function tagLabels(list) {
     ctx.restore();
 }
 
-// π の分数倍（分母 1・2・3・4・6・8・12、|値| ≦ 64π）なら 'π/2' '−3π/4' '2π' のような文字、違えば null
-function piForm(v) {
+// 定数 c（π か τ＝2π）の分数倍（分母 qs のどれか、|値| ≦ 64π）なら 'π/2' '−3π/4' 'τ/4' のような文字、違えば null
+function constForm(v, c, sym, qs) {
     if (!isFinite(v) || Math.abs(v) < 1e-9 || Math.abs(v) > 64 * Math.PI + 1) return null;
-    const t = v / Math.PI, gcd = (a, b) => b ? gcd(b, a % b) : a;
-    for (const q of [1, 2, 3, 4, 6, 8, 12]) {
+    const t = v / c, gcd = (a, b) => b ? gcd(b, a % b) : a;
+    for (const q of qs) {
         const p = Math.round(t * q);
-        if (p === 0 || Math.abs(v - p * Math.PI / q) > 1e-7 * Math.max(1, Math.abs(v))) continue;
+        if (p === 0 || Math.abs(v - p * c / q) > 1e-7 * Math.max(1, Math.abs(v))) continue;
         const g = gcd(Math.abs(p), q), P = Math.abs(p) / g, Q = q / g;
-        return (p < 0 ? '−' : '') + (P === 1 ? '' : P) + 'π' + (Q === 1 ? '' : '/' + Q);
+        return (p < 0 ? '−' : '') + (P === 1 ? '' : P) + sym + (Q === 1 ? '' : '/' + Q);
     }
     return null;
 }
-const fmtPt = v => (piOn && piForm(v)) || fmtShort(v);    // 交点のラベル
-const fmtSol = v => (piOn && piForm(v)) || fmtFix(v);     // 解の一覧
+const piForm = v => constForm(v, Math.PI, 'π', [1, 2, 3, 4, 6, 8, 12]);
+const tauForm = v => constForm(v, 2 * Math.PI, 'τ', [1, 2, 3, 4, 6, 8, 12, 16, 24]);   // π/2＝τ/4、π/6＝τ/12
+const constOf = v => ptMode === 'pi' ? piForm(v) : ptMode === 'tau' ? tauForm(v) : null;
+const fmtPt = v => constOf(v) || fmtShort(v);    // 交点のラベル
+const fmtSol = v => constOf(v) || fmtFix(v);     // 解の一覧
 // Σ の展開の並び：「高い次数から」の時は次数の大きい順（同じ次数は元の順）。次数が出ない式は逆順に
 function orderTerms(terms) {
     if (!descOn || !terms || terms.length < 2) return terms;
@@ -1513,7 +1545,7 @@ function closeParens(s) {
 // kind: 'fn' = y=f(x) / 'implicit' = x と y の式 = 0 / 'eqx' = x だけの方程式
 function analyze(ex) {
     ex.fn = null; ex.F = null; ex.cfn = null; ex.kind = ''; ex.err = ''; ex.free = []; ex.math = '';
-    ex.roots = null; ex.rootKey = null; ex.sum = null; ex.expKey = null;
+    ex.roots = null; ex.rootKey = null; ex.sum = null; ex.expKey = null; ex.constEq = null;
     let src = ex.text.replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');
     if (isBlank(src)) return;
     const pre = src.match(/^\s*[yY]\s*=([\s\S]*)$/);
@@ -1538,6 +1570,8 @@ function analyze(ex) {
             else {
                 ast = { t: 'bin', op: '-', l: L, r: R };
                 kind = allFree(ast).has('y') ? 'implicit' : 'eqx';
+                // x も y も無い等式（eitau=1 など）は、両辺を計算して確かめる
+                if (kind === 'eqx' && !allFree(ast).has('x')) ex.constEq = { L: compileC(L), R: compileC(R) };
             }
         }
         if (kind === 'fn' && ast.t === 'sum' && ast.kind === 'sum') {
@@ -1584,6 +1618,16 @@ function analyze(ex) {
 }
 
 function solText(ex) {
+    if (ex.constEq) {   // x の無い等式：両辺の値と、成り立つかどうか
+        try {
+            const env = { z: C(0), y: C(0), p: paramEnv(), loop: {} };
+            const l = ex.constEq.L(env), r = ex.constEq.R(env);
+            const ok = cabs(csub(l, r)) <= 1e-9 * Math.max(1, cabs(l), cabs(r));
+            const eps = 1e-12 * Math.max(1, cabs(l), cabs(r));   // 計算の誤差（e^(iπ)+1 の 1.2e−16i など）は 0 として出す
+            const show = z => { z = C(Math.abs(z.re) < eps ? 0 : z.re, Math.abs(z.im) < eps ? 0 : z.im); const re = z.im === 0 && constOf(z.re); return re || fmtCv(z); };
+            return `${ok ? '✓ 成り立つ' : '✗ 成り立たない'}　左辺 = ${show(l)}、右辺 = ${show(r)}`;
+        } catch (_) { return ''; }
+    }
     if (!ex.cfn || !ex.roots) return '';
     const rs = ex.roots.filter(r => cabs(r) <= 60);
     const head = ex.kind === 'implicit' ? 'y = 0 のとき x =' : ex.kind === 'eqx' ? '解 x =' : 'f(x) = 0 の解 x =';
@@ -1962,7 +2006,7 @@ function insertText(str, back) {
     commit(ex, inp);
 }
 
-const KB_NAMES = [...NAMES.filter(n => n !== 'pi'), 'Σ', 'Π', '√', '∛'].sort((a, b) => b.length - a.length);
+const KB_NAMES = [...NAMES.filter(n => n !== 'pi' && n !== 'tau'), 'Σ', 'Π', '√', '∛'].sort((a, b) => b.length - a.length);
 function backspace() {
     const { ex, inp } = target();
     const s = inp.selectionStart, e = inp.selectionEnd, v = inp.value;
@@ -3422,7 +3466,7 @@ function save() {
     try {
         localStorage.setItem(STORE, JSON.stringify({
             exprs: exprs.map(e => ({ text: e.text, color: e.color, visible: e.visible, ...(e.deg ? { deg: true } : {}) })),
-            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, piOn, descOn, styleVer: 2, xRot,
+            params, view, kbOn, kbTab, mode, viewC, colorOn, d3, lineW, showPts, ptMode, descOn, styleVer: 2, xRot,
         }));
     } catch (_) { /* 保存できない環境では何もしない */ }
 }
@@ -3444,7 +3488,7 @@ function load() {
     // styleVer 2 より前の保存（太い線が既定だった頃）の太さは使わず、新しい細い既定にする
     if (data.styleVer >= 2 && isFinite(data.lineW)) lineW = Math.min(6, Math.max(0.5, data.lineW));
     if (data.showPts === false) showPts = false;
-    if (data.piOn === false) piOn = false;
+    if (['dec', 'pi', 'tau'].includes(data.ptMode)) ptMode = data.ptMode; else if (data.piOn === false) ptMode = 'dec';
     if (data.descOn === true) descOn = true;
     if (data.xRot && isFinite(data.xRot.a)) xRot = { on: !!data.xRot.on, a: +data.xRot.a, spin: !!data.xRot.spin };
     if (data.colorOn === false) colorOn = false;
@@ -3586,9 +3630,11 @@ lwEl.addEventListener('input', () => { lineW = +lwEl.value; $('#lineWv').textCon
 const spEl = $('#showPts');
 spEl.checked = showPts;
 spEl.addEventListener('change', () => { showPts = spEl.checked; requestDraw(); save(); });
-const piEl = $('#piOn'), dsEl = $('#descOn');
-piEl.checked = piOn; dsEl.checked = descOn;
-piEl.addEventListener('change', () => { piOn = piEl.checked; exprs.forEach(refreshRow); requestDraw(); save(); });
+const dsEl = $('#descOn');
+dsEl.checked = descOn;
+const paintPt = () => document.querySelectorAll('#ptMode button').forEach(b => b.classList.toggle('on', b.dataset.m === ptMode));
+document.querySelectorAll('#ptMode button').forEach(b => b.addEventListener('click', () => { ptMode = b.dataset.m; paintPt(); exprs.forEach(refreshRow); requestDraw(); save(); }));
+paintPt();
 dsEl.addEventListener('change', () => { descOn = dsEl.checked; exprs.forEach(refreshRow); save(); });
 requestDraw();
 })();
