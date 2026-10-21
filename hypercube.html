@@ -4667,7 +4667,7 @@
         //   積分の範囲 −1〜+1 は両端もふくむ（閉区間）。端の胞（w の積分なら底 −W とふた +W）は最初と最後の層そのもの。
         //   いっぱいになった時に、端の胞を最初・最後の層の色にふわっと染める（4次元の体積は 0 なので値は変わらない）。取り出し始めたら戻す。
         //   胞の色は updateMorphingGeometry が毎フレーム書くので、書き直されていない時は元に戻してから染める（重ねがけしない）
-        const endTint = { cells: null };
+        var endTint = { cells: null, want: null };   // want：胞の番号 → { rgb, e }（形を作る前に決める＝「正確」のまとめメッシュにも使う）
         function endCellIds() {   // 組み上がりで、軸 d の −側・＋側にある胞の番号
             if (endTint.cells) return endTint.cells;
             const r = {}, H = HALF_S;
@@ -4680,8 +4680,7 @@
             }
             return (endTint.cells = r);
         }
-        function applyEndTint() {
-            if (!cellObjects3D || !cellObjects3D.length) return;
+        function computeEndTint() {   // 形を作る前に：いま染める端の胞と色
             const sm = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
             const hsl = h => { const c = new THREE.Color().setHSL(h, 1, 0.58); return [c.r, c.g, c.b]; };
             const RED = hsl(0), VIO = hsl(0.82), WHITE = [0.95, 0.95, 1], DIM = [0.55, 0.6, 0.72], GOLD = [0.98, 0.75, 0.14], TEAL = [0.18, 0.83, 0.75];
@@ -4700,6 +4699,11 @@
                 const e = sm((((wDuo.sw || 0) + (wDuo.sz || 0)) / 2 - 0.92) / 0.08);
                 add(3, '-', RED, e); add(3, '+', VIO, e); add(2, '-', GOLD, e); add(2, '+', TEAL, e);
             }
+            endTint.want = want;
+        }
+        function applyEndTint() {   // 形を作った後に：立体感モードの胞の面と、線を染める（「正確」の面は まとめメッシュの中で染める）
+            if (!cellObjects3D || !cellObjects3D.length) return;
+            const want = endTint.want || new Map();
             cellObjects3D.forEach((cell, ci) => {
                 const w = want.get(ci), C0 = cell.material && cell.material.color;
                 const one = (attr, tint) => {
@@ -5413,14 +5417,16 @@
                     const mcol = mergedFaces3D.geometry.attributes.color.array;
                     let mp = 0, mc = 0;
                     for (let qi = 0; qi < quads.length; qi++) {
-                        const ci = quads[qi][0], base = quads[qi][1], cv = cellVerts[ci], C = wrapCol(fCol4 ? fCol4[ci][base / 6] : CELL_RGB[ci], wrapE ? wrapE[ci] : 0);   // 奥を濃く：深い色のトーン／包み込む胞はトーンを落とす
+                        const ci = quads[qi][0], base = quads[qi][1], cv = cellVerts[ci], C0q = wrapCol(fCol4 ? fCol4[ci][base / 6] : CELL_RGB[ci], wrapE ? wrapE[ci] : 0);   // 奥を濃く：深い色のトーン／包み込む胞はトーンを落とす
+                        const tw = typeof endTint !== 'undefined' && endTint && endTint.want && endTint.want.get(ci);   // 積分がいっぱい：端の胞を層の色へ
+                        const C = tw ? { r: C0q.r + (tw.rgb[0] - C0q.r) * tw.e, g: C0q.g + (tw.rgb[1] - C0q.g) * tw.e, b: C0q.b + (tw.rgb[2] - C0q.b) * tw.e } : C0q;
                         const fcen = [0, 0, 0];
                         for (let k = 0; k < 6; k++) { const v = cv[cubeIndices[base + k]]; fcen[0] += v[0] / 6; fcen[1] += v[1] / 6; fcen[2] += v[2] / 6; }
                         const [qa, qs, qg] = faceShade(cv[cubeIndices[base]], cv[cubeIndices[base + 1]], cv[cubeIndices[base + 2]], fcen, cellCtr[ci], camL, backA, lightL, cfgFaceShade);
                         for (let k = 0; k < 6; k++) {   // 面の2三角形を連続で書く＝斜線が出ない
                             const idx = cubeIndices[base + k], v = cv[idx], bt = brightOf(cellDist[ci][idx]) * qs;   // 奥行きの明暗 × 面の向きの陰影
                             mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
-                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = xpVisible(3, ci) ? (dA4 ? Math.min(Math.max(1, 0.97 / Math.max(faceOpacity, 1e-3)), qa * cellFocus(3, ci).face * dA4[ci] * (1 + 0.5 * tIn4[ci][base / 6])) : Math.min(1, qa * cellFocus(3, ci).face)) * wrapA(ci) : 0;   // 奥ほど暗く＝遠近感。裏向きの面は透明に。包み込む胞は薄く
+                            mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = (xpVisible(3, ci) ? (dA4 ? Math.min(Math.max(1, 0.97 / Math.max(faceOpacity, 1e-3)), qa * cellFocus(3, ci).face * dA4[ci] * (1 + 0.5 * tIn4[ci][base / 6])) : Math.min(1, qa * cellFocus(3, ci).face)) * wrapA(ci) : 0) * (tw ? 1 + 1.5 * tw.e : 1);   // 閉じた端の胞は少し濃く   // 奥ほど暗く＝遠近感。裏向きの面は透明に。包み込む胞は薄く
                         }
                     }
                     mergedFaces3D.geometry.attributes.position.needsUpdate = true;
@@ -5779,6 +5785,7 @@
             // カメラを回している最中も「手前=はっきり/奥=ダーク」を毎フレーム再評価する
             //   （辺・面の濃淡はカメラ距離ベースなので、カメラ移動でも更新が要る）。描画直前に更新。
             stepWTour();   // 「横から見る」の角度・投影を進める（形を作る前に）
+            computeEndTint();   // 積分がいっぱいの時に染める端の胞（形を作る前に決める）
             updateMorphingGeometry(animationProgress);
             updateWSlice(animationProgress);   // w の輪切り（ON の時だけ描く）
             updateSkinSlice(animationProgress);   // 皮の輪切り（展開図・折りたたみ中でも）
@@ -8745,7 +8752,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261021-2203';
+        const APP_BUILD = '20261021-2208';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
