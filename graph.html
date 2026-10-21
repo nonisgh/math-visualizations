@@ -113,6 +113,9 @@
     .sol:empty { display: none; }
     .sol::before { content: '◎ '; color: var(--c); }
     .sol:hover { color: var(--c); }
+    .calc .sol { font: 600 16px ui-monospace, 'SF Mono', Menlo, monospace; color: #f8fafc; cursor: default; padding: 4px 0 3px; }
+    .calc .sol::before { content: ''; }
+    .calc .sol:hover { color: #f8fafc; }
     .fx { font: 600 12.5px ui-monospace, 'SF Mono', Menlo, monospace; color: #fde68a; padding: 1px 0 2px; cursor: pointer; overflow-wrap: anywhere; }
     .fx:empty { display: none; }
     .fx::before { content: '▸ '; color: var(--c); }
@@ -1669,7 +1672,7 @@ function closeParens(s) {
 // kind: 'fn' = y=f(x) / 'implicit' = x と y の式 = 0 / 'eqx' = x だけの方程式
 function analyze(ex) {
     ex.fn = null; ex.F = null; ex.cfn = null; ex.kind = ''; ex.err = ''; ex.free = []; ex.math = '';
-    ex.roots = null; ex.rootKey = null; ex.sum = null; ex.expKey = null; ex.constEq = null;
+    ex.roots = null; ex.rootKey = null; ex.sum = null; ex.expKey = null; ex.constEq = null; ex.calc = false;
     let src = ex.text.replace(/^\s*[a-zA-Z]\s*\(\s*[xX]\s*\)\s*=/, 'y=');
     if (isBlank(src)) return;
     const pre = src.match(/^\s*[yY]\s*=([\s\S]*)$/);
@@ -1724,6 +1727,8 @@ function analyze(ex) {
         }
         ex.cfn = cf;
         ex.math = math;
+        // x も y も無い式（2+3、sqrt(2)、2a など）は「ただの電卓」：答えを出すだけで、グラフには描かない
+        ex.calc = kind === 'fn' && !(ex.sum && ex.deg) && !allFree(ast).has('x');
         if (kind === 'implicit') ex.F = compile(ast);
         else if (kind === 'fn') {
             if (allFree(ast).has('i')) {
@@ -1742,6 +1747,7 @@ function analyze(ex) {
 }
 
 function solText(ex) {
+    if (ex.calc) return calcText(ex);
     if (ex.constEq) {   // x の無い等式：両辺の値と、成り立つかどうか
         try {
             const env = { z: C(0), y: C(0), p: paramEnv(), loop: {} };
@@ -1790,6 +1796,15 @@ function copyXAst() {
     if (fr.has('x') || fr.has('y')) throw ParseError('x に入れる値に x・y は使えません');
     return a;
 }
+// ただの電卓：x も y も無い式の答え（スライダーの文字は今の値で）。実数なら π/τ の書き方の設定も、複素数なら a + bi
+function calcText(ex) {
+    try {
+        const v = ex.cfn({ z: C(0), y: C(0), p: paramEnv(), loop: {} });
+        if (!isFinite(v.re) || !isFinite(v.im)) return '= 計算できません';
+        const f = fmtFx(v), real = Math.abs(v.im) <= 1e-12 * Math.max(1, cabs(v));
+        return '= ' + f + (real && /[πτ]/.test(f) ? '  ≈ ' + fmtSig(v.re) : '');   // π/2 のように記号で出した時は小数も
+    } catch (_) { return '= 計算できません'; }
+}
 // x に代入：今の x の値（読めない・空なら null）と、各式の f(値)
 function substX() {
     let a; try { a = copyXAst(); } catch (_) { return null; }
@@ -1798,7 +1813,7 @@ function substX() {
     return isFinite(v) ? { ast: a, v, label: toSrc(a) } : null;
 }
 function fxValue(ex, X) {   // y=f(x) の式の f(X.v)（複素数）。答えが出せなければ null
-    if (!X || ex.kind !== 'fn' || !ex.cfn) return null;
+    if (!X || ex.kind !== 'fn' || !ex.cfn || ex.calc) return null;
     try { const v = ex.cfn({ z: C(X.v), y: C(0), p: paramEnv(), loop: {} }); return isFinite(v.re) && isFinite(v.im) ? v : null; } catch (_) { return null; }
 }
 function fmtFx(v) {   // 実数なら π/τ の書き方も（設定に合わせる）、複素数なら a + bi
@@ -1810,6 +1825,8 @@ function refreshFx() {
     const X = substX();
     exprs.forEach(ex => {
         if (!ex.row) return;
+        if (ex.calc) { const c = calcText(ex); if (ex.calcShown !== c) { ex.calcShown = c; ex.row.querySelector('.sol').textContent = c; } ex.row.classList.add('calc'); }
+        else ex.row.classList.remove('calc');
         const v = fxValue(ex, X);
         const t = v ? `f(${X.label}) = ${fmtFx(v)}` : '';
         if (ex.fxText !== t) { ex.fxText = t; ex.row.querySelector('.fx').textContent = t; }
@@ -1887,6 +1904,7 @@ function renderList() {
             if (terms) addAfter(ex.id, 'y=' + toSrc(termsToAst(orderTerms(terms))));
         });
         row.querySelector('.sol').addEventListener('click', () => {
+            if (ex.calc) return;   // 電卓の答えの行は押しても何もしない
             setActive(ex.id);
             if (mode !== 'c') setMode('c');
             fitRootsC(ex);
@@ -2455,7 +2473,7 @@ function drawReal() {
     if (rot) { drawRotCurves(env, sx, sy, x0, x1, sc); return; }
     const N = Math.ceil(W_);
     const drawFnCurve = ex => {
-        if (!ex.visible || !ex.fn) return;
+        if (!ex.visible || !ex.fn || ex.calc) return;
         ctx.beginPath();
         let pen = false, prev = 0;
         for (let i = 0; i <= N; i++) {
@@ -2512,7 +2530,7 @@ function drawReal() {
             marks.add(px, py, ex.color);
             if (Math.abs(r.re) > 1e-9) tags.push({ x: px, y: py - 12, align: 'center', text: fmtPt(r.re), color: ex.color });
         });
-        if (ex.kind === 'fn' && ex.fn) {
+        if (ex.kind === 'fn' && ex.fn && !ex.calc) {
             env.x = 0;
             const y = ex.fn(env), px = sx(0), py = sy(y);
             if (!isFinite(y) || px < -6 || px > W_ + 6 || py < -6 || py > H_ + 6) return;
@@ -2524,7 +2542,7 @@ function drawReal() {
 
 
     // グラフどうしの交点（y=f(x) どうし、y=f(x) と陰関数）
-    const rows = showPts ? exprs.filter(e => e.visible && ((e.kind === 'fn' && e.fn) || (e.kind === 'implicit' && e.F))) : [];
+    const rows = showPts ? exprs.filter(e => e.visible && !e.calc && ((e.kind === 'fn' && e.fn) || (e.kind === 'implicit' && e.F))) : [];
     const inter = [];
     for (let a = 0; a < rows.length; a++) for (let b = a + 1; b < rows.length; b++) {
         let A = rows[a], B = rows[b], h, yOf;
@@ -2647,7 +2665,7 @@ function drawRotCurves(env, sx, sy, x0, x1, sc) {
     const a = xRot.a * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
     const cenv = { z: null, y: C(0), p: env, loop: {} };
     const N = Math.ceil(W_), fl = rotFlashAmt();
-    const rows = drawOrder().filter(ex => ex.visible && ex.cfn && ex.kind === 'fn');   // 重なりの設定の順に描く
+    const rows = drawOrder().filter(ex => ex.visible && ex.cfn && ex.kind === 'fn' && !ex.calc);   // 重なりの設定の順に描く
     rows.forEach(ex => {
         const re = new Float64Array(N + 1), im = new Float64Array(N + 1);
         for (let i = 0; i <= N; i++) {
