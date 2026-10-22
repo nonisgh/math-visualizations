@@ -4393,7 +4393,7 @@
         const lerp3s = (A, B, f) => [A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f, A[2] + (B[2] - A[2]) * f];
         // 七色の立方体（共通）：写した 8 頂点 vs を、立方体の座標 gi（0＝1 本目…）の方向に 赤→紫 で塗る。pL(v, f)＝線、pF(v, f)＝面（f＝0〜1 の位置の色で）
         // 七色の立方体（立体）の中身：立方体の中に、色の方向に垂直な板 7 枚（帯ごとに 1 色）と、ほかの 2 方向に縦の板 4 枚ずつ（7 色の帯）を薄く入れて、透ける立体に見せる。pF(v, f, k)＝k は濃さの倍率
-        const SPEC_VOL_CUT = [0.2, 0.4, 0.6, 0.8], SPEC_VOL_KY = 0.22, SPEC_VOL_KX = 0.3;
+        const SPEC_VOL_CUT = [0.2, 0.4, 0.6, 0.8], SPEC_VOL_KY = 0.34, SPEC_VOL_KX = 0.45;
         function cubeAt(vs) {   // 立方体の中の位置 c（各 0〜1）→ 写した 8 頂点 vs の三重線形
             const idx = []; unitCubeVertices.forEach((u, i) => { idx[(u[0] > 0 ? 1 : 0) + (u[1] > 0 ? 2 : 0) + (u[2] > 0 ? 4 : 0)] = i; });
             return c => {
@@ -4463,7 +4463,7 @@
             if (faceOn && vol && !ball) ringVolEmit(vs, pF);
         }
         // 同心の七色（立体）の中身：3 方向それぞれに、面と同じ同心の柄の板を 3 枚ずつ（1/4・1/2・3/4 の所）薄く入れる。どの向きから見ても輪が重なって透ける立体に
-        const RING_VOL_CUT = [0.25, 0.5, 0.75], RING_VOL_K = 0.3;
+        const RING_VOL_CUT = [0.25, 0.5, 0.75], RING_VOL_K = 0.45;
         function ringVolEmit(vs, pF) {
             const at = cubeAt(vs), pK = (v, f) => pF(v, f, RING_VOL_K);
             for (let d = 0; d < 3; d++) {
@@ -5777,19 +5777,19 @@
             };
             const ready = animationProgress >= 0.92 && explodeE() < 0.05;
             if (ready && wSlice.on && wSlice.pack) {   // 4D空間積分：w の両端
-                const e = sm(((wSlice.packFront !== undefined ? wSlice.packFront : -1) - (wSlice.packBack !== undefined ? wSlice.packBack : -1) - 1.9) / 0.1);   // いっぱい（−1〜+1 が全部埋まっている）の時だけ
+                const e = Math.max(0, Math.min(1, ((wSlice.packFront !== undefined ? wSlice.packFront : -1) - (wSlice.packBack !== undefined ? wSlice.packBack : -1)) / 2));   // 埋まった割合のまま（リアルタイム）：敷きつめるほど両端の胞が染まって奥の暗さが抜ける
                 const lay = wPackRainbow && wPackRbStyle === 'w';   // 層ごとの色なら 赤・紫、七色の立方体なら白で閉じる
                 add(3, '-', lay ? RED : WHITE, e); add(3, '+', lay ? VIO : WHITE, e);
                 open(3, '+', wSlice.packLid !== undefined ? wSlice.packLid : 1 - e); if (wSlice.packLidM) open(3, '-', wSlice.packLidM);   // 立方体は ふた（+W）の先から入ってくる。開け閉めは時刻で（取り出す前に開き切る）
             }
             if (ready && wDbl.on && wDbl.n) {   // 二重積分：w と a の両端
-                const e = sm(((wDbl.sum || 0) / (wDbl.n * wDbl.n) * (wDbl.fade !== undefined ? wDbl.fade : 1) - 0.92) / 0.08), ai = { x: 0, y: 1, z: 2 }[wDbl.axis];
+                const e = Math.max(0, Math.min(1, (wDbl.sum || 0) / (wDbl.n * wDbl.n) * (wDbl.fade !== undefined ? wDbl.fade : 1))), ai = { x: 0, y: 1, z: 2 }[wDbl.axis];
                 const sp = wPackRainbow && (wPackRbStyle === 'spec' || wPackRbStyle === 'ring' || wPackRbStyle === 'ball');
                 add(3, '-', sp ? WHITE : RED, e); add(3, '+', sp ? WHITE : VIO, e); add(ai, '-', sp ? WHITE : DIM, e); add(ai, '+', WHITE, e);
                 const lp = wDbl.lidP !== undefined ? wDbl.lidP : 1 - e; open(3, '+', lp); open(ai, '+', lp); if (wDbl.lidM) { open(3, '-', wDbl.lidM); open(ai, '-', wDbl.lidM); }   // ふた：選んだ方向（+W と +α）を開ける。反対側から出す時は −W と −α も
             }
             if (ready && wDuo.on) {   // 同時に（2〜4 方向）：選んだ向きの両端
-                const AX = wDuoAxes(), fr = wDuo.fr || {}, e = sm((AX.reduce((a, ax) => a + (fr[ax] || 0), 0) / AX.length - 0.92) / 0.08);
+                const AX = wDuoAxes(), fr = wDuo.fr || {}, e = Math.max(0, Math.min(1, AX.reduce((a, ax) => a + (fr[ax] || 0), 0) / AX.length));   // 埋まった割合のまま（リアルタイム）
                 const sp = wPackRainbow && (wPackRbStyle === 'spec' || wPackRbStyle === 'ring' || wPackRbStyle === 'ball'), hx = h => { const c = new THREE.Color(h); return [c.r, c.g, c.b]; };
                 const lo = wDuo.lid !== undefined ? wDuo.lid : 1 - e;
                 AX.forEach(ax => {
