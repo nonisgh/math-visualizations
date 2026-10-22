@@ -4888,7 +4888,8 @@
         //   排水口からはトリチェリ（出る速さ √(2g・深さ)）：水位の下がる速さ＝(穴の広さ／水面の広さ) × √(2g・深さ) → 空になるまで (水面の広さ／穴の広さ) × √(2・2H／g)。
         //   4次元では「広さ」は 3次元の体積なので、広さの比は (穴の半幅／H)³（3次元のお風呂なら 2 乗）。同じ形の穴でも 4次元のほうがずっとゆっくり抜ける
         const WFALL_T = () => Math.sqrt(2 * 2 * HALF_S / WWATER.g), WDRAIN_HOLE_T = () => WFALL_T() / Math.pow(WWATER.HOLE, 3);
-        const SWE = { N: 16, M: 32, G: WWATER.g, GAM: 0.2, JET: 0.3, SINK: 1.6, LIM: 0.32, DT: 0.012, noise: 0, ready: false };
+        const SWE = { NU_WATER: 0.002, NU_OIL: 0.35, CD_OIL: 0.5, VC3: 0.05, VC2: 0.08,   // VC＝横の粘りの 1 小ステップの上限（波の計算と合わせても安定するように）
+            N: 16, M: 32, G: WWATER.g, GAM: 0.2, JET: 0.3, SINK: 1.6, LIM: 0.32, DT: 0.012, noise: 0, ready: false };
         function sweInit() {
             const N = SWE.N, M = SWE.M, N3 = N * N * N, cen = i => -1 + (i + 0.5) * 2 / N, cen2 = i => -1 + (i + 0.5) * 2 / M, us = WWATER.US;
             SWE.eta = new Float32Array(N3); SWE.ux = new Float32Array((N + 1) * N * N); SWE.uy = new Float32Array(N * (N + 1) * N); SWE.uz = new Float32Array(N * N * (N + 1)); SWE.p = new Float32Array(N3);
@@ -4905,8 +4906,22 @@
             SWE.ready = true;
         }
         function sweReset() { if (!SWE.ready) sweInit(); [SWE.eta, SWE.ux, SWE.uy, SWE.uz, SWE.e2, SWE.vx2, SWE.vy2, SWE.oil, SWE.oil2].forEach(a => a.fill(0)); SWE.noise = 0; }
-        function sweStep(dt, g, D, jet, sink) {   // 1 小ステップ（4D の 3 方向と、左の 2 方向）
-            const N = SWE.N, dx = 2 * HALF_S / N, E = SWE.eta, UX = SWE.ux, UY = SWE.uy, UZ = SWE.uz, P = SWE.p, damp = Math.exp(-SWE.GAM * dt), L = SWE.LIM * HALF_S;
+        // 粘性（ナビエ–ストークスの粘性の項を水深で平均したもの）：
+        //   ・底との摩擦：床の上をべったり流れる形（ポアズイユ流れ）で −3ν u／D²。浅いほど急に強い（油が薄く広がると、ほとんど動かない）
+        //   ・横どうしの粘り：ν ∇²u（流れの速さがならされる）
+        //   ν（動粘性）は水 0.002、油 0.35（約 175 倍）。底の摩擦は exp で解くのでいつも安定、横の粘りは格子に合わせて上限
+        function sweVisc(U, T, nI, nJ, nK, fixI, fixJ, fixK, c) {   // 面の速さ U（nI×nJ×nK）に c・∇²U。fixI などは壁の面（動かさない）
+            T.set(U.subarray(0, nI * nJ * nK));
+            const id = (i, j, k) => (i * nJ + j) * nK + k, cl = (q, n) => q < 0 ? 0 : q >= n ? n - 1 : q;
+            for (let i = 0; i < nI; i++) { if (fixI && (i === 0 || i === nI - 1)) continue;
+                for (let j = 0; j < nJ; j++) { if (fixJ && (j === 0 || j === nJ - 1)) continue;
+                    for (let k = 0; k < nK; k++) { if (fixK && (k === 0 || k === nK - 1)) continue;
+                        const n = id(i, j, k);
+                        U[n] = T[n] + c * (T[id(cl(i - 1, nI), j, k)] + T[id(cl(i + 1, nI), j, k)] + T[id(i, cl(j - 1, nJ), k)] + T[id(i, cl(j + 1, nJ), k)] + (nK > 1 ? T[id(i, j, cl(k - 1, nK))] + T[id(i, j, cl(k + 1, nK))] : 0) - (nK > 1 ? 6 : 4) * T[n]);
+                    } } }
+        }
+        function sweStep(dt, g, D, jet, sink, nu = 0) {   // 1 小ステップ（4D の 3 方向と、左の 2 方向）。nu＝動粘性
+            const N = SWE.N, dx = 2 * HALF_S / N, E = SWE.eta, UX = SWE.ux, UY = SWE.uy, UZ = SWE.uz, P = SWE.p, damp = Math.exp(-(SWE.GAM + 3 * nu / (D * D)) * dt), L = SWE.LIM * HALF_S;   // 減衰＝もともとの分 ＋ 底の摩擦 3ν/D²
             for (let n = 0; n < P.length; n++) P[n] = jet * SWE.gj[n];
             for (let i = 1; i < N; i++) for (let j = 0; j < N; j++) for (let k = 0; k < N; k++) { const a = ((i - 1) * N + j) * N + k, b = (i * N + j) * N + k; UX[b] = (UX[b] - dt * (g * (E[b] - E[a]) + P[b] - P[a]) / dx) * damp; }   // ux の面 i（0 と N は壁）
             for (let i = 0; i < N; i++) for (let j = 1; j < N; j++) for (let k = 0; k < N; k++) { const a = (i * N + j - 1) * N + k, b = (i * N + j) * N + k, f = (i * (N + 1) + j) * N + k; UY[f] = (UY[f] - dt * (g * (E[b] - E[a]) + P[b] - P[a]) / dx) * damp; }
@@ -4917,11 +4932,21 @@
                 const div = UX[((i + 1) * N + j) * N + k] - UX[n] + UY[(i * (N + 1) + j + 1) * N + k] - UY[(i * (N + 1) + j) * N + k] + UZ[(i * N + j) * (N + 1) + k + 1] - UZ[(i * N + j) * (N + 1) + k];
                 E[n] += dt * (-D * div / dx - sink * SWE.gc[n]); sum += E[n];
             }
-            const mean = sum / E.length; for (let n = 0; n < E.length; n++) E[n] = Math.max(-L, Math.min(L, E[n] - mean));   // 平均の水位は h が受け持つ
+            const mean = sum / E.length; for (let n = 0; n < E.length; n++) E[n] = Math.max(-L, Math.min(L, E[n] - mean));
+            if (nu > 0.01) {   // 横どうしの粘り ν∇²u（4D：x・y・z の 3 方向）
+                if (!SWE.vt) SWE.vt = new Float32Array((N + 1) * N * N);
+                const c = Math.min(nu * dt / (dx * dx), SWE.VC3);
+                sweVisc(UX, SWE.vt, N + 1, N, N, true, false, false, c); sweVisc(UY, SWE.vt, N, N + 1, N, false, true, false, c); sweVisc(UZ, SWE.vt, N, N, N + 1, false, false, true, c);
+            }   // 平均の水位は h が受け持つ
             const M = SWE.M, d2 = 2 * HALF_S / M, E2 = SWE.e2, VX = SWE.vx2, VY = SWE.vy2, P2 = SWE.p2;   // 左の 3D水（x・y の 2 方向）
             for (let n = 0; n < P2.length; n++) P2[n] = jet * SWE.gj2[n];
             for (let i = 1; i < M; i++) for (let j = 0; j < M; j++) { const a = (i - 1) * M + j, b = i * M + j; VX[b] = (VX[b] - dt * (g * (E2[b] - E2[a]) + P2[b] - P2[a]) / d2) * damp; }
             for (let i = 0; i < M; i++) for (let j = 1; j < M; j++) { const a = i * M + j - 1, b = a + 1, f = i * (M + 1) + j; VY[f] = (VY[f] - dt * (g * (E2[b] - E2[a]) + P2[b] - P2[a]) / d2) * damp; }
+            if (nu > 0.01) {   // 左：横どうしの粘り（x・y の 2 方向）
+                if (!SWE.vt2) SWE.vt2 = new Float32Array((M + 1) * M);
+                const c = Math.min(nu * dt / (d2 * d2), SWE.VC2);
+                sweVisc(VX, SWE.vt2, M + 1, M, 1, true, false, false, c); sweVisc(VY, SWE.vt2, M, M + 1, 1, false, true, false, c);
+            }
             let s2 = 0;
             for (let i = 0; i < M; i++) for (let j = 0; j < M; j++) { const n = i * M + j, div = VX[(i + 1) * M + j] - VX[n] + VY[i * (M + 1) + j + 1] - VY[i * (M + 1) + j]; E2[n] += dt * (-D * div / d2 - sink * SWE.gc2[n]); s2 += E2[n]; }
             const m2 = s2 / E2.length; for (let n = 0; n < E2.length; n++) E2[n] = Math.max(-L, Math.min(L, E2[n] - m2));
@@ -5008,7 +5033,7 @@
             return pts;
         }
         const LIQ_WATER = { surf: [0.32, 0.78, 1], grid: [0.1, 0.32, 0.62], wall: [0.1, 0.4, 0.95], men: [0.38, 0.78, 1], cornB: [0.12, 0.42, 0.95], cornT: [0.3, 0.7, 1], bot: [0.05, 0.25, 0.7], stream: [0.3, 0.7, 1], bead: [0.5, 0.85, 1], drop1: [0.45, 0.8, 1], drop2: [0.2, 0.5, 0.95], out: [0.12, 0.45, 0.98], outL: [0.25, 0.6, 1], sec: [0.35, 0.75, 1], rim: [0.15, 0.4, 1], vort: [0.25, 0.62, 1], bub: lt => [0.35 + 0.3 * lt, 0.7 + 0.25 * lt, 1] };
-        const LIQ_OIL = { surf: [0.42, 0.25, 0.06], grid: [0.3, 0.17, 0.04], wall: [0.3, 0.16, 0.03], men: [0.8, 0.52, 0.16], cornB: [0.35, 0.19, 0.04], cornT: [0.75, 0.48, 0.13], bot: [0.14, 0.07, 0.02], stream: [0.78, 0.5, 0.13], bead: [0.98, 0.75, 0.32], drop1: [0.9, 0.62, 0.22], drop2: [0.5, 0.29, 0.07], out: [0.38, 0.2, 0.04], outL: [0.62, 0.38, 0.1], sec: [0.72, 0.46, 0.12], rim: [0.75, 0.48, 0.12], vort: [0.65, 0.4, 0.1], bub: lt => [0.9 + 0.1 * lt, 0.7 + 0.15 * lt, 0.35 + 0.2 * lt] };   // 石油っぽい：濃い琥珀〜茶色
+        const LIQ_OIL = { surf: [0.2, 0.12, 0.035], grid: [0.16, 0.09, 0.025], wall: [0.13, 0.07, 0.018], men: [0.48, 0.3, 0.09], cornB: [0.16, 0.08, 0.02], cornT: [0.45, 0.27, 0.08], bot: [0.06, 0.03, 0.01], stream: [0.42, 0.25, 0.07], bead: [0.7, 0.48, 0.18], drop1: [0.6, 0.4, 0.13], drop2: [0.3, 0.17, 0.04], out: [0.17, 0.09, 0.02], outL: [0.36, 0.21, 0.06], sec: [0.42, 0.26, 0.07], rim: [0.45, 0.28, 0.08], vort: [0.38, 0.23, 0.06], bub: lt => [0.75 + 0.15 * lt, 0.55 + 0.15 * lt, 0.28 + 0.15 * lt] };   // 石油っぽい：黒に近い焦げ茶（虹色の膜が浮いて見える）
         function updateWater(progress) {
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r3) return;
             if (!wWater.bp) wWater.bp = wBubPts(r3); if (!wWater.bp2 && r2) wWater.bp2 = wBubPts(r2);
@@ -5019,7 +5044,7 @@
             wWater.line.visible = wWater.face.visible = wWater.bp.visible = show; if (wWater.line2) wWater.line2.visible = wWater.face2.visible = show2; if (wWater.bp2) wWater.bp2.visible = show2;
             if (!show) { updateWaterHUD(false); updateWaterHUD2(false); wWater.drops = []; return; }
             const W = WWATER, now = performance.now(), dt = Math.min(0.1, (now - (wWater.last || now)) / 1000); wWater.last = now;
-            const hole = wWaterHole(), DR = hole ? WDRAIN_HOLE_T() : WFALL_T(), HR = W.HOLE * HALF_S;   // 抜ける時間は g と穴の広さから   // 排水口：床の立方体の真ん中の小さな立方体（半分の幅 HR）
+            const hole = wWaterHole(), DR = hole ? WDRAIN_HOLE_T() / (wWaterOil ? SWE.CD_OIL : 1) : WFALL_T(), HR = W.HOLE * HALF_S;   // 抜ける時間は g と穴の広さから   // 排水口：床の立方体の真ん中の小さな立方体（半分の幅 HR）
             const t0 = W.OPEN, t1 = t0 + W.POUR, t2 = t1 + W.CLOSE, t3 = t2 + W.HOLD, t3b = t3 + W.BOPEN, t4 = t3b + DR, t5 = t4 + W.BCLOSE, cycle = t5 + W.EMPTY;   // 上のふたを開ける → 注ぐ → 閉める → 置く → 底の栓を抜く → じゃぁー → 栓をする → くり返す
             if (wWater.t + dt >= cycle) wWater.cyc = (wWater.cyc || 0) + 1;   // 1 回り（交互の入れ替え）
             wWater.t = (wWater.t + dt) % cycle; wWater.T += dt; requestRender(2);
@@ -5043,7 +5068,7 @@
                 for (let q = 0; q < nSub; q++) {
                     SWE.noise = Math.max(-1, Math.min(1, SWE.noise * 0.97 + (Math.random() * 2 - 1) * 0.35));   // 水の筋の勢いのゆらぎ
                     const jet = pouring && wWater.h > -0.98 ? SWE.JET * (1 + 1.0 * SWE.noise) : 0, sink = hole && wWater.phase === 'drain' ? SWE.SINK * Math.min(1, (wWater.h + 1) * 2) : 0;
-                    sweStep(sd, g, D, jet, sink);
+                    sweStep(sd, g, D, jet, sink, wWaterOil ? SWE.NU_OIL : SWE.NU_WATER);   // 油は粘りけが大きい
                     if (wWaterOil) oilStep(sd, jet > 0 ? 1 : 0, sink > 0 ? OIL.DRAIN : 0, wWater.T);   // 油膜：流れで運ばれて広がる
                 }
             }
@@ -5062,7 +5087,7 @@
             const shine = d => Math.max(0.55, Math.min(1.5, 0.85 + 5 * d));   // 波の山は明るく、谷は暗く（きらきら）
             // 虹の水：水の粒は注いだ時の高さ（底 赤 … いっぱいの所 紫）の色のまま動かない＝層が混ざらずに残る（4D空間積分の虹の立方体と同じ並び）。抜く時は層ごと下がる
             const LQ = wWaterOil ? LIQ_OIL : LIQ_WATER;   // 液体の色：水（青）／油（石油っぽい濃い琥珀色。虹色の膜が目立つ）
-            wWater.face.material.opacity = wWaterOil ? 0.62 : 0.4; if (wWater.face2) wWater.face2.material.opacity = wWaterOil ? 0.62 : 0.4;
+            wWater.face.material.opacity = wWaterOil ? 0.78 : 0.4; if (wWater.face2) wWater.face2.material.opacity = wWaterOil ? 0.78 : 0.4;
             const rb = wWaterRainbow, NB = 12, shiftW = wWater.phase === 'drain' || wWater.phase === 'bclose' ? (1 - h) * H : 0, rbc = new THREE.Color();
             const hueRGB = w => { const f = Math.max(0, Math.min(1, (w + shiftW + H) / (2 * H))); rbc.setHSL(0.82 * f, 1, 0.55); return [rbc.r, rbc.g, rbc.b]; };
             const NG = 24, bandLv = (top) => { const lv = [-H]; for (let k = 1; k < NG; k++) { const w = -H + k * 2 * H / NG - shiftW; if (w > -H + 1e-4 && w < top - 1e-4) lv.push(w); } return lv; };   // 壁を細かく分ける高さ（色は頂点ごと＝境目のないグラデーション）
@@ -5134,7 +5159,7 @@
                 }
             }
             // しぶき：筋が水面に当たる所から跳ねて、また落ちる
-            if (pouring && h > -0.98) for (let n = 0; n < Math.round(40 * dt + Math.random() * 0.6); n++) {
+            if (pouring && h > -0.98) for (let n = 0; n < Math.round((40 * dt + Math.random() * 0.6) * (wWaterOil ? 0.12 : 1)); n++) {   // 粘い油はしぶきがほとんど立たない
                 const a = Math.random() * Math.PI * 2, b = Math.acos(2 * Math.random() - 1), sp = (0.4 + Math.random() * 0.6) * H;
                 wWater.drops.push({ p: [sx, sy, sz, surfS], v: [Math.sin(b) * Math.cos(a) * sp, Math.sin(b) * Math.sin(a) * sp, Math.cos(b) * sp, (0.8 + Math.random() * 0.8) * H], life: 1.2 });
             }
@@ -5149,7 +5174,7 @@
             if (wWater.drops.length > 160) wWater.drops.splice(0, wWater.drops.length - 160);
             // 泡：水の中を +W（重力と逆）へゆらゆら上がって、水面ではじける。注ぐ時は水の筋が当たった所の下から、抜く時は底（排水口なら穴から ぼこぼこ）
             const inWater = h > -0.97, nRate = r => Math.floor(r * dt + Math.random()), rnd = () => Math.random() * 2 - 1;
-            const newBub = (x, y, z, w) => ({ p: [x, y, z, w], r: (0.035 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H, ph: Math.random() * 6.3, pop: -1 });
+            const newBub = (x, y, z, w) => ({ p: [x, y, z, w], r: (0.035 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H * (wWaterOil ? 0.25 : 1), ph: Math.random() * 6.3, pop: -1 });   // 油の中はゆっくり上がる（ストークス：上がる速さ ∝ 1／粘性）
             if (!wWater.bub) wWater.bub = [];
             if (pouring && inWater) for (let q = nRate(26); q > 0; q--) wWater.bub.push(newBub(sx + rnd() * 0.18 * H, sy + rnd() * 0.18 * H, sz + rnd() * 0.18 * H, Math.max(-0.95 * H, surfS - (0.1 + Math.random() * 0.5) * H)));
             if (wWater.phase === 'drain' && inWater) {
@@ -5277,7 +5302,7 @@
                 // 左の立方体の泡：z の方向に上がって、水面（正方形）ではじける
                 if (!wWater.bub2) wWater.bub2 = [];
                 const nR = r => Math.floor(r * dt + Math.random()), rn = () => Math.random() * 2 - 1, inW = h > -0.97;
-                const nb = (x, y, z) => ({ p: [x, y, z], r: (0.035 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H, ph: Math.random() * 6.3, pop: -1 });
+                const nb = (x, y, z) => ({ p: [x, y, z], r: (0.035 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H * (wWaterOil ? 0.25 : 1), ph: Math.random() * 6.3, pop: -1 });
                 if (pouring && inW) for (let q = nR(14); q > 0; q--) wWater.bub2.push(nb(W.US[0] * H + rn() * 0.18 * H, W.US[1] * H + rn() * 0.18 * H, Math.max(-0.95 * H, (h - 0.1 - Math.random() * 0.5) * H)));
                 if (wWater.phase === 'drain' && inW) for (let q = nR(hole ? 14 * Math.max(0, Math.sin(T * 7)) : 9); q > 0; q--) wWater.bub2.push(nb(rn() * (hole ? HR : 0.9 * H), rn() * (hole ? HR : 0.9 * H), -0.95 * H));
                 const ring2 = (b, rr, a) => {   // 左の泡＝小さな球（透けた玉 1 つ）
@@ -9785,7 +9810,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1143';
+        const APP_BUILD = '20261022-1147';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
