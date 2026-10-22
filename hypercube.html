@@ -4998,6 +4998,10 @@
             const M = SWE.M, f = q => Math.max(0, Math.min(M - 1.0001, (q + 1) / 2 * M - 0.5)), x = f(u[0]), y = f(u[1]), i = Math.floor(x), j = Math.floor(y), a = x - i, b = y - j, I = Math.min(M - 1, i + 1), J = Math.min(M - 1, j + 1), O = SWE.oil2;
             return (O[i * M + j] * (1 - b) + O[i * M + J] * b) * (1 - a) + (O[I * M + j] * (1 - b) + O[I * M + J] * b) * a;
         }
+        // 油の透け方（ハチミツのよう）：ランベルト–ベールの法則。光が液体の中を通る道のり L が長いほど吸収される。
+        //   油やハチミツは青から先に吸われる（吸収の強さ 赤 < 緑 < 青）→ 薄い所は明るい金色、中くらいは琥珀色、厚い所は濃い赤茶〜ほぼ黒（明暗のコントラスト）
+        const HONEY = { LIGHT: [1.08, 0.94, 0.72], K: [0.5, 1.45, 3.5] };   // 透かす光の色・吸収（H あたり）
+        function honeyRGB(L) { return HONEY.LIGHT.map((c, i) => c * Math.exp(-HONEY.K[i] * Math.max(0, L))); }
         function oilVivid(f) {   // 干渉色を鮮やかに（白っぽさを引いて、彩度を上げる）
             const mn = Math.min(f[0], f[1], f[2]); return f.map(x => Math.min(1.25, (x - 0.7 * mn) * 1.6 + 0.08));
         }
@@ -5006,7 +5010,7 @@
             const A = q[0].v, B = q[1].v, C = q[3].v, nx = (B[1] - A[1]) * (C[2] - A[2]) - (B[2] - A[2]) * (C[1] - A[1]), ny = (B[2] - A[2]) * (C[0] - A[0]) - (B[0] - A[0]) * (C[2] - A[2]), nz = (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]);
             const m = [0, 1, 2].map(t => (q[0].v[t] + q[2].v[t]) / 2), vx = cam.x - m[0], vy = cam.y - m[1], vz = cam.z - m[2], nl = Math.hypot(nx, ny, nz) || 1, vl = Math.hypot(vx, vy, vz) || 1;
             const cosI = Math.min(1, Math.abs(nx * vx + ny * vy + nz * vz) / (nl * vl));
-            return q.map(p => { const T = OIL.BASE + oilSample(p.u), a = Math.min(0.95, 0.55 + T * 2), f = oilVivid(oilRGB(T, cosI)); return [0, 1, 2].map(t => base[t] * s * (1 - a) + f[t] * a); });   // 油面全体に膜（BASE）＋厚さのむら
+            return q.map(p => { const T = OIL.BASE + oilSample(p.u), a = Math.min(0.8, 0.3 + T * 1.6), f = oilVivid(oilRGB(T, cosI)), bb = typeof base === 'function' ? base(p.u) : base.map(x => x * s); return [0, 1, 2].map(t => bb[t] * (1 - a) + f[t] * a); });   // 油面全体に膜（BASE）＋厚さのむら。膜は少し控えめにして、下の透けた色（ハチミツ）も見せる
         }
         function sweSample2(u) {   // 左の 3D水の水面のずれ
             const M = SWE.M, E = SWE.e2, f = q => Math.max(0, Math.min(M - 1.0001, (q + 1) / 2 * M - 0.5));
@@ -5108,7 +5112,7 @@
                     const sc = rb ? hueRGB(h * H) : LQ.surf, gc = rb ? sc.map(x => x * 0.45) : LQ.grid;   // 虹の水の水面＝いちばん上の層の色
                     for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) {
                         const q = [grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]], s = shine((q[0].d + q[2].d) / 2);
-                        if (wWaterOil) { const cc = oilQuadColor(q, camL3, sc, s); [0, 1, 2, 0, 2, 3].forEach(m => F(q[m].v, cc[m][0], cc[m][1], cc[m][2])); }   // 油膜の虹色
+                        if (wWaterOil) { const cc = oilQuadColor(q, camL3, u => { const e = 1 - Math.max(Math.abs(u[0]), Math.abs(u[1]), Math.abs(u[2])); return honeyRGB(0.1 + 0.9 * (surfW(u) + H) / H * (0.25 + 0.75 * Math.min(1, e * 2.5))).map(x => x * s); }, s); [0, 1, 2, 0, 2, 3].forEach(m => F(q[m].v, cc[m][0], cc[m][1], cc[m][2])); }   // 油膜の虹色   // 油面：ふち（薄い）は金色に光り、真ん中（厚い）は暗い
                         else [0, 1, 2, 0, 2, 3].forEach(m => F(q[m].v, sc[0] * s, sc[1] * s, sc[2] * s));
                     }
                     if (W.GRID) for (let i = 0; i <= G; i += 2) for (let j = 0; j < G; j++) {   // 水面の網目：うすい青（水面より少し濃いくらい）
@@ -5137,13 +5141,22 @@
                                 [[a0, c0], [b0, c0], [b1, cB], [a0, c0], [b1, cB], [a1, cA]].forEach(([v, c]) => F(v, c[0] * 0.85, c[1] * 0.85, c[2] * 0.85));   // 頂点ごとの色＝なめらか
                             }
                             const mc = hueRGB(h * H); L(A1, mc[0], mc[1], mc[2]); L(B1, mc[0], mc[1], mc[2]);
+                        } else if (wWaterOil) {   // 油：ハチミツのように透ける（油面に近い上ほど明るい金色、深い底ほど濃い赤茶〜黒）
+                            const lv = bandLv(Math.min(wa, wb)), PA = [ua[0] * H, ua[1] * H, ua[2] * H], PB = [ub[0] * H, ub[1] * H, ub[2] * H];
+                            for (let q = 0; q < lv.length; q++) {
+                                const lo = lv[q], hA = q + 1 < lv.length ? lv[q + 1] : wa, hB = q + 1 < lv.length ? lv[q + 1] : wb;
+                                const a0 = toS([...PA, lo]), b0 = toS([...PB, lo]), a1 = toS([...PA, hA]), b1 = toS([...PB, hB]);
+                                const c0a = honeyRGB(0.15 + (wa - lo) / H), c0b = honeyRGB(0.15 + (wb - lo) / H), cA = honeyRGB(0.15 + (wa - hA) / H), cB = honeyRGB(0.15 + (wb - hB) / H);
+                                [[a0, c0a], [b0, c0b], [b1, cB], [a0, c0a], [b1, cB], [a1, cA]].forEach(([v, c]) => F(v, ...c));
+                            }
+                            L(A1, ...LQ.men); L(B1, ...LQ.men);
                         } else {
                         [A0, B0, B1, A0, B1, A1].forEach(v => F(v, ...LQ.wall));
                         L(A1, ...LQ.men); L(B1, ...LQ.men);   // 水際の線
                         }
                     }
                 }
-                const cb = rb ? hueRGB(-H) : LQ.cornB, ct = rb ? hueRGB(h * H) : LQ.cornT, cf = rb ? hueRGB(-H).map(x => x * 0.45) : LQ.bot;
+                const cb = rb ? hueRGB(-H) : LQ.cornB, ct = rb ? hueRGB(h * H) : LQ.cornT, cf = rb ? hueRGB(-H).map(x => x * 0.45) : wWaterOil ? honeyRGB(0.3 + 1.1 * (h + 1)) : LQ.bot;   // 油の底は深いほど暗い
                 for (const c of unitCubeVertices) { const u = c.map(x => Math.sign(x)); L(toS([u[0] * H, u[1] * H, u[2] * H, -H]), cb[0], cb[1], cb[2]); L(toS([u[0] * H, u[1] * H, u[2] * H, surfW(u)]), ct[0], ct[1], ct[2]); }   // 角の縦の線（w の方向）
                 WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => { const c = unitCubeVertices[m]; F(toS([Math.sign(c[0]) * H, Math.sign(c[1]) * H, Math.sign(c[2]) * H, -H]), cf[0], cf[1], cf[2]); }));   // 底の立方体（w ＝ −1）
                 if (rb) for (let k = 0; k < NB; k++) {   // 中に滞留している層：層の真ん中の高さの立方体（4D空間積分の虹の立方体と同じ）
@@ -5310,7 +5323,7 @@
                     for (let i = 0; i <= G; i++) { grid.push([]); for (let j = 0; j <= G; j++) { const u = [-1 + 2 * i / G, -1 + 2 * j / G], z = sZ(u); grid[i].push({ v: pt(u[0] * H, u[1] * H, z), d: z / H - h, u }); } }
                     const camL2 = wWaterOil && camera2D && r2 ? r2.worldToLocal(camera2D.position.clone()) : null;   // 左の油膜
                     const sc2 = rb ? hueRGB(h * H) : LQ.surf, gc2 = rb ? sc2.map(x => x * 0.45) : LQ.grid;
-                    for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) { const q = [grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]], s = shine((q[0].d + q[2].d) / 2); if (camL2) { const cc = oilQuadColor(q, camL2, sc2, s); [0, 1, 2, 0, 2, 3].forEach(m => F2(q[m].v, cc[m][0], cc[m][1], cc[m][2])); } else [0, 1, 2, 0, 2, 3].forEach(m => F2(q[m].v, sc2[0] * s, sc2[1] * s, sc2[2] * s)); }
+                    for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) { const q = [grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]], s = shine((q[0].d + q[2].d) / 2); if (camL2) { const cc = oilQuadColor(q, camL2, u => { const e = 1 - Math.max(Math.abs(u[0]), Math.abs(u[1])); return honeyRGB(0.1 + 0.9 * (sZ(u) + H) / H * (0.25 + 0.75 * Math.min(1, e * 2.5))).map(x => x * s); }, s); [0, 1, 2, 0, 2, 3].forEach(m => F2(q[m].v, cc[m][0], cc[m][1], cc[m][2])); } else [0, 1, 2, 0, 2, 3].forEach(m => F2(q[m].v, sc2[0] * s, sc2[1] * s, sc2[2] * s)); }
                     if (W.GRID) for (let i = 0; i <= G; i += 4) for (let j = 0; j < G; j++) {   // 左の水面の網目（うすい青。油の時は虹色に光る）
                         if (camL2) { const kk = i === 0 || i === G ? 1 : 0.55; L2(grid[i][j].v, ...oilLineCol(grid[i][j].u, kk)); L2(grid[i][j + 1].v, ...oilLineCol(grid[i][j + 1].u, kk)); L2(grid[j][i].v, ...oilLineCol(grid[j][i].u, kk)); L2(grid[j + 1][i].v, ...oilLineCol(grid[j + 1][i].u, kk)); }
                         else { L2(grid[i][j].v, gc2[0], gc2[1], gc2[2]); L2(grid[i][j + 1].v, gc2[0], gc2[1], gc2[2]); L2(grid[j][i].v, gc2[0], gc2[1], gc2[2]); L2(grid[j + 1][i].v, gc2[0], gc2[1], gc2[2]); }
@@ -5323,10 +5336,14 @@
                                 const zA = sZ(ua), zB = sZ(ub), lv = bandLv(Math.min(zA, zB));
                                 for (let q = 0; q < lv.length; q++) { const lo = lv[q], hA = q + 1 < lv.length ? lv[q + 1] : zA, hB = q + 1 < lv.length ? lv[q + 1] : zB, c0 = hueRGB(lo), cA = hueRGB(hA), cB = hueRGB(hB); const a0 = pt(ua[0] * H, ua[1] * H, lo), b0 = pt(ub[0] * H, ub[1] * H, lo), a1 = pt(ua[0] * H, ua[1] * H, hA), b1 = pt(ub[0] * H, ub[1] * H, hB); [[a0, c0], [b0, c0], [b1, cB], [a0, c0], [b1, cB], [a1, cA]].forEach(([v, c]) => F2(v, c[0] * 0.85, c[1] * 0.85, c[2] * 0.85)); }
                                 const mc = hueRGB(h * H); L2(A1, mc[0], mc[1], mc[2]); L2(B1, mc[0], mc[1], mc[2]);
+                            } else if (wWaterOil) {   // 左の 3D油：ハチミツのように透ける
+                                const zA = sZ(ua), zB = sZ(ub), lv = bandLv(Math.min(zA, zB));
+                                for (let q = 0; q < lv.length; q++) { const lo = lv[q], hA = q + 1 < lv.length ? lv[q + 1] : zA, hB = q + 1 < lv.length ? lv[q + 1] : zB; const a0 = pt(ua[0] * H, ua[1] * H, lo), b0 = pt(ub[0] * H, ub[1] * H, lo), a1 = pt(ua[0] * H, ua[1] * H, hA), b1 = pt(ub[0] * H, ub[1] * H, hB); [[a0, honeyRGB(0.15 + (zA - lo) / H)], [b0, honeyRGB(0.15 + (zB - lo) / H)], [b1, honeyRGB(0.15 + (zB - hB) / H)], [a0, honeyRGB(0.15 + (zA - lo) / H)], [b1, honeyRGB(0.15 + (zB - hB) / H)], [a1, honeyRGB(0.15 + (zA - hA) / H)]].forEach(([v, c]) => F2(v, ...c)); }
+                                L2(A1, ...LQ.men); L2(B1, ...LQ.men);
                             } else { [A0, B0, B1, A0, B1, A1].forEach(v => F2(v, ...LQ.wall)); L2(A1, ...LQ.men); L2(B1, ...LQ.men); }
                         }
                     });
-                    const cf2 = rb ? hueRGB(-H).map(x => x * 0.45) : LQ.bot, b = [[-H, -H], [H, -H], [H, H], [-H, H]].map(([x, y]) => pt(x, y, -H)); [0, 1, 2, 0, 2, 3].forEach(m => F2(b[m], cf2[0], cf2[1], cf2[2]));   // 底
+                    const cf2 = rb ? hueRGB(-H).map(x => x * 0.45) : wWaterOil ? honeyRGB(0.3 + 1.1 * (h + 1)) : LQ.bot, b = [[-H, -H], [H, -H], [H, H], [-H, H]].map(([x, y]) => pt(x, y, -H)); [0, 1, 2, 0, 2, 3].forEach(m => F2(b[m], cf2[0], cf2[1], cf2[2]));   // 底
                     if (rb) for (let k = 0; k < NB; k++) {   // 中に滞留している層（正方形）
                         const z = -H + (k + 0.5) * 2 * H / NB - shiftW; if (!(z > -H && z < h * H - 0.02 * H)) continue;
                         const c = hueRGB(z), sq = [[-H, -H], [H, -H], [H, H], [-H, H]].map(([x, y]) => pt(x, y, z));
@@ -9854,7 +9871,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1157';
+        const APP_BUILD = '20261022-1201';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
