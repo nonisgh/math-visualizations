@@ -17,7 +17,7 @@
     html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font: 14px/1.6 'Noto Sans JP', Inter, system-ui, -apple-system, sans-serif; }
     .app { display: grid; grid-template-columns: 1fr 380px; min-height: 100vh; }
     @media (max-width: 900px) { .app { grid-template-columns: 1fr; } }
-    .main { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; border-right: 1px solid var(--line); }
+    .main { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; border-right: 1px solid var(--line); min-width: 0; }
     .side { background: var(--panel); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
     h1 { font-size: 22px; margin: 0; font-weight: 900; }
     h2 { font-size: 15px; margin: 0 0 6px; }
@@ -88,6 +88,30 @@
     #sDoors .who .st { background: var(--st); color: #500724; } #sDoors .who .sw { background: var(--sw); color: #052e16; }
     #sDoors { margin-top: 18px; }
     #sDoors.snap .door .front { transition: none; }
+    /* 本当に 1 回ずつ遊ばせる（記録つき） */
+    #logCard input[type=text], #logCard input[type=number] { font: 700 13px Inter, ui-monospace, monospace; color: var(--text); background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 5px 8px; width: 120px; }
+    #logCard label { font-size: 12.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+    .rprog { height: 8px; border-radius: 999px; background: #1e293b; overflow: hidden; margin-top: 8px; }
+    .rprog > div { height: 100%; width: 0; background: linear-gradient(90deg, #34d399, #fbbf24); }
+    .rtxt { font-size: 12.5px; color: var(--muted); margin-top: 4px; min-height: 20px; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+    .rtxt b { color: var(--text); font-family: Inter, ui-monospace, monospace; }
+    .rstats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; margin-top: 10px; }
+    .rstat { border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; background: rgba(3, 7, 18, 0.5); }
+    .rstat .k { font-size: 12px; }
+    .rbig { font: 800 24px Inter, ui-monospace, monospace; letter-spacing: 0.02em; }
+    .rbig .ok { color: var(--sw); } .rbig .ng { color: #475569; }
+    .logbox { font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, 'Noto Sans JP', monospace; background: #020617; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; height: calc(20 * 1.6em + 14px); overflow-x: auto; overflow-y: hidden; white-space: pre; margin-top: 8px; cursor: ns-resize; overscroll-behavior: contain; }
+    .logbox .ln { color: #cbd5e1; }
+    .logbox .ln.mark { background: rgba(251, 191, 36, 0.18); outline: 1px solid rgba(251, 191, 36, 0.6); border-radius: 4px; }
+    .logbox .no { color: var(--faint); } .logbox .sw { color: var(--sw); font-weight: 700; } .logbox .st { color: var(--st); font-weight: 700; } .logbox .cum { color: #64748b; }
+    .logbox .empty { color: var(--faint); white-space: normal; }
+    .lognav { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+    .lognav input[type=range] { flex: 1 1 160px; accent-color: var(--pick); }
+    .rcharts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    @media (max-width: 640px) { .rcharts { grid-template-columns: 1fr; } }
+    .rcharts canvas { width: 100%; height: 190px; display: block; }
+    #rCheck { font-size: 12.5px; margin-top: 6px; white-space: pre-line; }
+    #rCheck .good { color: var(--sw); font-weight: 700; } #rCheck .bad { color: #f87171; font-weight: 700; }
 
 </style>
 </head>
@@ -142,11 +166,56 @@
             </div>
             <p class="note" style="margin:6px 0 0">何回か遊ぶと、変えた方がよく当たるのが見えてきます。でも数回では偶然に左右されるので、右の「自動で何万回も」で確かめてみましょう。</p>
         </div>
+        <div class="card" id="logCard">
+            <h2>本当に 1 回ずつ遊ばせる：100 万回までの記録</h2>
+            <p class="note" style="margin:0 0 8px">一瞬で答えが出ると「本当に計算したの？」と思いますよね。ここでは 1 回ごとに「車を隠す → ドアを選ぶ → 司会者がヤギのドアを開ける → 変えたら？ 変えなかったら？」を実際にやって、<b>全部の回を記録</b>します。流れていくログを見たり、好きな回へ飛んだり、ファイルに書き出して自分で数え直したりできます。乱数の種が同じなら、何度やっても同じ結果になります。</p>
+            <div class="btns">
+                <span class="k" style="font-size:12.5px">回数</span>
+                <button data-run="10">10 回</button><button data-run="100">100 回</button><button data-run="1000">1000 回</button><button data-run="10000">1 万回</button><button data-run="100000">10 万回</button><button data-run="1000000">100 万回</button>
+            </div>
+            <div class="btns" style="margin-top:6px">
+                <span class="k" style="font-size:12.5px">速さ</span>
+                <button data-rsp="0" title="1 秒に 4 回。1 行ずつ読める">ゆっくり</button><button data-rsp="1" title="1 秒に 60 回">ふつう</button><button data-rsp="2" title="1 秒に 3000 回">速い</button><button data-rsp="3" class="on" title="1 秒に 30 万回（100 万回で 3 秒あまり）">超速</button><button data-rsp="4" title="パソコンの全力。画面を止めない程度に、細かく分けて計算する">全力</button>
+            </div>
+            <div class="btns" style="margin-top:6px">
+                <span class="k" style="font-size:12.5px">乱数の種</span>
+                <input type="text" id="rSeed" inputmode="numeric" title="0〜4294967295 の整数。同じ種・同じ回数・同じドアの数なら、まったく同じ結果になる">
+                <button id="rSeedNew" title="種をでたらめに選び直す">新しい種</button>
+                <label title="外すと、上の種をそのまま使う（同じ結果をもう一度出せる）"><input type="checkbox" id="rSeedAuto" checked> 毎回新しい種にする</label>
+                <button id="rAgain" disabled title="さっきと同じ種・同じ回数で、最初からもう一度遊ばせる">同じ種でもう一度</button>
+            </div>
+            <div class="rprog"><div id="rBar"></div></div>
+            <div class="rtxt"><span id="rTxt">回数のボタンを押すと始まります。</span><span style="flex:1"></span><button id="rPause" style="display:none;padding:2px 10px;font-size:12px">⏸ 一時停止</button><button id="rStop" style="display:none;padding:2px 10px;font-size:12px" title="ここで止める。それまでの記録は残る">■ 中止（ここまでの記録は残す）</button></div>
+            <div class="rstats">
+                <div class="rstat"><div class="k">変える人の勝率（<span id="rTh">2/3</span> ＝ <span id="rThV">0.666667</span> に近づくはず）</div><div class="rbig" id="rSwRate">—</div><div class="note" id="rSwN"></div></div>
+                <div class="rstat"><div class="k">変えない人の勝率</div><div class="rbig" style="color:var(--st)" id="rStRate">—</div><div class="note" id="rStN"></div></div>
+                <div class="rstat"><div class="k">計算の証拠</div><div class="note" id="rWork" style="font-size:12.5px;color:#cbd5e1">—</div></div>
+            </div>
+            <div class="logbox" id="rLog" tabindex="0" title="マウスのホイール・↑↓キーで前後の回を見られる"><div class="empty">ここに 1 回ずつの結果が流れます。</div></div>
+            <div class="lognav">
+                <button id="rTop" title="第 1 回へ">⏮ 最初</button>
+                <button id="rUp" title="20 行前へ">▲</button>
+                <input type="range" id="rSlide" min="1" max="1" value="1" title="記録の中の位置">
+                <button id="rDown" title="20 行後へ">▼</button>
+                <button id="rTail" class="on" title="いちばん新しい回を追いかける">最新を追う</button>
+            </div>
+            <div class="lognav">
+                <span class="k" style="font-size:12.5px">第</span><input type="number" id="rGo" min="1" value="1" style="width:110px"><span class="k" style="font-size:12.5px">回へ</span><button id="rGoBtn">飛ぶ</button>
+                <button id="rLucky" title="記録の中から 1 回をでたらめに選んで見せる">抜き打ちで 1 回</button>
+                <span style="flex:1"></span>
+                <button id="rCsv" disabled>CSV で書き出す</button><button id="rTxtOut" disabled>文章（.txt）で書き出す</button><button id="rVerify" disabled title="記録を全部数え直し、ルールどおりか調べ、同じ種でもう一度遊ばせて全部の行が同じになるか比べる">検算する</button>
+            </div>
+            <div id="rCheck"></div>
+            <div class="rcharts">
+                <div><div class="note" style="margin-bottom:4px">勝率の移り変わり（横は回数、目盛りは 10 倍ごと）</div><canvas id="rChart1"></canvas></div>
+                <div><div class="note" style="margin-bottom:4px">拡大：変える人の勝率と <span id="rTh2">2/3</span>（ラッパ＝偶然でぶれる範囲の目安。回数が増えるほど細くなる）</div><canvas id="rChart2"></canvas></div>
+            </div>
+        </div>
     </div>
     <div class="side">
         <div class="card">
             <h2>自動で何回も（両方の作戦で同時に）</h2>
-            <p class="note" style="margin:0 0 8px">コンピュータが、ドアを選ぶ → 司会者がヤギのドアを開ける → 「変えない」人と「変える」人がそれぞれ答える、を何回もくり返します。</p>
+            <p class="note" style="margin:0 0 8px">コンピュータが、ドアを選ぶ → 司会者がヤギのドアを開ける → 「変えない」人と「変える」人がそれぞれ答える、を何回もくり返します。<a href="#logCard" style="color:var(--pick)">1 回ずつの記録を見る ↓</a></p>
             <div class="btns">
                 <button data-n="1">1 回</button><button data-n="10">10 回</button><button data-n="100">100 回</button><button data-n="1000">1000 回</button>
                 <button data-n="10000">1 万回</button><button data-n="100000">10 万回</button><button data-n="1000000">100 万回</button><button id="simReset">リセット</button>
@@ -395,7 +464,238 @@ $('nD').addEventListener('input', () => showReset());
 $('sPlay').textContent = '■ 止める';
 showReset(); sStart();
 newGame(); showMine(); fitChart(); showSim();
-window.monty = { G, M };   // 確かめ用
+
+// ---- 本当に 1 回ずつ遊ばせる：全部の回を記録する（100 万回まで） ----
+//   乱数は種つき（mulberry32）。同じ種・回数・ドアの数なら、まったく同じ記録になる。
+//   1 回ごとに：車 car と最初のドア pick をでたらめに → 司会者が閉めたまま残す 1 枚 left（pick が車なら、ほかからでたらめに 1 枚。そうでなければ車のドア）。
+//   記録は車・最初・残した 1 枚（Uint8Array）と、ここまでの「変えた人」の勝ち数（Uint32Array）。100 万回で 7MB。
+//   計算はコマ（requestAnimationFrame）ごとに少しずつ。速さ＝1 秒あたりの回数（コマが遅れたらその分まとめて。1 コマ最大 1 秒ぶん）、全力＝1 コマ 12 ミリ秒まで計算する。
+const RATE = [4, 60, 3000, 300000, Infinity], LW = 20;   // LW＝ログに並べる行数
+const R = { n: 3, seed: 0, target: 0, N: 0, st: 0, sw: 0, car: null, pick: null, left: null, cum: null, hist: [], next: 1,
+            running: false, paused: false, sp: 3, acc: 0, tLast: 0, wall: 0, cpu: 0, draws: 0, rng: null, start: 1, follow: true, mark: 0 };
+function rngMake(seed) {   // mulberry32：32 ビットの種から 0 以上 1 未満の数を次々に作る
+    let a = seed >>> 0;
+    return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
+const jaTime = s => s < 1 ? s.toFixed(s < 0.1 ? 3 : 2) + ' 秒' : s < 60 ? s.toFixed(1) + ' 秒' : Math.floor(s / 60) + ' 分 ' + Math.round(s % 60) + ' 秒';
+const jaRate = r => r >= 1e4 ? (r / 1e4).toFixed(r >= 1e6 ? 0 : 1) + ' 万' : Math.round(r).toLocaleString();
+const thFrac = n => (n - 1) + '/' + n, thVal = n => (n - 1) / n;
+// 1 回分を遊ぶ。k 回まとめて、記録と数を進める
+function rStep(k) {
+    const rnd = R.rng, n = R.n, car = R.car, pick = R.pick, left = R.left, cum = R.cum;
+    let N = R.N, st = R.st, sw = R.sw, draws = R.draws;
+    for (let t = 0; t < k; t++) {
+        const c = (rnd() * n) | 0, p = (rnd() * n) | 0;
+        let l; draws += 2;
+        if (p === c) { l = (rnd() * (n - 1)) | 0; if (l >= p) l++; draws++; } else l = c;
+        car[N] = c; pick[N] = p; left[N] = l;
+        if (p === c) st++;
+        if (l === c) sw++;
+        cum[N] = sw; N++;
+        if (N >= R.next) { R.next = Math.max(N + 1, Math.floor(N * 1.015)); R.hist.push([N, st / N, sw / N]); }
+    }
+    R.N = N; R.st = st; R.sw = sw; R.draws = draws;
+}
+function rStart(total, sameSeed) {
+    cancelAnimationFrame(R.raf); clearTimeout(R.to);
+    if (!sameSeed) {
+        let s = Number(String($('rSeed').value).trim());
+        if ($('rSeedAuto').checked || !Number.isInteger(s) || s < 0 || s > 4294967295) s = newSeed();
+        R.seed = s >>> 0;
+    }
+    $('rSeed').value = R.seed;
+    Object.assign(R, { n: G.n, target: total, N: 0, st: 0, sw: 0, hist: [], next: 1, running: true, paused: false, acc: 1, wall: 0, cpu: 0, draws: 0,
+        car: new Uint8Array(total), pick: new Uint8Array(total), left: new Uint8Array(total), cum: new Uint32Array(total), rng: rngMake(R.seed), start: 1, follow: true, mark: 0 });
+    $('rCheck').innerHTML = ''; $('rPause').textContent = '⏸ 一時停止';
+    rButtons(); R.tLast = performance.now(); rNext();
+}
+// 次のコマ。タブが隠れて requestAnimationFrame が止まっても、0.25 秒ごとの予備のタイマーで計算は続ける
+function rNext() { R.raf = requestAnimationFrame(rFrame); R.to = setTimeout(() => { cancelAnimationFrame(R.raf); rFrame(performance.now()); }, 250); }
+function rFrame(now) {
+    clearTimeout(R.to);
+    const dt = Math.max(0, now - R.tLast); R.tLast = now;
+    if (!R.paused) {
+        R.wall += Math.min(dt, 1000);   // タブを隠して止まっていた間は数えない
+        const c0 = performance.now(), rest = () => R.target - R.N;
+        if (R.sp === 4) { while (rest() > 0 && performance.now() - c0 < 12) rStep(Math.min(5000, rest())); }
+        else { R.acc += RATE[R.sp] * Math.min(dt, 1000) / 1000; const k = Math.min(Math.floor(R.acc), rest()); R.acc -= k; rStep(k); }
+        R.cpu += performance.now() - c0;
+    }
+    if (R.N >= R.target) R.running = false;
+    rShow();
+    if (R.running) rNext(); else rButtons();
+}
+function rStop() { if (!R.running) return; cancelAnimationFrame(R.raf); clearTimeout(R.to); R.running = false; rShow(); rButtons(); }
+function rButtons() {
+    const has = R.N > 0;
+    $('rPause').style.display = $('rStop').style.display = R.running ? '' : 'none';
+    ['rCsv', 'rTxtOut', 'rVerify'].forEach(id => $(id).disabled = !has || R.running || R.saving);
+    $('rAgain').disabled = !R.target || R.running;
+    $('rCsv').title = has ? 'およそ ' + mb(R.N * (R.n === 3 ? 36 : 36 + 3 * (R.n - 2))) + '（Excel でも開ける）' : '';
+    $('rTxtOut').title = has ? 'ログと同じ文で 1 行ずつ（1 万回ごとに勝率の行をはさむ）。およそ ' + mb(R.N * 155) : '';
+}
+const mb = b => b > 1e6 ? (b / 1e6).toFixed(0) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB';
+// 司会者が開けたドア（0 始まり）。3 枚なら 1 枚、それより多ければ「残した 1 枚と最初のドア」以外の全部
+const opened = (n, p, l) => { const o = []; for (let d = 0; d < n; d++) if (d !== p && d !== l) o.push(d); return o; };
+function lineHTML(i) {   // 第 i 回（1 始まり）の 1 行
+    const k = i - 1, n = R.n, c = R.car[k], p = R.pick[k], l = R.left[k], w = String(R.target).length;
+    const host = n === 3 ? '司会者が開けたのは ' + (3 - p - l + 1) + ' 番' : '司会者は ' + (l + 1) + ' 番だけ閉めたまま、ほか ' + (n - 2) + ' 枚を開けた';
+    const res = l === c ? '<span class="sw">変えたら当たり</span>／変えなかったら外れ' : '変えたら外れ／<span class="st">変えなかったら当たり</span>';
+    return '<div class="ln' + (i === R.mark ? ' mark' : '') + '"><span class="no">第 ' + i.toLocaleString().padStart(w + Math.floor((w - 1) / 3)) + ' 回</span>：車は ' + (c + 1) + ' 番、最初に選んだのは ' + (p + 1) + ' 番、' + host + ' → ' + res +
+        '  <span class="cum">変えた人 ここまで ' + R.cum[k].toLocaleString() + '/' + i.toLocaleString() + '＝' + (R.cum[k] / i).toFixed(4) + '</span></div>';
+}
+function rShowLog() {
+    const N = R.N;
+    if (!N) { $('rLog').innerHTML = '<div class="empty">ここに 1 回ずつの結果が流れます。</div>'; return; }
+    if (R.follow) R.start = Math.max(1, N - LW + 1);
+    R.start = Math.min(Math.max(1, R.start), Math.max(1, N - LW + 1));
+    let h = ''; for (let i = R.start; i <= Math.min(N, R.start + LW - 1); i++) h += lineHTML(i);
+    $('rLog').innerHTML = h;
+    const s = $('rSlide'); s.max = Math.max(1, N - LW + 1); s.value = R.start;
+    $('rTail').classList.toggle('on', R.follow); $('rGo').max = N;
+}
+function rShow() {
+    const N = R.N, n = R.n, th = thVal(n), sec = R.wall / 1000;
+    $('rBar').style.width = (R.target ? 100 * N / R.target : 0) + '%';
+    if (R.target) {
+        const speed = sec > 0 ? N / sec : 0, state = R.running ? (R.paused ? '一時停止中' : '計算中') : N < R.target ? '中止しました' : '終わり';
+        $('rTxt').innerHTML = '<b>' + state + '</b>　<b>' + N.toLocaleString() + '</b> / ' + R.target.toLocaleString() + ' 回（' + (100 * N / R.target).toFixed(1) + '%）　経過 <b>' + jaTime(sec) + '</b>' +
+            (R.running && speed > 0 && !R.paused ? '　1 秒に ' + jaRate(speed) + ' 回　残り およそ ' + jaTime((R.target - N) / speed) : '') + '　種 <b>' + R.seed + '</b>' + (n !== 3 ? '　ドア ' + n + ' 枚' : '');
+    }
+    $('rTh').textContent = $('rTh2').textContent = thFrac(n); $('rThV').textContent = th.toFixed(6);
+    if (N) {
+        // 2/3 と同じところまでの桁を緑に
+        const a = (R.sw / N).toFixed(6), b = th.toFixed(6); let m = 0; while (m < a.length && a[m] === b[m]) m++;
+        $('rSwRate').innerHTML = '<span class="ok">' + a.slice(0, m) + '</span><span class="ng">' + a.slice(m) + '</span>';
+        const d = R.sw / N - th, band = 2 * Math.sqrt(th * (1 - th) / N);
+        $('rSwN').innerHTML = R.sw.toLocaleString() + ' 勝 / ' + N.toLocaleString() + ' 回　' + thFrac(n) + ' とのずれ ' + (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(6) + '<br>（この回数なら ±' + band.toFixed(Math.max(4, 1 - Math.floor(Math.log10(band)) + 1)) + ' くらいは偶然でぶれる）';
+        $('rStRate').textContent = (R.st / N).toFixed(6);
+        $('rStN').textContent = R.st.toLocaleString() + ' 勝 / ' + N.toLocaleString() + ' 回　（理論 1/' + n + ' ＝ ' + (1 / n).toFixed(6) + '）';
+        const cpu = R.cpu / 1000;
+        $('rWork').innerHTML = '記録した行：<b>' + N.toLocaleString() + '</b> 行<br>乱数をひいた回数：<b>' + R.draws.toLocaleString() + '</b> 回<br>計算に使った時間：<b>' + jaTime(cpu) + '</b>（1 回あたり ' + (cpu * 1e9 / N).toFixed(0) + ' ナノ秒）<br>変えた人の勝ち ＋ 変えない人の勝ち ＝ ' + (R.sw + R.st).toLocaleString();
+    } else { $('rSwRate').textContent = $('rStRate').textContent = '—'; $('rSwN').textContent = $('rStN').textContent = ''; $('rWork').textContent = '—'; }
+    rShowLog(); rDraw();
+}
+// グラフ
+const rcv = [$('rChart1'), $('rChart2')]; let rDPR = 1;
+function rFit() { rDPR = Math.min(2, window.devicePixelRatio || 1); rcv.forEach(c => { const r = c.getBoundingClientRect(); c.width = Math.round(r.width * rDPR); c.height = Math.round(r.height * rDPR); }); rDraw(); }
+function rAxes(g, w, h, nMax, padL) {
+    const padR = 8, padT = 8, padB = 18, iw = w - padL - padR, ih = h - padT - padB;
+    const lx = N => padL + iw * Math.log10(N) / Math.log10(nMax);
+    g.font = '10px Inter, sans-serif'; g.strokeStyle = '#1e293b'; g.fillStyle = '#64748b'; g.lineWidth = 1;
+    for (let p = 1; p <= nMax; p *= 10) { const x = lx(p), t = p >= 1e6 ? (p / 1e6) + 'M' : p >= 1000 ? (p / 1000) + 'k' : String(p); g.beginPath(); g.moveTo(x, padT); g.lineTo(x, padT + ih); g.stroke(); g.fillText(t, Math.min(x - 6, w - g.measureText(t).width - 1), h - 4); }
+    return { lx, padT, ih, padL, iw };
+}
+function rDraw() {
+    const n = R.n, th = thVal(n), nMax = Math.max(100, R.target || 100), pts = R.hist.concat(R.N && (!R.hist.length || R.hist[R.hist.length - 1][0] !== R.N) ? [[R.N, R.st / R.N, R.sw / R.N]] : []);
+    {   // 0〜100%：2 本の線
+        const g = rcv[0].getContext('2d'), w = rcv[0].width / rDPR, h = rcv[0].height / rDPR; g.setTransform(rDPR, 0, 0, rDPR, 0, 0); g.clearRect(0, 0, w, h);
+        const { lx, padT, ih } = rAxes(g, w, h, nMax, 34), ly = v => padT + ih * (1 - v);
+        [0, 0.5, 1].forEach(v => g.fillText((v * 100) + '%', 2, ly(v) + 3));
+        [[1 / n, '#f472b6'], [th, '#34d399']].forEach(([v, c]) => { g.strokeStyle = c; g.globalAlpha = 0.6; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(34, ly(v)); g.lineTo(w - 8, ly(v)); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; });
+        [[1, '#f472b6'], [2, '#34d399']].forEach(([k, c]) => { g.strokeStyle = c; g.lineWidth = 1.8; g.beginPath(); pts.forEach((q, i) => { const x = lx(q[0]), y = ly(q[k]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); });
+    }
+    {   // 拡大：2/3 のまわり。ラッパ＝2/3 ± 2√(p(1−p)/回数)
+        const g = rcv[1].getContext('2d'), w = rcv[1].width / rDPR, h = rcv[1].height / rDPR; g.setTransform(rDPR, 0, 0, rDPR, 0, 0); g.clearRect(0, 0, w, h);
+        const { lx, padT, ih, iw } = rAxes(g, w, h, nMax, 44), sd = N => 2 * Math.sqrt(th * (1 - th) / N);
+        const Rg = Math.min(th, 1 - th, sd(100) * 1.1), ly = v => padT + ih * (0.5 - (v - th) / (2 * Rg));
+        g.fillText(th.toFixed(3), 2, ly(th) + 3); g.fillText((th + Rg).toFixed(3), 2, ly(th + Rg) + 9); g.fillText((th - Rg).toFixed(3), 2, ly(th - Rg) - 2);
+        g.fillStyle = 'rgba(52, 211, 153, 0.10)'; g.beginPath();
+        const steps = 120; for (let i = 0; i <= steps; i++) { const N = Math.pow(nMax, i / steps); g.lineTo(lx(N), ly(th + Math.min(Rg, sd(N)))); }
+        for (let i = steps; i >= 0; i--) { const N = Math.pow(nMax, i / steps); g.lineTo(lx(N), ly(th - Math.min(Rg, sd(N)))); }
+        g.fill();
+        g.strokeStyle = '#34d399'; g.globalAlpha = 0.6; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(44, ly(th)); g.lineTo(44 + iw, ly(th)); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+        g.save(); g.beginPath(); g.rect(44, padT, iw, ih); g.clip();
+        g.strokeStyle = '#34d399'; g.lineWidth = 1.8; g.beginPath(); pts.forEach((q, i) => { const x = lx(q[0]), y = ly(q[2]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+        if (pts.length) { const q = pts[pts.length - 1]; g.fillStyle = '#fbbf24'; g.beginPath(); g.arc(lx(q[0]), ly(q[2]), 3.5, 0, 7); g.fill(); }
+        g.restore();
+    }
+}
+// ログを見る
+function rView(start, follow) { R.follow = !!follow; R.start = start; rShowLog(); }
+function rJump(i) { if (!R.N) return; i = Math.min(R.N, Math.max(1, Math.round(i))); R.mark = i; $('rGo').value = i; rView(i - Math.floor(LW / 2), false); }
+$('rLog').addEventListener('wheel', e => { if (!R.N || Math.abs(e.deltaY) < Math.abs(e.deltaX)) return; e.preventDefault(); rView(R.start + Math.sign(e.deltaY) * Math.max(1, Math.round(Math.abs(e.deltaY) / 30)), false); }, { passive: false });
+$('rLog').addEventListener('keydown', e => {
+    const m = { ArrowUp: -1, ArrowDown: 1, PageUp: -LW, PageDown: LW }[e.key];
+    if (m) { e.preventDefault(); rView(R.start + m, false); } else if (e.key === 'Home') { e.preventDefault(); rView(1, false); } else if (e.key === 'End') { e.preventDefault(); rView(R.N, true); }
+});
+$('rSlide').addEventListener('input', e => rView(+e.target.value, false));
+$('rTop').addEventListener('click', () => rView(1, false));
+$('rUp').addEventListener('click', () => rView(R.start - LW, false));
+$('rDown').addEventListener('click', () => rView(R.start + LW, false));
+$('rTail').addEventListener('click', () => { R.mark = 0; rView(R.N, true); });
+$('rGoBtn').addEventListener('click', () => rJump(+$('rGo').value));
+$('rGo').addEventListener('keydown', e => { if (e.key === 'Enter') rJump(+$('rGo').value); });
+$('rLucky').addEventListener('click', () => rJump(1 + Math.floor(Math.random() * R.N)));
+// 書き出し（2 万行ずつ文字列を作って Blob にまとめる。合間に画面へ戻るので固まらない）
+async function rBuild(kind, onProgress) {
+    const parts = [], n = R.n, N = R.N, CH = 20000, car = R.car, pick = R.pick, left = R.left, cum = R.cum;
+    parts.push(kind === 'csv'
+        ? '\uFEFF# モンティ・ホール問題 1 回ずつの記録 種=' + R.seed + ' ドア=' + n + '枚 回数=' + N + '\n回,車,最初に選んだ,司会者が開けた,閉めたまま残した,変えたら,変えなかったら,変えた人の勝ち（ここまで）\n'
+        : 'モンティ・ホール問題 1 回ずつの記録　乱数の種 ' + R.seed + '　ドア ' + n + ' 枚　' + N.toLocaleString() + ' 回\n（1 万回ごとに、ここまでの「変えた人」の勝率をはさみます）\n\n');
+    for (let a = 0; a < N; a += CH) {
+        let s = '';
+        for (let k = a; k < Math.min(N, a + CH); k++) {
+            const c = car[k], p = pick[k], l = left[k], i = k + 1;
+            if (kind === 'csv') s += i + ',' + (c + 1) + ',' + (p + 1) + ',' + (n === 3 ? 3 - p - l + 1 : opened(n, p, l).map(d => d + 1).join(' ')) + ',' + (l + 1) + ',' + (l === c ? '当たり,外れ' : '外れ,当たり') + ',' + cum[k] + '\n';
+            else {
+                s += '第 ' + i + ' 回：車は ' + (c + 1) + ' 番、最初に選んだのは ' + (p + 1) + ' 番、' + (n === 3 ? '司会者が開けたのは ' + (3 - p - l + 1) + ' 番' : '司会者は ' + (l + 1) + ' 番だけ閉めたまま、ほか ' + (n - 2) + ' 枚を開けた') +
+                     ' → ' + (l === c ? '変えたら当たり／変えなかったら外れ' : '変えたら外れ／変えなかったら当たり') + '\n';
+                if (i % 10000 === 0 || i === 10 || i === 100 || i === 1000) s += '―― ここまで ' + i.toLocaleString() + ' 回：変えた人 ' + cum[k].toLocaleString() + ' 勝（' + (cum[k] / i).toFixed(6) + '）――\n';
+            }
+        }
+        parts.push(s);
+        if (onProgress) { onProgress(Math.min(N, a + CH) / N); await new Promise(r => setTimeout(r, 0)); }
+    }
+    if (kind !== 'csv') parts.push('\n変える人 ' + R.sw.toLocaleString() + ' 勝（' + (R.sw / N).toFixed(6) + '）　変えない人 ' + R.st.toLocaleString() + ' 勝（' + (R.st / N).toFixed(6) + '）\n');
+    return new Blob(parts, { type: kind === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8' });
+}
+async function rSave(kind) {
+    if (R.running || R.saving) return;
+    R.saving = true; ['rCsv', 'rTxtOut', 'rVerify'].forEach(id => $(id).disabled = true);
+    const name = kind === 'csv' ? 'CSV' : '文章';
+    try {
+        const blob = await rBuild(kind, f => { $('rCheck').textContent = name + ' を作っています… ' + Math.round(100 * f) + '%'; }), a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = 'monty_種' + R.seed + '_' + R.N + '回' + (R.n !== 3 ? '_ドア' + R.n + '枚' : '') + (kind === 'csv' ? '.csv' : '.txt');
+        document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+        $('rCheck').textContent = name + ' を書き出しました（' + mb(blob.size) + '、' + R.N.toLocaleString() + ' 回ぶん）。';
+    } finally { R.saving = false; rButtons(); }
+}
+$('rCsv').addEventListener('click', () => rSave('csv'));
+$('rTxtOut').addEventListener('click', () => rSave('txt'));
+// 検算：① 記録を全部数え直す ② ルールどおりか調べる ③ 同じ種でもう一度遊ばせて、全部の行が同じになるか比べる
+function rVerify() {
+    const n = R.n, t0 = performance.now(); let st = 0, sw = 0, bad = 0, diff = 0, firstDiff = 0;
+    for (let k = 0; k < R.N; k++) {
+        const c = R.car[k], p = R.pick[k], l = R.left[k];
+        if (c >= n || p >= n || l >= n || l === p || (c !== p && c !== l) || (l === c ? 1 : 0) + sw !== R.cum[k]) bad++;
+        if (p === c) st++; if (l === c) sw++;
+    }
+    const rnd = rngMake(R.seed);
+    for (let k = 0; k < R.N; k++) {
+        const c = (rnd() * n) | 0, p = (rnd() * n) | 0; let l;
+        if (p === c) { l = (rnd() * (n - 1)) | 0; if (l >= p) l++; } else l = c;
+        if (c !== R.car[k] || p !== R.pick[k] || l !== R.left[k]) { diff++; if (!firstDiff) firstDiff = k + 1; }
+    }
+    const ok = (f, s) => f ? '<span class="good">✓ ' + s + '</span>' : '<span class="bad">✗ ' + s + '</span>';
+    $('rCheck').innerHTML = '検算（' + jaTime((performance.now() - t0) / 1000) + '）\n' +
+        ok(st === R.st && sw === R.sw, '記録 ' + R.N.toLocaleString() + ' 行を数え直すと、変える人 ' + sw.toLocaleString() + ' 勝・変えない人 ' + st.toLocaleString() + ' 勝（表示と' + (st === R.st && sw === R.sw ? '一致' : 'ちがう') + '）') + '\n' +
+        ok(!bad, 'ルールどおりでない行：' + bad + ' 行（司会者は車のドアを開けない・最初のドアは残さない、など）') + '\n' +
+        ok(!diff, '同じ種 ' + R.seed + ' でもう一度遊ばせると、' + (diff ? diff + ' 行ちがう（最初は第 ' + firstDiff + ' 回）' : '全部の行がまったく同じ'));
+}
+$('rVerify').addEventListener('click', rVerify);
+// ボタン
+document.querySelectorAll('[data-run]').forEach(b => b.addEventListener('click', () => rStart(+b.dataset.run)));
+document.querySelectorAll('[data-rsp]').forEach(b => b.addEventListener('click', () => { R.sp = +b.dataset.rsp; R.acc = Math.min(R.acc, 1); document.querySelectorAll('[data-rsp]').forEach(x => x.classList.toggle('on', x === b)); }));
+$('rSeedNew').addEventListener('click', () => { $('rSeed').value = newSeed(); $('rSeedAuto').checked = false; });
+$('rSeed').addEventListener('input', () => { $('rSeedAuto').checked = false; });
+$('rAgain').addEventListener('click', () => rStart(R.target, true));
+$('rPause').addEventListener('click', () => { R.paused = !R.paused; $('rPause').textContent = R.paused ? '▶ 再開' : '⏸ 一時停止'; });
+$('rStop').addEventListener('click', rStop);
+window.addEventListener('resize', rFit);
+$('rSeed').value = newSeed(); rFit(); rShow();
+window.monty = { G, M, R, rBuild, rVerify };   // 確かめ用
 })();
 </script>
 </body>
