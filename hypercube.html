@@ -5500,8 +5500,8 @@
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r3) return;
             if (!wHole.line) wHole.line = wDblMk(r3, 400, false).line;
             if (!wHole.tl) { const m = wDblMk(r3, 1200, true); wHole.tl = m.line; wHole.tf = m.face; }   // 穴の向こう（4次元の排水管）
-            if (!wHole.gf) { wHole.gf = wDblMk(r3, 3000, true).face; wHole.gf.material.blending = THREE.NormalBlending; wHole.gf.material.opacity = 0.95; wHole.gf.renderOrder = 1001; wHole.gf.material.needsUpdate = true; }   // 鋳物の格子の面
-            if (!wHole.gf2 && r2) { wHole.gf2 = wDblMk(r2, 1200, true).face; wHole.gf2.material.blending = THREE.NormalBlending; wHole.gf2.material.opacity = 0.95; wHole.gf2.renderOrder = 1001; wHole.gf2.material.needsUpdate = true; }
+            if (!wHole.gf) { wHole.gf = wDblMk(r3, 3000, true).face; wHole.gf.material.blending = THREE.NormalBlending; wHole.gf.material.opacity = 0.22; wHole.gf.renderOrder = 1001; wHole.gf.material.needsUpdate = true; }   // 鋳物の格子の面
+            if (!wHole.gf2 && r2) { wHole.gf2 = wDblMk(r2, 1200, true).face; wHole.gf2.material.blending = THREE.NormalBlending; wHole.gf2.material.opacity = 0.22; wHole.gf2.renderOrder = 1001; wHole.gf2.material.needsUpdate = true; }
             if (!wHole.tl2 && r2) { const m = wDblMk(r2, 600, true); wHole.tl2 = m.line; wHole.tf2 = m.face; }
             if (!wHole.line2 && r2) wHole.line2 = wDblMk(r2, 300, false).line;
             const k = wHolesBuilt ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
@@ -5520,9 +5520,9 @@
                 for (let q = 0; q < 6; q++) { const th = now * 9 + q * Math.PI / 3; Ln(toS([cx[0], cx[1], cx[2], w]), [1, 0.75, 0.3]); Ln(toS([cx[0] + Math.cos(th) * R * 1.3, cx[1], cx[2] + Math.sin(th) * R * 1.3, w]), [1, 0.75, 0.3]); }
                 for (let q = 0; q < 10; q++) { const a = (q * 2.39 + now * 3) % (2 * Math.PI), f = (now * 2 + q / 10) % 1, rr = R + f * 0.25 * H; Ln(toS([cx[0] + Math.cos(a) * rr, cx[1] + f * 0.1 * H, cx[2] + Math.sin(a) * rr, w + f * 0.15 * H]), [1, 0.9, 0.5]); Ln(toS([cx[0] + Math.cos(a) * (rr + 0.03 * H), cx[1] + f * 0.1 * H, cx[2] + Math.sin(a) * (rr + 0.03 * H), w + f * 0.15 * H + 0.02 * H]), [0.9, 0.4, 0.1]); }
             };
-            const IRON = [0.17, 0.11, 0.07], IRON_HI = [0.27, 0.18, 0.11], IRON_EDGE = [0.42, 0.3, 0.2];   // 鋳物（下水の格子）：黒っぽい焦げ茶の鉄
-            cubeAt([0, 0, 0], HR, -H, IRON_EDGE);   // 排水口の穴のふち（枠。底の胞の真ん中）
-            cubeAt(VP, VR, H, IRON_EDGE);   // 通気口の穴のふち（ふたの胞）
+            const GL_LINE = [0.72, 0.74, 0.8], GL_PANE = [0.62, 0.72, 0.86];   // 格子：細い銀灰色の棒と、うっすら透ける板
+            cubeAt([0, 0, 0], HR, -H, [0.5, 0.65, 0.85]);   // 排水口の穴のふち（底の胞の真ん中）
+            cubeAt(VP, VR, H, [0.75, 0.78, 0.82]);   // 通気口の穴のふち（ふたの胞）
             // 格子のふた（グレーチング）：ほかの胞のふたと同じく、辺（y ＝ +R）を蝶番にガチャッと 90° 開く（少し行き過ぎて戻る）。排水口は −W の外へ、通気口は +W の外へ
             const dtH = Math.min(0.1, now - (wHole.last || now)); wHole.last = now;
             const dT = holesOpen() ? 1 : (wWater.on && wWaterHole() ? (wWater.blid || 0) : 0), vT = wWaterVent ? 1 : 0;
@@ -5531,18 +5531,12 @@
             const back = x => { const y = x - 1; return 1 + 2.7 * y * y * y + 1.7 * y * y; };   // 行き過ぎて戻る（ガチャッ）
             const GP = wHole.gf.geometry.attributes.position.array, GC = wHole.gf.geometry.attributes.color.array; let gfi = 0;
             const GF = (v, c) => { if (gfi + 3 > GP.length) return; GP[gfi] = v[0]; GP[gfi + 1] = v[1]; GP[gfi + 2] = v[2]; GC[gfi] = c[0] * k; GC[gfi + 1] = c[1] * k; GC[gfi + 2] = c[2] * k; gfi += 3; };
-            const grate = (cx, R, w0, sgn, x, c) => {   // 鋳物の立体の格子のふた：x・y・z の 3 方向に太い棒（±1 と ±1/3 の所）。棒は十字の板 2 枚で厚みを出す
-                const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1], TK = 0.11;
+            const grate = (cx, R, w0, sgn, x) => {   // 透ける立体の格子のふた：x・y・z の 3 方向に細い棒（±1 と ±1/3 の所）＋ ふたの面にうっすら透ける板
+                const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1];
                 const hp = (a, b, cc) => { const sd = R * (1 - b); return toS([cx[0] + a * R, cx[1] + R - sd * cs, cx[2] + cc * R, w0 + sgn * sd * sn]); };
-                for (let d = 0; d < 3; d++) for (const p of BAR) for (const q of BAR) {
-                    const o = [0, 1, 2].filter(e => e !== d), A = [0, 0, 0], B = [0, 0, 0]; A[d] = -1; B[d] = 1; A[o[0]] = B[o[0]] = p; A[o[1]] = B[o[1]] = q;
-                    const edge = Math.abs(p) === 1 && Math.abs(q) === 1;
-                    for (const [oi, col] of [[o[0], IRON], [o[1], IRON_HI]]) {   // 十字の板（棒の太さ）
-                        const a0 = A.slice(), a1 = A.slice(), b0 = B.slice(), b1 = B.slice(); a0[oi] -= TK; a1[oi] += TK; b0[oi] -= TK; b1[oi] += TK;
-                        const v0 = hp(...a0), v1 = hp(...a1), v2 = hp(...b1), v3 = hp(...b0); [v0, v1, v2, v0, v2, v3].forEach(v => GF(v, edge ? col.map(x => x * 1.15) : col));
-                    }
-                    Ln(hp(A[0], A[1], A[2]), IRON_EDGE.map(v => v * (edge ? 1 : 0.6))); Ln(hp(B[0], B[1], B[2]), IRON_EDGE.map(v => v * (edge ? 1 : 0.6)));
-                }
+                for (let d = 0; d < 3; d++) for (const p of BAR) for (const q of BAR) { const A = [0, 0, 0], B = [0, 0, 0]; const o = [0, 1, 2].filter(e => e !== d); A[d] = -1; B[d] = 1; A[o[0]] = B[o[0]] = p; A[o[1]] = B[o[1]] = q; const e = Math.abs(p) === 1 && Math.abs(q) === 1 ? 1 : 0.6; Ln(hp(A[0], A[1], A[2]), GL_LINE.map(v => v * e)); Ln(hp(B[0], B[1], B[2]), GL_LINE.map(v => v * e)); }
+                const cv = unitCubeVertices.map(u => hp(Math.sign(u[0]), Math.sign(u[1]), Math.sign(u[2])));   // ふた（小さな立方体）の 6 面の透ける板
+                WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => GF(cv[m], GL_PANE)));
             };
             if (!drilling) { grate([0, 0, 0], HR, -H, -1, wHole.dA); grate(VP, VR, H, 1, wHole.vA); }
             wHole.gf.geometry.setDrawRange(0, gfi / 3); wHole.gf.geometry.attributes.position.needsUpdate = wHole.gf.geometry.attributes.color.needsUpdate = true;
@@ -5578,21 +5572,14 @@
                 const pt = leftPtNow(), P2 = wHole.line2.geometry.attributes.position.array, C2 = wHole.line2.geometry.attributes.color.array; let l2 = 0;
                 const L2n = (v, c) => { if (l2 + 3 > P2.length) return; P2[l2] = v[0]; P2[l2 + 1] = v[1]; P2[l2 + 2] = v[2]; C2[l2] = c[0] * k; C2[l2 + 1] = c[1] * k; C2[l2 + 2] = c[2] * k; l2 += 3; };
                 const sq = (cx, cy, R, z, c, x) => { const v = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => pt(cx + a * R, cy + b * R, z)); [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { L2n(v[a], c); L2n(v[b], c); }); if (x) { L2n(v[0], [0.6, 0.62, 0.68]); L2n(v[2], [0.6, 0.62, 0.68]); L2n(v[1], [0.6, 0.62, 0.68]); L2n(v[3], [0.6, 0.62, 0.68]); } };
-                sq(0, 0, HR, -H, IRON_EDGE, false);
-                sq(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, IRON_EDGE, false);
+                sq(0, 0, HR, -H, [0.5, 0.65, 0.85], false);
+                sq(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, [0.75, 0.78, 0.82], false);
                 const G2P = wHole.gf2.geometry.attributes.position.array, G2C = wHole.gf2.geometry.attributes.color.array; let g2 = 0;
                 const GF2 = (v, c) => { if (g2 + 3 > G2P.length) return; G2P[g2] = v[0]; G2P[g2 + 1] = v[1]; G2P[g2 + 2] = v[2]; G2C[g2] = c[0] * k; G2C[g2 + 1] = c[1] * k; G2C[g2 + 2] = c[2] * k; g2 += 3; };
-                const grate2 = (cx, cy, R, z0, sgn, x) => {   // 左：鋳物の正方形の格子（太い棒。y ＝ +R の辺を蝶番に z の外へ）
-                    const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1], TK = 0.11;
-                    const raw = (a, b, n) => { const sd = R * (1 - b); return [cx + a * R, cy + R - sd * cs + n * TK * R * sgn * sn, z0 + sgn * sd * sn + n * TK * R * cs]; };   // n＝ふたの厚みの向き
-                    const P3 = (a, b, n) => { const g = raw(a, b, n); return pt(g[0], g[1], g[2]); };
-                    for (const p of BAR) for (const dir of [0, 1]) {
-                        const A = dir ? [p, -1] : [-1, p], B = dir ? [p, 1] : [1, p], edge = Math.abs(p) === 1, j = dir ? 0 : 1;
-                        const a0 = A.slice(), a1 = A.slice(), b0 = B.slice(), b1 = B.slice(); a0[j] -= TK; a1[j] += TK; b0[j] -= TK; b1[j] += TK;
-                        [P3(...a0, 0), P3(...a1, 0), P3(...b1, 0), P3(...a0, 0), P3(...b1, 0), P3(...b0, 0)].forEach(v => GF2(v, edge ? IRON_HI : IRON));   // 棒の上面
-                        [P3(...A, -1), P3(...A, 1), P3(...B, 1), P3(...A, -1), P3(...B, 1), P3(...B, -1)].forEach(v => GF2(v, IRON_HI));   // 棒の厚み
-                        L2n(P3(...A, 0), IRON_EDGE.map(v => v * (edge ? 1 : 0.6))); L2n(P3(...B, 0), IRON_EDGE.map(v => v * (edge ? 1 : 0.6)));
-                    }
+                const grate2 = (cx, cy, R, z0, sgn, x) => {   // 左：透ける正方形の格子（細い棒＋うっすら透ける板。y ＝ +R の辺を蝶番に z の外へ）
+                    const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1], hp = (a, b) => { const sd = R * (1 - b); return pt(cx + a * R, cy + R - sd * cs, z0 + sgn * sd * sn); };
+                    for (const p of BAR) { const e = Math.abs(p) === 1 ? 1 : 0.6, c = GL_LINE.map(v => v * e); L2n(hp(p, -1), c); L2n(hp(p, 1), c); L2n(hp(-1, p), c); L2n(hp(1, p), c); }
+                    const v = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => hp(a, b)); [0, 1, 2, 0, 2, 3].forEach(m => GF2(v[m], GL_PANE));
                 };
                 if (!drilling) { grate2(0, 0, HR, -H, -1, wHole.dA); grate2(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, 1, wHole.vA); }
                 wHole.gf2.geometry.setDrawRange(0, g2 / 3); wHole.gf2.geometry.attributes.position.needsUpdate = wHole.gf2.geometry.attributes.color.needsUpdate = true;
@@ -10104,7 +10091,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1352';
+        const APP_BUILD = '20261022-1354';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
