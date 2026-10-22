@@ -5246,7 +5246,7 @@
             const VP = [-0.5 * H, 0.5 * H, -0.5 * H], VR = 0.1 * H;
             if (wWaterVent) {
                 const vv = unitCubeVertices.map(c => toS([VP[0] + Math.sign(c[0]) * VR, VP[1] + Math.sign(c[1]) * VR, VP[2] + Math.sign(c[2]) * VR, H]));
-                WS_EDGES.forEach(([e0, e1]) => { L(vv[e0], 0.75, 0.78, 0.82); L(vv[e1], 0.75, 0.78, 0.82); });
+                WS_EDGES.forEach(([e0, e1]) => { const vc = (() => { const c = CELL_RGB[endCellIds()['3+']] || { r: 0.75, g: 0.78, b: 0.82 }; return [c.r, c.g, c.b].map(v => Math.min(1, v * 1.25 + 0.15)); })(); L(vv[e0], ...vc); L(vv[e1], ...vc); });   // 通気口：ふたの胞と同じ色
                 if (wWater.phase === 'drain') for (let q = 0; q < 8; q++) {   // 入っていく空気
                     const f = (T * 1.2 + q / 8) % 1, w0 = H + (1 - f) * 0.9 * H, ox = Math.cos(q * 2.4) * VR * 0.6, oz = Math.sin(q * 2.4) * VR * 0.6, a = Math.sin(Math.PI * f) * 0.8;
                     L(toS([VP[0] + ox, VP[1], VP[2] + oz, w0]), 0.85 * a, 0.9 * a, a); L(toS([VP[0] + ox, VP[1], VP[2] + oz, w0 - 0.12 * H]), 0.85 * a, 0.9 * a, a);
@@ -5398,7 +5398,7 @@
             if (hole) {   // 排水口：床の立方体（w ＝ −1）の真ん中にある小さな立方体の穴と、その栓
                 const po = wWater.blid || 0, pw = -H + po * 0.55 * H, pa = 1 - 0.75 * po;   // 栓：抜くと w の上へ持ち上がって薄くなる
                 const hv = unitCubeVertices.map(c => toS([Math.sign(c[0]) * HR, Math.sign(c[1]) * HR, Math.sign(c[2]) * HR, -H]));
-                WS_EDGES.forEach(([e0, e1]) => { L(hv[e0], ...LQ.rim); L(hv[e1], ...LQ.rim); });   // 穴のふち
+                WS_EDGES.forEach(([e0, e1]) => { const rc = (() => { const c = CELL_RGB[endCellIds()['3-']] || { r: 0.5, g: 0.65, b: 0.85 }; return [c.r, c.g, c.b].map(v => Math.min(1, v * 1.25 + 0.15)); })(); L(hv[e0], ...rc); L(hv[e1], ...rc); });   // 穴のふち   // 排水口のふち：底の胞と同じ色
                 if (pa > 0.05 && !holesOpen() && !wHolesBuilt) {   // 開けっぱなしの時は栓が無い（工事済みの時は格子のふたが開け閉めする）
                     const pv = unitCubeVertices.map(c => toS([Math.sign(c[0]) * HR * 1.08, Math.sign(c[1]) * HR * 1.08, Math.sign(c[2]) * HR * 1.08, pw]));
                     WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => F(pv[m], 0.5 * pa, 0.56 * pa, 0.68 * pa)));
@@ -5480,7 +5480,7 @@
                 }
                 if (wWaterVent) {   // 左の通気口：上ぶた（z ＝ +H）の小さな正方形の穴と、入っていく空気
                     const vs = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => pt(-0.5 * H + a * 0.1 * H, 0.5 * H + b * 0.1 * H, H));
-                    [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { L2(vs[a], 0.75, 0.78, 0.82); L2(vs[b], 0.75, 0.78, 0.82); });
+                    [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { const vc2 = (() => { const c = new THREE.Color(faceConfigs2D[5].color); return [c.r, c.g, c.b].map(v => Math.min(1, v * 1.25 + 0.15)); })(); L2(vs[a], ...vc2); L2(vs[b], ...vc2); });
                     if (wWater.phase === 'drain') for (let q = 0; q < 6; q++) { const f = (T * 1.2 + q / 6) % 1, z0 = H + (1 - f) * 0.9 * H, ox = Math.cos(q * 2.4) * 0.06 * H, oy = Math.sin(q * 2.4) * 0.06 * H, a = Math.sin(Math.PI * f) * 0.8; L2(pt(-0.5 * H + ox, 0.5 * H + oy, z0), 0.85 * a, 0.9 * a, a); L2(pt(-0.5 * H + ox, 0.5 * H + oy, z0 - 0.12 * H), 0.85 * a, 0.9 * a, a); }
                 }
                 if (coatA > 0.02 && coatLo < H - 0.01) {   // 左の 3D油：抜いた後に壁に残る膜と垂れ（4 枚の壁の、今の油面より上）
@@ -5546,9 +5546,13 @@
                 for (let q = 0; q < 6; q++) { const th = now * 9 + q * Math.PI / 3; Ln(toS([cx[0], cx[1], cx[2], w]), [1, 0.75, 0.3]); Ln(toS([cx[0] + Math.cos(th) * R * 1.3, cx[1], cx[2] + Math.sin(th) * R * 1.3, w]), [1, 0.75, 0.3]); }
                 for (let q = 0; q < 10; q++) { const a = (q * 2.39 + now * 3) % (2 * Math.PI), f = (now * 2 + q / 10) % 1, rr = R + f * 0.25 * H; Ln(toS([cx[0] + Math.cos(a) * rr, cx[1] + f * 0.1 * H, cx[2] + Math.sin(a) * rr, w + f * 0.15 * H]), [1, 0.9, 0.5]); Ln(toS([cx[0] + Math.cos(a) * (rr + 0.03 * H), cx[1] + f * 0.1 * H, cx[2] + Math.sin(a) * (rr + 0.03 * H), w + f * 0.15 * H + 0.02 * H]), [0.9, 0.4, 0.1]); }
             };
+            // 穴の色：排水口は底の胞（−W）、通気口はふたの胞（+W）と同じ色にして、明るさ（コントラスト）だけ変える
+            const ids5 = endCellIds(), cellC = i => { const c = CELL_RGB[i] || { r: 0.6, g: 0.7, b: 0.9 }; return [c.r, c.g, c.b]; }, lit = (c, k, add) => c.map(v => Math.min(1, v * k + add));
+            const mkPal = c => ({ rim: lit(c, 1.25, 0.15), line: lit(c, 1.4, 0.22), pane: lit(c, 0.9, 0.06), hl: lit(c, 1.5, 0.45) });
+            const PAL_D = mkPal(cellC(ids5['3-'])), PAL_V = mkPal(cellC(ids5['3+']));
             const GL_LINE = [0.72, 0.74, 0.8], GL_PANE = [0.62, 0.72, 0.86];   // 格子：細い銀灰色の棒と、うっすら透ける板
-            cubeAt([0, 0, 0], HR, -H, [0.5, 0.65, 0.85]);   // 排水口の穴のふち（底の胞の真ん中）
-            cubeAt(VP, VR, H, [0.75, 0.78, 0.82]);   // 通気口の穴のふち（ふたの胞）
+            cubeAt([0, 0, 0], HR, -H, PAL_D.rim);   // 排水口の穴のふち（底の胞の真ん中。底の胞と同じ色で明るく）
+            cubeAt(VP, VR, H, PAL_V.rim);   // 通気口の穴のふち（ふたの胞と同じ色で明るく）
             // 格子のふた（グレーチング）：ほかの胞のふたと同じく、辺（y ＝ +R）を蝶番にガチャッと 90° 開く（少し行き過ぎて戻る）。排水口は −W の外へ、通気口は +W の外へ
             const dtH = Math.min(0.1, now - (wHole.last || now)); wHole.last = now;
             const dT = holesOpen() ? 1 : (wWater.on && wWaterHole() ? (wWater.blid || 0) : 0), vT = wWaterVent ? 1 : 0;
@@ -5559,18 +5563,18 @@
             const back = x => { const y = x - 1; return 1 + 2.7 * y * y * y + 1.7 * y * y; };   // 行き過ぎて戻る（ガチャッ）
             const GP = wHole.gf.geometry.attributes.position.array, GC = wHole.gf.geometry.attributes.color.array; let gfi = 0;
             const GF = (v, c) => { if (gfi + 3 > GP.length) return; GP[gfi] = v[0]; GP[gfi + 1] = v[1]; GP[gfi + 2] = v[2]; GC[gfi] = c[0] * k; GC[gfi + 1] = c[1] * k; GC[gfi + 2] = c[2] * k; gfi += 3; };
-            const grate = (cx, R, w0, sgn, x, hl = 0) => {   // 透ける立体の格子のふた：x・y・z の 3 方向に細い棒（±1 と ±1/3 の所）＋ ふたの面にうっすら透ける板。hl＝開け閉めの途中の明るさ
-                const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1], mix = (c, k2) => c.map((v, i) => (v + (HLC[i] - v) * hl) * k2);
+            const grate = (cx, R, w0, sgn, x, hl = 0, pal = PAL_D) => {   // 透ける立体の格子のふた：x・y・z の 3 方向に細い棒（±1 と ±1/3 の所）＋ ふたの面にうっすら透ける板。hl＝開け閉めの途中の明るさ
+                const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1], mix = (c, k2) => c.map((v, i) => (v + (pal.hl[i] - v) * hl) * k2);
                 const hp = (a, b, cc) => { const sd = R * (1 - b); return toS([cx[0] + a * R, cx[1] + R - sd * cs, cx[2] + cc * R, w0 + sgn * sd * sn]); };
-                for (let d = 0; d < 3; d++) for (const p of BAR) for (const q of BAR) { const A = [0, 0, 0], B = [0, 0, 0]; const o = [0, 1, 2].filter(e => e !== d); A[d] = -1; B[d] = 1; A[o[0]] = B[o[0]] = p; A[o[1]] = B[o[1]] = q; const e = Math.abs(p) === 1 && Math.abs(q) === 1 ? 1 : 0.6; Ln(hp(A[0], A[1], A[2]), mix(GL_LINE, e)); Ln(hp(B[0], B[1], B[2]), mix(GL_LINE, e)); }
+                for (let d = 0; d < 3; d++) for (const p of BAR) for (const q of BAR) { const A = [0, 0, 0], B = [0, 0, 0]; const o = [0, 1, 2].filter(e => e !== d); A[d] = -1; B[d] = 1; A[o[0]] = B[o[0]] = p; A[o[1]] = B[o[1]] = q; const e = Math.abs(p) === 1 && Math.abs(q) === 1 ? 1 : 0.6; Ln(hp(A[0], A[1], A[2]), mix(pal.line, e)); Ln(hp(B[0], B[1], B[2]), mix(pal.line, e)); }
                 const cv = unitCubeVertices.map(u => hp(Math.sign(u[0]), Math.sign(u[1]), Math.sign(u[2])));   // ふた（小さな立方体）の 6 面の透ける板
-                WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => GF(cv[m], mix(GL_PANE, 1 + 2.5 * hl))));
+                WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => GF(cv[m], mix(pal.pane, 1 + 2.5 * hl))));
                 if (hl > 0.01) {   // 蝶番の面（y ＝ +R の正方形。ここは動かない）を明るく塗って、ふたがここを軸に回っているのを見せる
-                    const hv = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, c]) => hp(a, 1, c)), hc = HLC.map(v => v * 3 * hl);
-                    [0, 1, 2, 0, 2, 3].forEach(m => GF(hv[m], hc)); [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { Ln(hv[a], HLC.map(v => v * hl)); Ln(hv[b], HLC.map(v => v * hl)); });
+                    const hv = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, c]) => hp(a, 1, c)), hc = pal.hl.map(v => v * 3 * hl);
+                    [0, 1, 2, 0, 2, 3].forEach(m => GF(hv[m], hc)); [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { Ln(hv[a], pal.hl.map(v => v * hl)); Ln(hv[b], pal.hl.map(v => v * hl)); });
                 }
             };
-            if (!drilling) { grate([0, 0, 0], HR, -H, -1, wHole.dA, dHL); grate(VP, VR, H, 1, wHole.vA, vHL); }
+            if (!drilling) { grate([0, 0, 0], HR, -H, -1, wHole.dA, dHL, PAL_D); grate(VP, VR, H, 1, wHole.vA, vHL, PAL_V); }
             wHole.gf.geometry.setDrawRange(0, gfi / 3); wHole.gf.geometry.attributes.position.needsUpdate = wHole.gf.geometry.attributes.color.needsUpdate = true;
             // 穴の向こう：床の胞（立体）の真ん中をくり抜いた所。向こう（w ＜ −H）は遠近で「内側ほど小さく」写るので、穴の立方体の内側に、奥へ縮んでいく 4次元の排水管が見える。
             //   切り口（穴の内壁）は少し明るく、管の輪は奥ほど暗く、いちばん奥に向こう側の光。ふたが開くほど見える
@@ -5604,17 +5608,18 @@
                 const pt = leftPtNow(), P2 = wHole.line2.geometry.attributes.position.array, C2 = wHole.line2.geometry.attributes.color.array; let l2 = 0;
                 const L2n = (v, c) => { if (l2 + 3 > P2.length) return; P2[l2] = v[0]; P2[l2 + 1] = v[1]; P2[l2 + 2] = v[2]; C2[l2] = c[0] * k; C2[l2 + 1] = c[1] * k; C2[l2 + 2] = c[2] * k; l2 += 3; };
                 const sq = (cx, cy, R, z, c, x) => { const v = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => pt(cx + a * R, cy + b * R, z)); [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { L2n(v[a], c); L2n(v[b], c); }); if (x) { L2n(v[0], [0.6, 0.62, 0.68]); L2n(v[2], [0.6, 0.62, 0.68]); L2n(v[1], [0.6, 0.62, 0.68]); L2n(v[3], [0.6, 0.62, 0.68]); } };
-                sq(0, 0, HR, -H, [0.5, 0.65, 0.85], false);
-                sq(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, [0.75, 0.78, 0.82], false);
+                const fc2 = i => { const c = new THREE.Color(faceConfigs2D[i].color); return [c.r, c.g, c.b]; }, PAL_D2 = mkPal(fc2(0)), PAL_V2 = mkPal(fc2(5));   // 左：底（中央面）・上ぶた（最上蓋）と同じ色
+                sq(0, 0, HR, -H, PAL_D2.rim, false);
+                sq(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, PAL_V2.rim, false);
                 const G2P = wHole.gf2.geometry.attributes.position.array, G2C = wHole.gf2.geometry.attributes.color.array; let g2 = 0;
                 const GF2 = (v, c) => { if (g2 + 3 > G2P.length) return; G2P[g2] = v[0]; G2P[g2 + 1] = v[1]; G2P[g2 + 2] = v[2]; G2C[g2] = c[0] * k; G2C[g2 + 1] = c[1] * k; G2C[g2 + 2] = c[2] * k; g2 += 3; };
-                const grate2 = (cx, cy, R, z0, sgn, x, hl = 0) => {   // 左：透ける正方形の格子（細い棒＋うっすら透ける板。y ＝ +R の辺を蝶番に z の外へ）。開け閉めの途中は明るく、蝶番の辺も
-                    const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1], hp = (a, b) => { const sd = R * (1 - b); return pt(cx + a * R, cy + R - sd * cs, z0 + sgn * sd * sn); }, mix = (c, k2) => c.map((v, i) => (v + (HLC[i] - v) * hl) * k2);
-                    for (const p of BAR) { const e = Math.abs(p) === 1 ? 1 : 0.6, c = mix(GL_LINE, e); L2n(hp(p, -1), c); L2n(hp(p, 1), c); L2n(hp(-1, p), c); L2n(hp(1, p), c); }
-                    const v = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => hp(a, b)); [0, 1, 2, 0, 2, 3].forEach(m => GF2(v[m], mix(GL_PANE, 1 + 2.5 * hl)));
-                    if (hl > 0.01) for (let q = 0; q < 3; q++) { const off = (q - 1) * 0.004 * H; L2n(pt(cx - R, cy + R + off, z0), HLC.map(c => c * hl)); L2n(pt(cx + R, cy + R + off, z0), HLC.map(c => c * hl)); }   // 蝶番の辺（太めに）
+                const grate2 = (cx, cy, R, z0, sgn, x, hl = 0, pal = PAL_D2) => {   // 左：透ける正方形の格子（細い棒＋うっすら透ける板。y ＝ +R の辺を蝶番に z の外へ）。開け閉めの途中は明るく、蝶番の辺も
+                    const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1], hp = (a, b) => { const sd = R * (1 - b); return pt(cx + a * R, cy + R - sd * cs, z0 + sgn * sd * sn); }, mix = (c, k2) => c.map((v, i) => (v + (pal.hl[i] - v) * hl) * k2);
+                    for (const p of BAR) { const e = Math.abs(p) === 1 ? 1 : 0.6, c = mix(pal.line, e); L2n(hp(p, -1), c); L2n(hp(p, 1), c); L2n(hp(-1, p), c); L2n(hp(1, p), c); }
+                    const v = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => hp(a, b)); [0, 1, 2, 0, 2, 3].forEach(m => GF2(v[m], mix(pal.pane, 1 + 2.5 * hl)));
+                    if (hl > 0.01) for (let q = 0; q < 3; q++) { const off = (q - 1) * 0.004 * H; L2n(pt(cx - R, cy + R + off, z0), pal.hl.map(c => c * hl)); L2n(pt(cx + R, cy + R + off, z0), pal.hl.map(c => c * hl)); }   // 蝶番の辺（太めに）
                 };
-                if (!drilling) { grate2(0, 0, HR, -H, -1, wHole.dA, dHL); grate2(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, 1, wHole.vA, vHL); }
+                if (!drilling) { grate2(0, 0, HR, -H, -1, wHole.dA, dHL, PAL_D2); grate2(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, 1, wHole.vA, vHL, PAL_V2); }
                 wHole.gf2.geometry.setDrawRange(0, g2 / 3); wHole.gf2.geometry.attributes.position.needsUpdate = wHole.gf2.geometry.attributes.color.needsUpdate = true;
                 if (beyondOn && wHole.tl2) {   // 左：床の正方形の穴の向こう（z ＜ −H）へ続く四角い管と、奥の光
                     const oa = Math.min(1, wHole.dA), TP = wHole.tl2.geometry.attributes.position.array, TC = wHole.tl2.geometry.attributes.color.array, FP = wHole.tf2.geometry.attributes.position.array, FC = wHole.tf2.geometry.attributes.color.array;
@@ -10126,7 +10131,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1407';
+        const APP_BUILD = '20261022-1413';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
