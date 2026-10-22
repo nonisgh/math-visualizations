@@ -6149,7 +6149,7 @@
             for (let i = 0; i < N - 1; i += stp) {   // 帯 [t_i, t_{i+stp}]（多い時はまとめて 64 本くらいに）。敷きつめた先頭まで
                 const t0 = Math.max(tAt(i), wSlice.packBack !== undefined ? wSlice.packBack : -1), t1 = Math.min(tAt(Math.min(N - 1, i + stp)), front);   // 下の端（反対側から出す時）〜先頭
                 if (t1 <= t0 + 1e-6) { if (tAt(i) >= front) break; continue; }
-                const spec = (wPackRbStyle === 'spec' || wPackRbStyle === 'ring' || wPackRbStyle === 'ball'), ring = wPackRbStyle === 'ring' || wPackRbStyle === 'ball';
+                const spec = (wPackRbStyle === 'spec' && !(wFrameCol === 'order' || wFrameCol === 'depth')) || wPackRbStyle === 'ring' || wPackRbStyle === 'ball', ring = wPackRbStyle === 'ring' || wPackRbStyle === 'ball';   // 枠の色が 積分の順・奥行き なら、タイルも 入る順に 赤 → 紫
                 if (!spec) col.setHSL(0.82 * (i + stp / 2) / Math.max(1, N - 1), 1, 0.55);
                 const w0 = t0 * H, w1 = t1 * H;
                 if (is3) WS_EDGES.forEach(([e0, e1]) => {   // 立方体の 12 本の辺 × w の帯＝超立方体の w の方向にのびた面
@@ -6365,6 +6365,7 @@
             const ballList = [];   // 同心球の殻を入れる立方体
             solidView = { cam: camera3D, obj: wSlice.face };   // （立体）の板の奥の向き
             const depthW = wFrameCol === 'depth' ? frameDepthMaker(q => ndProject(NDGeom.rotatePoint([0, 0, 0, Math.max(-1, Math.min(1, q)) * HALF_S], rot), pb), (wSlice.face.updateMatrixWorld(true), wSlice.face.worldToLocal(camera3D.getWorldPosition(new THREE.Vector3()))), HALF_S) : null;   // 枠の色「奥行き」：カメラからの遠さ
+            const tileByFrame = wPackRbStyle === 'spec' && (wFrameCol === 'order' || wFrameCol === 'depth') ? ((i, c) => { const q = -1 + 2 * i / Math.max(1, WPACK.N - 1); return specCol(wFrameCol === 'order' ? (q + 1) / 2 : depthW ? depthW(q) : frameDepth4(rot, 3, q, HALF_S), c); }) : null;   // 胞の面のタイルも枠の色に合わせる（積み重なるごとに 赤 → 紫 の七色ができる）
             const stS = solidBegin('p3', r3, wSlice.pack && wPackRainbow && wPackRbStyle === 'spec' && wSpecVol, MAXN);   // 七色の立方体（立体）＝かたまり
             list.forEach(({ t, a, one, aL = 1, aF = 1, fa = 1, slot, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD, wh = 0, rgb, noFace, spec, back, ballSel }) => {
                 const w = t * HALF_S;
@@ -6427,7 +6428,7 @@
             wSlice.line.geometry.attributes.position.needsUpdate = wSlice.line.geometry.attributes.color.needsUpdate = true;
             wSlice.face.geometry.attributes.position.needsUpdate = wSlice.face.geometry.attributes.color.needsUpdate = true;
             wSliceFitNote(3, wSlice.line.geometry, r3, camera3D);   // 敷きつめるの間の引き具合
-            if (wSlice.pack && wPackRainbow) drawTiles4('mesh', r3, k, rot, pb, 3, WPACK.N, wSlice.packFront !== undefined ? wSlice.packFront : -1, tileRainbow(WPACK.N), wPackRbStyle === 'ball' ? 'ball' : wPackRbStyle === 'ring' ? 'ring' : wPackRbStyle === 'spec', wSlice.packBack !== undefined ? wSlice.packBack : -1); else if (wTile.mesh) wTile.mesh.visible = false;   // 胞の面にも虹のタイル（4次元）
+            if (wSlice.pack && wPackRainbow) drawTiles4('mesh', r3, k, rot, pb, 3, WPACK.N, wSlice.packFront !== undefined ? wSlice.packFront : -1, tileByFrame ? tileByFrame : tileRainbow(WPACK.N), tileByFrame ? false : wPackRbStyle === 'ball' ? 'ball' : wPackRbStyle === 'ring' ? 'ring' : wPackRbStyle === 'spec', wSlice.packBack !== undefined ? wSlice.packBack : -1); else if (wTile.mesh) wTile.mesh.visible = false;   // 胞の面にも虹のタイル（4次元）
             updatePackHUD();   // 敷きつめるの「積分」表示
             updateZSlice(progress, k);
         }
