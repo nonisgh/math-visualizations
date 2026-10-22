@@ -5000,7 +5000,7 @@
         }
         // 油の透け方（ハチミツのよう）：ランベルト–ベールの法則。光が液体の中を通る道のり L が長いほど吸収される。
         //   油やハチミツは青から先に吸われる（吸収の強さ 赤 < 緑 < 青）→ 薄い所は明るい金色、中くらいは琥珀色、厚い所は濃い赤茶〜ほぼ黒（明暗のコントラスト）
-        const HONEY = { LIGHT: [1.08, 0.94, 0.72], K: [0.5, 1.45, 3.5] };   // 透かす光の色・吸収（H あたり）
+        const HONEY = { LIGHT: [1.06, 1.0, 0.72], K: [0.08, 0.26, 1.4] };   // 透かす光の色・吸収（H あたり）。サラダ油のように：全体に黄色く澄んでいて、厚い所は濃い黄金〜琥珀色（青だけ強く吸われる）
         function honeyRGB(L) { return HONEY.LIGHT.map((c, i) => c * Math.exp(-HONEY.K[i] * Math.max(0, L))); }
         function oilVivid(f) {   // 干渉色を鮮やかに（白っぽさを引いて、彩度を上げる）
             const mn = Math.min(f[0], f[1], f[2]); return f.map(x => Math.min(1.25, (x - 0.7 * mn) * 1.6 + 0.08));
@@ -5041,7 +5041,7 @@
             return pts;
         }
         const LIQ_WATER = { surf: [0.32, 0.78, 1], grid: [0.1, 0.32, 0.62], wall: [0.1, 0.4, 0.95], men: [0.38, 0.78, 1], cornB: [0.12, 0.42, 0.95], cornT: [0.3, 0.7, 1], bot: [0.05, 0.25, 0.7], stream: [0.3, 0.7, 1], bead: [0.5, 0.85, 1], drop1: [0.45, 0.8, 1], drop2: [0.2, 0.5, 0.95], out: [0.12, 0.45, 0.98], outL: [0.25, 0.6, 1], sec: [0.35, 0.75, 1], rim: [0.15, 0.4, 1], vort: [0.25, 0.62, 1], bub: lt => [0.35 + 0.3 * lt, 0.7 + 0.25 * lt, 1] };
-        const LIQ_OIL = { surf: [0.2, 0.12, 0.035], grid: [0.16, 0.09, 0.025], wall: [0.13, 0.07, 0.018], men: [0.48, 0.3, 0.09], cornB: [0.16, 0.08, 0.02], cornT: [0.45, 0.27, 0.08], bot: [0.06, 0.03, 0.01], stream: [0.42, 0.25, 0.07], bead: [0.7, 0.48, 0.18], drop1: [0.6, 0.4, 0.13], drop2: [0.3, 0.17, 0.04], out: [0.17, 0.09, 0.02], outL: [0.36, 0.21, 0.06], sec: [0.42, 0.26, 0.07], rim: [0.45, 0.28, 0.08], vort: [0.38, 0.23, 0.06], bub: lt => [0.75 + 0.15 * lt, 0.55 + 0.15 * lt, 0.28 + 0.15 * lt] };   // 石油っぽい：黒に近い焦げ茶（虹色の膜が浮いて見える）
+        const LIQ_OIL = { surf: [0.85, 0.72, 0.22], grid: [0.5, 0.4, 0.1], wall: [0.6, 0.48, 0.1], men: [1.0, 0.9, 0.45], cornB: [0.55, 0.4, 0.06], cornT: [0.95, 0.85, 0.4], bot: [0.35, 0.24, 0.03], stream: [1.0, 0.88, 0.4], bead: [1.0, 0.95, 0.6], drop1: [1.0, 0.92, 0.5], drop2: [0.75, 0.6, 0.15], out: [0.6, 0.46, 0.08], outL: [0.85, 0.7, 0.2], sec: [0.95, 0.82, 0.3], rim: [0.95, 0.8, 0.3], vort: [0.9, 0.75, 0.25], bub: lt => [1.0, 0.95 + 0.05 * lt, 0.7 + 0.2 * lt] };   // サラダ油っぽい：澄んだ黄色〜黄金色
         function updateWater(progress) {
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r3) return;
             if (!wWater.bp) wWater.bp = wBubPts(r3); if (!wWater.bp2 && r2) wWater.bp2 = wBubPts(r2);
@@ -5096,7 +5096,7 @@
             const shine = d => Math.max(0.55, Math.min(1.5, 0.85 + 5 * d));   // 波の山は明るく、谷は暗く（きらきら）
             // 虹の水：水の粒は注いだ時の高さ（底 赤 … いっぱいの所 紫）の色のまま動かない＝層が混ざらずに残る（4D空間積分の虹の立方体と同じ並び）。抜く時は層ごと下がる
             const LQ = wWaterOil ? LIQ_OIL : LIQ_WATER;   // 液体の色：水（青）／油（石油っぽい濃い琥珀色。虹色の膜が目立つ）
-            wWater.face.material.opacity = wWaterOil ? 0.78 : 0.4; if (wWater.face2) wWater.face2.material.opacity = wWaterOil ? 0.78 : 0.4;
+            wWater.face.material.opacity = wWaterOil ? 0.55 : 0.4; if (wWater.face2) wWater.face2.material.opacity = wWaterOil ? 0.55 : 0.4;   // サラダ油は澄んでいるので少し透ける
             const rb = wWaterRainbow, NB = 12, shiftW = wWater.phase === 'drain' || wWater.phase === 'bclose' ? (1 - h) * H : 0, rbc = new THREE.Color();
             const hueRGB = w => { const f = Math.max(0, Math.min(1, (w + shiftW + H) / (2 * H))); rbc.setHSL(0.82 * f, 1, 0.55); return [rbc.r, rbc.g, rbc.b]; };
             const NG = 24, bandLv = (top) => { const lv = [-H]; for (let k = 1; k < NG; k++) { const w = -H + k * 2 * H / NG - shiftW; if (w > -H + 1e-4 && w < top - 1e-4) lv.push(w); } return lv; };   // 壁を細かく分ける高さ（色は頂点ごと＝境目のないグラデーション）
@@ -9871,7 +9871,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1201';
+        const APP_BUILD = '20261022-1204';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
