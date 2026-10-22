@@ -4888,7 +4888,7 @@
         //   排水口からはトリチェリ（出る速さ √(2g・深さ)）：水位の下がる速さ＝(穴の広さ／水面の広さ) × √(2g・深さ) → 空になるまで (水面の広さ／穴の広さ) × √(2・2H／g)。
         //   4次元では「広さ」は 3次元の体積なので、広さの比は (穴の半幅／H)³（3次元のお風呂なら 2 乗）。同じ形の穴でも 4次元のほうがずっとゆっくり抜ける
         const WFALL_T = () => Math.sqrt(2 * 2 * HALF_S / WWATER.g), WDRAIN_HOLE_T = () => WFALL_T() / Math.pow(WWATER.HOLE, 3);
-        const SWE = { NU_WATER: 0.002, NU_OIL: 0.35, CD_OIL: 0.5, VC3: 0.05, VC2: 0.08,   // VC＝横の粘りの 1 小ステップの上限（波の計算と合わせても安定するように）
+        const SWE = { NU_WATER: 0.002, NU_OIL: 0.02, CD_OIL: 0.75, VC3: 0.05, VC2: 0.08,   // VC＝横の粘りの 1 小ステップの上限（波の計算と合わせても安定するように）
             N: 16, M: 32, G: WWATER.g, GAM: 0.2, JET: 0.3, SINK: 1.6, LIM: 0.32, DT: 0.012, noise: 0, ready: false };
         function sweInit() {
             const N = SWE.N, M = SWE.M, N3 = N * N * N, cen = i => -1 + (i + 0.5) * 2 / N, cen2 = i => -1 + (i + 0.5) * 2 / M, us = WWATER.US;
@@ -4909,7 +4909,7 @@
         // 粘性（ナビエ–ストークスの粘性の項を水深で平均したもの）：
         //   ・底との摩擦：床の上をべったり流れる形（ポアズイユ流れ）で −3ν u／D²。浅いほど急に強い（油が薄く広がると、ほとんど動かない）
         //   ・横どうしの粘り：ν ∇²u（流れの速さがならされる）
-        //   ν（動粘性）は水 0.002、油 0.35（約 175 倍）。底の摩擦は exp で解くのでいつも安定、横の粘りは格子に合わせて上限
+        //   ν（動粘性）は水 0.002、油 0.02（約 10 倍。本物の重い油はもっと粘いが、揺れが見えるように控えめ）。底の摩擦は exp で解くのでいつも安定、横の粘りは格子に合わせて上限
         function sweVisc(U, T, nI, nJ, nK, fixI, fixJ, fixK, c) {   // 面の速さ U（nI×nJ×nK）に c・∇²U。fixI などは壁の面（動かさない）
             T.set(U.subarray(0, nI * nJ * nK));
             const id = (i, j, k) => (i * nJ + j) * nK + k, cl = (q, n) => q < 0 ? 0 : q >= n ? n - 1 : q;
@@ -5159,7 +5159,7 @@
                 }
             }
             // しぶき：筋が水面に当たる所から跳ねて、また落ちる
-            if (pouring && h > -0.98) for (let n = 0; n < Math.round((40 * dt + Math.random() * 0.6) * (wWaterOil ? 0.12 : 1)); n++) {   // 粘い油はしぶきがほとんど立たない
+            if (pouring && h > -0.98) for (let n = 0; n < Math.round((40 * dt + Math.random() * 0.6) * (wWaterOil ? 0.45 : 1)); n++) {   // 粘い油はしぶきが少なめ
                 const a = Math.random() * Math.PI * 2, b = Math.acos(2 * Math.random() - 1), sp = (0.4 + Math.random() * 0.6) * H;
                 wWater.drops.push({ p: [sx, sy, sz, surfS], v: [Math.sin(b) * Math.cos(a) * sp, Math.sin(b) * Math.sin(a) * sp, Math.cos(b) * sp, (0.8 + Math.random() * 0.8) * H], life: 1.2 });
             }
@@ -5174,7 +5174,7 @@
             if (wWater.drops.length > 160) wWater.drops.splice(0, wWater.drops.length - 160);
             // 泡：水の中を +W（重力と逆）へゆらゆら上がって、水面ではじける。注ぐ時は水の筋が当たった所の下から、抜く時は底（排水口なら穴から ぼこぼこ）
             const inWater = h > -0.97, nRate = r => Math.floor(r * dt + Math.random()), rnd = () => Math.random() * 2 - 1;
-            const newBub = (x, y, z, w) => ({ p: [x, y, z, w], r: (0.035 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H * (wWaterOil ? 0.25 : 1), ph: Math.random() * 6.3, pop: -1 });   // 油の中はゆっくり上がる（ストークス：上がる速さ ∝ 1／粘性）
+            const newBub = (x, y, z, w) => ({ p: [x, y, z, w], r: (0.035 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H * (wWaterOil ? 0.55 : 1), ph: Math.random() * 6.3, pop: -1 });   // 油の中はゆっくり上がる（ストークス：上がる速さ ∝ 1／粘性）
             if (!wWater.bub) wWater.bub = [];
             if (pouring && inWater) for (let q = nRate(26); q > 0; q--) wWater.bub.push(newBub(sx + rnd() * 0.18 * H, sy + rnd() * 0.18 * H, sz + rnd() * 0.18 * H, Math.max(-0.95 * H, surfS - (0.1 + Math.random() * 0.5) * H)));
             if (wWater.phase === 'drain' && inWater) {
@@ -5302,7 +5302,7 @@
                 // 左の立方体の泡：z の方向に上がって、水面（正方形）ではじける
                 if (!wWater.bub2) wWater.bub2 = [];
                 const nR = r => Math.floor(r * dt + Math.random()), rn = () => Math.random() * 2 - 1, inW = h > -0.97;
-                const nb = (x, y, z) => ({ p: [x, y, z], r: (0.035 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H * (wWaterOil ? 0.25 : 1), ph: Math.random() * 6.3, pop: -1 });
+                const nb = (x, y, z) => ({ p: [x, y, z], r: (0.035 + Math.random() * 0.04) * H, v: (0.5 + Math.random() * 0.5) * H * (wWaterOil ? 0.55 : 1), ph: Math.random() * 6.3, pop: -1 });
                 if (pouring && inW) for (let q = nR(14); q > 0; q--) wWater.bub2.push(nb(W.US[0] * H + rn() * 0.18 * H, W.US[1] * H + rn() * 0.18 * H, Math.max(-0.95 * H, (h - 0.1 - Math.random() * 0.5) * H)));
                 if (wWater.phase === 'drain' && inW) for (let q = nR(hole ? 14 * Math.max(0, Math.sin(T * 7)) : 9); q > 0; q--) wWater.bub2.push(nb(rn() * (hole ? HR : 0.9 * H), rn() * (hole ? HR : 0.9 * H), -0.95 * H));
                 const ring2 = (b, rr, a) => {   // 左の泡＝小さな球（透けた玉 1 つ）
@@ -9810,7 +9810,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1147';
+        const APP_BUILD = '20261022-1149';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
