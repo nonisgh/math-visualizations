@@ -4877,11 +4877,59 @@
         let wWaterDrain = 'all'; try { const v = localStorage.getItem('hypercubeWaterDrain'); if (['all', 'hole', 'alt'].includes(v)) wWaterDrain = v; } catch (_) {}
         const wWaterHole = () => wWaterDrain === 'hole' || (wWaterDrain === 'alt' && (wWater.cyc || 0) % 2 === 1);   // 今回の抜き方が排水口か（交互＝1 回ごとに 底を全部 → 排水口 → …）
         // 抜き方：底を全部開ける／小さい排水口（渦）
-        function wWaterSurf(u, T) {   // 水面の揺れ（h の単位）。u＝水面の点（−1〜1 の 3 つ、左は 2 つ）
-            const us = WWATER.US, ux = u[0], uy = u[1], uz = u.length > 2 ? u[2] : 0;
-            const slosh = 0.1 * Math.sin(2.3 * T) * ux + 0.08 * Math.sin(2.9 * T + 1.3) * (u.length > 2 ? uz : uy) + 0.05 * Math.sin(1.9 * T + 0.4) * uy;   // 傾いて往復（ちゃぷんちゃぷん）
-            const r = Math.hypot(ux - us[0], uy - us[1], uz - (u.length > 2 ? us[2] : 0)), rip = 0.07 * Math.sin(10 * r - 8 * T) * Math.exp(-1.4 * r);   // 筋が当たった所からの波紋
-            return wWater.amp * slosh + wWater.rip * rip;
+        // ===== 浅水方程式（ナビエ–ストークスを水深の方向に平均したもの）で、4D水の水面を本当に解く =====
+        //   水面の高さのずれ η と、水平な流れ u（4次元のお風呂では水平な方向が x・y・z の 3 つ、左の 3D水は x・y の 2 つ）を格子で解く（線形・粘性は減衰 γ で）：
+        //     ∂u/∂t ＝ −g ∇η − ∇p − γ u     （p＝水の筋が当たる所の圧力）
+        //     ∂η/∂t ＝ −D ∇·u − q            （D＝水深、q＝排水口から吸い出す量）
+        //   壁では流れが壁を通らない（法線の速さ 0）。平均の水位は h が受け持つので、η は平均 0 に保つ。波の速さは √(gD)＝浅いほど遅い。
+        //   底を全部開けた時は自由落下＝見かけの重力 g＝0。格子は 4D が 16×16×16、左の 3D水が 32×32
+        const SWE = { N: 16, M: 32, G: 2.7, GAM: 0.2, JET: 0.3, SINK: 1.6, LIM: 0.32, DT: 0.012, noise: 0, ready: false };
+        function sweInit() {
+            const N = SWE.N, M = SWE.M, N3 = N * N * N, cen = i => -1 + (i + 0.5) * 2 / N, cen2 = i => -1 + (i + 0.5) * 2 / M, us = WWATER.US;
+            SWE.eta = new Float32Array(N3); SWE.ux = new Float32Array((N + 1) * N * N); SWE.uy = new Float32Array(N * (N + 1) * N); SWE.uz = new Float32Array(N * N * (N + 1)); SWE.p = new Float32Array(N3);
+            SWE.gj = new Float32Array(N3); SWE.gc = new Float32Array(N3);
+            for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) for (let k = 0; k < N; k++) {
+                const n = (i * N + j) * N + k, x = cen(i), y = cen(j), z = cen(k);
+                SWE.gj[n] = Math.exp(-((x - us[0]) ** 2 + (y - us[1]) ** 2 + (z - us[2]) ** 2) / 0.035);   // 水の筋が当たる所
+                SWE.gc[n] = Math.exp(-(x * x + y * y + z * z) / 0.02);   // 排水口（真ん中）
+            }
+            SWE.e2 = new Float32Array(M * M); SWE.vx2 = new Float32Array((M + 1) * M); SWE.vy2 = new Float32Array(M * (M + 1)); SWE.p2 = new Float32Array(M * M);
+            SWE.gj2 = new Float32Array(M * M); SWE.gc2 = new Float32Array(M * M);
+            for (let i = 0; i < M; i++) for (let j = 0; j < M; j++) { const n = i * M + j, x = cen2(i), y = cen2(j); SWE.gj2[n] = Math.exp(-((x - us[0]) ** 2 + (y - us[1]) ** 2) / 0.035); SWE.gc2[n] = Math.exp(-(x * x + y * y) / 0.02); }
+            SWE.ready = true;
+        }
+        function sweReset() { if (!SWE.ready) sweInit(); [SWE.eta, SWE.ux, SWE.uy, SWE.uz, SWE.e2, SWE.vx2, SWE.vy2].forEach(a => a.fill(0)); SWE.noise = 0; }
+        function sweStep(dt, g, D, jet, sink) {   // 1 小ステップ（4D の 3 方向と、左の 2 方向）
+            const N = SWE.N, dx = 2 * HALF_S / N, E = SWE.eta, UX = SWE.ux, UY = SWE.uy, UZ = SWE.uz, P = SWE.p, damp = Math.exp(-SWE.GAM * dt), L = SWE.LIM * HALF_S;
+            for (let n = 0; n < P.length; n++) P[n] = jet * SWE.gj[n];
+            for (let i = 1; i < N; i++) for (let j = 0; j < N; j++) for (let k = 0; k < N; k++) { const a = ((i - 1) * N + j) * N + k, b = (i * N + j) * N + k; UX[b] = (UX[b] - dt * (g * (E[b] - E[a]) + P[b] - P[a]) / dx) * damp; }   // ux の面 i（0 と N は壁）
+            for (let i = 0; i < N; i++) for (let j = 1; j < N; j++) for (let k = 0; k < N; k++) { const a = (i * N + j - 1) * N + k, b = (i * N + j) * N + k, f = (i * (N + 1) + j) * N + k; UY[f] = (UY[f] - dt * (g * (E[b] - E[a]) + P[b] - P[a]) / dx) * damp; }
+            for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) for (let k = 1; k < N; k++) { const a = (i * N + j) * N + k - 1, b = a + 1, f = (i * N + j) * (N + 1) + k; UZ[f] = (UZ[f] - dt * (g * (E[b] - E[a]) + P[b] - P[a]) / dx) * damp; }
+            let sum = 0;
+            for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) for (let k = 0; k < N; k++) {
+                const n = (i * N + j) * N + k;
+                const div = UX[((i + 1) * N + j) * N + k] - UX[n] + UY[(i * (N + 1) + j + 1) * N + k] - UY[(i * (N + 1) + j) * N + k] + UZ[(i * N + j) * (N + 1) + k + 1] - UZ[(i * N + j) * (N + 1) + k];
+                E[n] += dt * (-D * div / dx - sink * SWE.gc[n]); sum += E[n];
+            }
+            const mean = sum / E.length; for (let n = 0; n < E.length; n++) E[n] = Math.max(-L, Math.min(L, E[n] - mean));   // 平均の水位は h が受け持つ
+            const M = SWE.M, d2 = 2 * HALF_S / M, E2 = SWE.e2, VX = SWE.vx2, VY = SWE.vy2, P2 = SWE.p2;   // 左の 3D水（x・y の 2 方向）
+            for (let n = 0; n < P2.length; n++) P2[n] = jet * SWE.gj2[n];
+            for (let i = 1; i < M; i++) for (let j = 0; j < M; j++) { const a = (i - 1) * M + j, b = i * M + j; VX[b] = (VX[b] - dt * (g * (E2[b] - E2[a]) + P2[b] - P2[a]) / d2) * damp; }
+            for (let i = 0; i < M; i++) for (let j = 1; j < M; j++) { const a = i * M + j - 1, b = a + 1, f = i * (M + 1) + j; VY[f] = (VY[f] - dt * (g * (E2[b] - E2[a]) + P2[b] - P2[a]) / d2) * damp; }
+            let s2 = 0;
+            for (let i = 0; i < M; i++) for (let j = 0; j < M; j++) { const n = i * M + j, div = VX[(i + 1) * M + j] - VX[n] + VY[i * (M + 1) + j + 1] - VY[i * (M + 1) + j]; E2[n] += dt * (-D * div / d2 - sink * SWE.gc2[n]); s2 += E2[n]; }
+            const m2 = s2 / E2.length; for (let n = 0; n < E2.length; n++) E2[n] = Math.max(-L, Math.min(L, E2[n] - m2));
+        }
+        function sweSample3(u) {   // 水面のずれ η（世界の長さ）を点 u（−1〜1 の 3 つ）で：格子の真ん中どうしを 3 方向に直線でつなぐ
+            const N = SWE.N, E = SWE.eta, f = q => Math.max(0, Math.min(N - 1.0001, (q + 1) / 2 * N - 0.5));
+            const fx = f(u[0]), fy = f(u[1]), fz = f(u[2]), i = Math.floor(fx), j = Math.floor(fy), k = Math.floor(fz), a = fx - i, b = fy - j, c = fz - k, I = Math.min(N - 1, i + 1), J = Math.min(N - 1, j + 1), K = Math.min(N - 1, k + 1);
+            const e = (x, y, z) => E[(x * N + y) * N + z];
+            return ((e(i, j, k) * (1 - c) + e(i, j, K) * c) * (1 - b) + (e(i, J, k) * (1 - c) + e(i, J, K) * c) * b) * (1 - a) + ((e(I, j, k) * (1 - c) + e(I, j, K) * c) * (1 - b) + (e(I, J, k) * (1 - c) + e(I, J, K) * c) * b) * a;
+        }
+        function sweSample2(u) {   // 左の 3D水の水面のずれ
+            const M = SWE.M, E = SWE.e2, f = q => Math.max(0, Math.min(M - 1.0001, (q + 1) / 2 * M - 0.5));
+            const fx = f(u[0]), fy = f(u[1]), i = Math.floor(fx), j = Math.floor(fy), a = fx - i, b = fy - j, I = Math.min(M - 1, i + 1), J = Math.min(M - 1, j + 1);
+            return (E[i * M + j] * (1 - b) + E[i * M + J] * b) * (1 - a) + (E[I * M + j] * (1 - b) + E[I * M + J] * b) * a;
         }
         // 泡の粒：線もポリゴンも使わず、ふちが少し光る透けた玉（シャボン玉のような）をシェーダーで描く。大きさは世界の長さ（遠いほど小さく）
         function wBubPts(root) {
@@ -4930,13 +4978,23 @@
             if (wLidMode === 'keep') wWater.lid = hole ? 1 : 1 - wWater.blid;   // 開けたまま：上のふたは閉じない（底を開ける時だけ、同時に閉める。排水口の時はずっと開けたまま）
             const Gv = W.GRAV * H, FL = W.FALL * H;   // 流れ出る水の柱：上の端は底（抜き終わったら落ちていく）、下の端は重力で伸びる
             wWater.out = t >= t3b && t < t4 + 1.2 ? { top: t < t4 ? -H : -H - 0.5 * Gv * (t - t4) * (t - t4), bot: -H - Math.min(FL * 1.05, 0.5 * Gv * 1.6 * (t - t3b) * (t - t3b)) } : null;
-            const tgtA = pouring ? 1 : wWater.phase === 'drain' ? 0.55 : 0, tgtR = pouring ? 1 : 0;   // 揺れの強さ：注いでいる間は大きく、止めると落ち着く（抜く時は少し揺れる）
-            wWater.amp += (tgtA - wWater.amp) * Math.min(1, dt * (tgtA > wWater.amp ? 2.5 : 0.7));
-            wWater.rip += (tgtR - wWater.rip) * Math.min(1, dt * (tgtR > wWater.rip ? 4 : 1.2));
+            // 水面の揺れ：浅水方程式を解く（小ステップに分けて、波が格子を 1 歩より速く進まないように）
+            if (!SWE.ready) sweInit();
+            if (wWater.h <= -0.999) sweReset();   // 水が無い時は静か
+            else if (!(wWater.phase === 'drain' && !hole)) {   // 底を全部開けた時は自由落下＝見かけの重力 0：揺れを戻す力が無くなるので、形はそのまま（計算を止める）
+                const D = Math.max(0.02, (wWater.h + 1) * HALF_S), g = SWE.G;
+                const nSub = Math.min(12, Math.ceil(dt / SWE.DT)), sd = dt / nSub;
+                for (let q = 0; q < nSub; q++) {
+                    SWE.noise = Math.max(-1, Math.min(1, SWE.noise * 0.97 + (Math.random() * 2 - 1) * 0.35));   // 水の筋の勢いのゆらぎ
+                    const jet = pouring && wWater.h > -0.98 ? SWE.JET * (1 + 1.0 * SWE.noise) : 0, sink = hole && wWater.phase === 'drain' ? SWE.SINK * Math.min(1, (wWater.h + 1) * 2) : 0;
+                    sweStep(sd, g, D, jet, sink);
+                }
+            }
             const h = wWater.h, thin = Math.min(1, (h + 1) * 3);   // 水が薄い時は揺れも小さく
             const vdT = hole && wWater.phase === 'drain' ? 0.45 * Math.min(1, sD * 5) * Math.min(1, (h + 1) * 1.5) : 0;   // 渦のくぼみ（水面の真ん中が排水口へ向かってへこむ）
             wWater.vd = (wWater.vd || 0) + (vdT - (wWater.vd || 0)) * Math.min(1, dt * 3); const vd = wWater.vd;
-            const surfW = u => Math.max(-H, Math.min(H, (h + thin * wWaterSurf(u, T) - vd * Math.exp(-(u[0] * u[0] + u[1] * u[1] + (u[2] || 0) * (u[2] || 0)) / 0.12)) * H));
+            const bern = u => { const r = Math.hypot(u[0], u[1], u[2] || 0); return 0.8 * vd * H / (1 + (r / 0.25) ** 4); };   // 排水口のくぼみ：吸い込む流れは中心ほど速く（3 方向から集まるので 1/r²）、速い所ほど水面が下がる（ベルヌーイ η ＝ −u²/2g ∝ 1/r⁴、真ん中は丸める）
+            const surfW = u => Math.max(-H, Math.min(H, h * H + thin * (u.length > 2 ? sweSample3(u) : sweSample2(u)) - bern(u)));   // 水面＝平均の水位 h ＋ 浅水方程式の η − ベルヌーイのくぼみ
             const rot = rot4List(linkAngleX, linkAngleY), pb = projBlendNow();
             const toS = g => ndProject(NDGeom.rotatePoint([g[0] * sqK('x'), g[1] * sqK('y'), g[2] * sqK('z'), g[3]], rot), pb);
             const P = wWater.line.geometry.attributes.position.array, C = wWater.line.geometry.attributes.color.array;
@@ -5836,7 +5894,7 @@
             if ($('wball-spin')) $('wball-spin').addEventListener('click', () => { wBallSpin = !wBallSpin; _ballGeo = null; try { localStorage.setItem('hypercubeBallSpin', wBallSpin ? '1' : '0'); } catch (_) {} syncWSliceUI(); requestRender(30); });
             if ($('wpack-rbstyle')) $('wpack-rbstyle').addEventListener('change', e => { wPackRbStyle = ['w', 'spec', 'ring', 'ball'].includes(e.target.value) ? e.target.value : 'spec'; try { localStorage.setItem('hypercubePackRbStyle', wPackRbStyle); } catch (_) {} syncWSliceUI(); requestRender(30); e.target.blur(); });
             if ($('wslice-rainbow')) $('wslice-rainbow').addEventListener('click', () => { wPackRainbow = !wPackRainbow; try { localStorage.setItem('hypercubePackRainbow', wPackRainbow ? '1' : '0'); } catch (_) {} syncWSliceUI(); requestRender(30); });
-            if ($('wwater-btn')) $('wwater-btn').addEventListener('click', () => { wWater.on = !wWater.on; wWater.t = 0; wWater.last = 0; wWater.amp = wWater.rip = 0; wWater.drops = []; wWater.bub = []; wWater.bub2 = []; wWater.cyc = 0; if (wWater.on) { wTourStop(); wSkin.on = false; wDbl.on = false; wDuo.on = false; wSlice.pack = wSlice.stack = wSlice.play = false; wSlice.on = false; } syncWSliceUI(); requestRender(30); });
+            if ($('wwater-btn')) $('wwater-btn').addEventListener('click', () => { wWater.on = !wWater.on; wWater.t = 0; wWater.last = 0; sweReset(); wWater.drops = []; wWater.bub = []; wWater.bub2 = []; wWater.cyc = 0; if (wWater.on) { wTourStop(); wSkin.on = false; wDbl.on = false; wDuo.on = false; wSlice.pack = wSlice.stack = wSlice.play = false; wSlice.on = false; } syncWSliceUI(); requestRender(30); });
             if ($('wwater-rainbow')) $('wwater-rainbow').addEventListener('click', () => { wWaterRainbow = !wWaterRainbow; try { localStorage.setItem('hypercubeWaterRainbow', wWaterRainbow ? '1' : '0'); } catch (_) {} syncWSliceUI(); requestRender(30); });
             if ($('wwater-drain')) $('wwater-drain').addEventListener('change', e => { wWaterDrain = ['hole', 'alt'].includes(e.target.value) ? e.target.value : 'all'; try { localStorage.setItem('hypercubeWaterDrain', wWaterDrain); } catch (_) {} syncWSliceUI(); requestRender(30); e.target.blur(); });
             if ($('wdbl-btn')) $('wdbl-btn').addEventListener('click', () => { wDuo.on = false; wWater.on = false; wDbl.on = !wDbl.on; wDbl.t = 0; wDbl.last = 0; if (wDbl.on) { wTourStop(); wSkin.on = false; wSlice.pack = wSlice.stack = wSlice.play = false; wSlice.on = false; } syncWSliceUI(); requestRender(30); });
@@ -9663,7 +9721,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1117';
+        const APP_BUILD = '20261022-1129';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
