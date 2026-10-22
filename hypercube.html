@@ -5959,7 +5959,8 @@
             const hsl = h => { const c = new THREE.Color().setHSL(h, 1, 0.58); return [c.r, c.g, c.b]; };
             const RED = hsl(0), VIO = hsl(0.82), WHITE = [0.95, 0.95, 1], DIM = [0.55, 0.6, 0.72], GOLD = [0.98, 0.75, 0.14], TEAL = [0.18, 0.83, 0.75];
             const want = new Map(), ids = endCellIds();
-            const add = (d, sg, rgb, e) => { if (!(e > 0.001)) return; const c = ids[d + sg]; if (c !== undefined) want.set(c, { rgb, e, o: 0 }); };
+            const clearIn = wPackRainbow && wPackRbStyle === 'spec' && wSpecVol && ['frame', 'ball', 'dball2'].includes(wSpecPat);   // 中が透明な形（七色の枠だけ・枠＋玉・一星球（玉））は、端の胞を染めない（白く濁らせない）
+            const add = (d, sg, rgb, e) => { if (!(e > 0.001) || clearIn) return; const c = ids[d + sg]; if (c !== undefined) want.set(c, { rgb, e, o: 0 }); };
             // ふたを開ける：立方体を入れてくる側の胞（w の積分なら +W、z なら +Z）を、敷きつめている間は薄くして「開いている」ように。いっぱいで閉じる（染まる）
             const lids = [];
             const oL = {};   // 左の立方体のふた：面の番号 → 開き具合（右の x → 左の x、右の y → 左の y、右の w → 左の z。右の z に当たる面は左には無い）
@@ -6024,17 +6025,45 @@
                         attr.needsUpdate = true; attr._tv = attr.version;
                     } else if (!fresh && attr._orig) { attr._orig = null; attr.needsUpdate = true; attr._tv = -1; }
                 };
-                one(cell.geometry.attributes.color, a => {   // 面：頂点の色は胞の色（material.color）への掛け算。奥の暗さも外して明るく（黒くならない）
-                    if (!w.rgb) return;
+                one(cell.geometry.attributes.color, a => {   // 面：積分の染めは胞の面には入れない（照り返し・奥を濃く などの視覚効果の計算に積分を混ぜない）。染めは別の面（drawEndCaps）で
+                    return;
                     const m = [0, 1, 2].map(k => (w.rgb[k] + 0.02) / ((C0 ? [C0.r, C0.g, C0.b][k] : 1) + 0.02));
                     for (let i = 0; i < a.length; i++) { const t = a[i] * (1 + (m[i % 3] - 1) * w.e); a[i] = t + (m[i % 3] - t) * 0.75 * w.e; }
                 });
                 one(cell.wireGeo && cell.wireGeo.attributes.color, a => { if (w.rgb) for (let i = 0; i < a.length; i++) a[i] += (w.rgb[i % 3] * 0.95 - a[i]) * w.e; if (w.o) for (let i = 0; i < a.length; i++) a[i] *= 1 - 0.8 * w.o; });   // 線：色そのもの（ふたが開いている間は暗く）
-                if (w && cell.material) { if (w.rgb) cell.material.opacity = Math.max(cell.material.opacity, 0.35 * w.e); if (w.o) cell.material.opacity *= 1 - 0.85 * w.o; }   // ふたが開いている間は薄く
+                if (w && cell.material) { if (w.o) cell.material.opacity *= 1 - 0.85 * w.o; }   // ふたが開いている間は薄く
             });
         }
         // ===== 直角に開くふた：入れてくる側の胞（+W や +Z）を、y ＝ +H の辺（2次元の面）を蝶番にして、外へ 90° 開く =====
         //   ふたの立方体の点 p：蝶番からの距離 s ＝ H − p[y] を、開く角 θ で (y, d) の面の中で回す：y ＝ H − s cosθ、d ＝ H ＋ s sinθ（θ＝90° で d の外へ立つ）
+        // 積分で閉じた端の胞の染め：胞の面（照り返し・グレア・奥を濃く などが掛かる）とは別に、効果の掛からない面で上から薄く塗る
+        const wCap = { face: null };
+        function drawEndCaps() {
+            const r3 = scene3D && scene3D.getObjectByName('Root3D'); if (!r3) return;
+            if (!wCap.face) {
+                const g = new THREE.BufferGeometry(), nv = 8 * 36;
+                g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nv * 4), 4));
+                wCap.face = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 1, side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
+                wCap.face.renderOrder = 995; wCap.face.frustumCulled = false; r3.add(wCap.face);
+            }
+            if (wCap.face.parent !== r3) r3.add(wCap.face);
+            const want = endTint.want || new Map(), ids = endCellIds(), keyOf = {}; Object.keys(ids).forEach(k => { keyOf[ids[k]] = k; });
+            const rot = rot4List(linkAngleX, linkAngleY), pb = projBlendNow(), H = HALF_S;
+            const toS = g => ndProject(NDGeom.rotatePoint([g[0] * sqK('x'), g[1] * sqK('y'), g[2] * sqK('z'), g[3]], rot), pb);
+            const P = wCap.face.geometry.attributes.position.array, C = wCap.face.geometry.attributes.color.array; let i = 0;
+            want.forEach((w, ci) => {
+                if (!w.rgb || !(w.e > 0.01) || (w.o || 0) > 0.02) return;   // ふたが開いている間は塗らない
+                const k = keyOf[ci]; if (!k) return;
+                const d = +k[0], sg = k[1] === '-' ? -1 : 1, oth = [0, 1, 2, 3].filter(x => x !== d);
+                const vs = unitCubeVertices.map(u => { const g = [0, 0, 0, 0]; g[oth[0]] = u[0] * 2 * H; g[oth[1]] = u[1] * 2 * H; g[oth[2]] = u[2] * 2 * H; g[d] = sg * H; return toS(g); });
+                WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(j => {
+                    if (i >= 8 * 36) return;
+                    P.set(vs[j], i * 3); C[i * 4] = w.rgb[0]; C[i * 4 + 1] = w.rgb[1]; C[i * 4 + 2] = w.rgb[2]; C[i * 4 + 3] = 0.3 * w.e; i++;
+                }));
+            });
+            wCap.face.visible = i > 0 && animationProgress >= 0.92 && explodeE() < 0.05; wCap.face.geometry.setDrawRange(0, i);
+            wCap.face.geometry.attributes.position.needsUpdate = wCap.face.geometry.attributes.color.needsUpdate = true;
+        }
         const wLid = { line: null, face: null, line2: null, face2: null };
         function drawLids() {
             drawLid2();   // 左の立方体の上ぶた（右のふたが無い時も更新する）
@@ -7127,12 +7156,12 @@
                     for (let qi = 0; qi < quads.length; qi++) {
                         const ci = quads[qi][0], base = quads[qi][1], cv = cellVerts[ci], C0q = wrapCol(fCol4 ? fCol4[ci][base / 6] : CELL_RGB[ci], wrapE ? wrapE[ci] : 0);   // 奥を濃く：深い色のトーン／包み込む胞はトーンを落とす
                         const tw = typeof endTint !== 'undefined' && endTint && endTint.want && endTint.want.get(ci);   // 積分がいっぱい：端の胞を層の色へ
-                        const C = tw && tw.rgb ? { r: C0q.r + (tw.rgb[0] - C0q.r) * tw.e, g: C0q.g + (tw.rgb[1] - C0q.g) * tw.e, b: C0q.b + (tw.rgb[2] - C0q.b) * tw.e } : C0q;
+                        const C = C0q;   // 積分の染めは胞の面に入れない（視覚効果の計算に混ぜない。染めは drawEndCaps）
                         const fcen = [0, 0, 0];
                         for (let k = 0; k < 6; k++) { const v = cv[cubeIndices[base + k]]; fcen[0] += v[0] / 6; fcen[1] += v[1] / 6; fcen[2] += v[2] / 6; }
                         const [qa, qs, qg] = faceShade(cv[cubeIndices[base]], cv[cubeIndices[base + 1]], cv[cubeIndices[base + 2]], fcen, cellCtr[ci], camL, backA, lightL, cfgFaceShade);
                         for (let k = 0; k < 6; k++) {   // 面の2三角形を連続で書く＝斜線が出ない
-                            const idx = cubeIndices[base + k], v = cv[idx], bt0 = brightOf(cellDist[ci][idx]) * qs, bt = tw ? bt0 + (1 - bt0) * 0.75 * tw.e : bt0;   // 奥行きの明暗 × 面の向きの陰影（閉じた端の胞は奥でも明るく＝黒くならない）
+                            const idx = cubeIndices[base + k], v = cv[idx], bt0 = brightOf(cellDist[ci][idx]) * qs, bt = bt0;   // 奥行きの明暗 × 面の向きの陰影（閉じた端の胞は奥でも明るく＝黒くならない）
                             mpos[mp++] = v[0]; mpos[mp++] = v[1]; mpos[mp++] = v[2];
                             mcol[mc++] = C.r * bt * (1 - qg) + qg; mcol[mc++] = C.g * bt * (1 - qg) + qg; mcol[mc++] = C.b * bt * (1 - qg) + qg; mcol[mc++] = (xpVisible(3, ci) ? (dA4 ? Math.min(Math.max(1, 0.97 / Math.max(faceOpacity, 1e-3)), qa * cellFocus(3, ci).face * dA4[ci] * (1 + 0.5 * tIn4[ci][base / 6])) : Math.min(1, qa * cellFocus(3, ci).face)) * wrapA(ci) : 0) * (tw ? 1 + 0.5 * tw.e : 1) * (tw && tw.o ? 1 - 0.85 * tw.o : 1);   // 閉じた端の胞は少しだけ濃く、ふたが開いている間は薄く   // 奥ほど暗く＝遠近感。裏向きの面は透明に。包み込む胞は薄く
                         }
@@ -7503,6 +7532,7 @@
             drawHoles(animationProgress);   // 工事で開けた穴（ふだんの画面にも）
             applyEndTint();   // 積分がいっぱいになったら両端の胞も染めて閉じる
             drawLids();   // 直角に開くふた
+            drawEndCaps();   // 閉じた端の胞の染め（視覚効果の掛からない面で）
             updateShineLights();   // 照り返しライトの位置（カメラの左上）
             if (show2D) renderer2D.render(scene2D, camera2D);
             if (show3D) renderer3D.render(scene3D, camera3D);
