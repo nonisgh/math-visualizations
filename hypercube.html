@@ -5009,6 +5009,7 @@
         //   油やハチミツは青から先に吸われる（吸収の強さ 赤 < 緑 < 青）→ 薄い所は明るい金色、中くらいは琥珀色、厚い所は濃い赤茶〜ほぼ黒（明暗のコントラスト）
         const HONEY = { LIGHT: [1.06, 1.0, 0.72], K: [0.08, 0.26, 1.4] };   // 透かす光の色・吸収（H あたり）。サラダ油のように：全体に黄色く澄んでいて、厚い所は濃い黄金〜琥珀色（青だけ強く吸われる）
         function honeyRGB(L) { return HONEY.LIGHT.map((c, i) => c * Math.exp(-HONEY.K[i] * Math.max(0, L))); }
+        function hueRGB0() { const c = new THREE.Color().setHSL(0, 1, 0.55); return [c.r, c.g, c.b]; }   // 虹の水のいちばん下の層の色（赤）
         function oilVivid(f) {   // 干渉色を鮮やかに（白っぽさを引いて、彩度を上げる）
             const mn = Math.min(f[0], f[1], f[2]); return f.map(x => Math.min(1.25, (x - 0.7 * mn) * 1.6 + 0.08));
         }
@@ -5549,7 +5550,10 @@
             // 穴の色：排水口は底の胞（−W）、通気口はふたの胞（+W）と同じ色にして、明るさ（コントラスト）だけ変える
             const ids5 = endCellIds(), cellC = i => { const c = CELL_RGB[i] || { r: 0.6, g: 0.7, b: 0.9 }; return [c.r, c.g, c.b]; }, lit = (c, k, add) => c.map(v => Math.min(1, v * k + add));
             const mkPal = c => ({ rim: lit(c, 1.25, 0.15), line: lit(c, 1.4, 0.22), pane: lit(c, 0.9, 0.06), hl: lit(c, 1.5, 0.45) });
-            const PAL_D = mkPal(cellC(ids5['3-'])), PAL_V = mkPal(cellC(ids5['3+']));
+            // 水につかった穴は、水の色を掛ける（乗算：水を通して見るので、水の色の成分だけが残る。深いほど強く）
+            const wOn = wWater.on && (wWater.h || -1) > -0.99, wCol = wWaterOil ? honeyRGB(0.5) : wWaterRainbow ? hueRGB0(-1) : LIQ_WATER.surf, depthD = wOn ? Math.min(1, ((wWater.h || -1) + 1) * 1.5) : 0, depthV = wOn ? Math.max(0, Math.min(1, ((wWater.h || -1) - 0.97) * 30)) : 0;
+            const mulW = (pal, a) => a > 0 ? Object.fromEntries(Object.entries(pal).map(([k2, c]) => [k2, c.map((v, i) => v * (1 + (Math.min(1, wCol[i] * 1.15) - 1) * a))])) : pal;
+            const PAL_D = mulW(mkPal(cellC(ids5['3-'])), depthD), PAL_V = mulW(mkPal(cellC(ids5['3+'])), depthV);   // 排水口はいつも底、通気口はいっぱいの時だけ水につかる
             const GL_LINE = [0.72, 0.74, 0.8], GL_PANE = [0.62, 0.72, 0.86];   // 格子：細い銀灰色の棒と、うっすら透ける板
             cubeAt([0, 0, 0], HR, -H, PAL_D.rim);   // 排水口の穴のふち（底の胞の真ん中。底の胞と同じ色で明るく）
             cubeAt(VP, VR, H, PAL_V.rim);   // 通気口の穴のふち（ふたの胞と同じ色で明るく）
@@ -5608,7 +5612,7 @@
                 const pt = leftPtNow(), P2 = wHole.line2.geometry.attributes.position.array, C2 = wHole.line2.geometry.attributes.color.array; let l2 = 0;
                 const L2n = (v, c) => { if (l2 + 3 > P2.length) return; P2[l2] = v[0]; P2[l2 + 1] = v[1]; P2[l2 + 2] = v[2]; C2[l2] = c[0] * k; C2[l2 + 1] = c[1] * k; C2[l2 + 2] = c[2] * k; l2 += 3; };
                 const sq = (cx, cy, R, z, c, x) => { const v = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => pt(cx + a * R, cy + b * R, z)); [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { L2n(v[a], c); L2n(v[b], c); }); if (x) { L2n(v[0], [0.6, 0.62, 0.68]); L2n(v[2], [0.6, 0.62, 0.68]); L2n(v[1], [0.6, 0.62, 0.68]); L2n(v[3], [0.6, 0.62, 0.68]); } };
-                const fc2 = i => { const c = new THREE.Color(faceConfigs2D[i].color); return [c.r, c.g, c.b]; }, PAL_D2 = mkPal(fc2(0)), PAL_V2 = mkPal(fc2(5));   // 左：底（中央面）・上ぶた（最上蓋）と同じ色
+                const fc2 = i => { const c = new THREE.Color(faceConfigs2D[i].color); return [c.r, c.g, c.b]; }, PAL_D2 = mulW(mkPal(fc2(0)), depthD), PAL_V2 = mulW(mkPal(fc2(5)), depthV);   // 左：底（中央面）・上ぶた（最上蓋）と同じ色
                 sq(0, 0, HR, -H, PAL_D2.rim, false);
                 sq(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, PAL_V2.rim, false);
                 const G2P = wHole.gf2.geometry.attributes.position.array, G2C = wHole.gf2.geometry.attributes.color.array; let g2 = 0;
@@ -10131,7 +10135,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1413';
+        const APP_BUILD = '20261022-1416';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
