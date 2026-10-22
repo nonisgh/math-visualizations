@@ -4961,7 +4961,7 @@
         //   膜の上面と下面で反射した光が重なる。油の屈折率 n＝1.47、厚さ d、膜の中の角度 θt で、反射の強さは波長 λ ごとに sin²(2π n d cosθt ／ λ)（上の反射で位相が半分ずれる分を入れた形）。
         //   赤 650・緑 532・青 465 nm で計算して色にする。厚さは場（格子の上の値）で持ち、浅水方程式の流れで運ばれ（移流）、少しずつ広がる（拡散）。注いでいる間は水の筋の所から油が入る
         let wWaterOil = false; try { wWaterOil = localStorage.getItem('hypercubeWaterOil') === '1'; } catch (_) {}
-        const OIL = { SRC3: 9, SRC2: 1.5, DIFF: 0.02, DRAIN: 1.2, SWIRL: 0.09 };   // 入る量（毎秒、筋の所。4D の水面は 3次元の広がりなので多め）・広がる速さ（世界の長さ²／秒）・排水口から吸い込まれる速さ・表面のゆっくりした対流（世界の長さ／秒）
+        const OIL = { BASE: 0.18, SRC3: 9, SRC2: 1.5, DIFF: 0.02, DRAIN: 1.2, SWIRL: 0.09 };   // 入る量（毎秒、筋の所。4D の水面は 3次元の広がりなので多め）・広がる速さ（世界の長さ²／秒）・排水口から吸い込まれる速さ・表面のゆっくりした対流（世界の長さ／秒）
         function oilRGB(T, cosI) {   // 厚さの場 T（0〜）と、入る角の cos から、油膜の反射の色
             const d = 90 + 650 * Math.min(1.3, T), n = 1.47, cosT = Math.sqrt(Math.max(0, 1 - (1 - cosI * cosI) / (n * n))), opd = 2 * Math.PI * n * d * cosT;
             return [650, 532, 465].map(l => { const s = Math.sin(opd / l); return s * s; });
@@ -4998,11 +4998,15 @@
             const M = SWE.M, f = q => Math.max(0, Math.min(M - 1.0001, (q + 1) / 2 * M - 0.5)), x = f(u[0]), y = f(u[1]), i = Math.floor(x), j = Math.floor(y), a = x - i, b = y - j, I = Math.min(M - 1, i + 1), J = Math.min(M - 1, j + 1), O = SWE.oil2;
             return (O[i * M + j] * (1 - b) + O[i * M + J] * b) * (1 - a) + (O[I * M + j] * (1 - b) + O[I * M + J] * b) * a;
         }
+        function oilVivid(f) {   // 干渉色を鮮やかに（白っぽさを引いて、彩度を上げる）
+            const mn = Math.min(f[0], f[1], f[2]); return f.map(x => Math.min(1.25, (x - 0.7 * mn) * 1.6 + 0.08));
+        }
+        function oilLineCol(u, k = 1) { const T = OIL.BASE + oilSample(u), f = oilVivid(oilRGB(T, 0.85)); return [f[0] * k, f[1] * k, f[2] * k]; }   // 油面の網目・ふちの色（虹色に光る）
         function oilQuadColor(q, cam, base, s) {   // 水面の 4 角形 q（.v＝写した点、.u＝水面の点）の色：油の厚さと、面の向き・視線の角度で干渉色。油の無い所は水の色
             const A = q[0].v, B = q[1].v, C = q[3].v, nx = (B[1] - A[1]) * (C[2] - A[2]) - (B[2] - A[2]) * (C[1] - A[1]), ny = (B[2] - A[2]) * (C[0] - A[0]) - (B[0] - A[0]) * (C[2] - A[2]), nz = (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]);
             const m = [0, 1, 2].map(t => (q[0].v[t] + q[2].v[t]) / 2), vx = cam.x - m[0], vy = cam.y - m[1], vz = cam.z - m[2], nl = Math.hypot(nx, ny, nz) || 1, vl = Math.hypot(vx, vy, vz) || 1;
             const cosI = Math.min(1, Math.abs(nx * vx + ny * vy + nz * vz) / (nl * vl));
-            return q.map(p => { const T = oilSample(p.u), a = Math.min(0.92, T * 3), f = oilRGB(T, cosI); return [0, 1, 2].map(t => base[t] * s * (1 - a) + Math.min(1.2, f[t] * 1.25) * a); });
+            return q.map(p => { const T = OIL.BASE + oilSample(p.u), a = Math.min(0.95, 0.55 + T * 2), f = oilVivid(oilRGB(T, cosI)); return [0, 1, 2].map(t => base[t] * s * (1 - a) + f[t] * a); });   // 油面全体に膜（BASE）＋厚さのむら
         }
         function sweSample2(u) {   // 左の 3D水の水面のずれ
             const M = SWE.M, E = SWE.e2, f = q => Math.max(0, Math.min(M - 1.0001, (q + 1) / 2 * M - 0.5));
@@ -5108,8 +5112,14 @@
                         else [0, 1, 2, 0, 2, 3].forEach(m => F(q[m].v, sc[0] * s, sc[1] * s, sc[2] * s));
                     }
                     if (W.GRID) for (let i = 0; i <= G; i += 2) for (let j = 0; j < G; j++) {   // 水面の網目：うすい青（水面より少し濃いくらい）
+                        if (wWaterOil) {   // 油：網目もふちも虹色に光る（ふちは明るく）＝上がってくる油面の立方体が、中の立方体を素通りしていくのが追える
+                            const kk = i === 0 || i === G ? 1 : 0.55;
+                            L(grid[i][j].v, ...oilLineCol(grid[i][j].u, kk)); L(grid[i][j + 1].v, ...oilLineCol(grid[i][j + 1].u, kk));
+                            L(grid[j][i].v, ...oilLineCol(grid[j][i].u, kk)); L(grid[j + 1][i].v, ...oilLineCol(grid[j + 1][i].u, kk));
+                        } else {
                         L(grid[i][j].v, gc[0], gc[1], gc[2]); L(grid[i][j + 1].v, gc[0], gc[1], gc[2]);
                         L(grid[j][i].v, gc[0], gc[1], gc[2]); L(grid[j + 1][i].v, gc[0], gc[1], gc[2]);
+                        }
                     }
                 }
                 // 壁に触れている面：立方体の 12 本の辺 × w（底 −H から水面まで）
@@ -5301,7 +5311,10 @@
                     const camL2 = wWaterOil && camera2D && r2 ? r2.worldToLocal(camera2D.position.clone()) : null;   // 左の油膜
                     const sc2 = rb ? hueRGB(h * H) : LQ.surf, gc2 = rb ? sc2.map(x => x * 0.45) : LQ.grid;
                     for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) { const q = [grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]], s = shine((q[0].d + q[2].d) / 2); if (camL2) { const cc = oilQuadColor(q, camL2, sc2, s); [0, 1, 2, 0, 2, 3].forEach(m => F2(q[m].v, cc[m][0], cc[m][1], cc[m][2])); } else [0, 1, 2, 0, 2, 3].forEach(m => F2(q[m].v, sc2[0] * s, sc2[1] * s, sc2[2] * s)); }
-                    if (W.GRID) for (let i = 0; i <= G; i += 4) for (let j = 0; j < G; j++) { L2(grid[i][j].v, gc2[0], gc2[1], gc2[2]); L2(grid[i][j + 1].v, gc2[0], gc2[1], gc2[2]); L2(grid[j][i].v, gc2[0], gc2[1], gc2[2]); L2(grid[j + 1][i].v, gc2[0], gc2[1], gc2[2]); }   // 左の水面の網目（うすい青）
+                    if (W.GRID) for (let i = 0; i <= G; i += 4) for (let j = 0; j < G; j++) {   // 左の水面の網目（うすい青。油の時は虹色に光る）
+                        if (camL2) { const kk = i === 0 || i === G ? 1 : 0.55; L2(grid[i][j].v, ...oilLineCol(grid[i][j].u, kk)); L2(grid[i][j + 1].v, ...oilLineCol(grid[i][j + 1].u, kk)); L2(grid[j][i].v, ...oilLineCol(grid[j][i].u, kk)); L2(grid[j + 1][i].v, ...oilLineCol(grid[j + 1][i].u, kk)); }
+                        else { L2(grid[i][j].v, gc2[0], gc2[1], gc2[2]); L2(grid[i][j + 1].v, gc2[0], gc2[1], gc2[2]); L2(grid[j][i].v, gc2[0], gc2[1], gc2[2]); L2(grid[j + 1][i].v, gc2[0], gc2[1], gc2[2]); }
+                    }
                     [[0, -1], [0, 1], [1, -1], [1, 1]].forEach(([a, s]) => {   // 4 枚の壁（水の側面）
                         for (let i = 0; i < G; i++) {
                             const ua = [0, 0], ub = [0, 0]; ua[a] = ub[a] = s; ua[1 - a] = -1 + 2 * i / G; ub[1 - a] = -1 + 2 * (i + 1) / G;
@@ -9841,7 +9854,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1153';
+        const APP_BUILD = '20261022-1157';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
