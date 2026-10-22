@@ -4396,6 +4396,7 @@
             if (!c) { _specTmp.setHSL(0.82 * key / 4096, 1, 0.58); c = [_specTmp.r, _specTmp.g, _specTmp.b]; _specTab.set(key, c); }
             return col.setRGB(c[0], c[1], c[2]);
         };
+        const ICHI_FRAME = false;   // 立体市松の枠の線（お試しで消している。true で市松の辺に戻る）
         function ichiEdgeEmit(vs, pL) {   // 立体市松の辺：12 本を ICHI_N 個に分けて、となりのマスと同じ順で 緑・黒 を交互に
             WS_EDGES.forEach(([e0, e1]) => {
                 const u0 = unitCubeVertices[e0], u1 = unitCubeVertices[e1], d = [0, 1, 2].find(k => u0[k] !== u1[k]);
@@ -4529,7 +4530,7 @@
             const g = i => unitCubeVertices[i][gi] + 0.5, oth = [0, 1, 2].filter(x => x !== gi);
             const pF = vol ? (v, f) => pF0(v, f, SOLID_K) : pF0;   // （立体）は外の面も中と同じ薄さ
             const solidFn = typeof vol === 'function' ? vol : null;
-            if (vol && wSpecPat === 'ichi') ichiEdgeEmit(vs, pL);   // 立体市松は辺も市松
+            if (vol && wSpecPat === 'ichi') { if (ICHI_FRAME) ichiEdgeEmit(vs, pL); }   // 立体市松は辺も市松（ICHI_FRAME が false なら線なし）
             else WS_EDGES.forEach(([e0, e1]) => {   // 外の枠（（立体）でも描く）
                 if (g(e0) === g(e1)) { pL(vs[e0], g(e0)); pL(vs[e1], g(e1)); return; }
                 const lo = g(e0) < g(e1) ? e0 : e1, hi = lo === e0 ? e1 : e0;
@@ -6311,7 +6312,7 @@
                     let pF = (v, f, kk = 1) => { if (back && bkW) { backPut(bkW, v, f, L * kk); return; } if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r; FC[c4 + 1] = col.g; FC[c4 + 2] = col.b; FC[c4 + 3] = Math.min(1, FS * kk); fi += 3; };   // 突き当たりの層は別の入れ物へ（枠と同じ濃さ）
                     const yf = i => unitCubeVertices[i][1] + 0.5;
                     if (wPackRbStyle === 'ring' || wPackRbStyle === 'ball') { ringCubeEmit(vs, pL, pF, !noFace, wPackRbStyle === 'ball', wRingVol); if (wPackRbStyle === 'ball' && ballSel) ballList.push({ vs, a: a * k }); } else {   // 同心の七色／同心球（中身の殻は選んだ層だけ）
-                    if (wSpecVol && wSpecPat === 'ichi') ichiEdgeEmit(vs, pL);   // 立体市松は辺も市松
+                    if (wSpecVol && wSpecPat === 'ichi') { if (ICHI_FRAME) ichiEdgeEmit(vs, pL); }   // 立体市松は辺も市松（ICHI_FRAME が false なら線なし）
                     else WS_EDGES.forEach(([e0, e1]) => {   // 外の枠（（立体）でも描く）
                         if (yf(e0) === yf(e1)) { pL(vs[e0], yf(e0)); pL(vs[e1], yf(e1)); return; }
                         const lo = yf(e0) < yf(e1) ? e0 : e1, hi = lo === e0 ? e1 : e0;
@@ -6410,7 +6411,7 @@
                     }
                     else if (wSpecPat === 'ichi' && wSpecVol) {   // 立体市松：正方形も 緑・黒 の市松
                         const sq = [[0, 0], [1, 0], [1, 1], [0, 1]];   // 辺も市松（となりのマスと同じ順）
-                        [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { for (let m = 0; m < ICHI_N; m++) {
+                        if (ICHI_FRAME) [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { for (let m = 0; m < ICHI_N; m++) {
                             const cs = c => sq[a][c] === sq[b][c] ? (sq[a][c] ? ICHI_N - 1 : 0) : sq[a][c] < sq[b][c] ? m : ICHI_N - 1 - m, fc = (cs(0) + cs(1)) % 2 ? -3 : -4;
                             pL(lerp3(vs[a], vs[b], m / ICHI_N), fc); pL(lerp3(vs[a], vs[b], (m + 1) / ICHI_N), fc);
                         } });
