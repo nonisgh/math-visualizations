@@ -4434,15 +4434,15 @@
         //   立方体の 6 面（12 枚の三角形）だけを描き、画面の 1 点ごとに、視線が立方体の中を通る道のりを立方体の座標（0〜1）でたどって、
         //   七色の縞（色の方向の座標 y で 7 段）を奥まで積む（厚い所ほど濃い、層の境目は無い）。
         //   写した立方体は遠近のため厳密には平行六面体でないので、立方体の座標への変換は 1 つの角と 3 本の辺で近似（面の上は頂点の値の補間なので外形はぴったり）
-        const SOLID_SIGMA = 2.2, SOLID_STEPS = 24, SOLID_FRAME = 0.45;   // SOLID_FRAME＝（立体）の外の枠の線の濃さ（透明度で）   // 濃さ（立方体の座標で 1 だけ通ると 1−e^−σ）、1 点あたりのたどる回数
+        const SOLID_SIGMA = 2.2, SOLID_STEPS = 24, SOLID_FRAME = 1, SOLID_SKIN = 0.3;   // SOLID_SKIN＝表面の薄い皮（入る所・出る所で足す）：ふちが薄れてモヤっとしないで、輪郭・角がくっきり   // SOLID_FRAME＝（立体）の外の枠の線の濃さ（透明度で）   // 濃さ（立方体の座標で 1 だけ通ると 1−e^−σ）、1 点あたりのたどる回数
         const wSolid = {};
         function solidMat() {
             return new THREE.ShaderMaterial({
-                uniforms: { camPos: { value: new THREE.Vector3() }, sigma: { value: SOLID_SIGMA }, op: { value: 1 } },
+                uniforms: { camPos: { value: new THREE.Vector3() }, sigma: { value: SOLID_SIGMA }, op: { value: 1 }, skin: { value: SOLID_SKIN } },
                 vertexShader: 'attribute vec3 uvw; attribute vec3 r0; attribute vec3 r1; attribute vec3 r2; attribute float fa;\n'
                     + 'varying vec3 vP; varying vec3 vU; varying vec3 vR0; varying vec3 vR1; varying vec3 vR2; varying float vFa;\n'
                     + 'void main() { vP = position; vU = uvw; vR0 = r0; vR1 = r1; vR2 = r2; vFa = fa; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-                fragmentShader: 'uniform vec3 camPos; uniform float sigma; uniform float op;\n'
+                fragmentShader: 'uniform vec3 camPos; uniform float sigma; uniform float op; uniform float skin;\n'
                     + 'varying vec3 vP; varying vec3 vU; varying vec3 vR0; varying vec3 vR1; varying vec3 vR2; varying float vFa;\n'
                     + 'vec3 band(float y) { float m = clamp(floor(y * 7.0), 0.0, 6.0); float h = 0.82 * (m + 0.5) / 7.0;\n'
                     + '  vec3 k = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0); return 0.58 + 0.84 * (k - 0.5); }\n'
@@ -4451,8 +4451,9 @@
                     + '  vec3 d = normalize(vP - camPos); vec3 ld = vec3(dot(vR0, d), dot(vR1, d), dot(vR2, d)); vec3 o = clamp(vU, 0.0, 1.0);\n'
                     + '  float t = min(ex(o.x, ld.x), min(ex(o.y, ld.y), ex(o.z, ld.z)));\n'
                     + '  if (t < 1e-5 || t > 1e8) discard;\n'
-                    + '  float dt = t / ' + SOLID_STEPS + '.0, a = 1.0 - exp(-sigma * dt * length(ld)); vec3 C = vec3(0.0); float A = 0.0;\n'
+                    + '  float dt = t / ' + SOLID_STEPS + '.0, a = 1.0 - exp(-sigma * dt * length(ld)); vec3 C = skin * band(o.y); float A = skin;\n'
                     + '  for (int i = 0; i < ' + SOLID_STEPS + '; i++) { vec3 c = band(o.y + ld.y * dt * (float(i) + 0.5)); C += (1.0 - A) * a * c; A += (1.0 - A) * a; }\n'
+                    + '  C += (1.0 - A) * skin * band(o.y + ld.y * t); A += (1.0 - A) * skin;\n'
                     + '  if (A < 0.002) discard;\n'
                     + '  gl_FragColor = vec4(C / A, A * vFa * op);\n'
                     + '}',
