@@ -5345,6 +5345,30 @@
                     wWater.drops.push({ p, v: [(Math.random() - 0.5) * 0.3 * H, (Math.random() - 0.5) * 0.3 * H, (Math.random() - 0.5) * 0.3 * H, -(0.6 + Math.random() * 0.8) * H], life: 1.5, out: true });
                 }
             }
+            if ((hole || wHolesBuilt) && h > -0.99) {   // 排水口の真上の水の柱：4次元の水は外側の皮しか描けないので、床の真ん中（排水口）の上にある水は見えない。穴の上の柱だけ描いて、水が排水口まで来ているのを見せる
+                const hu = [[-1, -1, -1], [1, -1, -1]], col = rb ? hueRGB(-0.5 * H) : wWaterOil ? honeyRGB(0.6) : LQ.wall, cW = col.map(x => x * 0.75), cTop = (rb ? hueRGB(h * H) : wWaterOil ? honeyRGB(0.2) : LQ.men).map(x => x * 0.8);
+                for (let ax = 0; ax < 3; ax++) for (const s1 of [-1, 1]) for (const s2 of [-1, 1]) {   // 柱の側面：穴の立方体の 12 本の辺 × w（底 −H から水面まで）
+                    const a1 = (ax + 1) % 3, a2 = (ax + 2) % 3, A = [0, 0, 0], B = [0, 0, 0]; A[ax] = -HR; B[ax] = HR; A[a1] = B[a1] = s1 * HR; A[a2] = B[a2] = s2 * HR;
+                    const wa = surfW([A[0] / H, A[1] / H, A[2] / H]), wb = surfW([B[0] / H, B[1] / H, B[2] / H]);
+                    const q0 = toS([...A, -H]), q1 = toS([...B, -H]), q2 = toS([...B, wb]), q3 = toS([...A, wa]);
+                    [q0, q1, q2, q0, q2, q3].forEach(v => F(v, ...cW)); L(q3, ...cTop); L(q2, ...cTop);
+                }
+                const hvw = unitCubeVertices.map(c => toS([Math.sign(c[0]) * HR, Math.sign(c[1]) * HR, Math.sign(c[2]) * HR, -H]));
+                WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => F(hvw[m], ...col.map(x => x * 0.45))));   // 水につかった穴（切り口が水の色）
+                const flowing = (hole && wWater.phase === 'drain') || (holesOpen() && (wWater.phase === 'pour' || wWater.phase === 'drain'));
+                if (flowing) for (let q = 0; q < 36; q++) {   // 床すれすれの水が、まわりから排水口へ吸い寄せられる：4次元の床は立方体（水平な方向が 3 つ）なので、流れは 1/r² で穴に近いほど速い（r³ が一定の速さで減る）
+                    const dx = Math.sin(q * 12.9898) * 43758.5453, dy = Math.sin(q * 78.233) * 43758.5453, dz = Math.sin(q * 37.719) * 43758.5453;
+                    const D = [dx - Math.floor(dx), dy - Math.floor(dy), dz - Math.floor(dz)].map(v => v * 2 - 1), dl = Math.max(Math.abs(D[0]), Math.abs(D[1]), Math.abs(D[2])) || 1, R0 = 0.92 * H / dl;   // 床（立方体）の中の向き
+                    const sF = (T * 0.45 + q / 36) % 1, rr = Math.cbrt(1 - sF), r2 = Math.cbrt(Math.max(0, 1 - sF + 0.06)), w = -H + 0.04 * H;
+                    if (rr * R0 * dl < HR * 0.9) continue;   // 穴に入った
+                    const a = Math.min(1, sF * 4), c = cTop.map(x => x * a);
+                    L(toS([D[0] * R0 * rr, D[1] * R0 * rr, D[2] * R0 * rr, w]), ...c); L(toS([D[0] * R0 * r2, D[1] * R0 * r2, D[2] * R0 * r2, w]), ...c);
+                }
+                if (flowing) for (let q = 0; q < 10; q++) {   // 柱の中を穴へ流れ込む水の筋
+                    const px = Math.cos(q * 2.4) * HR * 0.6, py = Math.sin(q * 1.7) * HR * 0.6, pz = Math.sin(q * 2.4) * HR * 0.6, top = surfW([px / H, py / H, pz / H]), f = (T * 0.9 + q / 10) % 1, w = top - f * (top + H);
+                    L(toS([px, py, pz, w]), ...cTop); L(toS([px, py, pz, Math.max(-H, w - 0.15 * H)]), ...cTop);
+                }
+            }
             if (hole) {   // 排水口：床の立方体（w ＝ −1）の真ん中にある小さな立方体の穴と、その栓
                 const po = wWater.blid || 0, pw = -H + po * 0.55 * H, pa = 1 - 0.75 * po;   // 栓：抜くと w の上へ持ち上がって薄くなる
                 const hv = unitCubeVertices.map(c => toS([Math.sign(c[0]) * HR, Math.sign(c[1]) * HR, Math.sign(c[2]) * HR, -H]));
@@ -5417,6 +5441,10 @@
                         }
                     });
                     const cf2 = rb ? hueRGB(-H).map(x => x * 0.45) : wWaterOil ? honeyRGB(0.3 + 1.1 * (h + 1)) : LQ.bot, b = [[-H, -H], [H, -H], [H, H], [-H, H]].map(([x, y]) => pt(x, y, -H)); [0, 1, 2, 0, 2, 3].forEach(m => F2(b[m], cf2[0], cf2[1], cf2[2]));   // 底
+                    if ((hole && wWater.phase === 'drain') || (holesOpen() && (wWater.phase === 'pour' || wWater.phase === 'drain'))) {   // 左：床の水が排水口へ吸い寄せられる（3次元の床は平面＝水平な方向が 2 つなので 1/r）
+                        const cc = (wWaterOil ? honeyRGB(0.2) : LQ.men).map(x => x * 0.8);
+                        for (let q = 0; q < 24; q++) { const th = q * 2.399, dx = Math.cos(th), dy = Math.sin(th), dl = Math.max(Math.abs(dx), Math.abs(dy)), R0 = 0.92 * H / dl, sF = (T * 0.45 + q / 24) % 1, rr = Math.sqrt(1 - sF), r2 = Math.sqrt(Math.min(1, 1 - sF + 0.06)); if (rr * R0 * dl < HR * 0.9) continue; const a = Math.min(1, sF * 4); L2(pt(dx * R0 * rr, dy * R0 * rr, -H + 0.04 * H), ...cc.map(x => x * a)); L2(pt(dx * R0 * r2, dy * R0 * r2, -H + 0.04 * H), ...cc.map(x => x * a)); }
+                    }
                     if (rb) for (let k = 0; k < NB; k++) {   // 中に滞留している層（正方形）
                         const z = -H + (k + 0.5) * 2 * H / NB - shiftW; if (!(z > -H && z < h * H - 0.02 * H)) continue;
                         const c = hueRGB(z), sq = [[-H, -H], [H, -H], [H, H], [-H, H]].map(([x, y]) => pt(x, y, z));
@@ -5472,10 +5500,12 @@
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r3) return;
             if (!wHole.line) wHole.line = wDblMk(r3, 400, false).line;
             if (!wHole.tl) { const m = wDblMk(r3, 1200, true); wHole.tl = m.line; wHole.tf = m.face; }   // 穴の向こう（4次元の排水管）
+            if (!wHole.gf) { wHole.gf = wDblMk(r3, 3000, true).face; wHole.gf.material.blending = THREE.NormalBlending; wHole.gf.material.opacity = 0.95; wHole.gf.renderOrder = 1001; wHole.gf.material.needsUpdate = true; }   // 鋳物の格子の面
+            if (!wHole.gf2 && r2) { wHole.gf2 = wDblMk(r2, 1200, true).face; wHole.gf2.material.blending = THREE.NormalBlending; wHole.gf2.material.opacity = 0.95; wHole.gf2.renderOrder = 1001; wHole.gf2.material.needsUpdate = true; }
             if (!wHole.tl2 && r2) { const m = wDblMk(r2, 600, true); wHole.tl2 = m.line; wHole.tf2 = m.face; }
             if (!wHole.line2 && r2) wHole.line2 = wDblMk(r2, 300, false).line;
             const k = wHolesBuilt ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
-            wHole.line.visible = k > 0.01; if (wHole.line2) wHole.line2.visible = k > 0.01 && !dim5;
+            wHole.line.visible = wHole.gf.visible = k > 0.01; if (wHole.line2) wHole.line2.visible = k > 0.01 && !dim5; if (wHole.gf2) wHole.gf2.visible = k > 0.01 && !dim5;
             const beyondOn = k > 0.01 && (wHole.dA || 0) > 0.03; wHole.tl.visible = wHole.tf.visible = beyondOn; if (wHole.tl2) wHole.tl2.visible = wHole.tf2.visible = beyondOn && !dim5;
             if (!(k > 0.01)) return;
             const now = performance.now() / 1000, gr = Math.max(0, Math.min(1, (now - wHolesBuiltAt) / 1.6)), sm = gr * gr * (3 - 2 * gr), drilling = gr < 1;   // 掘っている途中
@@ -5490,20 +5520,32 @@
                 for (let q = 0; q < 6; q++) { const th = now * 9 + q * Math.PI / 3; Ln(toS([cx[0], cx[1], cx[2], w]), [1, 0.75, 0.3]); Ln(toS([cx[0] + Math.cos(th) * R * 1.3, cx[1], cx[2] + Math.sin(th) * R * 1.3, w]), [1, 0.75, 0.3]); }
                 for (let q = 0; q < 10; q++) { const a = (q * 2.39 + now * 3) % (2 * Math.PI), f = (now * 2 + q / 10) % 1, rr = R + f * 0.25 * H; Ln(toS([cx[0] + Math.cos(a) * rr, cx[1] + f * 0.1 * H, cx[2] + Math.sin(a) * rr, w + f * 0.15 * H]), [1, 0.9, 0.5]); Ln(toS([cx[0] + Math.cos(a) * (rr + 0.03 * H), cx[1] + f * 0.1 * H, cx[2] + Math.sin(a) * (rr + 0.03 * H), w + f * 0.15 * H + 0.02 * H]), [0.9, 0.4, 0.1]); }
             };
-            cubeAt([0, 0, 0], HR, -H, [0.5, 0.65, 0.85]);   // 排水口の穴のふち（底の胞の真ん中）
-            cubeAt(VP, VR, H, [0.75, 0.78, 0.82]);   // 通気口の穴のふち（ふたの胞）
+            const IRON = [0.17, 0.11, 0.07], IRON_HI = [0.27, 0.18, 0.11], IRON_EDGE = [0.42, 0.3, 0.2];   // 鋳物（下水の格子）：黒っぽい焦げ茶の鉄
+            cubeAt([0, 0, 0], HR, -H, IRON_EDGE);   // 排水口の穴のふち（枠。底の胞の真ん中）
+            cubeAt(VP, VR, H, IRON_EDGE);   // 通気口の穴のふち（ふたの胞）
             // 格子のふた（グレーチング）：ほかの胞のふたと同じく、辺（y ＝ +R）を蝶番にガチャッと 90° 開く（少し行き過ぎて戻る）。排水口は −W の外へ、通気口は +W の外へ
             const dtH = Math.min(0.1, now - (wHole.last || now)); wHole.last = now;
             const dT = holesOpen() ? 1 : (wWater.on && wWaterHole() ? (wWater.blid || 0) : 0), vT = wWaterVent ? 1 : 0;
             const step = (x, tg) => x + Math.sign(tg - x) * Math.min(Math.abs(tg - x), dtH * 2.2);
             wHole.dA = step(wHole.dA || 0, dT); wHole.vA = step(wHole.vA || 0, vT); if (wHole.dA !== dT || wHole.vA !== vT) requestRender(2);
             const back = x => { const y = x - 1; return 1 + 2.7 * y * y * y + 1.7 * y * y; };   // 行き過ぎて戻る（ガチャッ）
-            const grate = (cx, R, w0, sgn, x, c) => {   // 立体の格子のふた：x・y・z の 3 方向に棒（±1 と ±1/3 の所）
-                const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1];
+            const GP = wHole.gf.geometry.attributes.position.array, GC = wHole.gf.geometry.attributes.color.array; let gfi = 0;
+            const GF = (v, c) => { if (gfi + 3 > GP.length) return; GP[gfi] = v[0]; GP[gfi + 1] = v[1]; GP[gfi + 2] = v[2]; GC[gfi] = c[0] * k; GC[gfi + 1] = c[1] * k; GC[gfi + 2] = c[2] * k; gfi += 3; };
+            const grate = (cx, R, w0, sgn, x, c) => {   // 鋳物の立体の格子のふた：x・y・z の 3 方向に太い棒（±1 と ±1/3 の所）。棒は十字の板 2 枚で厚みを出す
+                const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1], TK = 0.11;
                 const hp = (a, b, cc) => { const sd = R * (1 - b); return toS([cx[0] + a * R, cx[1] + R - sd * cs, cx[2] + cc * R, w0 + sgn * sd * sn]); };
-                for (let d = 0; d < 3; d++) for (const p of BAR) for (const q of BAR) { const A = [0, 0, 0], B = [0, 0, 0]; const o = [0, 1, 2].filter(e => e !== d); A[d] = -1; B[d] = 1; A[o[0]] = B[o[0]] = p; A[o[1]] = B[o[1]] = q; const e = Math.abs(p) === 1 && Math.abs(q) === 1 ? 1 : 0.6; Ln(hp(A[0], A[1], A[2]), c.map(v => v * e)); Ln(hp(B[0], B[1], B[2]), c.map(v => v * e)); }
+                for (let d = 0; d < 3; d++) for (const p of BAR) for (const q of BAR) {
+                    const o = [0, 1, 2].filter(e => e !== d), A = [0, 0, 0], B = [0, 0, 0]; A[d] = -1; B[d] = 1; A[o[0]] = B[o[0]] = p; A[o[1]] = B[o[1]] = q;
+                    const edge = Math.abs(p) === 1 && Math.abs(q) === 1;
+                    for (const [oi, col] of [[o[0], IRON], [o[1], IRON_HI]]) {   // 十字の板（棒の太さ）
+                        const a0 = A.slice(), a1 = A.slice(), b0 = B.slice(), b1 = B.slice(); a0[oi] -= TK; a1[oi] += TK; b0[oi] -= TK; b1[oi] += TK;
+                        const v0 = hp(...a0), v1 = hp(...a1), v2 = hp(...b1), v3 = hp(...b0); [v0, v1, v2, v0, v2, v3].forEach(v => GF(v, edge ? col.map(x => x * 1.15) : col));
+                    }
+                    Ln(hp(A[0], A[1], A[2]), IRON_EDGE.map(v => v * (edge ? 1 : 0.6))); Ln(hp(B[0], B[1], B[2]), IRON_EDGE.map(v => v * (edge ? 1 : 0.6)));
+                }
             };
-            if (!drilling) { grate([0, 0, 0], HR, -H, -1, wHole.dA, [0.72, 0.74, 0.8]); grate(VP, VR, H, 1, wHole.vA, [0.72, 0.74, 0.8]); }
+            if (!drilling) { grate([0, 0, 0], HR, -H, -1, wHole.dA); grate(VP, VR, H, 1, wHole.vA); }
+            wHole.gf.geometry.setDrawRange(0, gfi / 3); wHole.gf.geometry.attributes.position.needsUpdate = wHole.gf.geometry.attributes.color.needsUpdate = true;
             // 穴の向こう：床の胞（立体）の真ん中をくり抜いた所。向こう（w ＜ −H）は遠近で「内側ほど小さく」写るので、穴の立方体の内側に、奥へ縮んでいく 4次元の排水管が見える。
             //   切り口（穴の内壁）は少し明るく、管の輪は奥ほど暗く、いちばん奥に向こう側の光。ふたが開くほど見える
             if (beyondOn) {
@@ -5536,13 +5578,24 @@
                 const pt = leftPtNow(), P2 = wHole.line2.geometry.attributes.position.array, C2 = wHole.line2.geometry.attributes.color.array; let l2 = 0;
                 const L2n = (v, c) => { if (l2 + 3 > P2.length) return; P2[l2] = v[0]; P2[l2 + 1] = v[1]; P2[l2 + 2] = v[2]; C2[l2] = c[0] * k; C2[l2 + 1] = c[1] * k; C2[l2 + 2] = c[2] * k; l2 += 3; };
                 const sq = (cx, cy, R, z, c, x) => { const v = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => pt(cx + a * R, cy + b * R, z)); [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { L2n(v[a], c); L2n(v[b], c); }); if (x) { L2n(v[0], [0.6, 0.62, 0.68]); L2n(v[2], [0.6, 0.62, 0.68]); L2n(v[1], [0.6, 0.62, 0.68]); L2n(v[3], [0.6, 0.62, 0.68]); } };
-                sq(0, 0, HR, -H, [0.5, 0.65, 0.85], false);
-                sq(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, [0.75, 0.78, 0.82], false);
-                const grate2 = (cx, cy, R, z0, sgn, x) => {   // 左：正方形の格子のふた（y ＝ +R の辺を蝶番に z の外へ）
-                    const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1], hp = (a, b) => { const sd = R * (1 - b); return pt(cx + a * R, cy + R - sd * cs, z0 + sgn * sd * sn); };
-                    for (const p of BAR) { const e = Math.abs(p) === 1 ? 1 : 0.6, c = [0.72 * e, 0.74 * e, 0.8 * e]; L2n(hp(p, -1), c); L2n(hp(p, 1), c); L2n(hp(-1, p), c); L2n(hp(1, p), c); }
+                sq(0, 0, HR, -H, IRON_EDGE, false);
+                sq(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, IRON_EDGE, false);
+                const G2P = wHole.gf2.geometry.attributes.position.array, G2C = wHole.gf2.geometry.attributes.color.array; let g2 = 0;
+                const GF2 = (v, c) => { if (g2 + 3 > G2P.length) return; G2P[g2] = v[0]; G2P[g2 + 1] = v[1]; G2P[g2 + 2] = v[2]; G2C[g2] = c[0] * k; G2C[g2 + 1] = c[1] * k; G2C[g2 + 2] = c[2] * k; g2 += 3; };
+                const grate2 = (cx, cy, R, z0, sgn, x) => {   // 左：鋳物の正方形の格子（太い棒。y ＝ +R の辺を蝶番に z の外へ）
+                    const th = Math.PI / 2 * back(x), cs = Math.cos(th), sn = Math.sin(th), BAR = [-1, -1 / 3, 1 / 3, 1], TK = 0.11;
+                    const raw = (a, b, n) => { const sd = R * (1 - b); return [cx + a * R, cy + R - sd * cs + n * TK * R * sgn * sn, z0 + sgn * sd * sn + n * TK * R * cs]; };   // n＝ふたの厚みの向き
+                    const P3 = (a, b, n) => { const g = raw(a, b, n); return pt(g[0], g[1], g[2]); };
+                    for (const p of BAR) for (const dir of [0, 1]) {
+                        const A = dir ? [p, -1] : [-1, p], B = dir ? [p, 1] : [1, p], edge = Math.abs(p) === 1, j = dir ? 0 : 1;
+                        const a0 = A.slice(), a1 = A.slice(), b0 = B.slice(), b1 = B.slice(); a0[j] -= TK; a1[j] += TK; b0[j] -= TK; b1[j] += TK;
+                        [P3(...a0, 0), P3(...a1, 0), P3(...b1, 0), P3(...a0, 0), P3(...b1, 0), P3(...b0, 0)].forEach(v => GF2(v, edge ? IRON_HI : IRON));   // 棒の上面
+                        [P3(...A, -1), P3(...A, 1), P3(...B, 1), P3(...A, -1), P3(...B, 1), P3(...B, -1)].forEach(v => GF2(v, IRON_HI));   // 棒の厚み
+                        L2n(P3(...A, 0), IRON_EDGE.map(v => v * (edge ? 1 : 0.6))); L2n(P3(...B, 0), IRON_EDGE.map(v => v * (edge ? 1 : 0.6)));
+                    }
                 };
                 if (!drilling) { grate2(0, 0, HR, -H, -1, wHole.dA); grate2(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, 1, wHole.vA); }
+                wHole.gf2.geometry.setDrawRange(0, g2 / 3); wHole.gf2.geometry.attributes.position.needsUpdate = wHole.gf2.geometry.attributes.color.needsUpdate = true;
                 if (beyondOn && wHole.tl2) {   // 左：床の正方形の穴の向こう（z ＜ −H）へ続く四角い管と、奥の光
                     const oa = Math.min(1, wHole.dA), TP = wHole.tl2.geometry.attributes.position.array, TC = wHole.tl2.geometry.attributes.color.array, FP = wHole.tf2.geometry.attributes.position.array, FC = wHole.tf2.geometry.attributes.color.array;
                     let tli = 0, tfi = 0;
@@ -10051,7 +10104,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1347';
+        const APP_BUILD = '20261022-1352';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
