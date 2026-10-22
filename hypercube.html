@@ -4271,14 +4271,14 @@
             { d: 2.5, rot: [1, 0], film: [0, 0], cap: 'もとに戻します' },
         ];
         const WTOUR_IN = [
-            { d: 2.6, rot: [0, 1], film: [0, 0], hide: [0, 1], fill: [0, 0], cap: '超立方体を、w の方向を横に倒して見る（中身は空っぽにしておく）' },
-            { d: 9.0, rot: [1, 1], film: [0, 0], hide: [1, 1], fill: [0, 1], lin: true, cap: '同じ大きさの立方体が外から飛んできて、壁に押しつぶされて（平面化して）中へ入り、埋めていく（イメージ）' },
-            { d: 3.4, rot: [1, 1], film: [0, 0], hide: [1, 0], fill: [1, 1], cap: '横の幅＝w の長さ。同じ大きさの立方体が、ぎっしり重なって中身になる（※本当は、w の方向から見ると立方体は初めから厚みゼロ。つぶれる所はイメージ）' },
-            { d: 3.0, rot: [1, 0], film: [0, 0], hide: [0, 0], fill: [1, 1], cap: 'w を奥行きに戻すと…' },
-            { d: 3.5, rot: [0, 0], film: [0, 0], hide: [0, 0], fill: [1, 1], cap: '入れ子の立方体＝超立方体の中に重なった、同じ大きさの立方体（底 −W が内側、ふた +W が外側）' },
-            { d: 2.6, rot: [0, 1], film: [0, 0], hide: [0, 1], fill: [1, 1], cap: 'もう一度 w を横に倒して…' },
-            { d: 7.0, rot: [1, 1], film: [0, 0], hide: [1, 1], fill: [1, 0], lin: true, cap: '今度は取り出す：板が壁まで滑って、ふくらんで立方体に戻り、外へ飛んでいく（あとから入ったものから）' },
-            { d: 1.4, rot: [1, 1], film: [0, 0], hide: [1, 1], fill: [0, 0], cap: '空っぽ。また敷きつめる…' },
+            { lid: [0, 1], d: 2.6, rot: [0, 1], film: [0, 0], hide: [0, 1], fill: [0, 0], cap: '超立方体を、w の方向を横に倒して見る（中身は空っぽにしておく）' },
+            { lid: [1, 1], d: 9.0, rot: [1, 1], film: [0, 0], hide: [1, 1], fill: [0, 1], lin: true, cap: '同じ大きさの立方体が外から飛んできて、壁に押しつぶされて（平面化して）中へ入り、埋めていく（イメージ）' },
+            { lid: [1, 0], d: 3.4, rot: [1, 1], film: [0, 0], hide: [1, 0], fill: [1, 1], cap: '横の幅＝w の長さ。同じ大きさの立方体が、ぎっしり重なって中身になる（※本当は、w の方向から見ると立方体は初めから厚みゼロ。つぶれる所はイメージ）' },
+            { lid: [0, 0], d: 3.0, rot: [1, 0], film: [0, 0], hide: [0, 0], fill: [1, 1], cap: 'w を奥行きに戻すと…' },
+            { lid: [0, 0], d: 3.5, rot: [0, 0], film: [0, 0], hide: [0, 0], fill: [1, 1], cap: '入れ子の立方体＝超立方体の中に重なった、同じ大きさの立方体（底 −W が内側、ふた +W が外側）' },
+            { lid: [0, 1], d: 2.6, rot: [0, 1], film: [0, 0], hide: [0, 1], fill: [1, 1], cap: 'もう一度 w を横に倒して…' },
+            { lid: [1, 1], d: 7.0, rot: [1, 1], film: [0, 0], hide: [1, 1], fill: [1, 0], lin: true, cap: '今度は取り出す：板が壁まで滑って、ふくらんで立方体に戻り、外へ飛んでいく（あとから入ったものから）' },
+            { lid: [1, 1], d: 1.4, rot: [1, 1], film: [0, 0], hide: [1, 1], fill: [0, 0], cap: '空っぽ。また敷きつめる…' },
         ];
         WTOUR_IN.loop = true; WTOUR_IN.loopFrom = 1;   // 敷きつめる⇔取り出す をくり返す（2 回目からは、横に倒したところから）
         // 「見比べる」：輪切り 1 枚を 底 ⇔ ふた に動かし続けたまま、w を「奥行き」⇔「横の幅」に何度も切り替える（止めるまでくり返す）。
@@ -4335,7 +4335,7 @@
             if (!ph) { wTourStop(); return; }
             if (wTour.script.osc) { wTour.oscT = (wTour.oscT || 0) + dt; if (typeof syncWSliceUI === 'function') syncWSliceUI(); }   // 輪切りの往復は、場面の切り替えとは別に続ける
             const f = ph.lin ? t / ph.d : smootherstep(t / ph.d), mix = a => a[0] + (a[1] - a[0]) * f;
-            wTour.rot = mix(ph.rot); wTour.film = mix(ph.film); wTour.hide = ph.hide ? mix(ph.hide) : wTour.film; wTour.fill = ph.fill ? mix(ph.fill) : -1;
+            wTour.rot = mix(ph.rot); wTour.film = mix(ph.film); wTour.hide = ph.hide ? mix(ph.hide) : wTour.film; wTour.fill = ph.fill ? mix(ph.fill) : -1; wTour.lid = ph.lid ? mix(ph.lid) : 0;
             linkAngleX = wTour.ax0 + (Math.PI / 2 - wTour.ax0) * wTour.rot;
             projAnim = wTour.pj0 + (1 - wTour.pj0) * wTour.rot;
             if (animationProgress >= 0.92) wTourCaption(ph.cap);
@@ -4485,6 +4485,13 @@
                 if (faceOn) [A0, B0, B1, A0, B1, A1].forEach(v => pF(v, fm));
             }
         }   // 4D空間積分の区分をレインボーに（w の方向＝謎の空間が色の並びで見える）
+        const WLID_LEAD = 0.7;   // ふたを開けるのにかける秒（取り出しが始まる前に開き切る）
+        function wLidOpenAt(t, fullT, outT) {   // ふたの開き具合（1＝開いている）：いっぱいになったら 0.5 秒で閉じ、取り出しの WLID_LEAD 秒前から開けて、取り出し開始で開き切る
+            const sm = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+            if (t < fullT) return 1;
+            if (t < outT - WLID_LEAD) return 1 - sm((t - fullT) / 0.5);
+            return sm((t - (outT - WLID_LEAD)) / WLID_LEAD);
+        }
         const WPACK = { N: 41, OUT: 3.0, D: 1.3, HOLD: 1.4, EMPTY: 0.8 };   // 個数・出発点（t、1＝ふた）・1 個の移動秒・いっぱいで止める秒・空で止める秒
         let WPACK_ST = [];   // 次が出るまで：はじめはゆっくり、だんだん速く（空間を積分していく感じ）。分割数が多いほど後半を速く（1 回りの長さはだいたい同じ）
         function wPackSetN(n) {
@@ -4495,12 +4502,12 @@
         }
         wPackSetN(41);
         function wPackList() {
-            const P = WPACK, fillT = WPACK_ST[P.N - 1] + P.D, cycle = 2 * fillT + P.HOLD + P.EMPTY, t = wSlice.pt % cycle;
+            const P = WPACK, fillT = WPACK_ST[P.N - 1] + P.D, HOLD = P.HOLD + (wLidMode !== 'off' ? WLID_LEAD + 0.1 : 0), cycle = 2 * fillT + HOLD + P.EMPTY, t = wSlice.pt % cycle;   // ふたがある時は、取り出す前にふたを開ける分だけ長く止める
             const sm = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }, out = [];
-            const filling = t < fillT + P.HOLD; let sum = 0;
+            const filling = t < fillT + HOLD; let sum = 0;
             for (let k = 0; k < P.N; k++) {
                 const tk = -1 + 2 * k / (P.N - 1);
-                const p = filling ? Math.max(0, Math.min(1, (t - WPACK_ST[k]) / P.D)) : 1 - Math.max(0, Math.min(1, (t - fillT - P.HOLD - WPACK_ST[P.N - 1 - k]) / P.D));   // 入る：奥の段から／出る：手前の段から
+                const p = filling ? Math.max(0, Math.min(1, (t - WPACK_ST[k]) / P.D)) : 1 - Math.max(0, Math.min(1, (t - fillT - HOLD - WPACK_ST[P.N - 1 - k]) / P.D));   // 入る：奥の段から／出る：手前の段から
                 if (p <= 0) continue;
                 const tt = P.OUT + (tk - P.OUT) * sm(p);
                 const o = { t: tt, a: Math.max(0, Math.min(1, (P.OUT - tt) / 0.6)) };
@@ -4519,12 +4526,13 @@
                 if (t <= L(0)) front = edge(0) + (edge(1) - edge(0)) * Math.max(0, t) / L(0);
                 else { let k = 1; while (k < P.N && t > L(k)) k++; front = k >= P.N ? 1 : edge(k) + (edge(k + 1) - edge(k)) * (t - L(k - 1)) / (L(k) - L(k - 1)); }
             } else {
-                const O = j => fillT + P.HOLD + WPACK_ST[j];   // j 番目に出始める時刻（j＝0 が手前の段 n−1）
+                const O = j => fillT + HOLD + WPACK_ST[j];   // j 番目に出始める時刻（j＝0 が手前の段 n−1）
                 const te = O(P.N - 1) + P.D;   // 最後の段が出きる時刻
                 if (t < O(0)) front = 1;
                 else { let j = 0; while (j < P.N - 1 && t > O(j + 1)) j++; const t1 = j < P.N - 1 ? O(j + 1) : te; front = Math.max(-1, edge(P.N - j) - (edge(P.N - j) - edge(P.N - j - 1)) * Math.min(1, (t - O(j)) / (t1 - O(j)))); }
             }
             wSlice.packFront = Math.max(-1, Math.min(1, front));
+            wSlice.packLid = wLidOpenAt(t, fillT, fillT + HOLD);   // ふた：時刻で開け閉め（取り出す前に開き切る）
             const fs = Math.max(1, Math.ceil(P.N / (wPackRainbow && (wPackRbStyle === 'ring' || wPackRbStyle === 'ball') ? 64 : wPackRainbow && wPackRbStyle === 'spec' ? 256 : 96)));   // 同心は 1 立方体の面が重いので 64 枚まで   // 面は 96 枚（七色は 256 枚）くらいまでに間引く（512 枚の半透明の面を全部重ねると GPU が重い）。線は全部
             out.forEach((o, i) => { o.aL = 1.33; o.aF = Math.min(1, 9 * fs / Math.max(1, out.length)); o.wh = 0.6; if (i % fs) o.noFace = true; });   // 白く濃く（線は 1 枚だけの時と同じ濃さ、面も濃いめ、色は白寄り）
             wSlice.packN = out.length; wSlice.packIn = filling;
@@ -4767,9 +4775,10 @@
             const now = performance.now(), dt = Math.min(0.1, (now - (wDuo.last || now)) / 1000); wDuo.last = now;
             const N = wDuo.n = WPACK.N, gmin = Math.max(0.008, Math.min(0.25, 4 / N)), st = [0];   // 区分求積のスライダーと共用
             for (let i = 1; i < N; i++) st.push(st[i - 1] + Math.max(gmin, 0.5 * Math.pow(0.88, i - 1)));
-            const fillT = st[N - 1] + WDUO.D, cycle = 2 * fillT + WDUO.HOLD + WDUO.EMPTY;
+            const HOLDd = WDUO.HOLD + (wLidMode !== 'off' ? WLID_LEAD + 0.1 : 0), fillT = st[N - 1] + WDUO.D, cycle = 2 * fillT + HOLDd + WDUO.EMPTY;   // ふたがある時は、取り出す前にふたを開ける分だけ長く止める
             wDuo.t = (wDuo.t + dt) % cycle; requestRender(2);
-            const t = wDuo.t, filling = t < fillT + WDUO.HOLD;
+            const t = wDuo.t, filling = t < fillT + HOLDd;
+            wDuo.lid = wLidOpenAt(t, fillT, fillT + HOLDd);   // ふた：時刻で開け閉め
             const sm = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
             const rot = rot4List(linkAngleX, linkAngleY), pb = projBlendNow(), H = HALF_S, col = new THREE.Color();
             const toS = g => ndProject(NDGeom.rotatePoint([g[0] * sqK('x'), g[1] * sqK('y'), g[2] * sqK('z'), g[3]], rot), pb);
@@ -4784,7 +4793,7 @@
             const dSpec = wPackRainbow && (wPackRbStyle === 'spec' || wPackRbStyle === 'ring' || wPackRbStyle === 'ball'), dRing = wPackRbStyle === 'ring' || wPackRbStyle === 'ball', dBall = wPackRbStyle === 'ball';   // 七色：w の組は上下（y）、z の組は左右（x）に 赤→紫（同心ならどの面も同心円）
             wSliceFaceMode(wDuo.face, dSpec, 0.3);
             for (let i = 0; i < N; i++) {
-                const p = filling ? Math.max(0, Math.min(1, (t - st[i]) / WDUO.D)) : 1 - Math.max(0, Math.min(1, (t - fillT - WDUO.HOLD - st[N - 1 - i]) / WDUO.D));   // 入る：−側から／出る：＋側から
+                const p = filling ? Math.max(0, Math.min(1, (t - st[i]) / WDUO.D)) : 1 - Math.max(0, Math.min(1, (t - fillT - HOLDd - st[N - 1 - i]) / WDUO.D));   // 入る：−側から／出る：＋側から
                 if (p <= 0) continue;
                 const tk = -1 + 2 * i / (N - 1), tt = WDUO.OUT + (tk - WDUO.OUT) * sm(p), a = Math.max(0, Math.min(1, (WDUO.OUT - tt) / 0.5)) * k;
                 const done = sm((p - 0.85) / 0.15);
@@ -5229,7 +5238,7 @@
                 const e = sm(((wSlice.packFront !== undefined ? wSlice.packFront : -1) - 0.9) / 0.1);
                 const lay = wPackRainbow && wPackRbStyle === 'w';   // 層ごとの色なら 赤・紫、七色の立方体なら白で閉じる
                 add(3, '-', lay ? RED : WHITE, e); add(3, '+', lay ? VIO : WHITE, e);
-                open(3, '+', 1 - e);   // 立方体は ふた（+W）の先から入ってくる
+                open(3, '+', wSlice.packLid !== undefined ? wSlice.packLid : 1 - e);   // 立方体は ふた（+W）の先から入ってくる。開け閉めは時刻で（取り出す前に開き切る）
             }
             if (ready && wDbl.on && wDbl.n) {   // 二重積分：w と a の両端
                 const e = sm(((wDbl.sum || 0) / (wDbl.n * wDbl.n) * (wDbl.fade !== undefined ? wDbl.fade : 1) - 0.92) / 0.08), ai = { x: 0, y: 1, z: 2 }[wDbl.axis];
@@ -5242,10 +5251,10 @@
                 const sp = wPackRainbow && (wPackRbStyle === 'spec' || wPackRbStyle === 'ring' || wPackRbStyle === 'ball');
                 const ai = { x: 0, y: 1, z: 2 }[wDbl.axis];   // α（二重積分と共用）
                 add(3, '-', sp ? WHITE : RED, e); add(3, '+', sp ? WHITE : VIO, e); add(ai, '-', sp ? WHITE : GOLD, e); add(ai, '+', sp ? WHITE : TEAL, e);
-                open(3, '+', 1 - e); open(ai, '+', 1 - e);   // w の組は +W から、α の組は +α から入ってくる
+                const lo = wDuo.lid !== undefined ? wDuo.lid : 1 - e; open(3, '+', lo); open(ai, '+', lo);   // w の組は +W から、α の組は +α から入ってくる（開け閉めは時刻で）
             }
             if (ready && wWater.on) { open(3, '+', wWater.lid || 0); if (!wWaterHole()) open(3, '-', wWater.blid || 0); }   // 水を注ぐ：注ぐ前に上のふたを開けて、いっぱいで閉じる。抜く時は底（−W）を開けて、空になったら栓をする
-            if (wTour.on && wTour.script === WTOUR_IN) open(3, '+', (wTour.hide || 0) * (1 - sm(((wTour.fill || 0) - 0.95) / 0.05)));   // 外から重ねる：横に倒している間、立方体が +W の壁から入ってくる・出ていく間は開ける（いっぱいで閉じる）
+            if (wTour.on && wTour.script === WTOUR_IN) open(3, '+', wTour.lid || 0);   // 外から重ねる：横に倒している間、立方体が +W の壁から入ってくる・出ていく間は開ける（いっぱいで閉じる）
             endTint.want = want; endTint.lids = lids; endTint.lid2 = wLidMode === 'off' || dim5 ? 0 : o2; endTint.lid2b = wLidMode === 'off' || dim5 ? 0 : o2b;
         }
         function applyEndTint() {   // 形を作った後に：立体感モードの胞の面と、線を染める（「正確」の面は まとめメッシュの中で染める）
@@ -9609,7 +9618,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-0944';
+        const APP_BUILD = '20261022-1028';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
