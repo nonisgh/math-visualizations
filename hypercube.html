@@ -4393,7 +4393,8 @@
         const lerp3s = (A, B, f) => [A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f, A[2] + (B[2] - A[2]) * f];
         // 七色の立方体（共通）：写した 8 頂点 vs を、立方体の座標 gi（0＝1 本目…）の方向に 赤→紫 で塗る。pL(v, f)＝線、pF(v, f)＝面（f＝0〜1 の位置の色で）
         // 七色の立方体（立体）の中身：立方体の中に、色の方向に垂直な板 7 枚（帯ごとに 1 色）と、ほかの 2 方向に縦の板 4 枚ずつ（7 色の帯）を薄く入れて、透ける立体に見せる。pF(v, f, k)＝k は濃さの倍率
-        const SPEC_VOL_CUT = [0.2, 0.4, 0.6, 0.8], SPEC_VOL_KY = 0.34, SPEC_VOL_KX = 0.45;
+        const SOLID_K = 0.6;   // （立体）は線なし：外の面も中の板も同じ色・同じ濃さ
+        const SPEC_VOL_CUT = [0.2, 0.4, 0.6, 0.8], SPEC_VOL_KY = SOLID_K, SPEC_VOL_KX = SOLID_K;
         function cubeAt(vs) {   // 立方体の中の位置 c（各 0〜1）→ 写した 8 頂点 vs の三重線形
             const idx = []; unitCubeVertices.forEach((u, i) => { idx[(u[0] > 0 ? 1 : 0) + (u[1] > 0 ? 2 : 0) + (u[2] > 0 ? 4 : 0)] = i; });
             return c => {
@@ -4418,9 +4419,10 @@
                 }
             }); });
         }
-        function specCubeEmit(vs, gi, pL, pF, faceOn, vol) {
+        function specCubeEmit(vs, gi, pL, pF0, faceOn, vol) {
             const g = i => unitCubeVertices[i][gi] + 0.5, oth = [0, 1, 2].filter(x => x !== gi);
-            WS_EDGES.forEach(([e0, e1]) => {
+            const pF = vol ? (v, f) => pF0(v, f, SOLID_K) : pF0;   // （立体）は外の面も中と同じ濃さ
+            if (!vol) WS_EDGES.forEach(([e0, e1]) => {
                 if (g(e0) === g(e1)) { pL(vs[e0], g(e0)); pL(vs[e1], g(e1)); return; }
                 const lo = g(e0) < g(e1) ? e0 : e1, hi = lo === e0 ? e1 : e0;
                 for (let m = 0; m < SPEC_K; m++) { const fm = (m + 0.5) / SPEC_K; pL(lerp3s(vs[lo], vs[hi], m / SPEC_K), fm); pL(lerp3s(vs[lo], vs[hi], (m + 1) / SPEC_K), fm); }
@@ -4436,7 +4438,7 @@
                     [A0, B0, B1, A0, B1, A1].forEach(v => pF(v, fm));
                 }
             });
-            if (vol) specVolEmit(vs, gi, pF);
+            if (vol) specVolEmit(vs, gi, pF0);
         }
         // 同心の七色（どこから見ても七色）：面ごとに、面の真ん中＝赤 → 角＝紫 の同心円。6 面とも同じ柄。辺は真ん中が緑・角が紫（2 つの面でつながる）
         const RING_G = 6;   // 面を 6×6 に分けて塗る（辺も 6 つに）
@@ -4458,12 +4460,13 @@
         }
         function ringQuadEmit(q0, q1, q2, q3, pL, pF, faceOn) { ringEdge(q0, q1, pL); ringEdge(q1, q2, pL); ringEdge(q2, q3, pL); ringEdge(q3, q0, pL); if (faceOn) ringQuadFaces(q0, q1, q2, q3, pF); }
         function ringCubeEmit(vs, pL, pF, faceOn, ball, vol) {
-            WS_EDGES.forEach(([e0, e1]) => ringEdge(vs[e0], vs[e1], pL, ball));
-            if (faceOn) WS_QUADS.forEach(q => ringQuadFaces(vs[q[0]], vs[q[1]], vs[q[2]], vs[q[3]], pF, ball));
-            if (faceOn && vol && !ball) ringVolEmit(vs, pF);
+            const solid = vol && !ball, pS = solid ? (v, f) => pF(v, f, SOLID_K) : pF;   // （立体）は線なし、外の面も中と同じ濃さ
+            if (!solid) WS_EDGES.forEach(([e0, e1]) => ringEdge(vs[e0], vs[e1], pL, ball));
+            if (faceOn) WS_QUADS.forEach(q => ringQuadFaces(vs[q[0]], vs[q[1]], vs[q[2]], vs[q[3]], pS, ball));
+            if (faceOn && solid) ringVolEmit(vs, pF);
         }
         // 同心の七色（立体）の中身：3 方向それぞれに、面と同じ同心の柄の板を 3 枚ずつ（1/4・1/2・3/4 の所）薄く入れる。どの向きから見ても輪が重なって透ける立体に
-        const RING_VOL_CUT = [0.25, 0.5, 0.75], RING_VOL_K = 0.45;
+        const RING_VOL_CUT = [0.25, 0.5, 0.75], RING_VOL_K = SOLID_K;
         function ringVolEmit(vs, pF) {
             const at = cubeAt(vs), pK = (v, f) => pF(v, f, RING_VOL_K);
             for (let d = 0; d < 3; d++) {
@@ -4571,6 +4574,7 @@
             WPACK_ST = st; wSlice.pt = 0;   // 分割数を変えたら最初から
         }
         wPackSetN(41);
+        const WPACK_FLY_FA = 0.15;   // 七色の立方体：飛んでいる間の面の濃さ（着いたら 1）
         function wPackList() {
             const P = WPACK, fillT = WPACK_ST[P.N - 1] + P.D, HOLD = P.HOLD + (wLidMode !== 'off' && !(wLidMode === 'keep' && !wOutOpp) ? WLID_LEAD + 0.1 : 0), cycle = 2 * fillT + HOLD + P.EMPTY, t = wSlice.pt % cycle;   // ふたがある時は、取り出す前にふたを開ける分だけ長く止める
             const sm = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }, out = [];
@@ -4580,7 +4584,7 @@
                 const p = filling ? Math.max(0, Math.min(1, (t - WPACK_ST[k]) / P.D)) : 1 - Math.max(0, Math.min(1, (t - fillT - HOLD - WPACK_ST[wOutOpp ? k : P.N - 1 - k]) / P.D));   // 入る：奥の段から／出る：手前の段から（反対側から出す時は奥の段から）
                 if (p <= 0) continue;
                 const opp = !filling && wOutOpp, tt = opp ? -P.OUT + (tk + P.OUT) * sm(p) : P.OUT + (tk - P.OUT) * sm(p);   // 反対側から出す時は −側の外へ
-                const o = { t: tt, a: Math.max(0, Math.min(1, (opp ? tt + P.OUT : P.OUT - tt) / 0.6)) };
+                const o = { t: tt, a: Math.max(0, Math.min(1, (opp ? tt + P.OUT : P.OUT - tt) / 0.6)), fa: WPACK_FLY_FA + (1 - WPACK_FLY_FA) * sm((p - 0.75) / 0.25) };   // fa＝面の濃さ：飛んでいる間は薄く（手前で積んだ所を覆って暗くしない）、着く直前に しっかり
                 if (wPackRainbow && (wPackRbStyle === 'spec' || wPackRbStyle === 'ring' || wPackRbStyle === 'ball')) { o.spec = true; if (k === 0) o.back = true; if (wPackRbStyle === 'ball' && (k === 0 || k % Math.max(1, Math.ceil(P.N / 16)) === 0)) o.ballSel = true; }   // 同心球の殻は 16 個くらいまで   // 七色の立方体（どの層も同じ）。k＝0 が突き当たり（底 −W）
                 else if (wPackRainbow) { const c = new THREE.Color().setHSL(0.82 * k / Math.max(1, P.N - 1), 1, 0.58); o.rgb = [c.r, c.g, c.b]; }   // 層ごとに 1 色   // レインボー：w の位置ごとに色（底 −W＝赤 … ふた +W＝紫）
                 out.push(o);
@@ -4729,7 +4733,7 @@
             const fill = st[N - 1] + WDBL.D;
             return (wDbl.sched = { n, st, fill, cycle: 2 * fill + WDBL.HOLD + WDBL.EMPTY });   // 敷きつめる → 止める → 取り出す（あとから入ったマスから）→ 空 → くり返す（暗転はしない）
         }
-        function wDblMk(root, nv, withFace, fnv = nv) {
+        function wDblMk(root, nv, withFace, fnv = nv, rgba = false) {   // rgba＝面の色に透明度も持たせる（ふつうの重ねで薄くする時）
             const lg = new THREE.BufferGeometry();
             lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3));
             lg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(nv * 3), 3));
@@ -4738,14 +4742,14 @@
             if (!withFace) return { line };
             const fg = new THREE.BufferGeometry();
             fg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(fnv * 3), 3));
-            fg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(fnv * 3), 3));
+            fg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(fnv * (rgba ? 4 : 3)), rgba ? 4 : 3));
             const face = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
             face.renderOrder = 998; face.frustumCulled = false; root.add(face);
             return { line, face };
         }
         function updateDblSlice(progress) {
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r3) return;
-            if (!wDbl.line) { const m = wDblMk(r3, WDBL.MAXC * 48, true); wDbl.line = m.line; wDbl.face = m.face; }   // 七色は 1 マス 48 頂点まで（同心）
+            if (!wDbl.line) { const m = wDblMk(r3, WDBL.MAXC * 48, true, undefined, true); wDbl.line = m.line; wDbl.face = m.face; }   // 七色は 1 マス 48 頂点まで（同心）
             if (!wDbl.line2 && r2) wDbl.line2 = wDblMk(r2, WDBL.MAXC * 2, false).line;
             const k = wDbl.on ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
             const show = k > 0.01, show2 = show && !dim5 && wDbl.axis !== 'z';
@@ -4789,12 +4793,12 @@
                 const q = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)];
                 if (dSpec) {   // 七色の正方形（どのマスも同じ）
                     const pL = (v, f) => { if (li + 3 > P.length) return; specCol(f, col); P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * al; C[li + 1] = col.g * al; C[li + 2] = col.b * al; li += 3; };
-                    const pF = (v, f) => { if (i === 0 && bkD) { backPut(bkD, v, f, al); return; } if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * al; FC[fi + 1] = col.g * al; FC[fi + 2] = col.b * al; fi += 3; };   // 突き当たりの層（w の層 0）は別の入れ物へ
+                    const pF = (v, f) => { if (i === 0 && bkD) { backPut(bkD, v, f, al); return; } if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r; FC[c4 + 1] = col.g; FC[c4 + 2] = col.b; FC[c4 + 3] = Math.min(1, al); fi += 3; };   // 突き当たりの層（w の層 0）は別の入れ物へ
                     const fo = c % fs === 0 || (bkD && i === 0);   // 突き当たりの層は間引かない
                     if (dRing) ringQuadEmit(q[0], q[1], q[2], q[3], pL, pF, fo); else if (gi === 1) specQuadEmit([q[0], q[1]], [q[3], q[2]], pL, pF, fo); else specQuadEmit([q[0], q[3]], [q[1], q[2]], pL, pF, fo);
                 } else {
                 for (let m = 0; m < 4; m++) [q[m], q[(m + 1) % 4]].forEach(v => { if (li + 3 > P.length) return; P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * al; C[li + 1] = col.g * al; C[li + 2] = col.b * al; li += 3; });
-                if (c % fs === 0) [0, 1, 2, 0, 2, 3].forEach(m => { if (fi + 3 > FP.length) return; const v = q[m]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * al * fA; FC[fi + 1] = col.g * al * fA; FC[fi + 2] = col.b * al * fA; fi += 3; });
+                if (c % fs === 0) [0, 1, 2, 0, 2, 3].forEach(m => { if (fi + 3 > FP.length) return; const v = q[m]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r * al * fA; FC[c4 + 1] = col.g * al * fA; FC[c4 + 2] = col.b * al * fA; FC[c4 + 3] = 1; fi += 3; });
                 }
                 if (show2 && P2) {   // 左：a ＝ ca・z ＝ cw の線分（残りの 1 軸に長さ 2）
                     const b = ai === 0 ? 1 : 0, A = [0, 0, 0], B = [0, 0, 0];
@@ -4847,7 +4851,7 @@
         const WDUO = { OUT: 2.2, D: 1.3, HOLD: 1.4, EMPTY: 0.7 };
         function updateDuoSlice(progress) {
             const r3 = scene3D && scene3D.getObjectByName('Root3D'); if (!r3) return;
-            if (!wDuo.line) { const m = wDblMk(r3, 1030 * 144, true, 1030 * 900); wDuo.line = m.line; wDuo.face = m.face; }   // 全部で 512 枚くらいまで（同心は線 144 頂点）
+            if (!wDuo.line) { const m = wDblMk(r3, 1030 * 144, true, 1030 * 900, true); wDuo.line = m.line; wDuo.face = m.face; }   // 全部で 512 枚くらいまで（同心は線 144 頂点）
             const k = wDuo.on ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
             const show = k > 0.01, AX = wDuoAxes();
             wDuo.line.visible = wDuo.face.visible = show;
@@ -4884,12 +4888,12 @@
                     if (dSpec) {
                         const LS = Math.max(L, 0.85 * a), FD = wSpecFace === 'same' ? LS : a;   // 七色の線は明るめ（「枠と同じ」なら面も線と同じ濃さ）
                         const pL = (v, f) => { if (li + 3 > P.length) return; specCol(f, col); P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * LS; C[li + 1] = col.g * LS; C[li + 2] = col.b * LS; li += 3; };
-                        const pF = (v, f, kk = 1) => { if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * FD * kk; FC[fi + 1] = col.g * FD * kk; FC[fi + 2] = col.b * FD * kk; fi += 3; };
+                        const pF = (v, f, kk = 1) => { if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r; FC[c4 + 1] = col.g; FC[c4 + 2] = col.b; FC[c4 + 3] = Math.min(1, FD * kk); fi += 3; };
                         const pF2 = (F0.ax === 3 && i === 0 && bkU) ? ((v, f, kk = 1) => backPut(bkU, v, f, LS * kk)) : pF;   // w の組の突き当たり（w ＝ −1）は別の入れ物へ
                         if (dRing) { ringCubeEmit(vs, pL, pF2, i % fs === 0, dBall, wRingVol); if (dBall && i % Math.max(1, Math.ceil(N / 8)) === 0) ballListU.push({ vs, a }); } else specCubeEmit(vs, F0.ax === 3 ? 1 : 0, pL, pF2, i % fs === 0, wSpecVol); return;
                     }
                     WS_EDGES.forEach(([e0, e1]) => [vs[e0], vs[e1]].forEach(v => { if (li + 3 > P.length) return; P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * L; C[li + 1] = col.g * L; C[li + 2] = col.b * L; li += 3; }));
-                    if (i % fs === 0) WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => { if (fi + 3 > FP.length) return; const v = vs[m]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * F; FC[fi + 1] = col.g * F; FC[fi + 2] = col.b * F; fi += 3; }));
+                    if (i % fs === 0) WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => { if (fi + 3 > FP.length) return; const v = vs[m]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r * F; FC[c4 + 1] = col.g * F; FC[c4 + 2] = col.b * F; FC[c4 + 3] = 1; fi += 3; }));
                 });
             }
             wDuo.fr = {}; fam.forEach(F0 => wDuo.fr[F0.ax] = F0.sum / N); wDuo.fill = filling;   // 向きごとの敷きつめ割合（0〜1）
@@ -6134,7 +6138,7 @@
                 wSlice.line = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 1, depthTest: false }));
                 const fg = new THREE.BufferGeometry();
                 fg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXN * 1300 * 3), 3));
-                fg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXN * 1300 * 3), 3));
+                fg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXN * 1300 * 4), 4));   // 色＋透明度（七色の立方体はふつうの重ねなので、薄くするのは透明度で。色を暗くすると黒い膜になる）
                 wSlice.face = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
                 wSlice.line.renderOrder = 998; wSlice.face.renderOrder = 997; wSlice.line.frustumCulled = wSlice.face.frustumCulled = false;
                 r3.add(wSlice.face, wSlice.line);
@@ -6163,7 +6167,7 @@
             const bkW = backBegin('p3', r3, wSlice.pack);   // いちばん奥だけ枠と同じ（4次元の窓）
             const list = wSliceList(); if (wSlice.stack || wSlice.pack) syncWSliceUI();
             const ballList = [];   // 同心球の殻を入れる立方体
-            list.forEach(({ t, a, one, aL = 1, aF = 1, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD, wh = 0, rgb, noFace, spec, back, ballSel }) => {
+            list.forEach(({ t, a, one, aL = 1, aF = 1, fa = 1, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD, wh = 0, rgb, noFace, spec, back, ballSel }) => {
                 const w = t * HALF_S;
                 let vs = unitCubeVertices.map(u => {
                     const g = [u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), w];
@@ -6192,11 +6196,12 @@
                 if (spec) {   // 七色の立方体：y の方向（下→上）に 赤→紫。y にのびた辺・面は 7 つに分けて塗る
                     const lerp3 = (A, B, f) => [A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f, A[2] + (B[2] - A[2]) * f];
                     const pL = (v, f) => { if (li + 3 > P.length) return; specCol(f, col); P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * L; C[li + 1] = col.g * L; C[li + 2] = col.b * L; li += 3; };
-                    const FS = wSpecFace === 'same' ? L : Math.min(1, L * 0.9);   // 七色の面は枚数で薄くしない（ふつうの重ねなので白くならない）。濃さは「表面の濃さ」で。「枠と同じ」なら線と同じ
-                    const pF = (v, f, kk = 1) => { if (back && bkW) { backPut(bkW, v, f, L * kk); return; } if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * FS * kk; FC[fi + 1] = col.g * FS * kk; FC[fi + 2] = col.b * FS * kk; fi += 3; };   // 突き当たりの層は別の入れ物へ（枠と同じ濃さ）
+                    const FS = (wSpecFace === 'same' ? L : Math.min(1, L * 0.9)) * fa;   // 七色の面は枚数で薄くしない（ふつうの重ねなので白くならない）。濃さは「表面の濃さ」で。「枠と同じ」なら線と同じ
+                    let pF = (v, f, kk = 1) => { if (back && bkW) { backPut(bkW, v, f, L * kk); return; } if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r; FC[c4 + 1] = col.g; FC[c4 + 2] = col.b; FC[c4 + 3] = Math.min(1, FS * kk); fi += 3; };   // 突き当たりの層は別の入れ物へ（枠と同じ濃さ）
                     const yf = i => unitCubeVertices[i][1] + 0.5;
                     if (wPackRbStyle === 'ring' || wPackRbStyle === 'ball') { ringCubeEmit(vs, pL, pF, !noFace, wPackRbStyle === 'ball', wRingVol); if (wPackRbStyle === 'ball' && ballSel) ballList.push({ vs, a: a * k }); } else {   // 同心の七色／同心球（中身の殻は選んだ層だけ）
-                    WS_EDGES.forEach(([e0, e1]) => {
+                    const pF1 = pF; if (wSpecVol) pF = (v, f) => pF1(v, f, SOLID_K);   // （立体）は線なし、外の面も中と同じ濃さ
+                    if (!wSpecVol) WS_EDGES.forEach(([e0, e1]) => {
                         if (yf(e0) === yf(e1)) { pL(vs[e0], yf(e0)); pL(vs[e1], yf(e1)); return; }
                         const lo = yf(e0) < yf(e1) ? e0 : e1, hi = lo === e0 ? e1 : e0;
                         for (let m = 0; m < SPEC_K; m++) { const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K; pL(lerp3(vs[lo], vs[hi], f0), fm); pL(lerp3(vs[lo], vs[hi], f1), fm); }
@@ -6211,11 +6216,11 @@
                             [A0, B0, B1, A0, B1, A1].forEach(v => pF(v, fm));
                         }
                     });
-                    if (!noFace && wSpecVol) specVolEmit(vs, 1, pF);   // （立体）中身も七色
+                    if (!noFace && wSpecVol) specVolEmit(vs, 1, pF1);   // （立体）中身も七色
                     }
                 } else {
                 WS_EDGES.forEach(([a, b]) => { [vs[a], vs[b]].forEach(v => { P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * L; C[li + 1] = col.g * L; C[li + 2] = col.b * L; li += 3; }); });
-                if (!noFace) WS_QUADS.forEach(q => { [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(i => { const v = vs[i]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * F; FC[fi + 1] = col.g * F; FC[fi + 2] = col.b * F; fi += 3; }); });
+                if (!noFace) WS_QUADS.forEach(q => { [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(i => { const v = vs[i]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r * F; FC[c4 + 1] = col.g * F; FC[c4 + 2] = col.b * F; FC[c4 + 3] = 1; fi += 3; }); });
                 }
             });
             wSlice.line.geometry.setDrawRange(0, li / 3); wSlice.face.geometry.setDrawRange(0, fi / 3); backEnd(bkW); ballDraw('p3', r3, ballList);
@@ -6238,7 +6243,7 @@
                 wSlice.line2 = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 1, depthTest: false }));
                 const fg = new THREE.BufferGeometry();
                 fg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXN * 42 * 3), 3));
-                fg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXN * 42 * 3), 3));
+                fg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXN * 42 * 4), 4));   // 色＋透明度
                 wSlice.face2 = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
                 wSlice.line2.renderOrder = 998; wSlice.face2.renderOrder = 997; wSlice.line2.frustumCulled = wSlice.face2.frustumCulled = false;
                 r2.add(wSlice.face2, wSlice.line2);
@@ -6262,7 +6267,7 @@
             const col = new THREE.Color(), base = new THREE.Color(0xf8fafc), H = HALF_S;
             let li = 0, fi = 0;
             const bkW = backBegin('p2', r2, wSlice.pack);   // いちばん奥だけ枠と同じ（左の立方体）
-            wSliceList().forEach(({ t, a, one, aL = 1, aF = 1, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD, wh = 0, rgb, noFace, spec, back }) => {
+            wSliceList().forEach(({ t, a, one, aL = 1, aF = 1, fa = 1, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD, wh = 0, rgb, noFace, spec, back }) => {
                 const z = t * H; let vs = [pt(-H, -H, z), pt(H, -H, z), pt(H, H, z), pt(-H, H, z)];
                 const fm = film !== undefined ? film : wTour.on ? wTour.film : 0;
                 if (slide !== undefined) {   // 外から重ねる：正方形が飛んできて、ふた の壁でつぶれて線（板）になり、自分の段へ
@@ -6280,8 +6285,8 @@
                 if (spec) {   // 七色の正方形：y の方向（下→上）に 赤→紫（頂点 0・1 が下、3・2 が上）
                     const lerp3 = (A, B, f) => [A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f, A[2] + (B[2] - A[2]) * f];
                     const pL = (v, f) => { if (li + 3 > P.length) return; specCol(f, col); P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * L; C[li + 1] = col.g * L; C[li + 2] = col.b * L; li += 3; };
-                    const FS = wSpecFace === 'same' ? L : Math.min(1, L * 0.9);   // 七色の面は枚数で薄くしない（ふつうの重ねなので白くならない）。濃さは「表面の濃さ」で。「枠と同じ」なら線と同じ
-                    const pF = (v, f, kk = 1) => { if (back && bkW) { backPut(bkW, v, f, L * kk); return; } if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * FS * kk; FC[fi + 1] = col.g * FS * kk; FC[fi + 2] = col.b * FS * kk; fi += 3; };   // 突き当たりの層は別の入れ物へ（枠と同じ濃さ）
+                    const FS = (wSpecFace === 'same' ? L : Math.min(1, L * 0.9)) * fa;   // 七色の面は枚数で薄くしない（ふつうの重ねなので白くならない）。濃さは「表面の濃さ」で。「枠と同じ」なら線と同じ
+                    const pF = (v, f, kk = 1) => { if (back && bkW) { backPut(bkW, v, f, L * kk); return; } if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r; FC[c4 + 1] = col.g; FC[c4 + 2] = col.b; FC[c4 + 3] = Math.min(1, FS * kk); fi += 3; };   // 突き当たりの層は別の入れ物へ（枠と同じ濃さ）
                     if (wPackRbStyle === 'ring' || wPackRbStyle === 'ball') ringQuadEmit(vs[0], vs[1], vs[2], vs[3], pL, pF, !noFace); else {   // 同心の七色（同心球でも正方形は同心円）
                     pL(vs[0], 0); pL(vs[1], 0); pL(vs[3], 1); pL(vs[2], 1);
                     for (let m = 0; m < SPEC_K; m++) {
@@ -6293,7 +6298,7 @@
                     }
                 } else {
                 [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { [vs[a], vs[b]].forEach(v => { P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; C[li] = col.r * L; C[li + 1] = col.g * L; C[li + 2] = col.b * L; li += 3; }); });
-                if (!noFace) [0, 1, 2, 0, 2, 3].forEach(i => { const v = vs[i]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; FC[fi] = col.r * F; FC[fi + 1] = col.g * F; FC[fi + 2] = col.b * F; fi += 3; });
+                if (!noFace) [0, 1, 2, 0, 2, 3].forEach(i => { const v = vs[i]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r * F; FC[c4 + 1] = col.g * F; FC[c4 + 2] = col.b * F; FC[c4 + 3] = 1; fi += 3; });
                 }
             });
             wSlice.line2.geometry.setDrawRange(0, li / 3); wSlice.face2.geometry.setDrawRange(0, fi / 3); backEnd(bkW);
