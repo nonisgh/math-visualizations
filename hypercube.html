@@ -6298,7 +6298,7 @@
             const ball = spec === 'ball', ring = spec === 'ring' || ball, si = spec === true ? 1 : (typeof spec === 'number' ? spec : -1); spec = ring || si >= 0;   // 'ball'＝同心球（辺は立方体の中心からの距離で色）   // 'ring'＝同心の七色（辺の真ん中が藍・角が紫）
             if (!r3 || !(k > 0.01)) { if (wTile[key]) wTile[key].visible = false; return; }
             if (!wTile[key]) wTile[key] = wTileMk(r3, 64 * 36 * 6);   // （spec は下で決め直す）   // 七色は 1 帯 36 枚（12 辺のうち y の 4 辺を 7 つ）
-            const mesh = wTile[key]; mesh.visible = true; { const bd = ballDepthOn(); mesh.material.depthTest = bd; mesh.material.depthWrite = false; mesh.renderOrder = bd ? 998 : 996; }   // 玉のモード：タイルは玉のあとに重ねる（手前のタイルは玉に透けて重なり、玉の後ろのタイルは隠れる）
+            const mesh = wTile[key]; mesh.visible = true;   // タイルは玉より先に描く（玉はいつもタイルの上。ユーザーの好み：真上から見た時に玉の縁がタイルで濁らない）
             { const op = spec ? Math.max(0.32, SPEC_FACE_OP[wSpecFace]) : 0.32; if (mesh.material.opacity !== op) mesh.material.opacity = op; }   // 七色の表面の濃さに合わせる
             const stp = Math.max(1, Math.ceil((N - 1) / (spec ? 24 : 64))), H = HALF_S, oth = [0, 1, 2, 3].filter(x => x !== d), col = new THREE.Color();
             const toS = g => ndProject(NDGeom.rotatePoint([g[0] * sqK('x'), g[1] * sqK('y'), g[2] * sqK('z'), g[3]], rot), pb);
