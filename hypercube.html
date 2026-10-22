@@ -5010,6 +5010,24 @@
         //   反射する割合はシュリックの式 R ＝ R₀ ＋ (1 − R₀)(1 − cosθ)⁵（R₀ ＝ ((n−1)/(n+1))²：水 0.02、油 0.036）。真上から見るとほとんど透け、斜めになるほど空の色を映す。
         //   照明の照り返し（ハイライト）は、波で傾いた面が光を目の方へはね返す所できらめく。油の時は、透けた色の上に虹色の膜（薄膜干渉）
         const FRES = { LOFF: [0.25, 0.55, 0.1], SKY_LO: [0.32, 0.38, 0.5], SKY_HI: [0.85, 0.9, 1.0], SPEC: 2.2, EXP: 28 };   // 照明は見ている人の少し上・横から（LOFF＝視線からのずらし）
+        function surfGridColors(grid, cam, base, oil) {   // 水面の格子（grid[i][j]＝{v, u, d}）の頂点ごとの色：面の向きは隣の点から（なめらかに塗る＝モザイクにならない）
+            const n = grid.length, out = [], cl = i => Math.max(0, Math.min(n - 1, i)), R0 = oil ? 0.036 : 0.02;
+            for (let i = 0; i < n; i++) { out.push([]); for (let j = 0; j < n; j++) {
+                const p = grid[i][j], a = grid[cl(i + 1)][j].v, b = grid[cl(i - 1)][j].v, c = grid[i][cl(j + 1)].v, d = grid[i][cl(j - 1)].v;
+                const ex = [a[0] - b[0], a[1] - b[1], a[2] - b[2]], ey = [c[0] - d[0], c[1] - d[1], c[2] - d[2]];
+                let nx = ex[1] * ey[2] - ex[2] * ey[1], ny = ex[2] * ey[0] - ex[0] * ey[2], nz = ex[0] * ey[1] - ex[1] * ey[0]; const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+                let vx = 0, vy = 0, vz = 1; if (cam) { vx = cam.x - p.v[0]; vy = cam.y - p.v[1]; vz = cam.z - p.v[2]; const vl = Math.hypot(vx, vy, vz) || 1; vx /= vl; vy /= vl; vz /= vl; }
+                let cosI = nx * vx + ny * vy + nz * vz; if (cosI < 0) { nx = -nx; ny = -ny; nz = -nz; cosI = -cosI; }
+                const Fr = R0 + (1 - R0) * Math.pow(1 - Math.min(1, cosI), 5), ry = 2 * cosI * ny - vy, tk = Math.max(0, Math.min(1, ry * 0.5 + 0.5)), sky = FRES.SKY_LO.map((c0, k) => c0 + (FRES.SKY_HI[k] - c0) * tk);
+                let lx = vx + FRES.LOFF[0], ly = vy + FRES.LOFF[1], lz = vz + FRES.LOFF[2]; const ll = Math.hypot(lx, ly, lz) || 1; lx /= ll; ly /= ll; lz /= ll;
+                const hx = lx + vx, hy = ly + vy, hz = lz + vz, hl = Math.hypot(hx, hy, hz) || 1, sp = FRES.SPEC * Math.pow(Math.max(0, (nx * hx + ny * hy + nz * hz) / hl), FRES.EXP) * (0.25 + Fr);
+                const sh = Math.max(0.55, Math.min(1.5, 0.85 + 5 * p.d)), bb = (typeof base === 'function' ? base(p.u) : base).map(x => x * sh);   // 波の山は明るく
+                let c0 = bb;
+                if (oil) { const T = OIL.BASE + oilSample(p.u), a2 = Math.min(0.8, 0.3 + T * 1.6), f = oilVivid(oilRGB(T, cosI)); c0 = [0, 1, 2].map(t => bb[t] * (1 - a2) + f[t] * a2); }
+                out[i].push([0, 1, 2].map(t => c0[t] * (1 - Fr) + sky[t] * Fr + sp));
+            } }
+            return out;
+        }
         function surfQuadColor(q, cam, base, s, oil) {   // q＝水面の 4 角形（.v＝写した点、.u＝水面の点）、base＝液体の色（関数 u→色、または色）
             const A = q[0].v, B = q[1].v, C = q[3].v;
             let nx = (B[1] - A[1]) * (C[2] - A[2]) - (B[2] - A[2]) * (C[1] - A[1]), ny = (B[2] - A[2]) * (C[0] - A[0]) - (B[0] - A[0]) * (C[2] - A[2]), nz = (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]);
@@ -5127,9 +5145,10 @@
                     const grid = [];
                     for (let i = 0; i <= G; i++) { grid.push([]); for (let j = 0; j <= G; j++) { const u = U(i, j), w = surfW(u); grid[i].push({ v: toS([u[0] * H, u[1] * H, u[2] * H, w]), d: w / H - h, u }); } }
                     const sc = rb ? hueRGB(h * H) : LQ.surf, gc = rb ? sc.map(x => x * 0.45) : sc.map(x => x * 0.55);   // 網目は水面の色になじませる   // 虹の水の水面＝いちばん上の層の色
+                    const vc = surfGridColors(grid, camL3, wWaterOil ? u => { const e = 1 - Math.max(Math.abs(u[0]), Math.abs(u[1]), Math.abs(u[2])); return honeyRGB(0.1 + 0.9 * (surfW(u) + H) / H * (0.25 + 0.75 * Math.min(1, e * 2.5))); } : sc, wWaterOil);   // フレネル反射・照り返し（油は透けた色＋虹色の膜。ふちは金色、真ん中は暗い）。頂点ごとの色でなめらかに
                     for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) {
-                        const q = [grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]], s = shine((q[0].d + q[2].d) / 2);
-                        const cc = surfQuadColor(q, camL3, wWaterOil ? u => { const e = 1 - Math.max(Math.abs(u[0]), Math.abs(u[1]), Math.abs(u[2])); return honeyRGB(0.1 + 0.9 * (surfW(u) + H) / H * (0.25 + 0.75 * Math.min(1, e * 2.5))).map(x => x * s); } : sc, s, wWaterOil); [0, 1, 2, 0, 2, 3].forEach(m => F(q[m].v, cc[m][0], cc[m][1], cc[m][2]));   // フレネル反射・照り返し（油は透けた色＋虹色の膜。ふちは金色、真ん中は暗い）
+                        const q = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]];
+                        [0, 1, 2, 0, 2, 3].forEach(m => { const [a, b] = q[m], c = vc[a][b]; F(grid[a][b].v, c[0], c[1], c[2]); });
                     }
                     if (W.GRID) for (let i = 0; i <= G; i += 2) for (let j = 0; j < G; j++) {   // 水面の網目：うすい青（水面より少し濃いくらい）
                         if (wWaterOil) {   // 油：網目は透けた油の色になじませて、虹色を少しだけ（ふちは少し明るく）
@@ -5339,7 +5358,8 @@
                     for (let i = 0; i <= G; i++) { grid.push([]); for (let j = 0; j <= G; j++) { const u = [-1 + 2 * i / G, -1 + 2 * j / G], z = sZ(u); grid[i].push({ v: pt(u[0] * H, u[1] * H, z), d: z / H - h, u }); } }
                     const camL2 = camera2D && r2 ? r2.worldToLocal(camera2D.position.clone()) : null;   // 左の油膜
                     const sc2 = rb ? hueRGB(h * H) : LQ.surf, gc2 = rb ? sc2.map(x => x * 0.45) : sc2.map(x => x * 0.55);
-                    for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) { const q = [grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]], s = shine((q[0].d + q[2].d) / 2); const cc = surfQuadColor(q, camL2, wWaterOil ? u => { const e = 1 - Math.max(Math.abs(u[0]), Math.abs(u[1])); return honeyRGB(0.1 + 0.9 * (sZ(u) + H) / H * (0.25 + 0.75 * Math.min(1, e * 2.5))).map(x => x * s); } : sc2, s, wWaterOil); [0, 1, 2, 0, 2, 3].forEach(m => F2(q[m].v, cc[m][0], cc[m][1], cc[m][2])); }
+                    const vc2 = surfGridColors(grid, camL2, wWaterOil ? u => { const e = 1 - Math.max(Math.abs(u[0]), Math.abs(u[1])); return honeyRGB(0.1 + 0.9 * (sZ(u) + H) / H * (0.25 + 0.75 * Math.min(1, e * 2.5))); } : sc2, wWaterOil);   // 頂点ごとの色でなめらかに（モザイクにならない）
+                    for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) { [[i, j], [i + 1, j], [i + 1, j + 1], [i, j], [i + 1, j + 1], [i, j + 1]].forEach(([a, b]) => { const c = vc2[a][b]; F2(grid[a][b].v, c[0], c[1], c[2]); }); }
                     if (W.GRID) for (let i = 0; i <= G; i += 4) for (let j = 0; j < G; j++) {   // 左の水面の網目（うすい青。油の時は虹色に光る）
                         if (wWaterOil) { const kk = i === 0 || i === G ? 0.95 : 0.6, lc = u => { const e = 1 - Math.max(Math.abs(u[0]), Math.abs(u[1])), hb = honeyRGB(0.1 + 0.9 * (sZ(u) + H) / H * (0.25 + 0.75 * Math.min(1, e * 2.5))), f = oilLineCol(u, 1); return [0, 1, 2].map(t => (hb[t] * 0.75 + f[t] * 0.25) * kk); }; L2(grid[i][j].v, ...lc(grid[i][j].u)); L2(grid[i][j + 1].v, ...lc(grid[i][j + 1].u)); L2(grid[j][i].v, ...lc(grid[j][i].u)); L2(grid[j + 1][i].v, ...lc(grid[j + 1][i].u)); }
                         else { L2(grid[i][j].v, gc2[0], gc2[1], gc2[2]); L2(grid[i][j + 1].v, gc2[0], gc2[1], gc2[2]); L2(grid[j][i].v, gc2[0], gc2[1], gc2[2]); L2(grid[j + 1][i].v, gc2[0], gc2[1], gc2[2]); }
@@ -9887,7 +9907,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1208';
+        const APP_BUILD = '20261022-1229';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
