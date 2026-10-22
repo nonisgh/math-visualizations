@@ -5471,9 +5471,12 @@
         function drawHoles(progress) {
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D'); if (!r3) return;
             if (!wHole.line) wHole.line = wDblMk(r3, 400, false).line;
+            if (!wHole.tl) { const m = wDblMk(r3, 1200, true); wHole.tl = m.line; wHole.tf = m.face; }   // 穴の向こう（4次元の排水管）
+            if (!wHole.tl2 && r2) { const m = wDblMk(r2, 600, true); wHole.tl2 = m.line; wHole.tf2 = m.face; }
             if (!wHole.line2 && r2) wHole.line2 = wDblMk(r2, 300, false).line;
             const k = wHolesBuilt ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
             wHole.line.visible = k > 0.01; if (wHole.line2) wHole.line2.visible = k > 0.01 && !dim5;
+            const beyondOn = k > 0.01 && (wHole.dA || 0) > 0.03; wHole.tl.visible = wHole.tf.visible = beyondOn; if (wHole.tl2) wHole.tl2.visible = wHole.tf2.visible = beyondOn && !dim5;
             if (!(k > 0.01)) return;
             const now = performance.now() / 1000, gr = Math.max(0, Math.min(1, (now - wHolesBuiltAt) / 1.6)), sm = gr * gr * (3 - 2 * gr), drilling = gr < 1;   // 掘っている途中
             if (drilling) requestRender(2);
@@ -5501,6 +5504,32 @@
                 for (let d = 0; d < 3; d++) for (const p of BAR) for (const q of BAR) { const A = [0, 0, 0], B = [0, 0, 0]; const o = [0, 1, 2].filter(e => e !== d); A[d] = -1; B[d] = 1; A[o[0]] = B[o[0]] = p; A[o[1]] = B[o[1]] = q; const e = Math.abs(p) === 1 && Math.abs(q) === 1 ? 1 : 0.6; Ln(hp(A[0], A[1], A[2]), c.map(v => v * e)); Ln(hp(B[0], B[1], B[2]), c.map(v => v * e)); }
             };
             if (!drilling) { grate([0, 0, 0], HR, -H, -1, wHole.dA, [0.72, 0.74, 0.8]); grate(VP, VR, H, 1, wHole.vA, [0.72, 0.74, 0.8]); }
+            // 穴の向こう：床の胞（立体）の真ん中をくり抜いた所。向こう（w ＜ −H）は遠近で「内側ほど小さく」写るので、穴の立方体の内側に、奥へ縮んでいく 4次元の排水管が見える。
+            //   切り口（穴の内壁）は少し明るく、管の輪は奥ほど暗く、いちばん奥に向こう側の光。ふたが開くほど見える
+            if (beyondOn) {
+                const oa = Math.min(1, wHole.dA), TP = wHole.tl.geometry.attributes.position.array, TC = wHole.tl.geometry.attributes.color.array, FP = wHole.tf.geometry.attributes.position.array, FC = wHole.tf.geometry.attributes.color.array;
+                let tli = 0, tfi = 0;
+                const TL = (v, c) => { if (tli + 3 > TP.length) return; TP[tli] = v[0]; TP[tli + 1] = v[1]; TP[tli + 2] = v[2]; TC[tli] = c[0] * k * oa; TC[tli + 1] = c[1] * k * oa; TC[tli + 2] = c[2] * k * oa; tli += 3; };
+                const TF = (v, c) => { if (tfi + 3 > FP.length) return; FP[tfi] = v[0]; FP[tfi + 1] = v[1]; FP[tfi + 2] = v[2]; FC[tfi] = c[0] * k * oa; FC[tfi + 1] = c[1] * k * oa; FC[tfi + 2] = c[2] * k * oa; tfi += 3; };
+                const ringAt = (w, R, c) => { const vs = unitCubeVertices.map(u => toS([Math.sign(u[0]) * R, Math.sign(u[1]) * R, Math.sign(u[2]) * R, w])); WS_EDGES.forEach(([a, b]) => { TL(vs[a], c); TL(vs[b], c); }); return vs; };
+                const hv = ringAt(-H, HR, [0.85, 0.88, 0.95]);
+                WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => TF(hv[m], [0.18, 0.2, 0.26])));   // 切り口（穴の内壁）
+                const LEN = 1.3 * H, NR = 7, flow = (now * 0.35) % 1;
+                for (let i = 1; i <= NR; i++) {   // 管の輪：奥（−w）へ行くほど暗い。少しずつ奥へ流れていく
+                    const f = Math.pow((i - 1 + flow) / NR, 1.25), w = -H - LEN * f, a = 1 - f * 0.85;
+                    ringAt(w, HR, [0.45 * a, 0.62 * a, 0.9 * a]);
+                }
+                for (let ax = 0; ax < 3; ax++) for (const s1 of [-1, 1]) for (const s2 of [-1, 1]) {   // 管の壁：立方体の 12 本の辺 × w（奥ほど暗い）
+                    const a1 = (ax + 1) % 3, a2 = (ax + 2) % 3, A = [0, 0, 0], B = [0, 0, 0]; A[ax] = -HR; B[ax] = HR; A[a1] = B[a1] = s1 * HR; A[a2] = B[a2] = s2 * HR;
+                    for (let m = 0; m < 4; m++) { const w0 = -H - LEN * m / 4, w1 = -H - LEN * (m + 1) / 4, c0 = 0.09 * (1 - m / 4), c1 = 0.09 * (1 - (m + 1) / 4); const q0 = toS([...A, w0]), q1 = toS([...B, w0]), q2 = toS([...B, w1]), q3 = toS([...A, w1]); [[q0, c0], [q1, c0], [q2, c1], [q0, c0], [q2, c1], [q3, c1]].forEach(([v, c]) => TF(v, [c * 0.6, c * 0.8, c * 1.3])); }
+                }
+                const gv = unitCubeVertices.map(u => toS([Math.sign(u[0]) * HR * 0.85, Math.sign(u[1]) * HR * 0.85, Math.sign(u[2]) * HR * 0.85, -H - LEN]));   // いちばん奥の光（向こう側）
+                const pulse = 0.75 + 0.25 * Math.sin(now * 1.7);
+                WS_QUADS.forEach(q => [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(m => TF(gv[m], [0.35 * pulse, 0.5 * pulse, 0.75 * pulse])));
+                wHole.tl.geometry.setDrawRange(0, tli / 3); wHole.tf.geometry.setDrawRange(0, tfi / 3);
+                wHole.tl.geometry.attributes.position.needsUpdate = wHole.tl.geometry.attributes.color.needsUpdate = true; wHole.tf.geometry.attributes.position.needsUpdate = wHole.tf.geometry.attributes.color.needsUpdate = true;
+                requestRender(2);
+            }
             if (drilling) { drill([0, 0, 0], HR, -H); drill(VP, VR, H); }
             wHole.line.geometry.setDrawRange(0, li / 3); wHole.line.geometry.attributes.position.needsUpdate = wHole.line.geometry.attributes.color.needsUpdate = true;
             if (wHole.line2 && !dim5) {   // 左の立方体：底（z ＝ −H）の真ん中に排水口、上（z ＝ +H）に通気口（正方形の穴）
@@ -5514,6 +5543,19 @@
                     for (const p of BAR) { const e = Math.abs(p) === 1 ? 1 : 0.6, c = [0.72 * e, 0.74 * e, 0.8 * e]; L2n(hp(p, -1), c); L2n(hp(p, 1), c); L2n(hp(-1, p), c); L2n(hp(1, p), c); }
                 };
                 if (!drilling) { grate2(0, 0, HR, -H, -1, wHole.dA); grate2(-0.5 * H, 0.5 * H, 0.1 * H * sm, H, 1, wHole.vA); }
+                if (beyondOn && wHole.tl2) {   // 左：床の正方形の穴の向こう（z ＜ −H）へ続く四角い管と、奥の光
+                    const oa = Math.min(1, wHole.dA), TP = wHole.tl2.geometry.attributes.position.array, TC = wHole.tl2.geometry.attributes.color.array, FP = wHole.tf2.geometry.attributes.position.array, FC = wHole.tf2.geometry.attributes.color.array;
+                    let tli = 0, tfi = 0;
+                    const TL = (v, c) => { if (tli + 3 > TP.length) return; TP.set(v, tli); TC[tli] = c[0] * k * oa; TC[tli + 1] = c[1] * k * oa; TC[tli + 2] = c[2] * k * oa; tli += 3; };
+                    const TF = (v, c) => { if (tfi + 3 > FP.length) return; FP.set(v, tfi); FC[tfi] = c[0] * k * oa; FC[tfi + 1] = c[1] * k * oa; FC[tfi + 2] = c[2] * k * oa; tfi += 3; };
+                    const sqAt = (z, R, c) => { const v = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => pt(a * R, b * R, z)); [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { TL(v[a], c); TL(v[b], c); }); return v; };
+                    const LEN = 1.3 * H, NR = 7, flow = (now * 0.35) % 1;
+                    for (let i = 1; i <= NR; i++) { const f = Math.pow((i - 1 + flow) / NR, 1.25), a = 1 - f * 0.85; sqAt(-H - LEN * f, HR, [0.45 * a, 0.62 * a, 0.9 * a]); }
+                    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, b], i, arr) => { const [c2, d2] = arr[(i + 1) % 4]; for (let m = 0; m < 4; m++) { const z0 = -H - LEN * m / 4, z1 = -H - LEN * (m + 1) / 4, c0 = 0.09 * (1 - m / 4), c1 = 0.09 * (1 - (m + 1) / 4); const q0 = pt(a * HR, b * HR, z0), q1 = pt(c2 * HR, d2 * HR, z0), q2 = pt(c2 * HR, d2 * HR, z1), q3 = pt(a * HR, b * HR, z1); [[q0, c0], [q1, c0], [q2, c1], [q0, c0], [q2, c1], [q3, c1]].forEach(([v, c]) => TF(v, [c * 0.6, c * 0.8, c * 1.3])); } });
+                    const g = sqAt(-H - LEN, HR * 0.85, [0.5, 0.7, 1]), pulse = 0.75 + 0.25 * Math.sin(now * 1.7); [0, 1, 2, 0, 2, 3].forEach(m => TF(g[m], [0.35 * pulse, 0.5 * pulse, 0.75 * pulse]));
+                    wHole.tl2.geometry.setDrawRange(0, tli / 3); wHole.tf2.geometry.setDrawRange(0, tfi / 3);
+                    wHole.tl2.geometry.attributes.position.needsUpdate = wHole.tl2.geometry.attributes.color.needsUpdate = true; wHole.tf2.geometry.attributes.position.needsUpdate = wHole.tf2.geometry.attributes.color.needsUpdate = true;
+                }
                 if (drilling) for (const [cx, cy, R, z] of [[0, 0, HR, -H], [-0.5 * H, 0.5 * H, 0.1 * H * sm, H]]) for (let q = 0; q < 6; q++) { const th = now * 9 + q * Math.PI / 3; L2n(pt(cx, cy, z), [1, 0.75, 0.3]); L2n(pt(cx + Math.cos(th) * R * 1.3, cy + Math.sin(th) * R * 1.3, z), [1, 0.75, 0.3]); }
                 wHole.line2.geometry.setDrawRange(0, l2 / 3); wHole.line2.geometry.attributes.position.needsUpdate = wHole.line2.geometry.attributes.color.needsUpdate = true;
             }
@@ -10009,7 +10051,7 @@
         //   カメラと投影（遠近／平行）は保存はするが、開いた時には戻さない（いつも初期の状態から）
         const SESSION_STORE = 'hypercubeSession';
         // アプリの版の日付（年月日-時分）。保存と Gist に入れて、古い版・新しい版から来た状態を見分ける。**新しい版を公開する時はここを書きかえる**
-        const APP_BUILD = '20261022-1342';
+        const APP_BUILD = '20261022-1347';
         let _sessionLast = '';
         function sessionSnapshot() {
             const r5 = v => +(+v).toFixed(5);
