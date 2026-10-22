@@ -4418,19 +4418,18 @@
         let wFrameCol = 'up'; try { const v = localStorage.getItem('hypercubeFrameCol'); if (['all', 'depth', 'order'].includes(v)) wFrameCol = v; } catch (_) {}
         let frameSlot = null;   // 'order' の時、いま描く立方体が何番目か（0＝最初 … 1＝最後）
         let frameDepthVal = null;   // 'depth' の時、いま描く立方体の奥行き 0（奥）〜1（手前）。立方体 1 個は 1 色。null なら立方体の中で 遠い所 赤 → 近い所 紫（立方体を見る）
-        // 4次元の奥行き：4次元の目（回した後の w の正の向き、遠近の中心）に向かってどれだけ手前か。両端（−1・+1）の間で 0〜1 に（外を飛んでいる時ははみ出さないように）
-        function frameDepth4(rot, axis, pos, H) {
-            const wOf = q => { const g = [0, 0, 0, 0]; g[axis] = q * H; return NDGeom.rotatePoint(g, rot)[3]; };
-            const lo = wOf(-1), hi = wOf(1); if (Math.abs(hi - lo) < 1e-3 * H) return 0.5;
-            return Math.max(0, Math.min(1, (wOf(pos) - lo) / (hi - lo)));
+        // 奥行き（右の窓）：立方体の真ん中の、3D のカメラからの遠さ。範囲は 真ん中が通る道（−1〜+1）の遠い所〜近い所。
+        //   w がまっすぐ奥行きの向き（ふつうの向き）だと真ん中は全部同じ所に写って遠さが同じになるので、その時は 4次元の目からの奥行き（回した後の w′）で
+        function frameDepthMaker(center, camLocal, H) {   // center(q)＝q（−1〜+1、外も）の時の真ん中（3D）。返り値 q → 0（奥）〜1（手前）
+            const dist = q => { const c = center(q); return Math.hypot(c[0] - camLocal.x, c[1] - camLocal.y, c[2] - camLocal.z); };
+            let lo = Infinity, hi = -Infinity; for (let i = 0; i <= 20; i++) { const d = dist(-1 + i / 10); lo = Math.min(lo, d); hi = Math.max(hi, d); }
+            if (hi - lo > 0.05 * H) return q => Math.max(0, Math.min(1, (hi - dist(q)) / (hi - lo)));
+            return null;
         }
-        const _fcV = new THREE.Vector3();
-        function frameDepthF(pts, view) {   // 点 → 0（奥）〜1（手前）。view＝{ cam, obj }（obj の中の座標で）
-            if (!view || !view.cam || !view.obj) return null;
-            view.obj.updateMatrixWorld(true);
-            const c = view.obj.worldToLocal(view.cam.getWorldPosition(_fcV)), dist = p => Math.hypot(p[0] - c.x, p[1] - c.y, p[2] - c.z);
-            const d = pts.map(dist), lo = Math.min(...d), hi = Math.max(...d);
-            return p => hi - lo > 1e-9 ? (hi - dist(p)) / (hi - lo) : 0.5;
+        function frameDepth4(rot, axis, pos, H) {   // 4次元の目（遠近の中心）に向かってどれだけ手前か。回して向きが逆になったら逆に
+            const wOf = q => { const g = [0, 0, 0, 0]; g[axis] = q * H; return NDGeom.rotatePoint(g, rot)[3]; };
+            const a = wOf(-1), b = wOf(1), lo = Math.min(a, b), d = Math.abs(b - a); if (d < 1e-3 * H) return 0.5;
+            return Math.max(0, Math.min(1, (wOf(pos) - lo) / d));
         }
         function frameEdgeEmit(vs, edges, par, pL, view) {   // 辺を SPEC_K 個に分けて、'all'（角の偶奇 par）か 'depth' で塗る
             const fAt = wFrameCol !== 'depth' ? null : frameDepthVal !== null ? () => frameDepthVal : frameDepthF(vs, view);   // 奥行き：1 個 1 色（奥 赤 → 手前 紫）
@@ -5061,6 +5060,7 @@
             const P = wDuo.line.geometry.attributes.position.array, C = wDuo.line.geometry.attributes.color.array;
             const FP = wDuo.face.geometry.attributes.position.array, FC = wDuo.face.geometry.attributes.color.array;
             solidView = { cam: camera3D, obj: wDuo.face };
+            const camD = wFrameCol === 'depth' ? (wDuo.face.updateMatrixWorld(true), wDuo.face.worldToLocal(camera3D.getWorldPosition(new THREE.Vector3()))) : null, depthD = {};   // 枠の色「奥行き」：向きごとに作る
             const stD = solidBegin('u3', r3, wDuo.on && wPackRainbow && wPackRbStyle === 'spec' && wSpecVol, 1030);
             const fam = AX.map(ax => ({ ax, rest: [0, 1, 2, 3].filter(d => d !== ax), sum: 0 }));   // 向きごとの組：ax の位置に、残りの 3 軸の立方体
             let li = 0, fi = 0;
@@ -5075,7 +5075,7 @@
                 const opp = !filling && wOutOpp, tk = -1 + 2 * i / (N - 1), tt = opp ? -WDUO.OUT + (tk + WDUO.OUT) * sm(p) : WDUO.OUT + (tk - WDUO.OUT) * sm(p), a = Math.max(0, Math.min(1, (opp ? tt + WDUO.OUT : WDUO.OUT - tt) / 0.5)) * k;
                 const done = sm((p - 0.85) / 0.15);
                 fam.forEach(F0 => {
-                    wDuoCol(F0.ax, i / Math.max(1, N - 1), col); F0.sum += done; frameSlot = i / Math.max(1, N - 1); frameDepthVal = frameDepth4(rot, F0.ax, tt, H);   // 枠の色「積分の順」「奥行き」用
+                    wDuoCol(F0.ax, i / Math.max(1, N - 1), col); F0.sum += done; frameSlot = i / Math.max(1, N - 1); const dm = camD ? (depthD[F0.ax] !== undefined ? depthD[F0.ax] : (depthD[F0.ax] = frameDepthMaker(q => { const g = [0, 0, 0, 0]; g[F0.ax] = Math.max(-1, Math.min(1, q)) * H; return toS(g); }, camD, H))) : null; frameDepthVal = dm ? dm(tt) : frameDepth4(rot, F0.ax, tt, H);   // 枠の色「積分の順」「奥行き」用
                     const vs = unitCubeVertices.map(u => { const g = [0, 0, 0, 0]; g[F0.ax] = tt * H; F0.rest.forEach((d, q) => g[d] = u[q] * S); return toS(g); });
                     const L = lA * a, F = fA * a;
                     if (dSpec) {
@@ -6364,6 +6364,7 @@
             const list = wSliceList(); if (wSlice.stack || wSlice.pack) syncWSliceUI();
             const ballList = [];   // 同心球の殻を入れる立方体
             solidView = { cam: camera3D, obj: wSlice.face };   // （立体）の板の奥の向き
+            const depthW = wFrameCol === 'depth' ? frameDepthMaker(q => ndProject(NDGeom.rotatePoint([0, 0, 0, Math.max(-1, Math.min(1, q)) * HALF_S], rot), pb), (wSlice.face.updateMatrixWorld(true), wSlice.face.worldToLocal(camera3D.getWorldPosition(new THREE.Vector3()))), HALF_S) : null;   // 枠の色「奥行き」：カメラからの遠さ
             const stS = solidBegin('p3', r3, wSlice.pack && wPackRainbow && wPackRbStyle === 'spec' && wSpecVol, MAXN);   // 七色の立方体（立体）＝かたまり
             list.forEach(({ t, a, one, aL = 1, aF = 1, fa = 1, slot, film, arr = 1, slide, sc = WTOUR_SC, sp = WTOUR_SPREAD, wh = 0, rgb, noFace, spec, back, ballSel }) => {
                 const w = t * HALF_S;
@@ -6399,7 +6400,7 @@
                     const yf = i => unitCubeVertices[i][1] + 0.5;
                     if (wPackRbStyle === 'ring' || wPackRbStyle === 'ball') { ringCubeEmit(vs, pL, pF, !noFace, wPackRbStyle === 'ball', wRingVol); if (wPackRbStyle === 'ball' && ballSel) ballList.push({ vs, a: a * k }); } else {   // 同心の七色／同心球（中身の殻は選んだ層だけ）
                     if (wSpecVol && wSpecPat === 'ichi') { if (ICHI_FRAME) ichiEdgeEmit(vs, pL); }   // 立体市松は辺も市松（ICHI_FRAME が false なら線なし）
-                    else if (wFrameCol !== 'up') { frameSlot = slot !== undefined ? slot : null; frameDepthVal = frameDepth4(rot, 3, t, HALF_S); frameEdgeEmit(vs, WS_EDGES, cubePar, pL, solidView); }   // 枠の色：全部の辺を七色／奥行き（4次元の目に向かって）／積分の順
+                    else if (wFrameCol !== 'up') { frameSlot = slot !== undefined ? slot : null; frameDepthVal = depthW ? depthW(t) : frameDepth4(rot, 3, t, HALF_S); frameEdgeEmit(vs, WS_EDGES, cubePar, pL, solidView); }   // 枠の色：全部の辺を七色／奥行き（4次元の目に向かって）／積分の順
                     else WS_EDGES.forEach(([e0, e1]) => {   // 外の枠（（立体）でも描く）
                         if (yf(e0) === yf(e1)) { pL(vs[e0], yf(e0)); pL(vs[e1], yf(e1)); return; }
                         const lo = yf(e0) < yf(e1) ? e0 : e1, hi = lo === e0 ? e1 : e0;
