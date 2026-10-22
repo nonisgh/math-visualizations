@@ -5976,7 +5976,18 @@
             if (ready && wSlice.on && wSlice.pack) {   // 4D空間積分：w の両端
                 const e = Math.max(0, Math.min(1, ((wSlice.packFront !== undefined ? wSlice.packFront : -1) - (wSlice.packBack !== undefined ? wSlice.packBack : -1)) / 2));   // 埋まった割合のまま（リアルタイム）：敷きつめるほど両端の胞が染まって奥の暗さが抜ける
                 const lay = wPackRainbow && wPackRbStyle === 'w';   // 層ごとの色なら 赤・紫、七色の立方体なら白で閉じる
-                add(3, '-', lay ? RED : WHITE, e); add(3, '+', lay ? VIO : WHITE, e);
+                const byFrame = wPackRainbow && wPackRbStyle === 'spec' && (wFrameCol === 'order' || wFrameCol === 'depth');   // 枠の色が 積分の順・奥行き なら、両端の胞も その色で閉じる（白にしない）
+                let cM = lay ? RED : WHITE, cP = lay ? VIO : WHITE;
+                if (byFrame) {
+                    let fM = 0, fP = 1;
+                    if (wFrameCol === 'depth') {
+                        const rot = rot4List(linkAngleX, linkAngleY), pb = projBlendNow(), r3 = scene3D && scene3D.getObjectByName('Root3D');
+                        const dm = r3 ? frameDepthMaker(q => ndProject(NDGeom.rotatePoint([0, 0, 0, q * HALF_S], rot), pb), (r3.updateMatrixWorld(true), r3.worldToLocal(camera3D.getWorldPosition(new THREE.Vector3()))), HALF_S) : null;
+                        fM = dm ? dm(-1) : frameDepth4(rot, 3, -1, HALF_S); fP = dm ? dm(1) : frameDepth4(rot, 3, 1, HALF_S);
+                    }
+                    const sc = f => { const c = new THREE.Color(); specCol(f, c); return [c.r, c.g, c.b]; }; cM = sc(fM); cP = sc(fP);
+                }
+                add(3, '-', cM, e); add(3, '+', cP, e);
                 open(3, '+', wSlice.packLid !== undefined ? wSlice.packLid : 1 - e); if (wSlice.packLidM) open(3, '-', wSlice.packLidM);   // 立方体は ふた（+W）の先から入ってくる。開け閉めは時刻で（取り出す前に開き切る）
             }
             if (ready && wDbl.on && wDbl.n) {   // 二重積分：w と a の両端
