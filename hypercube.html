@@ -518,6 +518,7 @@
                             <i data-lucide="sparkles" class="w-3 h-3"></i><span>全て</span>
                         </button>
             <span class="text-slate-600">|</span>
+            <button id="vp-panel-btn" class="flex items-center gap-1 px-2 py-1 bg-slate-800 border border-sky-500/50 text-sky-200 rounded-lg hover:bg-slate-700 transition shrink-0 text-[11px]" title="視点のパネル：w が絡む回転（X-W・Y-W・Z-W）と 3D の回転（X-Y・X-Z・Y-Z）を、面ごとに 0 へ戻す・回す／止める、w を x・y・z の向きに出す、をまとめて操作する（見出しをつかんで動かせる）">🎛 視点</button>
             <button id="snap-left-btn" class="flex items-center gap-1 px-2 py-1 bg-slate-800 border border-emerald-500/50 text-emerald-200 rounded-lg hover:bg-slate-700 transition shrink-0" title="Z 軸を画面に垂直（視線方向）に立て直す。回転は止めない。z を傾ける Z-W・X-Z・Y-Z を瞬時に0へ戻してその回転だけ止め、カメラも正面へ戻す。投影とカメラの遠さは「平行投影／遠近投影」の切替に合わせる。X-W・Y-W・X-Y は回り続ける＝立方体の動きはそのまま。手で回したときに入った X-Y の傾きは戻し、立方体の画面のカメラも正面へ5次元でせり出しを固定しているときは、せり出した形は崩さない。"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i>補正</button>
             <button id="link-reset-btn" class="whitespace-nowrap px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition text-[11px]" title="回転を止めて、6面すべてを0に戻し、W を手前（視線方向）へ向けた正面の形にする（カメラの遠さは「平行投影／遠近投影」の切替に合わせる。拡大縮小・移動パッドのずらしも元に戻す。O キーでも同じ）。全部を読み込み時に戻すのはパネル下の「初期化」5次元でせり出しを固定しているときは、0° ではなく、せり出した形に戻す（しまうには「→ しまう」）。">リセット</button>
             <span class="text-slate-600">|</span>
@@ -6662,6 +6663,75 @@
             cubeView.controls.update();
             r.render(cubeView.scene, cubeView.camera);
         }
+        // ===== 視点のパネル（回転・視点を 1 か所で）：w が絡む面（X-W・Y-W・Z-W）と 3D の面（X-Y・X-Z・Y-Z）を、面ごとに 0 へ・回す／止める・w を x/y/z に出す =====
+        //   w の操作は w が絡まない面（X-Y・X-Z・Y-Z）とカメラには触らない。角度は axisTween でなめらかに（0.5 秒）
+        const vpPanel = { el: null, timer: 0 };
+        const VP_W = [['x', 'X-W'], ['y', 'Y-W'], ['zw', 'Z-W']], VP_3 = [['xy', 'X-Y'], ['xz', 'X-Z'], ['yz', 'Y-Z']];
+        const vpAng = k => ({ x: linkAngleX, y: linkAngleY, zw: soloAngleZW, xy: rotXY, xz: rotXZ, yz: rotYZ })[k];
+        const vpSpinOn = k => ({ x: spinX || linkSpin, y: spinY || linkSpin, zw: soloSpinZW, xy: spinXY, xz: spinXZ, yz: spinYZ })[k];
+        function vpSetSpin(k, v) {   // 1 面だけ 回す／止める
+            if ((k === 'x' || k === 'y') && linkSpin) { linkSpin = false; spinX = true; spinY = true; }   // 連動を 1 面ずつに分ける
+            if (k === 'x') spinX = v; else if (k === 'y') spinY = v; else if (k === 'zw') soloSpinZW = v; else if (k === 'xy') spinXY = v; else if (k === 'xz') spinXZ = v; else if (k === 'yz') spinYZ = v;
+        }
+        function vpTo(tg) {   // tg＝{ x, y, zw, xy, xz, yz } の目標角（無い面は今のまま）。近い回り方で
+            const near = (cur, t) => t === undefined ? cur : cur + wrapPi(t - cur);
+            Object.keys(tg).forEach(k => vpSetSpin(k, false));   // 動かす面は回転を止める
+            const t3 = ['xy', 'xz', 'yz'].some(k => tg[k] !== undefined);
+            axisTween = { fx: linkAngleX, fy: linkAngleY, fz: soloAngleZW, tx: near(linkAngleX, tg.x), ty: near(linkAngleY, tg.y), tz: near(soloAngleZW, tg.zw), t: 0, dur: 0.5 };
+            if (t3) { axisTween.f3 = [rotXY, rotXZ, rotYZ]; axisTween.t3 = [near(rotXY, tg.xy), near(rotXZ, tg.xz), near(rotYZ, tg.yz)]; axisTween.alignXY = tg.xy !== undefined; }
+            updateSpinBtns(); requestRender(40); vpSync();
+        }
+        function vpToggleSpin(keys) {   // keys の面をまとめて：1 つでも回っていれば全部止める、全部止まっていれば全部回す
+            stopCycle();
+            const on = keys.some(vpSpinOn);
+            keys.forEach(k => vpSetSpin(k, !on));
+            if (anySpin()) ensureProjection();
+            updateSpinBtns(); requestRender(3); vpSync();
+        }
+        function vpSync() {
+            const el = vpPanel.el; if (!el) return;
+            [...VP_W, ...VP_3].forEach(([k]) => {
+                const a = el.querySelector('[data-vpa="' + k + '"]'); if (a) a.textContent = (wrapPi(vpAng(k)) * 180 / Math.PI).toFixed(0) + '°';
+                const b = el.querySelector('[data-vps="' + k + '"]'); if (b) { const on = vpSpinOn(k); b.textContent = on ? '■ 止める' : '▶ 回す'; b.style.background = on ? 'rgba(244,63,94,0.25)' : ''; }
+            });
+            const wa = el.querySelector('[data-vpall="w"]'); if (wa) wa.textContent = ['x', 'y', 'zw'].some(vpSpinOn) ? '■ w の回転を全部止める' : '▶ w の回転を全部回す';
+            const ta = el.querySelector('[data-vpall="3"]'); if (ta) ta.textContent = ['xy', 'xz', 'yz'].some(vpSpinOn) ? '■ 3D の回転を全部止める' : '▶ 3D の回転を全部回す';
+        }
+        function vpPanelToggle() {
+            if (vpPanel.el) { clearInterval(vpPanel.timer); vpPanel.el.remove(); vpPanel.el = null; return; }
+            const el = vpPanel.el = document.createElement('div');
+            el.style.cssText = 'position:fixed;left:18px;top:90px;width:300px;z-index:310;background:rgba(15,23,42,0.95);border:1px solid rgba(56,189,248,0.5);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,0.5);color:#e2e8f0;font-size:12px;user-select:none';
+            const B = (attr, txt, title) => '<button ' + attr + ' title="' + title + '" style="padding:2px 7px;border-radius:7px;border:1px solid rgba(148,163,184,0.45);background:rgba(30,41,59,0.9);color:#e2e8f0;font-size:11px;white-space:nowrap">' + txt + '</button>';
+            const row = ([k, nm], w) => '<div style="display:flex;align-items:center;gap:5px;margin:3px 0"><b style="width:30px;color:' + (w ? '#c4b5fd' : '#7dd3fc') + '">' + nm + '</b><span data-vpa="' + k + '" style="width:38px;text-align:right;color:#94a3b8;font-variant-numeric:tabular-nums"></span>'
+                + B('data-vp0="' + k + '"', '↺ 0', nm + ' だけ 0° へ戻す（ほかの面は触らない）') + B('data-vps="' + k + '"', '▶ 回す', nm + ' を回す／止める')
+                + (w ? B('data-vpw="' + k + '"', 'w→' + (k === 'zw' ? 'z' : k), 'w を ' + (k === 'zw' ? 'z' : k) + ' の向きに出す（' + nm + ' を 90°、ほかの w の面は 0°。3D の回転は触らない）') : '') + '</div>';
+            el.innerHTML = '<div data-h style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:move;border-bottom:1px solid rgba(148,163,184,0.25)"><span style="color:#bae6fd;font-weight:700">🎛 視点</span><span style="flex:1;color:#64748b;font-size:10px">回転・視点をまとめて</span><button data-x style="color:#94a3b8;font-size:14px;padding:0 4px">✕</button></div>'
+                + '<div style="padding:6px 10px 8px">'
+                + '<div style="color:#c4b5fd;font-size:11px;margin-bottom:2px">w が絡む回転（4次元）</div>' + VP_W.map(r => row(r, true)).join('')
+                + '<div style="display:flex;gap:5px;flex-wrap:wrap;margin:5px 0 8px">' + B('data-vpall="w"', '', 'X-W・Y-W・Z-W をまとめて 回す／止める') + B('data-vpw0', '↺ w の視点をリセット', 'X-W・Y-W・Z-W を全部 0° へ（3D の回転とカメラは触らない）') + '</div>'
+                + '<div style="color:#7dd3fc;font-size:11px;margin-bottom:2px">3D の回転（w が絡まない）</div>' + VP_3.map(r => row(r, false)).join('')
+                + '<div style="display:flex;gap:5px;flex-wrap:wrap;margin:5px 0 8px">' + B('data-vpall="3"', '', 'X-Y・X-Z・Y-Z をまとめて 回す／止める') + B('data-vp30', '↺ 3D をリセット', 'X-Y・X-Z・Y-Z を全部 0° へ（w の回転は触らない）') + '</div>'
+                + '<div style="display:flex;gap:5px;flex-wrap:wrap;border-top:1px solid rgba(148,163,184,0.2);padding-top:6px">' + B('data-vpall="all"', '■ 全部止める', '6 面すべての回転を止める（角度はそのまま）') + B('data-vpreset', '↺ 全部リセット', '回転を止めて 6 面とも 0°、カメラ・投影も正面へ（下の「リセット」と同じ）') + '</div></div>';
+            if (window.innerWidth <= 700) { el.style.left = '8px'; el.style.width = 'calc(100vw - 16px)'; el.style.top = 'calc(8px + env(safe-area-inset-top))'; }
+            document.body.appendChild(el);
+            el.querySelector('[data-x]').addEventListener('click', vpPanelToggle);
+            el.querySelectorAll('[data-vp0]').forEach(b => b.addEventListener('click', () => { stopCycle(); vpTo({ [b.dataset.vp0]: 0 }); }));
+            el.querySelectorAll('[data-vps]').forEach(b => b.addEventListener('click', () => vpToggleSpin([b.dataset.vps])));
+            el.querySelectorAll('[data-vpw]').forEach(b => b.addEventListener('click', () => { stopCycle(); const k = b.dataset.vpw, tg = { x: 0, y: 0, zw: 0 }; tg[k] = Math.PI / 2; vpTo(tg); }));
+            el.querySelector('[data-vpall="w"]').addEventListener('click', () => vpToggleSpin(['x', 'y', 'zw']));
+            el.querySelector('[data-vpall="3"]').addEventListener('click', () => vpToggleSpin(['xy', 'xz', 'yz']));
+            el.querySelector('[data-vpw0]').addEventListener('click', () => { stopCycle(); vpTo({ x: 0, y: 0, zw: 0 }); });
+            el.querySelector('[data-vp30]').addEventListener('click', () => { stopCycle(); vpTo({ xy: 0, xz: 0, yz: 0 }); });
+            el.querySelector('[data-vpall="all"]').addEventListener('click', () => { stopCycle(); linkSpin = false; ['x', 'y', 'zw', 'xy', 'xz', 'yz'].forEach(k => vpSetSpin(k, false)); if (dim5) spin5XW = spin5YW = spin5ZW = spin5WV = false; updateSpinBtns(); vpSync(); });
+            el.querySelector('[data-vpreset]').addEventListener('click', () => { const r = document.getElementById('link-reset-btn'); if (r) r.click(); vpSync(); });
+            {   // 見出しをつかんで動かす
+                const h = el.querySelector('[data-h]'); let sx = 0, sy = 0, ox = 0, oy = 0, on = false;
+                h.addEventListener('pointerdown', e => { if (e.target.closest('[data-x]')) return; on = true; sx = e.clientX; sy = e.clientY; const r = el.getBoundingClientRect(); ox = r.left; oy = r.top; h.setPointerCapture(e.pointerId); });
+                h.addEventListener('pointermove', e => { if (!on) return; el.style.left = Math.max(0, Math.min(window.innerWidth - el.offsetWidth, ox + e.clientX - sx)) + 'px'; el.style.top = Math.max(0, Math.min(window.innerHeight - 40, oy + e.clientY - sy)) + 'px'; });
+                h.addEventListener('pointerup', () => { on = false; });
+            }
+            vpSync(); vpPanel.timer = setInterval(vpSync, 150);   // 角度・回転中かをいつも最新に（ほかのボタンで変えても）
+        }
         // 敷きつめるの「積分」表示：着いた立方体の体積 × Δw を足していく（リーマン和）→ 全部そろうと超立方体の 4次元の体積 2⁴＝16。左の立方体は 正方形の面積 × Δz → 体積 8
         const wPackHUD = { 3: null, 2: null };
         function updatePackHUD() {
@@ -10025,6 +10095,7 @@
             });
             // 補正：回転は止めずに、左に無い面だけ瞬時に 0 へ（右を左と同じ姿勢にそろえる）
             document.getElementById('snap-left-btn').addEventListener('click', snapToLeft);
+            const vpb = document.getElementById('vp-panel-btn'); if (vpb) vpb.addEventListener('click', vpPanelToggle);   // 視点のパネル
 
             const viewMeshBtn = document.getElementById('view-mesh-btn');
             const viewWireBtn = document.getElementById('view-wire-btn');
