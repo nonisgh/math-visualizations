@@ -4398,7 +4398,7 @@
         const dbFilmOn = () => (wSlice.pack || wDuo.on) && wDbFilm && filmNeeded();   // 膜を描く（薄い膜・両方）。4D積分の敷きつめの時だけ
         const dbNoLine = () => (wSlice.pack || wDuo.on) && wDbFilm && !wDbBoth;   // 枠の線を描かない（薄い膜だけの時。全部のモード）
         const FILM_FLY = 9;   // 入ってくる・出ていく（飛んでいる）立方体の膜は 1 枚だけで見えるように濃く（重なっていないので、積んだ 1 枚の濃さでは黒に溶けて見えない）
-        const FILM_ADD = 0.3;   // 光を足す重ね方なので 1 枚ずつは弱く（41 枚重なっても白く飛ばない）
+        const FILM_ADD = 0.15;   // 光を足す重ね方なので 1 枚ずつは弱く（41 枚重なっても白く飛ばない）。ユーザー「今の半分くらいでいい」で 0.3 → 0.15
         const filmStripe = slot => slot === undefined || slot === null ? 1 : Math.round(slot * Math.max(1, WPACK.N - 1)) % 2 ? 0.45 : 1;   // 薄い膜のしま：1 枚おきに暗く（入れ子の四角が年輪のようになって、重なった枚数が数えられる）
         const filmOne = slot => wSpecPat === 'dball2' && wDbStars !== 4 ? -1 : wFrameCol === 'order' && slot !== undefined ? slot : null;   // 膜を 1 色で塗る時の色（一星球はオレンジ、積分の順なら入る順の色）。null＝下 → 上 の帯   // 四星球の枠のグラデーション：赤 → オレンジ
         const DBALL_R = 0.32, DBALL_STAR = 0.26;   // 一星球（玉）：ドラゴンボールの半径（立方体の 1 辺を 1 として）、星の大きさ（玉の半径に対して）
