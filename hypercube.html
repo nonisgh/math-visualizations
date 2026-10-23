@@ -7249,7 +7249,7 @@
                 const tintOn = zwViz.tint && zwOn;
                 // 線色「面と同系色」を 3次元にも（「4次元にも」が ON の時）：立方体の真ん中（全部の頂点の重心）と、いちばん遠い頂点までの距離
                 let tint3Cen = null, tint3R = 1;
-                const tint3 = line3Tint;   // フレームの色も線色の設定どおり
+                const tint3 = intFlatWire() ? 'default' : line3Tint;   // 積分中のワイヤーは いつもの色   // フレームの色も線色の設定どおり
                 if (tint3 !== 'default') {   // 3次元（立方体）の線色（4次元・5次元とは別に選ぶ）
                     tint3Cen = [0, 0, 0]; let nv = 0;
                     faceVerts.forEach(cv => cv.forEach(v => { tint3Cen[0] += v[0]; tint3Cen[1] += v[1]; tint3Cen[2] += v[2]; nv++; }));
@@ -7305,7 +7305,7 @@
 
                         if (colArrL) {
                             let cA = lcol(faceDist[fi][edge[0]]), cB = lcol(faceDist[fi][edge[1]]);
-                            if (tintOn) {   // 色づけ：辺も w＋ピンク／w−エメラルドに（面が透けていても分かるように）。明るさ（奥のフェード）は保つ
+                            if (tintOn && !flatL) {   // 色づけ：辺も w＋ピンク／w−エメラルドに（積分中のワイヤーでは付けない）（面が透けていても分かるように）。明るさ（奥のフェード）は保つ
                                 const tw = (c, w) => { const a = Math.min(1, Math.abs(w) / HALF_S), T = w >= 0 ? ZW_TINT_POS : ZW_TINT_NEG, L = Math.max(c[0], c[1], c[2]);
                                     return [c[0] + (T.r * L - c[0]) * a, c[1] + (T.g * L - c[1]) * a, c[2] + (T.b * L - c[2]) * a]; };
                                 cA = tw(cA, faceW[fi][edge[0]]); cB = tw(cB, faceW[fi][edge[1]]);
@@ -7315,7 +7315,7 @@
                         }
                     }
                     if (face.wire && face.wire.parent) face.wire.parent.visible = xpVisible(2, fi);   // 見せる胞（表だけ・裏だけ）
-                    paintEdgeHi(face, fi, faceObjects2D.length - 1, colArrL, LN[0]);   // 手前と奥の面の辺を色で強調
+                    if (!flatL) paintEdgeHi(face, fi, faceObjects2D.length - 1, colArrL, LN[0]);   // 手前と奥の面の辺を色で強調（積分中のワイヤーでは付けない）
                     { const fe = cellFocus(2, fi).edge; if (fe !== 1 && colArrL) for (let k = 0; k < colArrL.length; k++) colArrL[k] *= fe; }
                     if (tint3Cen && colArrL) {   // 線色：面と同系色の濃いめ（4次元・5次元と同じ）。真ん中に近いほど濃く、外側ほど明るめ
                         const C = new THREE.Color(faceConfigs2D[fi].color), D = { r: 0, g: 0, b: 0 }, smT = t => t * t * (3 - 2 * t);
@@ -7412,7 +7412,7 @@
 
                 // 線色「面と同系色」を 4次元にも（「4次元にも」が ON の時）：立体の真ん中（写した全部の頂点の重心）と、いちばん遠い頂点までの距離
                 let tint4Cen = null, tint4R = 1;
-                const tint4 = line4Tint;   // フレームの色も線色の設定どおり（色をつけたい時は線色を「面と同系色」に）
+                const tint4 = intFlatWire() ? 'default' : line4Tint;   // 積分中のワイヤーは線色の設定を使わず、いつもの色（濃淡なし）   // フレームの色も線色の設定どおり（色をつけたい時は線色を「面と同系色」に）
                 if (tint4 !== 'default') {   // 4次元の線色（5次元とは別に選ぶ）
                     tint4Cen = [0, 0, 0]; let nv = 0;
                     cellVerts.forEach(cv => cv.forEach(v => { tint4Cen[0] += v[0]; tint4Cen[1] += v[1]; tint4Cen[2] += v[2]; nv++; }));
