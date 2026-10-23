@@ -4397,6 +4397,7 @@
         const filmNeeded = () => wPackRainbow && wPackRbStyle === 'spec' && wSpecVol && ['frame', 'ball', 'dball2'].includes(wSpecPat);   // 立方体の面が無いモード（七色の枠だけ・枠＋玉・ドラゴンボール）＝膜を足す。ほかのモードは自分の面があるので線を消すだけ
         const dbFilmOn = () => wSlice.pack && wDbFilm && filmNeeded();   // 膜を描く（薄い膜・両方）。4D積分の敷きつめの時だけ
         const dbNoLine = () => wSlice.pack && wDbFilm && !wDbBoth;   // 枠の線を描かない（薄い膜だけの時。全部のモード）
+        const FILM_FLY = 9;   // 入ってくる・出ていく（飛んでいる）立方体の膜は 1 枚だけで見えるように濃く（重なっていないので、積んだ 1 枚の濃さでは黒に溶けて見えない）
         const FILM_ADD = 0.3;   // 光を足す重ね方なので 1 枚ずつは弱く（41 枚重なっても白く飛ばない）
         const filmStripe = slot => slot === undefined || slot === null ? 1 : Math.round(slot * Math.max(1, WPACK.N - 1)) % 2 ? 0.45 : 1;   // 薄い膜のしま：1 枚おきに暗く（入れ子の四角が年輪のようになって、重なった枚数が数えられる）
         const filmOne = slot => wSpecPat === 'dball2' && wDbStars !== 4 ? -1 : wFrameCol === 'order' && slot !== undefined ? slot : null;   // 膜を 1 色で塗る時の色（一星球はオレンジ、積分の順なら入る順の色）。null＝下 → 上 の帯   // 四星球の枠のグラデーション：赤 → オレンジ
@@ -6780,7 +6781,7 @@
                         const lo = yf(e0) < yf(e1) ? e0 : e1, hi = lo === e0 ? e1 : e0;
                         for (let m = 0; m < SPEC_K; m++) { const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K; pL(lerp3(vs[lo], vs[hi], f0), fm); pL(lerp3(vs[lo], vs[hi], f1), fm); }
                     });
-                    const filmA = DB_FILM * FILM_ADD * (0.5 + 0.5 * fa) * filmStripe(slot), pFm = (v, f) => back && bkW ? backPut(bkW, v, f, L * filmA) : pF(v, f, filmA / Math.max(fa, 0.05));   // 薄い膜：飛んでいる間（入る・出る）も膜を見せる（濃さ fa で薄めず、着いた時の半分くらい）
+                    const filmA = DB_FILM * FILM_ADD * (fa < 0.85 ? FILM_FLY : 1) * filmStripe(slot), pFm = (v, f) => back && bkW ? backPut(bkW, v, f, L * filmA) : pF(v, f, filmA / Math.max(fa, 0.05));   // 薄い膜：飛んでいる間（入る・出る）も膜を見せる（濃さ fa で薄めず、着いた時の半分くらい）
                     if (!noFace && dbFilmOn()) WS_QUADS.forEach(q => {   // 薄い膜：6 つの面にうっすら色（一星球はオレンジ、四星球は下 赤 → 上 オレンジ、七色の枠・枠＋玉は 下 赤 → 上 紫 の帯）
                         const ys = q.map(yf);
                         const fOne = filmOne(slot); if (fOne !== null || ys.every(y => y === ys[0])) { const f = fOne !== null ? fOne : ys[0]; [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(i => pFm(vs[i], f)); return; }   // 1 色の膜か、上下の面
@@ -6886,7 +6887,7 @@
                     const FS = (wSpecFace === 'same' ? L : Math.min(1, L * 0.9)) * fa;   // 七色の面は枚数で薄くしない（ふつうの重ねなので白くならない）。濃さは「表面の濃さ」で。「枠と同じ」なら線と同じ
                     const pF = (v, f, kk = 1) => { if (back && bkW) { backPut(bkW, v, f, L * kk); return; } if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r; FC[c4 + 1] = col.g; FC[c4 + 2] = col.b; FC[c4 + 3] = Math.min(1, FS * kk); fi += 3; };   // 突き当たりの層は別の入れ物へ（枠と同じ濃さ）
                     if (dbFilmOn() && !noFace) {   // 薄い膜（面の無いモード）：正方形にうっすら色（1 色か、下 → 上 の帯）
-                        const filmA = DB_FILM * FILM_ADD * (0.5 + 0.5 * fa) * filmStripe(slot), pFm = (v, f) => back && bkW ? backPut(bkW, v, f, L * filmA) : pF(v, f, filmA / Math.max(fa, 0.05)), fOne = filmOne(slot);
+                        const filmA = DB_FILM * FILM_ADD * (fa < 0.85 ? FILM_FLY : 1) * filmStripe(slot), pFm = (v, f) => back && bkW ? backPut(bkW, v, f, L * filmA) : pF(v, f, filmA / Math.max(fa, 0.05)), fOne = filmOne(slot);
                         if (fOne !== null) [0, 1, 2, 0, 2, 3].forEach(i => pFm(vs[i], fOne));
                         else for (let m = 0; m < SPEC_K; m++) { const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K, A0 = lerp3(vs[0], vs[3], f0), B0 = lerp3(vs[1], vs[2], f0), B1 = lerp3(vs[1], vs[2], f1), A1 = lerp3(vs[0], vs[3], f1); [A0, B0, B1, A0, B1, A1].forEach(v => pFm(v, fm)); }
                     }
