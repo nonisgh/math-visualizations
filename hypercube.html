@@ -6769,7 +6769,31 @@
         //   模様は形に貼りついて一緒に回る：レインボー（下 赤 → 上 紫）／レインボー＋経度線／経度線（白地）／紙風船
         let pillarOn = false, pillarPat = 'rb';
         try { pillarOn = localStorage.getItem('hypercubePillar') === '1'; pillarPat = localStorage.getItem('hypercubePillarPat') || 'rb'; } catch (_) {}
-        const PILLAR_PATS = [['rb', 'レインボー'], ['rbm', 'レインボー＋経度線'], ['mer', '経度線'], ['fusen', '紙風船'], ['fit', '形にぴったり']];   // 形にぴったり＝その形の座標そのもの（球柱は w の向きに七色、デュオシリンダーは 2 つのドーナツで色分け、タイガーは 3 つの角、超球はホップの円）
+        const darumaF = new THREE.Vector3(0.64, 0.77, 0), darumaU = new THREE.Vector3(0.77, -0.64, 0), darumaS = { value: -1 };   // darumaS＝頭が w の − 側なら −1（uniform の入れ物をそのまま共有）   // だるまの顔の正面・上（形の座標）。材料はこの入れ物をそのまま使う
+        try { const v = JSON.parse(localStorage.getItem('hypercubeDarumaFU') || 'null'); if (v && v.F && v.U) { darumaF.fromArray(v.F); darumaU.fromArray(v.U); if (v.S) darumaS.value = v.S; } } catch (_) {}
+        function darumaFaceHere() {   // いま見ている向きで 右の窓の球柱の見本の いちばん手前の点（形の座標の向き n）を顔の正面に、画面の上を顔の上に
+            const r3 = scene3D && scene3D.getObjectByName('Root3D'); if (!r3 || !camera3D) return false;
+            const H = HALF_S, R = PILLAR_R * H, rot = rot4List(linkAngleX, linkAngleY), pj = ndProjector(4, projBlendNow()), E = [0, 1, 2, 3].map(c => NDGeom.rotatePoint([0, 1, 2, 3].map(k => k === c ? 1 : 0), rot));
+            const q = new Float64Array(4), o = [0, 0, 0], ks = [R * sqK('x'), R * sqK('y'), R * sqK('z')];
+            const P = (n, w) => { for (let k = 0; k < 4; k++) q[k] = E[0][k] * n[0] * ks[0] + E[1][k] * n[1] * ks[1] + E[2][k] * n[2] * ks[2] + E[3][k] * w; pj.project(q, o, 0, 0); return new THREE.Vector3(o[0], o[1], o[2]); };
+            r3.updateMatrixWorld(true); const cam = r3.worldToLocal(camera3D.getWorldPosition(new THREE.Vector3()));
+            const w = P([0, 0, 0], -H).distanceTo(cam) < P([0, 0, 0], H).distanceTo(cam) ? -H : H, c = P([0, 0, 0], w);   // 手前の端の玉
+            let best = -2, F = [0, 0, 1];
+            for (let i = 0; i < 4000; i++) {   // 球の上にまんべんなく（フィボナッチ）
+                const y = 1 - 2 * (i + 0.5) / 4000, r = Math.sqrt(1 - y * y), th = i * 2.399963; const n = [r * Math.cos(th), y, r * Math.sin(th)];
+                const p = P(n, w), sc = p.clone().sub(c).normalize().dot(cam.clone().sub(p).normalize()); if (sc > best) { best = sc; F = n; }
+            }
+            const scr = n => r3.localToWorld(P(n, w)).project(camera3D);   // 画面の座標（上が +y）
+            const Fv = new THREE.Vector3().fromArray(F), t1 = new THREE.Vector3().crossVectors(Fv, Math.abs(F[1]) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize(), t2 = new THREE.Vector3().crossVectors(Fv, t1);
+            const e = 0.02, s0 = scr(F), s1 = scr(Fv.clone().addScaledVector(t1, e).normalize().toArray()), s2 = scr(Fv.clone().addScaledVector(t2, e).normalize().toArray());
+            const a1 = s1.x - s0.x, b1 = s1.y - s0.y, a2 = s2.x - s0.x, b2 = s2.y - s0.y, det = a1 * b2 - a2 * b1; if (Math.abs(det) < 1e-12) return false;
+            const ca = -a2 / det, cb = a1 / det;   // t1・t2 の組み合わせで 画面の真上（0, 1）へ動く向き
+            darumaF.copy(Fv); darumaU.copy(t1.multiplyScalar(ca).addScaledVector(t2, cb)).normalize();
+            darumaS.value = r3.localToWorld(P([0, 0, 0], -H)).project(camera3D).y > r3.localToWorld(P([0, 0, 0], H)).project(camera3D).y ? -1 : 1;   // 画面で上にある端（−w／+w）を頭に
+            try { localStorage.setItem('hypercubeDarumaFU', JSON.stringify({ F: darumaF.toArray(), U: darumaU.toArray(), S: darumaS.value })); } catch (_) {}
+            requestRender(3); return true;
+        }
+        const PILLAR_PATS = [['rb', 'レインボー'], ['rbm', 'レインボー＋経度線'], ['mer', '経度線'], ['fusen', '紙風船'], ['fit', '形にぴったり'], ['daruma', 'だるま']];   // 形にぴったり＝その形の座標そのもの（球柱は w の向きに七色、デュオシリンダーは 2 つのドーナツで色分け、タイガーは 3 つの角、超球はホップの円）
         const PILLAR_ST = 7, PILLAR_STL = 1.96, PILLAR_STG = 1.15;   // 超球（球を積む）の段の数・全体を収める半径（立方体の半分の辺を 1 として、2 以内）・となりの玉とのすき間の倍率
         //   w で輪切りにした玉（半径 √(r²−w²)）を小さくして（a 倍）、w の向きに間をあけて（sp 倍）並べる。真上（w の方向）から見ると重なって 1 つの球、横から見ると大きさの違う玉が離れて並ぶ。
         //   端の玉の外側が 半径 L に来る：sp·e₀ ＋ a·R·s_end ＝ L、まん中ととなりが離れる：sp·Δw ＝ G·a·R·(1＋q) を解いて a・sp
@@ -6782,7 +6806,7 @@
         const pillar = { 3: null, 2: null };
         function pillarMat(cyl) {
             return new THREE.ShaderMaterial({
-                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, cyl: { value: cyl ? 1 : 0 }, shp: { value: 0 }, op: { value: 1 } },   // shp＝どの見本の仲間か（0 球柱・円柱、1 デュオシリンダー、2 タイガー・ドーナツ、3 超球・球）＝「形にぴったり」の塗り分け
+                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, cyl: { value: cyl ? 1 : 0 }, shp: { value: 0 }, op: { value: 1 }, uDF: { value: darumaF }, uDU: { value: darumaU }, uDS: darumaS },   // shp＝どの見本の仲間か（0 球柱・円柱、1 デュオシリンダー、2 タイガー・ドーナツ、3 超球・球）＝「形にぴったり」の塗り分け
                 vertexShader: 'attribute vec3 tpl; attribute vec3 nrm; attribute float aw; varying vec3 vT; varying vec3 vP; varying vec3 vN; varying float vW;\n'
                     + 'void main() { vT = tpl; vP = position; vN = nrm; vW = aw; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
                 fragmentShader: 'uniform vec3 camPos; uniform float pat; uniform float cyl; uniform float shp; uniform float op; varying vec3 vT; varying vec3 vP; varying vec3 vN; varying float vW;\n' + BALL_GLSL + PIL_PAT_GLSL
@@ -6792,7 +6816,8 @@
                     + '  float lat = C ? (cap ? rho : t.z * 0.5 + 0.5) : asin(clamp(t.y, -1.0, 1.0)) / 3.1415927 + 0.5;   /* 球は緯度、円柱は 横の面なら z・ふたなら半径 */\n'
                     + '  vec3 n = normalize(vN), vd = normalize(camPos - vP); float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
                     + '  vec3 col;\n'
-                    + '  if (pat > 3.5) {   /* 形にぴったり */\n'
+                    + '  if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(-vd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(C ? normalize(vec3(t.xy, t.z * 0.5)) : normalize(t), C ? t.z : vW) * sh + spg * 0.35; }   /* だるま（つやのある塗り） */\n'
+                    + '  else if (pat > 3.5) {   /* 形にぴったり */\n'
                     + '    if (shp < 0.5) { col = band(clamp((C ? t.z : vW) * 0.5 + 0.5, 0.0, 1.0)) * sh; col = mix(col, vec3(1.0), 0.35 * lineAt(az, 12.0)); }   /* 球柱・円柱：のばした向き（w／z）に七色＝積んだ順 */\n'
                     + '    else if (shp < 1.5) { col = (cap ? vec3(0.45, 0.72, 1.0) : vec3(1.0, 0.52, 0.45)) * sh; col = mix(col, vec3(0.1, 0.12, 0.25), 0.55 * max(lineAt(az, 12.0), lineAt(lat, cap ? 3.0 : 6.0))); }   /* デュオシリンダーの仲間の円柱：横＝ドーナツ A のさんご色、ふた＝ドーナツ B の空色 */\n'
                     + '    else if (shp < 2.5) { float ck = mod(floor(az * 12.0) + floor(lat * 8.0), 2.0); col = hsv3(az) * (ck > 0.5 ? 1.0 : 0.72) * sh; }   /* ドーナツ：回りに虹、管のまわりと合わせて市松 */\n'
@@ -6887,7 +6912,36 @@
         let pillarShape = 'sph'; try { pillarShape = localStorage.getItem('hypercubePillarShape') || 'sph'; } catch (_) {}
         if (pillarShape === 'hs3') pillarShape = 'hsst';   // 一度だけあった「球殻」は「球を積む超球」に置き換え
         const PILLAR_SHAPES = [['sph', '球柱（玉 × w）'], ['duo', 'デュオシリンダー（円 × 円）'], ['tiger', 'タイガー（4次元のドーナツ）'], ['hs', '超球（4次元の球）'], ['hsst', '超球（大きさの違う球を積む）']];
-        const PIL_PAT_GLSL = ''   // 見本の模様の共通：線・紙風船の色・虹色（0〜1 で 1 周）
+        // だるま（見本の柄）：形に貼りつく 赤い胴・金のふちの白い顔・目（片目だけ黒目）・眉・ひげ・口・おなかの金の丸と渦。n＝形の上の向き、aw＝柱の上の位置（w）。
+        //   球柱を w が少し傾いた向きから見ると 上が小さく下が大きい 起き上がりこぼしの輪郭になるので、顔は頭の端（uDS の向き）、おなかは胴の端に来るように w も使う。
+        //   顔の向き（正面 F・上 U）は「🎎 顔をこちらへ」で いま見ている向きに合わせて保存（darumaFaceHere）。ほかの向き（上や下）から見ると赤い球
+        const DARUMA_GLSL = ''
+            + 'uniform vec3 uDF; uniform vec3 uDU; uniform float uDS;\n'   // 顔の正面・上（形の座標）と 頭の向き（w の ±。「🎎 顔をこちらへ」で決める）
+            + 'float dmInk(float d, float w) { float fw = max(fwidth(d), 1e-4); return 1.0 - smoothstep(w - fw, w + fw, d); }\n'
+            + 'vec3 darumaCol(vec3 n, float aw) {   /* n＝形の上の向き、aw＝柱の上の位置（w、−1〜+1） */\n'
+            + '  vec3 F = normalize(uDF), U = normalize(uDU - F * dot(uDU, F)), R = cross(U, F);   /* 正面・上・右 */\n'
+            + '  float x = atan(dot(n, R), dot(n, F)), y = aw * uDS * 0.85 + dot(n, U) * 0.75;   /* 横＝柱のまわりの角（正面 0）、縦＝頭が上（w の位置＋端の玉の上下） */\n'
+            + '  vec3 red = vec3(0.8, 0.07, 0.07), gold = vec3(0.98, 0.76, 0.22), skin = vec3(1.0, 0.95, 0.88), ink = vec3(0.05, 0.04, 0.04);\n'
+            + '  vec3 col = red;\n'
+            + '  if (abs(x) > 1.6) return col;   /* うしろは赤だけ */\n'
+            + '  vec2 b = vec2(x, y + 0.72);   /* おなか：金の丸と、両わきの金の渦 */\n'
+            + '  col = mix(col, gold, dmInk(abs(length(b) - 0.22), 0.028)); col = mix(col, gold, dmInk(abs(length(b) - 0.1), 0.02));\n'
+            + '  for (int i = 0; i < 2; i++) { float s = i == 0 ? -1.0 : 1.0; float g = abs(length(b - vec2(s * 0.62, 0.1)) - 0.26); col = mix(col, gold, dmInk(g, 0.03) * step(0.0, -s * (b.x - s * 0.62))); }\n'
+            + '  vec2 p = vec2(x, y - 0.55);   /* 顔（頭のほう） */\n'
+            + '  float e = length(vec2(p.x / 0.6, p.y / 0.42));\n'
+            + '  col = mix(col, gold, dmInk(e - 1.0, 0.1) * step(0.9, e));   /* 顔のまわりの金のふち */\n'
+            + '  col = mix(col, skin, dmInk(e, 1.0));   /* 白い顔 */\n'
+            + '  vec2 q = vec2(p.x, p.y * 1.3 + 0.1);   /* 顔の中の座標（目・眉・ひげ） */\n'
+            + '  for (int i = 0; i < 2; i++) { float s = i == 0 ? -1.0 : 1.0; float d = length(q - vec2(s * 0.2, 0.17));\n'
+            + '    col = mix(col, vec3(1.0), dmInk(d, 0.1)); col = mix(col, ink, dmInk(abs(d - 0.1), 0.016));   /* 目 */\n'
+            + '    if (i == 0) col = mix(col, ink, dmInk(d, 0.05));   /* 片目だけ黒目 */\n'
+            + '    float bw = abs(length(q - vec2(s * 0.2, 0.08)) - 0.21); col = mix(col, ink, dmInk(bw, 0.032) * step(0.22, q.y) * step(0.05, abs(q.x)));   /* 太い眉 */\n'
+            + '    float m = abs(length(q - vec2(s * 0.09, 0.03)) - 0.11); col = mix(col, ink, dmInk(m, 0.02) * step(q.y, -0.02) * step(0.0, s * q.x));   /* 口ひげ */\n'
+            + '    float h = abs(length(q - vec2(0.0, 0.12)) - 0.46); col = mix(col, ink, dmInk(h, 0.028) * step(q.y, -0.05) * step(0.24, abs(q.x)) * step(0.0, s * q.x) * step(e, 1.0));   /* ほおのひげ */\n'
+            + '  }\n'
+            + '  float mo = abs(length(q - vec2(0.0, -0.1)) - 0.1); col = mix(col, red, dmInk(mo, 0.016) * step(q.y, -0.16));   /* 口 */\n'
+            + '  return col; }\n';
+        const PIL_PAT_GLSL = DARUMA_GLSL   // 見本の模様の共通：線・紙風船の色・虹色（0〜1 で 1 周）
             + 'vec3 hsv3(float h) { return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0) * 0.8 + 0.15; }\n'
             + 'float lineAt(float x, float k) { float u = x * k, u2 = fract(x + 0.5) * k, d = abs(fract(u + 0.5) - 0.5), fw = max(min(fwidth(u), fwidth(u2)), 1e-4); return (1.0 - smoothstep(0.6 * fw, 1.6 * fw, d)) * (1.0 - smoothstep(0.15, 0.4, fw)); }\n'
             + 'vec3 fusenCol(float s) { if (s < 0.5) return vec3(0.88, 0.18, 0.24); if (s < 1.5) return vec3(0.98, 0.8, 0.2); if (s < 2.5) return vec3(0.2, 0.42, 0.86);\n'
@@ -6896,7 +6950,7 @@
             + 'void lineOf(vec3 X, out vec4 A, out vec4 B) { vec3 x = X / uScl; A = (RT * vec4(x, 0.0)) * uK; B = (RT * vec4(-(1.0 - uBl) / uD * x, 1.0)) * uK; }   /* 3D の点 X に写る 4次元の直線 A＋sB（形の座標） */\n';
         function duoMat() {
             return new THREE.ShaderMaterial({
-                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uR: { value: 1 }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 } },
+                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, uDF: { value: darumaF }, uDU: { value: darumaU }, uDS: darumaS, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uR: { value: 1 }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 } },
                 vertexShader: 'uniform float bnd; varying vec3 vP; void main() { vP = position * bnd; gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
                 fragmentShader: 'uniform mat4 projectionMatrix; uniform mat4 modelViewMatrix; uniform vec3 camPos; uniform float pat; uniform mat4 RT; uniform vec4 uK; uniform float uR; uniform float uD; uniform float uBl; uniform float uScl; uniform float bnd; varying vec3 vP;\n' + BALL_GLSL + PIL_GLSL
                     + 'float fq(vec3 c, float s) { return (c.x * s + c.y) * s + c.z; }\n'
@@ -6928,7 +6982,8 @@
                     + '  float r1 = length(p4.xy) / uR, r2 = length(p4.zw) / uR; bool cap = r1 < r2;   /* どちらのドーナツの上か：x²＋y²＝r² の方（r1≈1）は 円柱の横の面、z²＋w²＝r² の方は円柱のふたにあたる（xy の円板） */\n'
                     + '  float az = atan(p4.y, p4.x) / 6.2831853 + 0.5, az2 = atan(p4.w, p4.z) / 6.2831853 + 0.5;\n'
                     + '  vec3 col;\n'
-                    + '  if (pat > 3.5) { col = (cap ? vec3(0.45, 0.72, 1.0) : vec3(1.0, 0.52, 0.45)) * sh; col = mix(col, vec3(0.1, 0.12, 0.25), 0.55 * max(lineAt(az, 12.0), lineAt(az2, 12.0))); }   /* 形にぴったり：2 つのドーナツを色分け（A＝x²＋y²＝r² さんご色、B＝z²＋w²＝r² 空色）＋2 つの円の網目 */\n'
+                    + '  if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p4.xyz), p4.w / uR) * sh + spg * 0.35; }\n'
+                    + '  else if (pat > 3.5) { col = (cap ? vec3(0.45, 0.72, 1.0) : vec3(1.0, 0.52, 0.45)) * sh; col = mix(col, vec3(0.1, 0.12, 0.25), 0.55 * max(lineAt(az, 12.0), lineAt(az2, 12.0))); }   /* 形にぴったり：2 つのドーナツを色分け（A＝x²＋y²＝r² さんご色、B＝z²＋w²＝r² 空色）＋2 つの円の網目 */\n'
                     + '  else if (pat < 2.5 && pat != 2.0) { col = band(clamp(p4.y / uR * 0.5 + 0.5, 0.0, 1.0)) * sh;\n'
                     + '    if (pat > 0.5) { float m = max(max(lineAt(az, 12.0), lineAt(az2, 12.0)), cap ? 0.55 * lineAt(r1, 3.0) : 0.0); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); } }\n'
                     + '  else if (pat < 2.5) { col = mix(vec3(0.96, 0.97, 1.0), vec3(0.82, 0.88, 0.98), 0.5 - 0.5 * p4.y / uR) * sh;\n'
@@ -6949,7 +7004,7 @@
         const TIGER_R1 = 0.55, TIGER_R2 = 0.55, TIGER_r = 0.26;   // 2 つの円の半径・太さ（立方体の半分の辺を 1 として）
         function tigerMat() {
             return new THREE.ShaderMaterial({
-                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uR1: { value: 0.5 }, uR2: { value: 0.5 }, uRt: { value: 0.2 }, uSb: { value: 1 }, uKm: { value: 0.5 }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 } },
+                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, uDF: { value: darumaF }, uDU: { value: darumaU }, uDS: darumaS, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uR1: { value: 0.5 }, uR2: { value: 0.5 }, uRt: { value: 0.2 }, uSb: { value: 1 }, uKm: { value: 0.5 }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 } },
                 vertexShader: 'uniform float bnd; varying vec3 vP; void main() { vP = position * bnd; gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
                 fragmentShader: 'uniform mat4 projectionMatrix; uniform mat4 modelViewMatrix; uniform vec3 camPos; uniform float pat; uniform mat4 RT; uniform vec4 uK; uniform float uR1; uniform float uR2; uniform float uRt; uniform float uSb; uniform float uKm; uniform float uD; uniform float uBl; uniform float uScl; uniform float bnd; varying vec3 vP;\n' + BALL_GLSL + PIL_GLSL
                     + 'float tF(vec4 A, vec4 B, float s) { vec4 p = A + s * B; float a = length(p.xy) - uR1, b = length(p.zw) - uR2; return a * a + b * b; }\n'
@@ -6977,7 +7032,8 @@
                     + '  vec3 vd = -rd; float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
                     + '  float az = atan(p4.y, p4.x) / 6.2831853 + 0.5, az2 = atan(p4.w, p4.z) / 6.2831853 + 0.5, ph = atan(length(p4.zw) - uR2, length(p4.xy) - uR1) / 6.2831853 + 0.5;   /* 3 つの角：x-y の円・z-w の円・管のまわり */\n'
                     + '  vec3 col;\n'
-                    + '  if (pat > 3.5) { float ck = mod(floor(az2 * 12.0) + floor(ph * 8.0), 2.0); col = hsv3(az) * (ck > 0.5 ? 1.0 : 0.7) * sh; }   /* 形にぴったり：x-y の円に虹、z-w の円と管のまわりで市松（3 つの角が全部見える） */\n'
+                    + '  if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p4.xyz), p4.w / (uR2 + uRt)) * sh + spg * 0.35; }\n'
+                    + '  else if (pat > 3.5) { float ck = mod(floor(az2 * 12.0) + floor(ph * 8.0), 2.0); col = hsv3(az) * (ck > 0.5 ? 1.0 : 0.7) * sh; }   /* 形にぴったり：x-y の円に虹、z-w の円と管のまわりで市松（3 つの角が全部見える） */\n'
                     + '  else if (pat < 2.5 && pat != 2.0) { col = band(clamp(p4.y / (uR1 + uRt) * 0.5 + 0.5, 0.0, 1.0)) * sh;\n'
                     + '    if (pat > 0.5) { float m = max(max(lineAt(az, 12.0), lineAt(az2, 12.0)), 0.6 * lineAt(ph, 8.0)); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); } }\n'
                     + '  else if (pat < 2.5) { col = mix(vec3(0.96, 0.97, 1.0), vec3(0.82, 0.88, 0.98), 0.5 - 0.5 * p4.y / (uR1 + uRt)) * sh;\n'
@@ -6995,7 +7051,7 @@
         //   「形にぴったり」はホップ・ファイブレーション：(x＋iy, z＋iw) を球面の点 (2Re(z₁z̄₂), 2Im(z₁z̄₂), |z₁|²−|z₂|²) へ写して その点で色分け＝同じ色の所は 1 本の大円（ホップの円）
         function hsMat() {
             return new THREE.ShaderMaterial({
-                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uR: { value: 1 }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 } },
+                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, uDF: { value: darumaF }, uDU: { value: darumaU }, uDS: darumaS, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uR: { value: 1 }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 } },
                 vertexShader: 'uniform float bnd; varying vec3 vP; void main() { vP = position * bnd; gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
                 fragmentShader: 'uniform mat4 projectionMatrix; uniform mat4 modelViewMatrix; uniform vec3 camPos; uniform float pat; uniform mat4 RT; uniform vec4 uK; uniform float uR; uniform float uD; uniform float uBl; uniform float uScl; uniform float bnd; varying vec3 vP;\n' + BALL_GLSL + PIL_GLSL
                     + 'float gAt(vec3 X, out float sB) { vec4 A, B; lineOf(X, A, B); float bb = max(dot(B, B), 1e-9); sB = -dot(A, B) / bb; return dot(A, A) - dot(A, B) * dot(A, B) / bb - uR * uR; }\n'
@@ -7012,7 +7068,8 @@
                     + '  vec3 vd = -rd; float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
                     + '  float az = atan(p.y, p.x) / 6.2831853 + 0.5, az2 = atan(p.w, p.z) / 6.2831853 + 0.5, lat = asin(clamp(p.y, -1.0, 1.0)) / 3.1415927 + 0.5;\n'
                     + '  vec3 col;\n'
-                    + '  if (pat > 3.5) {   /* 形にぴったり：ホップ・ファイブレーション（色＝球面の上の経度、明るさ＝緯度。同じ色の筋が 1 本の大円） */\n'
+                    + '  if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p.xyz), p.w) * sh + spg * 0.35; }\n'
+                    + '  else if (pat > 3.5) {   /* 形にぴったり：ホップ・ファイブレーション（色＝球面の上の経度、明るさ＝緯度。同じ色の筋が 1 本の大円） */\n'
                     + '    vec3 hb = vec3(2.0 * (p.x * p.z + p.y * p.w), 2.0 * (p.y * p.z - p.x * p.w), dot(p.xy, p.xy) - dot(p.zw, p.zw));\n'
                     + '    col = hsv3(atan(hb.y, hb.x) / 6.2831853 + 0.5) * (0.45 + 0.55 * (hb.z * 0.5 + 0.5)) * sh; col = mix(col, vec3(1.0), 0.3 * lineAt(acos(clamp(hb.z, -1.0, 1.0)) / 3.1415927, 6.0)); }\n'
                     + '  else if (pat < 2.5 && pat != 2.0) { col = band(p.y * 0.5 + 0.5) * sh;\n'
@@ -7226,6 +7283,7 @@
                 + '<div style="color:#fde68a;font-size:11px;margin-bottom:2px">形の見本（積分とは関係なく。見る向きで形が変わる）</div>'
                 + '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:3px 0 8px">' + B('data-vppil', '', '左の窓に円柱（円 × z）、右の窓に 4次元の見本（球柱／デュオシリンダー）を出す／消す。上の回転で見る向きを変えると形が変わる')
                 + '<select data-vpshape title="右の窓の形。球柱＝玉を w にのばした形（w の方向から見ると球）。デュオシリンダー＝円 × 円（x²＋y² ≤ r² かつ z²＋w² ≤ r²）。w の方向から見ると円柱、Z-W を回しても同じ、X-W・Y-W を回すと見たことのない形に" style="padding:2px 4px;border-radius:7px;border:1px solid rgba(148,163,184,0.45);background:rgba(30,41,59,0.9);color:#e2e8f0;font-size:11px">' + PILLAR_SHAPES.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('') + '</select>'
+                + B('data-vpdaruma', '🎎 顔をこちらへ', 'だるまの柄の顔を、いま見ている向きに向けて保存（右の窓の球柱の見本で。ほかの向き、上や下から見ると赤い球）')
                 + '<select data-vppat title="柱の模様（形に貼りついて一緒に回る）" style="padding:2px 4px;border-radius:7px;border:1px solid rgba(148,163,184,0.45);background:rgba(30,41,59,0.9);color:#e2e8f0;font-size:11px">' + PILLAR_PATS.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('') + '</select></div>'
                 + '<div style="display:flex;gap:5px;flex-wrap:wrap;border-top:1px solid rgba(148,163,184,0.2);padding-top:6px">' + B('data-vpall="all"', '■ 全部止める', '6 面すべての回転を止める（角度はそのまま）') + B('data-vpreset', '↺ 全部リセット', '回転を止めて 6 面とも 0°、カメラ・投影も正面へ（下の「リセット」と同じ）') + '</div></div>';
             if (window.innerWidth <= 700) { el.style.left = '8px'; el.style.width = 'calc(100vw - 16px)'; el.style.top = 'calc(8px + env(safe-area-inset-top))'; }
@@ -7241,6 +7299,7 @@
             el.querySelector('[data-vpleft]').addEventListener('click', () => { leftNo3D = !leftNo3D; try { localStorage.setItem('hypercubeLeftNo3D', leftNo3D ? '1' : '0'); } catch (_) {} requestRender(3); vpSync(); });   // 左の立方体に 3D の回転を反映する／しない
             el.querySelector('[data-vppil]').addEventListener('click', () => { pillarOn = !pillarOn; try { localStorage.setItem('hypercubePillar', pillarOn ? '1' : '0'); } catch (_) {} requestRender(3); vpSync(); });   // 柱の見本を出す／消す
             el.querySelector('[data-vpshape]').addEventListener('change', e => { pillarShape = e.target.value; try { localStorage.setItem('hypercubePillarShape', pillarShape); } catch (_) {} requestRender(3); vpSync(); });
+            el.querySelector('[data-vpdaruma]').addEventListener('click', () => { if (!pillarOn) { pillarOn = true; try { localStorage.setItem('hypercubePillar', '1'); } catch (_) {} } pillarPat = 'daruma'; try { localStorage.setItem('hypercubePillarPat', 'daruma'); } catch (_) {} drawPillars(); darumaFaceHere(); vpSync(); });   // だるまにして、顔をいまの向きへ
             el.querySelector('[data-vppat]').addEventListener('change', e => { pillarPat = e.target.value; try { localStorage.setItem('hypercubePillarPat', pillarPat); } catch (_) {} requestRender(3); vpSync(); });
             el.querySelector('[data-vpall="all"]').addEventListener('click', () => { stopCycle(); linkSpin = false; ['x', 'y', 'zw', 'xy', 'xz', 'yz'].forEach(k => vpSetSpin(k, false)); if (dim5) spin5XW = spin5YW = spin5ZW = spin5WV = false; updateSpinBtns(); vpSync(); });
             el.querySelector('[data-vpreset]').addEventListener('click', () => { const r = document.getElementById('link-reset-btn'); if (r) r.click(); vpSync(); });
