@@ -4595,6 +4595,73 @@
             return new THREE.ShaderMaterial({ vertexShader: 'void main() { gl_Position = vec4(position.xy, 1.0, 1.0); }', fragmentShader: 'void main() { gl_FragColor = vec4(0.0); }', colorWrite: false, depthTest: true, depthWrite: true, depthFunc: THREE.AlwaysDepth, transparent: true });
         }
         const wBallG = {};
+        // 玉の通り道の筒（いまの所だけ・玉のモード）：通ってきた所の玉を 1 本の筒（球柱を写した形）で埋める。
+        //   段ごとの玉（中心 c・半径 r）の包絡線＝(x − c)·c′ ＝ −r r′ の円をつなぐ。模様は玉と同じ：筒の点を その段の立方体の座標へ戻し、玉のひな型の向き（色の向き・回す）で塗る。
+        //   1 個の玉がその前の玉をすっぽり包む所（回していない真正面の遠近など）は包絡線が無いので描かない
+        const wTube = {};
+        function ballTubeDraw(key, root, samples, alpha) {   // samples＝[写した 8 角 vs]（下の端 → 先頭の順）。null なら隠す
+            let T = wTube[key];
+            if (!samples || samples.length < 3 || !root) { if (T) T.mesh.visible = false; return; }
+            const NR = 48, NS = 64;
+            if (!T || T.root !== root) {
+                if (T && T.mesh.parent) T.mesh.parent.remove(T.mesh);
+                const g = new THREE.BufferGeometry(), nv = NS * NR, A = (n, k) => { const a = new THREE.BufferAttribute(new Float32Array(nv * k), k); a.setUsage(THREE.DynamicDrawUsage); g.setAttribute(n, a); };
+                A('position', 3); A('tpl', 3); A('nw', 3);
+                const ix = new THREE.BufferAttribute(new Uint32Array((NS - 1) * NR * 6), 1); ix.setUsage(THREE.DynamicDrawUsage); g.setIndex(ix);
+                const mat = new THREE.ShaderMaterial({
+                    uniforms: { camPos: { value: new THREE.Vector3() }, spin: { value: 0 }, pat: { value: 3 }, al: { value: 0.35 } },
+                    vertexShader: 'attribute vec3 tpl; attribute vec3 nw; varying vec3 vN; varying vec3 vP; varying vec3 vNw;\n'
+                        + 'void main() { vN = tpl; vP = position; vNw = nw; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+                    fragmentShader: 'uniform vec3 camPos; uniform float spin; uniform float pat; uniform float al;\n'
+                        + 'varying vec3 vN; varying vec3 vP; varying vec3 vNw;\n' + BALL_GLSL
+                        + 'void main() {\n'
+                        + '  vec3 nw = normalize(vNw), vd = normalize(camPos - vP); float f = dot(nw, vd);\n'
+                        + '  if (pat > 3.5) {   /* 一星球（玉）：オレンジのガラス（玉と同じ） */\n'
+                        + '    if (f < 0.0) { gl_FragColor = vec4(1.0, 0.5, 0.06, 0.35 * al); return; }\n'
+                        + '    float fr = pow(1.0 - f, 2.0); gl_FragColor = vec4(mix(vec3(1.0, 0.62, 0.12), vec3(0.95, 0.32, 0.02), fr), (0.38 + 0.45 * fr) * al); return; }\n'
+                        + '  vec3 q = spinV(normalize(vN), -spin); float sh = 0.45 + 0.55 * max(f, 0.0);   /* 七色の玉と同じ帯・同じ回し方 */\n'
+                        + '  gl_FragColor = vec4(band((q.y + 1.0) * 0.5) * sh, al); }',
+                    transparent: true, depthTest: true, depthWrite: false, side: THREE.DoubleSide
+                });
+                const mesh = new THREE.Mesh(g, mat); mesh.renderOrder = 997.45; mesh.frustumCulled = false; root.add(mesh);   // 玉の後（今の玉の後ろの筒は玉に隠れる、前の筒は玉に透けて重なる）
+                T = wTube[key] = { root, mesh };
+            }
+            const mesh = T.mesh, G = mesh.geometry, P = G.attributes.position.array, TP = G.attributes.tpl.array, NW = G.attributes.nw.array, IX = G.index.array;
+            const R = wSpecPat === 'dball2' ? DBALL_R : BALL_R, n = Math.min(NS, samples.length);
+            const sm = samples.slice(0, n).map(vs => {   // 段ごとの玉：中心・半径（ballPut と同じ）と、世界 → 立方体の座標
+                const H = solidFitH(vs); if (!H) return null;
+                const e = H.elements, map = u => { const w = e[3] * u[0] + e[7] * u[1] + e[11] * u[2] + e[15]; return [(e[0] * u[0] + e[4] * u[1] + e[8] * u[2] + e[12]) / w, (e[1] * u[0] + e[5] * u[1] + e[9] * u[2] + e[13]) / w, (e[2] * u[0] + e[6] * u[1] + e[10] * u[2] + e[14]) / w]; };
+                const c = map([0.5, 0.5, 0.5]), top = map([0.5, 0.5 + R, 0.5]), inv = solidInvH(vs);
+                return inv ? { c, r: Math.hypot(top[0] - c[0], top[1] - c[1], top[2] - c[2]), inv } : null;
+            });
+            const ok = new Array(n).fill(false), sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], nrm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+            let e1 = null;
+            for (let i = 0; i < n; i++) {
+                const S0 = sm[Math.max(0, i - 1)], S1 = sm[Math.min(n - 1, i + 1)], Si = sm[i]; if (!S0 || !S1 || !Si) { e1 = null; continue; }
+                const dc = sub(S1.c, S0.c), dr = S1.r - S0.r, L2 = dot(dc, dc);
+                if (L2 < 1e-12 || dr * dr >= 0.96 * L2) { e1 = null; continue; }   // 前の玉を包んでしまう＝包絡線なし
+                const a = nrm(dc), k = Si.r * dr / L2, q = [Si.c[0] - k * dc[0], Si.c[1] - k * dc[1], Si.c[2] - k * dc[2]], rho = Si.r * Math.sqrt(1 - dr * dr / L2);
+                if (e1) { const d = dot(e1, a); e1 = nrm([e1[0] - d * a[0], e1[1] - d * a[1], e1[2] - d * a[2]]); }   // 前の輪の向きを引き継ぐ（筒がねじれない）
+                else e1 = nrm(cross(a, Math.abs(a[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]));
+                const e2 = cross(a, e1), M = Si.inv;
+                for (let j = 0; j < NR; j++) {
+                    const th = 2 * Math.PI * j / NR, cs = Math.cos(th) * rho, sn = Math.sin(th) * rho, o = (i * NR + j) * 3;
+                    const x = [q[0] + cs * e1[0] + sn * e2[0], q[1] + cs * e1[1] + sn * e2[1], q[2] + cs * e1[2] + sn * e2[2]];
+                    P[o] = x[0]; P[o + 1] = x[1]; P[o + 2] = x[2];
+                    NW[o] = (x[0] - Si.c[0]) / Si.r; NW[o + 1] = (x[1] - Si.c[1]) / Si.r; NW[o + 2] = (x[2] - Si.c[2]) / Si.r;
+                    const hw = M[3][0] * x[0] + M[3][1] * x[1] + M[3][2] * x[2] + M[3][3];   // 立方体の座標 → 玉のひな型（色の向き＝y）
+                    for (let d = 0; d < 3; d++) TP[o + d] = ((M[d][0] * x[0] + M[d][1] * x[1] + M[d][2] * x[2] + M[d][3]) / hw - 0.5) / R;
+                }
+                ok[i] = true;
+            }
+            let ii = 0;
+            for (let i = 0; i < n - 1; i++) { if (!ok[i] || !ok[i + 1]) continue; for (let j = 0; j < NR; j++) { const a = i * NR + j, b = i * NR + (j + 1) % NR, c = a + NR, d = b + NR; IX[ii++] = a; IX[ii++] = b; IX[ii++] = d; IX[ii++] = a; IX[ii++] = d; IX[ii++] = c; } }
+            mesh.visible = ii > 0; if (!ii) return;
+            G.setDrawRange(0, ii); ['position', 'tpl', 'nw'].forEach(k => { G.attributes[k].needsUpdate = true; }); G.index.needsUpdate = true;
+            const U = mesh.material.uniforms;
+            root.updateMatrixWorld(true); _solidInv.copy(root.matrixWorld).invert(); camera3D.getWorldPosition(U.camPos.value).applyMatrix4(_solidInv);
+            U.spin.value = wBallSpin ? performance.now() / 1000 * 0.9 : 0; U.pat.value = wSpecPat === 'dball2' ? 4 : 3; U.al.value = alpha;   // 回す速さは玉（ballEnd）と同じ
+        }
         function ballHide(key) { const B = wBallG[key]; if (B) B.all.forEach(o => { o.visible = false; }); }
         function ballInstGeo(T, maxCubes) {   // 球のひな型＋玉ごとの属性（インスタンス）
             const g = new THREE.InstancedBufferGeometry();
@@ -4943,6 +5010,10 @@
             if (wPackGhost) {   // 中身の軌跡：通ってきた所（下の端〜先頭）に、中身（玉・かたまり など）だけを薄く並べる。位置は決まった段（動いてもちらつかない）、今の立方体のすぐ近くは省く
                 const lo = wSlice.packBack, hi = wSlice.packFront, G = WPACK_GHOST_N;
                 for (let j = 0; j < G; j++) { const t = -1 + 2 * j / (G - 1); if (t < lo - 1e-6 || t > hi + 1e-6 || Math.abs(t - pos) < 0.04) continue; out.push({ ...o, t, slot: (t + 1) / 2, ghost: true }); }
+            }
+            else if (ballDepthOn()) {   // 玉の筒の閉じた端：筒の向こうの端に、薄い玉を 1 個（もう一方の端は今の玉）
+                const lo = wSlice.packBack, hi = wSlice.packFront, t = Math.abs(pos - lo) < Math.abs(pos - hi) ? hi : lo;
+                if (Math.abs(t - pos) > 0.04) out.push({ ...o, t, slot: (t + 1) / 2, ghost: true });
             }
             out.push(o);
             return out;
@@ -6559,7 +6630,7 @@
             // 組み上がった超立方体のときだけ（折りたたみの途中・分解中は消していく）
             const k = wSlice.on ? Math.max(0, Math.min(1, (progress - 0.92) / 0.08)) * Math.max(0, 1 - 4 * explodeE()) : 0;
             wSlice.line.visible = wSlice.face.visible = k > 0.01;
-            if (!(k > 0.01)) { wSliceFitNote(3, null); updatePackHUD(); if (wTile.mesh) wTile.mesh.visible = false; if (wTile.mesh2) wTile.mesh2.visible = false; backBegin('p3', null, false); ballDraw('p3', null, []); solidBegin('p3', null, false); updateZSlice(progress, 0); return; }   // 止めたら（立体）のかたまり・玉も消す
+            if (!(k > 0.01)) { wSliceFitNote(3, null); updatePackHUD(); if (wTile.mesh) wTile.mesh.visible = false; if (wTile.mesh2) wTile.mesh2.visible = false; backBegin('p3', null, false); ballDraw('p3', null, []); solidBegin('p3', null, false); ballTubeDraw('p3', null, null); updateZSlice(progress, 0); return; }   // 止めたら（立体）のかたまり・玉も消す
             const now = performance.now(), dt = Math.min(0.1, (now - (wSlice.last || now)) / 1000); wSlice.last = now;
             const specFace = wSlice.pack && wPackRainbow && (wPackRbStyle === 'spec' || wPackRbStyle === 'ring' || wPackRbStyle === 'ball');
             wSliceFaceMode(wSlice.face, specFace, 0.1); wSliceFaceMode(wSlice.face2, specFace, 0.16);   // 七色の立方体は面をしっかり（ふつうの重ね）
@@ -6652,6 +6723,11 @@
                 const pT = (v, q) => { if (li + 3 > P.length) return; trailCol(q, col); P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; const c4 = li / 3 * 4; C[c4] = col.r * k; C[c4 + 1] = col.g * k; C[c4 + 2] = col.b * k; C[c4 + 3] = TA; li += 3; };
                 WS_EDGES.forEach(([e0, e1]) => { pT(at(unitCubeVertices[e0], lo), lo); pT(at(unitCubeVertices[e1], lo), lo); });
                 if (hi > lo + 1e-4) unitCubeVertices.forEach(u => { for (let m = 0; m < NS; m++) { const q0 = lo + (hi - lo) * m / NS, q1 = lo + (hi - lo) * (m + 1) / NS, qm = (q0 + q1) / 2; pT(at(u, q0), qm); pT(at(u, q1), qm); } });
+            }
+            {   // いまの所だけ（中身の軌跡でない時）＋玉のモード：通ってきた所の玉を筒で埋める
+                const lo = wSlice.packBack !== undefined ? wSlice.packBack : -1, hi = wSlice.packFront !== undefined ? wSlice.packFront : -1;
+                const on = wSlice.pack && wPackNow && !wPackGhost && stS && ballDepthOn() && list.length && hi - lo > 0.02;
+                ballTubeDraw('p3', r3, on ? Array.from({ length: 64 }, (_, i) => { const w = (lo + (hi - lo) * i / 63) * HALF_S; return unitCubeVertices.map(u => ndProject(NDGeom.rotatePoint([u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), w], rot), pb)); }) : null, trailA(0.35) * k);
             }
             wSlice.line.geometry.setDrawRange(0, li / 3); wSlice.line.material.depthTest = ballDepthOn(); fatSync(wSlice.line, renderer3D); wSlice.face.geometry.setDrawRange(0, fi / 3); backEnd(bkW); ballDraw('p3', r3, ballList); solidEnd(stS, camera3D, SPEC_FACE_OP[wSpecFace] * 2.5);   // 玉のモードは枠も奥行きで（玉の後ろの枠は隠れる）
             wSlice.line.geometry.attributes.position.needsUpdate = wSlice.line.geometry.attributes.color.needsUpdate = true;
