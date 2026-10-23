@@ -4600,25 +4600,32 @@
                 transparent: true, depthTest: true, depthWrite, side: THREE.DoubleSide
             });
         }
-        function starMat() {   // ドラゴンボールの赤い星：平面の星（距離関数 sdStar5 でふちをなめらかに。ポリゴン感なし）。正四面体の角に置いて、いつもこちら（カメラ）を向く
+        function starMat() {   // ドラゴンボールの赤い星：厚みのある星の立体を、玉と同じ射影（その段の立方体の写し方 H）で写す＝見る角度・4次元の向きで傾き・ゆがむ。玉を回すと一緒に回る
             return new THREE.ShaderMaterial({
-                uniforms: { spin: { value: 0 }, rt: { value: new THREE.Vector3(1, 0, 0) }, up: { value: new THREE.Vector3(0, 1, 0) } },
-                vertexShader: 'attribute vec4 c0; attribute vec4 c1; attribute vec4 c2; attribute vec4 c3; attribute vec2 sf; attribute vec4 so; uniform float spin; uniform vec3 rt; uniform vec3 up; varying vec2 vS; varying float vFa;\n' + BALL_GLSL
+                uniforms: { spin: { value: 0 }, camPos: { value: new THREE.Vector3() }, rt: { value: new THREE.Vector3(1, 0, 0) }, up: { value: new THREE.Vector3(0, 1, 0) } },
+                vertexShader: 'attribute vec4 c0; attribute vec4 c1; attribute vec4 c2; attribute vec4 c3; attribute vec2 sf; attribute vec4 so; uniform float spin; uniform vec3 rt; uniform vec3 up; varying vec3 vP; varying float vFa;\n' + BALL_GLSL
                     + 'void main() { mat4 H = mat4(c0, c1, c2, c3); vec3 off = spinV(so.xyz, spin);   /* so＝星の位置（x・y・z、正四面体の角。玉を回すと配置も回る）と大きさ（玉の半径を 1 として） */\n'
                     + '  vec4 hc = H * vec4(vec3(0.5) + sf.x * off, 1.0); vec3 c = hc.xyz / hc.w;   /* 星の真ん中（写した後の世界） */\n'
                     + '  vec4 hr = H * vec4(vec3(0.5) + sf.x * (off + vec3(so.w, 0.0, 0.0)), 1.0); float r = length(hr.xyz / hr.w - c);   /* 星の大きさ（写した後） */\n'
                     + '  float cs = cos(spin * 0.5), sn = sin(spin * 0.5); vec2 pp = vec2(cs * position.x - sn * position.y, sn * position.x + cs * position.y);   /* 玉を回すと星も少し回る */\n'
-                    + '  vS = position.xy; vFa = sf.y; vec3 p = c + (rt * pp.x + up * pp.y) * r;   /* 板はいつもこちら（カメラ）を向く */\n'
-                    + '  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }',
-                fragmentShader: 'varying vec2 vS; varying float vFa;\n' + STAR_GLSL
-                    + 'void main() { float d = sdStar5(vS, 0.95, 0.45); float a = (1.0 - smoothstep(-0.035, 0.035, d)) * vFa; if (a < 0.01) discard;   /* 星の形：ふちをなめらかに（1 色の平面） */\n'
-                    + '  gl_FragColor = vec4(' + DB_RED.join(', ') + ', a); }',
-                transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide   // ガラスの後に、奥行きを見ずに描く（真正面で何十個も入れ子になった玉のガラスに星がかき消されないように。重なった星は重なって見える）
+                    + '  vP = c + (rt * pp.x + up * pp.y + normalize(cross(rt, up)) * position.z) * r; vFa = sf.y;   /* 星はいつもこちら（カメラ）を向く。厚みはカメラの方へ */\n'
+                    + '  gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
+                fragmentShader: 'uniform vec3 camPos; varying vec3 vP; varying float vFa;\n'
+                    + 'void main() { vec3 n = normalize(cross(dFdx(vP), dFdy(vP))), vd = normalize(camPos - vP); float f = abs(dot(n, vd));   /* 面ごとの向きで明暗（正面は明るく、斜めの面・横の厚みは暗く） */\n'
+                    + '  gl_FragColor = vec4(vec3(' + DB_RED.join(', ') + ') * (0.4 + 0.6 * f) + pow(f, 24.0) * 0.3, vFa); }',
+                extensions: { derivatives: true },
+                transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide   // ガラスの後に、奥行きを見ずに描く（w 真正面で入れ子になった玉のガラスに星がかき消されないように。星は w 方向に重ねても見えるはず）
             });
         }
-        function starInstGeo(maxCubes) {   // 星の板（−1〜1 の正方形。形は距離関数で切り抜く）＋玉ごとの写し方（c0〜c3）・大きさと濃さ（sf）・位置（so）
-            const g = new THREE.InstancedBufferGeometry();
-            g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0]), 3)); g.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 2, 0, 2, 3]), 1));
+        function starInstGeo(maxCubes) {   // 星の立体のひな型（星の面は xy、厚みは z）＋玉ごとの写し方（c0〜c3）・大きさと濃さ（sf）
+            const o = Array.from({ length: 10 }, (_, k) => { const r = k % 2 ? 0.45 : 1, th = Math.PI / 2 + k * Math.PI / 5; return [r * Math.cos(th), r * Math.sin(th)]; }), T = 0.22, TC = 0.38, P = [];
+            for (let k = 0; k < 10; k++) {
+                const a = o[k], b = o[(k + 1) % 10];
+                P.push(0, 0, TC, a[0], a[1], T, b[0], b[1], T);   // 表（真ん中を少し盛り上げる＝面が傾いて明暗がつく）
+                P.push(0, 0, -TC, b[0], b[1], -T, a[0], a[1], -T);   // 裏
+                P.push(a[0], a[1], T, a[0], a[1], -T, b[0], b[1], -T, a[0], a[1], T, b[0], b[1], -T, b[0], b[1], T);   // 横の厚み
+            }
+            const g = new THREE.InstancedBufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3));
             [['c0', 4], ['c1', 4], ['c2', 4], ['c3', 4], ['sf', 2], ['so', 4]].forEach(([n, k]) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(maxCubes * k), k); a.setUsage(THREE.DynamicDrawUsage); g.setAttribute(n, a); });
             g.instanceCount = 0; return g;
         }
@@ -4772,7 +4779,7 @@
                 const A = B.sg.attributes, ST = dbStars(); let ni = 0;
                 arr.forEach(b => { const e = b.e; ST.forEach(([ox, oy, oz, sc]) => { const i = ni++; A.c0.array.set(e.subarray(0, 4), i * 4); A.c1.array.set(e.subarray(4, 8), i * 4); A.c2.array.set(e.subarray(8, 12), i * 4); A.c3.array.set(e.subarray(12, 16), i * 4); A.sf.array[i * 2] = b.R; A.sf.array[i * 2 + 1] = b.fa; A.so.array[i * 4] = ox; A.so.array[i * 4 + 1] = oy; A.so.array[i * 4 + 2] = oz; A.so.array[i * 4 + 3] = sc; }); });   // 星の位置と大きさは玉の半径（立方体の座標 b.R）を 1 として
                 ['c0', 'c1', 'c2', 'c3', 'sf', 'so'].forEach(k => { const a = A[k]; a.updateRange.offset = 0; a.updateRange.count = ni * a.itemSize; a.needsUpdate = true; }); B.sg.instanceCount = ni;
-    
+                B.star.material.uniforms.camPos.value.copy(cp);
             }
             const sp = wBallSpin ? performance.now() / 1000 * 0.9 : 0;   // 玉を回す（「🔄 球を回す」と共通）
             [B.back, B.front, B.fly].forEach(m => { const mt = m.material; mt.uniforms.camPos.value.copy(cp); mt.uniforms.spin.value = sp; mt.uniforms.pat.value = db ? 4 : 3; });
