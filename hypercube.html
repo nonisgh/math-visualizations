@@ -4389,7 +4389,7 @@
         const ballDepthOn = () => wPackRainbow && wPackRbStyle === 'spec' && wSpecVol && (wSpecPat === 'ball' || wSpecPat === 'dball2');   // 玉のモード：玉・枠・タイルで前後を正しく
         const BALL_R = 0.3;   // 七色の枠＋玉：玉の半径（立方体の 1 辺を 1 として）
         let wDbStars = 1; try { if (localStorage.getItem('hypercubeDbStars') === '4') wDbStars = 4; } catch (_) {}   // ドラゴンボールの星の数：1＝一星球、4＝四星球
-        const DB_STARS1 = [[0, 0, 0.26]], DB_STARS4 = [[0, 0.33, 0.17], [-0.33, 0, 0.17], [0.33, 0, 0.17], [0, -0.33, 0.17]];   // 星の並び [x, y, 大きさ]（玉の半径を 1 として）。四星球は 上・左・右・下 の十字（ひし形）に 4 個（ファンの資料で「四角ではなく十字の並び」）
+        const DB_T = 0.33 / Math.sqrt(3), DB_STARS1 = [[0, 0, 0, 0.26]], DB_STARS4 = [[DB_T, DB_T, DB_T, 0.17], [DB_T, -DB_T, -DB_T, 0.17], [-DB_T, DB_T, -DB_T, 0.17], [-DB_T, -DB_T, DB_T, 0.17]];   // 星の並び [x, y, z, 大きさ]（玉の半径を 1 として）。四星球は 正四面体の 4 つの角（真ん中から 0.33）に立体配置、それぞれ外を向く（正面から見ると正方形）   // 星の並び [x, y, 大きさ]（玉の半径を 1 として）。四星球は 上・左・右・下 の十字（ひし形）に 4 個（ファンの資料で「四角ではなく十字の並び」）
         const dbStars = () => wDbStars === 4 ? DB_STARS4 : DB_STARS1;
         const DB4_LO = [0.95, 0.12, 0.06], DB4_HI = [1.0, 0.62, 0.12];
         let wDbFilm = false, wDbBoth = false; try { const c = localStorage.getItem('hypercubeCubeLook'), v = c === 'film' ? '1' : c === 'both' ? '2' : c === 'frame' ? '0' : localStorage.getItem('hypercubeDbFilm'); wDbFilm = v === '1' || v === '2'; wDbBoth = v === '2'; } catch (_) {}   // 積分の立方体の見せ方（全部のモード）：wDbFilm＝膜あり、wDbBoth＝枠と膜の両方。保存は hypercubeCubeLook（前のドラゴンボールだけの hypercubeDbFilm も読む）   // ドラゴンボールの立方体：false＝枠（線）、true＝薄い膜（線なし、表面にうっすら色）
@@ -4602,10 +4602,14 @@
         }
         function starMat() {   // ドラゴンボールの赤い星：厚みのある星の立体を、玉と同じ射影（その段の立方体の写し方 H）で写す＝見る角度・4次元の向きで傾き・ゆがむ。玉を回すと一緒に回る
             return new THREE.ShaderMaterial({
-                uniforms: { spin: { value: 0 }, camPos: { value: new THREE.Vector3() } },
-                vertexShader: 'attribute vec4 c0; attribute vec4 c1; attribute vec4 c2; attribute vec4 c3; attribute vec2 sf; attribute vec3 so; uniform float spin; varying vec3 vP; varying float vFa;\n' + BALL_GLSL
-                    + 'void main() { vec3 q = spinV(vec3(so.xy, 0.0) + so.z * position, spin);   /* so＝星の位置（x・y）と大きさ（玉の半径を 1 として）。四星球は 4 個 */\n'
-                    + '   vec4 h = mat4(c0, c1, c2, c3) * vec4(vec3(0.5) + sf.x * q, 1.0); vP = h.xyz / h.w; vFa = sf.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
+                uniforms: { spin: { value: 0 }, camPos: { value: new THREE.Vector3() }, rt: { value: new THREE.Vector3(1, 0, 0) }, up: { value: new THREE.Vector3(0, 1, 0) } },
+                vertexShader: 'attribute vec4 c0; attribute vec4 c1; attribute vec4 c2; attribute vec4 c3; attribute vec2 sf; attribute vec4 so; uniform float spin; uniform vec3 rt; uniform vec3 up; varying vec3 vP; varying float vFa;\n' + BALL_GLSL
+                    + 'void main() { mat4 H = mat4(c0, c1, c2, c3); vec3 off = spinV(so.xyz, spin);   /* so＝星の位置（x・y・z、正四面体の角。玉を回すと配置も回る）と大きさ（玉の半径を 1 として） */\n'
+                    + '  vec4 hc = H * vec4(vec3(0.5) + sf.x * off, 1.0); vec3 c = hc.xyz / hc.w;   /* 星の真ん中（写した後の世界） */\n'
+                    + '  vec4 hr = H * vec4(vec3(0.5) + sf.x * (off + vec3(so.w, 0.0, 0.0)), 1.0); float r = length(hr.xyz / hr.w - c);   /* 星の大きさ（写した後） */\n'
+                    + '  float cs = cos(spin * 0.5), sn = sin(spin * 0.5); vec2 pp = vec2(cs * position.x - sn * position.y, sn * position.x + cs * position.y);   /* 玉を回すと星も少し回る */\n'
+                    + '  vP = c + (rt * pp.x + up * pp.y + normalize(cross(rt, up)) * position.z) * r; vFa = sf.y;   /* 星はいつもこちら（カメラ）を向く。厚みはカメラの方へ */\n'
+                    + '  gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
                 fragmentShader: 'uniform vec3 camPos; varying vec3 vP; varying float vFa;\n'
                     + 'void main() { vec3 n = normalize(cross(dFdx(vP), dFdy(vP))), vd = normalize(camPos - vP); float f = abs(dot(n, vd));   /* 面ごとの向きで明暗（正面は明るく、斜めの面・横の厚みは暗く） */\n'
                     + '  gl_FragColor = vec4(vec3(' + DB_RED.join(', ') + ') * (0.4 + 0.6 * f) + pow(f, 24.0) * 0.3, vFa); }',
@@ -4622,7 +4626,7 @@
                 P.push(a[0], a[1], T, a[0], a[1], -T, b[0], b[1], -T, a[0], a[1], T, b[0], b[1], -T, b[0], b[1], T);   // 横の厚み
             }
             const g = new THREE.InstancedBufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3));
-            [['c0', 4], ['c1', 4], ['c2', 4], ['c3', 4], ['sf', 2], ['so', 3]].forEach(([n, k]) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(maxCubes * k), k); a.setUsage(THREE.DynamicDrawUsage); g.setAttribute(n, a); });
+            [['c0', 4], ['c1', 4], ['c2', 4], ['c3', 4], ['sf', 2], ['so', 4]].forEach(([n, k]) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(maxCubes * k), k); a.setUsage(THREE.DynamicDrawUsage); g.setAttribute(n, a); });
             g.instanceCount = 0; return g;
         }
         function depthResetMat() {   // 奥行きを遠くへ戻す板（色は書かない）
@@ -4773,13 +4777,15 @@
             ballFill(B.gA, arr); ballFill(B.gF, fly); B.fly.visible = fly.length > 0;
             if (db) {
                 const A = B.sg.attributes, ST = dbStars(); let ni = 0;
-                arr.forEach(b => { const e = b.e; ST.forEach(([ox, oy, sc]) => { const i = ni++; A.c0.array.set(e.subarray(0, 4), i * 4); A.c1.array.set(e.subarray(4, 8), i * 4); A.c2.array.set(e.subarray(8, 12), i * 4); A.c3.array.set(e.subarray(12, 16), i * 4); A.sf.array[i * 2] = b.R; A.sf.array[i * 2 + 1] = b.fa; A.so.array[i * 3] = ox; A.so.array[i * 3 + 1] = oy; A.so.array[i * 3 + 2] = sc; }); });   // 星の位置と大きさは玉の半径（立方体の座標 b.R）を 1 として
+                arr.forEach(b => { const e = b.e; ST.forEach(([ox, oy, oz, sc]) => { const i = ni++; A.c0.array.set(e.subarray(0, 4), i * 4); A.c1.array.set(e.subarray(4, 8), i * 4); A.c2.array.set(e.subarray(8, 12), i * 4); A.c3.array.set(e.subarray(12, 16), i * 4); A.sf.array[i * 2] = b.R; A.sf.array[i * 2 + 1] = b.fa; A.so.array[i * 4] = ox; A.so.array[i * 4 + 1] = oy; A.so.array[i * 4 + 2] = oz; A.so.array[i * 4 + 3] = sc; }); });   // 星の位置と大きさは玉の半径（立方体の座標 b.R）を 1 として
                 ['c0', 'c1', 'c2', 'c3', 'sf', 'so'].forEach(k => { const a = A[k]; a.updateRange.offset = 0; a.updateRange.count = ni * a.itemSize; a.needsUpdate = true; }); B.sg.instanceCount = ni;
                 B.star.material.uniforms.camPos.value.copy(cp);
             }
             const sp = wBallSpin ? performance.now() / 1000 * 0.9 : 0;   // 玉を回す（「🔄 球を回す」と共通）
             [B.back, B.front, B.fly].forEach(m => { const mt = m.material; mt.uniforms.camPos.value.copy(cp); mt.uniforms.spin.value = sp; mt.uniforms.pat.value = db ? 4 : 3; });
             B.star.material.uniforms.spin.value = sp;
+            _ballRt.setFromMatrixColumn(cam.matrixWorld, 0).transformDirection(_solidInv); _ballUp.setFromMatrixColumn(cam.matrixWorld, 1).transformDirection(_solidInv);   // カメラの右・上（この入れ物の座標で）：星をこちら向きに
+            B.star.material.uniforms.rt.value.copy(_ballRt); B.star.material.uniforms.up.value.copy(_ballUp);
             if (wBallSpin && (B.key === 'p3' || B.key === 'u3')) requestRender(2);   // 回している間は右の窓を描き続ける（立方体を見るは自分で描き続ける）
         }
         function solidBegin(key, root, on, maxCubes) {   // 描く前に。on でなければ隠して null
@@ -6938,7 +6944,7 @@
                             const rim = Array.from({ length: NC }, (_, k) => at(0.5 + DBALL_R * Math.cos(2 * Math.PI * k / NC), 0.5 + DBALL_R * Math.sin(2 * Math.PI * k / NC)));
                             rim.forEach((v, k) => [c0, v, rim[(k + 1) % NC]].forEach(q => pF(q, -1, dbFilmOn() ? 0.9 : 3)));   // 薄い膜（光を足す重ね方）の時は円を弱く
                             const SK = wDbStars === 4 ? 1.15 : 1.4;   // 正方形の星は少し大きめ（四星球は重ならない程度）
-                            dbStars().forEach(([ox, oy, sc]) => {   // 一星球は真ん中に 1 個、四星球は 上・左・右・下 に 4 個
+                            dbStars().forEach(([ox, oy, , sc]) => {   // 一星球は真ん中に 1 個、四星球は正四面体を正面から見た 正方形 の 4 個（z は落とす）
                                 const cx = 0.5 + ox * DBALL_R, cy = 0.5 + oy * DBALL_R, cs = at(cx, cy);
                                 const sp = Array.from({ length: 10 }, (_, k) => { const r = (k % 2 ? 0.45 : 1) * DBALL_R * sc * SK, th = Math.PI / 2 + k * Math.PI / 5; return at(cx + r * Math.cos(th), cy + r * Math.sin(th)); });
                                 sp.forEach((v, k) => [cs, v, sp[(k + 1) % 10]].forEach(q => pF(q, -5, dbFilmOn() ? 1.6 : 4)));
