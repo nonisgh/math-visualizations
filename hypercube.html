@@ -4613,7 +4613,7 @@
                 fragmentShader: 'varying vec2 vS; varying float vFa;\n' + STAR_GLSL
                     + 'void main() { float d = sdStar5(vS, 0.95, 0.45); float a = (1.0 - smoothstep(-0.035, 0.035, d)) * vFa; if (a < 0.01) discard;   /* 星の形：ふちをなめらかに（1 色の平面） */\n'
                     + '  gl_FragColor = vec4(' + DB_RED.join(', ') + ', a); }',
-                transparent: true, depthTest: true, depthWrite: true, side: THREE.DoubleSide
+                transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide   // ガラスの後に、奥行きを見ずに描く（真正面で何十個も入れ子になった玉のガラスに星がかき消されないように。重なった星は重なって見える）
             });
         }
         function starInstGeo(maxCubes) {   // 星の板（−1〜1 の正方形。形は距離関数で切り抜く）＋玉ごとの写し方（c0〜c3）・大きさと濃さ（sf）・位置（so）
@@ -4738,7 +4738,7 @@
                 const gA = ballInstGeo(T, maxCubes), gF = ballInstGeo(T, maxCubes);
                 const sg = starInstGeo(maxCubes * 4);   // 四星球は玉 1 個に星 4 個   // 星の立体（玉と同じ写し方）
                 const mk = (geo, mat, ro) => { const m = new THREE.Mesh(geo, mat); m.renderOrder = ro; m.frustumCulled = false; root.add(m); return m; };
-                B = wBallG[key] = { key, root, max: maxCubes, T, gA, gF, sg, blocks: [], reset: mk(new THREE.PlaneGeometry(2, 2), depthResetMat(), 996.5), back: mk(gA, ballMat(1, true), 997.1), star: mk(sg, starMat(), 997.2), front: mk(gA, ballMat(0, true), 997.3), fly: mk(gF, ballMat(0, false), 997.4) };
+                B = wBallG[key] = { key, root, max: maxCubes, T, gA, gF, sg, blocks: [], reset: mk(new THREE.PlaneGeometry(2, 2), depthResetMat(), 996.5), back: mk(gA, ballMat(1, true), 997.1), star: mk(sg, starMat(), 997.35), front: mk(gA, ballMat(0, true), 997.3), fly: mk(gF, ballMat(0, false), 997.4) };
                 B.all = [B.reset, B.back, B.star, B.front, B.fly];
             }
             B.blocks.length = 0;
