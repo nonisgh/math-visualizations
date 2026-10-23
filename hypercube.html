@@ -6913,7 +6913,7 @@
         //   当たった点の 4次元の座標（g の最小の s）で模様：2 つの円の角 θ₁（x-y）・θ₂（z-w）。x²＋y²＝r² の面（円 × 円板）と z²＋w²＝r² の面（円板 × 円）の 2 つの「中身の詰まったドーナツ」が表面
         let pillarShape = 'sph'; try { pillarShape = localStorage.getItem('hypercubePillarShape') || 'sph'; } catch (_) {}
         if (pillarShape === 'hs3') pillarShape = 'hsst';   // 一度だけあった「球殻」は「球を積む超球」に置き換え
-        const PILLAR_SHAPES = [['sph', '球柱（玉 × w）'], ['duo', 'デュオシリンダー（円 × 円）'], ['torus4', '4次元トーラス（円 × 玉、ふつうのドーナツ）'], ['tiger', 'タイガー（4次元のドーナツ）'], ['hs', '超球（4次元の球）'], ['hsst', '超球（大きさの違う球を積む）']];
+        const PILLAR_SHAPES = [['sph', '球柱（玉 × w）'], ['duo', 'デュオシリンダー（円 × 円）'], ['torus4', '4次元トーラス（円 × 玉、ふつうのドーナツ）'], ['tiger', 'タイガー（4次元のドーナツ）'], ['hs', '超球（4次元の球）'], ['tess', '超立方体（輪切りで：斜めに切ると四面体・八面体）'], ['hsst', '超球（大きさの違う球を積む）']];
         // だるま（見本の柄）：形に貼りつく 赤い胴・金のふちの白い顔・目（片目だけ黒目）・眉・ひげ・口・おなかの金の丸と渦。n＝形の上の向き、aw＝柱の上の位置（w）。
         //   球柱を w が少し傾いた向きから見ると 上が小さく下が大きい 起き上がりこぼしの輪郭になるので、顔は頭の端（uDS の向き）、おなかは胴の端に来るように w も使う。
         //   顔の向き（正面 F・上 U）は「🎎 顔をこちらへ」で いま見ている向きに合わせて保存（darumaFaceHere）。ほかの向き（上や下）から見ると赤い球
@@ -7125,7 +7125,7 @@
                     + 'uniform float uS; uniform float uKS; uniform float uKind; uniform float uR; uniform float uH; uniform float uR1; uniform float uR2; uniform float uRt; varying vec3 vP;\n' + BALL_GLSL + PIL_GLSL
                     + 'vec4 P4(vec3 X) { return (RT * vec4(X / (uScl * uKS), uS)) * uK; }   /* 3D の点 → 切り口の 4次元の点（形の座標） */\n'
                     + 'float sdf(vec4 p) { if (uKind < 0.5) return max(length(p.xyz) - uR, abs(p.w) - uH); if (uKind < 1.5) return max(length(p.xy) - uR, length(p.zw) - uR);\n'
-                    + '  if (uKind < 2.5) return length(vec2(length(p.xy) - uR1, length(p.zw) - uR2)) - uRt; return length(p) - uR; }\n'
+                    + '  if (uKind < 2.5) return length(vec2(length(p.xy) - uR1, length(p.zw) - uR2)) - uRt; if (uKind > 3.5) { vec4 q = abs(p); return max(max(q.x, q.y), max(q.z, q.w)) - uR; } return length(p) - uR; }   /* 4＝超立方体（チェビシェフの距離。本当の距離より短いので安全に進める） */\n'
                     + 'float G(vec3 X) { return sdf(P4(X)) * uScl * uKS; }   /* 3D の長さに直した距離 */\n'
                     + 'void main() {\n'
                     + '  vec3 ro = camPos, rd = normalize(vP - camPos);\n'
@@ -7140,7 +7140,13 @@
                     + '  float az = atan(p4.y, p4.x) / 6.2831853 + 0.5, az2 = atan(p4.w, p4.z) / 6.2831853 + 0.5, Rm = uKind > 1.5 && uKind < 2.5 ? uR1 + uRt : uR;\n'
                     + '  vec3 col;\n'
                     + '  float ga = 1.0;\n'
-                    + '  if (pat > 5.5) { float gm = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = hsv3(clamp(p4.w / (uKind < 0.5 ? uH : Rm) * 0.5 + 0.5, 0.0, 1.0) * 0.8) * (0.55 + 0.45 * abs(f)) + gm * 0.35; ga = 0.28 + 0.5 * gm; }   /* 透けるレインボー（超球モデルふう）：w の段ごとに 1 色、半透明＋明るい網目 */\n'
+                    + '  if (uKind > 3.5) {   /* 超立方体の切り口：どの胞（±x ±y ±z ±w）の面かで色分け、辺（2 つの胞の境）を線に */\n'
+                    + '    vec4 q = abs(p4) / uR; float m1 = max(max(q.x, q.y), max(q.z, q.w)); int ax = q.x >= m1 - 1e-4 ? 0 : q.y >= m1 - 1e-4 ? 1 : q.z >= m1 - 1e-4 ? 2 : 3;\n'
+                    + '    float sg = ax == 0 ? p4.x : ax == 1 ? p4.y : ax == 2 ? p4.z : p4.w; vec3 cc = ax == 0 ? vec3(0.96, 0.25, 0.37) : ax == 1 ? vec3(0.06, 0.73, 0.5) : ax == 2 ? vec3(0.23, 0.5, 0.96) : vec3(0.66, 0.33, 0.97);\n'
+                    + '    if (sg < 0.0) cc = mix(cc, vec3(1.0, 0.85, 0.3), 0.55);   /* − 側の胞は黄色みに */\n'
+                    + '    float m2 = ax == 0 ? max(max(q.y, q.z), q.w) : ax == 1 ? max(max(q.x, q.z), q.w) : ax == 2 ? max(max(q.x, q.y), q.w) : max(max(q.x, q.y), q.z);   /* 2 番目に大きい座標＝辺に近いと 1 */\n'
+                    + '    float ed = 1.0 - smoothstep(0.0, 2.5 * fwidth(m2), m1 - m2); col = mix(cc * sh, vec3(0.05, 0.05, 0.08), 0.85 * ed); ga = pat > 5.5 ? 0.35 + 0.5 * ed : 1.0; }\n'
+                    + '  else if (pat > 5.5) { float gm = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = hsv3(clamp(p4.w / (uKind < 0.5 ? uH : Rm) * 0.5 + 0.5, 0.0, 1.0) * 0.8) * (0.55 + 0.45 * abs(f)) + gm * 0.35; ga = 0.28 + 0.5 * gm; }   /* 透けるレインボー（超球モデルふう）：w の段ごとに 1 色、半透明＋明るい網目 */\n'
                     + '  else if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p4.xyz), clamp(p4.w / max(uH, 1e-3), -1.0, 1.0)) * sh + spg * 0.35; }\n'
                     + '  else if (pat > 3.5) { float ck = mod(floor(az * 12.0) + floor(az2 * 8.0), 2.0); col = hsv3(az) * (ck > 0.5 ? 1.0 : 0.72) * sh; }\n'
                     + '  else if (pat < 2.5 && pat != 2.0) { col = band(clamp(p4.y / Rm * 0.5 + 0.5, 0.0, 1.0)) * sh; if (pat > 0.5) { float m = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); } }\n'
@@ -7152,11 +7158,11 @@
                 extensions: { derivatives: true, fragDepth: true }, side: THREE.BackSide, transparent: true, depthTest: true, depthWrite: true
             });
         }
-        const pSliceRb = () => { const H = HALF_S, R = PILLAR_R * H, k = { sph: 0, duo: 1, tiger: 2, torus4: 2, hs: 3 }[pillarShape] || 0, [d1, d2, dr] = tigerDims(); return k === 2 ? Math.hypot((d1 + dr) * H, (d2 + dr) * H) : k === 1 ? Math.SQRT2 * R : k === 0 ? Math.hypot(R, H) : R; };   // 輪切りのスライダーの端＝形が入る 4次元の半径
+        const pSliceRb = () => { const H = HALF_S, R = PILLAR_R * H, k = { sph: 0, duo: 1, tiger: 2, torus4: 2, hs: 3, tess: 4 }[pillarShape] || 0, [d1, d2, dr] = tigerDims(); if (k === 4) return 2 * R; return k === 2 ? Math.hypot((d1 + dr) * H, (d2 + dr) * H) : k === 1 ? Math.SQRT2 * R : k === 0 ? Math.hypot(R, H) : R; };   // 輪切りのスライダーの端＝形が入る 4次元の半径
         function drawPillarSlice(r3, pv) {   // 右の窓に 輪切り（見本の形を w′ ＝ s で切った 3次元の断面）
             const H = HALF_S, R = PILLAR_R * H, M = rmMesh('slice', r3, pSliceMat), U = M.mesh.material.uniforms;
             if (pillarSlicePlay && !wSlice.pack) { pillarSliceW = Math.sin(performance.now() / 1000 * 0.7); requestRender(2); }   // 行ったり来たり（積分中は積分に合わせる）
-            const kind = { sph: 0, duo: 1, tiger: 2, torus4: 2, hs: 3 }[pillarShape] || 0, [d1, d2, dr] = tigerDims(), R1 = d1 * H, R2 = d2 * H, rt = dr * H;
+            const kind = { sph: 0, duo: 1, tiger: 2, torus4: 2, hs: 3, tess: 4 }[pillarShape] || 0, [d1, d2, dr] = tigerDims(), R1 = d1 * H, R2 = d2 * H, rt = dr * H;
             const rb = pSliceRb();
             const sync = wSlice.pack && wSlice.packFront !== undefined;   // 4D積分を流している間は 積分の先頭の w で切る（いま積んでいる切り口＝微分図形）
             if (sync) { pillarSlicePlay = false; pillarSliceW = Math.max(-1, Math.min(1, wSlice.packFront * H / rb)); }
@@ -7179,8 +7185,8 @@
             const hideBut = (...keep) => [2, 3, 'duo', 'tiger', 'tor', 'hs', 'ball2', 'hsst', 'dsst', 'slice'].forEach(d => { if (pillar[d] && !keep.includes(d)) pillar[d].mesh.visible = false; });
             if (!show) { hideBut(); return; }
             { const glass = pillarPat === 'glass'; Object.values(pillar).forEach(M => { if (M && M.mesh && M.mesh.material.depthWrite === glass) M.mesh.material.depthWrite = !glass; }); }   // 透けるレインボーは奥行きを書かない（後ろの面も透けて見える）
-            const hsLike = pillarShape === 'hs', sh = pillarShape === 'torus4' ? 'tiger' : ['duo', 'tiger', 'hs', 'hsst'].includes(pillarShape) ? pillarShape : 3, left = { tiger: 'tor', torus4: 'tor', hs: 'ball2', hsst: 'dsst' }[pillarShape] || 2;   // 4次元トーラスはタイガーの入れ物で
-            const sl = pillarSlice && ['sph', 'duo', 'tiger', 'torus4', 'hs'].includes(pillarShape);   // 輪切り：右の窓は切り口だけ
+            const hsLike = pillarShape === 'hs', sh = pillarShape === 'torus4' ? 'tiger' : pillarShape === 'tess' ? 'none' : ['duo', 'tiger', 'hs', 'hsst'].includes(pillarShape) ? pillarShape : 3, left = { tiger: 'tor', torus4: 'tor', hs: 'ball2', hsst: 'dsst', tess: 'none' }[pillarShape] || 2;   // 超立方体は左に何も足さない（左の立方体がそのまま仲間）   // 4次元トーラスはタイガーの入れ物で
+            const sl = pillarSlice && ['sph', 'duo', 'tiger', 'torus4', 'hs', 'tess'].includes(pillarShape);   // 輪切り：右の窓は切り口だけ
             hideBut(sl ? 'slice' : sh, left);   // 右の形と、左の 3次元の仲間（タイガー → ドーナツ、超球 → 球、ほか → 円柱）だけ
             const shp = { sph: 0, duo: 1, tiger: 2, torus4: 2, hs: 3, hsst: 0 }[pillarShape] || 0;   // 球を積む超球は「形にぴったり」で積んだ向き（w／z）に七色
             const stackSort = (M, cs, camL) => {   // 積み重ね：段を遠い順に並べ直す（不透明なので奥行きで決まるが、縁の重なりのにじみを減らす）
@@ -7217,7 +7223,7 @@
                 const pj = rmUniforms(U, rb, pv, r3);
                 U.uR1.value = R1; U.uR2.value = R2; U.uRt.value = rt; U.uSb.value = rb; U.uKm.value = 0.8 * pj.scale / (1 + (1 - pj.blend) * 1.5 * rb / pj.D[3]);   // 3D で δ 動くと直線は δ×（遠近の倍率）／scale まで動く
                 M.mesh.visible = true;
-            } else if (r3) {   // 右：球柱（玉 × w）
+            } else if (r3 && pillarShape !== 'tess') {   // 右：球柱（玉 × w）（超立方体の影は 画面の超立方体そのものなので、見本では足さない）
                 const M = pillarMesh(3, r3), G = M.mesh.geometry, P = G.attributes.position.array, N = G.attributes.nrm.array, T = G.attributes.tpl.array;
                 const rot = rot4List(linkAngleX, linkAngleY), pj = ndProjector(4, projBlendNow()), E = [0, 1, 2, 3].map(c => NDGeom.rotatePoint([0, 1, 2, 3].map(k => k === c ? 1 : 0), rot));   // 4次元の回転を行列に（軸ごとの行き先）
                 const proj = (x, y, z, w, out, o) => { for (let k = 0; k < 4; k++) _pilQ[k] = E[0][k] * x + E[1][k] * y + E[2][k] * z + E[3][k] * w; pj.project(_pilQ, out, o, 0); };
@@ -7283,7 +7289,7 @@
                 G.attributes.position.needsUpdate = G.attributes.nrm.needsUpdate = true;
                 const U = M.mesh.material.uniforms; U.pat.value = Math.max(0, pv); U.shp.value = shp; r2.updateMatrixWorld(true); U.camPos.value.copy(r2.worldToLocal(camera2D.getWorldPosition(_pilV)));
                 M.mesh.visible = true;
-            } else if (r2) {   // 左：円柱（円 × z）
+            } else if (r2 && pillarShape !== 'tess') {   // 左：円柱（円 × z）
                 const M = pillarMesh(2, r2), G = M.mesh.geometry, P = G.attributes.position.array, N = G.attributes.nrm.array, T = G.attributes.tpl.array, pt = leftPtMaker();
                 const zA = pt(0, 0, -H), zB = pt(0, 0, H), ax = [zB[0] - zA[0], zB[1] - zA[1], zB[2] - zA[2]];
                 for (let v = 0; v < M.n; v++) {
@@ -7358,6 +7364,8 @@
                 + B('data-vpslice', '', '右の窓を「影」（4次元の形を写したもの）から「輪切り」（回した後の w′ が一定の 3次元の切り口）に切り替える。切る向きは上の X-W・Y-W・Z-W、位置はスライダー・▶ で。タイガーは 2 つのドーナツが近づいてつながる（球柱・デュオシリンダー・タイガー・超球）')
                 + '<input data-vpsw type="range" min="-1" max="1" step="0.01" title="輪切りの位置 s（−1〜+1。形の端から端）" style="width:90px"><span data-vpsval style="font-size:10px;color:#fde68a;min-width:62px;font-variant-numeric:tabular-nums"></span>' + B('data-vpsplay', '▶', '輪切りの位置を行ったり来たり')
                 + B('data-vpsreset', '↺ w＝0 で切る', '輪切りを標準に戻す：切る位置 w′＝0、切る向き＝w に垂直（X-W・Y-W・Z-W を 0°）。3D の回転とカメラはそのまま')
+                + B('data-vpsdiag', '◇ 対角線で切る', 'いちばん長い対角線（1, 1, 1, 1）に垂直に切る（X-W 45°・Y-W 35.26°・Z-W 30°）。超立方体なら 点 → 正四面体 → 角の欠けた四面体 → まん中で正八面体')
+                + B('data-vps45', '▭ 斜め 45° で切る', 'x と w の間 45° に傾けて切る（X-W 45°）。超立方体なら 直方体（まん中で いちばん長い）')
                 + B('data-vpdaruma', '🎎 顔をこちらへ', 'だるまの柄の顔を、いま見ている向きに向けて保存（右の窓の球柱の見本で。ほかの向き、上や下から見ると赤い球）')
                 + '<select data-vppat title="柱の模様（形に貼りついて一緒に回る）" style="padding:2px 4px;border-radius:7px;border:1px solid rgba(148,163,184,0.45);background:rgba(30,41,59,0.9);color:#e2e8f0;font-size:11px">' + PILLAR_PATS.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('') + '</select></div>'
                 + '<div style="display:flex;gap:5px;flex-wrap:wrap;border-top:1px solid rgba(148,163,184,0.2);padding-top:6px">' + B('data-vpall="all"', '■ 全部止める', '6 面すべての回転を止める（角度はそのまま）') + B('data-vpreset', '↺ 全部リセット', '回転を止めて 6 面とも 0°、カメラ・投影も正面へ（下の「リセット」と同じ）') + '</div></div>';
@@ -7377,6 +7385,9 @@
             el.querySelector('[data-vpslice]').addEventListener('click', () => { pillarSlice = !pillarSlice; if (pillarSlice && !pillarOn) { pillarOn = true; try { localStorage.setItem('hypercubePillar', '1'); } catch (_) {} } if (!pillarSlice) pillarSlicePlay = false; try { localStorage.setItem('hypercubePillarSlice', pillarSlice ? '1' : '0'); } catch (_) {} requestRender(3); vpSync(); });   // 影 ⇔ 輪切り
             el.querySelector('[data-vpsw]').addEventListener('input', e => { pillarSliceW = parseFloat(e.target.value) || 0; pillarSlicePlay = false; try { localStorage.setItem('hypercubePillarSliceW', String(pillarSliceW)); } catch (_) {} requestRender(3); vpSync(); });
             el.querySelector('[data-vpsreset]').addEventListener('click', () => { if (!pillarSlice) { pillarSlice = true; if (!pillarOn) { pillarOn = true; try { localStorage.setItem('hypercubePillar', '1'); } catch (_) {} } try { localStorage.setItem('hypercubePillarSlice', '1'); } catch (_) {} } pillarSlicePlay = false; pillarSliceW = 0; try { localStorage.setItem('hypercubePillarSliceW', '0'); } catch (_) {} stopCycle(); vpTo({ x: 0, y: 0, zw: 0 }); });   // 輪切りを標準（w＝0・w に垂直）に
+            const sliceAt = tg => { if (!pillarSlice) { pillarSlice = true; if (!pillarOn) { pillarOn = true; try { localStorage.setItem('hypercubePillar', '1'); } catch (_) {} } try { localStorage.setItem('hypercubePillarSlice', '1'); } catch (_) {} } pillarSlicePlay = false; pillarSliceW = 0; try { localStorage.setItem('hypercubePillarSliceW', '0'); } catch (_) {} stopCycle(); vpTo(tg); };   // 輪切りにして、切る向きを tg に（位置はまん中）
+            el.querySelector('[data-vpsdiag]').addEventListener('click', () => sliceAt({ x: Math.PI / 4, y: Math.asin(1 / Math.sqrt(3)), zw: Math.PI / 6 }));   // 切る超平面の法線（R⁻¹ の w 行）＝(cosγ cosβ sinα, cosγ sinβ, sinγ, cosγ cosβ cosα) が (1,1,1,1)／2 になる角
+            el.querySelector('[data-vps45]').addEventListener('click', () => sliceAt({ x: Math.PI / 4, y: 0, zw: 0 }));
             el.querySelector('[data-vpsplay]').addEventListener('click', () => { pillarSlicePlay = !pillarSlicePlay; requestRender(3); vpSync(); });
             el.querySelector('[data-vpdaruma]').addEventListener('click', () => { if (!pillarOn) { pillarOn = true; try { localStorage.setItem('hypercubePillar', '1'); } catch (_) {} } pillarPat = 'daruma'; try { localStorage.setItem('hypercubePillarPat', 'daruma'); } catch (_) {} drawPillars(); darumaFaceHere(); vpSync(); });   // だるまにして、顔をいまの向きへ
             el.querySelector('[data-vppat]').addEventListener('change', e => { pillarPat = e.target.value; try { localStorage.setItem('hypercubePillarPat', pillarPat); } catch (_) {} requestRender(3); vpSync(); });
