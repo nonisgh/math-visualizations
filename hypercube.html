@@ -7446,12 +7446,14 @@
                                 slList.push({ vs: land ? unitCubeVertices.map(u => ndProject(NDGeom.rotatePoint([u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), tt * HALF_S], rot), pb)) : vs, w: tt });
                             }
                         }
-                    } else if (!noFace && stS) solidPut(stS, vs, 1, sfa);   // （立体）中身の詰まったかたまり。玉は飛んでいる間は薄く（BALL_FLY）見せて、着くと濃く＝着いた玉の筒が目立つ
-                    if (sph && stS && !noFace && fa >= 0.85 && slide === undefined && !(fm > 0)) {   // 球柱：着いた玉の段（幅 2/n）の中にも玉を細かく重ねる＝つなぎ目のすじが消えて なめらかな柱（積分の範囲 下の端〜先頭 の中だけ）
-                        const K = sphK(), hw = 1 / WPACK.N, lo = wSlice.packBack !== undefined ? wSlice.packBack : -1, hi = wSlice.packFront !== undefined ? wSlice.packFront : 1;
-                        for (let j = 0; j < K; j++) {
-                            const tt = t - hw + (j + 0.5) * 2 * hw / K; if (tt < lo - 1e-6 || tt > hi + 1e-6 || Math.abs(tt - t) < 1e-6) continue;
-                            solidPut(stS, sphFit(unitCubeVertices.map(u => ndProject(NDGeom.rotatePoint([u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), tt * HALF_S], rot), pb))), 1, sfa);
+                    } else if (!noFace && stS) {
+                        solidPut(stS, vs, 1, sfa);   // （立体）中身の詰まったかたまり。玉は飛んでいる間は薄く（BALL_FLY）見せて、着くと濃く＝着いた玉の筒が目立つ
+                        if (sph && fa >= 0.85 && slide === undefined && !(fm > 0)) {   // 球柱：着いた玉の段（幅 2/n）の中にも玉を細かく重ねる＝つなぎ目のすじが消えて なめらかな柱（積分の範囲 下の端〜先頭 の中だけ）
+                            const K = sphK(), hw = 1 / WPACK.N, lo = wSlice.packBack !== undefined ? wSlice.packBack : -1, hi = wSlice.packFront !== undefined ? wSlice.packFront : 1;
+                            for (let j = 0; j < K; j++) {
+                                const tt = t - hw + (j + 0.5) * 2 * hw / K; if (tt < lo - 1e-6 || tt > hi + 1e-6 || Math.abs(tt - t) < 1e-6) continue;
+                                solidPut(stS, sphFit(unitCubeVertices.map(u => ndProject(NDGeom.rotatePoint([u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), tt * HALF_S], rot), pb))), 1, sfa);
+                            }
                         }
                     }
                     else if (!noFace) WS_QUADS.forEach(q => {
