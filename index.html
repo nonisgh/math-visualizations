@@ -436,6 +436,28 @@
         </div>
     </section>
 
+    <!-- 空間の仲間 -->
+    <section>
+        <div class="sec-head">
+            <h2>空間の仲間</h2>
+            <span class="path">平面・球面・双曲平面 → 3次元のいろいろな空間</span>
+        </div>
+        <div class="grid">
+            <a class="card" href="thurston.html" style="--accent: var(--d5);">
+                <div class="thumb"><svg data-thumb="hyper" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>空間めぐり ― サーストンの 8 つの幾何</h3><span class="new">NEW</span></div>
+                    <div class="sub">次元おりがみの付録</div>
+                    <p>E³・S³・H³・S²×R・H²×R・Nil・Sol・SL̃(2,R) の 8 つの空間を、左に 1 つ下の次元の仲間（平面・球面・ポアンカレ円板・円柱…）、右に 3次元の模型を並べて回して見比べます。S³ は 4次元から写した 120 胞体。「中に入る」で、光を測地線に沿って進めた景色の中を歩けます。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d2">2D</span><span class="dim d3">3D</span><span class="dim d4">4D</span></div>
+                        <span class="file">thurston.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </section>
+
     <!-- 確率と実験 -->
     <section>
         <div class="sec-head">
@@ -605,9 +627,23 @@
             const q = el('text', { x: 0, y: 26, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--accent)', 'font-weight': 700 }); q.textContent = '1/3 → 2/3'; svg.appendChild(q);
         }
 
+        // 空間めぐり：ポアンカレ円板（ふちに直角に当たる円弧＝双曲平面のまっすぐな線）
+        function drawHyper(svg) {
+            const R = 42;
+            svg.appendChild(el('circle', { ...stroke, cx: 0, cy: 0, r: R, 'stroke-width': 1.8 }));
+            const arc = (a, b, w, op) => {   // 向き a のまわり ±b の 2 点を結ぶ、ふちに直角な円弧
+                const p = [R * Math.cos(a - b), R * Math.sin(a - b)], q = [R * Math.cos(a + b), R * Math.sin(a + b)], r = R * Math.tan(b);
+                svg.appendChild(el('path', { ...stroke, d: `M${p[0].toFixed(2)} ${p[1].toFixed(2)}A${r.toFixed(2)} ${r.toFixed(2)} 0 0 0 ${q[0].toFixed(2)} ${q[1].toFixed(2)}`, 'stroke-width': w, opacity: op }));
+            };
+            for (let k = 0; k < 5; k++) arc(2 * Math.PI * k / 5 - Math.PI / 2, 0.95, 1.4, 0.95);
+            for (let k = 0; k < 10; k++) arc(2 * Math.PI * k / 10 - Math.PI / 2 + Math.PI / 10, 0.33, 1, 0.6);
+            for (let k = 0; k < 20; k++) arc(2 * Math.PI * k / 20 - Math.PI / 2, 0.12, 0.7, 0.4);
+        }
+
         document.querySelectorAll('svg[data-thumb]').forEach(svg => {
             switch (svg.dataset.thumb) {
                 case 'monty':   drawMonty(svg); break;
+                case 'hyper':   drawHyper(svg); break;
                 case 'euler':   drawEuler(svg); break;
                 case 'buffon':  drawBuffon(svg); break;
                 case 'star':    drawStar(svg, 7, 3, 42); break;
