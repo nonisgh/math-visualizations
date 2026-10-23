@@ -4389,7 +4389,7 @@
         const ballDepthOn = () => wPackRainbow && wPackRbStyle === 'spec' && wSpecVol && (wSpecPat === 'ball' || wSpecPat === 'dball2');   // 玉のモード：玉・枠・タイルで前後を正しく
         const BALL_R = 0.3;   // 七色の枠＋玉：玉の半径（立方体の 1 辺を 1 として）
         let wDbStars = 1; try { if (localStorage.getItem('hypercubeDbStars') === '4') wDbStars = 4; } catch (_) {}   // ドラゴンボールの星の数：1＝一星球、4＝四星球
-        const DB_T = 0.33 / Math.sqrt(3), DB_STARS1 = [[0, 0, 0, 0.26]], DB_STARS4 = [[DB_T, DB_T, DB_T, 0.17], [DB_T, -DB_T, -DB_T, 0.17], [-DB_T, DB_T, -DB_T, 0.17], [-DB_T, -DB_T, DB_T, 0.17]];   // 星の並び [x, y, z, 大きさ]（玉の半径を 1 として）。四星球は 正四面体の 4 つの角（真ん中から 0.33）に立体配置、それぞれ外を向く（正面から見ると正方形）   // 星の並び [x, y, 大きさ]（玉の半径を 1 として）。四星球は 上・左・右・下 の十字（ひし形）に 4 個（ファンの資料で「四角ではなく十字の並び」）
+        const DB_T = 0.33 / Math.sqrt(3), DB_STARS1 = [[0, 0, 0, 0.22]], DB_STARS4 = [[DB_T, DB_T, DB_T, 0.14], [DB_T, -DB_T, -DB_T, 0.14], [-DB_T, DB_T, -DB_T, 0.14], [-DB_T, -DB_T, DB_T, 0.14]];   // 星は少し小さく（0.26・0.17 → 0.22・0.14）   // 星の並び [x, y, z, 大きさ]（玉の半径を 1 として）。四星球は 正四面体の 4 つの角（真ん中から 0.33）に立体配置、それぞれ外を向く（正面から見ると正方形）   // 星の並び [x, y, 大きさ]（玉の半径を 1 として）。四星球は 上・左・右・下 の十字（ひし形）に 4 個（ファンの資料で「四角ではなく十字の並び」）
         const dbStars = () => wDbStars === 4 ? DB_STARS4 : DB_STARS1;
         const DB4_LO = [0.95, 0.12, 0.06], DB4_HI = [1.0, 0.62, 0.12];
         let wDbFilm = false, wDbBoth = false; try { const c = localStorage.getItem('hypercubeCubeLook'), v = c === 'film' ? '1' : c === 'both' ? '2' : c === 'frame' ? '0' : localStorage.getItem('hypercubeDbFilm'); wDbFilm = v === '1' || v === '2'; wDbBoth = v === '2'; } catch (_) {}   // 積分の立方体の見せ方（全部のモード）：wDbFilm＝膜あり、wDbBoth＝枠と膜の両方。保存は hypercubeCubeLook（前のドラゴンボールだけの hypercubeDbFilm も読む）   // ドラゴンボールの立方体：false＝枠（線）、true＝薄い膜（線なし、表面にうっすら色）
@@ -4621,9 +4621,7 @@
             const o = Array.from({ length: 10 }, (_, k) => { const r = k % 2 ? 0.45 : 1, th = Math.PI / 2 + k * Math.PI / 5; return [r * Math.cos(th), r * Math.sin(th)]; }), T = 0.22, TC = 0.38, P = [];
             for (let k = 0; k < 10; k++) {
                 const a = o[k], b = o[(k + 1) % 10];
-                P.push(0, 0, TC, a[0], a[1], T, b[0], b[1], T);   // 表（真ん中を少し盛り上げる＝面が傾いて明暗がつく）
-                P.push(0, 0, -TC, b[0], b[1], -T, a[0], a[1], -T);   // 裏
-                P.push(a[0], a[1], T, a[0], a[1], -T, b[0], b[1], -T, a[0], a[1], T, b[0], b[1], -T, b[0], b[1], T);   // 横の厚み
+                P.push(0, 0, TC - T, a[0], a[1], 0, b[0], b[1], 0);   // 表の面だけ（真ん中を少し盛り上げる＝ポリゴンの面が傾いて明暗がつく。裏・横の厚みは描かない。ユーザー「星の面だけ」）
             }
             const g = new THREE.InstancedBufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(P), 3));
             [['c0', 4], ['c1', 4], ['c2', 4], ['c3', 4], ['sf', 2], ['so', 4], ['sd', 3]].forEach(([n, k]) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(maxCubes * k), k); a.setUsage(THREE.DynamicDrawUsage); g.setAttribute(n, a); });
