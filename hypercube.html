@@ -4407,6 +4407,7 @@
         //   左の窓（3次元の仲間）：デュオシリンダー → x にのびた円柱（y²＋z² ≤ r²）の輪切り＝高さの変わる長方形、タイガー → x-z の面のドーナツの輪切り＝2 つの丸が近づいてつながる
         let wSliceShape = ''; try { wSliceShape = localStorage.getItem('hypercubeSliceShape') || ''; } catch (_) {}   // ''＝玉（球柱）、'duo'、'tiger'
         const sliceShape = () => sphOnly() ? wSliceShape : '';
+        const slTarget = (slot, t) => slot === undefined || slot === null ? t : -1 + (2 * Math.round(slot * (WPACK.N - 1)) + 1) / WPACK.N;   // 段の行き先の w（外から飛んでくる途中は、いる所ではなく 着く所の輪切りの形にする）
         const SL_DUO_R = 0.9, SL_TG_R1 = 0.55, SL_TG_R2 = 0.55, SL_TG_r = 0.3, SL_K = 3, SL_CS = 40, SL_NA = 20, SL_NT = 28;   // 大きさ（立方体の半分の辺を 1 として）・着いた段の中に重ねる数・分割
         const slH = w => Math.sqrt(Math.max(0, SL_DUO_R * SL_DUO_R - w * w));
         function slMeasure(kind, w, left) {   // 輪切りの体積（右・4次元）／面積（左・3次元の仲間）
@@ -7448,7 +7449,7 @@
                             const land = fa >= 0.85, K = land ? SL_K : 1, hw = 1 / WPACK.N, lo = wSlice.packBack !== undefined ? wSlice.packBack : -1, hi = wSlice.packFront !== undefined ? wSlice.packFront : 1;
                             for (let j = 0; j < K; j++) {
                                 const tt = land ? t - hw + (j + 0.5) * 2 * hw / K : t; if (land && (tt < lo - 1e-6 || tt > hi + 1e-6)) continue;
-                                slList.push({ vs: land ? unitCubeVertices.map(u => ndProject(NDGeom.rotatePoint([u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), tt * HALF_S], rot), pb)) : vs, w: tt });
+                                slList.push({ vs: land ? unitCubeVertices.map(u => ndProject(NDGeom.rotatePoint([u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), tt * HALF_S], rot), pb)) : vs, w: land ? tt : slTarget(slot, t) });
                             }
                         }
                     } else if (!noFace && stS) {
@@ -7585,7 +7586,7 @@
                         if (wFrameCol !== 'up') { frameSlot = slot !== undefined ? slot : null; frameDepthVal = sqDepth(vs); frameEdgeEmit(vs, SQ_EDGES, sqPar, pL, sqView); }   // 枠の色：全部の辺を七色／奥行き／積分の順
                         else { pL(vs[0], 0); pL(vs[1], 0); pL(vs[3], 1); pL(vs[2], 1);
                         for (let m = 0; m < SPEC_K; m++) { const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K; pL(lerp3(vs[0], vs[3], f0), fm); pL(lerp3(vs[0], vs[3], f1), fm); pL(lerp3(vs[1], vs[2], f0), fm); pL(lerp3(vs[1], vs[2], f1), fm); } }
-                        if (wSpecPat === 'ball' && !noFace && sliceShape()) slLeft(sliceShape(), t, (x, y) => bilin(vs[0], vs[1], vs[2], vs[3], x, y), pF);   // 輪切りの形を積む：3次元の仲間の輪切り
+                        if (wSpecPat === 'ball' && !noFace && sliceShape()) slLeft(sliceShape(), slTarget(slot, t), (x, y) => bilin(vs[0], vs[1], vs[2], vs[3], x, y), pF);   // 輪切りの形を積む：3次元の仲間の輪切り
                         else if (wSpecPat === 'ball' && !noFace) {
                             const at = (x, y) => bilin(vs[0], vs[1], vs[2], vs[3], x, y), R = BALL_R, ROWS = 21, hw = y => Math.sqrt(Math.max(0, R * R - (y - 0.5) * (y - 0.5)));
                             for (let r = 0; r < ROWS; r++) {
