@@ -6452,7 +6452,8 @@
         let wPackNow = false, wPackGhost = false; try { const v = localStorage.getItem('hypercubePackNow'); wPackNow = v === '1' || v === '2'; wPackGhost = v === '2'; } catch (_) {}   // 表示「いまの所だけ」：積分の今の位置の立方体 1 個だけ描き、通ってきた所（軌跡）は 線（ワイヤー）＋透ける面（タイル）で埋める
         function drawTiles4(key, r3, k, rot, pb, d, N, front, colorOf, spec, back = -1) {   // spec＝七色（true＝残り 3 軸の 2 本目＝ふつう y、数＝その番目の方向に 赤→紫、のびた辺は 7 つに分ける）
             if ((!wPackFill && !(wPackNow && wSlice.pack)) || (wPackNow && wSlice.pack && wSlice.nowWait)) { if (wTile[key]) wTile[key].visible = false; return; }   // いまの所だけ：最初の 1 枚が着くまでは面も出さない   // 間を埋めない（いまの所だけの時は、通った所を面で埋める）
-            const ball = spec === 'ball', ring = spec === 'ring' || ball, si = spec === true ? 1 : (typeof spec === 'number' ? spec : -1); spec = ring || si >= 0;   // 'ball'＝同心球（辺は立方体の中心からの距離で色）   // 'ring'＝同心の七色（辺の真ん中が藍・角が紫）
+            const ball = spec === 'ball', ring = spec === 'ring' || ball, si = spec === true ? 1 : (typeof spec === 'number' ? spec : -1); spec = ring || si >= 0;
+            const allF = si >= 0 && !ring && wFrameCol === 'all' && wPackRbStyle === 'spec';   // 枠の色「全部の辺を七色」：タイルも どの向きの辺も 角の偶奇で 赤 → 紫（立方体は二部グラフ）   // 'ball'＝同心球（辺は立方体の中心からの距離で色）   // 'ring'＝同心の七色（辺の真ん中が藍・角が紫）
             if (!r3 || !(k > 0.01)) { if (wTile[key]) wTile[key].visible = false; return; }
             if (!wTile[key]) wTile[key] = wTileMk(r3, 64 * 36 * 6);   // （spec は下で決め直す）   // 七色は 1 帯 36 枚（12 辺のうち y の 4 辺を 7 つ）
             const mesh = wTile[key]; mesh.visible = true;   // タイルは玉より先に描く（玉はいつもタイルの上。ユーザーの好み：真上から見た時に玉の縁がタイルで濁らない）
@@ -6470,7 +6471,7 @@
                 WS_EDGES.forEach(([e0, e1]) => {
                     const u = unitCubeVertices[e0], v = unitCubeVertices[e1];
                     if (!spec) { const A0 = at(u, t0), B0 = at(v, t0), B1 = at(v, t1), A1 = at(u, t1); [A0, B0, B1, A0, B1, A1].forEach(put); return; }
-                    const yu = ring ? 0 : u[si] + 0.5, yv = ring ? 0 : v[si] + 0.5, K = ring ? RING_G : yu === yv ? 1 : SPEC_K;   // 七色：その方向にのびた辺は 7 つに分ける（同心は全部の辺を 6 つに）
+                    const yu = ring ? 0 : allF ? cubePar(e0) : u[si] + 0.5, yv = ring ? 0 : allF ? cubePar(e1) : v[si] + 0.5, K = ring ? RING_G : yu === yv ? 1 : SPEC_K;   // 全部の辺を七色なら、どの辺も両端の偶奇が違うので 7 つに分けて 赤 → 紫   // 七色：その方向にのびた辺は 7 つに分ける（同心は全部の辺を 6 つに）
                     for (let m = 0; m < K; m++) {
                         const f0 = m / K, f1 = (m + 1) / K, p0 = [0, 1, 2].map(j => u[j] + (v[j] - u[j]) * f0), p1 = [0, 1, 2].map(j => u[j] + (v[j] - u[j]) * f1);
                         if (ball) { const s_ = 2 * (m + 0.5) / K - 1; specCol((2 + s_ * s_) / 3, col); } else if (ring) specCol(ringF(1, 2 * (m + 0.5) / K - 1), col); else specCol(yu + (yv - yu) * (m + 0.5) / K, col);
@@ -6509,10 +6510,11 @@
                     [A0, B0, B1, A0, B1, A1].forEach(q => put(q, k));
                 });
                 else for (let m = 0; m < 4; m++) {   // 左：正方形の 4 辺 × z の帯＝立方体の側面（七色の時は y にのびた辺を 7 つに分ける）
-                    const p0 = sq[m], p1 = sq[(m + 1) % 4], K = ring ? RING_G : spec && p0[1] !== p1[1] ? SPEC_K : 1;
+                    const allF = spec && !ring && wFrameCol === 'all';   // 全部の辺を七色：正方形の角は 赤 紫 赤 紫（sqPar）なので、どの辺も 赤 → 紫
+                    const p0 = sq[m], p1 = sq[(m + 1) % 4], K = ring ? RING_G : (spec && p0[1] !== p1[1]) || allF ? SPEC_K : 1;
                     for (let j = 0; j < K; j++) {
                         const f0 = j / K, f1 = (j + 1) / K, a0 = [p0[0] + (p1[0] - p0[0]) * f0, p0[1] + (p1[1] - p0[1]) * f0], a1 = [p0[0] + (p1[0] - p0[0]) * f1, p0[1] + (p1[1] - p0[1]) * f1];
-                        if (ring) specCol(ringF(1, 2 * (j + 0.5) / K - 1), col); else if (spec) specCol(((a0[1] + a1[1]) / 2 / H + 1) / 2, col);
+                        if (ring) specCol(ringF(1, 2 * (j + 0.5) / K - 1), col); else if (allF) specCol(sqPar(m) + (sqPar((m + 1) % 4) - sqPar(m)) * (j + 0.5) / K, col); else if (spec) specCol(((a0[1] + a1[1]) / 2 / H + 1) / 2, col);
                         const A0 = pt(a0[0], a0[1], w0), B0 = pt(a1[0], a1[1], w0), B1 = pt(a1[0], a1[1], w1), A1 = pt(a0[0], a0[1], w1);
                         [A0, B0, B1, A0, B1, A1].forEach(q => put(q, k));
                     }
