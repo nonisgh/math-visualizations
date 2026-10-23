@@ -7100,6 +7100,55 @@
             r3.updateMatrixWorld(true); U.camPos.value.copy(r3.worldToLocal(camera3D.getWorldPosition(_pilV)));
             return pj;
         }
+        // 見本の「✂ 輪切り」：4次元の形を 回した後の w′ ＝ s の超平面で切った 3次元の断面を描く（影ではなく切り口。タイガーなら 2 つのドーナツが近づいてつながる）。
+        //   切る向きは 上の X-W・Y-W・Z-W の回転（回した後の w′ が一定の超平面）、位置 s はスライダー／▶ で行き来。3D の点 X → 4次元の点 p ＝ R⁻¹(X／(scale·k(s)), s)（k(s)＝その w′ の遠近の倍率＝超立方体のその段の大きさと合う）。
+        //   形の符号つき距離（4次元）で 球を進める方法：球柱 max(|xyz|−r, |w|−h)、デュオシリンダー max(|xy|−r, |zw|−r)、タイガー |(|xy|−R₁, |zw|−R₂)|−r、超球 |p|−r
+        let pillarSlice = false, pillarSliceW = 0, pillarSlicePlay = false;
+        try { pillarSlice = localStorage.getItem('hypercubePillarSlice') === '1'; const v = parseFloat(localStorage.getItem('hypercubePillarSliceW')); if (isFinite(v)) pillarSliceW = Math.max(-1, Math.min(1, v)); } catch (_) {}
+        function pSliceMat() {
+            return new THREE.ShaderMaterial({
+                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 },
+                    uS: { value: 0 }, uKS: { value: 1 }, uKind: { value: 0 }, uR: { value: 1 }, uH: { value: 1 }, uR1: { value: 0.5 }, uR2: { value: 0.5 }, uRt: { value: 0.2 }, uDF: { value: darumaF }, uDU: { value: darumaU }, uDS: darumaS },
+                vertexShader: 'uniform float bnd; varying vec3 vP; void main() { vP = position * bnd; gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
+                fragmentShader: 'uniform mat4 projectionMatrix; uniform mat4 modelViewMatrix; uniform vec3 camPos; uniform float pat; uniform mat4 RT; uniform vec4 uK; uniform float uD; uniform float uBl; uniform float uScl; uniform float bnd;\n'
+                    + 'uniform float uS; uniform float uKS; uniform float uKind; uniform float uR; uniform float uH; uniform float uR1; uniform float uR2; uniform float uRt; varying vec3 vP;\n' + BALL_GLSL + PIL_GLSL
+                    + 'vec4 P4(vec3 X) { return (RT * vec4(X / (uScl * uKS), uS)) * uK; }   /* 3D の点 → 切り口の 4次元の点（形の座標） */\n'
+                    + 'float sdf(vec4 p) { if (uKind < 0.5) return max(length(p.xyz) - uR, abs(p.w) - uH); if (uKind < 1.5) return max(length(p.xy) - uR, length(p.zw) - uR);\n'
+                    + '  if (uKind < 2.5) return length(vec2(length(p.xy) - uR1, length(p.zw) - uR2)) - uRt; return length(p) - uR; }\n'
+                    + 'float G(vec3 X) { return sdf(P4(X)) * uScl * uKS; }   /* 3D の長さに直した距離 */\n'
+                    + 'void main() {\n'
+                    + '  vec3 ro = camPos, rd = normalize(vP - camPos);\n'
+                    + '  float bb = dot(ro, rd), cc = dot(ro, ro) - bnd * bnd, h = bb * bb - cc; if (h < 0.0) discard; h = sqrt(h);\n'
+                    + '  float t0 = max(-bb - h, 0.0), t1 = -bb + h; if (t1 <= t0) discard;\n'
+                    + '  float t = t0; bool hit = false;\n'
+                    + '  for (int i = 0; i < 160; i++) { float d = G(ro + rd * t); if (d < bnd * 4e-4) { hit = true; break; } t += max(d * 0.9, bnd * 6e-4); if (t > t1) break; }\n'
+                    + '  if (!hit) discard;\n'
+                    + '  vec3 P = ro + rd * t; vec4 p4 = P4(P); float e = bnd * 1e-3;\n'
+                    + '  vec3 n = normalize(vec3(G(P + vec3(e, 0.0, 0.0)) - G(P - vec3(e, 0.0, 0.0)), G(P + vec3(0.0, e, 0.0)) - G(P - vec3(0.0, e, 0.0)), G(P + vec3(0.0, 0.0, e)) - G(P - vec3(0.0, 0.0, e))));\n'
+                    + '  vec3 vd = -rd; float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
+                    + '  float az = atan(p4.y, p4.x) / 6.2831853 + 0.5, az2 = atan(p4.w, p4.z) / 6.2831853 + 0.5, Rm = uKind > 1.5 && uKind < 2.5 ? uR1 + uRt : uR;\n'
+                    + '  vec3 col;\n'
+                    + '  if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p4.xyz), clamp(p4.w / max(uH, 1e-3), -1.0, 1.0)) * sh + spg * 0.35; }\n'
+                    + '  else if (pat > 3.5) { float ck = mod(floor(az * 12.0) + floor(az2 * 8.0), 2.0); col = hsv3(az) * (ck > 0.5 ? 1.0 : 0.72) * sh; }\n'
+                    + '  else if (pat < 2.5 && pat != 2.0) { col = band(clamp(p4.y / Rm * 0.5 + 0.5, 0.0, 1.0)) * sh; if (pat > 0.5) { float m = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); } }\n'
+                    + '  else if (pat < 2.5) { col = mix(vec3(0.96, 0.97, 1.0), vec3(0.82, 0.88, 0.98), 0.5 - 0.5 * p4.y / Rm) * sh; float m = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = mix(col, vec3(0.16, 0.28, 0.62), 0.85 * m); }\n'
+                    + '  else { col = fusenCol(floor(az * 6.0)); col = mix(col, vec3(1.0), 0.6 * lineAt(az, 6.0)); col *= 1.0 - 0.07 * lineAt(az2, 16.0); vec3 L = normalize(vec3(-0.4, 0.8, 0.45)); float spc = pow(max(dot(reflect(rd, n * sign(f)), L), 0.0), 24.0); col = col * sh + spc * 0.18; }\n'
+                    + '  vec4 cp = projectionMatrix * modelViewMatrix * vec4(P, 1.0); gl_FragDepthEXT = clamp(0.5 * cp.z / cp.w + 0.5, 0.0, 1.0);\n'
+                    + '  gl_FragColor = vec4(col, 1.0);\n'
+                    + '}',
+                extensions: { derivatives: true, fragDepth: true }, side: THREE.BackSide, transparent: true, depthTest: true, depthWrite: true
+            });
+        }
+        function drawPillarSlice(r3, pv) {   // 右の窓に 輪切り（見本の形を w′ ＝ s で切った 3次元の断面）
+            const H = HALF_S, R = PILLAR_R * H, M = rmMesh('slice', r3, pSliceMat), U = M.mesh.material.uniforms;
+            if (pillarSlicePlay) { pillarSliceW = Math.sin(performance.now() / 1000 * 0.7); requestRender(2); }   // 行ったり来たり
+            const kind = { sph: 0, duo: 1, tiger: 2, hs: 3 }[pillarShape] || 0, R1 = TIGER_R1 * H, R2 = TIGER_R2 * H, rt = TIGER_r * H;
+            const rb = kind === 2 ? Math.hypot(R1 + rt, R2 + rt) : kind === 1 ? Math.SQRT2 * R : kind === 0 ? Math.hypot(R, H) : R;
+            const pj = rmUniforms(U, rb, pv, r3), s = pillarSliceW * rb, kS = 1 + (1 / Math.max(0.05, 1 - s / pj.D[3]) - 1) * (1 - pj.blend);
+            U.uS.value = s; U.uKS.value = kS; U.uKind.value = kind; U.uR.value = R; U.uH.value = H; U.uR1.value = R1; U.uR2.value = R2; U.uRt.value = rt;
+            U.bnd.value = rb * kS * pj.scale * 1.03;
+            M.mesh.visible = true;
+        }
         function duoMesh(root) {
             let M = pillar.duo;
             if (M && M.mesh.parent === root) return M;
@@ -7111,17 +7160,19 @@
         function drawPillars() {
             const show = pillarOn && !dim5 && animationProgress >= 0.92, H = HALF_S, R = PILLAR_R * H, pv = PILLAR_PATS.findIndex(p => p[0] === pillarPat);
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D');
-            const hideBut = (...keep) => [2, 3, 'duo', 'tiger', 'tor', 'hs', 'ball2', 'hsst', 'dsst'].forEach(d => { if (pillar[d] && !keep.includes(d)) pillar[d].mesh.visible = false; });
+            const hideBut = (...keep) => [2, 3, 'duo', 'tiger', 'tor', 'hs', 'ball2', 'hsst', 'dsst', 'slice'].forEach(d => { if (pillar[d] && !keep.includes(d)) pillar[d].mesh.visible = false; });
             if (!show) { hideBut(); return; }
             const hsLike = pillarShape === 'hs', sh = ['duo', 'tiger', 'hs', 'hsst'].includes(pillarShape) ? pillarShape : 3, left = { tiger: 'tor', hs: 'ball2', hsst: 'dsst' }[pillarShape] || 2;
-            hideBut(sh, left);   // 右の形と、左の 3次元の仲間（タイガー → ドーナツ、超球 → 球、ほか → 円柱）だけ
+            const sl = pillarSlice && ['sph', 'duo', 'tiger', 'hs'].includes(pillarShape);   // 輪切り：右の窓は切り口だけ
+            hideBut(sl ? 'slice' : sh, left);   // 右の形と、左の 3次元の仲間（タイガー → ドーナツ、超球 → 球、ほか → 円柱）だけ
             const shp = { sph: 0, duo: 1, tiger: 2, hs: 3, hsst: 0 }[pillarShape] || 0;   // 球を積む超球は「形にぴったり」で積んだ向き（w／z）に七色
             const stackSort = (M, cs, camL) => {   // 積み重ね：段を遠い順に並べ直す（不透明なので奥行きで決まるが、縁の重なりのにじみを減らす）
                 const G = M.mesh.geometry, IX = G.index.array, B = M.blk; let ii = 0;
                 cs.map((c, i) => [Math.hypot(c[0] - camL.x, c[1] - camL.y, c[2] - camL.z), i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { const off = i * B.nv; for (let k = 0; k < B.I.length; k++) IX[ii++] = B.I[k] + off; });
                 G.index.needsUpdate = true; G.setDrawRange(0, ii);
             };
-            if (r3 && pillarShape === 'duo') {   // 右：デュオシリンダー（光線の行進）
+            if (sl) { if (r3) drawPillarSlice(r3, pv); }
+            else if (r3 && pillarShape === 'duo') {   // 右：デュオシリンダー（光線の行進）
                 const M = duoMesh(r3), U = M.mesh.material.uniforms;
                 rmUniforms(U, Math.SQRT2 * R, pv, r3); U.uR.value = R;
                 M.mesh.visible = true;
@@ -7261,6 +7312,9 @@
             });
             const wa = el.querySelector('[data-vpall="w"]'); if (wa) wa.textContent = ['x', 'y', 'zw'].some(vpSpinOn) ? '■ w の回転を全部止める' : '▶ w の回転を全部回す';
             const ta = el.querySelector('[data-vpall="3"]'); if (ta) ta.textContent = ['xy', 'xz', 'yz'].some(vpSpinOn) ? '■ 3D の回転を全部止める' : '▶ 3D の回転を全部回す';
+            const ps2 = el.querySelector('[data-vpslice]'); if (ps2) { ps2.textContent = pillarSlice ? '✂ 輪切り' : '✂ 影'; ps2.style.background = pillarSlice ? 'rgba(250,204,21,0.25)' : ''; }
+            const sw = el.querySelector('[data-vpsw]'); if (sw && document.activeElement !== sw) sw.value = pillarSliceW.toFixed(2); if (sw) sw.disabled = !pillarSlice;
+            const sp2 = el.querySelector('[data-vpsplay]'); if (sp2) { sp2.textContent = pillarSlicePlay ? '■' : '▶'; sp2.disabled = !pillarSlice; }
             const pl = el.querySelector('[data-vppil]'); if (pl) { pl.textContent = pillarOn ? '🎈 見本: 出す' : '🎈 見本: 出さない'; pl.style.background = pillarOn ? 'rgba(250,204,21,0.25)' : ''; }
             const ps = el.querySelector('[data-vppat]'); if (ps && ps.value !== pillarPat && document.activeElement !== ps) ps.value = pillarPat;
             const sh = el.querySelector('[data-vpshape]'); if (sh && sh.value !== pillarShape && document.activeElement !== sh) sh.value = pillarShape;
@@ -7283,6 +7337,8 @@
                 + '<div style="color:#fde68a;font-size:11px;margin-bottom:2px">形の見本（積分とは関係なく。見る向きで形が変わる）</div>'
                 + '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:3px 0 8px">' + B('data-vppil', '', '左の窓に円柱（円 × z）、右の窓に 4次元の見本（球柱／デュオシリンダー）を出す／消す。上の回転で見る向きを変えると形が変わる')
                 + '<select data-vpshape title="右の窓の形。球柱＝玉を w にのばした形（w の方向から見ると球）。デュオシリンダー＝円 × 円（x²＋y² ≤ r² かつ z²＋w² ≤ r²）。w の方向から見ると円柱、Z-W を回しても同じ、X-W・Y-W を回すと見たことのない形に" style="padding:2px 4px;border-radius:7px;border:1px solid rgba(148,163,184,0.45);background:rgba(30,41,59,0.9);color:#e2e8f0;font-size:11px">' + PILLAR_SHAPES.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('') + '</select>'
+                + B('data-vpslice', '', '右の窓を「影」（4次元の形を写したもの）から「輪切り」（回した後の w′ が一定の 3次元の切り口）に切り替える。切る向きは上の X-W・Y-W・Z-W、位置はスライダー・▶ で。タイガーは 2 つのドーナツが近づいてつながる（球柱・デュオシリンダー・タイガー・超球）')
+                + '<input data-vpsw type="range" min="-1" max="1" step="0.01" title="輪切りの位置 s（−1〜+1。形の端から端）" style="width:90px">' + B('data-vpsplay', '▶', '輪切りの位置を行ったり来たり')
                 + B('data-vpdaruma', '🎎 顔をこちらへ', 'だるまの柄の顔を、いま見ている向きに向けて保存（右の窓の球柱の見本で。ほかの向き、上や下から見ると赤い球）')
                 + '<select data-vppat title="柱の模様（形に貼りついて一緒に回る）" style="padding:2px 4px;border-radius:7px;border:1px solid rgba(148,163,184,0.45);background:rgba(30,41,59,0.9);color:#e2e8f0;font-size:11px">' + PILLAR_PATS.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('') + '</select></div>'
                 + '<div style="display:flex;gap:5px;flex-wrap:wrap;border-top:1px solid rgba(148,163,184,0.2);padding-top:6px">' + B('data-vpall="all"', '■ 全部止める', '6 面すべての回転を止める（角度はそのまま）') + B('data-vpreset', '↺ 全部リセット', '回転を止めて 6 面とも 0°、カメラ・投影も正面へ（下の「リセット」と同じ）') + '</div></div>';
@@ -7299,6 +7355,9 @@
             el.querySelector('[data-vpleft]').addEventListener('click', () => { leftNo3D = !leftNo3D; try { localStorage.setItem('hypercubeLeftNo3D', leftNo3D ? '1' : '0'); } catch (_) {} requestRender(3); vpSync(); });   // 左の立方体に 3D の回転を反映する／しない
             el.querySelector('[data-vppil]').addEventListener('click', () => { pillarOn = !pillarOn; try { localStorage.setItem('hypercubePillar', pillarOn ? '1' : '0'); } catch (_) {} requestRender(3); vpSync(); });   // 柱の見本を出す／消す
             el.querySelector('[data-vpshape]').addEventListener('change', e => { pillarShape = e.target.value; try { localStorage.setItem('hypercubePillarShape', pillarShape); } catch (_) {} requestRender(3); vpSync(); });
+            el.querySelector('[data-vpslice]').addEventListener('click', () => { pillarSlice = !pillarSlice; if (pillarSlice && !pillarOn) { pillarOn = true; try { localStorage.setItem('hypercubePillar', '1'); } catch (_) {} } if (!pillarSlice) pillarSlicePlay = false; try { localStorage.setItem('hypercubePillarSlice', pillarSlice ? '1' : '0'); } catch (_) {} requestRender(3); vpSync(); });   // 影 ⇔ 輪切り
+            el.querySelector('[data-vpsw]').addEventListener('input', e => { pillarSliceW = parseFloat(e.target.value) || 0; pillarSlicePlay = false; try { localStorage.setItem('hypercubePillarSliceW', String(pillarSliceW)); } catch (_) {} requestRender(3); vpSync(); });
+            el.querySelector('[data-vpsplay]').addEventListener('click', () => { pillarSlicePlay = !pillarSlicePlay; requestRender(3); vpSync(); });
             el.querySelector('[data-vpdaruma]').addEventListener('click', () => { if (!pillarOn) { pillarOn = true; try { localStorage.setItem('hypercubePillar', '1'); } catch (_) {} } pillarPat = 'daruma'; try { localStorage.setItem('hypercubePillarPat', 'daruma'); } catch (_) {} drawPillars(); darumaFaceHere(); vpSync(); });   // だるまにして、顔をいまの向きへ
             el.querySelector('[data-vppat]').addEventListener('change', e => { pillarPat = e.target.value; try { localStorage.setItem('hypercubePillarPat', pillarPat); } catch (_) {} requestRender(3); vpSync(); });
             el.querySelector('[data-vpall="all"]').addEventListener('click', () => { stopCycle(); linkSpin = false; ['x', 'y', 'zw', 'xy', 'xz', 'yz'].forEach(k => vpSetSpin(k, false)); if (dim5) spin5XW = spin5YW = spin5ZW = spin5WV = false; updateSpinBtns(); vpSync(); });
