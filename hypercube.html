@@ -6676,27 +6676,27 @@
         //   模様は形に貼りついて一緒に回る：レインボー（下 赤 → 上 紫）／レインボー＋経度線／経度線（白地）／紙風船
         let pillarOn = false, pillarPat = 'rb';
         try { pillarOn = localStorage.getItem('hypercubePillar') === '1'; pillarPat = localStorage.getItem('hypercubePillarPat') || 'rb'; } catch (_) {}
-        const PILLAR_PATS = [['rb', 'レインボー'], ['rbm', 'レインボー＋経度線'], ['mer', '経度線'], ['fusen', '紙風船']];
+        const PILLAR_PATS = [['rb', 'レインボー'], ['rbm', 'レインボー＋経度線'], ['mer', '経度線'], ['fusen', '紙風船'], ['fit', '形にぴったり']];   // 形にぴったり＝その形の座標そのもの（球柱は w の向きに七色、デュオシリンダーは 2 つのドーナツで色分け、タイガーは 3 つの角、超球はホップの円）
         const PILLAR_R = 0.8, PILLAR_SEG = 64, PILLAR_RING = 40, PILLAR_NW = 81, PILLAR_CS = 96, PILLAR_CSEG = 72, PILLAR_NZ = 24;   // 半径（立方体の半分の辺を 1 として）・端の玉の分割・側面の w の段の数と 1 周の点・円柱の分割
         const pillar = { 3: null, 2: null };
         function pillarMat(cyl) {
             return new THREE.ShaderMaterial({
-                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, cyl: { value: cyl ? 1 : 0 } },
-                vertexShader: 'attribute vec3 tpl; attribute vec3 nrm; varying vec3 vT; varying vec3 vP; varying vec3 vN;\n'
-                    + 'void main() { vT = tpl; vP = position; vN = nrm; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-                fragmentShader: 'uniform vec3 camPos; uniform float pat; uniform float cyl; varying vec3 vT; varying vec3 vP; varying vec3 vN;\n' + BALL_GLSL
-                    + 'float lineAt(float x, float k) {   /* x（0〜1 で 1 周）に k 本の線。継ぎ目でも太さがそろうように、半周ずらした方の幅も見る */\n'
-                    + '  float u = x * k, u2 = fract(x + 0.5) * k, d = abs(fract(u + 0.5) - 0.5), fw = max(min(fwidth(u), fwidth(u2)), 1e-4);\n'
-                    + '  return (1.0 - smoothstep(0.6 * fw, 1.6 * fw, d)) * (1.0 - smoothstep(0.15, 0.4, fw)); }\n'
-                    + 'vec3 fusenCol(float s) { if (s < 0.5) return vec3(0.88, 0.18, 0.24); if (s < 1.5) return vec3(0.98, 0.8, 0.2); if (s < 2.5) return vec3(0.2, 0.42, 0.86);\n'
-                    + '  if (s < 3.5) return vec3(0.22, 0.66, 0.38); if (s < 4.5) return vec3(0.58, 0.36, 0.78); return vec3(0.97, 0.96, 0.92); }\n'
+                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, cyl: { value: cyl ? 1 : 0 }, shp: { value: 0 } },   // shp＝どの見本の仲間か（0 球柱・円柱、1 デュオシリンダー、2 タイガー・ドーナツ、3 超球・球）＝「形にぴったり」の塗り分け
+                vertexShader: 'attribute vec3 tpl; attribute vec3 nrm; attribute float aw; varying vec3 vT; varying vec3 vP; varying vec3 vN; varying float vW;\n'
+                    + 'void main() { vT = tpl; vP = position; vN = nrm; vW = aw; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+                fragmentShader: 'uniform vec3 camPos; uniform float pat; uniform float cyl; uniform float shp; varying vec3 vT; varying vec3 vP; varying vec3 vN; varying float vW;\n' + BALL_GLSL + PIL_PAT_GLSL
                     + 'void main() {\n'
                     + '  vec3 t = vT; bool C = cyl > 0.5, cap = C && abs(t.z) > 0.999;   /* 円柱：t＝(x/r, y/r, z)、ふたは |z|＝1。球：t＝単位球の点（上下は y） */\n'
                     + '  float az = (C ? atan(t.y, t.x) : atan(t.z, t.x)) / 6.2831853 + 0.5, rho = length(t.xy);   /* 回りの角（0〜1）、円柱のふたの中心からの距離 */\n'
                     + '  float lat = C ? (cap ? rho : t.z * 0.5 + 0.5) : asin(clamp(t.y, -1.0, 1.0)) / 3.1415927 + 0.5;   /* 球は緯度、円柱は 横の面なら z・ふたなら半径 */\n'
                     + '  vec3 n = normalize(vN), vd = normalize(camPos - vP); float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
                     + '  vec3 col;\n'
-                    + '  if (pat < 2.5 && pat != 2.0) {   /* レインボー（＋経度線） */\n'
+                    + '  if (pat > 3.5) {   /* 形にぴったり */\n'
+                    + '    if (shp < 0.5) { col = band(clamp((C ? t.z : vW) * 0.5 + 0.5, 0.0, 1.0)) * sh; col = mix(col, vec3(1.0), 0.35 * lineAt(az, 12.0)); }   /* 球柱・円柱：のばした向き（w／z）に七色＝積んだ順 */\n'
+                    + '    else if (shp < 1.5) { col = (cap ? vec3(0.45, 0.72, 1.0) : vec3(1.0, 0.52, 0.45)) * sh; col = mix(col, vec3(0.1, 0.12, 0.25), 0.55 * max(lineAt(az, 12.0), lineAt(lat, cap ? 3.0 : 6.0))); }   /* デュオシリンダーの仲間の円柱：横＝ドーナツ A のさんご色、ふた＝ドーナツ B の空色 */\n'
+                    + '    else if (shp < 2.5) { float ck = mod(floor(az * 12.0) + floor(lat * 8.0), 2.0); col = hsv3(az) * (ck > 0.5 ? 1.0 : 0.72) * sh; }   /* ドーナツ：回りに虹、管のまわりと合わせて市松 */\n'
+                    + '    else { col = hsv3(az) * (0.55 + 0.45 * (t.y * 0.5 + 0.5)) * sh; col = mix(col, vec3(1.0), 0.4 * lineAt(lat, 6.0)); }   /* 球：回りに虹、上ほど明るく */\n'
+                    + '  } else if (pat < 2.5 && pat != 2.0) {   /* レインボー（＋経度線） */\n'
                     + '    col = band((t.y + 1.0) * 0.5) * sh;\n'
                     + '    if (pat > 0.5) { float m = max(lineAt(az, 12.0), 0.55 * lineAt(lat, C && cap ? 3.0 : 6.0)); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); }\n'
                     + '  } else if (pat < 2.5) {   /* 経度線（白地の地球儀ふう）：経線 12 本・緯線は細く */\n'
@@ -6717,7 +6717,7 @@
                 extensions: { derivatives: true }, side: THREE.DoubleSide, transparent: true, depthTest: true, depthWrite: true   // 不透明だが、半透明の胞の面の後に描く（手前の面で色がくすまない＝見本がはっきり）
             });
         }
-        function pillarMesh(d, root) {   // d＝3：球柱（右）、2：円柱（左）。形の点の数・つなぎ方・模様の座標は最初に 1 回だけ
+        function pillarMesh(d, root) {   // d＝3：球柱（右）、2：円柱（左）、'tor'：ドーナツ（左）。形の点の数・つなぎ方・模様の座標は最初に 1 回だけ
             let M = pillar[d];
             if (M && M.mesh.parent === root) return M;
             if (M && M.mesh.parent) M.mesh.parent.remove(M.mesh);
@@ -6730,6 +6730,13 @@
                     for (let r = 0; r < PILLAR_RING; r++) for (let s = 0; s < PILLAR_SEG; s++) { const a = i * NV + r * (PILLAR_SEG + 1) + s, b = a + PILLAR_SEG + 1; I.push(a, b, a + 1, a + 1, b, b + 1); }
                 }
                 nSide = PILLAR_NW * (PILLAR_CS + 1); for (let k = 0; k < nSide * 3; k++) T.push(0);
+            } else if (d === 'ball2') {   // 球（超球の 3次元の仲間）：模様の座標＝単位球の点（上下は y）
+                for (let r = 0; r <= PILLAR_RING; r++) { const th = Math.PI * r / PILLAR_RING; for (let s = 0; s <= PILLAR_SEG; s++) { const ph = 2 * Math.PI * s / PILLAR_SEG; T.push(Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph)); } }
+                for (let r = 0; r < PILLAR_RING; r++) for (let s = 0; s < PILLAR_SEG; s++) { const a = r * (PILLAR_SEG + 1) + s, b = a + PILLAR_SEG + 1; I.push(a, b, a + 1, a + 1, b, b + 1); }
+            } else if (d === 'tor') {   // ドーナツ：模様の座標＝(cos θ, sin θ, 管のまわりの角を −0.998〜0.998 に)＝円柱の横の面と同じ塗り方（ふたは無い）
+                const W = PILLAR_CSEG + 1, NP = 48;
+                for (let j = 0; j <= NP; j++) for (let s = 0; s <= PILLAR_CSEG; s++) { const th = 2 * Math.PI * s / PILLAR_CSEG; T.push(Math.cos(th), Math.sin(th), -0.998 + 1.996 * j / NP); }
+                for (let j = 0; j < NP; j++) for (let s = 0; s < PILLAR_CSEG; s++) { const a = j * W + s, b = a + W; I.push(a, b, a + 1, a + 1, b, b + 1); }
             } else {
                 const W = PILLAR_CSEG + 1;
                 for (let j = 0; j <= PILLAR_NZ; j++) for (let s = 0; s <= PILLAR_CSEG; s++) { const th = 2 * Math.PI * s / PILLAR_CSEG; T.push(Math.cos(th), Math.sin(th), -1 + 2 * j / PILLAR_NZ); }   // 横の面
@@ -6742,9 +6749,9 @@
             }
             const g = new THREE.BufferGeometry(), n = T.length / 3;
             const dyn = k => { const a = new THREE.BufferAttribute(new Float32Array(n * k), k); a.setUsage(THREE.DynamicDrawUsage); return a; };
-            g.setAttribute('position', dyn(3)); g.setAttribute('nrm', dyn(3)); const tp = dyn(1 * 3); tp.array.set(T); g.setAttribute('tpl', tp);
+            g.setAttribute('position', dyn(3)); g.setAttribute('nrm', dyn(3)); g.setAttribute('aw', dyn(1));   /* aw＝球柱の段の w（−1〜+1。「形にぴったり」の七色） */ const tp = dyn(1 * 3); tp.array.set(T); g.setAttribute('tpl', tp);
             const ix = new THREE.BufferAttribute(new Uint32Array(I.length + (d === 3 ? (PILLAR_NW - 1) * PILLAR_CS * 6 : 0)), 1); ix.array.set(I); ix.setUsage(THREE.DynamicDrawUsage); g.setIndex(ix);
-            const mesh = new THREE.Mesh(g, pillarMat(d === 2)); mesh.frustumCulled = false; mesh.renderOrder = 996; root.add(mesh);
+            const mesh = new THREE.Mesh(g, pillarMat(d !== 3 && d !== 'ball2')); mesh.frustumCulled = false; mesh.renderOrder = 996; root.add(mesh);
             return (pillar[d] = { mesh, n, nFix: I.length, sideV: n - nSide });
         }
         function leftPtMaker() {   // 左の立方体の写し方（updateZSlice の pt と同じ手順：X-W・Y-W を z で、Z-W の擬似の歪み、3D の回転）
@@ -6765,16 +6772,19 @@
         //   f₁(s)＝x²＋y²−r²、f₂(s)＝z²＋w²−r²（どちらも s の 2 次式）。g＝min_s max(f₁, f₂) ≤ 0 なら中（凸なので 2 次式の頂点と交点だけ調べればよい）。
         //   当たった点の 4次元の座標（g の最小の s）で模様：2 つの円の角 θ₁（x-y）・θ₂（z-w）。x²＋y²＝r² の面（円 × 円板）と z²＋w²＝r² の面（円板 × 円）の 2 つの「中身の詰まったドーナツ」が表面
         let pillarShape = 'sph'; try { pillarShape = localStorage.getItem('hypercubePillarShape') || 'sph'; } catch (_) {}
-        const PILLAR_SHAPES = [['sph', '球柱（玉 × w）'], ['duo', 'デュオシリンダー（円 × 円）']];
+        const PILLAR_SHAPES = [['sph', '球柱（玉 × w）'], ['duo', 'デュオシリンダー（円 × 円）'], ['tiger', 'タイガー（4次元のドーナツ）'], ['hs', '超球（4次元の球）']];
+        const PIL_PAT_GLSL = ''   // 見本の模様の共通：線・紙風船の色・虹色（0〜1 で 1 周）
+            + 'vec3 hsv3(float h) { return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0) * 0.8 + 0.15; }\n'
+            + 'float lineAt(float x, float k) { float u = x * k, u2 = fract(x + 0.5) * k, d = abs(fract(u + 0.5) - 0.5), fw = max(min(fwidth(u), fwidth(u2)), 1e-4); return (1.0 - smoothstep(0.6 * fw, 1.6 * fw, d)) * (1.0 - smoothstep(0.15, 0.4, fw)); }\n'
+            + 'vec3 fusenCol(float s) { if (s < 0.5) return vec3(0.88, 0.18, 0.24); if (s < 1.5) return vec3(0.98, 0.8, 0.2); if (s < 2.5) return vec3(0.2, 0.42, 0.86);\n'
+            + '  if (s < 3.5) return vec3(0.22, 0.66, 0.38); if (s < 4.5) return vec3(0.58, 0.36, 0.78); return vec3(0.97, 0.96, 0.92); }\n';
+        const PIL_GLSL = PIL_PAT_GLSL   // 光線の行進で描く見本の共通：模様＋3D の点に写る 4次元の直線
+            + 'void lineOf(vec3 X, out vec4 A, out vec4 B) { vec3 x = X / uScl; A = (RT * vec4(x, 0.0)) * uK; B = (RT * vec4(-(1.0 - uBl) / uD * x, 1.0)) * uK; }   /* 3D の点 X に写る 4次元の直線 A＋sB（形の座標） */\n';
         function duoMat() {
             return new THREE.ShaderMaterial({
                 uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uR: { value: 1 }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 } },
                 vertexShader: 'uniform float bnd; varying vec3 vP; void main() { vP = position * bnd; gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
-                fragmentShader: 'uniform mat4 projectionMatrix; uniform mat4 modelViewMatrix; uniform vec3 camPos; uniform float pat; uniform mat4 RT; uniform vec4 uK; uniform float uR; uniform float uD; uniform float uBl; uniform float uScl; uniform float bnd; varying vec3 vP;\n' + BALL_GLSL
-                    + 'float lineAt(float x, float k) { float u = x * k, u2 = fract(x + 0.5) * k, d = abs(fract(u + 0.5) - 0.5), fw = max(min(fwidth(u), fwidth(u2)), 1e-4); return (1.0 - smoothstep(0.6 * fw, 1.6 * fw, d)) * (1.0 - smoothstep(0.15, 0.4, fw)); }\n'
-                    + 'vec3 fusenCol(float s) { if (s < 0.5) return vec3(0.88, 0.18, 0.24); if (s < 1.5) return vec3(0.98, 0.8, 0.2); if (s < 2.5) return vec3(0.2, 0.42, 0.86);\n'
-                    + '  if (s < 3.5) return vec3(0.22, 0.66, 0.38); if (s < 4.5) return vec3(0.58, 0.36, 0.78); return vec3(0.97, 0.96, 0.92); }\n'
-                    + 'void lineOf(vec3 X, out vec4 A, out vec4 B) { vec3 x = X / uScl; A = (RT * vec4(x, 0.0)) * uK; B = (RT * vec4(-(1.0 - uBl) / uD * x, 1.0)) * uK; }   /* 3D の点 X に写る 4次元の直線 A＋sB（形の座標） */\n'
+                fragmentShader: 'uniform mat4 projectionMatrix; uniform mat4 modelViewMatrix; uniform vec3 camPos; uniform float pat; uniform mat4 RT; uniform vec4 uK; uniform float uR; uniform float uD; uniform float uBl; uniform float uScl; uniform float bnd; varying vec3 vP;\n' + BALL_GLSL + PIL_GLSL
                     + 'float fq(vec3 c, float s) { return (c.x * s + c.y) * s + c.z; }\n'
                     + 'float gAt(vec3 X, out float sBest) {   /* min_s max(f1, f2)：負なら中 */\n'
                     + '  vec4 A, B; lineOf(X, A, B); float r2 = uR * uR;\n'
@@ -6804,7 +6814,8 @@
                     + '  float r1 = length(p4.xy) / uR, r2 = length(p4.zw) / uR; bool cap = r1 < r2;   /* どちらのドーナツの上か：x²＋y²＝r² の方（r1≈1）は 円柱の横の面、z²＋w²＝r² の方は円柱のふたにあたる（xy の円板） */\n'
                     + '  float az = atan(p4.y, p4.x) / 6.2831853 + 0.5, az2 = atan(p4.w, p4.z) / 6.2831853 + 0.5;\n'
                     + '  vec3 col;\n'
-                    + '  if (pat < 2.5 && pat != 2.0) { col = band(clamp(p4.y / uR * 0.5 + 0.5, 0.0, 1.0)) * sh;\n'
+                    + '  if (pat > 3.5) { col = (cap ? vec3(0.45, 0.72, 1.0) : vec3(1.0, 0.52, 0.45)) * sh; col = mix(col, vec3(0.1, 0.12, 0.25), 0.55 * max(lineAt(az, 12.0), lineAt(az2, 12.0))); }   /* 形にぴったり：2 つのドーナツを色分け（A＝x²＋y²＝r² さんご色、B＝z²＋w²＝r² 空色）＋2 つの円の網目 */\n'
+                    + '  else if (pat < 2.5 && pat != 2.0) { col = band(clamp(p4.y / uR * 0.5 + 0.5, 0.0, 1.0)) * sh;\n'
                     + '    if (pat > 0.5) { float m = max(max(lineAt(az, 12.0), lineAt(az2, 12.0)), cap ? 0.55 * lineAt(r1, 3.0) : 0.0); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); } }\n'
                     + '  else if (pat < 2.5) { col = mix(vec3(0.96, 0.97, 1.0), vec3(0.82, 0.88, 0.98), 0.5 - 0.5 * p4.y / uR) * sh;\n'
                     + '    float m = max(max(lineAt(az, 12.0), lineAt(az2, 12.0)), cap ? 0.5 * lineAt(r1, 3.0) : 0.0); col = mix(col, vec3(0.16, 0.28, 0.62), 0.85 * m); }\n'
@@ -6818,6 +6829,106 @@
                 extensions: { derivatives: true, fragDepth: true }, side: THREE.BackSide, transparent: true, depthTest: true, depthWrite: true
             });
         }
+        // タイガー：(√(x²＋y²) − R₁)² ＋ (√(z²＋w²) − R₂)² ≤ r²。平らなトーラス（円 × 円の面）を太くした 4次元のドーナツ（2 つの穴の両方に輪を通せる）。表面は 円 × 円 × 円（3 つの角 θ₁・θ₂・φ）。
+        //   凸ではないので、光線の点ごとに「写る 4次元の直線が芯（ρ₁＝R₁・ρ₂＝R₂ の平らなトーラス）にどこまで近づくか」を いくつかの出発点からガウス・ニュートン法で探し（F(s) の最小）、
+        //   その近さ √F − r だけ光線を進める（球を進める方法）。進む量は 直線が動く速さ（遠近の倍率）で割って安全に
+        const TIGER_R1 = 0.55, TIGER_R2 = 0.55, TIGER_r = 0.26;   // 2 つの円の半径・太さ（立方体の半分の辺を 1 として）
+        function tigerMat() {
+            return new THREE.ShaderMaterial({
+                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uR1: { value: 0.5 }, uR2: { value: 0.5 }, uRt: { value: 0.2 }, uSb: { value: 1 }, uKm: { value: 0.5 }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 } },
+                vertexShader: 'uniform float bnd; varying vec3 vP; void main() { vP = position * bnd; gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
+                fragmentShader: 'uniform mat4 projectionMatrix; uniform mat4 modelViewMatrix; uniform vec3 camPos; uniform float pat; uniform mat4 RT; uniform vec4 uK; uniform float uR1; uniform float uR2; uniform float uRt; uniform float uSb; uniform float uKm; uniform float uD; uniform float uBl; uniform float uScl; uniform float bnd; varying vec3 vP;\n' + BALL_GLSL + PIL_GLSL
+                    + 'float tF(vec4 A, vec4 B, float s) { vec4 p = A + s * B; float a = length(p.xy) - uR1, b = length(p.zw) - uR2; return a * a + b * b; }\n'
+                    + 'float tRef(vec4 A, vec4 B, float s) { for (int i = 0; i < 6; i++) { vec4 p = A + s * B; float l1 = max(length(p.xy), 1e-6), l2 = max(length(p.zw), 1e-6), a = l1 - uR1, b = l2 - uR2, da = dot(p.xy, B.xy) / l1, db = dot(p.zw, B.zw) / l2;\n'
+                    + '  s = clamp(s - (a * da + b * db) / (da * da + db * db + 1e-6), -1.5 * uSb, 1.5 * uSb); } return s; }   /* ガウス・ニュートン法（F＝a²＋b²、a・b＝2 つの円からのずれ。1 歩 1 回の計算で軽い） */\n'
+                    + 'void tTry(vec4 A, vec4 B, float s0, inout float best, inout float sb) { float s = tRef(A, B, s0), f = tF(A, B, s); if (f < best) { best = f; sb = s; } }\n'
+                    + 'float tMin(vec3 X, out float sb) {   /* 直線が芯にいちばん近づく所（出発点：s＝0、2 つの面それぞれの いちばん軸に近い所、ρ₁＝R₁・ρ₂＝R₂ を横切る所） */\n'
+                    + '  vec4 A, B; lineOf(X, A, B); float best = 1e9; sb = 0.0;\n'
+                    + '  tTry(A, B, 0.0, best, sb);\n'
+                    + '  float a1 = dot(B.xy, B.xy), b1 = dot(A.xy, B.xy), a2 = dot(B.zw, B.zw), b2 = dot(A.zw, B.zw);\n'
+                    + '  if (a1 > 1e-9) { float v = -b1 / a1; tTry(A, B, v, best, sb); float D = b1 * b1 - a1 * (dot(A.xy, A.xy) - uR1 * uR1); if (D > 0.0) { tTry(A, B, v - sqrt(D) / a1, best, sb); tTry(A, B, v + sqrt(D) / a1, best, sb); } }\n'
+                    + '  if (a2 > 1e-9) { float v = -b2 / a2; tTry(A, B, v, best, sb); float D = b2 * b2 - a2 * (dot(A.zw, A.zw) - uR2 * uR2); if (D > 0.0) { tTry(A, B, v - sqrt(D) / a2, best, sb); tTry(A, B, v + sqrt(D) / a2, best, sb); } }\n'
+                    + '  return best; }\n'
+                    + 'float tG(vec3 X) { float s; return sqrt(tMin(X, s)) - uRt; }\n'
+                    + 'void main() {\n'
+                    + '  vec3 ro = camPos, rd = normalize(vP - camPos);\n'
+                    + '  float bb = dot(ro, rd), cc = dot(ro, ro) - bnd * bnd, h = bb * bb - cc; if (h < 0.0) discard; h = sqrt(h);\n'
+                    + '  float t0 = max(-bb - h, 0.0), t1 = -bb + h; if (t1 <= t0) discard;\n'
+                    + '  float t = t0, tp = t0, sB; bool hit = false;\n'
+                    + '  for (int i = 0; i < 140; i++) { float d = tG(ro + rd * t); if (d <= 0.0) { hit = true; break; } tp = t; t += max(d * uKm, bnd * 1.5e-3); if (t > t1) break; }\n'
+                    + '  if (!hit) discard;\n'
+                    + '  float ta = tp, tb = t; for (int i = 0; i < 10; i++) { float tm = 0.5 * (ta + tb); if (tG(ro + rd * tm) <= 0.0) tb = tm; else ta = tm; }\n'
+                    + '  vec3 P = ro + rd * tb; tMin(P, sB); vec4 A, B; lineOf(P, A, B); vec4 p4 = A + sB * B;\n'
+                    + '  float e = bnd * 1.5e-3; vec3 n = normalize(vec3(tG(P + vec3(e, 0.0, 0.0)) - tG(P - vec3(e, 0.0, 0.0)), tG(P + vec3(0.0, e, 0.0)) - tG(P - vec3(0.0, e, 0.0)), tG(P + vec3(0.0, 0.0, e)) - tG(P - vec3(0.0, 0.0, e))));\n'
+                    + '  vec3 vd = -rd; float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
+                    + '  float az = atan(p4.y, p4.x) / 6.2831853 + 0.5, az2 = atan(p4.w, p4.z) / 6.2831853 + 0.5, ph = atan(length(p4.zw) - uR2, length(p4.xy) - uR1) / 6.2831853 + 0.5;   /* 3 つの角：x-y の円・z-w の円・管のまわり */\n'
+                    + '  vec3 col;\n'
+                    + '  if (pat > 3.5) { float ck = mod(floor(az2 * 12.0) + floor(ph * 8.0), 2.0); col = hsv3(az) * (ck > 0.5 ? 1.0 : 0.7) * sh; }   /* 形にぴったり：x-y の円に虹、z-w の円と管のまわりで市松（3 つの角が全部見える） */\n'
+                    + '  else if (pat < 2.5 && pat != 2.0) { col = band(clamp(p4.y / (uR1 + uRt) * 0.5 + 0.5, 0.0, 1.0)) * sh;\n'
+                    + '    if (pat > 0.5) { float m = max(max(lineAt(az, 12.0), lineAt(az2, 12.0)), 0.6 * lineAt(ph, 8.0)); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); } }\n'
+                    + '  else if (pat < 2.5) { col = mix(vec3(0.96, 0.97, 1.0), vec3(0.82, 0.88, 0.98), 0.5 - 0.5 * p4.y / (uR1 + uRt)) * sh;\n'
+                    + '    float m = max(max(lineAt(az, 12.0), lineAt(az2, 12.0)), 0.6 * lineAt(ph, 8.0)); col = mix(col, vec3(0.16, 0.28, 0.62), 0.85 * m); }\n'
+                    + '  else { col = fusenCol(floor(az * 6.0)); col = mix(col, vec3(1.0), 0.6 * lineAt(az, 6.0)); col = mix(col, vec3(0.97, 0.96, 0.92), 0.55 * lineAt(ph, 4.0)); col *= 1.0 - 0.07 * lineAt(az2, 16.0);   /* 紙風船：x-y の円に 6 色、管のまわりに白い帯、z-w の円に折り目 */\n'
+                    + '    vec3 L = normalize(vec3(-0.4, 0.8, 0.45)); float spc = pow(max(dot(reflect(rd, n * sign(f)), L), 0.0), 24.0); col = col * sh + spc * 0.18; }\n'
+                    + '  vec4 cp = projectionMatrix * modelViewMatrix * vec4(P, 1.0); gl_FragDepthEXT = clamp(0.5 * cp.z / cp.w + 0.5, 0.0, 1.0);\n'
+                    + '  gl_FragColor = vec4(col, 1.0);\n'
+                    + '}',
+                extensions: { derivatives: true, fragDepth: true }, side: THREE.BackSide, transparent: true, depthTest: true, depthWrite: true
+            });
+        }
+        // 超球（4次元の球）：x²＋y²＋z²＋w² ≤ r²。どの向きから見ても外形は球のまま。見えている表面は、そのつど 3次元の球面（w の絡む回転で、どの「赤道」が表に出るかが変わる）＝形は同じで模様が流れる。
+        //   直線 A＋sB と玉：min_s |A＋sB|² − r² ＝ |A|² − (A·B)²／|B|² − r²（凸。デュオシリンダーと同じ光線の行進）。
+        //   「形にぴったり」はホップ・ファイブレーション：(x＋iy, z＋iw) を球面の点 (2Re(z₁z̄₂), 2Im(z₁z̄₂), |z₁|²−|z₂|²) へ写して その点で色分け＝同じ色の所は 1 本の大円（ホップの円）
+        function hsMat() {
+            return new THREE.ShaderMaterial({
+                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uR: { value: 1 }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 } },
+                vertexShader: 'uniform float bnd; varying vec3 vP; void main() { vP = position * bnd; gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
+                fragmentShader: 'uniform mat4 projectionMatrix; uniform mat4 modelViewMatrix; uniform vec3 camPos; uniform float pat; uniform mat4 RT; uniform vec4 uK; uniform float uR; uniform float uD; uniform float uBl; uniform float uScl; uniform float bnd; varying vec3 vP;\n' + BALL_GLSL + PIL_GLSL
+                    + 'float gAt(vec3 X, out float sB) { vec4 A, B; lineOf(X, A, B); float bb = max(dot(B, B), 1e-9); sB = -dot(A, B) / bb; return dot(A, A) - dot(A, B) * dot(A, B) / bb - uR * uR; }\n'
+                    + 'void main() {\n'
+                    + '  vec3 ro = camPos, rd = normalize(vP - camPos);\n'
+                    + '  float bb = dot(ro, rd), cc = dot(ro, ro) - bnd * bnd, h = bb * bb - cc; if (h < 0.0) discard; h = sqrt(h);\n'
+                    + '  float t0 = max(-bb - h, 0.0), t1 = -bb + h; if (t1 <= t0) discard;\n'
+                    + '  float dt = (t1 - t0) / 96.0, t = t0, sB; bool hit = false;\n'
+                    + '  for (int i = 0; i < 96; i++) { t = t0 + dt * (float(i) + 0.5); if (gAt(ro + rd * t, sB) <= 0.0) { hit = true; break; } }\n'
+                    + '  if (!hit) discard;\n'
+                    + '  float ta = t - dt, tb = t; for (int i = 0; i < 14; i++) { float tm = 0.5 * (ta + tb); if (gAt(ro + rd * tm, sB) <= 0.0) tb = tm; else ta = tm; }\n'
+                    + '  vec3 P = ro + rd * tb; gAt(P, sB); vec4 A, B; lineOf(P, A, B); vec4 p = normalize(A + sB * B);   /* 当たった 4次元の点（単位の超球面の上） */\n'
+                    + '  float e = bnd * 2e-3, s_; vec3 n = normalize(vec3(gAt(P + vec3(e, 0.0, 0.0), s_) - gAt(P - vec3(e, 0.0, 0.0), s_), gAt(P + vec3(0.0, e, 0.0), s_) - gAt(P - vec3(0.0, e, 0.0), s_), gAt(P + vec3(0.0, 0.0, e), s_) - gAt(P - vec3(0.0, 0.0, e), s_)));\n'
+                    + '  vec3 vd = -rd; float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
+                    + '  float az = atan(p.y, p.x) / 6.2831853 + 0.5, az2 = atan(p.w, p.z) / 6.2831853 + 0.5, lat = asin(clamp(p.y, -1.0, 1.0)) / 3.1415927 + 0.5;\n'
+                    + '  vec3 col;\n'
+                    + '  if (pat > 3.5) {   /* 形にぴったり：ホップ・ファイブレーション（色＝球面の上の経度、明るさ＝緯度。同じ色の筋が 1 本の大円） */\n'
+                    + '    vec3 hb = vec3(2.0 * (p.x * p.z + p.y * p.w), 2.0 * (p.y * p.z - p.x * p.w), dot(p.xy, p.xy) - dot(p.zw, p.zw));\n'
+                    + '    col = hsv3(atan(hb.y, hb.x) / 6.2831853 + 0.5) * (0.45 + 0.55 * (hb.z * 0.5 + 0.5)) * sh; col = mix(col, vec3(1.0), 0.3 * lineAt(acos(clamp(hb.z, -1.0, 1.0)) / 3.1415927, 6.0)); }\n'
+                    + '  else if (pat < 2.5 && pat != 2.0) { col = band(p.y * 0.5 + 0.5) * sh;\n'
+                    + '    if (pat > 0.5) { float m = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); } }\n'
+                    + '  else if (pat < 2.5) { col = mix(vec3(0.96, 0.97, 1.0), vec3(0.82, 0.88, 0.98), 0.5 - 0.5 * p.y) * sh; float m = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = mix(col, vec3(0.16, 0.28, 0.62), 0.85 * m); }\n'
+                    + '  else { col = fusenCol(floor(az * 6.0)); col = mix(col, vec3(1.0), 0.6 * lineAt(az, 6.0)); col *= 1.0 - 0.07 * lineAt(az2, 16.0);\n'
+                    + '    vec3 L = normalize(vec3(-0.4, 0.8, 0.45)); float spc = pow(max(dot(reflect(rd, n * sign(f)), L), 0.0), 24.0); col = col * sh + spc * 0.18; }\n'
+                    + '  vec4 cp = projectionMatrix * modelViewMatrix * vec4(P, 1.0); gl_FragDepthEXT = clamp(0.5 * cp.z / cp.w + 0.5, 0.0, 1.0);\n'
+                    + '  gl_FragColor = vec4(col, 1.0);\n'
+                    + '}',
+                extensions: { derivatives: true, fragDepth: true }, side: THREE.BackSide, transparent: true, depthTest: true, depthWrite: true
+            });
+        }
+        function rmMesh(key, root, mk) {   // 光線の行進で描く形の入れ物（外の箱の裏の面）
+            let M = pillar[key];
+            if (M && M.mesh.parent === root) return M;
+            if (M && M.mesh.parent) M.mesh.parent.remove(M.mesh);
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), mk()); mesh.frustumCulled = false; mesh.renderOrder = 996; root.add(mesh);
+            return (pillar[key] = { mesh });
+        }
+        function rmUniforms(U, rb, pv, r3) {   // 4次元の回転（戻す行列）・写し方・外の球の半径（形が入る 4次元の半径 rb から）
+            const pj = ndProjector(4, projBlendNow()), rot = rot4List(linkAngleX, linkAngleY);
+            const E = [0, 1, 2, 3].map(c => NDGeom.rotatePoint([0, 1, 2, 3].map(k => k === c ? 1 : 0), rot));   // E[c]＝軸 c の行き先。戻す＝行が E[c]
+            U.RT.value.set(E[0][0], E[0][1], E[0][2], E[0][3], E[1][0], E[1][1], E[1][2], E[1][3], E[2][0], E[2][1], E[2][2], E[2][3], E[3][0], E[3][1], E[3][2], E[3][3]);
+            U.uK.value.set(1 / sqK('x'), 1 / sqK('y'), 1 / sqK('z'), 1);
+            const kMax = 1 + (1 / Math.max(0.05, 1 - rb / pj.D[3]) - 1) * (1 - pj.blend);
+            U.uD.value = pj.D[3]; U.uBl.value = pj.blend; U.uScl.value = pj.scale; U.bnd.value = rb * kMax * pj.scale * 1.03; U.pat.value = Math.max(0, pv);
+            r3.updateMatrixWorld(true); U.camPos.value.copy(r3.worldToLocal(camera3D.getWorldPosition(_pilV)));
+            return pj;
+        }
         function duoMesh(root) {
             let M = pillar.duo;
             if (M && M.mesh.parent === root) return M;
@@ -6829,27 +6940,34 @@
         function drawPillars() {
             const show = pillarOn && !dim5 && animationProgress >= 0.92, H = HALF_S, R = PILLAR_R * H, pv = PILLAR_PATS.findIndex(p => p[0] === pillarPat);
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D');
-            if (!show) { [2, 3, 'duo'].forEach(d => { if (pillar[d]) pillar[d].mesh.visible = false; }); return; }
+            const hideBut = (...keep) => [2, 3, 'duo', 'tiger', 'tor', 'hs', 'ball2'].forEach(d => { if (pillar[d] && !keep.includes(d)) pillar[d].mesh.visible = false; });
+            if (!show) { hideBut(); return; }
+            const sh = pillarShape === 'duo' || pillarShape === 'tiger' || pillarShape === 'hs' ? pillarShape : 3, left = pillarShape === 'tiger' ? 'tor' : pillarShape === 'hs' ? 'ball2' : 2;
+            hideBut(sh, left);   // 右の形と、左の 3次元の仲間（タイガー → ドーナツ、超球 → 球、ほか → 円柱）だけ
+            const shp = { sph: 0, duo: 1, tiger: 2, hs: 3 }[pillarShape] || 0;
             if (r3 && pillarShape === 'duo') {   // 右：デュオシリンダー（光線の行進）
-                if (pillar[3]) pillar[3].mesh.visible = false;
-                const M = duoMesh(r3), U = M.mesh.material.uniforms, pj = ndProjector(4, projBlendNow()), rot = rot4List(linkAngleX, linkAngleY);
-                const E = [0, 1, 2, 3].map(c => NDGeom.rotatePoint([0, 1, 2, 3].map(k => k === c ? 1 : 0), rot));   // E[c]＝軸 c の行き先。戻す＝行が E[c]
-                U.RT.value.set(E[0][0], E[0][1], E[0][2], E[0][3], E[1][0], E[1][1], E[1][2], E[1][3], E[2][0], E[2][1], E[2][2], E[2][3], E[3][0], E[3][1], E[3][2], E[3][3]);
-                U.uK.value.set(1 / sqK('x'), 1 / sqK('y'), 1 / sqK('z'), 1);
-                const kMax = 1 + (1 / Math.max(0.05, 1 - Math.SQRT2 * R / pj.D[3]) - 1) * (1 - pj.blend);
-                U.uR.value = R; U.uD.value = pj.D[3]; U.uBl.value = pj.blend; U.uScl.value = pj.scale; U.bnd.value = Math.SQRT2 * R * kMax * pj.scale * 1.03; U.pat.value = Math.max(0, pv);
-                r3.updateMatrixWorld(true); U.camPos.value.copy(r3.worldToLocal(camera3D.getWorldPosition(_pilV)));
+                const M = duoMesh(r3), U = M.mesh.material.uniforms;
+                rmUniforms(U, Math.SQRT2 * R, pv, r3); U.uR.value = R;
+                M.mesh.visible = true;
+            } else if (r3 && pillarShape === 'hs') {   // 右：超球（光線の行進）
+                const M = rmMesh('hs', r3, hsMat), U = M.mesh.material.uniforms;
+                rmUniforms(U, R, pv, r3); U.uR.value = R;
+                M.mesh.visible = true;
+            } else if (r3 && pillarShape === 'tiger') {   // 右：タイガー（光線の行進）
+                const M = rmMesh('tiger', r3, tigerMat), U = M.mesh.material.uniforms, R1 = TIGER_R1 * H, R2 = TIGER_R2 * H, rt = TIGER_r * H, rb = Math.hypot(R1 + rt, R2 + rt);
+                const pj = rmUniforms(U, rb, pv, r3);
+                U.uR1.value = R1; U.uR2.value = R2; U.uRt.value = rt; U.uSb.value = rb; U.uKm.value = 0.8 * pj.scale / (1 + (1 - pj.blend) * 1.5 * rb / pj.D[3]);   // 3D で δ 動くと直線は δ×（遠近の倍率）／scale まで動く
                 M.mesh.visible = true;
             } else if (r3) {   // 右：球柱（玉 × w）
-                if (pillar.duo) pillar.duo.mesh.visible = false;
                 const M = pillarMesh(3, r3), G = M.mesh.geometry, P = G.attributes.position.array, N = G.attributes.nrm.array, T = G.attributes.tpl.array;
                 const rot = rot4List(linkAngleX, linkAngleY), pj = ndProjector(4, projBlendNow()), E = [0, 1, 2, 3].map(c => NDGeom.rotatePoint([0, 1, 2, 3].map(k => k === c ? 1 : 0), rot));   // 4次元の回転を行列に（軸ごとの行き先）
                 const proj = (x, y, z, w, out, o) => { for (let k = 0; k < 4; k++) _pilQ[k] = E[0][k] * x + E[1][k] * y + E[2][k] * z + E[3][k] * w; pj.project(_pilQ, out, o, 0); };
                 const NV = (PILLAR_RING + 1) * (PILLAR_SEG + 1), kx = R * sqK('x'), ky = R * sqK('y'), kz = R * sqK('z'), ks = [kx, ky, kz];
                 const cen = w => { proj(0, 0, 0, w, _pilO, 0); return [_pilO[0], _pilO[1], _pilO[2]]; };
+                const AW = G.attributes.aw.array;
                 [-H, H].forEach((w, i) => {   // 両端の玉
                     const c = cen(w);
-                    for (let v = i * NV, e = v + NV; v < e; v++) { const o = v * 3; proj(T[o] * kx, T[o + 1] * ky, T[o + 2] * kz, w, P, o); N[o] = P[o] - c[0]; N[o + 1] = P[o + 1] - c[1]; N[o + 2] = P[o + 2] - c[2]; }   // 外向き（玉の真ん中から）
+                    for (let v = i * NV, e = v + NV; v < e; v++) { const o = v * 3; AW[v] = i ? 1 : -1; proj(T[o] * kx, T[o + 1] * ky, T[o + 2] * kz, w, P, o); N[o] = P[o] - c[0]; N[o + 1] = P[o + 1] - c[1]; N[o + 2] = P[o + 2] - c[2]; }   // 外向き（玉の真ん中から）
                 });
                 // 側面：段 w ごとに、写し方を真ん中のまわりで 1 次の近似（A＝玉の座標 → 3D、b＝w の向き、k＝大きさの伸び）。包絡線の円 n·m ＝ −k（m＝A⁻¹b）
                 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = a => Math.hypot(a[0], a[1], a[2]);
@@ -6868,18 +6986,33 @@
                     const e2 = cross(m, e1), q = Math.sqrt(1 - h * h);
                     for (let j = 0; j <= CS; j++) {
                         const th = 2 * Math.PI * j / CS, cs = Math.cos(th) * q, sn = Math.sin(th) * q, n = [h * m[0] + cs * e1[0] + sn * e2[0], h * m[1] + cs * e1[1] + sn * e2[1], h * m[2] + cs * e1[2] + sn * e2[2]], v = S0 + i * (CS + 1) + j, o = v * 3;
-                        T[o] = n[0]; T[o + 1] = n[1]; T[o + 2] = n[2];
+                        T[o] = n[0]; T[o + 1] = n[1]; T[o + 2] = n[2]; AW[v] = w / H;
                         proj(n[0] * kx, n[1] * ky, n[2] * kz, w, P, o); N[o] = P[o] - c[0]; N[o + 1] = P[o + 1] - c[1]; N[o + 2] = P[o + 2] - c[2];
                     }
                     if (prevOk) for (let j = 0; j < CS; j++) { const a = S0 + (i - 1) * (CS + 1) + j, bb = a + CS + 1; IX[ii++] = a; IX[ii++] = bb; IX[ii++] = a + 1; IX[ii++] = a + 1; IX[ii++] = bb; IX[ii++] = bb + 1; }
                     prevOk = true;
                 }
-                G.setDrawRange(0, ii); G.index.needsUpdate = true; G.attributes.tpl.needsUpdate = true;
+                G.setDrawRange(0, ii); G.index.needsUpdate = true; G.attributes.tpl.needsUpdate = G.attributes.aw.needsUpdate = true;
                 G.attributes.position.needsUpdate = G.attributes.nrm.needsUpdate = true;
-                const U = M.mesh.material.uniforms; U.pat.value = Math.max(0, pv); r3.updateMatrixWorld(true); U.camPos.value.copy(r3.worldToLocal(camera3D.getWorldPosition(_pilV)));
+                const U = M.mesh.material.uniforms; U.pat.value = Math.max(0, pv); U.shp.value = 0; r3.updateMatrixWorld(true); U.camPos.value.copy(r3.worldToLocal(camera3D.getWorldPosition(_pilV)));
                 M.mesh.visible = true;
             }
-            if (r2) {   // 左：円柱（円 × z）
+            if (r2 && pillarShape === 'hs') {   // 左：球（超球の 3次元の仲間）
+                const M = pillarMesh('ball2', r2), G = M.mesh.geometry, P = G.attributes.position.array, N = G.attributes.nrm.array, T = G.attributes.tpl.array, pt = leftPtMaker(), c = pt(0, 0, 0);
+                for (let v = 0; v < M.n; v++) { const o = v * 3, p = pt(T[o] * R, T[o + 1] * R, T[o + 2] * R); P[o] = p[0]; P[o + 1] = p[1]; P[o + 2] = p[2]; N[o] = p[0] - c[0]; N[o + 1] = p[1] - c[1]; N[o + 2] = p[2] - c[2]; }
+                G.attributes.position.needsUpdate = G.attributes.nrm.needsUpdate = true;
+                const U = M.mesh.material.uniforms; U.pat.value = Math.max(0, pv); U.shp.value = shp; r2.updateMatrixWorld(true); U.camPos.value.copy(r2.worldToLocal(camera2D.getWorldPosition(_pilV)));
+                M.mesh.visible = true;
+            } else if (r2 && pillarShape === 'tiger') {   // 左：ドーナツ（3次元のトーラス。x-y の円のまわりに、z の向きにも太さ）＝タイガーの 3次元の仲間
+                const M = pillarMesh('tor', r2), G = M.mesh.geometry, P = G.attributes.position.array, N = G.attributes.nrm.array, T = G.attributes.tpl.array, pt = leftPtMaker(), RR = TIGER_R1 * H, rt = TIGER_r * H;
+                for (let v = 0; v < M.n; v++) {
+                    const o = v * 3, ph = (T[o + 2] + 0.998) / 1.996 * 2 * Math.PI, rr = RR + rt * Math.cos(ph), p = pt(T[o] * rr, T[o + 1] * rr, rt * Math.sin(ph)), c = pt(T[o] * RR, T[o + 1] * RR, 0);   // 管の真ん中の円から外へ
+                    P[o] = p[0]; P[o + 1] = p[1]; P[o + 2] = p[2]; N[o] = p[0] - c[0]; N[o + 1] = p[1] - c[1]; N[o + 2] = p[2] - c[2];
+                }
+                G.attributes.position.needsUpdate = G.attributes.nrm.needsUpdate = true;
+                const U = M.mesh.material.uniforms; U.pat.value = Math.max(0, pv); U.shp.value = shp; r2.updateMatrixWorld(true); U.camPos.value.copy(r2.worldToLocal(camera2D.getWorldPosition(_pilV)));
+                M.mesh.visible = true;
+            } else if (r2) {   // 左：円柱（円 × z）
                 const M = pillarMesh(2, r2), G = M.mesh.geometry, P = G.attributes.position.array, N = G.attributes.nrm.array, T = G.attributes.tpl.array, pt = leftPtMaker();
                 const zA = pt(0, 0, -H), zB = pt(0, 0, H), ax = [zB[0] - zA[0], zB[1] - zA[1], zB[2] - zA[2]];
                 for (let v = 0; v < M.n; v++) {
@@ -6888,7 +7021,7 @@
                     if (cap) { const s = Math.sign(T[o + 2]); N[o] = ax[0] * s; N[o + 1] = ax[1] * s; N[o + 2] = ax[2] * s; } else { N[o] = p[0] - c[0]; N[o + 1] = p[1] - c[1]; N[o + 2] = p[2] - c[2]; }
                 }
                 G.attributes.position.needsUpdate = G.attributes.nrm.needsUpdate = true;
-                const U = M.mesh.material.uniforms; U.pat.value = Math.max(0, pv); r2.updateMatrixWorld(true); U.camPos.value.copy(r2.worldToLocal(camera2D.getWorldPosition(_pilV)));
+                const U = M.mesh.material.uniforms; U.pat.value = Math.max(0, pv); U.shp.value = shp; r2.updateMatrixWorld(true); U.camPos.value.copy(r2.worldToLocal(camera2D.getWorldPosition(_pilV)));
                 M.mesh.visible = true;
             }
         }
