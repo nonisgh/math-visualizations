@@ -4393,7 +4393,7 @@
         const dbStars = () => wDbStars === 4 ? DB_STARS4 : DB_STARS1;
         const DB4_LO = [0.95, 0.12, 0.06], DB4_HI = [1.0, 0.62, 0.12];
         let wDbFilm = false; try { wDbFilm = localStorage.getItem('hypercubeDbFilm') === '1'; } catch (_) {}   // ドラゴンボールの立方体：false＝枠（線）、true＝薄い膜（線なし、表面にうっすら色）
-        const DB_FILM = 1;   // 薄い膜の濃さ（立方体 1 個の面。実際の濃さは「表面の濃さ」（薄い＝0.2）で決まる。重なると少しずつ濃く）
+        const DB_FILM = 0.4;   // 薄い膜の濃さ（立方体 1 個の面。「表面の濃さ」（薄い＝0.2）と掛けた値＝薄いで 0.07 くらい。ユーザー「めっちゃ薄くていい」。重なると少しずつ濃く）
         const dbFilmOn = () => wSpecVol && wSpecPat === 'dball2' && wDbFilm;   // 四星球の枠のグラデーション：赤 → オレンジ
         const DBALL_R = 0.32, DBALL_STAR = 0.26;   // 一星球（玉）：ドラゴンボールの半径（立方体の 1 辺を 1 として）、星の大きさ（玉の半径に対して）
         const BALL_FLY = 0.3;   // 七色の枠＋玉：飛んでいる間の玉の濃さ（着くと 1）
