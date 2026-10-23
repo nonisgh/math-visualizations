@@ -6771,11 +6771,12 @@
                         const lo = yf(e0) < yf(e1) ? e0 : e1, hi = lo === e0 ? e1 : e0;
                         for (let m = 0; m < SPEC_K; m++) { const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K; pL(lerp3(vs[lo], vs[hi], f0), fm); pL(lerp3(vs[lo], vs[hi], f1), fm); }
                     });
+                    const filmA = DB_FILM * (0.5 + 0.5 * fa), pFm = (v, f) => back && bkW ? backPut(bkW, v, f, L * filmA) : pF(v, f, filmA / Math.max(fa, 0.05));   // 薄い膜：飛んでいる間（入る・出る）も膜を見せる（濃さ fa で薄めず、着いた時の半分くらい）
                     if (!noFace && dbFilmOn()) WS_QUADS.forEach(q => {   // 薄い膜：6 つの面にうっすら色（一星球はオレンジ、四星球は下 赤 → 上 オレンジ の帯）
                         const ys = q.map(yf);
-                        if (wDbStars !== 4 || ys.every(y => y === ys[0])) { const f = wDbStars === 4 ? ys[0] : -1; [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(i => pF(vs[i], f, DB_FILM)); return; }
+                        if (wDbStars !== 4 || ys.every(y => y === ys[0])) { const f = wDbStars === 4 ? ys[0] : -1; [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(i => pFm(vs[i], f)); return; }
                         const bot = q.filter(i => yf(i) === 0), top = bot.map(b => q.find(i => yf(i) === 1 && unitCubeVertices[i][0] === unitCubeVertices[b][0] && unitCubeVertices[i][2] === unitCubeVertices[b][2]));
-                        for (let m = 0; m < SPEC_K; m++) { const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K, A0 = lerp3(vs[bot[0]], vs[top[0]], f0), B0 = lerp3(vs[bot[1]], vs[top[1]], f0), B1 = lerp3(vs[bot[1]], vs[top[1]], f1), A1 = lerp3(vs[bot[0]], vs[top[0]], f1); [A0, B0, B1, A0, B1, A1].forEach(v => pF(v, fm, DB_FILM)); }
+                        for (let m = 0; m < SPEC_K; m++) { const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K, A0 = lerp3(vs[bot[0]], vs[top[0]], f0), B0 = lerp3(vs[bot[1]], vs[top[1]], f0), B1 = lerp3(vs[bot[1]], vs[top[1]], f1), A1 = lerp3(vs[bot[0]], vs[top[0]], f1); [A0, B0, B1, A0, B1, A1].forEach(v => pFm(v, fm)); }
                     });
                     if (!noFace && stS) solidPut(stS, vs, 1, (wSpecPat === 'ball' || wSpecPat === 'dball2') ? FS / Math.max(fa, 1e-3) * (BALL_FLY + (1 - BALL_FLY) * (fa - WPACK_FLY_FA) / (1 - WPACK_FLY_FA)) : FS);   // （立体）中身の詰まったかたまり。玉は飛んでいる間は薄く（BALL_FLY）見せて、着くと濃く＝着いた玉の筒が目立つ
                     else if (!noFace) WS_QUADS.forEach(q => {
@@ -6876,7 +6877,8 @@
                     const pF = (v, f, kk = 1) => { if (back && bkW) { backPut(bkW, v, f, L * kk); return; } if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r; FC[c4 + 1] = col.g; FC[c4 + 2] = col.b; FC[c4 + 3] = Math.min(1, FS * kk); fi += 3; };   // 突き当たりの層は別の入れ物へ（枠と同じ濃さ）
                     if (wPackRbStyle === 'ring' || wPackRbStyle === 'ball') ringQuadEmit(vs[0], vs[1], vs[2], vs[3], pL, pF, !noFace);   // 同心の七色（同心球でも正方形は同心円）
                     else if (wSpecPat === 'dball2' && wSpecVol) {   // 一星球（玉）：オレンジの枠、真ん中にオレンジの円と赤い星
-                        if (dbFilmOn()) { if (!noFace) { if (wDbStars !== 4) [0, 1, 2, 0, 2, 3].forEach(i => pF(vs[i], -1, DB_FILM)); else for (let m = 0; m < SPEC_K; m++) { const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K, A0 = lerp3(vs[0], vs[3], f0), B0 = lerp3(vs[1], vs[2], f0), B1 = lerp3(vs[1], vs[2], f1), A1 = lerp3(vs[0], vs[3], f1); [A0, B0, B1, A0, B1, A1].forEach(v => pF(v, fm, DB_FILM)); } } }   // 薄い膜：線なし、正方形にうっすら色
+                        const filmA = DB_FILM * (0.5 + 0.5 * fa), pFm = (v, f) => back && bkW ? backPut(bkW, v, f, L * filmA) : pF(v, f, filmA / Math.max(fa, 0.05));   // 薄い膜：飛んでいる間も見せる
+                        if (dbFilmOn()) { if (!noFace) { if (wDbStars !== 4) [0, 1, 2, 0, 2, 3].forEach(i => pFm(vs[i], -1)); else for (let m = 0; m < SPEC_K; m++) { const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K, A0 = lerp3(vs[0], vs[3], f0), B0 = lerp3(vs[1], vs[2], f0), B1 = lerp3(vs[1], vs[2], f1), A1 = lerp3(vs[0], vs[3], f1); [A0, B0, B1, A0, B1, A1].forEach(v => pFm(v, fm)); } } }   // 薄い膜：線なし、正方形にうっすら色
                         else if (wDbStars !== 4) [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { pL(vs[a], 0); pL(vs[b], 0); });
                         else if (wFrameCol !== 'up') { frameSlot = slot !== undefined ? slot : null; frameDepthVal = sqDepth(vs); frameEdgeEmit(vs, SQ_EDGES, sqPar, pL, sqView); }   // 四星球：枠は 赤 → オレンジ（枠の色の設定どおり）
                         else { pL(vs[0], 0); pL(vs[1], 0); pL(vs[3], 1); pL(vs[2], 1); for (let m = 0; m < SPEC_K; m++) { const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K; pL(lerp3(vs[0], vs[3], f0), fm); pL(lerp3(vs[0], vs[3], f1), fm); pL(lerp3(vs[1], vs[2], f0), fm); pL(lerp3(vs[1], vs[2], f1), fm); } }
