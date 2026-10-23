@@ -6759,12 +6759,89 @@
                 return [x, y, z];
             };
         }
+        // デュオシリンダー（円 × 円）：x²＋y² ≤ r² かつ z²＋w² ≤ r²。どの向きにも「のばした」と言えない 4次元の形（w の方向から見ると円柱、斜めからは見たことのない形）。
+        //   凸な形は写しても凸なので、画面の点ごとに光線を進めて「その 3D の点に写る 4次元の直線が形に当たるか」を調べて描く（光線の行進）。
+        //   3D の点 X に写る 4次元の点＝q(s)＝(X／scale·(1 − (1−blend)·s／D), s)（s＝回したあとの w。遠近と平行の間は近似）を回転の逆で戻した直線 A＋sB。
+        //   f₁(s)＝x²＋y²−r²、f₂(s)＝z²＋w²−r²（どちらも s の 2 次式）。g＝min_s max(f₁, f₂) ≤ 0 なら中（凸なので 2 次式の頂点と交点だけ調べればよい）。
+        //   当たった点の 4次元の座標（g の最小の s）で模様：2 つの円の角 θ₁（x-y）・θ₂（z-w）。x²＋y²＝r² の面（円 × 円板）と z²＋w²＝r² の面（円板 × 円）の 2 つの「中身の詰まったドーナツ」が表面
+        let pillarShape = 'sph'; try { pillarShape = localStorage.getItem('hypercubePillarShape') || 'sph'; } catch (_) {}
+        const PILLAR_SHAPES = [['sph', '球柱（玉 × w）'], ['duo', 'デュオシリンダー（円 × 円）']];
+        function duoMat() {
+            return new THREE.ShaderMaterial({
+                uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uR: { value: 1 }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 } },
+                vertexShader: 'uniform float bnd; varying vec3 vP; void main() { vP = position * bnd; gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
+                fragmentShader: 'uniform mat4 projectionMatrix; uniform mat4 modelViewMatrix; uniform vec3 camPos; uniform float pat; uniform mat4 RT; uniform vec4 uK; uniform float uR; uniform float uD; uniform float uBl; uniform float uScl; uniform float bnd; varying vec3 vP;\n' + BALL_GLSL
+                    + 'float lineAt(float x, float k) { float u = x * k, u2 = fract(x + 0.5) * k, d = abs(fract(u + 0.5) - 0.5), fw = max(min(fwidth(u), fwidth(u2)), 1e-4); return (1.0 - smoothstep(0.6 * fw, 1.6 * fw, d)) * (1.0 - smoothstep(0.15, 0.4, fw)); }\n'
+                    + 'vec3 fusenCol(float s) { if (s < 0.5) return vec3(0.88, 0.18, 0.24); if (s < 1.5) return vec3(0.98, 0.8, 0.2); if (s < 2.5) return vec3(0.2, 0.42, 0.86);\n'
+                    + '  if (s < 3.5) return vec3(0.22, 0.66, 0.38); if (s < 4.5) return vec3(0.58, 0.36, 0.78); return vec3(0.97, 0.96, 0.92); }\n'
+                    + 'void lineOf(vec3 X, out vec4 A, out vec4 B) { vec3 x = X / uScl; A = (RT * vec4(x, 0.0)) * uK; B = (RT * vec4(-(1.0 - uBl) / uD * x, 1.0)) * uK; }   /* 3D の点 X に写る 4次元の直線 A＋sB（形の座標） */\n'
+                    + 'float fq(vec3 c, float s) { return (c.x * s + c.y) * s + c.z; }\n'
+                    + 'float gAt(vec3 X, out float sBest) {   /* min_s max(f1, f2)：負なら中 */\n'
+                    + '  vec4 A, B; lineOf(X, A, B); float r2 = uR * uR;\n'
+                    + '  vec3 q1 = vec3(dot(B.xy, B.xy), 2.0 * dot(A.xy, B.xy), dot(A.xy, A.xy) - r2), q2 = vec3(dot(B.zw, B.zw), 2.0 * dot(A.zw, B.zw), dot(A.zw, A.zw) - r2);\n'
+                    + '  float c[4]; c[0] = -q1.y / (2.0 * max(q1.x, 1e-9)); c[1] = -q2.y / (2.0 * max(q2.x, 1e-9));\n'
+                    + '  vec3 d = q1 - q2; c[2] = c[0]; c[3] = c[1];\n'
+                    + '  if (abs(d.x) < 1e-9) { if (abs(d.y) > 1e-9) { c[2] = -d.z / d.y; c[3] = c[2]; } } else { float D = d.y * d.y - 4.0 * d.x * d.z; if (D >= 0.0) { float sq = sqrt(D); c[2] = (-d.y - sq) / (2.0 * d.x); c[3] = (-d.y + sq) / (2.0 * d.x); } }\n'
+                    + '  float g = 1e9; sBest = 0.0;\n'
+                    + '  for (int i = 0; i < 4; i++) { float v = max(fq(q1, c[i]), fq(q2, c[i])); if (v < g) { g = v; sBest = c[i]; } }\n'
+                    + '  return g; }\n'
+                    + 'vec2 ivOf(vec3 q) { if (q.x < 1e-9) return q.z <= 0.0 ? vec2(-1e9, 1e9) : vec2(1e9, -1e9); float D = q.y * q.y - 4.0 * q.x * q.z; if (D < 0.0) return vec2(1e9, -1e9); float sq = sqrt(D); return vec2((-q.y - sq), (-q.y + sq)) / (2.0 * q.x); }   /* 2 次式 ≤ 0 の s の範囲 */\n'
+                    + 'float sMid(vec3 X, float sFb) {   /* 中の点：直線が形を通る範囲（2 つの範囲の重なり）の真ん中＝となりの画素で模様が飛ばない（形の平らな所で接する点が 1 つに決まらない時も） */\n'
+                    + '  vec4 A, B; lineOf(X, A, B); float r2 = uR * uR;\n'
+                    + '  vec2 i1 = ivOf(vec3(dot(B.xy, B.xy), 2.0 * dot(A.xy, B.xy), dot(A.xy, A.xy) - r2)), i2 = ivOf(vec3(dot(B.zw, B.zw), 2.0 * dot(A.zw, B.zw), dot(A.zw, A.zw) - r2));\n'
+                    + '  float lo = max(i1.x, i2.x), hi = min(i1.y, i2.y); return lo <= hi ? 0.5 * (lo + hi) : sFb; }\n'
+                    + 'void main() {\n'
+                    + '  vec3 ro = camPos, rd = normalize(vP - camPos);\n'
+                    + '  float bb = dot(ro, rd), cc = dot(ro, ro) - bnd * bnd, h = bb * bb - cc; if (h < 0.0) discard; h = sqrt(h);\n'
+                    + '  float t0 = max(-bb - h, 0.0), t1 = -bb + h; if (t1 <= t0) discard;\n'
+                    + '  float dt = (t1 - t0) / 160.0, t = t0, sB; bool hit = false;\n'
+                    + '  for (int i = 0; i < 160; i++) { t = t0 + dt * (float(i) + 0.5); if (gAt(ro + rd * t, sB) <= 0.0) { hit = true; break; } }\n'
+                    + '  if (!hit) discard;\n'
+                    + '  float ta = t - dt, tb = t; for (int i = 0; i < 14; i++) { float tm = 0.5 * (ta + tb); if (gAt(ro + rd * tm, sB) <= 0.0) tb = tm; else ta = tm; }   /* 表面を細かく探す */\n'
+                    + '  vec3 P = ro + rd * tb; float g0 = gAt(P, sB); sB = sMid(P, sB); vec4 A, B; lineOf(P, A, B); vec4 p4 = A + sB * B;   /* 当たった 4次元の点（形の座標） */\n'
+                    + '  float e = bnd * 2e-3, s_; vec3 n = normalize(vec3(gAt(P + vec3(e, 0.0, 0.0), s_) - gAt(P - vec3(e, 0.0, 0.0), s_), gAt(P + vec3(0.0, e, 0.0), s_) - gAt(P - vec3(0.0, e, 0.0), s_), gAt(P + vec3(0.0, 0.0, e), s_) - gAt(P - vec3(0.0, 0.0, e), s_)));\n'
+                    + '  vec3 vd = -rd; float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
+                    + '  float r1 = length(p4.xy) / uR, r2 = length(p4.zw) / uR; bool cap = r1 < r2;   /* どちらのドーナツの上か：x²＋y²＝r² の方（r1≈1）は 円柱の横の面、z²＋w²＝r² の方は円柱のふたにあたる（xy の円板） */\n'
+                    + '  float az = atan(p4.y, p4.x) / 6.2831853 + 0.5, az2 = atan(p4.w, p4.z) / 6.2831853 + 0.5;\n'
+                    + '  vec3 col;\n'
+                    + '  if (pat < 2.5 && pat != 2.0) { col = band(clamp(p4.y / uR * 0.5 + 0.5, 0.0, 1.0)) * sh;\n'
+                    + '    if (pat > 0.5) { float m = max(max(lineAt(az, 12.0), lineAt(az2, 12.0)), cap ? 0.55 * lineAt(r1, 3.0) : 0.0); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); } }\n'
+                    + '  else if (pat < 2.5) { col = mix(vec3(0.96, 0.97, 1.0), vec3(0.82, 0.88, 0.98), 0.5 - 0.5 * p4.y / uR) * sh;\n'
+                    + '    float m = max(max(lineAt(az, 12.0), lineAt(az2, 12.0)), cap ? 0.5 * lineAt(r1, 3.0) : 0.0); col = mix(col, vec3(0.16, 0.28, 0.62), 0.85 * m); }\n'
+                    + '  else { bool top = cap && r1 < 0.32; col = top ? vec3(0.97, 0.96, 0.92) : fusenCol(floor(az * 6.0));\n'
+                    + '    float seam = top ? 0.0 : lineAt(az, 6.0), rim = cap ? 1.0 - smoothstep(0.0, 2.0 * fwidth(r1), abs(r1 - 0.32)) : 0.0;\n'
+                    + '    col = mix(col, vec3(1.0), 0.6 * seam); col = mix(col, vec3(0.55, 0.5, 0.45), 0.6 * rim); col *= 1.0 - 0.07 * lineAt(az2, 16.0);   /* 紙の折り目は z-w の円の向きに */\n'
+                    + '    vec3 L = normalize(vec3(-0.4, 0.8, 0.45)); float spc = pow(max(dot(reflect(rd, n * sign(f)), L), 0.0), 24.0); col = col * sh + spc * 0.18; }\n'
+                    + '  vec4 cp = projectionMatrix * modelViewMatrix * vec4(P, 1.0); gl_FragDepthEXT = clamp(0.5 * cp.z / cp.w + 0.5, 0.0, 1.0);   /* 本当の表面の奥行き（胞の線・面と正しく前後） */\n'
+                    + '  gl_FragColor = vec4(col, 1.0);\n'
+                    + '}',
+                extensions: { derivatives: true, fragDepth: true }, side: THREE.BackSide, transparent: true, depthTest: true, depthWrite: true
+            });
+        }
+        function duoMesh(root) {
+            let M = pillar.duo;
+            if (M && M.mesh.parent === root) return M;
+            if (M && M.mesh.parent) M.mesh.parent.remove(M.mesh);
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), duoMat()); mesh.frustumCulled = false; mesh.renderOrder = 996; root.add(mesh);   // 外の箱（裏の面）の中で光線を進める
+            return (pillar.duo = { mesh });
+        }
         const _pilQ = new Float64Array(4), _pilO = [0, 0, 0], _pilV = new THREE.Vector3();
         function drawPillars() {
             const show = pillarOn && !dim5 && animationProgress >= 0.92, H = HALF_S, R = PILLAR_R * H, pv = PILLAR_PATS.findIndex(p => p[0] === pillarPat);
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D');
-            if (!show) { [2, 3].forEach(d => { if (pillar[d]) pillar[d].mesh.visible = false; }); return; }
-            if (r3) {   // 右：球柱（玉 × w）
+            if (!show) { [2, 3, 'duo'].forEach(d => { if (pillar[d]) pillar[d].mesh.visible = false; }); return; }
+            if (r3 && pillarShape === 'duo') {   // 右：デュオシリンダー（光線の行進）
+                if (pillar[3]) pillar[3].mesh.visible = false;
+                const M = duoMesh(r3), U = M.mesh.material.uniforms, pj = ndProjector(4, projBlendNow()), rot = rot4List(linkAngleX, linkAngleY);
+                const E = [0, 1, 2, 3].map(c => NDGeom.rotatePoint([0, 1, 2, 3].map(k => k === c ? 1 : 0), rot));   // E[c]＝軸 c の行き先。戻す＝行が E[c]
+                U.RT.value.set(E[0][0], E[0][1], E[0][2], E[0][3], E[1][0], E[1][1], E[1][2], E[1][3], E[2][0], E[2][1], E[2][2], E[2][3], E[3][0], E[3][1], E[3][2], E[3][3]);
+                U.uK.value.set(1 / sqK('x'), 1 / sqK('y'), 1 / sqK('z'), 1);
+                const kMax = 1 + (1 / Math.max(0.05, 1 - Math.SQRT2 * R / pj.D[3]) - 1) * (1 - pj.blend);
+                U.uR.value = R; U.uD.value = pj.D[3]; U.uBl.value = pj.blend; U.uScl.value = pj.scale; U.bnd.value = Math.SQRT2 * R * kMax * pj.scale * 1.03; U.pat.value = Math.max(0, pv);
+                r3.updateMatrixWorld(true); U.camPos.value.copy(r3.worldToLocal(camera3D.getWorldPosition(_pilV)));
+                M.mesh.visible = true;
+            } else if (r3) {   // 右：球柱（玉 × w）
+                if (pillar.duo) pillar.duo.mesh.visible = false;
                 const M = pillarMesh(3, r3), G = M.mesh.geometry, P = G.attributes.position.array, N = G.attributes.nrm.array, T = G.attributes.tpl.array;
                 const rot = rot4List(linkAngleX, linkAngleY), pj = ndProjector(4, projBlendNow()), E = [0, 1, 2, 3].map(c => NDGeom.rotatePoint([0, 1, 2, 3].map(k => k === c ? 1 : 0), rot));   // 4次元の回転を行列に（軸ごとの行き先）
                 const proj = (x, y, z, w, out, o) => { for (let k = 0; k < 4; k++) _pilQ[k] = E[0][k] * x + E[1][k] * y + E[2][k] * z + E[3][k] * w; pj.project(_pilQ, out, o, 0); };
@@ -6848,8 +6925,9 @@
             });
             const wa = el.querySelector('[data-vpall="w"]'); if (wa) wa.textContent = ['x', 'y', 'zw'].some(vpSpinOn) ? '■ w の回転を全部止める' : '▶ w の回転を全部回す';
             const ta = el.querySelector('[data-vpall="3"]'); if (ta) ta.textContent = ['xy', 'xz', 'yz'].some(vpSpinOn) ? '■ 3D の回転を全部止める' : '▶ 3D の回転を全部回す';
-            const pl = el.querySelector('[data-vppil]'); if (pl) { pl.textContent = pillarOn ? '🎈 円柱・球柱: 出す' : '🎈 円柱・球柱: 出さない'; pl.style.background = pillarOn ? 'rgba(250,204,21,0.25)' : ''; }
+            const pl = el.querySelector('[data-vppil]'); if (pl) { pl.textContent = pillarOn ? '🎈 見本: 出す' : '🎈 見本: 出さない'; pl.style.background = pillarOn ? 'rgba(250,204,21,0.25)' : ''; }
             const ps = el.querySelector('[data-vppat]'); if (ps && ps.value !== pillarPat && document.activeElement !== ps) ps.value = pillarPat;
+            const sh = el.querySelector('[data-vpshape]'); if (sh && sh.value !== pillarShape && document.activeElement !== sh) sh.value = pillarShape;
             const lf = el.querySelector('[data-vpleft]'); if (lf) { lf.textContent = leftNo3D ? '立方体に反映: しない' : '立方体に反映: する'; lf.style.background = leftNo3D ? 'rgba(56,189,248,0.25)' : ''; }
         }
         function vpPanelToggle() {
@@ -6867,7 +6945,8 @@
                 + '<div style="color:#7dd3fc;font-size:11px;margin-bottom:2px">3D の回転（w が絡まない）</div>' + VP_3.map(r => row(r, false)).join('')
                 + '<div style="display:flex;gap:5px;flex-wrap:wrap;margin:5px 0 8px">' + B('data-vpall="3"', '', 'X-Y・X-Z・Y-Z をまとめて 回す／止める') + B('data-vp30', '↺ 3D をリセット', 'X-Y・X-Z・Y-Z を全部 0° へ（w の回転は触らない）') + B('data-vpleft', '', '超立方体の 3D の回転（X-Y・X-Z・Y-Z）を、左の立方体の画面に反映する／しない。しない＝立方体はいつも正面のまま（超立方体だけ転がる）') + '</div>'
                 + '<div style="color:#fde68a;font-size:11px;margin-bottom:2px">形の見本（積分とは関係なく。見る向きで形が変わる）</div>'
-                + '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:3px 0 8px">' + B('data-vppil', '', '左の窓に円柱（円 × z）、右の窓に球柱（玉 × w）を出す／消す。z・w の方向から見ると円・球、斜めや横から見ると柱。上の回転で見る向きを変えてみる')
+                + '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:3px 0 8px">' + B('data-vppil', '', '左の窓に円柱（円 × z）、右の窓に 4次元の見本（球柱／デュオシリンダー）を出す／消す。上の回転で見る向きを変えると形が変わる')
+                + '<select data-vpshape title="右の窓の形。球柱＝玉を w にのばした形（w の方向から見ると球）。デュオシリンダー＝円 × 円（x²＋y² ≤ r² かつ z²＋w² ≤ r²）。w の方向から見ると円柱、Z-W を回しても同じ、X-W・Y-W を回すと見たことのない形に" style="padding:2px 4px;border-radius:7px;border:1px solid rgba(148,163,184,0.45);background:rgba(30,41,59,0.9);color:#e2e8f0;font-size:11px">' + PILLAR_SHAPES.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('') + '</select>'
                 + '<select data-vppat title="柱の模様（形に貼りついて一緒に回る）" style="padding:2px 4px;border-radius:7px;border:1px solid rgba(148,163,184,0.45);background:rgba(30,41,59,0.9);color:#e2e8f0;font-size:11px">' + PILLAR_PATS.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('') + '</select></div>'
                 + '<div style="display:flex;gap:5px;flex-wrap:wrap;border-top:1px solid rgba(148,163,184,0.2);padding-top:6px">' + B('data-vpall="all"', '■ 全部止める', '6 面すべての回転を止める（角度はそのまま）') + B('data-vpreset', '↺ 全部リセット', '回転を止めて 6 面とも 0°、カメラ・投影も正面へ（下の「リセット」と同じ）') + '</div></div>';
             if (window.innerWidth <= 700) { el.style.left = '8px'; el.style.width = 'calc(100vw - 16px)'; el.style.top = 'calc(8px + env(safe-area-inset-top))'; }
@@ -6882,6 +6961,7 @@
             el.querySelector('[data-vp30]').addEventListener('click', () => { stopCycle(); vpTo({ xy: 0, xz: 0, yz: 0 }); });
             el.querySelector('[data-vpleft]').addEventListener('click', () => { leftNo3D = !leftNo3D; try { localStorage.setItem('hypercubeLeftNo3D', leftNo3D ? '1' : '0'); } catch (_) {} requestRender(3); vpSync(); });   // 左の立方体に 3D の回転を反映する／しない
             el.querySelector('[data-vppil]').addEventListener('click', () => { pillarOn = !pillarOn; try { localStorage.setItem('hypercubePillar', pillarOn ? '1' : '0'); } catch (_) {} requestRender(3); vpSync(); });   // 柱の見本を出す／消す
+            el.querySelector('[data-vpshape]').addEventListener('change', e => { pillarShape = e.target.value; try { localStorage.setItem('hypercubePillarShape', pillarShape); } catch (_) {} requestRender(3); vpSync(); });
             el.querySelector('[data-vppat]').addEventListener('change', e => { pillarPat = e.target.value; try { localStorage.setItem('hypercubePillarPat', pillarPat); } catch (_) {} requestRender(3); vpSync(); });
             el.querySelector('[data-vpall="all"]').addEventListener('click', () => { stopCycle(); linkSpin = false; ['x', 'y', 'zw', 'xy', 'xz', 'yz'].forEach(k => vpSetSpin(k, false)); if (dim5) spin5XW = spin5YW = spin5ZW = spin5WV = false; updateSpinBtns(); vpSync(); });
             el.querySelector('[data-vpreset]').addEventListener('click', () => { const r = document.getElementById('link-reset-btn'); if (r) r.click(); vpSync(); });
