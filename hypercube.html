@@ -4397,7 +4397,7 @@
         const filmNeeded = () => wPackRainbow && wPackRbStyle === 'spec' && wSpecVol && ['frame', 'ball', 'dball2'].includes(wSpecPat);   // 立方体の面が無いモード（七色の枠だけ・枠＋玉・ドラゴンボール）＝膜を足す。ほかのモードは自分の面があるので線を消すだけ
         const dbFilmOn = () => (wSlice.pack || wDuo.on) && wDbFilm && filmNeeded();   // 膜を描く（薄い膜・両方）。4D積分の敷きつめの時だけ
         const dbNoLine = () => (wSlice.pack || wDuo.on) && wDbFilm && !wDbBoth;   // 枠の線を描かない（薄い膜だけの時。全部のモード）
-        const FILM_FLY = 18;   // 飛んでいる 1 枚は 18 倍（ユーザー「入る時と出る時は少し濃いめに、膜があると分かるくらい」。1 枚で 赤 60 くらい。25 だと何個も重なって飛ぶ時に白く飛んだ）   // 入ってくる・出ていく（飛んでいる）立方体の膜は 1 枚だけで見えるように濃く（重なっていないので、積んだ 1 枚の濃さでは黒に溶けて見えない）
+        const FILM_FLY = 12;   // 飛んでいる 1 枚は 12 倍（1 枚で 赤 40 くらい。18 → 12：ユーザー「入る時と出る時はもう少し薄くてもいい」）   // 入ってくる・出ていく（飛んでいる）立方体の膜は 1 枚だけで見えるように濃く（重なっていないので、積んだ 1 枚の濃さでは黒に溶けて見えない）
         let wFilmBlend = 'emit'; try { const v = localStorage.getItem('hypercubeFilmBlend'); if (v === 'normal' || v === 'absorb') wFilmBlend = v; } catch (_) {}   // 膜の重ね方：'emit'＝発光（加算合成。重なるほど明るく、向こうは隠れない）、'normal'＝半透明（通常合成＝吸収＋散乱。重なるほど膜の色に染まり、向こうが隠れていく）、'absorb'＝吸収（乗算合成＝色フィルター。重なるほど暗く沈む。暗い背景の上では見えにくい）
         const FILM_ABS = 0.9;   // 半透明・吸収の時の 1 枚の濃さ（発光より濃くしないと見えない）
         const filmK = (N, fly) => (wFilmBlend === 'emit' ? FILM_ADD : FILM_ABS) * (fly ? FILM_FLY * Math.max(0.3, Math.sqrt(FILM_N0 / Math.max(1, N))) : FILM_N0 / Math.max(1, N) * filmStep(N));   // 積んだ膜 1 枚の濃さは 立方体の数に反比例（Δw に比例＝理論どおり。41 枚でも 256 枚でも、全部重ねた濃さは同じ）。飛んでいる膜も数が多い時は薄く（256 個だと 80 個くらいが同時に飛んでいるので）
