@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title></title>
+    <script>
+        // ===== アプリの名前（ここだけ直せば、タブ・パネルの見出しが全部変わる）=====
+        const APP_TITLE = '空間めぐり ― サーストンの 8 つの幾何';
+        const APP_SUB = '次元おりがみの付録';
+        document.title = APP_TITLE;
+    </script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23070b1f%22/%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2222%22 fill=%22none%22 stroke=%22%23a78bfa%22 stroke-width=%223%22/%3E%3Cpath d=%22M10 32 Q32 12 54 32 M10 32 Q32 52 54 32 M32 10 Q18 32 32 54%22 fill=%22none%22 stroke=%22%2338bdf8%22 stroke-width=%222.2%22/%3E%3C/svg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegmentsGeometry.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
+    <!-- 次元おりがみと同じ共通部品（共通部品/ の本体へのリンク） -->
+    <script src="lib/visual-fx.js"></script>
+    <script src="lib/ui-dock.js"></script>
+    <script src="lib/nd-geom.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
+        body { font-family: 'Noto Sans JP', 'Inter', sans-serif; background-color: #030712; color: #f3f4f6; overflow: hidden; margin: 0; }
+        .glass-panel { background: rgba(15, 23, 42, 0.93); border: 1px solid rgba(255, 255, 255, 0.12); }
+        input[type=range] { width: 100%; accent-color: #38bdf8; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #38bdf8; cursor: pointer; box-shadow: 0 0 10px #38bdf8; }
+
+        /* 描画の場所（右のパネル --sb と、端のドック --dock-l・--dock-r のぶん縮む） */
+        body { --sb-w: 340px; --sb: var(--sb-w); --dock-l: 0px; --dock-r: 0px; --split: 0.5; }
+        body.sidebar-hidden { --sb: 0px; }
+        body.dock-left-on { --dock-l: min(340px, 32vw); }
+        body.dock-right-on { --dock-r: min(340px, 32vw); }
+        body.sidebar-hidden.dock-left-on { --dock-l: 0px; }
+        body.sidebar-hidden.dock-right-on { --dock-r: 0px; }
+        body.sidebar-hidden #dock-left, body.sidebar-hidden #dock-right { display: none; }
+        body:not(.sidebar-hidden) #dock-right { right: var(--sb); }
+        #main { position: fixed; top: 0; bottom: 0; left: var(--dock-l); right: calc(var(--sb) + var(--dock-r)); display: flex; }
+        .vw { position: relative; min-width: 0; min-height: 0; flex: 1 1 0; overflow: hidden; }
+        #wrapL { flex: none; width: calc(var(--split) * 100%); border-right: 1px solid #1e293b; }
+        .cv { position: absolute; inset: 0; }
+        .cv canvas { display: block; touch-action: none; }
+        #split { flex: none; width: 14px; margin: 0 -7px; z-index: 5; cursor: col-resize; position: relative; touch-action: none; }
+        #split::after { content: ''; position: absolute; left: 50%; top: 50%; width: 5px; height: 48px; transform: translate(-50%, -50%); border-radius: 4px; background: rgba(148, 163, 184, 0.35); }
+        #split:hover::after, #split.drag::after { background: rgba(167, 139, 250, 0.95); }
+        @media (max-aspect-ratio: 1/1) {
+            #main { flex-direction: column; }
+            #wrapL { width: auto; height: calc(var(--split) * 100%); border-right: 0; border-bottom: 1px solid #1e293b; }
+            #split { width: auto; height: 14px; margin: -7px 0; cursor: row-resize; }
+            #split::after { width: 48px; height: 5px; }
+        }
+        #ui-overlay { position: fixed; top: 0; right: 0; height: 100%; width: var(--sb-w); z-index: 30; display: flex; flex-direction: column; border-width: 0 0 0 1px !important; }
+        body.sidebar-hidden #ui-overlay { display: none; }
+        #sidebar-open { display: none; }
+        body.sidebar-hidden #sidebar-open { display: flex; }
+        @media (max-width: 760px) {
+            body { --sb: 0px; }
+            #ui-overlay { width: min(92vw, 340px); box-shadow: -10px 0 40px rgba(0,0,0,.7); }
+        }
+
+        .badge { position: absolute; top: 12px; left: 12px; pointer-events: none; z-index: 10; background: rgba(15, 23, 42, 0.85); border-radius: 12px; padding: 6px 12px; font-size: 12px; font-weight: 700; max-width: calc(100% - 24px); }
+        .badge small { display: block; font-weight: 400; color: #94a3b8; font-size: 10px; margin-top: 1px; line-height: 1.35; }
+        #badgeL { border: 1px solid rgba(34, 211, 238, 0.3); color: #67e8f9; }
+        #badgeR { border: 1px solid rgba(168, 85, 247, 0.3); color: #d8b4fe; }
+
+        .sb-sec { background: rgba(2, 6, 23, 0.35); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .sb-h { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #cbd5e1; margin: 0; }
+        .float-panel > .sb-sec { margin: 0; padding-top: 0; background: rgba(4, 8, 22, 0.96); border-color: rgba(129, 140, 248, 0.55); }
+        .float-panel .sb-h { margin: 0 -10px; padding: 9px 10px 7px; }
+        .note { font-size: 10px; color: #94a3b8; line-height: 1.5; margin: 0; }
+        .btn { font-size: 11px; padding: 4px 9px; border-radius: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid #334155; color: #cbd5e1; white-space: nowrap; }
+        .btn:hover { background: #334155; color: #f1f5f9; }
+        .btn.on { background: rgba(124, 58, 237, 0.3); border-color: rgba(167, 139, 250, 0.7); color: #ede9fe; }
+        .gbtn { display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding: 6px 8px; border-radius: 10px; background: rgba(30, 41, 59, 0.6); border: 1px solid #334155; text-align: left; }
+        .gbtn:hover { background: #1e293b; border-color: #64748b; }
+        .gbtn b { font-size: 15px; color: #e2e8f0; font-family: 'Inter', serif; letter-spacing: .02em; }
+        .gbtn span { font-size: 10px; color: #94a3b8; }
+        .gbtn.on { background: rgba(124, 58, 237, 0.28); border-color: rgba(167, 139, 250, 0.8); }
+        .gbtn.on b { color: #f5f3ff; }
+        .gbtn i.k { font-style: normal; font-size: 9px; color: #64748b; margin-left: auto; }
+        .row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+        .sl { display: grid; grid-template-columns: 34px 1fr 46px; gap: 6px; align-items: center; font-size: 11px; color: #cbd5e1; }
+        .sl b { font-family: 'Inter'; font-style: italic; }
+        .sl output { font-family: ui-monospace, monospace; font-size: 10px; color: #7dd3fc; text-align: right; }
+        #desc p { font-size: 11px; line-height: 1.7; color: #cbd5e1; margin: 0 0 6px; }
+        #desc b { color: #f0abfc; font-weight: 600; }
+        #desc .an { color: #67e8f9; }
+        #axlen { position: absolute; right: 12px; top: 12px; z-index: 10; pointer-events: none; background: rgba(15, 23, 42, 0.85); border: 1px solid #334155; border-radius: 12px; padding: 5px 9px; }
+        #axlen .r { display: flex; align-items: center; gap: 5px; font-size: 10px; font-family: ui-monospace, monospace; line-height: 1.35; }
+        #axlen .bar { display: block; width: 70px; height: 5px; border-radius: 3px; background: #1e293b; overflow: hidden; }
+        #axlen .bar i { display: block; height: 100%; border-radius: 3px; }
+        #inpad { position: absolute; right: 14px; bottom: 14px; z-index: 12; display: none; gap: 6px; flex-direction: column; align-items: flex-end; }
+        body.inside #inpad { display: flex; }
+        #inpad button { width: 46px; height: 40px; border-radius: 12px; background: rgba(15, 23, 42, 0.85); border: 1px solid #475569; color: #e2e8f0; font-size: 16px; touch-action: none; user-select: none; }
+        #inpad button:active { background: rgba(124, 58, 237, 0.45); }
+        #inhelp { position: absolute; left: 12px; bottom: 12px; z-index: 10; pointer-events: none; display: none; font-size: 10px; color: #94a3b8; background: rgba(15, 23, 42, 0.8); border-radius: 10px; padding: 5px 9px; border: 1px solid #334155; }
+        body.inside #inhelp { display: block; }
+        #msg { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 15; pointer-events: none; font-size: 12px; color: #fde68a; background: rgba(15, 23, 42, 0.9); border: 1px solid #a16207; padding: 5px 12px; border-radius: 10px; opacity: 0; transition: opacity .3s; }
+    </style>
+</head>
+<body class="select-none" style="height: 100vh; height: 100dvh;">
+
+    <!-- 左右 2 つの窓（左＝2次元の仲間、右＝3次元の幾何） -->
+    <div id="main">
+        <div id="wrapL" class="vw">
+            <div id="cvL" class="cv"></div>
+            <div id="badgeL" class="badge"></div>
+        </div>
+        <div id="split" title="ドラッグで左右の広さを変える（ダブルクリックで半分に戻す）"></div>
+        <div id="wrapR" class="vw">
+            <div id="cvR" class="cv"></div>
+            <div id="badgeR" class="badge"></div>
+            <div id="axlen" class="hidden" title="4 本の軸が 3D にどれだけ出ているか（もとの長さを 100%）"></div>
+            <div id="inhelp">ドラッグ：見回す　W/S・↑↓：前後　A/D・←→：横　Q/E：上下　ホイール：前後</div>
+            <div id="inpad">
+                <button data-mv="up" title="上へ">⤒</button>
+                <button data-mv="fwd" title="前へ（押している間）">▲</button>
+                <button data-mv="back" title="後ろへ（押している間）">▼</button>
+                <button data-mv="down" title="下へ">⤓</button>
+            </div>
+            <div id="msg"></div>
+        </div>
+    </div>
+
+    <button id="sidebar-open" class="absolute top-3 right-3 z-30 glass-panel rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 hover:bg-slate-700 items-center gap-1" title="操作パネルを開く（Space）"><i data-lucide="panel-right-open" class="w-3.5 h-3.5"></i>パネル</button>
+
+    <!-- 右のパネル -->
+    <aside id="ui-overlay" class="glass-panel">
+        <div class="flex items-start justify-between px-3 pt-2.5 pb-2 border-b border-slate-800 gap-2">
+            <div class="min-w-0">
+                <div id="app-title" class="text-[12px] font-bold text-slate-100 leading-snug"></div>
+                <a id="app-sub" href="hypercube.html" class="text-[10px] text-violet-300 hover:text-violet-200 underline-offset-2 hover:underline" title="次元おりがみ（hypercube.html）を開く"></a>
+            </div>
+            <button id="sidebar-close" class="btn flex items-center gap-1 shrink-0" title="パネルを閉じて図を広く（Space）"><i data-lucide="panel-right-close" class="w-3.5 h-3.5"></i>閉じる</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-3 py-2.5 space-y-3" id="sb-scroll">
+
+            <section class="sb-sec" id="sec-geom">
+                <h3 class="sb-h"><i data-lucide="globe-2" class="w-3.5 h-3.5"></i>幾何をえらぶ</h3>
+                <div id="geom-grid" class="grid grid-cols-2 gap-1.5"></div>
+                <p class="note">左の窓＝1 つ下の次元の仲間（2次元）、右の窓＝3次元の幾何。数字キー 1〜8 でも選べます。</p>
+            </section>
+
+            <section class="sb-sec" id="sec-view">
+                <h3 class="sb-h"><i data-lucide="eye" class="w-3.5 h-3.5"></i>見る</h3>
+                <div class="row">
+                    <button class="btn" id="b-out" title="外から模型を見る（I で切りかえ）">外から見る</button>
+                    <button class="btn" id="b-in" title="空間の中に入って、まっすぐ進む光で見た景色（I で切りかえ）">中に入る</button>
+                </div>
+                <div class="row">
+                    <button class="btn" id="b-axes" title="x・y・z（S³ では w も）の軸（X キー）">軸</button>
+                    <button class="btn" id="b-mesh" title="しきつめの網目・模型の線（M キー）">網目</button>
+                    <button class="btn" id="b-geo" title="1 点から出る測地線（G キー）">測地線</button>
+                    <button class="btn" id="b-sync" title="左右の窓の向きをいっしょに動かす">左右の向きをそろえる</button>
+                    <button class="btn" id="b-spin" title="ゆっくり回し続ける（R キー）">自動回転</button>
+                    <button class="btn" id="b-home" title="見る向き・大きさを最初に戻す（H キー）">向きを戻す</button>
+                </div>
+                <p class="note">ドラッグ：回す　ホイール／ピンチ：大きさ　右ドラッグ：ずらす</p>
+            </section>
+
+            <section class="sb-sec" id="sec-geo">
+                <h3 class="sb-h"><i data-lucide="spline" class="w-3.5 h-3.5"></i>測地線（その空間での「まっすぐ」）</h3>
+                <div class="sl"><span>長さ</span><input id="s-geo" type="range" min="0" max="1" step="0.005"><output id="o-geo"></output></div>
+                <div class="row"><button class="btn" id="b-geoplay" title="1 点から光が広がっていくように伸ばす">▶ 伸ばす</button></div>
+                <p class="note" id="geo-note"></p>
+            </section>
+
+            <section class="sb-sec" id="sec-4d">
+                <h3 class="sb-h"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>4次元の回転（w の方へ倒す）</h3>
+                <div class="sl"><b style="color:#ff5d6c">X-W</b><input id="s-xw" type="range" min="-180" max="180" step="1"><output id="o-xw"></output></div>
+                <div class="sl"><b style="color:#3ddc84">Y-W</b><input id="s-yw" type="range" min="-180" max="180" step="1"><output id="o-yw"></output></div>
+                <div class="sl"><b style="color:#56a8ff">Z-W</b><input id="s-zw" type="range" min="-180" max="180" step="1"><output id="o-zw"></output></div>
+                <div class="row">
+                    <button class="btn" id="b-r0" title="4次元の角度を 0° に">↺ 0°</button>
+                    <button class="btn" id="b-spin4" title="X-W をゆっくり回し続ける">自動（X-W）</button>
+                    <button class="btn" id="b-drag4" title="ON の間は、ドラッグで 4次元の回転（横＝X-W、縦＝Y-W）。Shift＋ドラッグでも同じ">ドラッグを 4次元に</button>
+                </div>
+                <div class="sl"><span>奥を消す</span><input id="s-cut" type="range" min="-1" max="0.9" step="0.05" title="w がこの値より小さい（奥の）辺を消す。左の S² では z"><output id="o-cut"></output></div>
+                <div class="sl"><span>遠近</span><input id="s-D" type="range" min="1" max="5" step="0.05"><output id="o-D"></output></div>
+                <div class="row">
+                    <button class="btn" id="b-Dokami" title="次元おりがみと同じ遠近（視点の w ＝ 半径の 2.5 倍）">次元おりがみと同じ</button>
+                    <button class="btn" id="b-Dstereo" title="視点を球の上にのせる（立体射影）。見えない北極のまわりは無限に広がる">立体射影</button>
+                </div>
+                <p class="note">左の窓では、X-W は X-Z、Y-W は Y-Z の回転になります（球面 S² を z の方へ倒すのと、S³ を w の方へ倒すのが同じ動き）。Shift＋ドラッグでも回せます。</p>
+            </section>
+
+            <section class="sb-sec" id="sec-in">
+                <h3 class="sb-h"><i data-lucide="footprints" class="w-3.5 h-3.5"></i>中に入る</h3>
+                <p class="note" id="in-note"></p>
+                <div class="sl"><span>速さ</span><input id="s-spd" type="range" min="0.2" max="3" step="0.05"><output id="o-spd"></output></div>
+                <div class="sl"><span>画質</span><input id="s-q" type="range" min="0.3" max="1" step="0.05"><output id="o-q"></output></div>
+                <div class="row">
+                    <button class="btn" id="b-walk" title="前へ歩き続ける">歩き続ける</button>
+                    <button class="btn" id="b-inhome" title="最初の場所・向きへ">最初の場所へ</button>
+                </div>
+            </section>
+
+            <section class="sb-sec" id="sec-desc">
+                <h3 class="sb-h"><i data-lucide="book-open" class="w-3.5 h-3.5"></i>説明</h3>
+                <div id="desc"></div>
+            </section>
+
+            <p class="note px-1 pb-2">キー：1〜8 幾何　X 軸　M 網目　G 測地線　I 中に入る／外から　R 自動回転　H 向きを戻す　Space パネル</p>
+        </div>
+    </aside>
+
+<script>
+'use strict';
+/* =====================================================================
+   空間めぐり ― サーストンの 8 つの幾何（次元おりがみの付録）
+   ・形はいちばん下の GEOMS に「1 つの幾何＝1 つのまとまり」で書いてある。
+     形を足す時は GEOMS に 1 つ足す（左の窓 left・右の窓 right・中に入った景色 inside・説明 desc）。
+   ・4次元の回転と写し方は次元おりがみと同じ考え方（共通部品 nd-geom の回転、k = D/(D − w) の遠近）。
+   ===================================================================== */
+const TAU = Math.PI * 2, PHI = (1 + Math.sqrt(5)) / 2;
+const AXIS_HEX = (window.VisualFX && VisualFX.AXIS_HEX) || { x: 0xff5d6c, y: 0x3ddc84, z: 0x56a8ff, w: 0xb07cff };
+const RS = 1.8;    // S²・S³ の半径（次元おりがみの超立方体の頂点 |±0.9|⁴ = 1.8 と同じ大きさ）
+const RB = 2.0;    // ポアンカレ円板・球の半径
+
+// ---------------------------------------------------------------------
+// 1. 小さな計算（計量 J = diag(1,…,1,κ)。κ = +1 は球面、−1 は双曲）
+// ---------------------------------------------------------------------
+function kdot(a, b, k) { const n = a.length; let s = 0; for (let i = 0; i < n - 1; i++) s += a[i] * b[i]; return s + k * a[n - 1] * b[n - 1]; }
+function mmul(A, B) { const n = A.length; const C = []; for (let i = 0; i < n; i++) { C.push(new Array(n).fill(0)); for (let j = 0; j < n; j++) { let s = 0; for (let q = 0; q < n; q++) s += A[i][q] * B[q][j]; C[i][j] = s; } } return C; }
+function mvec(M, v) { return M.map(r => r.reduce((s, x, i) => s + x * v[i], 0)); }
+function ident(n) { return [...Array(n)].map((_, i) => [...Array(n)].map((_, j) => i === j ? 1 : 0)); }
+function col(M, j) { return M.map(r => r[j]); }
+function reflM(v, k) {   // x ↦ x − 2⟨x,v⟩v（v は ⟨v,v⟩ = 1）
+    const n = v.length; const M = [];
+    for (let a = 0; a < n; a++) { M.push([]); for (let b = 0; b < n; b++) { const Jv = b === n - 1 ? k * v[b] : v[b]; M[a].push((a === b ? 1 : 0) - 2 * v[a] * Jv); } }
+    return M;
+}
+function knorm(p, k) {   // 球面・双曲面の上に戻す
+    const l = Math.sqrt(Math.abs(kdot(p, p, k))) || 1; return p.map(x => x / l);
+}
+function rot3(axis, a) {   // 3×3 の回転（行の並び）
+    const c = Math.cos(a), s = Math.sin(a);
+    if (axis === 0) return [[1, 0, 0], [0, c, -s], [0, s, c]];
+    if (axis === 1) return [[c, 0, s], [0, 1, 0], [-s, 0, c]];
+    return [[c, -s, 0], [s, c, 0], [0, 0, 1]];
+}
+function norm3(v) { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
+function fib3(n) {   // 球面にほぼ均等に n 方向
+    const out = []; for (let i = 0; i < n; i++) { const z = 1 - 2 * (i + 0.5) / n, r = Math.sqrt(1 - z * z), a = i * Math.PI * (3 - Math.sqrt(5)); out.push([r * Math.cos(a), r * Math.sin(a), z]); } return out;
+}
+function dirs2(n, off) { const out = []; for (let i = 0; i < n; i++) { const a = TAU * i / n + (off || 0); out.push([Math.cos(a), Math.sin(a)]); } return out; }
+function hsl(h, s, l) {   // h 0〜360 → [r,g,b] 0〜1
+    h = ((h % 360) + 360) % 360 / 360; const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+    const f = t => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+    return [f(h + 1 / 3), f(h), f(h - 1 / 3)];
+}
+const scl = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
+function depthColor(t, k) {   // 「もう 1 本の軸」の値 t（−1 奥 〜 +1 手前）で色：奥＝水色・暗い、手前＝赤紫・明るい
+    const u = Math.max(0, Math.min(1, (t + 1) / 2));
+    return scl(hsl(195 + 115 * u, 0.85, 0.5), (k === undefined ? 1 : k) * (0.1 + 0.9 * Math.pow(u, 2.2)));
+}
+function hexRGB(h) { return [(h >> 16 & 255) / 255, (h >> 8 & 255) / 255, (h & 255) / 255]; }
+function hexCss(h) { return '#' + h.toString(16).padStart(6, '0'); }
+
+// ---------------------------------------------------------------------
+// 2. 正多角形・正多面体のしきつめ（鏡で映していく）
+//    {5,3}＝正十二面体（S²）、{5,4}＝直角五角形（H²）、{5,3,3}＝120 胞体（S³）、{5,3,4}＝直角十二面体（H³）
+// ---------------------------------------------------------------------
+function cellPentagon() {
+    const V = [], N = [], E = [];
+    for (let i = 0; i < 5; i++) { const a = TAU * i / 5 + Math.PI / 2; V.push([Math.cos(a), Math.sin(a)]); const b = a + Math.PI / 5; N.push([Math.cos(b), Math.sin(b)]); E.push([i, (i + 1) % 5]); }
+    return { dim: 2, V, N, E, d0: Math.cos(Math.PI / 5) };
+}
+function cellDodeca() {
+    const V = []; for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) V.push([x, y, z]);
+    const a = 1 / PHI, b = PHI;
+    for (const s of [-1, 1]) for (const t of [-1, 1]) { V.push([0, s * a, t * b]); V.push([s * a, t * b, 0]); V.push([s * b, 0, t * a]); }
+    const N = []; for (const s of [-1, 1]) for (const t of [-1, 1]) { N.push([0, s, t * PHI]); N.push([s, t * PHI, 0]); N.push([s * PHI, 0, t]); }
+    N.forEach(n => { const l = Math.hypot(...n); for (let i = 0; i < 3; i++) n[i] /= l; });
+    const d0 = Math.max(...V.map(v => v[0] * N[0][0] + v[1] * N[0][1] + v[2] * N[0][2]));
+    const E = [], el = 2 / PHI;
+    for (let i = 0; i < 20; i++) for (let j = i + 1; j < 20; j++) if (Math.abs(Math.hypot(V[i][0] - V[j][0], V[i][1] - V[j][1], V[i][2] - V[j][2]) - el) < 1e-6) E.push([i, j]);
+    return { dim: 3, V, N, E, d0 };
+}
+function planesAt(cell, s, k) { return cell.N.map(n => knorm([...n, -k * s * cell.d0], k)); }
+function adjPair(cell) {
+    let best = -2, bi = 0, bj = 1; const N = cell.N;
+    for (let i = 0; i < N.length; i++) for (let j = i + 1; j < N.length; j++) { const d = N[i].reduce((s, x, q) => s + x * N[j][q], 0); if (d < 0.9999 && d > best) { best = d; bi = i; bj = j; } }
+    return [bi, bj];
+}
+function solveScale(cell, k, ang) {   // となりの面どうしの角がちょうど ang になる大きさ（二分法）
+    const [i, j] = adjPair(cell);
+    const f = s => { const P = planesAt(cell, s, k); return Math.acos(Math.max(-1, Math.min(1, -kdot(P[i], P[j], k)))); };
+    let lo = 1e-6, hi = k < 0 ? 0.999999 / Math.max(...cell.V.map(v => Math.hypot(...v))) : 50;
+    for (let it = 0; it < 200; it++) { const m = (lo + hi) / 2; if ((f(m) < ang) === (k > 0)) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+}
+function makeTiling(cell, k, ang, maxDist, maxCells) {
+    const n = cell.dim + 1, s = solveScale(cell, k, ang), P = planesAt(cell, s, k), R = P.map(v => reflM(v, k));
+    const V = cell.V.map(p => knorm([...p.map(x => x * s), 1], k));
+    const key = M => M.map(r => (Math.round(r[n - 1] * 1e3) || 0)).join(',');
+    const I = ident(n), cells = [I], seen = new Set([key(I)]), q = [I];
+    const maxC = k < 0 ? Math.cosh(maxDist) : Infinity;
+    while (q.length && cells.length < (maxCells || 5000)) {
+        const M = q.shift();
+        for (const Rf of R) { const M2 = mmul(M, Rf); if (M2[n - 1][n - 1] > maxC) continue; const kk = key(M2); if (seen.has(kk)) continue; seen.add(kk); cells.push(M2); q.push(M2); }
+    }
+    const em = new Map();
+    for (const M of cells) for (const [a, b] of cell.E) {
+        const A = mvec(M, V[a]), B = mvec(M, V[b]);
+        const kk = A.map((x, i) => (Math.round((x + B[i]) * 1e3) || 0)).join(',');
+        if (!em.has(kk)) em.set(kk, [A, B]);
+    }
+    const centers = cells.map(M => col(M, n - 1));
+    const verts = []; { const vm = new Map(); for (const [A, B] of em.values()) for (const X of [A, B]) { const kk = X.map(x => (Math.round(x * 1e3) || 0)).join(','); if (!vm.has(kk)) { vm.set(kk, 1); verts.push(X); } } }
+    return { k, n, s, planes: P, refl: R, cells, centers, edges: [...em.values()], verts, V, cell };
+}
+const TILE_SPEC = {
+    S2: () => makeTiling(cellPentagon(), +1, TAU / 3),
+    H2: () => makeTiling(cellPentagon(), -1, Math.PI / 2, 6.2, 4000),
+    S3: () => makeTiling(cellDodeca(), +1, TAU / 3),
+    H3: () => makeTiling(cellDodeca(), -1, Math.PI / 2, 3.3, 4000),
+};
+const TILES = {};
+function tiling(id) { return TILES[id] || (TILES[id] = TILE_SPEC[id]()); }
+function slerpK(A, B, t, k) { return knorm(A.map((x, i) => x * (1 - t) + B[i] * t), k); }   // 2 点の間の測地線の点
+const toDisk = p => { const n = p.length - 1, d = 1 + p[n]; return p.slice(0, n).map(x => x / d); };   // 双曲面 → ポアンカレ円板・球
+
+// ---------------------------------------------------------------------
+// 3. 測地線（座標の模型の中で、加速度の式をルンゲ＝クッタで進める）
+// ---------------------------------------------------------------------
+const ACC = {
+    ball(p, v) {   // ポアンカレ球・円板（g = 4|dx|²/(1−r²)²）
+        let r2 = 0, pv = 0, vv = 0; for (let i = 0; i < p.length; i++) { r2 += p[i] * p[i]; pv += p[i] * v[i]; vv += v[i] * v[i]; }
+        const g = 2 / (1 - r2); return v.map((vi, i) => -2 * g * pv * vi + vv * g * p[i]);
+    },
+    nested(p, v) {   // 入れ子の球（S²×R、g = |dx|²/|x|²、半径 e^t）
+        const r2 = p[0] * p[0] + p[1] * p[1] + p[2] * p[2], pv = p[0] * v[0] + p[1] * v[1] + p[2] * v[2], vv = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+        return v.map((vi, i) => 2 * pv / r2 * vi - vv / r2 * p[i]);
+    },
+    stack(p, v) {   // 積み重ねた円板（H²×R）：円板の 2 本はポアンカレ、縦はまっすぐ
+        const a = ACC.ball([p[0], p[1]], [v[0], v[1]]); return [a[0], a[1], 0];
+    },
+    nil(p, v) {   // Nil：g = dx² + dy² + (dz + ½(x dy − y dx))²
+        const w = v[2] + 0.5 * (p[0] * v[1] - p[1] * v[0]);
+        return [w * v[1], -w * v[0], 0.5 * w * (p[0] * v[0] + p[1] * v[1])];
+    },
+    sol(p, v) {   // Sol：g = e^{2z}dx² + e^{−2z}dy² + dz²
+        return [-2 * v[0] * v[2], 2 * v[1] * v[2], Math.exp(2 * p[2]) * v[0] * v[0] - Math.exp(-2 * p[2]) * v[1] * v[1]];
+    },
+    sl2(p, v) {   // SL̃(2,R)：土台はポアンカレ円板 (u,v)、繊維は θ。g = λ²(du²+dv²) + (dθ + λ(u dv − v du))²、λ = 2/(1−r²)
+        const [u, vv, ] = p, [du, dv, dt] = v, r2 = u * u + vv * vv, L = 2 / (1 - r2);
+        const w = dt + L * (u * dv - vv * du), e2 = du * du + dv * dv, ud = u * du + vv * dv;
+        const au = L * (u * e2 - 2 * ud * du) + w * dv, av = L * (vv * e2 - 2 * ud * dv) - w * du;
+        const Ld = L * L * ud;
+        return [au, av, -Ld * (u * dv - vv * du) - L * (u * av - vv * au)];
+    },
+};
+function integrate(acc, p0, v0, L, N, stop) {   // 長さ L を N 区間に。stop(p) が真なら、その先は同じ点のまま
+    const pts = [p0.slice()]; let p = p0.slice(), v = v0.slice(), dead = false;
+    const sub = 6, h = L / N / sub, n = p.length;
+    const add = (a, b, t) => a.map((x, i) => x + b[i] * t);
+    for (let s = 0; s < N; s++) {
+        if (!dead) for (let k = 0; k < sub; k++) {
+            const a1 = acc(p, v), p2 = add(p, v, h / 2), v2 = add(v, a1, h / 2), a2 = acc(p2, v2);
+            const p3 = add(p, v2, h / 2), v3 = add(v, a2, h / 2), a3 = acc(p3, v3);
+            const p4 = add(p, v3, h), v4 = add(v, a3, h), a4 = acc(p4, v4);
+            for (let i = 0; i < n; i++) { p[i] += h / 6 * (v[i] + 2 * v2[i] + 2 * v3[i] + v4[i]); v[i] += h / 6 * (a1[i] + 2 * a2[i] + 2 * a3[i] + a4[i]); }
+            if (stop && stop(p)) { dead = true; break; }
+        }
+        pts.push(p.slice());
+    }
+    return pts;
+}
+
+// ---------------------------------------------------------------------
+// 4. 状態（このブラウザに保存）
+// ---------------------------------------------------------------------
+const S = {
+    geom: 'E3', mode: 'out', axes: true, mesh: true, geo: true, sync: true, spin: false,
+    geoT: 0.4, geoPlay: false, xw: 0, yw: 0, zw: 0, spin4: false, drag4: false, D: 2.5, cut: -1, spd: 1, q: 0.7, walk: false,
+};
+try { Object.assign(S, JSON.parse(localStorage.getItem('thurston-state') || '{}')); } catch (e) {}
+let saveT = 0;
+function save() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('thurston-state', JSON.stringify(S)); } catch (e) {} }, 300); }
+
+let R4 = NDGeom.rotation(4, []), R3 = NDGeom.rotation(3, []);
+function updateRot() {
+    const d = Math.PI / 180;
+    R4 = NDGeom.rotation(4, [[0, 3, S.xw * d], [1, 3, S.yw * d], [2, 3, S.zw * d]], { out: R4 });
+    R3 = NDGeom.rotation(3, [[0, 2, S.xw * d], [1, 2, S.yw * d]], { out: R3 });   // 左の S²：X-W → X-Z、Y-W → Y-Z
+}
+updateRot();
+
+// ---------------------------------------------------------------------
+// 5. 窓（three.js）
+// ---------------------------------------------------------------------
+let need = 3; function req(n) { need = Math.max(need, n || 2); }
+VisualFX.requestRender = () => req(3);
+function makeView(host, side) {
+    const r = new THREE.WebGLRenderer({ antialias: true });
+    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); r.setClearColor(0x030712, 1);
+    host.appendChild(r.domElement);
+    const scene = new THREE.Scene();
+    const cam = new THREE.PerspectiveCamera(36, 1, 0.02, 400); cam.up.set(0, 0, 1);
+    const ctl = new THREE.OrbitControls(cam, r.domElement); ctl.enableDamping = true; ctl.dampingFactor = 0.12; ctl.rotateSpeed = 0.9; ctl.autoRotateSpeed = 1.2;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const dl = new THREE.DirectionalLight(0xffffff, 0.75); dl.position.set(3, -4, 6); scene.add(dl);
+    const root = new THREE.Group(); scene.add(root);
+    const v = { r, scene, cam, ctl, root, host, side, mats: [], frames: [], w: 1, h: 1, axes: null };
+    ctl.addEventListener('start', () => { activeView = v; });
+    ctl.addEventListener('change', () => { req(2); syncFrom(v); });
+    return v;
+}
+const VL = makeView(document.getElementById('cvL'), 'L'), VR = makeView(document.getElementById('cvR'), 'R');
+let activeView = VL, syncing = false;
+function syncFrom(a) {
+    if (syncing || !S.sync || a !== activeView) return;
+    const b = a === VL ? VR : VL; if (S.mode === 'in' && b === VR) return;
+    syncing = true;
+    const off = a.cam.position.clone().sub(a.ctl.target), dist = b.cam.position.distanceTo(b.ctl.target);
+    b.cam.position.copy(b.ctl.target).addScaledVector(off.normalize(), dist);
+    b.cam.up.copy(a.cam.up); b.cam.lookAt(b.ctl.target); b.ctl.update();
+    syncing = false;
+}
+function homeView(v, d) {
+    const D = d || 9.6;
+    v.ctl.target.set(0, 0, 0); v.cam.position.set(0.55 * D, -0.72 * D, 0.42 * D); v.cam.up.set(0, 0, 1); v.cam.lookAt(0, 0, 0); v.ctl.update(); req(3);
+}
+function resizeView(v) {
+    const w = Math.max(1, v.host.clientWidth), h = Math.max(1, v.host.clientHeight);
+    v.w = w; v.h = h;
+    const pr = Math.min(window.devicePixelRatio || 1, 2) * (v === VR && S.mode === 'in' ? S.q : 1);
+    v.r.setPixelRatio(pr); v.r.setSize(w, h, false); v.r.domElement.style.width = w + 'px'; v.r.domElement.style.height = h + 'px';
+    v.cam.aspect = w / h;
+    v.cam.fov = w >= h ? 36 : 2 * Math.atan(Math.tan(18 * Math.PI / 180) / (w / h)) * 180 / Math.PI;   // 縦長の窓では横の見える幅をそろえる
+    v.cam.updateProjectionMatrix();
+    v.mats.forEach(m => m.resolution.set(w, h));
+    req(3);
+}
+function resizeAll() { resizeView(VL); resizeView(VR); }
+new ResizeObserver(resizeAll).observe(document.getElementById('cvL'));
+new ResizeObserver(resizeAll).observe(document.getElementById('cvR'));
+
+// 線（太い線 LineSegments2。毎コマ中身を書きかえられる）
+function Lines(v, nSeg, o) {
+    o = o || {};
+    const g = new THREE.LineSegmentsGeometry();
+    const pos = new Float32Array(Math.max(1, nSeg) * 6), cl = new Float32Array(Math.max(1, nSeg) * 6);
+    g.setPositions(pos); g.setColors(cl);
+    const m = new THREE.LineMaterial({ linewidth: o.width || 1.4, vertexColors: true, transparent: true, opacity: o.opacity === undefined ? 1 : o.opacity, depthWrite: false, blending: o.normal ? THREE.NormalBlending : THREE.AdditiveBlending });
+    m.resolution.set(v.w, v.h); v.mats.push(m);
+    const obj = new THREE.LineSegments2(g, m); obj.frustumCulled = false; obj.renderOrder = o.order || 2;
+    let i = 0;
+    return {
+        obj, g, m, n: nSeg,
+        seg(a, b, ca, cb) {
+            if (i >= nSeg) return; const j = i * 6;
+            pos[j] = a[0]; pos[j + 1] = a[1]; pos[j + 2] = a[2]; pos[j + 3] = b[0]; pos[j + 4] = b[1]; pos[j + 5] = b[2];
+            cb = cb || ca; cl[j] = ca[0]; cl[j + 1] = ca[1]; cl[j + 2] = ca[2]; cl[j + 3] = cb[0]; cl[j + 4] = cb[1]; cl[j + 5] = cb[2];
+            i++;
+        },
+        reset() { i = 0; },
+        get count() { return i; },
+        flush() { g.attributes.instanceStart.data.needsUpdate = true; g.attributes.instanceColorStart.data.needsUpdate = true; g.instanceCount = i; },
+    };
+}
+function clearView(v) {
+    v.root.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); } });
+    v.root.clear(); v.mats = []; v.frames = []; v.axes = null;
+}
+// 形を作る時の道具一式
+function makeCtx(v) {
+    const meshGrp = new THREE.Group(), geoGrp = new THREE.Group(), extraGrp = new THREE.Group();
+    v.root.add(meshGrp, geoGrp, extraGrp);
+    v.frames.push(() => { meshGrp.visible = S.mesh; geoGrp.visible = S.geo; });
+    const c = {
+        v,
+        add(o, where) { (where === 'geo' ? geoGrp : where === 'extra' ? extraGrp : meshGrp).add(o); return o; },
+        L(n, o, where) { const L = Lines(v, n, o); c.add(L.obj, where); return L; },
+        frame(fn) { v.frames.push(fn); },
+        surface(geom, color, op, o) {
+            o = o || {};
+            const m = new THREE.MeshPhongMaterial({ color, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide, shininess: 70, specular: 0x334466, emissive: o.emissive || 0x000000 });
+            const me = new THREE.Mesh(geom, m); me.renderOrder = o.order || 0; return c.add(me, o.where);
+        },
+        ball(p, r, color, where) { const me = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.35, shininess: 80 })); me.position.set(p[0], p[1], p[2]); return c.add(me, where || 'extra'); },
+        // 測地線：curves は点の並び（どれも同じ長さ）。S.geoT の割合まで伸ばす
+        geodesics(curves, o) {
+            o = o || {}; const nc = curves.length, N = curves[0].length - 1;
+            const L = c.L(nc * N, { width: o.width || 2.2 }, 'geo');
+            for (let s = 0; s < N; s++) for (let j = 0; j < nc; j++) {
+                const col = scl(hsl(o.hue ? o.hue(j, nc) : 360 * j / nc, 0.9, 0.55), 0.85), f = o.fade ? o.fade(s / N) : 1;
+                L.seg(curves[j][s], curves[j][s + 1], scl(col, f));
+            }
+            L.flush();
+            c.frame(() => { L.g.instanceCount = Math.round(S.geoT * N) * nc; });
+            return L;
+        },
+        // 回して写す線（S²・S³）：pairs = [[A,B]...]（もとの座標）、map(p, out) は奥行き（写せない時 NaN）を返す
+        dynLines(pairs, map, color, o, where) {
+            o = o || {}; const L = c.L(pairs.length, o, where), a = [0, 0, 0], b = [0, 0, 0], Z = [0, 0, 0];
+            const grow = o.grow;   // [曲線の本数, 区間の数] なら測地線のように伸ばす
+            c.frame(() => {
+                L.reset();
+                for (let i = 0; i < pairs.length; i++) {
+                    const da = map(pairs[i][0], a), db = map(pairs[i][1], b);
+                    if (!(da === da) || !(db === db) || (o.cut && da < S.cut && db < S.cut) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > (o.maxLen || 3)) { L.seg(Z, Z, Z); continue; }
+                    L.seg(a, b, color(da, i), color(db, i));
+                }
+                L.flush();
+                if (grow) L.g.instanceCount = Math.round(S.geoT * grow[1]) * grow[0];
+            });
+            return L;
+        },
+    };
+    return c;
+}
+
+// 軸（x・y・z、S³ では w も）。dirs(name) が 3D の向き（長さこみ）を返す
+function makeAxes(v, names, dirs, o) {
+    o = o || {};
+    const grp = new THREE.Group(); v.root.add(grp);
+    const L = Lines(v, names.length, { width: 2.2, normal: true, order: 5 }); grp.add(L.obj);
+    const items = names.map(nm => {
+        const hex = AXIS_HEX[nm] || 0xe2e8f0;
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 14), new THREE.MeshBasicMaterial({ color: hex }));
+        cone.renderOrder = 6; grp.add(cone);
+        const lab = VisualFX.makeLabel(o.labels && o.labels[nm] || nm, hexCss(hex), { scale: 0.42 }); grp.add(lab);
+        return { nm, hex, rgb: hexRGB(hex), cone, lab };
+    });
+    const up = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3();
+    v.frames.push(() => {
+        grp.visible = S.axes; if (!S.axes) return;
+        L.reset();
+        items.forEach(it => {
+            const d = dirs(it.nm), len = Math.hypot(d[0], d[1], d[2]);
+            const base = o.from ? o.from(it.nm) : [0, 0, 0];
+            const tip = [base[0] + d[0], base[1] + d[1], base[2] + d[2]];
+            L.seg(base, tip, it.rgb);
+            const vis = len > 0.08; it.cone.visible = vis; it.lab.visible = len > 0.15;
+            if (vis) { tmp.set(d[0], d[1], d[2]).normalize(); it.cone.quaternion.setFromUnitVectors(up, tmp); it.cone.position.set(tip[0], tip[1], tip[2]); }
+            it.lab.position.set(tip[0] + tmp.x * 0.22, tip[1] + tmp.y * 0.22, tip[2] + tmp.z * 0.22);
+        });
+        L.flush();
+    });
+    v.axes = grp;
+}
+const AX_LEN = 2.7;
+const fixedAxes = (len, z) => nm => nm === 'x' ? [len, 0, 0] : nm === 'y' ? [0, len, 0] : nm === 'z' ? [0, 0, z === undefined ? len : z] : [0, 0, 0];
+
+// ---------------------------------------------------------------------
+// 6. 模型の部品（どの幾何からも使う）
+// ---------------------------------------------------------------------
+const dim = (c, k) => scl(c, k);
+function drawGrid2(c, half, step, z) {   // 平面 E²（z の高さ）の正方形の網目
+    const n = Math.round(2 * half / step) + 1, L = c.L(2 * n, { width: 1.3 });
+    const cx = dim(hexRGB(AXIS_HEX.x), 0.42), cy = dim(hexRGB(AXIS_HEX.y), 0.42);
+    for (let i = 0; i < n; i++) { const t = -half + i * step; L.seg([-half, t, z], [half, t, z], cx); L.seg([t, -half, z], [t, half, z], cy); }
+    L.flush();
+    c.surface(new THREE.PlaneGeometry(2 * half, 2 * half).translate(0, 0, z), 0x0f1d3a, 0.35);
+}
+function drawDiskTiling(c, z, o) {   // ポアンカレ円板の {5,4}（z の高さ）
+    o = o || {}; const T = tiling('H2'), seg = 6, E = T.edges.filter(([A, B]) => Math.max(Math.hypot(...toDisk(A)), Math.hypot(...toDisk(B))) < (o.rmax || 0.992));
+    const L = c.L(E.length * seg, { width: o.width || 1.3 }, o.where);
+    E.forEach(([A, B]) => {
+        for (let s = 0; s < seg; s++) {
+            const P = toDisk(slerpK(A, B, s / seg, -1)), Q = toDisk(slerpK(A, B, (s + 1) / seg, -1));
+            const r = Math.hypot(...P), col = scl(hsl(o.hue === undefined ? 200 + 70 * r : o.hue, 0.8, 0.6), (o.k || 1) * (0.06 + 1.0 * Math.pow(1 - r * r, 0.6)));
+            L.seg([P[0] * RB, P[1] * RB, z], [Q[0] * RB, Q[1] * RB, z], col);
+        }
+    });
+    L.flush();
+    if (o.fill !== false) {
+        c.surface(new THREE.CircleGeometry(RB, 96).translate(0, 0, z), 0x101b3a, o.fillOp || 0.4, { where: o.where });
+        const ring = c.L(96, { width: 1.6 }, o.where); for (let i = 0; i < 96; i++) { const a = TAU * i / 96, b = TAU * (i + 1) / 96; ring.seg([RB * Math.cos(a), RB * Math.sin(a), z], [RB * Math.cos(b), RB * Math.sin(b), z], scl([0.55, 0.6, 0.95], o.k || 1)); } ring.flush();
+    }
+    return T;
+}
+function drawS2(c, o) {   // 球面 S²（正十二面体の 12 枚の五角形）。X-W・Y-W のつまみで z の方へ倒れる
+    o = o || {}; const T = tiling('S2'), seg = 10, pairs = [];
+    T.edges.forEach(([A, B]) => { for (let s = 0; s < seg; s++) pairs.push([slerpK(A, B, s / seg, 1), slerpK(A, B, (s + 1) / seg, 1)]); });
+    c.dynLines(pairs, mapS2, d => depthColor(d, 1.3), { width: 1.8, cut: true });
+    c.surface(new THREE.SphereGeometry(RS * 0.995, 64, 40), 0x1e3a8a, 0.16);
+}
+const _q4 = new Float64Array(4);
+function mapS2(p, out) { NDGeom.apply(R3, 3, p, _q4); out[0] = _q4[0] * RS; out[1] = _q4[1] * RS; out[2] = _q4[2] * RS; return _q4[2]; }
+function mapS3(p, out) {   // 4次元で回して、w の方から遠近で 3次元へ（次元おりがみと同じ k = D/(D − w)）
+    NDGeom.apply(R4, 4, p, _q4); const D = S.D, k = D / (D - _q4[3]);
+    if (!(k > 0 && k < 14)) return NaN;
+    out[0] = _q4[0] * k * RS; out[1] = _q4[1] * k * RS; out[2] = _q4[2] * k * RS; return _q4[3];
+}
+function sphereLatLong(c, r, color, k, where) {   // 薄い緯線・経線
+    const nlat = 6, nlon = 12, seg = 48, L = c.L((nlat * seg) + nlon * seg / 2, { width: 1 }, where);
+    for (let i = 1; i <= nlat; i++) { const th = Math.PI * i / (nlat + 1), z = r * Math.cos(th), rr = r * Math.sin(th); for (let s = 0; s < seg; s++) { const a = TAU * s / seg, b = TAU * (s + 1) / seg; L.seg([rr * Math.cos(a), rr * Math.sin(a), z], [rr * Math.cos(b), rr * Math.sin(b), z], scl(color, k)); } }
+    for (let j = 0; j < nlon; j++) { const a = TAU * j / nlon; for (let s = 0; s < seg / 2; s++) { const t1 = Math.PI * s / (seg / 2), t2 = Math.PI * (s + 1) / (seg / 2); L.seg([r * Math.sin(t1) * Math.cos(a), r * Math.sin(t1) * Math.sin(a), r * Math.cos(t1)], [r * Math.sin(t2) * Math.cos(a), r * Math.sin(t2) * Math.sin(a), r * Math.cos(t2)], scl(color, k)); } }
+    L.flush();
+}
+// 繊維の束の「横の面」（ねじれ）を小さな円板で。normal(p) は表示の座標での向き
+function contactDiscs(c, pts, normal, rad, color) {
+    const up = new THREE.Vector3(0, 0, 1), n = new THREE.Vector3();
+    const geom = new THREE.CircleGeometry(1, 24), mat = new THREE.MeshPhongMaterial({ color, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false, shininess: 40, emissive: color, emissiveIntensity: 0.15 });
+    pts.forEach(p => { const me = new THREE.Mesh(geom, mat); const nn = normal(p); n.set(nn[0], nn[1], nn[2]).normalize(); me.quaternion.setFromUnitVectors(up, n); me.position.set(p[0], p[1], p[2]); const r = typeof rad === 'function' ? rad(p) : rad; me.scale.setScalar(r); c.add(me); });
+}
+function polyline(c, pts, color, width, where) { const L = c.L(pts.length - 1, { width: width || 2 }, where); for (let i = 0; i + 1 < pts.length; i++) L.seg(pts[i], pts[i + 1], typeof color === 'function' ? color(i / (pts.length - 1)) : color); L.flush(); return L; }
+
+// ---------------------------------------------------------------------
+// 7. 8 つの幾何（1 つの幾何＝1 つのまとまり）
+//    left / right：{ title, sub, build(c), axes: { names, dirs, labels } }
+//    inside：中に入った景色の設定（光線追跡のシェーダーの種類と大きさ）
+// ---------------------------------------------------------------------
+const H_PROD_S = 0.35, H_PROD_H = 0.5, ZH = 0.8;   // 積の空間の「部屋」の高さの半分（S²×R・H²×R）と、H²×R の縦の表示倍率
+const NIL_K = 0.5, SOL_K = 0.8, SL_K = 0.5;          // 座標の模型の表示倍率（Nil・Sol・SL̃2 の繊維）
+const GEOMS = [
+{
+    id: 'E3', sym: 'E³', name: 'ユークリッド',
+    desc: `<p><b>ユークリッド空間 E³</b>：ふだんの空間。まっすぐな線はどこまでもまっすぐで、平行な線はずっと同じ間かく。三角形の内角の和は 180°。</p>
+           <p class="an">2次元の仲間：平面 E²。正方形で平面をすきまなくしきつめられるように、立方体で空間をすきまなく積める。</p>
+           <p>右の箱は 3×3×3 の立方体の部屋。「中に入る」と、部屋がどこまでもくり返して見える（となりの部屋へ出ると、同じ形の部屋に入るだけ）。</p>`,
+    left: { title: 'E²（平面）', sub: '正方形のしきつめ。測地線＝ただの直線',
+        build(c) {
+            drawGrid2(c, 1.5, 1, 0);
+            c.geodesics(dirs2(16, 0.1).map(d => [0, 1].map(t => [d[0] * 2.6 * t, d[1] * 2.6 * t, 0])).map(cu => { const out = []; for (let i = 0; i <= 40; i++) out.push([cu[1][0] * i / 40, cu[1][1] * i / 40, 0]); return out; }));
+        }, axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN, 1.6) } },
+    right: { title: 'E³（箱）', sub: '立方体の部屋を積んだ箱。測地線＝直線',
+        build(c) {
+            const h = 1.5, ts = [-1.5, -0.5, 0.5, 1.5], L = c.L(3 * 16, { width: 1.3 });
+            for (const a of ts) for (const b of ts) {
+                const edge = (Math.abs(a) === h) + (Math.abs(b) === h), k = edge === 2 ? 0.75 : edge === 1 ? 0.42 : 0.3;
+                L.seg([-h, a, b], [h, a, b], dim(hexRGB(AXIS_HEX.x), k)); L.seg([a, -h, b], [a, h, b], dim(hexRGB(AXIS_HEX.y), k)); L.seg([a, b, -h], [a, b, h], dim(hexRGB(AXIS_HEX.z), k));
+            }
+            L.flush();
+            c.surface(new THREE.BoxGeometry(3, 3, 3), 0x1e3a8a, 0.06);
+            c.geodesics(fib3(22).map(d => { const out = []; for (let i = 0; i <= 40; i++) out.push(d.map(x => x * 2.4 * i / 40)); return out; }));
+        }, axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN) } },
+    inside: { kind: 0, tube: 0.03, fog: 0.11, maxD: 24, note: 'まわりの立方体の部屋は、ぜんぶ同じ 1 つの部屋（となりへ出ると、反対側から同じ部屋に入る）。どこまでも同じ大きさの部屋がまっすぐ並んで見える。' },
+},
+{
+    id: 'S3', sym: 'S³', name: '3次元の球面', uses4D: true,
+    desc: `<p><b>3次元の球面 S³</b>：4次元の球の表面。どの向きにまっすぐ進んでも、ぐるっと回って元の場所に戻る。三角形の内角の和は 180° より大きい。</p>
+           <p class="an">2次元の仲間：ふつうの球面 S²（地球の表面）。S² を 12 枚の五角形（正十二面体）で包めるように、S³ は 120 個の正十二面体（120 胞体）でちょうど包める。</p>
+           <p>右の図は、4次元の S³ を次元おりがみと同じ遠近（w の方から見る、k = D/(D − w)）で 3次元に写したもの。手前の半分（w が＋、赤紫）と奥の半分（w が−、水色）が重なって 1 つの玉に見える。左の S² も、z が＋の手前（赤紫）と−の奥（水色）が重なって見えるのと同じ。</p>
+           <p>4次元の回転（X-W など）で w の方へ倒すと、奥の部屋が手前に出てくる。「立体射影」にすると、北極（w の向き）の近くの部屋が無限に大きく広がる。</p>`,
+    left: { title: 'S²（球面）', sub: '12 枚の五角形で包む（正十二面体）。測地線＝大円。色＝z（赤紫＝手前・水色＝奥）',
+        build(c) {
+            drawS2(c);
+            const a = 0.7, p0 = [Math.sin(a), 0, Math.cos(a)], e1 = [Math.cos(a), 0, -Math.sin(a)], e2 = [0, 1, 0], N = 90, pairs = [];
+            const curves = dirs2(14, 0.15).map(d => { const t = [d[0] * e1[0] + d[1] * e2[0], d[0] * e1[1] + d[1] * e2[1], d[0] * e1[2] + d[1] * e2[2]]; const out = []; for (let i = 0; i <= N; i++) { const s = TAU * i / N; out.push(p0.map((x, j) => Math.cos(s) * x + Math.sin(s) * t[j])); } return out; });
+            for (let s = 0; s < N; s++) curves.forEach(cu => pairs.push([cu[s], cu[s + 1]]));
+            c.dynLines(pairs, mapS2, (d, i) => scl(hsl(360 * (i % curves.length) / curves.length, 0.9, 0.55), 0.4 + 0.5 * (d + 1) / 2), { width: 2.2, grow: [curves.length, N] }, 'geo');
+        }, axes: { names: ['x', 'y', 'z'], dirs: nm => { const e = [0, 0, 0]; e['xyz'.indexOf(nm)] = 1; const q = NDGeom.apply(R3, 3, e, []); return scl([q[0], q[1], q[2]], AX_LEN); } } },
+    right: { title: 'S³（4次元の超球の表面を 3次元へ）', sub: '120 個の正十二面体（120 胞体）。色＝w（赤紫＝手前・水色＝奥）',
+        build(c) {
+            const T = tiling('S3'), seg = 3, pairs = [];
+            T.edges.forEach(([A, B]) => { for (let s = 0; s < seg; s++) pairs.push([slerpK(A, B, s / seg, 1), slerpK(A, B, (s + 1) / seg, 1)]); });
+            c.dynLines(pairs, mapS3, d => depthColor(d, 1.1), { width: 1.2, maxLen: 2.5, cut: true });
+            c.surface(new THREE.SphereGeometry(RS, 48, 32), 0x1e3a8a, 0.05);
+            // 測地線（大円）：w の近くの 1 点から
+            const a = 0.6, p0 = [Math.sin(a), 0, 0, Math.cos(a)], e0 = [Math.cos(a), 0, 0, -Math.sin(a)], N = 120, gp = [];
+            const curves = fib3(22).map(d => { const t = [d[0] * e0[0], d[1], d[2], d[0] * e0[3]]; const out = []; for (let i = 0; i <= N; i++) { const s = TAU * i / N; out.push(p0.map((x, j) => Math.cos(s) * x + Math.sin(s) * t[j])); } return out; });
+            for (let s = 0; s < N; s++) curves.forEach(cu => gp.push([cu[s], cu[s + 1]]));
+            c.dynLines(gp, mapS3, (d, i) => scl(hsl(360 * (i % curves.length) / curves.length, 0.9, 0.55), 0.3 + 0.55 * (d + 1) / 2), { width: 2.0, grow: [curves.length, N], maxLen: 2.5 }, 'geo');
+        }, axes: { names: ['x', 'y', 'z', 'w'], dirs: nm => { const e = [0, 0, 0, 0]; e['xyzw'.indexOf(nm)] = 1; const q = NDGeom.apply(R4, 4, e, []); return scl([q[0], q[1], q[2]], AX_LEN); } } },
+    inside: { kind: 1, k: 1, tile: 'S3', tube: 0.018, fog: 0.05, maxD: 9.5, note: 'S³ の中。120 個の正十二面体の部屋。まっすぐ進むと 2π（約 6.3）でぐるっと 1 周して元の場所に戻る。遠くの部屋がまた大きく見えるのは、反対側を回ってきた光（S³ ではまっすぐな光が向こう側で集まる）。' },
+},
+{
+    id: 'H3', sym: 'H³', name: '双曲空間',
+    desc: `<p><b>双曲空間 H³</b>：まっすぐな線どうしが、どんどん離れていく空間。三角形の内角の和は 180° より小さく、遠くへ行くほど広さが指数関数的にふえる。</p>
+           <p class="an">2次元の仲間：双曲平面 H²。左はポアンカレ円板：無限に広い H² を円の中に押しこめた図。ふちに近いほど縮んで見えるが、本当はどの五角形も同じ大きさ。内角がぜんぶ直角の五角形で H² をしきつめられる（ユークリッドの平面では無理）。</p>
+           <p>右はポアンカレ球。内角（となりの面の角）がぜんぶ直角の正十二面体で H³ をしきつめられる（記号 {5,3,4}：1 本の辺のまわりに 4 個）。測地線はふちに直角に当たる円の弧。</p>`,
+    left: { title: 'H²（ポアンカレ円板）', sub: '直角の五角形のしきつめ {5,4}。測地線＝ふちに直角の円弧',
+        build(c) {
+            drawDiskTiling(c, 0);
+            const p0 = [0.38, 0.1], lam = 2 / (1 - p0[0] ** 2 - p0[1] ** 2);
+            c.geodesics(dirs2(16, 0.1).map(d => integrate(ACC.ball, p0, [d[0] / lam, d[1] / lam], 5.5, 80, p => p[0] * p[0] + p[1] * p[1] > 0.9985).map(p => [p[0] * RB, p[1] * RB, 0])));
+        }, axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN, 1.6) } },
+    right: { title: 'H³（ポアンカレ球）', sub: '直角の正十二面体のしきつめ {5,3,4}。測地線＝ふちに直角の円弧',
+        build(c) {
+            const T = tiling('H3'), E = [];
+            T.edges.forEach(([A, B]) => { const P = toDisk(A), Q = toDisk(B), r = Math.max(Math.hypot(...P), Math.hypot(...Q)); if (r < 0.9 && Math.hypot(P[0] - Q[0], P[1] - Q[1], P[2] - Q[2]) > 0.02) E.push([A, B]); });
+            // ふちへ向かってなめらかに消す（細かい線が重なって白くならないように）
+            const seg = 5, L = c.L(E.length * seg, { width: 1.25 });
+            E.forEach(([A, B]) => { for (let s = 0; s < seg; s++) { const P = toDisk(slerpK(A, B, s / seg, -1)), Q = toDisk(slerpK(A, B, (s + 1) / seg, -1)); const r = Math.hypot(...P); const f = Math.max(0, 1 - Math.pow(r / 0.9, 2.5)); L.seg(P.map(x => x * RB), Q.map(x => x * RB), scl(hsl(185 + 95 * r, 0.85, 0.6), 1.05 * Math.pow(f, 1.3))); } });
+            L.flush();
+            c.surface(new THREE.SphereGeometry(RB, 64, 40), 0x312e81, 0.07);
+            const p0 = [0.38, 0.1, 0.05], lam = 2 / (1 - p0.reduce((s, x) => s + x * x, 0));
+            c.geodesics(fib3(22).map(d => integrate(ACC.ball, p0, d.map(x => x / lam), 5.5, 80, p => p[0] * p[0] + p[1] * p[1] + p[2] * p[2] > 0.9985).map(p => p.map(x => x * RB))));
+        }, axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN) } },
+    inside: { kind: 1, k: -1, tile: 'H3', tube: 0.045, fog: 0.2, maxD: 12, note: 'H³ の中。直角の正十二面体の部屋がどこまでも続く。遠くの部屋は、距離とともに急に小さく見える（光の届く先の広さが指数関数的にふえるから）。どの角にも 8 個の部屋が集まり、辺のまわりは 4 個。' },
+},
+{
+    id: 'S2R', sym: 'S²×R', name: '球面×直線',
+    desc: `<p><b>S²×R</b>：横の向きは球面 S²、縦の向きはまっすぐな直線 R。どの点でも「横に進むと戻ってくるが、縦にはどこまでも進める」空間。</p>
+           <p class="an">2次元の仲間：円柱 S¹×R（円×直線）。円柱も、横に回ると戻り、縦にはどこまでも行ける。</p>
+           <p>右の図は入れ子の球：半径 e<sup>t</sup> の球が「高さ t の S²」。中心から外へ向かう線が R の向き（縦）。測地線は、円柱では らせん、入れ子の球では 中心を通る平面の上の対数らせん になる。</p>`,
+    left: { title: 'S¹×R（円柱）', sub: '円×直線。測地線＝らせん',
+        build(c) {
+            const RC = 1.15, ZS = 1.15, hs = [-1.75, -1.05, -0.35, 0.35, 1.05, 1.75], seg = 64, L = c.L(hs.length * seg + 10, { width: 1.4 });
+            hs.forEach(h => { const k = Math.abs(h) > 1.5 ? 0.35 : 0.7; for (let s = 0; s < seg; s++) { const a = TAU * s / seg, b = TAU * (s + 1) / seg; L.seg([RC * Math.cos(a), RC * Math.sin(a), h * ZS], [RC * Math.cos(b), RC * Math.sin(b), h * ZS], depthColor(h / 1.75 * 0.8, k)); } });
+            for (let j = 0; j < 10; j++) { const a = TAU * j / 10 + 0.1; L.seg([RC * Math.cos(a), RC * Math.sin(a), -1.75 * ZS], [RC * Math.cos(a), RC * Math.sin(a), 1.75 * ZS], [0.25, 0.3, 0.45]); }
+            L.flush();
+            c.surface(new THREE.CylinderGeometry(RC, RC, 3.5 * ZS, 64, 1, true).rotateX(Math.PI / 2), 0x1e3a8a, 0.14);
+            const N = 90; c.geodesics(dirs2(12, 0.2).map(d => { const out = []; for (let i = 0; i <= N; i++) { const s = 3.6 * i / N, th = d[0] * s, t = Math.max(-1.75, Math.min(1.75, d[1] * s)); out.push([RC * Math.cos(th), RC * Math.sin(th), t * ZS]); } return out; }));
+        }, axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN, 2.6) } },
+    right: { title: 'S²×R（入れ子の球）', sub: '半径 e^t の球＝高さ t の S²。外向き＝R の向き。測地線＝対数らせん',
+        build(c) {
+            const T = tiling('S2'), hs = [-1.05, -0.35, 0.35, 1.05], seg = 8;
+            const L = c.L(hs.length * T.edges.length * seg + T.verts.length, { width: 1.3 });
+            hs.forEach(h => { const r = Math.exp(h), k = 0.75; T.edges.forEach(([A, B]) => { for (let s = 0; s < seg; s++) { const P = slerpK(A, B, s / seg, 1), Q = slerpK(A, B, (s + 1) / seg, 1); L.seg(P.map(x => x * r), Q.map(x => x * r), depthColor(h / 1.05 * 0.8, k)); } }); });
+            T.verts.forEach(V => L.seg(V.map(x => x * Math.exp(-1.05)), V.map(x => x * Math.exp(1.05)), [0.28, 0.32, 0.5]));
+            L.flush();
+            hs.forEach(h => c.surface(new THREE.SphereGeometry(Math.exp(h) * 0.995, 40, 28), 0x1e3a8a, 0.07));
+            const p0 = [1, 0, 0], st = p => { const r = Math.hypot(...p); return r > 3.0 || r < 0.32; };
+            c.geodesics(fib3(22).map(d => integrate(ACC.nested, p0, [d[2], d[0], d[1]], 4.2, 90, st)));
+        }, axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN) } },
+    inside: { kind: 2, k: 1, tile: 'S2', HP: H_PROD_S, tube: 0.022, fog: 0.14, maxD: 10, note: 'S²×R の中。横は 12 枚の五角形で包んだ球面、縦は H = 0.7 ごとの床と天井。横を見ると、まっすぐの光が球面をぐるっと回って、自分の背中側の柱が見える。上下はどこまでも同じ階が続く。' },
+},
+{
+    id: 'H2R', sym: 'H²×R', name: '双曲平面×直線',
+    desc: `<p><b>H²×R</b>：横の向きは双曲平面 H²、縦の向きはまっすぐな直線 R。双曲平面を縦に積み重ねた空間。</p>
+           <p class="an">2次元の仲間について：H¹（1次元の双曲空間）はただの直線なので、H¹×R はふつうの平面と同じになってしまう。そこで左の窓には土台の H² を出し、右の測地線を真上から落とした「影」を描いた（影は H² の測地線になる）。</p>
+           <p>右の図はポアンカレ円板を積み重ねたもの。縦の線が R の向き（繊維）。横にはねじれがなく、そのまま重なっている（Nil・SL̃(2,R) と比べてみてください）。</p>`,
+    left: { title: 'H²（土台）', sub: 'H²×R の 1 枚。線は右の測地線の影（＝H² の測地線）',
+        build(c) { drawDiskTiling(c, 0); c.geodesics(GEOM_CACHE.h2r().map(cu => cu.map(p => [p[0], p[1], 0]))); },
+        axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN, 1.6) } },
+    right: { title: 'H²×R（円板の積み重ね）', sub: 'ポアンカレ円板を縦に積む。縦の線＝R の向き',
+        build(c) {
+            const hs = [-1.5, -0.5, 0.5, 1.5];
+            hs.forEach(h => drawDiskTiling(c, h * ZH, { k: Math.abs(h) > 1 ? 0.45 : 0.85, fillOp: 0.12, rmax: 0.97, hue: 200 + 40 * h }));
+            const T = tiling('H2'), P = T.verts.map(toDisk).filter(p => Math.hypot(...p) < 0.75), L = c.L(P.length, { width: 1.2 });
+            P.forEach(p => L.seg([p[0] * RB, p[1] * RB, -1.5 * ZH], [p[0] * RB, p[1] * RB, 1.5 * ZH], [0.3, 0.34, 0.55])); L.flush();
+            c.geodesics(GEOM_CACHE.h2r());
+        }, axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN) } },
+    inside: { kind: 2, k: -1, tile: 'H2', HP: H_PROD_H, tube: 0.04, fog: 0.2, maxD: 12, note: 'H²×R の中。横は直角の五角形の部屋（H²）、縦は 1 階ごとの床と天井。横に見ると双曲（遠くが急に小さく）、縦に見るとふつうにまっすぐ並ぶ。' },
+},
+{
+    id: 'Nil', sym: 'Nil', name: 'ハイゼンベルク群',
+    desc: `<p><b>Nil</b>（ハイゼンベルク群）：土台は平面 E²。その各点に縦の繊維（直線）が立っている。ただし繊維の束が<b>ねじれて</b>いて、「横」の向き（円板で描いた面）が場所によって傾いている。</p>
+           <p>横の面に沿って土台の上で円を描くように 1 周すると、元の繊維に戻るが、<b>囲んだ面積のぶんだけ縦にずれる</b>（黄色の線）。式：ds² = dx² + dy² + (dz + ½(x dy − y dx))²。</p>
+           <p class="an">左は土台の E²。右の測地線を真上から落とした影は、ちょうど円になる（まっすぐ横に出た線だけが直線）。</p>`,
+    left: { title: 'E²（土台）', sub: '線は右の測地線の影：真上から見ると円になる',
+        build(c) { drawGrid2(c, 2, 0.5, 0); const r = 1.2 * NIL_K; polyline(c, [...Array(97)].map((_, i) => [r * Math.cos(TAU * i / 96), r * Math.sin(TAU * i / 96), 0.002]), [1, 0.8, 0.3], 2.4); c.geodesics(GEOM_CACHE.nil().map(cu => cu.map(p => [p[0], p[1], 0]))); },
+        axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN, 1.6) } },
+    right: { title: 'Nil（ねじれた繊維の束）', sub: '縦の線＝繊維、円板＝横の面（場所で傾く）。黄色＝1 周すると縦にずれる',
+        build(c) {
+            const K = NIL_K, L = c.L(25, { width: 1.1 });
+            for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) L.seg([i * 2 * K, j * 2 * K, -4 * K], [i * 2 * K, j * 2 * K, 4 * K], [0.3, 0.34, 0.55]);
+            L.flush();
+            drawGrid2(c, 4 * K, 2 * K, -4 * K);
+            const pts = []; for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) for (const z of [-2, 0, 2]) pts.push([i * 2 * K, j * 2 * K, z * K]);
+            contactDiscs(c, pts, p => { const x = p[0] / K, y = p[1] / K; return [-0.5 * y, 0.5 * x, 1]; }, 0.2, 0x8b5cf6);
+            for (const p of [[-2, -2, -2], [0, 0, 0], [2, 2, 2], [2, -2, 0], [-2, 2, 0]]) c.ball(p.map(x => x * K), 0.07, 0xfbbf24);
+            // 円の横の持ち上げ：半径 1 の円を 1 周すると z が −π（囲んだ面積）だけずれる
+            const r = 1.2, z0 = 2.2, lift = [...Array(121)].map((_, i) => { const a = TAU * i / 120; return [r * Math.cos(a) * K, r * Math.sin(a) * K, (z0 - 0.5 * r * r * a) * K]; });
+            polyline(c, lift, [1, 0.8, 0.3], 2.6, 'extra'); polyline(c, [lift[0], lift[120]], [1, 1, 1], 1.6, 'extra');
+            c.geodesics(GEOM_CACHE.nil());
+        }, axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN) } },
+    inside: { kind: 3, fog: 0.14, maxD: 14, note: 'Nil の中（光を少しずつ曲げながら進める）。玉は座標の格子 (2 おき) に置いた目印。上下に見るとまっすぐだが、横に見ると光がらせんを描いて、目印がゆがんで見える。' },
+},
+{
+    id: 'Sol', sym: 'Sol', name: 'ソル',
+    desc: `<p><b>Sol</b>：高さ z を上がると、x の向きは e<sup>z</sup> 倍に伸び、y の向きは e<sup>−z</sup> 倍に縮む空間。式：ds² = e<sup>2z</sup>dx² + e<sup>−2z</sup>dy² + dz²。8 つの中でいちばん変わり者で、回転の対称性がまったくない。</p>
+           <p>右の長方形は、どの高さでも「同じ大きさ（たて・よこ 1）」の正方形：下では x に長く、上では y に長く見える。</p>
+           <p class="an">x = 0 の面も y = 0 の面も、それぞれが双曲平面 H² になっている。左はその 1 枚（x = 0 の面）と、その中の測地線。</p>`,
+    left: { title: 'H²（Sol の中の x = 0 の面）', sub: 'y と z の面。e^{−2z}dy² + dz² は双曲平面',
+        build(c) {
+            const K = SOL_K, L = c.L(40, { width: 1.3 });
+            for (let i = -5; i <= 5; i++) L.seg([0, i * 0.5 * K, -2.5 * K], [0, i * 0.5 * K, 2.5 * K], dim(hexRGB(AXIS_HEX.y), 0.4));
+            for (let i = -5; i <= 5; i++) L.seg([0, -2.5 * K, i * 0.5 * K], [0, 2.5 * K, i * 0.5 * K], dim(hexRGB(AXIS_HEX.z), 0.4));
+            L.flush();
+            c.surface(new THREE.PlaneGeometry(5 * K, 5 * K).rotateY(Math.PI / 2), 0x0f1d3a, 0.35);
+            const st = p => Math.max(Math.abs(p[1]), Math.abs(p[2])) > 2.5;
+            c.geodesics(dirs2(16, 0.1).map(d => integrate(ACC.sol, [0, 0, 0], [0, d[0], d[1]], 5, 90, st).map(p => p.map(x => x * K))));
+        }, axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN) } },
+    right: { title: 'Sol（伸びて縮む）', sub: '長方形＝どの高さでも同じ大きさの正方形。測地線は x・y の向きへ散らばる',
+        build(c) {
+            const K = SOL_K, zs = [-1.5, -1, -0.5, 0, 0.5, 1, 1.5], L = c.L(zs.length * 4 + 24, { width: 1.6 });
+            zs.forEach(z => { const ax = 0.5 * Math.exp(-z), ay = 0.5 * Math.exp(z), col = depthColor(z / 1.5 * 0.9, 0.9);
+                const P = [[-ax, -ay], [ax, -ay], [ax, ay], [-ax, ay]].map(q => [q[0] * K, q[1] * K, z * K]); for (let i = 0; i < 4; i++) L.seg(P[i], P[(i + 1) % 4], col); });
+            for (let i = -2; i <= 2; i++) { L.seg([0, i * K, -2.5 * K], [0, i * K, 2.5 * K], [0.2, 0.32, 0.25]); L.seg([i * K, 0, -2.5 * K], [i * K, 0, 2.5 * K], [0.35, 0.2, 0.22]); }
+            for (let i = -2; i <= 2; i++) { L.seg([0, -2.5 * K, i * K], [0, 2.5 * K, i * K], [0.2, 0.32, 0.25]); L.seg([-2.5 * K, 0, i * K], [2.5 * K, 0, i * K], [0.35, 0.2, 0.22]); }
+            L.flush();
+            c.surface(new THREE.PlaneGeometry(5 * K, 5 * K).rotateY(Math.PI / 2), 0x10301f, 0.18);
+            c.surface(new THREE.PlaneGeometry(5 * K, 5 * K).rotateX(Math.PI / 2), 0x301018, 0.18);
+            for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) c.ball([i * 1.5 * K, j * 1.5 * K, k * 1.5 * K], 0.05, 0xfbbf24);
+            c.geodesics(GEOM_CACHE.sol());
+        }, axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN) } },
+    inside: { kind: 4, fog: 0.15, maxD: 12, note: 'Sol の中（光を少しずつ曲げながら進める）。玉は座標の格子（1.5 おき）に置いた目印。上を見ると y の向きに、下を見ると x の向きに引きのばされて見える。' },
+},
+{
+    id: 'SL2', sym: 'SL̃(2,R)', name: 'ねじれた双曲',
+    desc: `<p><b>SL̃(2,R)</b>：土台は双曲平面 H²。その各点に縦の繊維が立ち、Nil と同じように束がねじれている。Nil の土台（平面）を双曲平面に取りかえたもの。双曲平面の「向きつきの単位接ベクトル全体」（を縦にほどいたもの）とも見られる。</p>
+           <p>横の面（円板）に沿って土台で 1 周すると、<b>囲んだ（双曲の）面積だけ縦にずれる</b>（黄色の線）。式：ds² = λ²(du² + dv²) + (dθ + λ(u dv − v du))²、λ = 2/(1 − u² − v²)。</p>
+           <p class="an">左は土台の H²（ポアンカレ円板）と、右の測地線を真上から落とした影。</p>`,
+    left: { title: 'H²（土台）', sub: '線は右の測地線の影（一定の曲がり方の曲線）',
+        build(c) { drawDiskTiling(c, 0); const r = 0.4 * RB; polyline(c, [...Array(97)].map((_, i) => [r * Math.cos(TAU * i / 96), r * Math.sin(TAU * i / 96), 0.002]), [1, 0.8, 0.3], 2.4); c.geodesics(GEOM_CACHE.sl2().map(cu => cu.map(p => [p[0], p[1], 0]))); },
+        axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN, 1.6) } },
+    right: { title: 'SL̃(2,R)（双曲平面の上のねじれた束）', sub: '下＝土台の H²、縦の線＝繊維、円板＝横の面。黄色＝1 周すると縦にずれる',
+        build(c) {
+            const Z = SL_K, zb = -3 * Z;
+            drawDiskTiling(c, zb, { fillOp: 0.25 });
+            const T = tiling('H2'), C = T.centers.map(toDisk).filter(p => Math.hypot(...p) < 0.8), L = c.L(C.length, { width: 1.2 });
+            C.forEach(p => L.seg([p[0] * RB, p[1] * RB, zb], [p[0] * RB, p[1] * RB, 3 * Z], [0.3, 0.34, 0.55])); L.flush();
+            const pts = []; C.filter(p => Math.hypot(...p) < 0.7).forEach(p => [-2, 0, 2].forEach(t => pts.push([p[0] * RB, p[1] * RB, t * Z])));
+            contactDiscs(c, pts, p => { const u = p[0] / RB, v = p[1] / RB, lam = 2 / (1 - u * u - v * v); return [-lam * v / RB, lam * u / RB, 1 / Z]; }, p => 0.3 * (1 - (p[0] * p[0] + p[1] * p[1]) / (RB * RB)), 0x8b5cf6);
+            C.filter(p => Math.hypot(...p) < 0.6).forEach(p => [-2, 0, 2].forEach(t => c.ball([p[0] * RB, p[1] * RB, t * Z], 0.05, 0xfbbf24)));
+            const r = 0.4, lam = 2 / (1 - r * r), t0 = 2.6, lift = [...Array(121)].map((_, i) => { const a = TAU * i / 120; return [r * Math.cos(a) * RB, r * Math.sin(a) * RB, (t0 - lam * r * r * a) * Z]; });
+            polyline(c, lift, [1, 0.8, 0.3], 2.6, 'extra'); polyline(c, [lift[0], lift[120]], [1, 1, 1], 1.6, 'extra');
+            c.geodesics(GEOM_CACHE.sl2());
+        }, axes: { names: ['x', 'y', 'z'], dirs: fixedAxes(AX_LEN), from: nm => nm === 'z' ? [0, 0, -3 * SL_K] : [0, 0, 0] } },
+    inside: { kind: 5, k: -1, tile: 'H2', fog: 0.16, maxD: 11, note: 'SL̃(2,R) の中（光を少しずつ曲げながら進める）。玉は土台の五角形の真ん中に、縦に 2 おきに置いた目印。横に見ると双曲＋ねじれで、光がらせん状に曲がる。' },
+},
+];
+// 何度も使う測地線（左の影と右とで同じもの）
+const GEOM_CACHE = (() => {
+    const memo = {}, once = (k, f) => () => memo[k] || (memo[k] = f());
+    return {
+        h2r: once('h2r', () => { const p0 = [0.38, 0.1, 0], lam = 2 / (1 - 0.38 ** 2 - 0.01); return fib3(22).map(d => integrate(ACC.stack, p0, [d[0] / lam, d[1] / lam, d[2]], 5, 90, p => p[0] * p[0] + p[1] * p[1] > 0.9985 || Math.abs(p[2]) > 1.6).map(p => [p[0] * RB, p[1] * RB, p[2] * ZH])); }),
+        nil: once('nil', () => fib3(24).map(d => integrate(ACC.nil, [0, 0, 0], d, 10, 140, p => Math.max(Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])) > 4.2).map(p => p.map(x => x * NIL_K)))),
+        sol: once('sol', () => fib3(24).map(d => integrate(ACC.sol, [0, 0, 0], d, 6, 120, p => Math.max(Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])) > 2.5).map(p => p.map(x => x * SOL_K)))),
+        sl2: once('sl2', () => fib3(24).map(d => integrate(ACC.sl2, [0, 0, 0], [d[0] / 2, d[1] / 2, d[2]], 5, 120, p => p[0] * p[0] + p[1] * p[1] > 0.995 || Math.abs(p[2]) > 3).map(p => [p[0] * RB, p[1] * RB, p[2] * SL_K]))),
+    };
+})();
+const GEOM = id => GEOMS.find(g => g.id === id) || GEOMS[0];
+
+// ---------------------------------------------------------------------
+// 8. 中に入った景色（光線追跡：光を測地線に沿って進める）
+//    kind 0：E³（立方体の部屋）、1：S³・H³（鏡で部屋に戻す）、2：S²×R・H²×R（横は鏡、縦は くり返し）、
+//    3：Nil、4：Sol、5：SL̃(2,R)（測地線の式を少しずつ進める）
+// ---------------------------------------------------------------------
+const RAY_FRAG = `
+precision highp float;
+uniform vec2 uRes; uniform float uTanF; uniform int uKind; uniform float uK;
+uniform vec4 uN[12]; uniform int uNF; uniform mat4 uM; uniform mat3 uQ; uniform mat3 uA; uniform vec3 uPos; uniform float uH; uniform float uHP;
+uniform float uTube; uniform float uFog; uniform float uMaxD;
+float chf(float x){ return 0.5*(exp(x)+exp(-x)); }
+float shf(float x){ return 0.5*(exp(x)-exp(-x)); }
+float ashf(float x){ return log(x + sqrt(x*x+1.0)); }
+float kd4(vec4 a, vec4 b){ return dot(a.xyz,b.xyz) + uK*a.w*b.w; }
+float kd3(vec3 a, vec3 b){ return dot(a.xy,b.xy) + uK*a.z*b.z; }
+float pdist(float s){ return uK > 0.0 ? asin(clamp(s,-1.0,1.0)) : ashf(s); }
+vec3 pal(float h){ return 0.55 + 0.45*cos(6.2831*(h + vec3(0.0, 0.33, 0.67))); }
+vec3 bg(vec3 d){ return mix(vec3(0.012,0.02,0.05), vec3(0.05,0.04,0.12), 0.5+0.5*d.y); }
+// 2 つのいちばん近い面への距離（e1 ≥ e2、どちらも ≤ 0）から、辺の管までの距離
+void top2(float d, int f, inout float e1, inout float e2, inout int f1, inout int f2){ if(d>e1){ e2=e1; f2=f1; e1=d; f1=f; } else if(d>e2){ e2=d; f2=f; } }
+vec3 shadeTube(float e1, float e2, int f1, int f2, float t, vec3 dir, float cover){
+    float a = atan(-e2, -e1);
+    float li = 0.45 + 0.55*cos(2.0*a - 0.7);
+    float h = float(f1 < f2 ? f1*13+f2 : f2*13+f1) * 0.137;
+    vec3 c = pal(h) * li * 1.15;
+    return mix(bg(dir), c, exp(-t*uFog)*cover);
+}
+// ---- 測地線の加速度（座標の模型）----
+vec3 accNil(vec3 p, vec3 v){ float w = v.z + 0.5*(p.x*v.y - p.y*v.x); return vec3(w*v.y, -w*v.x, 0.5*w*(p.x*v.x + p.y*v.y)); }
+vec3 accSol(vec3 p, vec3 v){ return vec3(-2.0*v.x*v.z, 2.0*v.y*v.z, exp(2.0*p.z)*v.x*v.x - exp(-2.0*p.z)*v.y*v.y); }
+vec3 accSL(vec3 p, vec3 v){
+    float r2 = dot(p.xy,p.xy), L = 2.0/(1.0-r2), w = v.z + L*(p.x*v.y - p.y*v.x), e2 = dot(v.xy,v.xy), ud = dot(p.xy,v.xy);
+    float au = L*(p.x*e2 - 2.0*ud*v.x) + w*v.y, av = L*(p.y*e2 - 2.0*ud*v.y) - w*v.x;
+    return vec3(au, av, -L*L*ud*(p.x*v.y - p.y*v.x) - L*(p.x*av - p.y*au));
+}
+// 1 画素の広がり：遠くの細い線が 1 画素より細くなると、当たったり外れたりしてちらつく。
+// 光の束の広がり J(t)（E：t、S：|sin t|、H：sinh t）× 1 画素の角度 で管を太らせ、そのぶん薄くする
+float pixW(float t, vec3 d){
+    float J;
+    if(uKind==0 || uKind==3) J = t;
+    else if(uKind==1) J = uK>0.0 ? abs(sin(t)) : shf(min(t, 12.0));
+    else if(uKind==2){ float rho = max(length(d.xy), 1e-3); float Jh = uK>0.0 ? abs(sin(t*rho))/rho : shf(min(t*rho, 12.0))/rho; J = max(Jh, t*abs(d.z)); }
+    else J = shf(min(0.8*t, 12.0))/0.8;
+    return min(J * 2.0*uTanF/uRes.y * 1.6, 0.6);
+}
+vec3 acc(vec3 p, vec3 v){ if(uKind==3) return accNil(p,v); if(uKind==4) return accSol(p,v); return accSL(p,v); }
+float gnorm(vec3 p, vec3 v){
+    if(uKind==3){ float w = v.z + 0.5*(p.x*v.y - p.y*v.x); return sqrt(dot(v.xy,v.xy) + w*w); }
+    if(uKind==4){ return sqrt(exp(2.0*p.z)*v.x*v.x + exp(-2.0*p.z)*v.y*v.y + v.z*v.z); }
+    float L = 2.0/(1.0-dot(p.xy,p.xy)); float w = v.z + L*(p.x*v.y - p.y*v.x); return sqrt(L*L*dot(v.xy,v.xy) + w*w);
+}
+vec3 frameVel(vec3 p, vec3 d){   // 正規直交の枠 E1・E2・E3 での向き d → 座標の速さ
+    if(uKind==3) return vec3(d.x, d.y, d.z + 0.5*(p.y*d.x - p.x*d.y));
+    if(uKind==4) return vec3(exp(-p.z)*d.x, exp(p.z)*d.y, d.z);
+    float L = 2.0/(1.0-dot(p.xy,p.xy)); return vec3(d.x/L, d.y/L, d.z + p.y*d.x - p.x*d.y);
+}
+// 目印までの距離（その点の計量で測った近似）と目印の番号
+float marker(vec3 p, out vec3 id, out vec3 q){
+    if(uKind==3){ vec3 c = 2.0*floor(p/2.0+0.5); vec3 d = p-c; q = vec3(d.x, d.y, d.z + 0.5*(c.x*d.y - c.y*d.x)); id = c; return length(q); }
+    if(uKind==4){ vec3 c = 1.5*floor(p/1.5+0.5); vec3 d = p-c; q = vec3(exp(c.z)*d.x, exp(-c.z)*d.y, d.z); id = c; return length(q); }
+    float r2 = dot(p.xy,p.xy); vec3 X = vec3(2.0*p.x, 2.0*p.y, 1.0+r2)/(1.0-r2); vec3 Xo = X;
+    float flips = 0.0;
+    for(int pass=0; pass<10; pass++){ bool any=false; for(int f=0; f<5; f++){ float s = kd3(X, uN[f].xyz); if(s>1e-7){ X -= 2.0*s*uN[f].xyz; any=true; flips += 1.0; } } if(!any) break; }
+    float b = ashf(length(X.xy));
+    float th = p.z - 2.0*floor(p.z/2.0+0.5);
+    q = vec3(X.xy, th); id = vec3(flips, floor(p.z/2.0+0.5), 0.0);
+    return sqrt(b*b + th*th);
+}
+void main(){
+    vec2 uv = (gl_FragCoord.xy / uRes)*2.0 - 1.0;
+    vec3 dir = normalize(vec3(uv.x*uTanF*uRes.x/uRes.y, uv.y*uTanF, -1.0));
+    vec3 d = uQ * dir;   // 枠の中での向き
+    vec3 col = bg(dir); float t = 0.0; float glow = 0.0;
+    if(uKind==0){
+        vec3 p = uPos;
+        for(int i=0;i<220;i++){
+            p = p - floor(p+0.5);
+            vec3 a = abs(p) - 0.5;
+            float e1=-1e9, e2=-1e9; int f1=0, f2=0;
+            top2(a.x, p.x>0.0?0:1, e1,e2,f1,f2); top2(a.y, p.y>0.0?2:3, e1,e2,f1,f2); top2(a.z, p.z>0.0?4:5, e1,e2,f1,f2);
+            float wpx = pixW(t, d); float sd = sqrt(e1*e1+e2*e2) - uTube - wpx;
+            glow += 0.003*exp(e1*60.0);
+            if(sd < 0.0015){ col = shadeTube(e1,e2,f1,f2,t,dir, uTube/(uTube+wpx)); break; }
+            float st = max(sd, 0.002); p += d*st; t += st; if(t>uMaxD) break;
+        }
+    } else if(uKind==1){
+        vec4 p = uM[3]; vec4 v = uM * vec4(d, 0.0);
+        for(int i=0;i<200;i++){
+            for(int pass=0; pass<4; pass++){ bool any=false; for(int f=0; f<12; f++){ if(f>=uNF) break; float s = kd4(p,uN[f]); if(s>1e-7){ p -= 2.0*s*uN[f]; v -= 2.0*kd4(v,uN[f])*uN[f]; any=true; } } if(!any) break; }
+            float e1=-1e9, e2=-1e9; int f1=0, f2=0;
+            for(int f=0; f<12; f++){ if(f>=uNF) break; top2(pdist(kd4(p,uN[f])), f, e1,e2,f1,f2); }
+            float wpx = pixW(t, d); float sd = sqrt(e1*e1+e2*e2) - uTube - wpx;
+            glow += 0.0025*exp(e1*50.0);
+            if(sd < 0.0015){ col = shadeTube(e1,e2,f1,f2,t,dir, uTube/(uTube+wpx)); break; }
+            float st = max(sd*0.85, 0.002);
+            if(uK>0.0){ float c=cos(st), s=sin(st); vec4 np = c*p + s*v; v = -s*p + c*v; p = np; }
+            else { float c=chf(st), s=shf(st); vec4 np = c*p + s*v; v = s*p + c*v; p = np; }
+            p /= sqrt(abs(kd4(p,p))); v -= uK*kd4(v,p)*p; v /= sqrt(abs(kd4(v,v)));
+            t += st; if(t>uMaxD) break;
+        }
+    } else if(uKind==2){
+        vec3 p = uA[2]; float rho = length(d.xy); vec3 u = rho>1e-5 ? uA*vec3(d.xy/rho, 0.0) : vec3(0.0); float h = uH;
+        for(int i=0;i<220;i++){
+            for(int pass=0; pass<4; pass++){ bool any=false; for(int f=0; f<5; f++){ float s = kd3(p,uN[f].xyz); if(s>1e-7){ p -= 2.0*s*uN[f].xyz; u -= 2.0*kd3(u,uN[f].xyz)*uN[f].xyz; any=true; } } if(!any) break; }
+            h = h - 2.0*uHP*floor(h/(2.0*uHP)+0.5);
+            float e1=-1e9, e2=-1e9; int f1=0, f2=0;
+            for(int f=0; f<5; f++) top2(pdist(kd3(p,uN[f].xyz)), f, e1,e2,f1,f2);
+            top2(abs(h)-uHP, h>0.0?5:6, e1,e2,f1,f2);
+            float wpx = pixW(t, d); float sd = sqrt(e1*e1+e2*e2) - uTube - wpx;
+            glow += 0.0025*exp(e1*50.0);
+            if(sd < 0.0015){ col = shadeTube(e1,e2,f1,f2,t,dir, uTube/(uTube+wpx)); break; }
+            float st = max(sd*0.85, 0.002), sh = st*rho;
+            if(rho>1e-5){
+                if(uK>0.0){ float c=cos(sh), s=sin(sh); vec3 np = c*p + s*u; u = -s*p + c*u; p = np; }
+                else { float c=chf(sh), s=shf(sh); vec3 np = c*p + s*u; u = s*p + c*u; p = np; }
+                p /= sqrt(abs(kd3(p,p))); u -= uK*kd3(u,p)*p; u /= sqrt(abs(kd3(u,u)));
+            }
+            h += st*d.z; t += st; if(t>uMaxD) break;
+        }
+    } else {
+        vec3 p = uPos; vec3 v = frameVel(p, d); vec3 id; vec3 q;
+        for(int i=0;i<260;i++){
+            float m = marker(p, id, q);
+            float wpx = pixW(t, d);
+            if(m < 0.22 + wpx){
+                vec3 n = normalize(q); float li = 0.35 + 0.65*max(dot(n, normalize(vec3(0.4,0.3,0.85))), 0.0);
+                vec3 c = pal(fract(dot(id, vec3(0.123, 0.271, 0.413)) + 0.05)) * li * 1.15;
+                col = mix(bg(dir), c, exp(-t*uFog) * 0.22/(0.22+wpx)); break;
+            }
+            float h = clamp((m-0.22-wpx)*0.7, 0.012, 0.2);
+            vec3 a1 = acc(p,v); vec3 pm = p + 0.5*h*v; vec3 vm = v + 0.5*h*a1; vec3 a2 = acc(pm,vm);
+            p += h*vm; v += h*a2; v /= gnorm(p,v);
+            t += h; if(t>uMaxD) break;
+            if(uKind==5 && dot(p.xy,p.xy) > 0.9995) break;
+            if(uKind==4 && abs(p.z) > 9.0) break;
+        }
+    }
+    col += vec3(0.35,0.5,0.9)*glow;
+    gl_FragColor = vec4(pow(col, vec3(0.9)), 1.0);
+}`;
+const ray = (() => {
+    const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const U = {
+        uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * Math.PI / 180) }, uKind: { value: 0 }, uK: { value: -1 },
+        uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uNF: { value: 0 }, uM: { value: new THREE.Matrix4() }, uQ: { value: new THREE.Matrix3() }, uA: { value: new THREE.Matrix3() },
+        uPos: { value: new THREE.Vector3() }, uH: { value: 0 }, uHP: { value: 0.5 }, uTube: { value: 0.03 }, uFog: { value: 0.1 }, uMaxD: { value: 10 },
+    };
+    const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: RAY_FRAG, depthTest: false, depthWrite: false });
+    scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
+    return { scene, cam, U };
+})();
+// 中にいる人（カメラ）の場所と向き
+const IN = { yaw: 0, pitch: 0, pos: [0, 0, 0], M: ident(4), A: ident(3), h: 0, keys: new Set(), padMv: null };
+const Q0 = [[1, 0, 0], [0, 0, -1], [0, 1, 0]];   // カメラの 右・上・後ろ ＝ 枠の e1・e3・−e2（+e2 の向きを見る、e3 が上）
+function inQ() { return mmul(mmul(rot3(2, IN.yaw), Q0), rot3(0, IN.pitch)); }
+function inReset() {
+    const g = GEOM(S.geom).inside; IN.yaw = 0; IN.pitch = 0; IN.M = ident(4); IN.A = ident(3); IN.h = 0;
+    IN.pos = g.kind === 0 ? [0.12, -0.3, 0.07] : g.kind === 4 ? [0.3, -0.7, 0.2] : g.kind === 5 ? [0.05, -0.25, 0.9] : g.kind === 3 ? [0.4, -1.0, 0.95] : [0, 0, 0];
+    if (g.kind === 1 || g.kind === 2) inMove([0, -1, 0], g.kind === 1 ? 0.2 : 0.15);
+    if (g.kind === 2) IN.h = 0.12;
+    req(3);
+}
+function transM(d, s, k, n) {   // 原点から向き d（n−1 次元）へ s 進む平行移動（n×n）
+    const c = k > 0 ? Math.cos(s) : Math.cosh(s), A = k > 0 ? -Math.sin(s) : Math.sinh(s), B = k > 0 ? Math.sin(s) : Math.sinh(s);
+    const D = [...d, 0], T = ident(n);
+    for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) {
+        const ta = a === n - 1 ? 1 : 0, tb = b === n - 1 ? 1 : 0;
+        T[a][b] += (c - 1) * (D[a] * D[b] + ta * tb) + A * ta * D[b] + B * D[a] * tb;
+    }
+    return T;
+}
+function foldFrame(M, planes, k) {   // 部屋の外に出たら鏡で真ん中の部屋へ戻す（景色は鏡で変わらない）
+    const n = M.length;
+    for (let pass = 0; pass < 12; pass++) {
+        let any = false; const p = col(M, n - 1);
+        for (const v of planes) { const s = kdot(p, v, k); if (s > 1e-9) { M = mmul(reflM(v, k), M); any = true; break; } }
+        if (!any) break;
+    }
+    return gram(M, k);
+}
+function gram(M, k) {   // 枠をきれいに直す（計量 J で正規直交に）
+    const n = M.length, C = [...Array(n)].map((_, j) => col(M, j));
+    C[n - 1] = knorm(C[n - 1], k);
+    for (let j = 0; j < n - 1; j++) {
+        let v = C[j]; const p = C[n - 1];
+        const sp = kdot(v, p, k) / kdot(p, p, k); v = v.map((x, i) => x - sp * p[i]);
+        for (let q = 0; q < j; q++) { const s = kdot(v, C[q], k); v = v.map((x, i) => x - s * C[q][i]); }
+        const l = Math.sqrt(Math.abs(kdot(v, v, k))) || 1; C[j] = v.map(x => x / l);
+    }
+    return M.map((_, i) => C.map(cc => cc[i]));
+}
+function inMove(fd, s, noWrap) {   // 枠の中の向き fd へ s だけ進む
+    const g = GEOM(S.geom).inside;
+    if (g.kind === 0) { IN.pos = IN.pos.map((x, i) => x + fd[i] * s); IN.pos = IN.pos.map(x => x - Math.round(x)); }
+    else if (g.kind === 1) { const d = norm3(fd); IN.M = foldFrame(mmul(IN.M, transM(d, s, g.k, 4)), tiling(g.tile).planes, g.k); }
+    else if (g.kind === 2) {
+        const rho = Math.hypot(fd[0], fd[1]);
+        if (rho > 1e-6) IN.A = foldFrame(mmul(IN.A, transM([fd[0] / rho, fd[1] / rho], s * rho, g.k, 3)), tiling(g.tile).planes, g.k);
+        IN.h += s * fd[2]; IN.h -= 2 * g.HP * Math.round(IN.h / (2 * g.HP));
+    } else {
+        const acc = g.kind === 3 ? ACC.nil : g.kind === 4 ? ACC.sol : ACC.sl2, p = IN.pos;
+        let v;
+        if (g.kind === 3) v = [fd[0], fd[1], fd[2] + 0.5 * (p[1] * fd[0] - p[0] * fd[1])];
+        else if (g.kind === 4) v = [Math.exp(-p[2]) * fd[0], Math.exp(p[2]) * fd[1], fd[2]];
+        else { const L = 2 / (1 - p[0] * p[0] - p[1] * p[1]); v = [fd[0] / L, fd[1] / L, fd[2] + p[1] * fd[0] - p[0] * fd[1]]; }
+        const pts = integrate(acc, p, v, s, 1);
+        let q = pts[1];
+        if (g.kind === 5 && q[0] * q[0] + q[1] * q[1] > 0.96) q = p;   // 円板のふちへは行かない
+        // 目印の格子を保つ合同変換で、真ん中の部屋へ戻す（景色は変わらない）
+        if (noWrap) { /* 地図の向きを測る時は戻さない */ }
+        else if (g.kind === 3) {   // Nil の平行移動 (x,y,z) ↦ (x+a, y+b, z+c − ½(a y − b x))、a・b・c は 2 の倍数
+            const a = -2 * Math.round(q[0] / 2), b = -2 * Math.round(q[1] / 2);
+            q = [q[0] + a, q[1] + b, q[2] - 0.5 * (a * q[1] - b * q[0])]; q[2] -= 2 * Math.round(q[2] / 2);
+        } else if (g.kind === 4) { q = [q[0] - 1.5 * Math.round(q[0] / 1.5), q[1] - 1.5 * Math.round(q[1] / 1.5), q[2]]; }
+        else if (g.kind === 5) { q = [q[0], q[1], q[2] - 2 * Math.round(q[2] / 2)]; }
+        IN.pos = q;
+    }
+}
+function inLocal(dl) { const Q = inQ(); return mvec(Q, dl); }
+function setRayUniforms() {
+    const g = GEOM(S.geom).inside, U = ray.U;
+    U.uKind.value = g.kind; U.uK.value = g.k || 0; U.uTube.value = g.tube || 0.03; U.uFog.value = g.fog; U.uMaxD.value = g.maxD; U.uHP.value = g.HP || 0.5;
+    if (g.tile) { const P = tiling(g.tile).planes; U.uNF.value = P.length; P.forEach((v, i) => { if (v.length === 4) U.uN.value[i].set(v[0], v[1], v[2], v[3]); else U.uN.value[i].set(v[0], v[1], v[2], 0); }); }
+    const Q = inQ(); U.uQ.value.set(...Q[0], ...Q[1], ...Q[2]);
+    const M = IN.M; U.uM.value.set(...M[0], ...M[1], ...M[2], ...M[3]);
+    const A = IN.A; U.uA.value.set(...A[0], ...A[1], ...A[2]);
+    U.uPos.value.set(...IN.pos); U.uH.value = IN.h;
+    U.uRes.value.set(VR.r.domElement.width, VR.r.domElement.height);
+}
+// 左の地図に出す「自分」の場所（右の模型の表示の座標）
+function inMarker() {
+    const g = GEOM(S.geom).inside, Q = inQ(), fwd = mvec(Q, [0, 0, -1]);
+    const at = st => {
+        if (g.kind === 0) return IN.pos.slice();
+        if (g.kind === 1) {
+            const M = st ? mmul(IN.M, transM(norm3(fwd), 0.12, g.k, 4)) : IN.M, p = col(M, 3);
+            if (g.k > 0) { const o = [0, 0, 0]; mapS3(p, o); return o; }
+            return toDisk(p).map(x => x * RB);
+        }
+        if (g.kind === 2) {
+            const rho = Math.hypot(fwd[0], fwd[1]);
+            const A = st && rho > 1e-6 ? mmul(IN.A, transM([fwd[0] / rho, fwd[1] / rho], 0.12 * rho, g.k, 3)) : IN.A, p = col(A, 2), h = IN.h + (st ? 0.12 * fwd[2] : 0);
+            if (g.k > 0) return p.map(x => x * Math.exp(h));
+            const d = toDisk(p); return [d[0] * RB, d[1] * RB, h * ZH];
+        }
+        const p = IN.pos.slice(); if (st) { const save = IN.pos; inMove(fwd, 0.12, true); const q = IN.pos; IN.pos = save; p.splice(0, 3, ...q); }
+        if (g.kind === 3) return p.map(x => x * NIL_K);
+        if (g.kind === 4) return p.map(x => x * SOL_K);
+        return [p[0] * RB, p[1] * RB, p[2] * SL_K];
+    };
+    return [at(false), at(true)];
+}
+
+// ---------------------------------------------------------------------
+// 9. 組み立て（幾何を選ぶ・外から／中から）
+// ---------------------------------------------------------------------
+let markerObj = null;
+function build() {
+    const g = GEOM(S.geom);
+    clearView(VL); clearView(VR); markerObj = null;
+    const inside = S.mode === 'in';
+    const leftDef = inside ? g.right : g.left;
+    leftDef.build(makeCtx(VL));
+    makeAxes(VL, leftDef.axes.names, leftDef.axes.dirs, leftDef.axes);
+    if (!inside) { g.right.build(makeCtx(VR)); makeAxes(VR, g.right.axes.names, g.right.axes.dirs, g.right.axes); }
+    else {
+        const grp = new THREE.Group();
+        const me = new THREE.Mesh(new THREE.SphereGeometry(0.07, 18, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 }));
+        grp.add(me, cone); VL.root.add(grp); markerObj = { grp, me, cone };
+        const up = new THREE.Vector3(0, 1, 0), t = new THREE.Vector3();
+        VL.frames.push(() => { const [a, b] = inMarker(); me.position.set(...a); t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); if (t.lengthSq() > 1e-12) { t.normalize(); cone.quaternion.setFromUnitVectors(up, t); } cone.position.set(a[0] + t.x * 0.22, a[1] + t.y * 0.22, a[2] + t.z * 0.22); });
+    }
+    document.body.classList.toggle('inside', inside);
+    VR.ctl.enabled = !inside;
+    setBadges();
+    document.getElementById('desc').innerHTML = g.desc;
+    document.getElementById('in-note').textContent = g.inside.note;
+    document.getElementById('sec-4d').classList.toggle('hidden', !g.uses4D);
+    document.getElementById('sec-in').classList.toggle('hidden', !inside);
+    document.getElementById('axlen').classList.toggle('hidden', !(g.uses4D && !inside));
+    document.querySelectorAll('.gbtn').forEach(b => b.classList.toggle('on', b.dataset.id === S.geom));
+    if (inside) { setRayUniforms(); }
+    resizeAll(); refreshUI(); req(4);
+}
+function setBadges() {   // 窓の名札（縦長の画面では 上・下）
+    const g = GEOM(S.geom), col = getComputedStyle(document.getElementById('main')).flexDirection === 'column';
+    const L = col ? '上' : '左', R = col ? '下' : '右', bL = document.getElementById('badgeL'), bR = document.getElementById('badgeR');
+    if (S.mode === 'in') {
+        bL.innerHTML = `${L}：${g.right.title} の地図<small>白い玉＝自分、黄色＝見ている向き。いつも真ん中の部屋に戻して描く</small>`;
+        bR.innerHTML = `${R}：${g.sym} の中に入った景色<small>光を測地線に沿って進めて描く（光線追跡）</small>`;
+    } else {
+        bL.innerHTML = `${L}：${g.left.title}<small>${g.left.sub}</small>`;
+        bR.innerHTML = `${R}：${g.right.title}<small>${g.right.sub}</small>`;
+    }
+}
+window.addEventListener('resize', setBadges);
+function setGeom(id) { if (S.geom === id) return; S.geom = id; save(); if (S.mode === 'in') inReset(); build(); }
+function setMode(m) { S.mode = m; save(); if (m === 'in') inReset(); build(); }
+
+// ---------------------------------------------------------------------
+// 10. パネル
+// ---------------------------------------------------------------------
+const $ = id => document.getElementById(id);
+$('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（次元おりがみを開く）';
+$('geom-grid').innerHTML = GEOMS.map((g, i) => `<button class="gbtn" data-id="${g.id}" title="${g.name}（${i + 1} キー）"><span class="flex w-full items-baseline gap-1"><b>${g.sym}</b><i class="k">${i + 1}</i></span><span>${g.name}</span></button>`).join('');
+document.querySelectorAll('.gbtn').forEach(b => b.addEventListener('click', () => setGeom(b.dataset.id)));
+const toggles = { 'b-axes': 'axes', 'b-mesh': 'mesh', 'b-geo': 'geo', 'b-sync': 'sync', 'b-spin': 'spin', 'b-spin4': 'spin4', 'b-drag4': 'drag4', 'b-geoplay': 'geoPlay', 'b-walk': 'walk' };
+Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; save(); refreshUI(); req(3); }));
+$('b-out').addEventListener('click', () => setMode('out'));
+$('b-in').addEventListener('click', () => setMode('in'));
+$('b-home').addEventListener('click', () => { homeView(VL); homeView(VR); });
+$('b-inhome').addEventListener('click', inReset);
+$('b-r0').addEventListener('click', () => { S.xw = S.yw = S.zw = 0; updateRot(); save(); refreshUI(); req(3); });
+$('b-Dokami').addEventListener('click', () => { S.D = 2.5; save(); refreshUI(); req(3); });
+$('b-Dstereo').addEventListener('click', () => { S.D = 1; save(); refreshUI(); req(3); });
+const sliders = { 's-geo': ['geoT', v => Math.round(v * 100) + '%'], 's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)], 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'] };
+Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'geoT') S.geoPlay = false; if (k === 'q') resizeAll(); updateRot(); save(); refreshUI(); req(3); }));
+function refreshUI() {
+    Object.entries(toggles).forEach(([id, k]) => $(id).classList.toggle('on', !!S[k]));
+    $('b-out').classList.toggle('on', S.mode === 'out'); $('b-in').classList.toggle('on', S.mode === 'in');
+    Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
+    $('b-Dokami').classList.toggle('on', Math.abs(S.D - 2.5) < 0.01); $('b-Dstereo').classList.toggle('on', Math.abs(S.D - 1) < 0.01);
+    if (S.spin) activeView = VL;
+    VL.ctl.autoRotate = S.spin; VR.ctl.autoRotate = S.spin && !S.sync && S.mode === 'out';
+    $('geo-note').textContent = '測地線＝その空間の中で「いちばんまっすぐな道」（光の通る道）。1 点からいろいろな向きへ出した線を描いています。';
+}
+// 4次元の軸の長さの表示
+function updateAxLen() {
+    const el = $('axlen'); if (el.classList.contains('hidden')) return;
+    el.innerHTML = '<div class="text-[10px] font-bold text-slate-300 mb-0.5">3D に出ている軸の長さ</div>' + ['x', 'y', 'z', 'w'].map((nm, i) => {
+        const e = [0, 0, 0, 0]; e[i] = 1; const q = NDGeom.apply(R4, 4, e, []); const L = Math.hypot(q[0], q[1], q[2]), c = hexCss(AXIS_HEX[nm]);
+        return `<div class="r"><b style="color:${c};width:9px;font-style:italic">${nm}</b><span class="bar"><i style="width:${(L * 100).toFixed(0)}%;background:${c}"></i></span><span style="width:32px;text-align:right;color:#cbd5e1">${(L * 100).toFixed(0)}%</span></div>`;
+    }).join('');
+}
+// パネルを開く・閉じる
+function setSidebar(open) { document.body.classList.toggle('sidebar-hidden', !open); setTimeout(resizeAll, 0); }
+$('sidebar-close').addEventListener('click', () => setSidebar(false));
+$('sidebar-open').addEventListener('click', () => setSidebar(true));
+if (window.innerWidth < 760) setSidebar(false);
+// 左右の境目
+(() => {
+    const sp = $('split'); let drag = false;
+    sp.addEventListener('pointerdown', e => { drag = true; sp.classList.add('drag'); sp.setPointerCapture(e.pointerId); });
+    sp.addEventListener('pointermove', e => {
+        if (!drag) return; const r = $('main').getBoundingClientRect(), col = getComputedStyle($('main')).flexDirection === 'column';
+        const f = col ? (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
+        document.body.style.setProperty('--split', Math.max(0.15, Math.min(0.85, f)).toFixed(3));
+    });
+    sp.addEventListener('pointerup', () => { drag = false; sp.classList.remove('drag'); });
+    sp.addEventListener('dblclick', () => document.body.style.setProperty('--split', '0.5'));
+})();
+// 欄を浮かせる・端にドック（共通部品 ui-dock）
+let dock = null;
+try {
+    dock = UIDock.create({ prefix: 'thurston', onResize: () => resizeAll(), onChange: () => req(3) });
+    document.querySelectorAll('#sb-scroll > section.sb-sec').forEach(sec => { const h = sec.querySelector(':scope > .sb-h'); if (h) dock.add(sec, { handle: h }); });
+    dock.restore();
+} catch (e) { console.warn('ui-dock', e); }
+
+// 4次元の回転のドラッグ（Shift＋ドラッグ、または「ドラッグを 4次元に」）
+(() => {
+    let st = null;
+    const down = e => {
+        const g = GEOM(S.geom); if (!g.uses4D || S.mode === 'in') return;
+        if (!(e.shiftKey || S.drag4)) return;
+        e.stopPropagation(); e.preventDefault();
+        st = { x: e.clientX, y: e.clientY, xw: S.xw, yw: S.yw, id: e.pointerId, el: e.currentTarget };
+        e.currentTarget.setPointerCapture(e.pointerId);
+    };
+    const move = e => {
+        if (!st || e.pointerId !== st.id) return; e.stopPropagation();
+        const wrap = a => ((a + 180) % 360 + 360) % 360 - 180;
+        S.xw = Math.round(wrap(st.xw + (e.clientX - st.x) * 0.5)); S.yw = Math.round(wrap(st.yw - (e.clientY - st.y) * 0.5));
+        updateRot(); refreshUI(); req(3);
+    };
+    const up = e => { if (st && e.pointerId === st.id) { e.stopPropagation(); st = null; save(); } };
+    ['wrapL', 'wrapR'].forEach(id => { const el = $(id); el.addEventListener('pointerdown', down, true); el.addEventListener('pointermove', move, true); el.addEventListener('pointerup', up, true); el.addEventListener('pointercancel', up, true); });
+})();
+
+// 中に入った時の操作（見回す・歩く）
+(() => {
+    const cv = $('cvR'); let st = null;
+    cv.addEventListener('pointerdown', e => { if (S.mode !== 'in') return; st = { x: e.clientX, y: e.clientY, id: e.pointerId }; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', e => {
+        if (!st || S.mode !== 'in' || e.pointerId !== st.id) return;
+        IN.yaw -= (e.clientX - st.x) * 0.005; IN.pitch = Math.max(-1.5, Math.min(1.5, IN.pitch - (e.clientY - st.y) * 0.005));
+        st.x = e.clientX; st.y = e.clientY; req(2);
+    });
+    cv.addEventListener('pointerup', () => { st = null; });
+    cv.addEventListener('wheel', e => { if (S.mode !== 'in') return; e.preventDefault(); inMove(inLocal([0, 0, -1]), -e.deltaY * 0.0015 * S.spd); req(2); }, { passive: false });
+    document.querySelectorAll('#inpad button').forEach(b => {
+        b.addEventListener('pointerdown', e => { e.preventDefault(); IN.padMv = b.dataset.mv; b.setPointerCapture(e.pointerId); });
+        b.addEventListener('pointerup', () => { IN.padMv = null; }); b.addEventListener('pointercancel', () => { IN.padMv = null; });
+    });
+})();
+// キー
+window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (S.mode === 'in' && ['w', 'a', 's', 'd', 'q', 'e', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { IN.keys.add(k); e.preventDefault(); return; }
+    if (/^[1-8]$/.test(e.key)) { setGeom(GEOMS[+e.key - 1].id); return; }
+    if (k === ' ') { e.preventDefault(); setSidebar(document.body.classList.contains('sidebar-hidden')); return; }
+    const map = { x: 'axes', m: 'mesh', g: 'geo', r: 'spin' };
+    if (map[k]) { S[map[k]] = !S[map[k]]; save(); refreshUI(); req(3); return; }
+    if (k === 'i') { setMode(S.mode === 'in' ? 'out' : 'in'); return; }
+    if (k === 'h') { homeView(VL); homeView(VR); }
+});
+window.addEventListener('keyup', e => IN.keys.delete(e.key.toLowerCase()));
+window.addEventListener('blur', () => IN.keys.clear());
+
+// ---------------------------------------------------------------------
+// 11. 描く
+// ---------------------------------------------------------------------
+let last = performance.now();
+function loop(now) {
+    requestAnimationFrame(loop);
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const g = GEOM(S.geom);
+    if (S.geoPlay && S.geo) { S.geoT = (S.geoT + dt / 5) % 1.0001; if (S.geoT > 1) S.geoT = 0; req(2); if (Math.random() < 0.1) refreshUI(); }
+    if (S.spin4 && g.uses4D) { S.xw = ((S.xw + dt * 18 + 180) % 360) - 180; updateRot(); req(2); if (Math.random() < 0.1) refreshUI(); }
+    if (S.mode === 'in') {
+        const K = IN.keys, sp = 0.9 * S.spd * dt; let mv = [0, 0, 0], up = 0;
+        if (K.has('w') || K.has('arrowup') || IN.padMv === 'fwd' || S.walk) mv[2] -= 1;
+        if (K.has('s') || K.has('arrowdown') || IN.padMv === 'back') mv[2] += 1;
+        if (K.has('a')) mv[0] -= 1; if (K.has('d')) mv[0] += 1;
+        if (K.has('arrowleft')) IN.yaw += dt * 1.4; if (K.has('arrowright')) IN.yaw -= dt * 1.4;
+        if (K.has('q') || IN.padMv === 'up') up += 1; if (K.has('e') || IN.padMv === 'down') up -= 1;
+        if (mv[0] || mv[2]) { inMove(norm3(inLocal(mv)), sp); req(2); }
+        if (up) { inMove([0, 0, up], sp); req(2); }
+        if (K.has('arrowleft') || K.has('arrowright')) req(2);
+    }
+    if (VL.ctl.update()) need = Math.max(need, 1);
+    if (S.mode === 'out' && VR.ctl.update()) need = Math.max(need, 1);
+    if (need <= 0) return;
+    need--;
+    [VL, VR].forEach(v => v.frames.forEach(f => f()));
+    VL.r.render(VL.scene, VL.cam);
+    if (S.mode === 'in') { setRayUniforms(); VR.r.render(ray.scene, ray.cam); }
+    else VR.r.render(VR.scene, VR.cam);
+    updateAxLen();
+}
+homeView(VL); homeView(VR);
+try { lucide.createIcons(); } catch (e) {}
+if (S.mode === 'in') inReset();
+build();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
