@@ -6504,7 +6504,7 @@
                 const t0 = Math.max(tAt(i), wSlice.packBack !== undefined ? wSlice.packBack : -1), t1 = Math.min(tAt(Math.min(N - 1, i + stp)), front);   // 下の端（反対側から出す時）〜先頭
                 if (t1 <= t0 + 1e-6) { if (tAt(i) >= front) break; continue; }
                 const spec = wPackRainbow && ((wPackRbStyle === 'spec' && !(wFrameCol === 'order' || wFrameCol === 'depth')) || wPackRbStyle === 'ring' || wPackRbStyle === 'ball'), ring = wPackRainbow && (wPackRbStyle === 'ring' || wPackRbStyle === 'ball');   // 枠の色が 積分の順・奥行き なら、タイルも 入る順に 赤 → 紫
-                if (!wPackRainbow) tileWhite(0, col); else if (!spec) col.setHSL(0.82 * (i + stp / 2) / Math.max(1, N - 1), 1, 0.55);
+                if (!wPackRainbow) tileWhite(0, col); else if (!spec) { const f = (i + stp / 2) / Math.max(1, N - 1); if (wPackRbStyle === 'spec') specCol(f, col); else col.setHSL(0.82 * f, 1, 0.55); }   // 枠の色が 積分の順・奥行き の時：入る順に specCol（ドラゴンボールなら 一星球はオレンジ、四星球は 赤 → オレンジ。七色は 赤 → 紫）
                 const w0 = t0 * H, w1 = t1 * H;
                 if (is3) WS_EDGES.forEach(([e0, e1]) => {   // 立方体の 12 本の辺 × w の帯＝超立方体の w の方向にのびた面
                     const u = unitCubeVertices[e0], v = unitCubeVertices[e1];
@@ -6963,7 +6963,8 @@
             const wiv = $('wint-view'); if (wiv && wiv.value !== wIntView) wiv.value = wIntView;
             const wpfl = $('wpack-fly'); if (wpfl) { const v = wPackFly ? '1' : '0'; if (wpfl.value !== v) wpfl.value = v; }
             const wpn = $('wpack-now'); if (wpn) { const v = wPackGhost ? '2' : wPackNow ? '1' : '0'; if (wpn.value !== v) wpn.value = v; }
-            const wfc = $('wframe-col'); if (wfc) { if (wfc.value !== wFrameCol) wfc.value = wFrameCol; const on = wPackRainbow && wPackRbStyle === 'spec' && !(wSpecVol && ['ichi', 'dball', 'dball2'].includes(wSpecPat)); wfc.disabled = !on; wfc.style.opacity = on ? 1 : 0.4; }
+            const wfc = $('wframe-col'); if (wfc) { if (wfc.value !== wFrameCol) wfc.value = wFrameCol; const db4 = wSpecVol && wSpecPat === 'dball2' && wDbStars === 4, on = wPackRainbow && wPackRbStyle === 'spec' && (db4 || !(wSpecVol && ['ichi', 'dball', 'dball2'].includes(wSpecPat))); wfc.disabled = !on; wfc.style.opacity = on ? 1 : 0.4;   /* 四星球は 赤 → オレンジ なので枠の色を選べる（一星球は単色） */
+                [...wfc.options].forEach(o => { if (o.dataset.t0 === undefined) o.dataset.t0 = o.textContent; const t = db4 ? o.dataset.t0.replace('七色', '赤→オレンジ').replace('紫', 'オレンジ') : o.dataset.t0; if (o.textContent !== t) o.textContent = t; }); }   /* 四星球の時は選択肢の名前も「オレンジ」に */
             const rbs = $('wpack-rbstyle'); if (rbs) { const rv = wPackRbStyle === 'spec' && wSpecVol ? ({ ichi: 'ichivol', dball: 'dballvol', frame: 'specframe', ball: 'specball', dball2: wDbStars === 4 ? 'dballball4' : 'dballball' }[wSpecPat] || 'specvol') : wPackRbStyle === 'ring' && wRingVol ? 'ringvol' : wPackRbStyle; if (rbs.value !== rv) rbs.value = rv; rbs.disabled = !wPackRainbow; rbs.style.opacity = wPackRainbow ? 1 : 0.4; }
             const rb = $('wslice-rainbow'); if (rb) { rb.textContent = wPackRainbow ? '🌈 レインボー: ON' : '🌈 レインボー: OFF'; rb.classList.toggle('text-pink-200', wPackRainbow); }
             const wdr = $('wwater-drain'); if (wdr && wdr.value !== wWaterDrain) wdr.value = wWaterDrain;
