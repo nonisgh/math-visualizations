@@ -5038,7 +5038,9 @@
         // 表示「いまの所だけ」：積んだ立方体の代わりに、積分の今の位置（敷きつめ・取り出しの先頭。反対側から出す時は下の端）に立方体を 1 個だけ。
         //   色・中身（玉・かたまり・市松 など）は この 1 個にだけ描く。通ってきた所（下の端〜先頭）は 線（trailCol の色）とタイル（透ける面）で
         function wPackNowList(L) {
+            wSlice.nowWait = !L.length || (wPackFly && !L.some(c => !c.fly));   // 演出ありなら、最初の 1 枚が流しこまれる（着く）まで 今の立方体・軌跡 は出さない（飛んでいる立方体だけ）
             if (!L.length) return [];
+            if (wSlice.nowWait) return L.filter(c => c.fly);
             const pos = !wSlice.packIn && wOutOpp ? wSlice.packBack : wSlice.packFront, o = { t: pos, slot: (pos + 1) / 2, a: 1, fa: 1, aL: 1.33, aF: 1, wh: 0.6 };
             if (L[0].spec) { o.spec = true; if (wPackRbStyle === 'ball') o.ballSel = true; }
             else if (L[0].rgb) { const c = new THREE.Color().setHSL(0.82 * o.slot, 1, 0.58); o.rgb = [c.r, c.g, c.b]; }
@@ -6426,7 +6428,7 @@
         let wPackFly = true; try { wPackFly = localStorage.getItem('hypercubePackFly') !== '0'; } catch (_) {}   // 演出：あり＝立方体が外から飛びこむ（取り出しは外へ飛んでいく）、なし＝自分の段でふわっと出る。どの表示でも同じ
         let wPackNow = false, wPackGhost = false; try { const v = localStorage.getItem('hypercubePackNow'); wPackNow = v === '1' || v === '2'; wPackGhost = v === '2'; } catch (_) {}   // 表示「いまの所だけ」：積分の今の位置の立方体 1 個だけ描き、通ってきた所（軌跡）は 線（ワイヤー）＋透ける面（タイル）で埋める
         function drawTiles4(key, r3, k, rot, pb, d, N, front, colorOf, spec, back = -1) {   // spec＝七色（true＝残り 3 軸の 2 本目＝ふつう y、数＝その番目の方向に 赤→紫、のびた辺は 7 つに分ける）
-            if (!wPackFill && !(wPackNow && wSlice.pack)) { if (wTile[key]) wTile[key].visible = false; return; }   // 間を埋めない（いまの所だけの時は、通った所を面で埋める）
+            if ((!wPackFill && !(wPackNow && wSlice.pack)) || (wPackNow && wSlice.pack && wSlice.nowWait)) { if (wTile[key]) wTile[key].visible = false; return; }   // いまの所だけ：最初の 1 枚が着くまでは面も出さない   // 間を埋めない（いまの所だけの時は、通った所を面で埋める）
             const ball = spec === 'ball', ring = spec === 'ring' || ball, si = spec === true ? 1 : (typeof spec === 'number' ? spec : -1); spec = ring || si >= 0;   // 'ball'＝同心球（辺は立方体の中心からの距離で色）   // 'ring'＝同心の七色（辺の真ん中が藍・角が紫）
             if (!r3 || !(k > 0.01)) { if (wTile[key]) wTile[key].visible = false; return; }
             if (!wTile[key]) wTile[key] = wTileMk(r3, 64 * 36 * 6);   // （spec は下で決め直す）   // 七色は 1 帯 36 枚（12 辺のうち y の 4 辺を 7 つ）
@@ -6461,7 +6463,7 @@
         const tileWhite = (i, col) => col.setRGB(0.72, 0.78, 0.9);   // レインボーでない時（いまの所だけの通った所の面）
         function drawPackTiles(r3, r2, k, rot, pb, pt) {   // 4次元の窓（r3・rot）か、左の立方体（r2・pt）のどちらか一方。k＝見せる強さ（組み上がり・バラし）
             const is3 = !!r3, key = is3 ? 'mesh' : 'mesh2', root = is3 ? r3 : r2;
-            const on = wSlice.pack && (wPackNow || (wPackRainbow && wPackFill)) && k > 0.01;   // いまの所だけ：通った所はいつも面で
+            const on = wSlice.pack && (wPackNow || (wPackRainbow && wPackFill)) && !(wPackNow && wSlice.nowWait) && k > 0.01;   // いまの所だけ：通った所はいつも面で
             if (wTile[key]) wTile[key].visible = on;
             if (!on || !root) return;
             if (!wTile[key]) wTile[key] = wTileMk(root, 64 * (is3 ? 36 : 16) * 6);
@@ -6755,7 +6757,7 @@
                 if (!noFace) WS_QUADS.forEach(q => { [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(i => { const v = vs[i]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r * F; FC[c4 + 1] = col.g * F; FC[c4 + 2] = col.b * F; FC[c4 + 3] = 1; fi += 3; }); });
                 }
             });
-            if (wSlice.pack && wPackNow && list.length) {   // いまの所だけ：通ってきた所の線（下の端の立方体の枠＋8 本の角の線。色は積分の順）
+            if (wSlice.pack && wPackNow && list.length && !wSlice.nowWait) {   // いまの所だけ：通ってきた所の線（下の端の立方体の枠＋8 本の角の線。色は積分の順）
                 const lo = wSlice.packBack !== undefined ? wSlice.packBack : -1, hi = wSlice.packFront !== undefined ? wSlice.packFront : -1, TA = trailA(0.7), NS = 16;
                 const at = (u, q) => ndProject(NDGeom.rotatePoint([u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), q * HALF_S], rot), pb);
                 const pT = (v, q) => { if (li + 3 > P.length) return; trailCol(q, col); P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; const c4 = li / 3 * 4; C[c4] = col.r * k; C[c4 + 1] = col.g * k; C[c4 + 2] = col.b * k; C[c4 + 3] = TA; li += 3; };
@@ -6764,7 +6766,7 @@
             }
             {   // いまの所だけ（中身の軌跡でない時）＋玉のモード：通ってきた所の玉を筒で埋める
                 const lo = wSlice.packBack !== undefined ? wSlice.packBack : -1, hi = wSlice.packFront !== undefined ? wSlice.packFront : -1;
-                const on = wSlice.pack && wPackNow && !wPackGhost && stS && ballDepthOn() && list.length && hi - lo > 0.02;
+                const on = wSlice.pack && wPackNow && !wPackGhost && !wSlice.nowWait && stS && ballDepthOn() && list.length && hi - lo > 0.02;
                 ballTubeDraw('p3', r3, on ? Array.from({ length: 64 }, (_, i) => { const w = (lo + (hi - lo) * i / 63) * HALF_S; return unitCubeVertices.map(u => ndProject(NDGeom.rotatePoint([u[0] * S * sqK('x'), u[1] * S * sqK('y'), u[2] * S * sqK('z'), w], rot), pb)); }) : null, trailA(0.35) * k);
             }
             wSlice.line.geometry.setDrawRange(0, li / 3); wSlice.line.material.depthTest = ballDepthOn(); fatSync(wSlice.line, renderer3D); wSlice.face.geometry.setDrawRange(0, fi / 3); backEnd(bkW); ballDraw('p3', r3, ballList); solidEnd(stS, camera3D, SPEC_FACE_OP[wSpecFace] * 2.5);   // 玉のモードは枠も奥行きで（玉の後ろの枠は隠れる）
@@ -6893,7 +6895,7 @@
                 if (!noFace) [0, 1, 2, 0, 2, 3].forEach(i => { const v = vs[i]; FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r * F; FC[c4 + 1] = col.g * F; FC[c4 + 2] = col.b * F; FC[c4 + 3] = 1; fi += 3; });
                 }
             });
-            if (wSlice.pack && wPackNow && list2.length) {   // いまの所だけ：通ってきた所の線（下の端の正方形＋4 本の角の線）
+            if (wSlice.pack && wPackNow && list2.length && !wSlice.nowWait) {   // いまの所だけ：通ってきた所の線（下の端の正方形＋4 本の角の線）
                 const lo = wSlice.packBack !== undefined ? wSlice.packBack : -1, hi = wSlice.packFront !== undefined ? wSlice.packFront : -1, NS = 16, sq = [[-H, -H], [H, -H], [H, H], [-H, H]];
                 const pT = (v, q) => { if (li + 3 > P.length) return; trailCol(q, col); P[li] = v[0]; P[li + 1] = v[1]; P[li + 2] = v[2]; const ta = trailA(0.7); C[li] = col.r * kW * ta; C[li + 1] = col.g * kW * ta; C[li + 2] = col.b * kW * ta; li += 3; };
                 sq.forEach((p, m) => { const p1 = sq[(m + 1) % 4]; pT(pt(p[0], p[1], lo * H), lo); pT(pt(p1[0], p1[1], lo * H), lo); });
