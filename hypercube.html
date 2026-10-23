@@ -4391,12 +4391,14 @@
         let wDbStars = 1; try { if (localStorage.getItem('hypercubeDbStars') === '4') wDbStars = 4; } catch (_) {}   // ドラゴンボールの星の数：1＝一星球、4＝四星球
         const DB_STARS1 = [[0, 0, 0.26]], DB_STARS4 = [[0, 0.33, 0.17], [-0.33, 0, 0.17], [0.33, 0, 0.17], [0, -0.33, 0.17]];   // 星の並び [x, y, 大きさ]（玉の半径を 1 として）。四星球は 上・左・右・下 の十字（ひし形）に 4 個（ファンの資料で「四角ではなく十字の並び」）
         const dbStars = () => wDbStars === 4 ? DB_STARS4 : DB_STARS1;
+        const DB4_LO = [0.95, 0.12, 0.06], DB4_HI = [1.0, 0.62, 0.12];   // 四星球の枠のグラデーション：赤 → オレンジ
         const DBALL_R = 0.32, DBALL_STAR = 0.26;   // 一星球（玉）：ドラゴンボールの半径（立方体の 1 辺を 1 として）、星の大きさ（玉の半径に対して）
         const BALL_FLY = 0.3;   // 七色の枠＋玉：飛んでいる間の玉の濃さ（着くと 1）
         const DB_ORANGE = [1.0, 0.55, 0.08], DB_RED = [0.92, 0.1, 0.06], DB_LINE = [1.0, 0.72, 0.32], DB_STAR_R = 0.2;   // 一星球（角型）：オレンジの透ける立方体の真ん中に赤い星（星の大きさ＝立方体の座標で）
         const ICHI_N = 4, ICHI_G = [0.13, 0.62, 0.42], ICHI_K = [0.06, 0.06, 0.07], ICHI_LINE = [0.35, 0.9, 0.62], ICHI_LK = [0.2, 0.2, 0.23];   // ICHI_LK＝辺の黒（背景に消えないよう少し明るく）
         const specCol = (f, col) => {   // f＝0（下）… 1（上）。色は覚えておいて使い回す（何万回も呼ぶので）。市松の時：f＝−1 緑・−2 黒、ほか（線・タイル）は明るい緑
-            if (wSpecPat === 'dball' || wSpecPat === 'dball2') { const c = f <= -4.5 ? DB_RED : f <= -0.5 ? DB_ORANGE : DB_LINE; return col.setRGB(c[0], c[1], c[2]); }   // −1 面のオレンジ・−5 星の赤
+            if (wSpecPat === 'dball2' && wDbStars === 4 && f > -0.5) { const t = Math.max(0, Math.min(1, f)); return col.setRGB(DB4_LO[0] + (DB4_HI[0] - DB4_LO[0]) * t, DB4_LO[1] + (DB4_HI[1] - DB4_LO[1]) * t, DB4_LO[2] + (DB4_HI[2] - DB4_LO[2]) * t); }   // 四星球：枠・タイルは 赤 → オレンジ のグラデーション（七色の 赤 → 紫 と同じ付け方。枠の色の設定もそのまま効く）
+            if (wSpecPat === 'dball' || wSpecPat === 'dball2') { const c = f <= -4.5 ? DB_RED : f <= -0.5 ? DB_ORANGE : DB_LINE; return col.setRGB(c[0], c[1], c[2]); }   // −1 面のオレンジ・−5 星の赤（一星球の枠は単色のオレンジ）
             if (wSpecPat === 'ichi') { const c = f <= -3.5 ? ICHI_LINE : f <= -2.5 ? ICHI_LK : f <= -1.5 ? ICHI_K : f <= -0.5 ? ICHI_G : ICHI_LINE; return col.setRGB(c[0], c[1], c[2]); }   // −1 面の緑・−2 面の黒・−3 辺の黒・−4 辺の緑
             const key = Math.round(Math.max(0, Math.min(1, f)) * 4096);
             let c = _specTab.get(key);
@@ -6864,7 +6866,9 @@
                     const pF = (v, f, kk = 1) => { if (back && bkW) { backPut(bkW, v, f, L * kk); return; } if (fi + 3 > FP.length) return; specCol(f, col); FP[fi] = v[0]; FP[fi + 1] = v[1]; FP[fi + 2] = v[2]; const c4 = fi / 3 * 4; FC[c4] = col.r; FC[c4 + 1] = col.g; FC[c4 + 2] = col.b; FC[c4 + 3] = Math.min(1, FS * kk); fi += 3; };   // 突き当たりの層は別の入れ物へ（枠と同じ濃さ）
                     if (wPackRbStyle === 'ring' || wPackRbStyle === 'ball') ringQuadEmit(vs[0], vs[1], vs[2], vs[3], pL, pF, !noFace);   // 同心の七色（同心球でも正方形は同心円）
                     else if (wSpecPat === 'dball2' && wSpecVol) {   // 一星球（玉）：オレンジの枠、真ん中にオレンジの円と赤い星
-                        [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { pL(vs[a], 0); pL(vs[b], 0); });
+                        if (wDbStars !== 4) [[0, 1], [1, 2], [2, 3], [3, 0]].forEach(([a, b]) => { pL(vs[a], 0); pL(vs[b], 0); });
+                        else if (wFrameCol !== 'up') { frameSlot = slot !== undefined ? slot : null; frameDepthVal = sqDepth(vs); frameEdgeEmit(vs, SQ_EDGES, sqPar, pL, sqView); }   // 四星球：枠は 赤 → オレンジ（枠の色の設定どおり）
+                        else { pL(vs[0], 0); pL(vs[1], 0); pL(vs[3], 1); pL(vs[2], 1); for (let m = 0; m < SPEC_K; m++) { const f0 = m / SPEC_K, f1 = (m + 1) / SPEC_K, fm = (m + 0.5) / SPEC_K; pL(lerp3(vs[0], vs[3], f0), fm); pL(lerp3(vs[0], vs[3], f1), fm); pL(lerp3(vs[1], vs[2], f0), fm); pL(lerp3(vs[1], vs[2], f1), fm); } }
                         if (!noFace) {
                             const at = (x, y) => bilin(vs[0], vs[1], vs[2], vs[3], x, y), c0 = at(0.5, 0.5), NC = 32;
                             const rim = Array.from({ length: NC }, (_, k) => at(0.5 + DBALL_R * Math.cos(2 * Math.PI * k / NC), 0.5 + DBALL_R * Math.sin(2 * Math.PI * k / NC)));
