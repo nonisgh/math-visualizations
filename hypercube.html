@@ -7122,14 +7122,17 @@
         function pSliceMat() {
             return new THREE.ShaderMaterial({
                 uniforms: { camPos: { value: new THREE.Vector3() }, pat: { value: 0 }, RT: { value: new THREE.Matrix4() }, uK: { value: new THREE.Vector4(1, 1, 1, 1) }, uD: { value: 4.5 }, uBl: { value: 0 }, uScl: { value: 1 }, bnd: { value: 2 },
-                    uS: { value: 0 }, uKS: { value: 1 }, uKind: { value: 0 }, uR: { value: 1 }, uH: { value: 1 }, uR1: { value: 0.5 }, uR2: { value: 0.5 }, uRt: { value: 0.2 }, uDF: { value: darumaF }, uDU: { value: darumaU }, uDS: darumaS },
+                    uS: { value: 0 }, uKS: { value: 1 }, uKind: { value: 0 }, uR: { value: 1 }, uH: { value: 1 }, uR1: { value: 0.5 }, uR2: { value: 0.5 }, uRt: { value: 0.2 }, uWTh: { value: -1 }, uWPl: { value: 0 }, uDF: { value: darumaF }, uDU: { value: darumaU }, uDS: darumaS },
                 vertexShader: 'uniform float bnd; varying vec3 vP; void main() { vP = position * bnd; gl_Position = projectionMatrix * modelViewMatrix * vec4(vP, 1.0); }',
                 fragmentShader: 'uniform mat4 projectionMatrix; uniform mat4 modelViewMatrix; uniform vec3 camPos; uniform float pat; uniform mat4 RT; uniform vec4 uK; uniform float uD; uniform float uBl; uniform float uScl; uniform float bnd;\n'
-                    + 'uniform float uS; uniform float uKS; uniform float uKind; uniform float uR; uniform float uH; uniform float uR1; uniform float uR2; uniform float uRt; varying vec3 vP;\n' + BALL_GLSL + PIL_GLSL
+                    + 'uniform float uS; uniform float uKS; uniform float uKind; uniform float uR; uniform float uH; uniform float uR1; uniform float uR2; uniform float uRt; uniform float uWTh; uniform float uWPl; varying vec3 vP;\n' + BALL_GLSL + PIL_GLSL
                     + 'vec4 P4(vec3 X) { return (RT * vec4(X / (uScl * uKS), uS)) * uK; }   /* 3D の点 → 切り口の 4次元の点（形の座標） */\n'
                     + 'float sdf(vec4 p) { if (uKind < 0.5) return max(length(p.xyz) - uR, abs(p.w) - uH); if (uKind < 1.5) return max(length(p.xy) - uR, length(p.zw) - uR);\n'
                     + '  if (uKind < 2.5) return length(vec2(length(p.xy) - uR1, length(p.zw) - uR2)) - uRt; if (uKind > 3.5) { vec4 q = abs(p); return max(max(q.x, q.y), max(q.z, q.w)) - uR; } return length(p) - uR; }   /* 4＝超立方体（チェビシェフの距離。本当の距離より短いので安全に進める） */\n'
-                    + 'float G(vec3 X) { return sdf(P4(X)) * uScl * uKS; }   /* 3D の長さに直した距離 */\n'
+                    + 'vec2 wpl(vec4 p) { return uWPl > 0.5 ? p.xz : p.zw; }   /* 回して作るの 回す面（球柱は x → z、ほかは z → w） */\n'
+                    + 'float wang(vec4 p) { vec2 v = wpl(p); return mod(atan(v.y, v.x), 3.14159265); }   /* 回した角度（0〜180°。z の負の側は 180° ずれて同じ角度） */\n'
+                    + 'float wedge(vec4 p) { vec2 v = wpl(p); float r = length(v), a = wang(p); return a <= uWTh ? -r * sin(min(min(a, uWTh - a), 1.5707963)) : r * sin(min(min(a - uWTh, 3.14159265 - a), 1.5707963)); }   /* 0〜uWTh の向かい合う扇（2 枚）までの距離 */\n'
+                    + 'float G(vec3 X) { vec4 p = P4(X); float d = sdf(p); if (uWTh >= 0.0) d = max(d, wedge(p)); return d * uScl * uKS; }   /* 3D の長さに直した距離。回して作るの途中は 形 ∩ 回した所（形は回す面で回しても同じなので、途中の形＝形と扇の重なり） */\n'
                     + 'void main() {\n'
                     + '  vec3 ro = camPos, rd = normalize(vP - camPos);\n'
                     + '  float bb = dot(ro, rd), cc = dot(ro, ro) - bnd * bnd, h = bb * bb - cc; if (h < 0.0) discard; h = sqrt(h);\n'
@@ -7143,7 +7146,8 @@
                     + '  float az = atan(p4.y, p4.x) / 6.2831853 + 0.5, az2 = atan(p4.w, p4.z) / 6.2831853 + 0.5, Rm = uKind > 1.5 && uKind < 2.5 ? uR1 + uRt : uR;\n'
                     + '  vec3 col;\n'
                     + '  float ga = 1.0;\n'
-                    + '  if (uKind > 3.5) {   /* 超立方体の切り口：どの胞（±x ±y ±z ±w）の面かで色分け、辺（2 つの胞の境）を線に */\n'
+                    + '  if (uWTh >= 0.0) { col = hsv3(wang(p4) / 3.14159265 * 0.8) * sh; }   /* 回して作る：色＝回した角度（赤 0° → 紫 180°。回して作るの面と同じ） */\n'
+                    + '  else if (uKind > 3.5) {   /* 超立方体の切り口：どの胞（±x ±y ±z ±w）の面かで色分け、辺（2 つの胞の境）を線に */\n'
                     + '    vec4 q = abs(p4) / uR; float m1 = max(max(q.x, q.y), max(q.z, q.w)); int ax = q.x >= m1 - 1e-4 ? 0 : q.y >= m1 - 1e-4 ? 1 : q.z >= m1 - 1e-4 ? 2 : 3;\n'
                     + '    float sg = ax == 0 ? p4.x : ax == 1 ? p4.y : ax == 2 ? p4.z : p4.w; vec3 cc = ax == 0 ? vec3(0.96, 0.25, 0.37) : ax == 1 ? vec3(0.06, 0.73, 0.5) : ax == 2 ? vec3(0.23, 0.5, 0.96) : vec3(0.66, 0.33, 0.97);\n'
                     + '    if (sg < 0.0) cc = mix(cc, vec3(1.0, 0.85, 0.3), 0.55);   /* − 側の胞は黄色みに */\n'
@@ -7162,7 +7166,7 @@
             });
         }
         const pSliceRb = () => { const H = HALF_S, R = PILLAR_R * H, k = { sph: 0, duo: 1, tiger: 2, torus4: 2, hs: 3, tess: 4 }[pillarShape] || 0, [d1, d2, dr] = tigerDims(); if (k === 4) return 2 * R; return k === 2 ? Math.hypot((d1 + dr) * H, (d2 + dr) * H) : k === 1 ? Math.SQRT2 * R : k === 0 ? Math.hypot(R, H) : R; };   // 輪切りのスライダーの端＝形が入る 4次元の半径
-        function drawPillarSlice(r3, pv) {   // 右の窓に 輪切り（見本の形を w′ ＝ s で切った 3次元の断面）
+        function drawPillarSlice(r3, pv, wth) {   // 右の窓に 輪切り（見本の形を w′ ＝ s で切った 3次元の断面）。wth＝回して作るの途中の角度（その角度まで回した所だけ）
             const H = HALF_S, R = PILLAR_R * H, M = rmMesh('slice', r3, pSliceMat), U = M.mesh.material.uniforms;
             if (pillarSlicePlay && !wSlice.pack) { pillarSliceW = Math.sin(performance.now() / 1000 * 0.7); requestRender(2); }   // 行ったり来たり（積分中は積分に合わせる）
             const kind = { sph: 0, duo: 1, tiger: 2, torus4: 2, hs: 3, tess: 4 }[pillarShape] || 0, [d1, d2, dr] = tigerDims(), R1 = d1 * H, R2 = d2 * H, rt = dr * H;
@@ -7170,6 +7174,7 @@
             const sync = wSlice.pack && wSlice.packFront !== undefined;   // 4D積分を流している間は 積分の先頭の w で切る（いま積んでいる切り口＝微分図形）
             if (sync) { pillarSlicePlay = false; pillarSliceW = Math.max(-1, Math.min(1, wSlice.packFront * H / rb)); }
             const pj = rmUniforms(U, rb, pv, r3), s = pillarSliceW * rb, kS = 1 + (1 / Math.max(0.05, 1 - s / pj.D[3]) - 1) * (1 - pj.blend);
+            U.uWTh.value = wth === undefined ? -1 : wth; U.uWPl.value = pillarShape === 'sph' ? 1 : 0;
             U.uS.value = s; U.uKS.value = kS; U.uKind.value = kind; U.uR.value = R; U.uH.value = H; U.uR1.value = R1; U.uR2.value = R2; U.uRt.value = rt;
             U.bnd.value = rb * kS * pj.scale * 1.03;
             M.mesh.visible = true;
@@ -7284,11 +7289,12 @@
             r3.updateMatrixWorld(true); U.camPos.value.copy(r3.worldToLocal(camera3D.getWorldPosition(_pilV)));
             M.mesh.visible = true;
         }
-        function drawPillarBuild(r2, r3) {
+        function drawPillarBuild(r2, r3, pv) {
             if (pBuildPlay) { const now = performance.now(); pBuildT += Math.min(0.1, (now - pBuildLast) / 1000) / PBUILD_SEC; pBuildLast = now; if (pBuildT >= 2) { pBuildT = 2; pBuildPlay = false; } requestRender(2); }
             const t = Math.max(0, Math.min(2, pBuildT));
             if (r2) pBuildLeft(r2, Math.PI * Math.min(1, t));
-            if (r3 && t >= 1) pBuildRight(r3, Math.PI * (t - 1)); else if (pBuildM.right) pBuildM.right.mesh.visible = false;
+            if (r3 && t >= 1 && !pillarSlice) pBuildRight(r3, Math.PI * (t - 1)); else if (pBuildM.right) pBuildM.right.mesh.visible = false;
+            if (r3 && t >= 1 && pillarSlice) drawPillarSlice(r3, pv, Math.PI * (t - 1));   // ✂ 輪切り：途中まで回した 4次元の形を w′ ＝ s で切る
         }
         function drawPillars() {
             const show = pillarOn && !dim5 && animationProgress >= 0.92, H = HALF_S, R = PILLAR_R * H, pv = PILLAR_PATS.findIndex(p => p[0] === pillarPat);
@@ -7297,7 +7303,7 @@
             const bld = show && pBuild && pBuildOk();   // 🔄 回して作る：ふだんの見本の代わりに
             if (!bld) Object.values(pBuildM).forEach(M => { if (M) M.mesh.visible = false; });
             if (!show) { hideBut(); return; }
-            if (bld) { hideBut(); drawPillarBuild(r2, r3); return; }
+            if (bld) { hideBut(); drawPillarBuild(r2, r3, pv); return; }
             { const glass = pillarPat === 'glass'; Object.values(pillar).forEach(M => { if (M && M.mesh && M.mesh.material.depthWrite === glass) M.mesh.material.depthWrite = !glass; }); }   // 透けるレインボーは奥行きを書かない（後ろの面も透けて見える）
             const hsLike = pillarShape === 'hs', sh = pillarShape === 'torus4' ? 'tiger' : pillarShape === 'tess' ? 'none' : ['duo', 'tiger', 'hs', 'hsst'].includes(pillarShape) ? pillarShape : 3, left = { tiger: 'tor2', torus4: 'tor', hs: 'ball2', hsst: 'dsst', tess: 'none' }[pillarShape] || 2;   // 超立方体は左に何も足さない（左の立方体がそのまま仲間）   // 4次元トーラスはタイガーの入れ物で
             const sl = pillarSlice && ['sph', 'duo', 'tiger', 'torus4', 'hs', 'tess'].includes(pillarShape);   // 輪切り：右の窓は切り口だけ
