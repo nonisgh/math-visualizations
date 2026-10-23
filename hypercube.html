@@ -4495,12 +4495,12 @@
         const sphK = () => Math.max(1, Math.min(16, Math.round(480 / WPACK.N)));   // 球柱：1 段の中に重ねる玉の数（全部で 480 個くらい。多すぎると 1 個の球の分割が粗くなる。立方体の数が多い時は少なく）
         const dbFilmOn = () => (wSlice.pack || wDuo.on) && wDbFilm && filmNeeded() && !sphOnly();   // 膜を描く（薄い膜・両方）。4D積分の敷きつめの時だけ
         const dbNoLine = () => (wSlice.pack || wDuo.on) && ((wDbFilm && !wDbBoth) || sphOnly());   // 球柱は いつも線なし   // 枠の線を描かない（薄い膜だけの時。全部のモード）
-        const FILM_FLY = 12;   // 飛んでいる 1 枚は 12 倍（1 枚で 赤 40 くらい。18 → 12：ユーザー「入る時と出る時はもう少し薄くてもいい」）   // 入ってくる・出ていく（飛んでいる）立方体の膜は 1 枚だけで見えるように濃く（重なっていないので、積んだ 1 枚の濃さでは黒に溶けて見えない）
+        const FILM_FLY = 9;   // 飛んでいる 1 枚は 9 倍（18 → 12：ユーザー「入る時と出る時はもう少し薄くてもいい」→ 9：2026-10-24「膜が濃い」で全体と一緒に薄く）   // 入ってくる・出ていく（飛んでいる）立方体の膜は 1 枚だけで見えるように濃く（重なっていないので、積んだ 1 枚の濃さでは黒に溶けて見えない）
         let wFilmBlend = 'emit'; try { const v = localStorage.getItem('hypercubeFilmBlend'); if (v === 'normal' || v === 'absorb') wFilmBlend = v; } catch (_) {}   // 膜の重ね方：'emit'＝発光（加算合成。重なるほど明るく、向こうは隠れない）、'normal'＝半透明（通常合成＝吸収＋散乱。重なるほど膜の色に染まり、向こうが隠れていく）、'absorb'＝吸収（乗算合成＝色フィルター。重なるほど暗く沈む。暗い背景の上では見えにくい）
         const FILM_ABS = 0.9;   // 半透明・吸収の時の 1 枚の濃さ（発光より濃くしないと見えない）
         const filmK = (N, fly) => (wFilmBlend === 'emit' ? FILM_ADD : FILM_ABS) * (fly ? FILM_FLY * Math.max(0.3, Math.sqrt(FILM_N0 / Math.max(1, N))) : FILM_N0 / Math.max(1, N) * filmStep(N));   // 積んだ膜 1 枚の濃さは 立方体の数に反比例（Δw に比例＝理論どおり。41 枚でも 256 枚でも、全部重ねた濃さは同じ）。飛んでいる膜も数が多い時は薄く（256 個だと 80 個くらいが同時に飛んでいるので）
         const FILM_N0 = 41;   // この数の時に FILM_ADD そのまま
-        const FILM_ADD = 0.1;   // 光を足す重ね方なので 1 枚ずつは弱く。0.3 → 0.15 → 0.05 → 0.1（ユーザー「最後に面が閉じていると分かるくらい」。全部重ねて 赤 120 くらいのオレンジ）
+        const FILM_ADD = 0.07;   // 光を足す重ね方なので 1 枚ずつは弱く。0.3 → 0.15 → 0.05 → 0.1（ユーザー「最後に面が閉じていると分かるくらい」。全部重ねて 赤 120 くらいのオレンジ）→ 0.07（2026-10-24 ユーザー「膜が濃い」。全部重ねて 赤 85 くらい）
         const FILM_MAX = 48, filmStep = N => Math.max(1, Math.ceil(N / FILM_MAX));   // 膜は 48 枚くらいまでに間引く（1 枚が 1/255 より薄いと 8 ビットで 0 に丸められるので、これ以上は増やさない。512 個でも 24 本くらいのしまが見える）（画面の色は 8 ビットなので、1 枚が 1/255 より薄いと 0 に丸められて消える。間引いた分 1 枚を濃くして、全部の濃さは同じ）
         const filmPick = (slot, N) => slot === undefined || slot === null ? true : Math.round(slot * Math.max(1, N - 1)) % filmStep(N) === 0;   // この段の膜を描くか
         const filmStripe = (slot, N) => slot === undefined || slot === null ? 1 : Math.round(Math.round(slot * Math.max(1, N - 1)) / filmStep(N)) % 2 ? 0.45 : 1;   // 描く膜の 1 枚おきに暗く（しま）   // 薄い膜のしま：1 枚おきに暗く（入れ子の四角が年輪のようになって、重なった枚数が数えられる）
