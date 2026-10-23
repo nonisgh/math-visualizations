@@ -6793,7 +6793,7 @@
             try { localStorage.setItem('hypercubeDarumaFU', JSON.stringify({ F: darumaF.toArray(), U: darumaU.toArray(), S: darumaS.value })); } catch (_) {}
             requestRender(3); return true;
         }
-        const PILLAR_PATS = [['rb', 'レインボー'], ['rbm', 'レインボー＋経度線'], ['mer', '経度線'], ['fusen', '紙風船'], ['fit', '形にぴったり'], ['daruma', 'だるま']];   // 形にぴったり＝その形の座標そのもの（球柱は w の向きに七色、デュオシリンダーは 2 つのドーナツで色分け、タイガーは 3 つの角、超球はホップの円）
+        const PILLAR_PATS = [['rb', 'レインボー'], ['rbm', 'レインボー＋経度線'], ['mer', '経度線'], ['fusen', '紙風船'], ['fit', '形にぴったり'], ['daruma', 'だるま'], ['glass', '透けるレインボー（超球モデルふう）']];   // 形にぴったり＝その形の座標そのもの（球柱は w の向きに七色、デュオシリンダーは 2 つのドーナツで色分け、タイガーは 3 つの角、超球はホップの円）
         const PILLAR_ST = 7, PILLAR_STL = 1.96, PILLAR_STG = 1.15;   // 超球（球を積む）の段の数・全体を収める半径（立方体の半分の辺を 1 として、2 以内）・となりの玉とのすき間の倍率
         //   w で輪切りにした玉（半径 √(r²−w²)）を小さくして（a 倍）、w の向きに間をあけて（sp 倍）並べる。真上（w の方向）から見ると重なって 1 つの球、横から見ると大きさの違う玉が離れて並ぶ。
         //   端の玉の外側が 半径 L に来る：sp·e₀ ＋ a·R·s_end ＝ L、まん中ととなりが離れる：sp·Δw ＝ G·a·R·(1＋q) を解いて a・sp
@@ -6816,7 +6816,9 @@
                     + '  float lat = C ? (cap ? rho : t.z * 0.5 + 0.5) : asin(clamp(t.y, -1.0, 1.0)) / 3.1415927 + 0.5;   /* 球は緯度、円柱は 横の面なら z・ふたなら半径 */\n'
                     + '  vec3 n = normalize(vN), vd = normalize(camPos - vP); float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
                     + '  vec3 col;\n'
-                    + '  if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(-vd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(C ? normalize(vec3(t.xy, t.z * 0.5)) : normalize(t), C ? t.z : vW) * sh + spg * 0.35; }   /* だるま（つやのある塗り） */\n'
+                    + '  float ga = 1.0;\n'
+                    + '  if (pat > 5.5) { float gm = max(lineAt(az, 12.0), lineAt(lat, 8.0)); col = hsv3(clamp((C ? t.z : vW) * 0.5 + 0.5, 0.0, 1.0) * 0.8) * (0.55 + 0.45 * abs(f)) + gm * 0.35; ga = 0.28 + 0.5 * gm; }   /* 透けるレインボー（超球モデルふう）：w の段ごとに 1 色、半透明＋明るい網目 */\n'
+                    + '  else if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(-vd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(C ? normalize(vec3(t.xy, t.z * 0.5)) : normalize(t), C ? t.z : vW) * sh + spg * 0.35; }   /* だるま（つやのある塗り） */\n'
                     + '  else if (pat > 3.5) {   /* 形にぴったり */\n'
                     + '    if (shp < 0.5) { col = band(clamp((C ? t.z : vW) * 0.5 + 0.5, 0.0, 1.0)) * sh; col = mix(col, vec3(1.0), 0.35 * lineAt(az, 12.0)); }   /* 球柱・円柱：のばした向き（w／z）に七色＝積んだ順 */\n'
                     + '    else if (shp < 1.5) { col = (cap ? vec3(0.45, 0.72, 1.0) : vec3(1.0, 0.52, 0.45)) * sh; col = mix(col, vec3(0.1, 0.12, 0.25), 0.55 * max(lineAt(az, 12.0), lineAt(lat, cap ? 3.0 : 6.0))); }   /* デュオシリンダーの仲間の円柱：横＝ドーナツ A のさんご色、ふた＝ドーナツ B の空色 */\n'
@@ -6838,7 +6840,7 @@
                     + '    vec3 L = normalize(vec3(-0.4, 0.8, 0.45)); float spc = pow(max(dot(reflect(-vd, n * sign(f)), L), 0.0), 24.0);\n'
                     + '    col = col * sh + spc * 0.18;\n'
                     + '  }\n'
-                    + '  gl_FragColor = vec4(col, op);\n'
+                    + '  gl_FragColor = vec4(col, pat > 5.5 ? ga : op);\n'
                     + '}',
                 extensions: { derivatives: true }, side: THREE.DoubleSide, transparent: true, depthTest: true, depthWrite: true   // 不透明だが、半透明の胞の面の後に描く（手前の面で色がくすまない＝見本がはっきり）
             });
@@ -6982,7 +6984,9 @@
                     + '  float r1 = length(p4.xy) / uR, r2 = length(p4.zw) / uR; bool cap = r1 < r2;   /* どちらのドーナツの上か：x²＋y²＝r² の方（r1≈1）は 円柱の横の面、z²＋w²＝r² の方は円柱のふたにあたる（xy の円板） */\n'
                     + '  float az = atan(p4.y, p4.x) / 6.2831853 + 0.5, az2 = atan(p4.w, p4.z) / 6.2831853 + 0.5;\n'
                     + '  vec3 col;\n'
-                    + '  if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p4.xyz), p4.w / uR) * sh + spg * 0.35; }\n'
+                    + '  float ga = 1.0;\n'
+                    + '  if (pat > 5.5) { float gm = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = hsv3(clamp(p4.w / uR * 0.5 + 0.5, 0.0, 1.0) * 0.8) * (0.55 + 0.45 * abs(f)) + gm * 0.35; ga = 0.28 + 0.5 * gm; }   /* 透けるレインボー（超球モデルふう）：w の段ごとに 1 色、半透明＋明るい網目 */\n'
+                    + '  else if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p4.xyz), p4.w / uR) * sh + spg * 0.35; }\n'
                     + '  else if (pat > 3.5) { col = (cap ? vec3(0.45, 0.72, 1.0) : vec3(1.0, 0.52, 0.45)) * sh; col = mix(col, vec3(0.1, 0.12, 0.25), 0.55 * max(lineAt(az, 12.0), lineAt(az2, 12.0))); }   /* 形にぴったり：2 つのドーナツを色分け（A＝x²＋y²＝r² さんご色、B＝z²＋w²＝r² 空色）＋2 つの円の網目 */\n'
                     + '  else if (pat < 2.5 && pat != 2.0) { col = band(clamp(p4.y / uR * 0.5 + 0.5, 0.0, 1.0)) * sh;\n'
                     + '    if (pat > 0.5) { float m = max(max(lineAt(az, 12.0), lineAt(az2, 12.0)), cap ? 0.55 * lineAt(r1, 3.0) : 0.0); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); } }\n'
@@ -6993,7 +6997,7 @@
                     + '    col = mix(col, vec3(1.0), 0.6 * seam); col = mix(col, vec3(0.55, 0.5, 0.45), 0.6 * rim); col *= 1.0 - 0.07 * lineAt(az2, 16.0);   /* 紙の折り目は z-w の円の向きに */\n'
                     + '    vec3 L = normalize(vec3(-0.4, 0.8, 0.45)); float spc = pow(max(dot(reflect(rd, n * sign(f)), L), 0.0), 24.0); col = col * sh + spc * 0.18; }\n'
                     + '  vec4 cp = projectionMatrix * modelViewMatrix * vec4(P, 1.0); gl_FragDepthEXT = clamp(0.5 * cp.z / cp.w + 0.5, 0.0, 1.0);   /* 本当の表面の奥行き（胞の線・面と正しく前後） */\n'
-                    + '  gl_FragColor = vec4(col, 1.0);\n'
+                    + '  gl_FragColor = vec4(col, ga);\n'
                     + '}',
                 extensions: { derivatives: true, fragDepth: true }, side: THREE.BackSide, transparent: true, depthTest: true, depthWrite: true
             });
@@ -7032,7 +7036,9 @@
                     + '  vec3 vd = -rd; float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
                     + '  float az = atan(p4.y, p4.x) / 6.2831853 + 0.5, az2 = atan(p4.w, p4.z) / 6.2831853 + 0.5, ph = atan(length(p4.zw) - uR2, length(p4.xy) - uR1) / 6.2831853 + 0.5;   /* 3 つの角：x-y の円・z-w の円・管のまわり */\n'
                     + '  vec3 col;\n'
-                    + '  if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p4.xyz), p4.w / (uR2 + uRt)) * sh + spg * 0.35; }\n'
+                    + '  float ga = 1.0;\n'
+                    + '  if (pat > 5.5) { float gm = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = hsv3(clamp(p4.w / (uR2 + uRt) * 0.5 + 0.5, 0.0, 1.0) * 0.8) * (0.55 + 0.45 * abs(f)) + gm * 0.35; ga = 0.28 + 0.5 * gm; }   /* 透けるレインボー（超球モデルふう）：w の段ごとに 1 色、半透明＋明るい網目 */\n'
+                    + '  else if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p4.xyz), p4.w / (uR2 + uRt)) * sh + spg * 0.35; }\n'
                     + '  else if (pat > 3.5) { float ck = mod(floor(az2 * 12.0) + floor(ph * 8.0), 2.0); col = hsv3(az) * (ck > 0.5 ? 1.0 : 0.7) * sh; }   /* 形にぴったり：x-y の円に虹、z-w の円と管のまわりで市松（3 つの角が全部見える） */\n'
                     + '  else if (pat < 2.5 && pat != 2.0) { col = band(clamp(p4.y / (uR1 + uRt) * 0.5 + 0.5, 0.0, 1.0)) * sh;\n'
                     + '    if (pat > 0.5) { float m = max(max(lineAt(az, 12.0), lineAt(az2, 12.0)), 0.6 * lineAt(ph, 8.0)); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); } }\n'
@@ -7041,7 +7047,7 @@
                     + '  else { col = fusenCol(floor(az * 6.0)); col = mix(col, vec3(1.0), 0.6 * lineAt(az, 6.0)); col = mix(col, vec3(0.97, 0.96, 0.92), 0.55 * lineAt(ph, 4.0)); col *= 1.0 - 0.07 * lineAt(az2, 16.0);   /* 紙風船：x-y の円に 6 色、管のまわりに白い帯、z-w の円に折り目 */\n'
                     + '    vec3 L = normalize(vec3(-0.4, 0.8, 0.45)); float spc = pow(max(dot(reflect(rd, n * sign(f)), L), 0.0), 24.0); col = col * sh + spc * 0.18; }\n'
                     + '  vec4 cp = projectionMatrix * modelViewMatrix * vec4(P, 1.0); gl_FragDepthEXT = clamp(0.5 * cp.z / cp.w + 0.5, 0.0, 1.0);\n'
-                    + '  gl_FragColor = vec4(col, 1.0);\n'
+                    + '  gl_FragColor = vec4(col, ga);\n'
                     + '}',
                 extensions: { derivatives: true, fragDepth: true }, side: THREE.BackSide, transparent: true, depthTest: true, depthWrite: true
             });
@@ -7068,7 +7074,9 @@
                     + '  vec3 vd = -rd; float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
                     + '  float az = atan(p.y, p.x) / 6.2831853 + 0.5, az2 = atan(p.w, p.z) / 6.2831853 + 0.5, lat = asin(clamp(p.y, -1.0, 1.0)) / 3.1415927 + 0.5;\n'
                     + '  vec3 col;\n'
-                    + '  if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p.xyz), p.w) * sh + spg * 0.35; }\n'
+                    + '  float ga = 1.0;\n'
+                    + '  if (pat > 5.5) { float gm = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = hsv3(clamp(p.w * 0.5 + 0.5, 0.0, 1.0) * 0.8) * (0.55 + 0.45 * abs(f)) + gm * 0.35; ga = 0.28 + 0.5 * gm; }   /* 透けるレインボー（超球モデルふう）：w の段ごとに 1 色、半透明＋明るい網目 */\n'
+                    + '  else if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p.xyz), p.w) * sh + spg * 0.35; }\n'
                     + '  else if (pat > 3.5) {   /* 形にぴったり：ホップ・ファイブレーション（色＝球面の上の経度、明るさ＝緯度。同じ色の筋が 1 本の大円） */\n'
                     + '    vec3 hb = vec3(2.0 * (p.x * p.z + p.y * p.w), 2.0 * (p.y * p.z - p.x * p.w), dot(p.xy, p.xy) - dot(p.zw, p.zw));\n'
                     + '    col = hsv3(atan(hb.y, hb.x) / 6.2831853 + 0.5) * (0.45 + 0.55 * (hb.z * 0.5 + 0.5)) * sh; col = mix(col, vec3(1.0), 0.3 * lineAt(acos(clamp(hb.z, -1.0, 1.0)) / 3.1415927, 6.0)); }\n'
@@ -7078,7 +7086,7 @@
                     + '  else { col = fusenCol(floor(az * 6.0)); col = mix(col, vec3(1.0), 0.6 * lineAt(az, 6.0)); col *= 1.0 - 0.07 * lineAt(az2, 16.0);\n'
                     + '    vec3 L = normalize(vec3(-0.4, 0.8, 0.45)); float spc = pow(max(dot(reflect(rd, n * sign(f)), L), 0.0), 24.0); col = col * sh + spc * 0.18; }\n'
                     + '  vec4 cp = projectionMatrix * modelViewMatrix * vec4(P, 1.0); gl_FragDepthEXT = clamp(0.5 * cp.z / cp.w + 0.5, 0.0, 1.0);\n'
-                    + '  gl_FragColor = vec4(col, 1.0);\n'
+                    + '  gl_FragColor = vec4(col, ga);\n'
                     + '}',
                 extensions: { derivatives: true, fragDepth: true }, side: THREE.BackSide, transparent: true, depthTest: true, depthWrite: true
             });
@@ -7128,22 +7136,26 @@
                     + '  vec3 vd = -rd; float f = dot(n, vd), sh = 0.42 + 0.58 * abs(f);\n'
                     + '  float az = atan(p4.y, p4.x) / 6.2831853 + 0.5, az2 = atan(p4.w, p4.z) / 6.2831853 + 0.5, Rm = uKind > 1.5 && uKind < 2.5 ? uR1 + uRt : uR;\n'
                     + '  vec3 col;\n'
-                    + '  if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p4.xyz), clamp(p4.w / max(uH, 1e-3), -1.0, 1.0)) * sh + spg * 0.35; }\n'
+                    + '  float ga = 1.0;\n'
+                    + '  if (pat > 5.5) { float gm = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = hsv3(clamp(p4.w / (uKind < 0.5 ? uH : Rm) * 0.5 + 0.5, 0.0, 1.0) * 0.8) * (0.55 + 0.45 * abs(f)) + gm * 0.35; ga = 0.28 + 0.5 * gm; }   /* 透けるレインボー（超球モデルふう）：w の段ごとに 1 色、半透明＋明るい網目 */\n'
+                    + '  else if (pat > 4.5) { vec3 Lg = normalize(vec3(-0.4, 0.8, 0.45)); float spg = pow(max(dot(reflect(rd, n * sign(f)), Lg), 0.0), 40.0); col = darumaCol(normalize(p4.xyz), clamp(p4.w / max(uH, 1e-3), -1.0, 1.0)) * sh + spg * 0.35; }\n'
                     + '  else if (pat > 3.5) { float ck = mod(floor(az * 12.0) + floor(az2 * 8.0), 2.0); col = hsv3(az) * (ck > 0.5 ? 1.0 : 0.72) * sh; }\n'
                     + '  else if (pat < 2.5 && pat != 2.0) { col = band(clamp(p4.y / Rm * 0.5 + 0.5, 0.0, 1.0)) * sh; if (pat > 0.5) { float m = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = mix(col, vec3(0.08, 0.1, 0.2), 0.75 * m); } }\n'
                     + '  else if (pat < 2.5) { col = mix(vec3(0.96, 0.97, 1.0), vec3(0.82, 0.88, 0.98), 0.5 - 0.5 * p4.y / Rm) * sh; float m = max(lineAt(az, 12.0), lineAt(az2, 12.0)); col = mix(col, vec3(0.16, 0.28, 0.62), 0.85 * m); }\n'
                     + '  else { col = fusenCol(floor(az * 6.0)); col = mix(col, vec3(1.0), 0.6 * lineAt(az, 6.0)); col *= 1.0 - 0.07 * lineAt(az2, 16.0); vec3 L = normalize(vec3(-0.4, 0.8, 0.45)); float spc = pow(max(dot(reflect(rd, n * sign(f)), L), 0.0), 24.0); col = col * sh + spc * 0.18; }\n'
                     + '  vec4 cp = projectionMatrix * modelViewMatrix * vec4(P, 1.0); gl_FragDepthEXT = clamp(0.5 * cp.z / cp.w + 0.5, 0.0, 1.0);\n'
-                    + '  gl_FragColor = vec4(col, 1.0);\n'
+                    + '  gl_FragColor = vec4(col, ga);\n'
                     + '}',
                 extensions: { derivatives: true, fragDepth: true }, side: THREE.BackSide, transparent: true, depthTest: true, depthWrite: true
             });
         }
         function drawPillarSlice(r3, pv) {   // 右の窓に 輪切り（見本の形を w′ ＝ s で切った 3次元の断面）
             const H = HALF_S, R = PILLAR_R * H, M = rmMesh('slice', r3, pSliceMat), U = M.mesh.material.uniforms;
-            if (pillarSlicePlay) { pillarSliceW = Math.sin(performance.now() / 1000 * 0.7); requestRender(2); }   // 行ったり来たり
+            if (pillarSlicePlay && !wSlice.pack) { pillarSliceW = Math.sin(performance.now() / 1000 * 0.7); requestRender(2); }   // 行ったり来たり（積分中は積分に合わせる）
             const kind = { sph: 0, duo: 1, tiger: 2, hs: 3 }[pillarShape] || 0, R1 = TIGER_R1 * H, R2 = TIGER_R2 * H, rt = TIGER_r * H;
             const rb = kind === 2 ? Math.hypot(R1 + rt, R2 + rt) : kind === 1 ? Math.SQRT2 * R : kind === 0 ? Math.hypot(R, H) : R;
+            const sync = wSlice.pack && wSlice.packFront !== undefined;   // 4D積分を流している間は 積分の先頭の w で切る（いま積んでいる切り口＝微分図形）
+            if (sync) { pillarSlicePlay = false; pillarSliceW = Math.max(-1, Math.min(1, wSlice.packFront * H / rb)); }
             const pj = rmUniforms(U, rb, pv, r3), s = pillarSliceW * rb, kS = 1 + (1 / Math.max(0.05, 1 - s / pj.D[3]) - 1) * (1 - pj.blend);
             U.uS.value = s; U.uKS.value = kS; U.uKind.value = kind; U.uR.value = R; U.uH.value = H; U.uR1.value = R1; U.uR2.value = R2; U.uRt.value = rt;
             U.bnd.value = rb * kS * pj.scale * 1.03;
@@ -7162,6 +7174,7 @@
             const r3 = scene3D && scene3D.getObjectByName('Root3D'), r2 = scene2D && scene2D.getObjectByName('Root2D');
             const hideBut = (...keep) => [2, 3, 'duo', 'tiger', 'tor', 'hs', 'ball2', 'hsst', 'dsst', 'slice'].forEach(d => { if (pillar[d] && !keep.includes(d)) pillar[d].mesh.visible = false; });
             if (!show) { hideBut(); return; }
+            { const glass = pillarPat === 'glass'; Object.values(pillar).forEach(M => { if (M && M.mesh && M.mesh.material.depthWrite === glass) M.mesh.material.depthWrite = !glass; }); }   // 透けるレインボーは奥行きを書かない（後ろの面も透けて見える）
             const hsLike = pillarShape === 'hs', sh = ['duo', 'tiger', 'hs', 'hsst'].includes(pillarShape) ? pillarShape : 3, left = { tiger: 'tor', hs: 'ball2', hsst: 'dsst' }[pillarShape] || 2;
             const sl = pillarSlice && ['sph', 'duo', 'tiger', 'hs'].includes(pillarShape);   // 輪切り：右の窓は切り口だけ
             hideBut(sl ? 'slice' : sh, left);   // 右の形と、左の 3次元の仲間（タイガー → ドーナツ、超球 → 球、ほか → 円柱）だけ
@@ -7313,7 +7326,7 @@
             const wa = el.querySelector('[data-vpall="w"]'); if (wa) wa.textContent = ['x', 'y', 'zw'].some(vpSpinOn) ? '■ w の回転を全部止める' : '▶ w の回転を全部回す';
             const ta = el.querySelector('[data-vpall="3"]'); if (ta) ta.textContent = ['xy', 'xz', 'yz'].some(vpSpinOn) ? '■ 3D の回転を全部止める' : '▶ 3D の回転を全部回す';
             const ps2 = el.querySelector('[data-vpslice]'); if (ps2) { ps2.textContent = pillarSlice ? '✂ 輪切り' : '✂ 影'; ps2.style.background = pillarSlice ? 'rgba(250,204,21,0.25)' : ''; }
-            const sw = el.querySelector('[data-vpsw]'); if (sw && document.activeElement !== sw) sw.value = pillarSliceW.toFixed(2); if (sw) sw.disabled = !pillarSlice;
+            const sw = el.querySelector('[data-vpsw]'); if (sw && document.activeElement !== sw) sw.value = pillarSliceW.toFixed(2); if (sw) { sw.disabled = !pillarSlice || wSlice.pack; sw.title = wSlice.pack ? '4D積分の間は、積分の先頭の w に合わせて動く' : '輪切りの位置 s（−1〜+1。形の端から端）'; }
             const sp2 = el.querySelector('[data-vpsplay]'); if (sp2) { sp2.textContent = pillarSlicePlay ? '■' : '▶'; sp2.disabled = !pillarSlice; }
             const pl = el.querySelector('[data-vppil]'); if (pl) { pl.textContent = pillarOn ? '🎈 見本: 出す' : '🎈 見本: 出さない'; pl.style.background = pillarOn ? 'rgba(250,204,21,0.25)' : ''; }
             const ps = el.querySelector('[data-vppat]'); if (ps && ps.value !== pillarPat && document.activeElement !== ps) ps.value = pillarPat;
