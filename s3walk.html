@@ -513,9 +513,10 @@ function walkStep(local, s) {   // local＝[右, 上, 前] の割合（見てい
 // 螺旋（竜巻）：北極からの距離 θ を一定の速さで進めながら、まわりの角 φ = k·θ を回す。S³ では z = 0 の球面 S² の上の螺旋（左の S² と同じ道）
 const SP = { th: 0.002 };
 // 二重の螺旋：巻く面の向き u（3 つの向きの球面の上の点）も、進むにつれて z の方から −z の方へ傾いていく（傾き 0 なら z = 0 の面のまま＝S² と同じ竜巻）
-//   p = (sinθ·u, cosθ)、u = (sinψ cosφ, sinψ sinφ, cosψ)、φ = k·θ、ψ = π/2 − 傾き·(π/2 − θ)
+//   p = (sinθ·u, cosθ)、u = (sinψ cosφ, sinψ sinφ, cosψ)、φ = k·θ、ψ = π/2 − 傾き·(π/2)·cosθ
+//   cosθ で「北極で上向き → 南極で下向き → 北極で上向き」と行って戻るので、帰り道（sinθ < 0）は行きと対称に、北・南 × 上・下の 4 区画をすべて通る
 function spiralPoint(th) {
-    const k = 2 * S.turns, ph = k * th, sn = Math.sin(th), psi = Math.PI / 2 - S.tilt * (Math.PI / 2 - th), sp = Math.sin(psi), cp = Math.cos(psi);
+    const k = 2 * S.turns, ph = k * th, sn = Math.sin(th), psi = Math.PI / 2 - S.tilt * (Math.PI / 2) * Math.cos(th), sp = Math.sin(psi), cp = Math.cos(psi);
     return { p: [sn * sp * Math.cos(ph), sn * sp * Math.sin(ph), sn * cp, Math.cos(th)], p2: [sn * Math.cos(ph), sn * Math.sin(ph), Math.cos(th)] };
 }
 function spiralStep(ds) {
