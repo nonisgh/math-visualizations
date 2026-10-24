@@ -97,6 +97,13 @@
 
         .sb-sec { background: rgba(2, 6, 23, 0.35); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .sb-h { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #cbd5e1; margin: 0; }
+        .sec-fold { margin-left: auto; background: none; border: 0; color: #94a3b8; font-size: 12px; line-height: 1; padding: 2px 4px; cursor: pointer; transition: transform 0.15s; }
+        .sec-fold:hover { color: #e2e8f0; }
+        .sb-sec.folded .sec-fold { transform: rotate(-90deg); }
+        .sb-sec.folded > .sec-body { display: none; }
+        .sb-sec.folded { gap: 0; }
+        .sec-body { display: flex; flex-direction: column; gap: 8px; }
+        .sec-hint { color: #fde68a !important; }
         .float-panel > .sb-sec { margin: 0; padding-top: 0; background: rgba(4, 8, 22, 0.96); border-color: rgba(129, 140, 248, 0.55); }
         .float-panel .sb-h { margin: 0 -10px; padding: 9px 10px 7px; }
         .note { font-size: 10px; color: #94a3b8; line-height: 1.5; margin: 0; }
@@ -167,19 +174,86 @@
             <button id="sidebar-close" class="btn flex items-center gap-1 shrink-0" title="パネルを閉じて図を広く（Space）"><i data-lucide="panel-right-close" class="w-3.5 h-3.5"></i>閉じる</button>
         </div>
         <div class="flex-1 overflow-y-auto px-3 py-2.5 space-y-3" id="sb-scroll">
-
-            <section class="sb-sec">
-                <h3 class="sb-h"><i data-lucide="footprints" class="w-3.5 h-3.5"></i>歩く</h3>
+            <section class="sb-sec" data-sec="walk">
+                <h3 class="sb-h"><i data-lucide="footprints" class="w-3.5 h-3.5"></i>歩く（まずはここ）<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
+                <p class="note sec-hint">まっすぐ歩くと、ぐるっと回ってもとの場所に戻ってきます。</p>
                 <div class="row">
                     <button class="btn big" id="b-trip" title="北極に立ち、今の方位・仰角で歩き続ける。南極を通って北極に戻る（2π）">▶ 北極から一周</button>
                     <button class="btn" id="b-walk" title="向いている方へ歩き続ける（W キー＝押している間だけ）">歩き続ける</button>
-                    <button class="btn" id="b-roam" title="歩き続けながら、方位と仰角をゆっくりした波でなめらかに変え続ける（大円を次々に乗りかえる）">縦横無尽</button>
-                    <button class="btn" id="b-spiral" title="北極から竜巻のような螺旋で進む：極の近くでは小さく回り、赤道で大きく回って、南極へ。そのまま反対側を巻いて北極へ戻る。左の S² も同じ螺旋">🌪 螺旋で一周</button>
                     <button class="btn" id="b-stop" title="立ち止まる">止まる</button>
                 </div>
                 <div class="sl"><span>速さ</span><input id="s-spd" type="range" min="0.1" max="2" step="0.05"><output id="o-spd"></output></div>
+                <div class="sl"><span>方位</span><input id="s-az" type="range" min="-180" max="180" step="1"><output id="o-az"></output></div>
+                <div class="sl"><span>仰角</span><input id="s-el" type="range" min="-89" max="89" step="1"><output id="o-el"></output></div>
+                <div class="row">
+                    <button class="btn" id="b-az0">方位 0°</button>
+                    <button class="btn" id="b-el0">仰角 0°</button>
+                    <button class="btn" id="b-az90">方位 90°</button>
+                    <button class="btn" id="b-el45">仰角 45°</button>
+                </div>
+                <div class="row">
+                    <button class="btn" id="b-north" title="北極 N に立って、進んだ距離を 0 に。足あとと道すじも消す">北極に戻す</button>
+                    <button class="btn" id="b-clear" title="道すじと足あとを消す（場所はそのまま）">道すじを消す</button>
+                </div>
+                <p class="note">キー：W/S・↑↓ 前後　A/D 横　Q/E 上下　←→ 方位　ホイール 前後。右の窓をドラッグすると見回す（向いた方へ進む）。「縦横無尽」は歩きながら向きがひとりでに変わり続けるモード（「曲がり」で変わりやすさ）。「螺旋で一周」は北極から竜巻のように巻きながら南極へ行き、反対側を巻いて北極へ戻る（「巻き数」で北極→南極の間に回る回数）。「傾き」を 0 より大きくすると<b>二重の螺旋</b>：巻く面そのものが z の方へ傾いていく 4次元らしい渦（左の S² には対応する動きがないので、左は平らな竜巻のまま）。</p>
+                <p class="note">方位 0°・90° は x・y の経線の管の真上を歩くので、管の中の景色になります（少しずらすと管が横に見える）。方位＝自分の体の「前」から右へ何度か（体の向きは歩いても変わらない＝平行移動）。仰角＝水平から上へ何度か。<b class="an">S² の仲間には仰角がない</b>ので、左の窓は方位だけで動きます。まっすぐ進む＝向きを変えずに進む。向きを変えると別の大円に乗りかえる。</p>
+                </div>
+            </section>
+
+            <section class="sb-sec" data-sec="ways">
+                <h3 class="sb-h"><i data-lucide="route" class="w-3.5 h-3.5"></i>いろいろな歩き方<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
+                <div class="row">
+                    <button class="btn" id="b-roam" title="歩き続けながら、方位と仰角をゆっくりした波でなめらかに変え続ける（大円を次々に乗りかえる）">縦横無尽</button>
+                </div>
                 <div class="sl"><span>曲がり</span><input id="s-roam" type="range" min="0.2" max="3" step="0.05" title="縦横無尽の時の、向きの変わりやすさ"><output id="o-roam"></output></div>
+                <div class="row">
+                    <button class="btn" id="b-spiral" title="北極から竜巻のような螺旋で進む：極の近くでは小さく回り、赤道で大きく回って、南極へ。そのまま反対側を巻いて北極へ戻る。左の S² も同じ螺旋">🌪 螺旋で一周</button>
+                </div>
                 <div class="sl"><span>巻き数</span><input id="s-turns" type="range" min="1" max="12" step="0.5" title="螺旋で北極から南極まで行く間に何回まわるか"><output id="o-turns"></output></div>
+                <div class="sl"><span>歳差</span><input id="s-prec" type="range" min="0" max="45" step="1" title="歳差の螺旋：1 周ごとに輪の面を x 軸のまわりに何度回すか。0 なら毎回同じ道。15° なら 6 周目あたりで輪が縦になり、上下（±z）のてっぺんまで届く"><output id="o-prec"></output></div>
+                <div class="sl"><span>傾き</span><input id="s-tilt" type="range" min="0" max="1" step="0.05" title="二重の螺旋：巻く面が進むにつれて z の方へ傾く度合い。0 なら 1 枚の球面の上の平らな竜巻（左の S² と同じ）、1 なら北極では z の向きに巻き始め、南極では −z の向きに"><output id="o-tilt"></output></div>
+                <div class="row">
+                    <button class="btn" id="b-ring" title="北極と南極を通る輪（経線）を歩く。1 周ごとに輪が軸のまわりに少しずつ回って、だんだん球面をおおう。地図は北極が上・南極が下の向きになる">🌐 回る輪</button>
+                </div>
+                <div class="row">
+                    <span class="note">軸：</span>
+                    <button class="btn rax" data-ax="x" title="輪が x 軸のまわりに回る">x</button>
+                    <button class="btn rax" data-ax="y" title="輪が y 軸のまわりに回る">y</button>
+                    <button class="btn rax" data-ax="z" title="輪が z 軸のまわりに回る">z</button>
+                    <button class="btn rax" data-ax="w" title="輪が w 軸のまわりに回る：輪は北極・南極ではなく +z（🐱）と −z（🐶）を通り、S³ の赤道の球面（w = 0）をおおう">w</button>
+                    <button class="btn rax" data-ax="all" title="輪の向きが、向きの球ぜんたいを巡る（S³ ぜんたいをおおう）">全部</button>
+                    <button class="btn" id="b-ringview" title="地図を、北極が上・南極が下、輪の回る軸が奥行きになる向きにする">北極を上に</button>
+                </div>
+                <div class="sl"><span>1 周で回す角</span><input id="s-ringstep" type="range" min="2" max="45" step="1" title="回る輪：1 周ごとに輪を何度回すか（10° なら 18 周で球面をひとめぐり）"><output id="o-ringstep"></output></div>
+                </div>
+            </section>
+
+            <section class="sb-sec" data-sec="curve">
+                <h3 class="sb-h"><i data-lucide="spline" class="w-3.5 h-3.5"></i>空間の曲がりを確かめる<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
+                <div class="row">
+                    <button class="btn" id="b-para" title="空間の曲がりを見る：自分の左右に少し離れて（距離 d₀）、同じ向きにまっすぐ歩く 2 人（🐧 右・🐬 左）と一緒に歩く。平らな空間ならずっと d₀ のまま並んで歩けるが、S³ では近づいて π/2 で 3 人が 1 点で出会い、π でまた d₀（左右が入れかわる）。押すと今の場所・向きから歩き出す">平行な仲間と歩く（空間の曲がり）</button>
+                </div>
+                <div class="sl"><span>仲間の先行</span><input id="s-paralead" type="range" min="0" max="1.2" step="0.05" title="平行な仲間は、同じ大円の上を少し前（この距離だけ先）を歩く。真横（0）だと視野に入らないので。距離の数字とグラフは、同じだけ進んだ所どうしで測る"><output id="o-paralead"></output></div>
+                <div class="sl"><span>並ぶ間 d₀</span><input id="s-parad" type="range" min="0.05" max="1.2" step="0.05" title="平行な仲間：出発の時の、自分と仲間の間の距離"><output id="o-parad"></output></div>
+                <p class="note">「平行な仲間と歩く」は空間そのものの曲がりを見るもの（地図の写し方にはよらず、S³ のどこでも同じ）。🐧（右）と 🐬（左）は、自分と同じ向きにまっすぐ（大円）歩きます。平らな空間なら、平行に出発した道の間はずっと d₀ のまま。S³ では道の間が縮んで、π/2 進むと 3 人の道が 1 点で出会い、π でまた d₀ に戻ります（でも左右が入れかわる）。HUD のグラフの点線が平らな空間、水色の線が S³。仲間は見えるように少し前を歩きます（「仲間の先行」）。</p>
+                <div class="row">
+                    <button class="btn" id="b-hopf" title="ホップの円：自分と 6 人の仲間（🐧🦉🐝🦋🐙🐬）が、少し離れて並んで、それぞれまっすぐ（大円に沿って）歩く。x-y 面と z-w 面を同じ速さで回す二重回転。距離はずっと同じなのに、1 周でお互いのまわりを 1 回まわる">🔗 ホップの円</button>
+                    <button class="btn" id="b-hopfplain" title="比べる用：仲間が、出発の時に自分と同じ向きのふつうの大円を歩く（S² の平行と同じ）。距離が縮んだり戻ったりして、まわらない">ふつうの平行と比べる</button>
+                </div>
+                <div class="sl"><span>仲間の距離</span><input id="s-hopfd" type="range" min="0.15" max="1.2" step="0.05" title="ホップの円：自分と仲間の距離（S³ の中の距離）"><output id="o-hopfd"></output></div>
+                <div class="row">
+                    <button class="btn" id="b-warrow" title="中の景色に紫の矢印：まっすぐ進む道が、S³ の地図の上ではどちらへどれだけ曲がって見えるか。地図の真ん中を通る道はまっすぐ（矢印なし）、地図の球のふちに沿う道で強さ 1">地図での曲がり</button>
+                </div>
+                <div class="sl"><span>曲がりの先読み</span><input id="s-bendahead" type="range" min="0" max="1.5" step="0.05" title="「地図での曲がり」の濃い矢印は、この距離だけ先の道の曲がり（これから曲がっていく向き）。薄い矢印は今の曲がり。0 で今だけ"><output id="o-bendahead"></output></div>
+                </div>
+            </section>
+
+            <section class="sb-sec" data-sec="grav">
+                <h3 class="sb-h"><i data-lucide="apple" class="w-3.5 h-3.5"></i>重力<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
                 <div class="row">
                     <button class="btn" id="b-grav" title="4次元で w の＋から−へ向かう重力をかける。中の人には「南極へ引く力」（赤道で最強、両極でゼロ）に感じる。左の S² も同じ">🍎 重力</button>
                     <button class="btn" id="b-planet" title="南極に岩の星（地面）を置く。重力 ON の時、その表面に立てる（S² では南極のまわりの円板）">南極に星</button>
@@ -190,26 +264,12 @@
                 <div class="sl"><span>重力</span><input id="s-g" type="range" min="0.1" max="5" step="0.05" title="重力の強さ"><output id="o-g"></output></div>
                 <div class="sl"><span>星の大きさ</span><input id="s-pr" type="range" min="0.1" max="1.2" step="0.01" title="南極の星の半径（S³ の中での距離。π/2 で赤道まで）"><output id="o-pr"></output></div>
                 <div class="sl"><span>空気抵抗</span><input id="s-gdamp" type="range" min="0" max="2" step="0.01" title="0 なら振り子はずっと揺れ続ける。大きいと南極（星の上）に落ち着く"><output id="o-gdamp"></output></div>
-                <div class="row">
-                    <button class="btn" id="b-ring" title="北極と南極を通る輪（経線）を歩く。1 周ごとに輪が軸のまわりに少しずつ回って、だんだん球面をおおう。地図は北極が上・南極が下の向きになる">🌐 回る輪</button>
-                    <span class="note">軸：</span>
-                    <button class="btn rax" data-ax="x" title="輪が x 軸のまわりに回る">x</button>
-                    <button class="btn rax" data-ax="y" title="輪が y 軸のまわりに回る">y</button>
-                    <button class="btn rax" data-ax="z" title="輪が z 軸のまわりに回る">z</button>
-                    <button class="btn rax" data-ax="w" title="輪が w 軸のまわりに回る：輪は北極・南極ではなく +z（🐱）と −z（🐶）を通り、S³ の赤道の球面（w = 0）をおおう">w</button>
-                    <button class="btn rax" data-ax="all" title="輪の向きが、向きの球ぜんたいを巡る（S³ ぜんたいをおおう）">全部</button>
-                    <button class="btn" id="b-ringview" title="地図を、北極が上・南極が下、輪の回る軸が奥行きになる向きにする">北極を上に</button>
                 </div>
-                <div class="sl"><span>1 周で回す角</span><input id="s-ringstep" type="range" min="2" max="45" step="1" title="回る輪：1 周ごとに輪を何度回すか（10° なら 18 周で球面をひとめぐり）"><output id="o-ringstep"></output></div>
-                <div class="row">
-                    <button class="btn" id="b-hopf" title="ホップの円：自分と 6 人の仲間（🐧🦉🐝🦋🐙🐬）が、少し離れて並んで、それぞれまっすぐ（大円に沿って）歩く。x-y 面と z-w 面を同じ速さで回す二重回転。距離はずっと同じなのに、1 周でお互いのまわりを 1 回まわる">🔗 ホップの円</button>
-                    <button class="btn" id="b-hopfplain" title="比べる用：仲間が、出発の時に自分と同じ向きのふつうの大円を歩く（S² の平行と同じ）。距離が縮んだり戻ったりして、まわらない">ふつうの平行と比べる</button>
-                </div>
-                <div class="row">
-                    <button class="btn" id="b-dyson" title="架空：S³ が外からダイソン球のような模様の殻で囲まれていたら。外の光は 4次元目から差すので中の人には向きがなく、その場所のもやが、真上の模様の色に光って見える（北は金色・南は青白のパネル）">🌐 外のダイソン球</button>
-                </div>
-                <div class="sl"><span>外の光の強さ</span><input id="s-outer" type="range" min="0.1" max="2" step="0.05" title="外のダイソン球の光で光るもやの強さ"><output id="o-outer"></output></div>
-                <p class="note">「🌐 外のダイソン球」は架空の見え方。中の人の視線は S³ の中を一周するだけで外へ出ないので、外の殻そのものは決して見えません。でも外の光が 4次元目（球の外向き）から差し込むなら、それは前後・左右・上下のどれとも直角で向きがないので、その場所の空気（もや）が「真上」の模様の色に光るように感じるはず。中の景色は、視線に沿ってそのもやの光を足し合わせたもの（近いほど強く）。模様は、ところどころ光るパネル（北は金色・南は青白みがかる）。地図の色の点が、その模様を S³ に写したものです。</p>
+            </section>
+
+            <section class="sb-sec" data-sec="fancy">
+                <h3 class="sb-h"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>架空の世界（太陽系・ダイソン球）<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
                 <div class="row">
                     <button class="btn" id="b-solar" title="3次元球面の太陽系（架空）：太陽 ☀️ を北極に置き、8 つの惑星がそれぞれ太陽から決まった距離の円を回る。S³ では太陽から π/2（赤道）より遠い惑星は、反対側（南極 🌴）を囲む小さな円を回る">☀️ 太陽系</button>
                     <button class="btn" id="b-tour" title="太陽系ツアー：次の惑星へ飛んで行き、着いたらその惑星のすぐ後ろを並んで飛ぶ（Shift＋ドラッグで見渡せる）。歩くと止まる">次の惑星へ ▶</button>
@@ -218,36 +278,16 @@
                 <div class="sl"><span>公転の速さ</span><input id="s-solarspd" type="range" min="0" max="4" step="0.1" title="惑星が太陽のまわりを回る速さ（0 で止める）"><output id="o-solarspd"></output></div>
                 <p class="note">「☀️ 太陽系」は 3次元球面に置いた架空の太陽系。太陽はどこに置いても同じ（S³ には真ん中も端もない）ので北極に。惑星は太陽から決まった距離の円を回ります。太陽を囲む球面は π/2（赤道）でいちばん大きく、その先はまた小さくなるので、天王星・海王星は反対側の南極 🌴 を囲む小さな円を回ります。遠い惑星から見ると、太陽は π/2 より遠いので逆に大きく見え、反対の向きにも（光が反対回りで届いて）見えます。「次の惑星へ ▶」で飛んで行き、着くと惑星のすぐ後ろを並んで飛びます（Shift＋ドラッグで見渡し、歩くとツアーをやめる）。</p>
                 <div class="row">
-                    <button class="btn" id="b-para" title="空間の曲がりを見る：自分の左右に少し離れて（距離 d₀）、同じ向きにまっすぐ歩く 2 人（🐧 右・🐬 左）と一緒に歩く。平らな空間ならずっと d₀ のまま並んで歩けるが、S³ では近づいて π/2 で 3 人が 1 点で出会い、π でまた d₀（左右が入れかわる）。押すと今の場所・向きから歩き出す">平行な仲間と歩く（空間の曲がり）</button>
+                    <button class="btn" id="b-dyson" title="架空：S³ が外からダイソン球のような模様の殻で囲まれていたら。外の光は 4次元目から差すので中の人には向きがなく、その場所のもやが、真上の模様の色に光って見える（北は金色・南は青白のパネル）">🌐 外のダイソン球</button>
                 </div>
-                <div class="sl"><span>仲間の先行</span><input id="s-paralead" type="range" min="0" max="1.2" step="0.05" title="平行な仲間は、同じ大円の上を少し前（この距離だけ先）を歩く。真横（0）だと視野に入らないので。距離の数字とグラフは、同じだけ進んだ所どうしで測る"><output id="o-paralead"></output></div>
-                <div class="sl"><span>並ぶ間 d₀</span><input id="s-parad" type="range" min="0.05" max="1.2" step="0.05" title="平行な仲間：出発の時の、自分と仲間の間の距離"><output id="o-parad"></output></div>
-                <p class="note">「平行な仲間と歩く」は空間そのものの曲がりを見るもの（地図の写し方にはよらず、S³ のどこでも同じ）。🐧（右）と 🐬（左）は、自分と同じ向きにまっすぐ（大円）歩きます。平らな空間なら、平行に出発した道の間はずっと d₀ のまま。S³ では道の間が縮んで、π/2 進むと 3 人の道が 1 点で出会い、π でまた d₀ に戻ります（でも左右が入れかわる）。HUD のグラフの点線が平らな空間、水色の線が S³。仲間は見えるように少し前を歩きます（「仲間の先行」）。</p>
-                <div class="sl"><span>仲間の距離</span><input id="s-hopfd" type="range" min="0.15" max="1.2" step="0.05" title="ホップの円：自分と仲間の距離（S³ の中の距離）"><output id="o-hopfd"></output></div>
-                <div class="sl"><span>歳差</span><input id="s-prec" type="range" min="0" max="45" step="1" title="歳差の螺旋：1 周ごとに輪の面を x 軸のまわりに何度回すか。0 なら毎回同じ道。15° なら 6 周目あたりで輪が縦になり、上下（±z）のてっぺんまで届く"><output id="o-prec"></output></div>
-                <div class="sl"><span>傾き</span><input id="s-tilt" type="range" min="0" max="1" step="0.05" title="二重の螺旋：巻く面が進むにつれて z の方へ傾く度合い。0 なら 1 枚の球面の上の平らな竜巻（左の S² と同じ）、1 なら北極では z の向きに巻き始め、南極では −z の向きに"><output id="o-tilt"></output></div>
-                <div class="row">
-                    <button class="btn" id="b-north" title="北極 N に立って、進んだ距離を 0 に。足あとと道すじも消す">北極に戻す</button>
-                    <button class="btn" id="b-clear" title="道すじと足あとを消す（場所はそのまま）">道すじを消す</button>
+                <div class="sl"><span>外の光の強さ</span><input id="s-outer" type="range" min="0.1" max="2" step="0.05" title="外のダイソン球の光で光るもやの強さ"><output id="o-outer"></output></div>
+                <p class="note">「🌐 外のダイソン球」は架空の見え方。中の人の視線は S³ の中を一周するだけで外へ出ないので、外の殻そのものは決して見えません。でも外の光が 4次元目（球の外向き）から差し込むなら、それは前後・左右・上下のどれとも直角で向きがないので、その場所の空気（もや）が「真上」の模様の色に光るように感じるはず。中の景色は、視線に沿ってそのもやの光を足し合わせたもの（近いほど強く）。模様は、ところどころ光るパネル（北は金色・南は青白みがかる）。地図の色の点が、その模様を S³ に写したものです。</p>
                 </div>
-                <p class="note">キー：W/S・↑↓ 前後　A/D 横　Q/E 上下　←→ 方位　ホイール 前後。右の窓をドラッグすると見回す（向いた方へ進む）。「縦横無尽」は歩きながら向きがひとりでに変わり続けるモード（「曲がり」で変わりやすさ）。「螺旋で一周」は北極から竜巻のように巻きながら南極へ行き、反対側を巻いて北極へ戻る（「巻き数」で北極→南極の間に回る回数）。「傾き」を 0 より大きくすると<b>二重の螺旋</b>：巻く面そのものが z の方へ傾いていく 4次元らしい渦（左の S² には対応する動きがないので、左は平らな竜巻のまま）。</p>
             </section>
 
-            <section class="sb-sec">
-                <h3 class="sb-h"><i data-lucide="compass" class="w-3.5 h-3.5"></i>進む向き（方位・仰角）</h3>
-                <div class="sl"><span>方位</span><input id="s-az" type="range" min="-180" max="180" step="1"><output id="o-az"></output></div>
-                <div class="sl"><span>仰角</span><input id="s-el" type="range" min="-89" max="89" step="1"><output id="o-el"></output></div>
-                <div class="row">
-                    <button class="btn" id="b-az0">方位 0°</button>
-                    <button class="btn" id="b-el0">仰角 0°</button>
-                    <button class="btn" id="b-az90">方位 90°</button>
-                    <button class="btn" id="b-el45">仰角 45°</button>
-                </div>
-                <p class="note">方位 0°・90° は x・y の経線の管の真上を歩くので、管の中の景色になります（少しずらすと管が横に見える）。方位＝自分の体の「前」から右へ何度か（体の向きは歩いても変わらない＝平行移動）。仰角＝水平から上へ何度か。<b class="an">S² の仲間には仰角がない</b>ので、左の窓は方位だけで動きます。まっすぐ進む＝向きを変えずに進む。向きを変えると別の大円に乗りかえる。</p>
-            </section>
-
-            <section class="sb-sec">
-                <h3 class="sb-h"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>目印</h3>
+            <section class="sb-sec" data-sec="marks">
+                <h3 class="sb-h"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>目印<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
                 <div class="row">
                     <button class="btn" id="b-mark" title="今いる場所に、番号つきの玉を置く">ここに目印を置く</button>
                     <button class="btn" id="b-mkclear" title="置いた目印を消す（北極・南極・赤道の 6 つは残る）">置いた目印を消す</button>
@@ -260,35 +300,56 @@
                     <button class="btn mk" data-mk="dot" title="大きめの平らな色の点。いちばん軽い">● 色の点</button>
                 </div>
                 <div class="row">
+                    <button class="btn" id="b-foot" title="0.6 進むごとに小さな足あとを落とす">足あと</button>
+                    <button class="btn" id="b-self" title="自分の場所に白い玉。光が 1 周（2π）してくると、自分の背中が見える">自分の玉</button>
+                </div>
+                <p class="note">はじめから：N（北極・水色）、S（南極・金色）、赤道の 6 か所（±x 赤・±y 緑・±z 青）。絵のモードでは N＝⛄、S＝🌴、+x＝🐰、−x＝🐢、+y＝🦝（たぬき）、−y＝🐸、+z＝🐱、−z＝🐶、自分＝🙂、足あと＝👣。置いた目印は 🦊🐻🐼… の順。</p>
+                </div>
+            </section>
+
+            <section class="sb-sec" data-sec="lines">
+                <h3 class="sb-h"><i data-lucide="grid-3x3" class="w-3.5 h-3.5"></i>中の景色の線と背景<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
+                <div class="row">
+                    <button class="btn" id="b-lite" title="緯度・経度の線を式だけで描く軽いモード（北極からの距離 30°・60°・90°・120°・150° の 5 枚の殻に、30° ごとの線）">軽い線（緯度経度）</button>
+                    <button class="btn" id="b-eq" title="赤道の球面 S²（w = 0）を薄い膜で">赤道の膜</button>
+                    <button class="btn" id="b-circ" title="x・y・z の 3 本の経線（北極と南極を通る大円）と、3 本の赤道の輪を管で。光を少しずつ進めて探すので重め">経線・赤道の輪（重め）</button>
+                    <button class="btn" id="b-room" title="S³ をちょうど 120 個の正十二面体で区切った部屋（120 胞体）の辺。光を少しずつ進めて探すので重い">部屋（120 胞体）重い</button>
+                </div>
+                <div class="row">
                     <button class="btn" id="b-bgmesh" title="背景を地図のような色のメッシュに（光の 4次元の向きで色が決まる。経度で色相・北は明るく南は暗く・30° ごとに線）。式だけで描くので軽い">色の地図（背景）</button>
                 </div>
                 <div class="sl"><span>絵の時の線</span><input id="s-picline" type="range" min="0" max="1" step="0.05" title="絵のモードでの線（部屋・経線・赤道の膜）の濃さ。0 で消える"><output id="o-picline"></output></div>
+                <p class="note">「軽い線」は、北極からの距離が 30°・60°・90°（赤道）・120°・150° の 5 枚の球面（S³ の緯度の殻）に、緯度・経度の線を描いたもの。赤紫＝北寄り、水色＝南寄り。「部屋」と「経線・赤道の輪」は光を少しずつ進めて探すので重め。</p>
+                </div>
+            </section>
+
+            <section class="sb-sec" data-sec="shell">
+                <h3 class="sb-h"><i data-lucide="layers" class="w-3.5 h-3.5"></i>球層（超球アプリ）<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
                 <div class="row">
-                    <button class="btn" id="b-foot" title="0.6 進むごとに小さな足あとを落とす">足あと</button>
-                    <button class="btn" id="b-eq" title="赤道の球面 S²（w = 0）を薄い膜で">赤道の膜</button>
-                    <button class="btn" id="b-circ" title="x・y・z の 3 本の経線（北極と南極を通る大円）と、3 本の赤道の輪を管で。光を少しずつ進めて探すので重め">経線・赤道の輪（重め）</button>
-                    <button class="btn" id="b-lite" title="緯度・経度の線を式だけで描く軽いモード（北極からの距離 30°・60°・90°・120°・150° の 5 枚の殻に、30° ごとの線）">軽い線（緯度経度）</button>
                     <button class="btn" id="b-shell" title="超球アプリの「球殻積層」と同じ見た目の球層の中を歩く：北・南それぞれ n 枚の w = 一定の球殻（半透明＋網目、極から赤道へ色が変わる。ふちと裏側は暗く）。式だけで描くので軽め">🫧 球層（超球アプリ）</button>
                     <button class="btn" id="b-shellsolid" title="球層を立体に：超球アプリの「不透明」＋「影」の見た目（面に光とつや、ふちは暗い輪郭）。ただし、うっすら透ける">立体</button>
-                    <button class="btn" id="b-shfocus" title="S³ の地図の球層を、今いる所のまわりだけに：自分のいる殻をはっきり、となりの殻はうっすら、遠い所と裏側は透明">地図は今いる所だけ</button>
-                    <button class="btn" id="b-shlight" title="空間ライト：中の景色の画面に写っている所（視野の中で、殻の見える距離まで）だけを S³ の地図の球層に照らす。向きを変えると、地図の上の照らされる所も動く">空間ライト（画面に写る所だけ）</button>
-                    <button class="btn" id="b-shonly" title="球層の時、S³ の地図には球殻だけを描く：地図の球全体にかかる線（赤道の網目・軽い線・経線と赤道の輪・部屋）を地図から消す。中の景色はそのまま">地図は球殻だけ</button>
-                    <button class="btn" id="b-room" title="S³ をちょうど 120 個の正十二面体で区切った部屋（120 胞体）の辺。光を少しずつ進めて探すので重い">部屋（120 胞体）重い</button>
-                    <button class="btn" id="b-self" title="自分の場所に白い玉。光が 1 周（2π）してくると、自分の背中が見える">自分の玉</button>
                 </div>
                 <div class="sl"><span>層数</span><input id="s-shelln" type="range" min="3" max="21" step="1" title="球層：北・南それぞれの球殻の枚数（赤道は共通）"><output id="o-shelln"></output></div>
                 <div class="sl"><span>透明度</span><input id="s-shellop" type="range" min="0.05" max="0.75" step="0.01" title="球層：1 枚の殻の濃さ"><output id="o-shellop"></output></div>
                 <div class="sl"><span>暗い色の持ち上げ</span><input id="s-shelllum" type="range" min="0" max="0.75" step="0.05" title="中の景色の球層：青・紫など目に暗く見える色を、色合いはそのままで白を少し混ぜて明るくする（南の殻が真っ暗に見えないように）。0 で超球アプリと同じ色"><output id="o-shelllum"></output></div>
                 <div class="sl"><span>裏側</span><input id="s-shellback" type="range" min="0" max="1" step="0.05" title="球層：極の側（内側）から見た面をどれだけ暗くするか"><output id="o-shellback"></output></div>
                 <div class="sl"><span>殻の見える距離</span><input id="s-shellrange" type="range" min="0.3" max="6.3" step="0.05" title="球層の殻を、自分からこの距離までだけ描く。殻は本物の壁なので、遠くまで描くと何十枚も重なって、1 周して戻ってくる景色（反対側の像）を隠してしまう。1 くらいにすると、近くの殻と、遠回りして戻ってくる目印の両方が見える（遠い殻ほど薄く描く）"><output id="o-shellrange"></output></div>
+                <div class="row">
+                    <span class="note">S³ の地図の球層：</span>
+                    <button class="btn" id="b-shfocus" title="S³ の地図の球層を、今いる所のまわりだけに：自分のいる殻をはっきり、となりの殻はうっすら、遠い所と裏側は透明">地図は今いる所だけ</button>
+                    <button class="btn" id="b-shlight" title="空間ライト：中の景色の画面に写っている所（視野の中で、殻の見える距離まで）だけを S³ の地図の球層に照らす。向きを変えると、地図の上の照らされる所も動く">空間ライト（画面に写る所だけ）</button>
+                    <button class="btn" id="b-shonly" title="球層の時、S³ の地図には球殻だけを描く：地図の球全体にかかる線（赤道の網目・軽い線・経線と赤道の輪・部屋）を地図から消す。中の景色はそのまま">地図は球殻だけ</button>
+                </div>
                 <div class="sl"><span>地図の近さ</span><input id="s-shfocusr" type="range" min="0.3" max="3.2" step="0.05" title="「地図は今いる所だけ」で、自分からこの距離までの殻を地図に描く（遠くなるほど薄く）"><output id="o-shfocusr"></output></div>
                 <p class="note">「球層」は超球アプリ（hypersphere.html）の右の窓と同じ球殻の積み重ね。「立体」で不透明モード風（光・つや・輪郭。透明度のスライダーで透け具合）。北極を囲む殻は赤→水色、南極を囲む殻は紫→水色（赤道が水色）。歩く人はその殻を次々に通り抜けます。「地図は今いる所だけ」で、S³ の地図の球層は自分のまわりだけ（自分のいる殻ははっきり、となりはうっすら、遠い所と裏側は透明。広さは「地図の近さ」）。「空間ライト」で、中の景色の画面に写っている所（視野の中、殻の見える距離まで）だけを地図の球層に照らす（懐中電灯のように、向きを変えると照らす所も動く）。「地図は球殻だけ」で、地図の球全体にかかる線（赤道の網目・軽い線など）を消して球殻だけに。</p>
-                <p class="note">「軽い線」は、北極からの距離が 30°・60°・90°（赤道）・120°・150° の 5 枚の球面（S³ の緯度の殻）に、緯度・経度の線を描いたもの。赤紫＝北寄り、水色＝南寄り。「部屋」と「経線・赤道の輪」は光を少しずつ進めて探すので重め。</p>
-                <p class="note">はじめから：N（北極・水色）、S（南極・金色）、赤道の 6 か所（±x 赤・±y 緑・±z 青）。絵のモードでは N＝⛄、S＝🌴、+x＝🐰、−x＝🐢、+y＝🦝（たぬき）、−y＝🐸、+z＝🐱、−z＝🐶、自分＝🙂、足あと＝👣。置いた目印は 🦊🐻🐼… の順。</p>
+                </div>
             </section>
 
-            <section class="sb-sec">
-                <h3 class="sb-h"><i data-lucide="eye" class="w-3.5 h-3.5"></i>窓と見え方</h3>
+            <section class="sb-sec" data-sec="view">
+                <h3 class="sb-h"><i data-lucide="eye" class="w-3.5 h-3.5"></i>窓と見え方<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
                 <div class="row">
                     <button class="btn big" id="b-light" title="いちばん軽い組み合わせにする：目印は色の点、背景は色の地図、線は全部消す、透けの重ねは手前の 1 つだけ、画質 60%">⚡ 軽量モード</button>
                     <button class="btn" id="b-std" title="いつもの見え方に戻す：玉、暗い空、軽い線と赤道の膜、透けの重ね 4 つ、画質 70%">標準に戻す</button>
@@ -307,22 +368,26 @@
                 <div class="sl"><span>視野角</span><input id="s-fov" type="range" min="30" max="360" step="1" title="中の景色の縦の視野角。通常のレンズは 150° まで、魚眼は 360° まで。360° レンズでは使わない"><output id="o-fov"></output></div>
                 <div class="sl"><span>地図の幅</span><input id="s-mapw" type="range" min="0.12" max="0.85" step="0.01" title="左の地図（S² の仲間・S³ の地図）と右の散歩の景色の幅の割合。縦長の画面では高さの割合"><output id="o-mapw"></output></div>
                 <div class="row">
-                    <button class="btn" id="b-axes" title="x・y・z（S³ の地図では w も）の軸">軸</button>
-                    <button class="btn" id="b-home" title="地図の見る向きを最初に戻す">向きを戻す</button>
                     <button class="btn" id="b-headreset" title="Shift＋ドラッグ（中の景色）で見渡した向きを戻して、進む向きを見る">見渡しを戻す</button>
-                    <button class="btn" id="b-heading" title="地図（S² と S³）の黄色い円すい。歩いている間は進む向き、止まっている時は見ている向き">進む向き</button>
-                    <button class="btn" id="b-warrow" title="中の景色に紫の矢印：まっすぐ進む道が、S³ の地図の上ではどちらへどれだけ曲がって見えるか。地図の真ん中を通る道はまっすぐ（矢印なし）、地図の球のふちに沿う道で強さ 1">地図での曲がり</button>
                 </div>
-                <div class="sl"><span>曲がりの先読み</span><input id="s-bendahead" type="range" min="0" max="1.5" step="0.05" title="「地図での曲がり」の濃い矢印は、この距離だけ先の道の曲がり（これから曲がっていく向き）。薄い矢印は今の曲がり。0 で今だけ"><output id="o-bendahead"></output></div>
                 <div class="sl"><span>光の距離</span><input id="s-maxd" type="range" min="1" max="6.4" step="0.05" title="中の景色で光をどこまで進めるか。π で反対側（対蹠点）、2π で自分の背中"><output id="o-maxd"></output></div>
                 <div class="sl"><span>もや</span><input id="s-fog" type="range" min="0" max="0.6" step="0.01" title="空気のもや（散乱光）。遠い物ほど、もやの色に溶ける"><output id="o-fog"></output></div>
                 <div class="sl"><span>透け</span><input id="s-fade" type="range" min="0" max="1" step="0.01" title="遠い目印ほど透ける。透けた向こうの目印も重ねて描く（手前から 4 つまで）"><output id="o-fade"></output></div>
                 <div class="sl"><span>画質</span><input id="s-q" type="range" min="0.3" max="1" step="0.05"><output id="o-q"></output></div>
-                <div class="row"><button class="btn" id="b-autoq" title="描くのが遅い時は、中の景色の細かさを自動で下げる（速くなったら戻す）">自動で軽く</button></div>
+                <div class="row">
+                    <button class="btn" id="b-autoq" title="描くのが遅い時は、中の景色の細かさを自動で下げる（速くなったら戻す）">自動で軽く</button>
+                </div>
+                </div>
             </section>
 
-            <section class="sb-sec">
-                <h3 class="sb-h"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>S³ の地図の写し方（4次元の回転）</h3>
+            <section class="sb-sec" data-sec="map">
+                <h3 class="sb-h"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>S³ の地図（4次元の写し方）<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
+                <div class="row">
+                    <button class="btn" id="b-axes" title="x・y・z（S³ の地図では w も）の軸">軸</button>
+                    <button class="btn" id="b-home" title="地図の見る向きを最初に戻す">向きを戻す</button>
+                    <button class="btn" id="b-heading" title="地図（S² と S³）の黄色い円すい。歩いている間は進む向き、止まっている時は見ている向き">進む向き</button>
+                </div>
                 <div class="row">
                     <button class="btn" id="b-follow" title="自分がいつも真ん中（手前）に来るように S³ を回して写す">自分を真ん中に</button>
                     <button class="btn" id="b-rot0" title="回転を最初に戻す（Y-W 90°：北極が手前の左、南極が奥の右）">↺ 最初の向き</button>
@@ -333,6 +398,7 @@
                 <div class="sl"><span>遠近</span><input id="s-D" type="range" min="1" max="5" step="0.05"><output id="o-D"></output></div>
                 <div class="sl"><span>奥を消す</span><input id="s-cut" type="range" min="-1" max="0.9" step="0.05"><output id="o-cut"></output></div>
                 <p class="note">次元おりがみ・空間めぐりと同じ写し方（視点を w 軸の上に置き、k = D/(D − w) で 3次元へ）。遠近 1 で立体射影。真ん中の窓を Shift＋ドラッグでも回せます。</p>
+                </div>
             </section>
 
             <section class="sb-sec">
@@ -1577,7 +1643,17 @@ function setSidebar(open) { document.body.classList.toggle('sidebar-hidden', !op
 $('sidebar-close').addEventListener('click', () => setSidebar(false)); $('sidebar-open').addEventListener('click', () => setSidebar(true));
 if (window.innerWidth < 760) setSidebar(false);
 let dock = null;
-try { dock = UIDock.create({ prefix: 's3walk', onResize: () => resizeAll(), onChange: () => req(3) }); document.querySelectorAll('#sb-scroll > section.sb-sec').forEach(sec => { const h = sec.querySelector(':scope > .sb-h'); if (h) dock.add(sec, { handle: h }); }); dock.restore(); } catch (e) { console.warn('ui-dock', e); }
+// パネルの欄のたたみ：見出しの ▾ で。最初は「歩く」だけひらく。たたみ具合は覚えておく
+(() => {
+    let st = null; try { st = JSON.parse(localStorage.getItem('s3walk-folds') || 'null'); } catch (e) {}
+    document.querySelectorAll('#sb-scroll > section.sb-sec[data-sec]').forEach(sec => {
+        const k = sec.dataset.sec, b = sec.querySelector('.sec-fold'); if (!b) return;
+        sec.classList.toggle('folded', st ? !!st[k] : k !== 'walk');
+        b.addEventListener('pointerdown', e => e.stopPropagation());
+        b.addEventListener('click', e => { e.stopPropagation(); sec.classList.toggle('folded'); const o = {}; document.querySelectorAll('#sb-scroll > section.sb-sec[data-sec]').forEach(x => { o[x.dataset.sec] = x.classList.contains('folded'); }); try { localStorage.setItem('s3walk-folds', JSON.stringify(o)); } catch (e2) {} });
+    });
+})();
+try { dock = UIDock.create({ prefix: 's3walk', onResize: () => resizeAll(), onChange: () => req(3) }); document.querySelectorAll('#sb-scroll > section.sb-sec').forEach(sec => { const h = sec.querySelector(':scope > .sb-h'); if (h) dock.add(sec, { handle: h, id: sec.dataset.sec || undefined }); }); dock.restore(); } catch (e) { console.warn('ui-dock', e); }
 
 // 地図と中の景色の境目：ドラッグで広さ（S.mapW）を変える。縦長の画面では上下
 (() => {
