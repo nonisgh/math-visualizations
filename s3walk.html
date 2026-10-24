@@ -53,6 +53,12 @@
         body.split-dragging, body.split-dragging * { cursor: col-resize !important; user-select: none !important; }
         body.split-dragging.split-col, body.split-dragging.split-col * { cursor: row-resize !important; }
         #main.nowalk #maps { width: auto; flex: 1 1 0; border-right: 0; }
+        .mchips { position: absolute; right: 8px; bottom: 8px; z-index: 12; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 92%; }
+        .mchips .grp { display: flex; gap: 2px; background: rgba(15, 23, 42, 0.85); border: 1px solid #334155; border-radius: 9px; padding: 2px; }
+        .mchip { font-size: 10px; line-height: 1.2; padding: 2px 7px; border-radius: 7px; color: #cbd5e1; cursor: pointer; white-space: nowrap; background: none; border: 0; }
+        .mchip:hover { background: #1e293b; }
+        .mchip.on { background: rgba(12, 74, 110, 0.75); color: #e0f2fe; font-weight: 700; }
+        #cvA2 { display: none; z-index: 1; } #cvA2 canvas { width: 100%; height: 100%; display: block; }
         .vw { position: relative; min-width: 0; min-height: 0; flex: 1 1 0; overflow: hidden; }
         #maps .vw { border-bottom: 1px solid #1e293b; }
         #maps .vw:last-child { border-bottom: 0; }
@@ -133,11 +139,14 @@
             <div id="cvA" class="cv"></div>
             <div id="badgeA" class="badge">球面 S²（2次元の仲間）<small>同じ操作を、ふつうの球面の上でした場合。北極から出発して南極を通り、北極に戻る</small></div>
             <div id="hudA" class="hud"></div>
+            <div id="cvA2" class="cv"><canvas id="cvA2c"></canvas></div>
+            <div class="mchips" id="chipsA"></div>
         </div>
         <div id="wrapB" class="vw">
             <div id="cvB" class="cv"></div>
             <div id="badgeB" class="badge">S³ の地図（4次元から 3次元へ写した模型）<small>白い玉＝自分、黄色＝進む向き。N＝北極（水色）、S＝南極（金色）。線の色＝w（赤紫＝手前・水色＝奥）</small></div>
             <div id="axlen" class="hud" style="left:auto;right:12px;top:12px;bottom:auto"></div>
+            <div class="mchips" id="chipsB"></div>
         </div>
         </div>
         <div id="split" title="ドラッグで地図と中の景色の広さを変える（ダブルクリックで元に戻す）"></div>
@@ -413,6 +422,16 @@
                     <button class="btn" id="b-rot0" title="回転を最初に戻す（Y-W 90°：北極が手前の左、南極が奥の右）">↺ 最初の向き</button>
                 </div>
                 <div class="row">
+                    <span class="note">地図を 2 枚：</span>
+                    <button class="btn" id="b-dual-near" title="1 枚目（左下）は全体、2 枚目（左上）は今いる所だけ（球層の殻）">全体 ＋ 今いる所</button>
+                    <button class="btn" id="b-dual-self" title="1 枚目（左下）はふつう、2 枚目（左上）は自己中心（自分が真ん中、球の方が回る）">ふつう ＋ 自己中心</button>
+                    <button class="btn" id="b-dual-off" title="左上の窓を S² の仲間に戻す">S² に戻す</button>
+                </div>
+                <div class="sl"><b style="color:#ff5d6c;font-style:italic">地図 2 X-W</b><input id="s-m2xw" type="range" min="-180" max="180" step="1" title="2 枚目の地図の 4次元の向き（ふつうの見方の時）"><output id="o-m2xw"></output></div>
+                <div class="sl"><b style="color:#3ddc84;font-style:italic">地図 2 Y-W</b><input id="s-m2yw" type="range" min="-180" max="180" step="1"><output id="o-m2yw"></output></div>
+                <div class="sl"><b style="color:#56a8ff;font-style:italic">地図 2 Z-W</b><input id="s-m2zw" type="range" min="-180" max="180" step="1"><output id="o-m2zw"></output></div>
+                <p class="note">「地図を 2 枚」：左上の窓を、S² の仲間か 2 枚目の S³ の地図に切りかえられます（窓の右下のボタンでも）。地図ごとに、見方（ふつう／自己中心＝自分が真ん中で球の方が回る）と、範囲（全体／今いる所だけ／画面に写る所。球層の殻に効く）を窓の右下で選べます。2 枚目の 4次元の向きは上の 3 本で。2 枚目を出している間だけ少し重くなります。</p>
+                <div class="row">
                     <button class="btn" id="b-rot4" title="S³ の地図を 4次元で回し続ける（X-W・Y-W・Z-W のどれかの面）。4次元ではいちばん遠い北極 N と南極 S が、3次元の地図の上では近づいて重なり、すれちがって入れかわる。球層の殻の線も奥行きで強めに">🔄 4次元回転の実演（北極と南極のすれちがい）</button>
                 </div>
                 <div class="row">
@@ -539,10 +558,11 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, spin: false, spinRate: 6, spinTilt: 23.4, spinAz: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
+S.m2 = Object.assign({ view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, S.m2 || {});   // 2 枚目の地図の設定（古い保存に足りない所を補う）
 if (S.pic !== undefined) { S.mk = S.pic ? 'pic' : 'ball'; delete S.pic; }   // 古い保存（絵のモードの ON/OFF）を読みかえる
 const isPic = () => S.mk === 'pic';
 const noMk = () => S.mk === 'none';   // 目印を何も出さない
@@ -1000,6 +1020,52 @@ function resizeView(v) {
 }
 function resizeAll() { [VA, VB, VC].forEach(resizeView); }
 ['cvA', 'cvB', 'cvC'].forEach(id => new ResizeObserver(resizeAll).observe(document.getElementById(id)));
+// ---- 2 枚目の地図（左上の窓）：1 枚目（VB）と同じ中身を、2 枚目の設定（見方・範囲・4次元の向き）に入れかえてもう 1 回描き、左上の窓の画面へ写す ----
+//   中身（殻・目印・太陽系…）を二重に持たないので、1 枚目にあるものは全部 2 枚目にも出る。カメラ（ドラッグで回す）は 2 枚目だけのもの
+const M2 = (() => {
+    const cv = document.getElementById('cvA2c'), ctx = cv.getContext('2d');
+    const cam = new THREE.PerspectiveCamera(36, 1, 0.02, 400); cam.up.set(0, 0, 1);
+    const ctl = new THREE.OrbitControls(cam, cv); ctl.enableDamping = true; ctl.dampingFactor = 0.12; ctl.rotateSpeed = 0.9; ctl.addEventListener('change', () => req(2));
+    const D = 9.6; cam.position.set(0.55 * D, -0.72 * D, 0.42 * D); cam.lookAt(0, 0, 0); ctl.update();
+    return { cv, ctx, cam, ctl };
+})();
+function m2Apply(fn) {   // 2 枚目の設定に入れかえて fn を呼び、元に戻す（4次元回転の実演の道すじなどは 1 枚目だけ）
+    const keep = { follow: S.follow, ringView: S.ringView, shFocus: S.shFocus, shLight: S.shLight, xw: S.xw, yw: S.yw, zw: S.zw, rot4: S.rot4 };
+    const m = S.m2;
+    S.follow = m.view === 'self'; S.ringView = false; S.shFocus = m.range === 'near'; S.shLight = m.range === 'light'; S.xw = m.xw; S.yw = m.yw; S.zw = m.zw; S.rot4 = false;
+    updateRot();
+    try { fn(); } finally { Object.assign(S, keep); updateRot(); }
+}
+function renderMap2() {
+    const host = document.getElementById('cvA2'), w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W2 = Math.round(w * dpr), H2 = Math.round(h * dpr);
+    if (M2.cv.width !== W2 || M2.cv.height !== H2) { M2.cv.width = W2; M2.cv.height = H2; }
+    if (!S.wB && (VB.w < 50 || VB.h < 50)) { VB.r.setSize(w, h, false); VB.w = w; VB.h = h; VB.mats.forEach(m => m.resolution.set(w, h)); }   // 1 枚目の窓を隠している時も描けるように
+    m2Apply(() => {
+        VB.frames.forEach(f => f());
+        M2.cam.aspect = w / h; M2.cam.fov = w >= h ? 36 : 2 * Math.atan(Math.tan(18 * d2r) / (w / h)) / d2r; M2.cam.updateProjectionMatrix();
+        VB.r.render(VB.scene, M2.cam);
+        M2.ctx.clearRect(0, 0, W2, H2); M2.ctx.drawImage(VB.r.domElement, 0, 0, W2, H2);   // 1 枚目の画面に描いたものを、そのまま左上の窓へ写す（このあと 1 枚目を描き直す）
+    });
+}
+// 地図の窓の右下の切り替え：見方（ふつう／自己中心）・範囲（全体／今いる所／写る所）、左上の窓（S²／地図 2）
+const VIEW_L = [['normal', 'ふつう'], ['self', '自己中心']], RANGE_L = [['all', '全体'], ['near', '今いる所'], ['light', '写る所']];
+function renderChips() {
+    const grp = (items, cur, key, map, tip) => `<div class="grp">${items.map(([v, l]) => `<button class="mchip${v === cur ? ' on' : ''}" data-map="${map}" data-k="${key}" data-v="${v}" title="${tip}">${l}</button>`).join('')}</div>`;
+    const tipV = '見方：ふつう＝4次元の向きのスライダーで写す／自己中心＝自分がいつも真ん中に来るように球の方を回す', tipR = '範囲（球層の殻に効く）：全体／今いる所のまわりだけ／中の景色の画面に写る所だけ';
+    const m1 = { view: S.follow ? 'self' : 'normal', range: S.shLight ? 'light' : S.shFocus ? 'near' : 'all' };
+    const a = grp(VIEW_L, m1.view, 'view', 1, tipV) + grp(RANGE_L, m1.range, 'range', 1, tipR);
+    if ($('chipsB').innerHTML !== a) $('chipsB').innerHTML = a;
+    const b = (S.wAmode === 'map2' ? grp(VIEW_L, S.m2.view, 'view', 2, tipV) + grp(RANGE_L, S.m2.range, 'range', 2, tipR) : '') + grp([['s2', 'S²'], ['map2', '地図 2']], S.wAmode, 'mode', 2, '左上の窓：S² の仲間か、2 枚目の S³ の地図か');
+    if ($('chipsA').innerHTML !== b) $('chipsA').innerHTML = b;
+}
+document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.mchip'); if (!b) return;
+    const k = b.dataset.k, v = b.dataset.v;
+    if (b.dataset.map === '1') { if (k === 'view') { S.follow = v === 'self'; if (S.follow) S.ringView = false; } else { S.shFocus = v === 'near'; S.shLight = v === 'light'; } }
+    else if (k === 'mode') S.wAmode = v; else S.m2[k] = v;
+    save(); updateRot(); refreshUI(); req(3);
+});
 
 function Lines(v, nSeg, o) {
     o = o || {}; const g = new THREE.LineSegmentsGeometry();
@@ -1007,9 +1073,12 @@ function Lines(v, nSeg, o) {
     const m = new THREE.LineMaterial({ linewidth: o.width || 1.4, vertexColors: true, transparent: true, opacity: 1, depthWrite: false, blending: o.normal ? THREE.NormalBlending : THREE.AdditiveBlending });
     m.resolution.set(v.w, v.h); v.mats.push(m);
     const obj = new THREE.LineSegments2(g, m); obj.frustumCulled = false; obj.renderOrder = o.order || 2; v.root.add(obj);
-    let i = 0;
+    let i = 0; const cache = new Map();
     return { obj, g, seg(a, b, ca, cb) { if (i >= nSeg) return; const j = i * 6; pos[j] = a[0]; pos[j + 1] = a[1]; pos[j + 2] = a[2]; pos[j + 3] = b[0]; pos[j + 4] = b[1]; pos[j + 5] = b[2]; cb = cb || ca; cl[j] = ca[0]; cl[j + 1] = ca[1]; cl[j + 2] = ca[2]; cl[j + 3] = cb[0]; cl[j + 4] = cb[1]; cl[j + 5] = cb[2]; i++; },
-        reset() { i = 0; }, flush() { g.attributes.instanceStart.data.needsUpdate = true; g.attributes.instanceColorStart.data.needsUpdate = true; g.instanceCount = i; } };
+        reset() { i = 0; }, flush() { g.attributes.instanceStart.data.needsUpdate = true; g.attributes.instanceColorStart.data.needsUpdate = true; g.instanceCount = i; },
+        // 写し方ごとに描いた結果を覚えておく（地図を 2 枚描く時、写し方が交互に変わっても計算し直さずに写すだけにする。4 つまで）
+        save(k) { cache.delete(k); cache.set(k, { p: pos.slice(0, i * 6), c: cl.slice(0, i * 6), n: i }); if (cache.size > 4) cache.delete(cache.keys().next().value); },
+        load(k) { const e = cache.get(k); if (!e) return false; pos.set(e.p); cl.set(e.c); i = e.n; this.flush(); return true; } };
 }
 function ball(v, r, color) { const me = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 12), new THREE.MeshPhongMaterial({ color: rgbHex(color), emissive: rgbHex(color), emissiveIntensity: 0.35, shininess: 80 })); v.root.add(me); return me; }
 function label(v, text, css, scale) { const sp = VisualFX.makeLabel(text, css, { scale: scale || 0.4 }); v.root.add(sp); return sp; }
@@ -1124,16 +1193,19 @@ const AXL = 2.7;
         if (S.shell && S.shellBare) { const n = Math.max(2, Math.min(21, Math.round(S.shellN))), nk = n + '/' + shellMinTheta(); if (nk !== meshN) { meshN = nk; buildShellMeshes(n); meshKey = ''; }
             const mk = Array.from(R4, x => x.toFixed(5)).join(',') + '|' + S.D + '|' + S.shellOp; if (mk !== meshKey) { meshKey = mk; placeShellMeshes(); } }
         if (statKey !== mapStatKey) { mapStatKey = statKey;
+        const SL = [spL, Leq, Lsh, Lc, Lr];
+        if (!SL.every(L => L.load(statKey))) {   // 覚えていなければ計算して覚える
         if (S.spiral) { if (spKey !== S.turns + '/' + S.tilt + '/' + S.prec + '/' + SP.lap) { spKey = S.turns + '/' + S.tilt + '/' + S.prec + '/' + SP.lap; const path = spiralPath(1200); spPath = []; for (let i = 0; i + 1 < path.length; i++) spPath.push([path[i].p, path[i + 1].p]); } drawPairs(spL, spPath, d => scl([0.55, 0.5, 0.9], 0.5 + 0.5 * (d + 1) / 2), 1.5, false); }
         if (S.eq) drawPairs(Leq, eqPairs, d => depthColor(d, 0.8), 3, true);
         if (S.lite) drawPairs(Lsh, shPairs, d => depthColor(d, 0.45), 3, true);
         if (S.circ) drawPairs(Lc, circ, (d, i) => scl(circ[i][2], 0.25 + 0.75 * Math.pow((d + 1) / 2, 1.5)), 3, true);
         if (S.room) drawPairs(Lr, roomPairs, d => depthColor(d, 0.32), 2.5, true);
+        SL.forEach(L => L.save(statKey)); }
         }
         // 球層：「今いる所だけ」なら、自分のいる殻ははっきり、となりはうっすら、遠い所と裏側は透明（動くたびに描き直す）
         if (S.shell) { const n = Math.max(2, Math.min(21, Math.round(S.shellN))); Lshell.obj.material.linewidth = S.shFocus || S.shLight ? 1.8 : 1.0;
             const dk = statKey + '|' + n + '|' + S.rot4 + '|' + gridKey() + '|' + (S.shFocus ? W.p.map(x => x.toFixed(3)).join(',') + '|' + S.shFocusR : '') + (S.shLight ? '|L' + [...W.p, ...viewFrame().L, ...viewFrame().R].map(x => x.toFixed(3)).join(',') + '|' + [S.fov, S.lens, S.shellRange, S.maxd, VC.r.domElement.width, VC.r.domElement.height].join(',') : '');
-            if (dk !== shellDrawKey) { shellDrawKey = dk;
+            if (dk !== shellDrawKey && !Lshell.load(dk)) { shellDrawKey = dk;
                 if (shellKey !== n + '/' + shellMinTheta() + '/' + gridKey()) { shellKey = n + '/' + shellMinTheta() + '/' + gridKey(); shellPairs = shellSet(n); }
                 const m0 = shellMinTheta(), gap = (Math.PI / 2 - m0) / Math.max(1, n - 1), thMe = Math.acos(Math.max(-1, Math.min(1, W.p[3]))), R = S.shFocusR;
                 // 今いる所だけ：透明になる殻（層が離れている・両端とも遠い）は最初から描かない
@@ -1148,7 +1220,7 @@ const AXL = 2.7;
                     // 足し合わせの線なので、紫などの暗い色も vivid で明るく、奥の暗くなり方も弱める
                     const lay = Math.max(0, 1 - Math.abs(P[3] - thMe) / (2.2 * gap)), dg = Math.acos(Math.max(-1, Math.min(1, dot(P[e], W.p)))), near = 1 - Math.min(1, Math.max(0, (dg - 0.6 * R) / (0.4 * R)));
                     const k = (0.35 + 0.65 * lay * lay) * near * (0.75 + 0.25 * (d + 1) / 2) * 1.3;
-                    return vivid(P[2], k); }, 3, !S.shFocus); } }   // 今いる所だけの時は「奥を消す」でも消さない
+                    return vivid(P[2], k); }, 3, !S.shFocus); Lshell.save(dk); } else shellDrawKey = dk; }   // 今いる所だけの時は「奥を消す」でも消さない
         const T = W.trail; trail.reset(); for (let i = 0; i + 1 < T.length; i++) { const da = mapS3(T[i], a), db = mapS3(T[i + 1], b); if (!(da === da) || !(db === db) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.5) continue; const f = 0.45 + 0.55 * i / T.length; trail.seg(a, b, scl(hsl(200 + 160 * i / T.length, 0.95, 0.62), f)); } trail.flush();
         { const pk = planetKey(); planetM.visible = false; if (pk) { const d = mapS3(SP4, a); if (d === d) { planetM.visible = true; planetM.position.set(a[0], a[1], a[2]); planetM.scale.setScalar(Math.sin(pk) * RS * Math.min(3, kOf(SP4))); } } }   // 南極の星
         place(me, W.p, 1);
@@ -1630,6 +1702,10 @@ $('b-solar').addEventListener('click', () => { if (S.solar) say('☀️ 太陽�
 $('b-tour').addEventListener('click', () => { if (!S.solar) { S.solar = true; refreshUI(); } S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = (TOUR.i + 1) % PLANETS.length; TOUR.ride = false; const P = PLANETS[TOUR.i]; say(`${P.pic} ${P.name}へ出発（太陽から ${P.r.toFixed(2)}）`); refreshUI(); });
 $('b-tour0').addEventListener('click', () => { TOUR.i = -1; resetNorth(); S.az = 0; S.el = 0; onLook(); say('太陽のそば（北極）に戻った'); });
 $('b-headreset').addEventListener('click', headReset);
+['xw', 'yw', 'zw'].forEach(k => $('s-m2' + k).addEventListener('input', e => { S.m2[k] = +e.target.value; $('o-m2' + k).textContent = S.m2[k] + '°'; save(); req(3); }));
+$('b-dual-near').addEventListener('click', () => { S.wA = true; S.wAmode = 'map2'; S.follow = false; S.shFocus = false; S.shLight = false; S.m2.view = 'normal'; S.m2.range = 'near'; if (!S.shell) S.shell = true; save(); updateRot(); refreshUI(); req(3); });
+$('b-dual-self').addEventListener('click', () => { S.wA = true; S.wAmode = 'map2'; S.follow = false; S.m2.view = 'self'; S.m2.range = 'all'; save(); updateRot(); refreshUI(); req(3); });
+$('b-dual-off').addEventListener('click', () => { S.wAmode = 's2'; save(); refreshUI(); req(3); });
 $('b-grid0').addEventListener('click', () => { S.gridTilt = 0; S.gridAz = 0; GRID.spin = 0; save(); refreshUI(); req(3); });
 $('b-grid90').addEventListener('click', () => { S.gridTilt = 90; save(); refreshUI(); req(3); });
 $('b-shellbare').addEventListener('click', () => { if (S.shellBare) { S.shell = true; S.shellSolid = true; } refreshUI(); req(3); });   // 網目なしは立体の殻で
@@ -1672,6 +1748,10 @@ function refreshUI() {
     document.querySelectorAll('.btn.lens').forEach(b => b.classList.toggle('on', b.dataset.lens === (S.lens || 'normal')));
     Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
     ['A', 'B', 'C'].forEach(x => $('wrap' + x).classList.toggle('off', !S['w' + x]));
+    { const m2 = S.wAmode === 'map2'; $('cvA2').style.display = m2 ? 'block' : 'none'; $('hudA').style.display = m2 ? 'none' : '';
+      $('badgeA').innerHTML = m2 ? 'S³ の地図 2<small>2 枚目の地図。窓の右下で見方（ふつう／自己中心）と範囲（全体／今いる所／写る所）を選ぶ。ドラッグで回す</small>' : '球面 S²（2次元の仲間）<small>同じ操作を、ふつうの球面の上でした場合。北極から出発して南極を通り、北極に戻る</small>';
+      ['xw', 'yw', 'zw'].forEach(k => { const el = $('s-m2' + k); if (document.activeElement !== el) el.value = S.m2[k]; $('o-m2' + k).textContent = S.m2[k] + '°'; });
+      renderChips(); }
     $('maps').classList.toggle('off', !S.wA && !S.wB); $('main').classList.toggle('nowalk', !S.wC);
     document.body.style.setProperty('--mapw', S.mapW);
     $('mklist').innerHTML = W.marks.map(m => `<span style="border-color:${hexCss(rgbHex(m.col))}">${m.pic} ${m.n}：北極から ${Math.acos(Math.max(-1, Math.min(1, m.p[3]))).toFixed(2)}</span>`).join('') || '<span style="color:#64748b;border:0">（まだ置いていない）</span>';
@@ -1864,6 +1944,7 @@ function loop(now) {
     updateRot();
     if (VA.ctl.update()) need = Math.max(need, 1);
     if (VB.ctl.update()) need = Math.max(need, 1);
+    if (S.wAmode === 'map2' && M2.ctl.update()) need = Math.max(need, 1);
     // 自動で軽く：描いている間のコマの間隔を 1 秒ごとに見て、遅ければ中の景色の細かさを下げ、速ければ戻す
     if (S.autoQ && need > 0) { IN.fT = (IN.fT || 0) + dt; IN.fN = (IN.fN || 0) + 1;
         if (IN.fT > 1) { const avg = IN.fT / IN.fN; IN.fT = 0; IN.fN = 0; const k0 = AUTO.k || 1;
@@ -1871,7 +1952,7 @@ function loop(now) {
             if (Math.abs(k - k0) > 0.01) { AUTO.k = k; resizeView(VC); refreshUI(); } } }
     if (need <= 0) return;
     need--;
-    if (S.wA) { VA.frames.forEach(f => f()); VA.r.render(VA.scene, VA.cam); }
+    if (S.wA) { if (S.wAmode === 'map2') renderMap2(); else { VA.frames.forEach(f => f()); VA.r.render(VA.scene, VA.cam); } }   // 2 枚目の地図は 1 枚目より先に描く（同じ描く道具を使うので）
     if (S.wB) { VB.frames.forEach(f => f()); VB.r.render(VB.scene, VB.cam); }
     if (S.wC) { setRayUniforms(); VC.r.render(ray.scene, ray.cam); }
     updateHUD();
