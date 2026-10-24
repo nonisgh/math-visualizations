@@ -22,6 +22,8 @@
     <script src="lib/visual-fx.js"></script>
     <script src="lib/ui-dock.js"></script>
     <script src="lib/state-sync.js"></script>
+    <script src="lib/supa-config.js"></script>
+    <script src="lib/supa-sync.js"></script>
     <script src="lib/nd-geom.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
@@ -434,9 +436,11 @@
             </section>
 
             <section class="sb-sec" data-sec="sync">
-                <h3 class="sb-h"><i data-lucide="cloud" class="w-3.5 h-3.5"></i>設定の保存（GitHub の Gist）<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <h3 class="sb-h"><i data-lucide="cloud" class="w-3.5 h-3.5"></i>設定の保存（Supabase・GitHub の Gist）<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
                 <div class="sec-body">
                     <p class="note">設定（ボタン・スライダー・欄のたたみ）は、このブラウザにいつも自動で保存されます。GitHub の鍵を入れると、シークレット Gist にも上げて、別の端末（PC・iPad など）でも同じ設定にそろえます（開いた時に新しい方にそろう）。鍵と Gist は次元おりがみ・グラフ電卓と共通。欄の分離の並びは端末ごと（同期しない）。</p>
+                    <div id="supaBox"></div>
+                    <p class="note">下は前からの GitHub の Gist での同期（鍵が要る）。Supabase で同期する時は使わなくて大丈夫です。</p>
                     <div id="syncBox"></div>
                 </div>
             </section>
@@ -1885,6 +1889,18 @@ if (window.StateSync) {
         const sync = StateSync.create({ app: 's3walk', build: '20261024-1920', tokenKey: 'hypercubeGistToken', idKey: 'hypercubeGistId', snapshot: () => ({}), restore: () => {}, exclude: ['s3walkFloats'] });
         sync.start(); sync.mountUI($('syncBox')); window._s3sync = sync;
     } catch (e) { console.warn('state-sync', e); }
+}
+// ---- 設定の同期（共通部品 supa-sync）：Supabase の表 mathviz_state の自分の行へ。メールのリンクでログイン、ほかの端末の変更はリアルタイムで届く ----
+//   ほかの端末の変更は、読み直さずにその場で反映する（ボタン・スライダー＝s3walk-state、欄のたたみ＝s3walk-folds）
+if (window.SupaSync) {
+    try {
+        const applyLive = d => {
+            if (d['s3walk-state']) { const st = JSON.parse(d['s3walk-state']); Object.assign(S, st); updateRot(); refreshUI(); resizeAll(); req(3); }
+            if (d['s3walk-folds']) { const f = JSON.parse(d['s3walk-folds']); document.querySelectorAll('#sb-scroll > section.sb-sec[data-sec]').forEach(x => x.classList.toggle('folded', !!f[x.dataset.sec])); }
+        };
+        const supa = SupaSync.create({ app: 's3walk', build: '20261025-0600', exclude: ['s3walkFloats', 's3walkSession'], applyLive });
+        supa.start(); supa.mountUI($('supaBox')); window._s3supa = supa;
+    } catch (e) { console.warn('supa-sync', e); }
 }
 </script>
 </body>
