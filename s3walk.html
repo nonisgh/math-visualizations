@@ -244,10 +244,11 @@
                 <div class="sl"><span>傾き</span><input id="s-tilt" type="range" min="0" max="1" step="0.05" title="二重の螺旋：巻く面が進むにつれて z の方へ傾く度合い。0 なら 1 枚の球面の上の平らな竜巻（左の S² と同じ）、1 なら北極では z の向きに巻き始め、南極では −z の向きに"><output id="o-tilt"></output></div>
                 <div class="row">
                     
-                    <button class="btn" id="b-fill" title="ターン：北極から大円を進み、極に戻るたびに、すきまの大きい向きへ双曲線で極をよけてターンして、また進む。地図の軌跡が、だんだん球を埋めていく。「全周 360°」は北極で 1 周するごとにターン（南極はまっすぐ通り抜ける）。「半周 180°」は北極と南極の両方でターン（南極では北極と東西逆に曲がる）">🧶 ターン</button>
+                    <button class="btn" id="b-fill" title="ターン：北極から大円を進み、極に戻るたびに、すきまの大きい向きへ双曲線で極をよけてターンして、また進む。地図の軌跡が、だんだん球を埋めていく。「全周 360°」は北極で 1 周するごとにターン（南極はまっすぐ通り抜ける）。「半周 180°」は北極と南極の両方でターン（南極では北極と東西逆に曲がる）。「90°」は 90° ごとに、まだ通っていない方へ（極には戻らない）">🧶 ターン</button>
                     <span class="note">ターンするまで：</span>
-                    <button class="btn fsel" data-fs="0" title="全周 360°：北極を出て、南極をまっすぐ通り抜け、大円を 1 周して北極に戻ったらターン。左の S² では 0° → 90° → 45° → 135° → … とすきまを半分ずつ埋める">全周 360°</button>
-                    <button class="btn fsel" data-fs="1" title="半周 180°：北極→南極、南極→北極と経線（半円）を進むごとに、両方の極でターン。向きは全部（S² は 0〜360°）から、すきまが大きく前の経線に直角に近いものを選ぶ。南極では北極と東西逆に曲がる（S³ では曲がる回転の軸を前とそろえる）">半周 180°</button>
+                    <button class="btn fsel" data-fs="full" title="全周 360°：北極を出て、南極をまっすぐ通り抜け、大円を 1 周して北極に戻ったらターン。左の S² では 0° → 90° → 45° → 135° → … とすきまを半分ずつ埋める">全周 360°</button>
+                    <button class="btn fsel" data-fs="half" title="半周 180°：北極→南極、南極→北極と経線（半円）を進むごとに、両方の極でターン。向きは全部（S² は 0〜360°）から、すきまが大きく前の経線に直角に近いものを選ぶ。南極では北極と東西逆に曲がる（S³ では曲がる回転の軸を前とそろえる）">半周 180°</button>
+                    <button class="btn fsel" data-fs="q" title="90°：大円を 90°（4 分の 1 周）進むごとにターン。極には戻らず、ターンする点から、その先の 90° の道が今までの軌跡からいちばん離れている向き（まだ通っていない方）へ曲がって、さまよいながら広がる。S² と S³ はそれぞれ自分の軌跡で選ぶ">90°</button>
                 </div>
                 <div class="row">
                     <button class="btn" id="b-ring" title="北極と南極を通る輪（経線）を歩く。1 周ごとに輪が軸のまわりに少しずつ回って、だんだん球面をおおう。地図は北極が上・南極が下の向きになる">🌐 回る輪</button>
@@ -586,7 +587,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, spin: false, spinRate: 6, spinTilt: 23.4, spinAz: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillS: true, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 // スクリーンセーバー（s3walk.html?saver、?saver&sec=60 で 1 場面の秒数、&scene=2 でその場面だけ）：保存は読まず・書かず、同期もしない（ふだんの設定と別に動く）
 const SAVER = (() => { try { const q = new URLSearchParams(location.search); if (!q.has('saver')) return null; return { sec: Math.max(10, +q.get('sec') || 50), only: q.has('scene') ? +q.get('scene') : null }; } catch (e) { return null; } })();
@@ -599,6 +600,7 @@ const noMk = () => S.mk === 'none';   // 目印を何も出さない
 // 球層のいちばん内側の殻（北は赤・南は紫）の極からの距離：極の目印（⛄・🌴）の玉がちょうど中に収まるように、玉の半径＋少し（超球アプリは 0.08 だが、そこに目印の玉は無い）
 const shellMinTheta = () => (S.mk === 'pic' ? 0.13 * 1.5 : S.mk === 'dot' ? 0.13 * 1.9 : 0.13) + 0.06;
 S.walk = false; S.roam = false; S.spiral = false; S.grav = false; S.hopf = false; S.ring = false; S.ringView = false; S.fill = false;
+if (S.fillS !== undefined) { if (!S.fillMode || S.fillMode === 'half') S.fillMode = S.fillS ? 'half' : 'full'; delete S.fillS; }   // 前の保存（南極でもターン ON/OFF）を読みかえる
 const AUTO = { k: 1 };   // 自動で軽く：中の景色の細かさにかける倍率（0.4〜1）
 // Gist の設定に入れかえて読み直す途中は、今の設定で上書きしない（state-sync が sessionStorage に印を付けてから読み直す）
 const gistApplying = () => { try { return !!sessionStorage.getItem('s3walkGistApplied'); } catch (e) { return false; } };
@@ -708,7 +710,7 @@ function ringStep(ds) {
 //   S³：北極で進める向きは球面 S²（x, y, z）。反対向き（−d）は同じ大円なので、向きどうしの角は acos|d·e|。候補（八面体を細かく分けた点、粗い順）から、
 //   今までの向きとのいちばん小さい角がいちばん大きいものを選ぶ（同じなら粗い方）＝ 軸 3 本 → 面の真ん中 → 辺の真ん中 → …
 const FILL = { T: 0, lapSaid: 0, dirs: [], gaps: [], sg3: [1], sg2: [1], turn: null, half: false, dirsH: [], gapsH: [], phH: [] };
-// 半周 180°（S.fillS）：北極→南極、南極→北極と半円（経線）ずつ進み、両方の極で双曲線で曲がる。
+// 半周 180°（S.fillMode === 'half'）：北極→南極、南極→北極と半円（経線）ずつ進み、両方の極で双曲線で曲がる。
 //   半円なので、向きは反対向き（−d）も別の経線＝全部の向き（S² は 0〜360°、S³ は球面全体）から選ぶ（半分の向きだけだと、球の半分にしか道が来ない）。
 //   次の経線：すきまが十分大きい候補（いちばん大きいすきまの 3/4 以上）のうち、前の経線にいちばん直角に近いもの（＝極でいつもしっかり曲がる。真反対を選ぶと極をまっすぐ通り抜けてしまう）。
 //   曲がる向き：北極と南極では左右が裏返しなので、南極では北極と逆（東西逆）に曲がると、経線が同じ回り方で順に進む。
@@ -785,12 +787,14 @@ function fillPoint(T) {
 //   いちばん北極に近づく所（τ = 0）で北極から FILL_DV、また少しずつまっすぐに戻る。北極そのものは通らない。
 //   北極から L 手前で入り、L 先で抜ける（そこで道にぴったり合うよう、残りのごくわずかなずれを smoothstep で消す）
 const FILL_DV = 0.1;
+// いちばん近づく距離：曲がる角 θ が 90° をこえると双曲線の先がとがる（先の曲率半径＝距離×tan²((180°−θ)/2)）ので、先の半径が FILL_DV より小さくならないよう遠めを通る
+const hypDV = th => { const t = Math.tan((Math.PI - th) / 2); return FILL_DV / Math.min(1, t * t); };
 function hypTable(a, b, L, n) {   // a・b：単位ベクトル（2 次元か 3 次元）→ 長さで並べた点の表
     const c = Math.max(-1, Math.min(1, dot(a, b))), th = Math.acos(c), pts = [];
     for (let i = 0; i <= n; i++) {
         const f = i / n;
         if (th < 1e-3) { pts.push(scl(a, -L + 2 * L * f)); continue; }
-        const sk = FILL_DV / (2 * Math.sin(th / 2)), t0 = Math.log(Math.max(1.0001, L / sk)), kL = sk * sk / L, tau = -t0 + 2 * t0 * f, sm = f * f * (3 - 2 * f);
+        const sk = hypDV(th) / (2 * Math.sin(th / 2)), t0 = Math.log(Math.max(1.0001, L / sk)), kL = sk * sk / L, tau = -t0 + 2 * t0 * f, sm = f * f * (3 - 2 * f);
         let x = add(scl(a, -sk * Math.exp(-tau)), b, sk * Math.exp(tau));
         x = add(add(x, b, -kL * (1 - sm)), a, kL * sm);
         pts.push(x);
@@ -805,7 +809,7 @@ function hypAt(tb, f) {   // 長さの割合 f（0〜1）の点
     return add(scl(tb.pts[lo], 1 - w), tb.pts[hi], w);
 }
 // 入る距離 L：双曲線が道に十分近づく（ずれの角が 1° ほど）まで。S² と S³ で同じ L（同じ時に入って同じ時に抜ける）
-const hypL = (a, b) => { const th = Math.acos(Math.max(-1, Math.min(1, dot(a, b)))); return th < 1e-3 ? 0.3 : Math.max(0.45, FILL_DV / (2 * Math.sin(th / 2)) / 0.15); };
+const hypL = (a, b) => { const th = Math.acos(Math.max(-1, Math.min(1, dot(a, b)))); return th < 1e-3 ? 0.3 : Math.max(0.45, hypDV(th) / (2 * Math.sin(th / 2)) / 0.15); };
 function fillPlan(nx) {   // nx 本目へのターンを用意する
     fillSigns(nx);
     const lap = nx - 1, sa = FILL.half ? -1 : 1;   // 着く向き：大円なら u のまま、半円なら極へ向かうので −u
@@ -814,7 +818,8 @@ function fillPlan(nx) {   // nx 本目へのターンを用意する
 }
 const expN = (x, sg = 1) => { const r = Math.hypot(...x); if (r < 1e-12) return x.length === 3 ? [0, 0, 0, sg] : [0, 0, sg]; const s = Math.sin(r) / r; return [...x.map(v => v * s), sg * Math.cos(r)]; };   // sg＝−1 なら南極のまわり
 function fillStart() {
-    FILL.half = !!S.fillS;
+    if (S.fillMode === 'q') { fqStart(); return; }
+    FILL.half = S.fillMode === 'half';
     if (!FILL.dirs.length) fillBuild(300);
     if (FILL.half && !FILL.dirsH.length) fillBuildHalf(300);
     resetNorth(); FILL.T = 0.002; FILL.lapSaid = 0; FILL.sg3 = [1]; FILL.sg2 = [1]; FILL.turn = null; fillPlan(1);
@@ -834,7 +839,64 @@ function fillGo(qp, qp2) {   // qp・qp2 へ進む（体は進む向きにそろ
     W2.f = dd2; W2.r = g(W2.r, W2.p, [W2.f]);
     S.az = 0; S.el = 0;
 }
+// ---- 90°（S.fillMode === 'q'）：大円を 90° 進むごとにターン。極には戻らず、まだ通っていない方へさまよって広がる。
+//   ターンする点 Q（今の 90° の道の終わり）から出られる向きのうち、その先の 90° の道が今までの軌跡からいちばん離れている向きを選ぶ
+//   （候補は S³ では Q で進める向きの球面の 160 方向、S² では 5° ごと。曲がる角は 40〜120°（ほぼまっすぐ・ほぼ逆戻りは選ばない））。
+//   Q のまわりも「Q からの向き×距離」の平らな地図で考えて、極の時と同じ双曲線で曲がる
+const FQ = { leg: 0, P: null, b: null, P2: null, b2: null, s: 0, plan: null, turn: null };
+const FQ_LEN = Math.PI / 2;
+function fqBasis(Q, a) {   // Q での接ベクトルの正規直交の組（1 本目は着く向き a）
+    const E = [a]; for (const v of [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]].map(v => v.slice(0, Q.length))) {
+        if (E.length >= Q.length - 1) break;
+        let t = add(v, Q, -dot(v, Q)); for (const e of E) t = add(t, e, -dot(t, e)); if (Math.hypot(...t) > 1e-3) E.push(nrm(t));
+    }
+    return E;
+}
+const fqFromFlat = (Q, E, x) => { const r = Math.hypot(...x); if (r < 1e-12) return Q.slice(); let t = scl(Q, 0); x.forEach((xi, i) => { t = add(t, E[i], xi); }); return add(scl(Q, Math.cos(r)), t, Math.sin(r) / r); };
+function fqChoose(Q, a, hist, dim) {   // まだ通っていない方：候補の道の点と、今までの軌跡の点との最小距離の平均がいちばん大きい向き
+    const E = fqBasis(Q, a), cands = [], st = Math.max(3, Math.floor(hist.length / 500));   // 軌跡の点は 500 個ほどに間引いて比べる
+    if (dim === 3) { const n = 160; for (let i = 0; i < n; i++) { const z = 1 - 2 * (i + 0.5) / n, r = Math.sqrt(1 - z * z), t = i * 2.399963; cands.push([z, r * Math.cos(t), r * Math.sin(t)]); } }
+    else for (let d = -175; d <= 180; d += 5) cands.push([Math.cos(d * d2r), Math.sin(d * d2r)]);
+    let best = null, bv = -1;
+    for (const u of cands) {
+        const th = Math.acos(Math.max(-1, Math.min(1, u[0]))) / d2r; if (th < 40 || th > 120) continue;
+        let c = scl(Q, 0); u.forEach((ui, i) => { c = add(c, E[i], ui); });
+        let sum = 0; for (const sk of [0.35, 0.6, 0.85, 1.1, 1.35, 1.57]) { const R = add(scl(Q, Math.cos(sk)), c, Math.sin(sk)); let m = -1; for (let j = 0; j < hist.length; j += st) { const h = hist[j]; let d = 0; for (let k = 0; k < R.length; k++) d += R[k] * h[k]; if (d > m) m = d; } sum += Math.acos(Math.max(-1, Math.min(1, m))); }
+        const v = sum + 1e-4 * Math.random(); if (v > bv) { bv = v; best = { u, c, th }; }
+    }
+    return Object.assign(best, { E, nov: bv / 6 });
+}
+function fqPlan() {   // 今の 90° の道の終わりでのターンを決める（道をほとんど通った所で。今の道も軌跡に入っているように）
+    const Q = add(scl(FQ.P, Math.cos(FQ_LEN)), FQ.b, Math.sin(FQ_LEN)), a = nrm(add(scl(FQ.P, -Math.sin(FQ_LEN)), FQ.b, Math.cos(FQ_LEN)));
+    const Q2 = add(scl(FQ.P2, Math.cos(FQ_LEN)), FQ.b2, Math.sin(FQ_LEN)), a2 = nrm(add(scl(FQ.P2, -Math.sin(FQ_LEN)), FQ.b2, Math.cos(FQ_LEN)));
+    const c3 = fqChoose(Q, a, W.trail, 3), c2 = fqChoose(Q2, a2, W2.trail, 2);
+    const f3 = [1, 0, 0], f2 = [1, 0], L = Math.min(0.75, Math.max(hypL(f3, c3.u), hypL(f2, c2.u)));
+    FQ.plan = { Q, Q2, c3, c2, L, h3: hypTable(f3, c3.u, L, 240), h2: hypTable(f2, c2.u, L, 240) };
+}
+function fqStart() {
+    resetNorth(); Object.assign(FQ, { leg: 0, P: [0, 0, 0, 1], b: [1, 0, 0, 0], P2: [0, 0, 1], b2: [1, 0, 0], s: 0.002, plan: null, turn: null });
+    W.p = add(scl(FQ.P, Math.cos(FQ.s)), FQ.b, Math.sin(FQ.s)); W2.p = add(scl(FQ.P2, Math.cos(FQ.s)), FQ.b2, Math.sin(FQ.s)); orthoFrame(W); orthoFrame(W2); req(3);
+}
+function fqStep(ds) {
+    if (FQ.turn) {
+        const tu = FQ.turn; tu.f = Math.min(1, tu.f + ds / Math.max(1e-6, tu.h3.len));
+        fillGo(fqFromFlat(tu.Q, tu.c3.E, hypAt(tu.h3, tu.f)), fqFromFlat(tu.Q2, tu.c2.E, hypAt(tu.h2, tu.f)));
+        if (tu.f >= 1) { FQ.turn = null; FQ.leg++; FQ.P = tu.Q; FQ.b = tu.c3.c; FQ.P2 = tu.Q2; FQ.b2 = tu.c2.c; FQ.s = tu.L; FQ.plan = null; }
+        return;
+    }
+    FQ.s += ds;
+    if (!FQ.plan && FQ.s >= FQ_LEN - 0.75) fqPlan();
+    if (FQ.plan && FQ_LEN - FQ.s <= FQ.plan.L) {   // ターンに入る
+        FQ.s = FQ_LEN - FQ.plan.L;
+        fillGo(add(scl(FQ.P, Math.cos(FQ.s)), FQ.b, Math.sin(FQ.s)), add(scl(FQ.P2, Math.cos(FQ.s)), FQ.b2, Math.sin(FQ.s)));
+        FQ.turn = Object.assign({ f: 0 }, FQ.plan);
+        say(`${FQ.leg + 2} 本目へ：${FQ.plan.c3.th.toFixed(0)}° ターン（S² では ${FQ.plan.c2.th.toFixed(0)}°）。まだ通っていない方へ（その先の道と今までの軌跡の間 平均 ${(FQ.plan.c3.nov / d2r).toFixed(0)}°）`);
+        return;
+    }
+    fillGo(add(scl(FQ.P, Math.cos(FQ.s)), FQ.b, Math.sin(FQ.s)), add(scl(FQ.P2, Math.cos(FQ.s)), FQ.b2, Math.sin(FQ.s)));
+}
 function fillStep(ds) {
+    if (S.fillMode === 'q') { fqStep(ds); return; }
     if (FILL.turn) {   // ターン中：双曲線の上を進む（S³ の長さで進み具合を決め、S² も同じ割合）
         const tu = FILL.turn; tu.f = Math.min(1, tu.f + ds / Math.max(1e-6, tu.h3.len));
         fillGo(expN(hypAt(tu.h3, tu.f), tu.psg), expN(hypAt(tu.h2, tu.f), tu.psg));
@@ -1962,8 +2024,9 @@ $('b-para').addEventListener('click', () => { if (S.para) { S.roam = S.spiral = 
 $('s-parad').addEventListener('change', () => { if (S.para) paraStart(); });
 $('b-hopf').addEventListener('click', () => { if (S.hopf) { S.walk = S.roam = S.spiral = S.grav = S.fill = false; hopfStart(); say(S.hopfPlain ? '仲間と並んで出発（ふつうの平行）' : '仲間と並んでまっすぐ出発（ホップの円）'); } refreshUI(); });
 $('b-hopfplain').addEventListener('click', () => { if (S.hopf) hopfStart(); });
-document.querySelectorAll('.btn.fsel').forEach(b => b.addEventListener('click', () => { S.fillS = b.dataset.fs === '1'; save(); if (S.fill) { fillStart(); say(S.fillS ? 'ターン（半周 180°）：北極と南極の両方で、双曲線で極をよけてターン' : 'ターン（全周 360°）：南極はまっすぐ通り抜けて、北極でターン'); } refreshUI(); }));
-$('b-fill').addEventListener('click', () => { if (S.fill) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = -1; fillStart(); say(S.fillS ? 'ターン（半周 180°）：北極→南極→北極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ' : 'ターン（全周 360°）：北極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）'); } refreshUI(); });
+const FILL_SAY = { full: 'ターン（全周 360°）：北極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）', half: 'ターン（半周 180°）：北極→南極→北極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ', q: 'ターン（90°）：90° 進むごとに、まだ通っていない方へターン。極には戻らない' };
+document.querySelectorAll('.btn.fsel').forEach(b => b.addEventListener('click', () => { S.fillMode = b.dataset.fs; save(); if (S.fill) { fillStart(); say(FILL_SAY[S.fillMode]); } refreshUI(); }));
+$('b-fill').addEventListener('click', () => { if (S.fill) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = -1; fillStart(); say(FILL_SAY[S.fillMode] || FILL_SAY.half); } refreshUI(); });
 $('b-ring').addEventListener('click', () => { if (S.ring) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.fill = false; ringStart(); say(S.ringAxis === 'w' ? '🐱 と 🐶 を通る輪を歩く（赤道の球面の上）。1 周ごとに輪が少しずつ回る' : '北極と南極を通る輪を歩く。1 周ごとに輪が少しずつ回る'); } else S.ringView = false; refreshUI(); });
 document.querySelectorAll('.btn.rax').forEach(b => b.addEventListener('click', () => { S.ringAxis = b.dataset.ax; if (S.ring) ringStart(); save(); refreshUI(); }));
 $('b-jump').addEventListener('click', gravJump); $('b-kick').addEventListener('click', gravKick); $('b-drop').addEventListener('click', () => { S.grav = true; S.walk = S.roam = S.spiral = false; dropFromEquator(); refreshUI(); });
@@ -1985,7 +2048,7 @@ function refreshUI() {
     Object.entries(toggles).forEach(([id, k]) => $(id).classList.toggle('on', !!S[k]));
     document.querySelectorAll('.btn.mk').forEach(b => b.classList.toggle('on', b.dataset.mk === S.mk));
     document.querySelectorAll('.btn.rax').forEach(b => b.classList.toggle('on', b.dataset.ax === S.ringAxis));
-    document.querySelectorAll('.btn.fsel').forEach(b => b.classList.toggle('on', (b.dataset.fs === '1') === !!S.fillS));
+    document.querySelectorAll('.btn.fsel').forEach(b => b.classList.toggle('on', b.dataset.fs === S.fillMode));
     document.querySelectorAll('.btn.r4p').forEach(b => b.classList.toggle('on', b.dataset.p === S.rot4Plane));
     document.querySelectorAll('.btn.lens').forEach(b => b.classList.toggle('on', b.dataset.lens === (S.lens || 'normal')));
     Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
@@ -2077,7 +2140,8 @@ function updateHUD() {
         $('hudC').innerHTML += `<br><span style="color:#7dd3fc">平行な仲間：進んだ <b>${sP.toFixed(2)}</b>　🐧 の道までの間 <b>${dR.toFixed(3)}</b>（平らなら ${PARA.d0.toFixed(3)} のまま）　🐧〜🐬 の道の間 <b>${dB.toFixed(3)}</b></span>` + paraGraph(); }
     if (S.rot4) $('hudC').innerHTML += `<br><span style="color:${ROT4.near ? '#fde047' : '#9be7ff'}">🔄 4次元の回転 ${S.rot4Plane.toUpperCase().replace('W', '-W')} ${Math.round(S[S.rot4Plane])}°：地図の上で N と S の間 <b>${(ROT4.dist / RS).toFixed(2)}</b>（4次元では いつも π）${ROT4.near ? '　← 重なっている！' : ''}</span>`;
     if (S.spin) $('hudC').innerHTML += `<br><span style="color:#f9a8d4">🌀 自転 <b>${S.spinRate.toFixed(1)}</b> 回/分　いま ${Math.round(SPIN.ang / d2r)}°　地軸の傾き ${S.spinTilt.toFixed(1)}°・向き ${Math.round(S.spinAz)}°</span>`;
-    if (S.fill) { const L = Math.floor(FILL.T / fillPer()); $('hudC').innerHTML += `<br>🧶 ターン（${FILL.half ? '半周 180°' : '全周 360°'}） ${L + 1} 本目　すきま ${fillGap(L).toFixed(1)}°（S² の向き ${fillPhDeg(L).toFixed(1)}°）`; }
+    if (S.fill && S.fillMode === 'q') $('hudC').innerHTML += `<br>🧶 ターン（90°） ${FQ.leg + 1} 本目　この道の ${(FQ.s / d2r).toFixed(0)}° / 90°`;
+    else if (S.fill) { const L = Math.floor(FILL.T / fillPer()); $('hudC').innerHTML += `<br>🧶 ターン（${FILL.half ? '半周 180°' : '全周 360°'}） ${L + 1} 本目　すきま ${fillGap(L).toFixed(1)}°（S² の向き ${fillPhDeg(L).toFixed(1)}°）`; }
     if (S.ring) $('hudC').innerHTML += `<br>🌐 ${Math.floor(RING.T / TAU) + 1} 周目　輪の向き ${Math.round(((S.ringStep * RING.T / TAU) % 360))}°（軸 ${S.ringAxis === 'all' ? '全部' : S.ringAxis}）`;
     if (S.hopf) { const h = hopfInfo(); $('hudC').innerHTML += `<br>🔗 ${(HOPF.t / TAU).toFixed(2)} 周　🐧 までの距離 <b>${h.dist.toFixed(3)}</b>　🐧 のまわりの角 <b>${Math.round(h.ang)}°</b>`; }
     if (S.grav) { const sp = Math.hypot(...G.v), dS = Math.PI - Math.acos(Math.max(-1, Math.min(1, W.p[3]))); $('hudC').innerHTML += `<br>🍎 速さ <b>${sp.toFixed(2)}</b>　${G.on ? '星の上に立っている' : '宙に浮いている'}`; }
