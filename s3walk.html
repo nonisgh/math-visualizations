@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title></title>
+    <script>
+        // ===== アプリの名前（ここだけ直せば、タブ・パネルの見出しが全部変わる）=====
+        const APP_TITLE = '球面さんぽ ― 3次元球面を進む';
+        const APP_SUB = '超球アプリの付録';
+        document.title = APP_TITLE;
+    </script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23070b1f%22/%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2222%22 fill=%22none%22 stroke=%22%2338bdf8%22 stroke-width=%223%22/%3E%3Cellipse cx=%2232%22 cy=%2232%22 rx=%2222%22 ry=%228%22 fill=%22none%22 stroke=%22%23a78bfa%22 stroke-width=%222%22/%3E%3Ccircle cx=%2232%22 cy=%2210%22 r=%224%22 fill=%22%23fbbf24%22/%3E%3C/svg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegmentsGeometry.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
+    <!-- 次元おりがみと同じ共通部品 -->
+    <script src="lib/visual-fx.js"></script>
+    <script src="lib/ui-dock.js"></script>
+    <script src="lib/nd-geom.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
+        body { font-family: 'Noto Sans JP', 'Inter', sans-serif; background-color: #030712; color: #f3f4f6; overflow: hidden; margin: 0; }
+        .glass-panel { background: rgba(15, 23, 42, 0.93); border: 1px solid rgba(255, 255, 255, 0.12); }
+        input[type=range] { width: 100%; accent-color: #38bdf8; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #38bdf8; cursor: pointer; box-shadow: 0 0 10px #38bdf8; }
+
+        body { --sb-w: 340px; --sb: var(--sb-w); --dock-l: 0px; --dock-r: 0px; }
+        body.sidebar-hidden { --sb: 0px; }
+        body.dock-left-on { --dock-l: min(340px, 32vw); }
+        body.dock-right-on { --dock-r: min(340px, 32vw); }
+        body.sidebar-hidden.dock-left-on { --dock-l: 0px; }
+        body.sidebar-hidden.dock-right-on { --dock-r: 0px; }
+        body.sidebar-hidden #dock-left, body.sidebar-hidden #dock-right { display: none; }
+        body:not(.sidebar-hidden) #dock-right { right: var(--sb); }
+        #main { position: fixed; top: 0; bottom: 0; left: var(--dock-l); right: calc(var(--sb) + var(--dock-r)); display: flex; }
+        .vw { position: relative; min-width: 0; min-height: 0; flex: 1 1 0; overflow: hidden; border-right: 1px solid #1e293b; }
+        .vw:last-child { border-right: 0; }
+        .vw.off { display: none; }
+        .cv { position: absolute; inset: 0; }
+        .cv canvas { display: block; touch-action: none; }
+        @media (max-aspect-ratio: 1/1) {
+            #main { flex-direction: column; }
+            .vw { border-right: 0; border-bottom: 1px solid #1e293b; }
+        }
+        #ui-overlay { position: fixed; top: 0; right: 0; height: 100%; width: var(--sb-w); z-index: 30; display: flex; flex-direction: column; border-width: 0 0 0 1px !important; }
+        body.sidebar-hidden #ui-overlay { display: none; }
+        #sidebar-open { display: none; }
+        body.sidebar-hidden #sidebar-open { display: flex; }
+        @media (max-width: 760px) {
+            body { --sb: 0px; }
+            #ui-overlay { width: min(92vw, 340px); box-shadow: -10px 0 40px rgba(0,0,0,.7); }
+        }
+
+        .badge { position: absolute; top: 12px; left: 12px; pointer-events: none; z-index: 10; background: rgba(15, 23, 42, 0.85); border-radius: 12px; padding: 6px 12px; font-size: 12px; font-weight: 700; max-width: calc(100% - 24px); }
+        .badge small { display: block; font-weight: 400; color: #94a3b8; font-size: 10px; margin-top: 1px; line-height: 1.35; }
+        #badgeA { border: 1px solid rgba(34, 211, 238, 0.3); color: #67e8f9; }
+        #badgeB { border: 1px solid rgba(168, 85, 247, 0.3); color: #d8b4fe; }
+        #badgeC { border: 1px solid rgba(251, 191, 36, 0.3); color: #fde68a; }
+        .hud { position: absolute; left: 12px; bottom: 12px; z-index: 10; pointer-events: none; background: rgba(15, 23, 42, 0.85); border: 1px solid #334155; border-radius: 12px; padding: 6px 10px; font-size: 11px; line-height: 1.5; color: #e2e8f0; font-family: ui-monospace, monospace; }
+        .hud b { color: #fde68a; font-weight: 600; }
+        #trip { position: absolute; right: 12px; top: 12px; z-index: 10; pointer-events: none; background: rgba(15, 23, 42, 0.85); border: 1px solid #334155; border-radius: 12px; padding: 6px 10px; width: 150px; }
+        #trip .t { font-size: 10px; color: #cbd5e1; margin-bottom: 3px; }
+        #trip .bar { position: relative; height: 10px; border-radius: 5px; background: #1e293b; overflow: hidden; }
+        #trip .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #38bdf8, #a78bfa); border-radius: 5px; }
+        #trip .mk { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #fde68a; }
+        #trip .lab { display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; margin-top: 2px; }
+        #inpad { position: absolute; right: 14px; bottom: 14px; z-index: 12; display: flex; gap: 6px; flex-direction: column; align-items: flex-end; }
+        #inpad button { width: 46px; height: 40px; border-radius: 12px; background: rgba(15, 23, 42, 0.85); border: 1px solid #475569; color: #e2e8f0; font-size: 16px; touch-action: none; user-select: none; }
+        #inpad button:active { background: rgba(124, 58, 237, 0.45); }
+        #msg { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); z-index: 15; pointer-events: none; font-size: 13px; font-weight: 700; color: #fde68a; background: rgba(15, 23, 42, 0.92); border: 1px solid #a16207; padding: 6px 14px; border-radius: 10px; opacity: 0; transition: opacity .3s; white-space: nowrap; }
+        #msg.on { opacity: 1; }
+
+        .sb-sec { background: rgba(2, 6, 23, 0.35); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .sb-h { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #cbd5e1; margin: 0; }
+        .float-panel > .sb-sec { margin: 0; padding-top: 0; background: rgba(4, 8, 22, 0.96); border-color: rgba(129, 140, 248, 0.55); }
+        .float-panel .sb-h { margin: 0 -10px; padding: 9px 10px 7px; }
+        .note { font-size: 10px; color: #94a3b8; line-height: 1.5; margin: 0; }
+        .btn { font-size: 11px; padding: 4px 9px; border-radius: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid #334155; color: #cbd5e1; white-space: nowrap; }
+        .btn:hover { background: #334155; color: #f1f5f9; }
+        .btn.on { background: rgba(124, 58, 237, 0.3); border-color: rgba(167, 139, 250, 0.7); color: #ede9fe; }
+        .btn.big { font-size: 12px; padding: 7px 12px; background: rgba(14, 116, 144, 0.35); border-color: rgba(34, 211, 238, 0.5); color: #cffafe; }
+        .btn.big:hover { background: rgba(14, 116, 144, 0.6); }
+        .row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+        .sl { display: grid; grid-template-columns: 44px 1fr 52px; gap: 6px; align-items: center; font-size: 11px; color: #cbd5e1; }
+        .sl output { font-family: ui-monospace, monospace; font-size: 10px; color: #7dd3fc; text-align: right; }
+        #desc p { font-size: 11px; line-height: 1.7; color: #cbd5e1; margin: 0 0 6px; }
+        #desc b { color: #f0abfc; font-weight: 600; }
+        #desc .an { color: #67e8f9; }
+        #mklist { display: flex; flex-wrap: wrap; gap: 4px; }
+        #mklist span { font-size: 10px; padding: 2px 6px; border-radius: 6px; border: 1px solid #334155; color: #e2e8f0; }
+    </style>
+</head>
+<body class="select-none" style="height: 100vh; height: 100dvh;">
+
+    <div id="main">
+        <div id="wrapA" class="vw">
+            <div id="cvA" class="cv"></div>
+            <div id="badgeA" class="badge">球面 S²（2次元の仲間）<small>同じ操作を、ふつうの球面の上でした場合。北極から出発して南極を通り、北極に戻る</small></div>
+            <div id="hudA" class="hud"></div>
+        </div>
+        <div id="wrapB" class="vw">
+            <div id="cvB" class="cv"></div>
+            <div id="badgeB" class="badge">S³ の地図（4次元から 3次元へ写した模型）<small>白い玉＝自分、黄色＝進む向き。N＝北極（水色）、S＝南極（金色）。線の色＝w（赤紫＝手前・水色＝奥）</small></div>
+            <div id="axlen" class="hud" style="left:auto;right:12px;top:12px;bottom:auto"></div>
+        </div>
+        <div id="wrapC" class="vw">
+            <div id="cvC" class="cv"></div>
+            <div id="badgeC" class="badge">中にいる人の景色<small>光をまっすぐ（大円に沿って）進めて描く。ドラッグで見回す・向いた方へ進む</small></div>
+            <div id="trip"><div class="t">1 周（2π ≈ 6.28）のうち</div><div class="bar"><i id="trip-bar"></i><span class="mk" style="left:50%"></span></div><div class="lab"><span>北極</span><span>南極</span><span>北極</span></div></div>
+            <div id="hudC" class="hud"></div>
+            <div id="inpad">
+                <button data-mv="up" title="上へ（仰角の方へ）">⤒</button>
+                <button data-mv="fwd" title="前へ（押している間）">▲</button>
+                <button data-mv="back" title="後ろへ（押している間）">▼</button>
+                <button data-mv="down" title="下へ">⤓</button>
+            </div>
+            <div id="msg"></div>
+        </div>
+    </div>
+
+    <button id="sidebar-open" class="absolute top-3 right-3 z-30 glass-panel rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 hover:bg-slate-700 items-center gap-1" title="操作パネルを開く（Space）"><i data-lucide="panel-right-open" class="w-3.5 h-3.5"></i>パネル</button>
+
+    <aside id="ui-overlay" class="glass-panel">
+        <div class="flex items-start justify-between px-3 pt-2.5 pb-2 border-b border-slate-800 gap-2">
+            <div class="min-w-0">
+                <div id="app-title" class="text-[12px] font-bold text-slate-100 leading-snug"></div>
+                <a id="app-sub" href="hypersphere.html" class="text-[10px] text-violet-300 hover:text-violet-200 hover:underline" title="超球アプリ（hypersphere.html）を開く"></a>
+            </div>
+            <button id="sidebar-close" class="btn flex items-center gap-1 shrink-0" title="パネルを閉じて図を広く（Space）"><i data-lucide="panel-right-close" class="w-3.5 h-3.5"></i>閉じる</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-3 py-2.5 space-y-3" id="sb-scroll">
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="footprints" class="w-3.5 h-3.5"></i>歩く</h3>
+                <div class="row">
+                    <button class="btn big" id="b-trip" title="北極に立ち、今の方位・仰角で歩き続ける。南極を通って北極に戻る（2π）">▶ 北極から一周</button>
+                    <button class="btn" id="b-walk" title="向いている方へ歩き続ける（W キー＝押している間だけ）">歩き続ける</button>
+                    <button class="btn" id="b-stop" title="立ち止まる">止まる</button>
+                </div>
+                <div class="sl"><span>速さ</span><input id="s-spd" type="range" min="0.1" max="2" step="0.05"><output id="o-spd"></output></div>
+                <div class="row">
+                    <button class="btn" id="b-north" title="北極 N に立って、進んだ距離を 0 に。足あとと道すじも消す">北極に戻す</button>
+                    <button class="btn" id="b-clear" title="道すじと足あとを消す（場所はそのまま）">道すじを消す</button>
+                </div>
+                <p class="note">キー：W/S・↑↓ 前後　A/D 横　Q/E 上下　←→ 方位　ホイール 前後。右の窓をドラッグすると見回す（向いた方へ進む）。</p>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="compass" class="w-3.5 h-3.5"></i>進む向き（方位・仰角）</h3>
+                <div class="sl"><span>方位</span><input id="s-az" type="range" min="-180" max="180" step="1"><output id="o-az"></output></div>
+                <div class="sl"><span>仰角</span><input id="s-el" type="range" min="-89" max="89" step="1"><output id="o-el"></output></div>
+                <div class="row">
+                    <button class="btn" id="b-az0">方位 0°</button>
+                    <button class="btn" id="b-el0">仰角 0°</button>
+                    <button class="btn" id="b-az90">方位 90°</button>
+                    <button class="btn" id="b-el45">仰角 45°</button>
+                </div>
+                <p class="note">方位 0°・90° は x・y の経線の管の真上を歩くので、管の中の景色になります（少しずらすと管が横に見える）。方位＝自分の体の「前」から右へ何度か（体の向きは歩いても変わらない＝平行移動）。仰角＝水平から上へ何度か。<b class="an">S² の仲間には仰角がない</b>ので、左の窓は方位だけで動きます。まっすぐ進む＝向きを変えずに進む。向きを変えると別の大円に乗りかえる。</p>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>目印</h3>
+                <div class="row">
+                    <button class="btn" id="b-mark" title="今いる場所に、番号つきの玉を置く">ここに目印を置く</button>
+                    <button class="btn" id="b-mkclear" title="置いた目印を消す（北極・南極・赤道の 6 つは残る）">置いた目印を消す</button>
+                </div>
+                <div id="mklist"></div>
+                <div class="row">
+                    <button class="btn" id="b-foot" title="0.6 進むごとに小さな足あとを落とす">足あと</button>
+                    <button class="btn" id="b-eq" title="赤道の球面 S²（w = 0）を薄い膜で">赤道の膜</button>
+                    <button class="btn" id="b-circ" title="x・y・z の 3 本の経線（北極と南極を通る大円）と、3 本の赤道の輪">経線・赤道の輪</button>
+                    <button class="btn" id="b-room" title="S³ をちょうど 120 個の正十二面体で区切った部屋（120 胞体）の辺">部屋（120 胞体）</button>
+                    <button class="btn" id="b-self" title="自分の場所に白い玉。光が 1 周（2π）してくると、自分の背中が見える">自分の玉</button>
+                </div>
+                <p class="note">はじめから：N（北極・水色）、S（南極・金色）、赤道の 6 か所（±x 赤・±y 緑・±z 青）。</p>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="eye" class="w-3.5 h-3.5"></i>窓と見え方</h3>
+                <div class="row">
+                    <button class="btn" id="b-wA">S² の仲間</button>
+                    <button class="btn" id="b-wB">S³ の地図</button>
+                    <button class="btn" id="b-wC">中の景色</button>
+                </div>
+                <div class="row">
+                    <button class="btn" id="b-axes" title="x・y・z（S³ の地図では w も）の軸">軸</button>
+                    <button class="btn" id="b-home" title="地図の見る向きを最初に戻す">向きを戻す</button>
+                </div>
+                <div class="sl"><span>光の距離</span><input id="s-maxd" type="range" min="1" max="6.4" step="0.05" title="中の景色で光をどこまで進めるか。π で反対側（対蹠点）、2π で自分の背中"><output id="o-maxd"></output></div>
+                <div class="sl"><span>霧</span><input id="s-fog" type="range" min="0" max="0.6" step="0.01"><output id="o-fog"></output></div>
+                <div class="sl"><span>画質</span><input id="s-q" type="range" min="0.3" max="1" step="0.05"><output id="o-q"></output></div>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="orbit" class="w-3.5 h-3.5"></i>S³ の地図の写し方（4次元の回転）</h3>
+                <div class="row">
+                    <button class="btn" id="b-follow" title="自分がいつも真ん中（手前）に来るように S³ を回して写す">自分を真ん中に</button>
+                    <button class="btn" id="b-rot0" title="回転を最初に戻す（Y-W 90°：北極が手前の左、南極が奥の右）">↺ 最初の向き</button>
+                </div>
+                <div class="sl"><b style="color:#ff5d6c;font-style:italic">X-W</b><input id="s-xw" type="range" min="-180" max="180" step="1"><output id="o-xw"></output></div>
+                <div class="sl"><b style="color:#3ddc84;font-style:italic">Y-W</b><input id="s-yw" type="range" min="-180" max="180" step="1"><output id="o-yw"></output></div>
+                <div class="sl"><b style="color:#56a8ff;font-style:italic">Z-W</b><input id="s-zw" type="range" min="-180" max="180" step="1"><output id="o-zw"></output></div>
+                <div class="sl"><span>遠近</span><input id="s-D" type="range" min="1" max="5" step="0.05"><output id="o-D"></output></div>
+                <div class="sl"><span>奥を消す</span><input id="s-cut" type="range" min="-1" max="0.9" step="0.05"><output id="o-cut"></output></div>
+                <p class="note">次元おりがみ・空間めぐりと同じ写し方（視点を w 軸の上に置き、k = D/(D − w) で 3次元へ）。遠近 1 で立体射影。真ん中の窓を Shift＋ドラッグでも回せます。</p>
+            </section>
+
+            <section class="sb-sec">
+                <h3 class="sb-h"><i data-lucide="book-open" class="w-3.5 h-3.5"></i>説明</h3>
+                <div id="desc">
+                    <p><b>3次元球面 S³</b> は、4次元の超球の表面にあたる <b>3次元の空間</b>です。中にいる人は前後・左右・上下に動けますが、どの向きにまっすぐ進んでも、<b>2π（約 6.28）進むと元の場所に戻ります</b>。途中 π で反対側の点（対蹠点）を通ります。</p>
+                    <p class="an">2次元の仲間：ふつうの球面 S²。北極から どの方位にまっすぐ歩いても、南極を通って北極に戻る（経線をたどる）。左の窓はそれです。</p>
+                    <p>出発した北極では、<b>空全体が金色</b>に見えます。これは反対側（π 先）の南極の玉。S³ では、ちょうど反対側の点から出た光がどの向きからも届くので、そこにある物が空いっぱいに広がって見えます。少し歩くと金色の玉はまとまって見えてきます。</p>
+                    <p>中の景色（右）：光も大円に沿って進むので、<b>π 先の対蹠点が空いっぱいに広がって見え</b>、2π 先には自分の背中が見えます。遠くの目印は、π に近づくほど逆に大きく見えます。</p>
+                    <p>S³ の地図（真ん中）：4次元の超球を、次元おりがみと同じ遠近で 3次元に写した模型。手前の半分（w が＋、赤紫）と奥の半分（w が−、水色）が重なって 1 つの玉に見えます。地図の上の白い玉が自分です。</p>
+                </div>
+            </section>
+            <p class="note px-1 pb-2">キー：X 軸　F 足あと　M 目印を置く　R 北極に戻す　Space パネル</p>
+        </div>
+    </aside>
+
+<script>
+'use strict';
+/* =====================================================================
+   球面さんぽ ― 3次元球面を進む（超球アプリの付録）
+   左：球面 S² の仲間（同じ操作を S² の上で）　真ん中：S³ の地図（4次元→3次元の模型）　右：中にいる人の景色（光線追跡）
+   歩く人は S³ の上の点 p（4次元の単位ベクトル）と、体の枠（右 r・上 u・前 f。どれも p に直交）を持つ。
+   進む：p' = cos s·p + sin s·d（大円）。体の枠は平行移動（d の成分だけ回る）。
+   ===================================================================== */
+const TAU = Math.PI * 2, PHI = (1 + Math.sqrt(5)) / 2;
+const AXIS_HEX = (window.VisualFX && VisualFX.AXIS_HEX) || { x: 0xff5d6c, y: 0x3ddc84, z: 0x56a8ff, w: 0xb07cff };
+const RS = 1.8;   // 模型の半径（次元おりがみ・空間めぐりと同じ）
+
+// ---------------------------------------------------------------------
+// 1. 小さな計算
+// ---------------------------------------------------------------------
+const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+const add = (a, b, t) => a.map((x, i) => x + b[i] * (t === undefined ? 1 : t));
+const scl = (a, k) => a.map(x => x * k);
+const nrm = a => { const l = Math.sqrt(dot(a, a)) || 1; return a.map(x => x / l); };
+function hsl(h, s, l) { h = ((h % 360) + 360) % 360 / 360; const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q; const f = t => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; }; return [f(h + 1 / 3), f(h), f(h - 1 / 3)]; }
+const hexRGB = h => [(h >> 16 & 255) / 255, (h >> 8 & 255) / 255, (h & 255) / 255];
+const hexCss = h => '#' + h.toString(16).padStart(6, '0');
+const rgbHex = c => (Math.round(c[0] * 255) << 16) | (Math.round(c[1] * 255) << 8) | Math.round(c[2] * 255);
+function depthColor(t, k) { const u = Math.max(0, Math.min(1, (t + 1) / 2)); return scl(hsl(195 + 115 * u, 0.85, 0.5), (k === undefined ? 1 : k) * (0.1 + 0.9 * Math.pow(u, 2.2))); }
+// 計量 J = diag(1,1,1,κ) での内積・鏡映（120 胞体のしきつめ用。κ = +1）
+function kdot(a, b, k) { const n = a.length; let s = 0; for (let i = 0; i < n - 1; i++) s += a[i] * b[i]; return s + k * a[n - 1] * b[n - 1]; }
+function mmul(A, B) { const n = A.length; const C = []; for (let i = 0; i < n; i++) { C.push(new Array(n).fill(0)); for (let j = 0; j < n; j++) { let s = 0; for (let q = 0; q < n; q++) s += A[i][q] * B[q][j]; C[i][j] = s; } } return C; }
+function mvec(M, v) { return M.map(r => r.reduce((s, x, i) => s + x * v[i], 0)); }
+function ident(n) { return [...Array(n)].map((_, i) => [...Array(n)].map((_, j) => i === j ? 1 : 0)); }
+function col(M, j) { return M.map(r => r[j]); }
+function reflM(v, k) { const n = v.length; const M = []; for (let a = 0; a < n; a++) { M.push([]); for (let b = 0; b < n; b++) { const Jv = b === n - 1 ? k * v[b] : v[b]; M[a].push((a === b ? 1 : 0) - 2 * v[a] * Jv); } } return M; }
+function knorm(p, k) { const l = Math.sqrt(Math.abs(kdot(p, p, k))) || 1; return p.map(x => x / l); }
+
+// ---------------------------------------------------------------------
+// 2. 120 胞体（S³ を 120 個の正十二面体で区切る）― 空間めぐりと同じ作り方
+// ---------------------------------------------------------------------
+function cellDodeca() {
+    const V = []; for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) V.push([x, y, z]);
+    const a = 1 / PHI, b = PHI;
+    for (const s of [-1, 1]) for (const t of [-1, 1]) { V.push([0, s * a, t * b]); V.push([s * a, t * b, 0]); V.push([s * b, 0, t * a]); }
+    const N = []; for (const s of [-1, 1]) for (const t of [-1, 1]) { N.push([0, s, t * PHI]); N.push([s, t * PHI, 0]); N.push([s * PHI, 0, t]); }
+    N.forEach(n => { const l = Math.hypot(...n); for (let i = 0; i < 3; i++) n[i] /= l; });
+    const d0 = Math.max(...V.map(v => v[0] * N[0][0] + v[1] * N[0][1] + v[2] * N[0][2]));
+    const E = [], el = 2 / PHI;
+    for (let i = 0; i < 20; i++) for (let j = i + 1; j < 20; j++) if (Math.abs(Math.hypot(V[i][0] - V[j][0], V[i][1] - V[j][1], V[i][2] - V[j][2]) - el) < 1e-6) E.push([i, j]);
+    return { dim: 3, V, N, E, d0 };
+}
+function planesAt(cell, s, k) { return cell.N.map(n => knorm([...n, -k * s * cell.d0], k)); }
+function solveScale(cell, k, ang) {
+    let bi = 0, bj = 1, best = -2; const N = cell.N;
+    for (let i = 0; i < N.length; i++) for (let j = i + 1; j < N.length; j++) { const d = dot(N[i], N[j]); if (d < 0.9999 && d > best) { best = d; bi = i; bj = j; } }
+    const f = s => { const P = planesAt(cell, s, k); return Math.acos(Math.max(-1, Math.min(1, -kdot(P[bi], P[bj], k)))); };
+    let lo = 1e-6, hi = 50;
+    for (let it = 0; it < 200; it++) { const m = (lo + hi) / 2; if (f(m) < ang) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+}
+let CELL120 = null;
+function cell120() {
+    if (CELL120) return CELL120;
+    const cell = cellDodeca(), k = 1, s = solveScale(cell, k, TAU / 3), P = planesAt(cell, s, k), R = P.map(v => reflM(v, k));
+    const V = cell.V.map(p => knorm([...p.map(x => x * s), 1], k));
+    const key = M => M.map(r => (Math.round(r[3] * 1e3) || 0)).join(',');
+    const I = ident(4), cells = [I], seen = new Set([key(I)]), q = [I];
+    while (q.length && cells.length < 200) { const M = q.shift(); for (const Rf of R) { const M2 = mmul(M, Rf); const kk = key(M2); if (seen.has(kk)) continue; seen.add(kk); cells.push(M2); q.push(M2); } }
+    const em = new Map();
+    for (const M of cells) for (const [a, b] of cell.E) { const A = mvec(M, V[a]), B = mvec(M, V[b]); const kk = A.map((x, i) => (Math.round((x + B[i]) * 1e3) || 0)).join(','); if (!em.has(kk)) em.set(kk, [A, B]); }
+    return (CELL120 = { planes: P, edges: [...em.values()], cells: cells.length });
+}
+function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
+
+// ---------------------------------------------------------------------
+// 3. 状態・歩く人
+// ---------------------------------------------------------------------
+const S = { az: 30, el: 0, spd: 0.6, walk: false, foot: true, eq: true, circ: true, room: true, self: true, wA: true, wB: true, wC: true, axes: true,
+    maxd: 5.9, fog: 0.22, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
+try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
+S.walk = false;
+let saveT = 0; function save() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('s3walk-state', JSON.stringify(S)); } catch (e) {} }, 300); }
+
+// 歩く人（S³）と、その仲間（S²）
+const W = { p: [0, 0, 0, 1], r: [0, 1, 0, 0], u: [0, 0, 1, 0], f: [1, 0, 0, 0], dist: 0, trail: [], foot: [], marks: [], lastFoot: 0, lastTrail: 0, wasW: 1, passed: {} };
+const W2 = { p: [0, 0, 1], r: [0, 1, 0], f: [1, 0, 0], trail: [], foot: [], marks: [] };
+const d2r = Math.PI / 180;
+// 見ている（進む）向き L と、その右・上（どれも p に直交）
+function lookFrame() {
+    const ca = Math.cos(S.az * d2r), sa = Math.sin(S.az * d2r), ce = Math.cos(S.el * d2r), se = Math.sin(S.el * d2r);
+    const h = add(scl(W.f, ca), W.r, sa);                 // 水平の前
+    const L = add(scl(h, ce), W.u, se);
+    const R = add(scl(W.f, -sa), W.r, ca);               // 水平の右
+    const U = add(scl(h, -se), W.u, ce);
+    return { L, R, U };
+}
+function look2() { const ca = Math.cos(S.az * d2r), sa = Math.sin(S.az * d2r); return add(scl(W2.f, ca), W2.r, sa); }
+// 大円に沿って s だけ進む。体の枠は平行移動
+function moveAlong(X, d, s) {
+    const c = Math.cos(s), sn = Math.sin(s);
+    const d2 = add(scl(X.p, -sn), d, c);                 // 進んだ先での d
+    X.p = nrm(add(scl(X.p, c), d, sn));
+    for (const k of ['r', 'u', 'f']) { if (!X[k]) continue; const t = X[k]; const a = dot(t, d); X[k] = nrm(add(add(t, d, -a), d2, a)); }
+    // 直交を保つ（誤差がたまらないように）
+    for (const k of ['r', 'u', 'f']) { if (!X[k]) continue; let t = add(X[k], X.p, -dot(X[k], X.p)); for (const j of ['r', 'u', 'f']) { if (j === k) break; if (X[j]) t = add(t, X[j], -dot(t, X[j])); } X[k] = nrm(t); }
+}
+function step(dirS3, dir2, s) {
+    moveAlong(W, dirS3, s);
+    if (dir2) moveAlong(W2, dir2, s);
+    W.dist += s;
+    if (W.dist - W.lastTrail >= 0.02) { W.trail.push(W.p.slice()); W2.trail.push(W2.p.slice()); W.lastTrail = W.dist; if (W.trail.length > 6000) { W.trail.shift(); W2.trail.shift(); } }
+    if (S.foot && W.dist - W.lastFoot >= 0.6) { W.foot.push(W.p.slice()); W2.foot.push(W2.p.slice()); W.lastFoot = W.dist; if (W.foot.length > 40) { W.foot.shift(); W2.foot.shift(); } }
+    // 赤道・南極・北極を通ったら知らせる
+    const w = W.p[3], dN = Math.acos(Math.max(-1, Math.min(1, w))), dS = Math.PI - dN;
+    if (W.wasW > 0 && w <= 0) say('赤道を通過（北極から π/2 ≈ 1.57）');
+    if (W.wasW < 0 && w > 0) say('赤道を通過（北極まであと π/2）');
+    // 南極・北極のいちばん近く（距離が減ってから増えに転じた所）を通ったら知らせる
+    if (W.prevS !== undefined && W.prevS < 0.2 && dS > W.prevS && !W.passed.S) { say(dS < 0.03 ? '南極を通過！ ここは北極の反対側（対蹠点）' : `南極のすぐそば（${W.prevS.toFixed(2)}）を通過。北極の反対側`); W.passed.S = true; W.passed.N = false; }
+    if (W.prevN !== undefined && W.prevN < 0.2 && dN > W.prevN && !W.passed.N && W.dist > 1) { say(dN < 0.03 ? '北極に戻ってきた！（1 周 = 2π ≈ 6.28）' : `北極のすぐそば（${W.prevN.toFixed(2)}）まで戻ってきた（1 周 ≈ 6.28）`); W.passed.N = true; W.passed.S = false; }
+    W.prevS = dS; W.prevN = dN; W.wasW = w;
+    req(2);
+}
+function walkStep(local, s) {   // local＝[右, 上, 前] の割合（見ている向きの枠で）
+    const F = lookFrame();
+    const d = nrm(add(add(scl(F.R, local[0]), F.U, local[1]), F.L, local[2]));
+    const L2 = look2(), R2 = nrm(add(scl(W2.f, -Math.sin(S.az * d2r)), W2.r, Math.cos(S.az * d2r)));
+    const h2 = Math.hypot(local[0], local[2]);
+    const d2 = h2 > 1e-6 ? nrm(add(scl(R2, local[0]), L2, local[2])) : null;   // 上下は S² には無い
+    step(d, d2, s * (d2 ? h2 / Math.hypot(local[0], local[1], local[2]) : 1));
+}
+function resetNorth() {
+    Object.assign(W, { p: [0, 0, 0, 1], r: [0, 1, 0, 0], u: [0, 0, 1, 0], f: [1, 0, 0, 0], dist: 0, trail: [], foot: [], lastFoot: 0, lastTrail: 0, wasW: 1, prevS: undefined, prevN: undefined, passed: { N: true } });
+    Object.assign(W2, { p: [0, 0, 1], r: [0, 1, 0], f: [1, 0, 0], trail: [], foot: [] });
+    req(3);
+}
+function addMark() {
+    const i = W.marks.length, hue = (i * 47 + 20) % 360;
+    W.marks.push({ p: W.p.slice(), p2: W2.p.slice(), col: hsl(hue, 0.9, 0.6), n: i + 1, dist: W.dist });
+    rebuildMarks(); refreshUI(); req(3);
+}
+// 固定の目印：N・S・赤道の 6 か所
+const FIXED = [
+    { p: [0, 0, 0, 1], p2: [0, 0, 1], col: [0.6, 0.95, 1], r: 0.13, label: 'N' },
+    { p: [0, 0, 0, -1], p2: [0, 0, -1], col: hexRGB(0xfbbf24), r: 0.13, label: 'S' },
+    { p: [1, 0, 0, 0], p2: [1, 0, 0], col: hexRGB(AXIS_HEX.x), r: 0.09, label: '+x' }, { p: [-1, 0, 0, 0], p2: [-1, 0, 0], col: scl(hexRGB(AXIS_HEX.x), 0.6), r: 0.09, label: '−x' },
+    { p: [0, 1, 0, 0], p2: [0, 1, 0], col: hexRGB(AXIS_HEX.y), r: 0.09, label: '+y' }, { p: [0, -1, 0, 0], p2: [0, -1, 0], col: scl(hexRGB(AXIS_HEX.y), 0.6), r: 0.09, label: '−y' },
+    { p: [0, 0, 1, 0], p2: null, col: hexRGB(AXIS_HEX.z), r: 0.09, label: '+z' }, { p: [0, 0, -1, 0], p2: null, col: scl(hexRGB(AXIS_HEX.z), 0.6), r: 0.09, label: '−z' },
+];
+let msgT = 0;
+function say(t) { const el = document.getElementById('msg'); el.textContent = t; el.classList.add('on'); clearTimeout(msgT); msgT = setTimeout(() => el.classList.remove('on'), 3200); }
+
+// 4次元の回転（S³ の地図）
+let R4 = NDGeom.rotation(4, []);
+function updateRot() {
+    if (S.follow) {   // 体の枠 (R, U, L, p) を (x, y, z, w) へ：自分が真ん中（w = +1）・前が +z
+        const F = lookFrame(); const rows = [F.R, F.U, F.L, W.p];
+        for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) R4[i * 4 + j] = rows[i][j];
+    } else R4 = NDGeom.rotation(4, [[0, 3, S.xw * d2r], [1, 3, S.yw * d2r], [2, 3, S.zw * d2r]], { out: R4 });
+}
+const _q4 = new Float64Array(4);
+function mapS3(p, out) {
+    NDGeom.apply(R4, 4, p, _q4); const D = S.D, k = D / (D - _q4[3]);
+    if (!(k > 0 && k < 14)) return NaN;
+    out[0] = _q4[0] * k * RS; out[1] = _q4[1] * k * RS; out[2] = _q4[2] * k * RS; return _q4[3];
+}
+function kOf(p) { NDGeom.apply(R4, 4, p, _q4); return S.D / (S.D - _q4[3]); }
+
+// ---------------------------------------------------------------------
+// 4. 窓（three.js）
+// ---------------------------------------------------------------------
+let need = 3; function req(n) { need = Math.max(need, n || 2); }
+VisualFX.requestRender = () => req(3);
+function makeView(host) {
+    const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); r.setClearColor(0x030712, 1);
+    host.appendChild(r.domElement);
+    const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(36, 1, 0.02, 400); cam.up.set(0, 0, 1);
+    const ctl = new THREE.OrbitControls(cam, r.domElement); ctl.enableDamping = true; ctl.dampingFactor = 0.12; ctl.rotateSpeed = 0.9;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6)); const dl = new THREE.DirectionalLight(0xffffff, 0.75); dl.position.set(3, -4, 6); scene.add(dl);
+    const root = new THREE.Group(); scene.add(root);
+    const v = { r, scene, cam, ctl, root, host, mats: [], frames: [], w: 1, h: 1 };
+    ctl.addEventListener('change', () => req(2));
+    return v;
+}
+const VA = makeView(document.getElementById('cvA')), VB = makeView(document.getElementById('cvB')), VC = makeView(document.getElementById('cvC'));
+VC.ctl.enabled = false;
+function homeView(v, D) { v.ctl.target.set(0, 0, 0); v.cam.position.set(0.55 * D, -0.72 * D, 0.42 * D); v.cam.up.set(0, 0, 1); v.cam.lookAt(0, 0, 0); v.ctl.update(); req(3); }
+function resizeView(v) {
+    const w = Math.max(1, v.host.clientWidth), h = Math.max(1, v.host.clientHeight); v.w = w; v.h = h;
+    v.r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * (v === VC ? S.q : 1)); v.r.setSize(w, h, false); v.r.domElement.style.width = w + 'px'; v.r.domElement.style.height = h + 'px';
+    v.cam.aspect = w / h; v.cam.fov = w >= h ? 36 : 2 * Math.atan(Math.tan(18 * d2r) / (w / h)) / d2r; v.cam.updateProjectionMatrix();
+    v.mats.forEach(m => m.resolution.set(w, h)); req(3);
+}
+function resizeAll() { [VA, VB, VC].forEach(resizeView); }
+['cvA', 'cvB', 'cvC'].forEach(id => new ResizeObserver(resizeAll).observe(document.getElementById(id)));
+
+function Lines(v, nSeg, o) {
+    o = o || {}; const g = new THREE.LineSegmentsGeometry();
+    const pos = new Float32Array(Math.max(1, nSeg) * 6), cl = new Float32Array(Math.max(1, nSeg) * 6); g.setPositions(pos); g.setColors(cl);
+    const m = new THREE.LineMaterial({ linewidth: o.width || 1.4, vertexColors: true, transparent: true, opacity: 1, depthWrite: false, blending: o.normal ? THREE.NormalBlending : THREE.AdditiveBlending });
+    m.resolution.set(v.w, v.h); v.mats.push(m);
+    const obj = new THREE.LineSegments2(g, m); obj.frustumCulled = false; obj.renderOrder = o.order || 2; v.root.add(obj);
+    let i = 0;
+    return { obj, g, seg(a, b, ca, cb) { if (i >= nSeg) return; const j = i * 6; pos[j] = a[0]; pos[j + 1] = a[1]; pos[j + 2] = a[2]; pos[j + 3] = b[0]; pos[j + 4] = b[1]; pos[j + 5] = b[2]; cb = cb || ca; cl[j] = ca[0]; cl[j + 1] = ca[1]; cl[j + 2] = ca[2]; cl[j + 3] = cb[0]; cl[j + 4] = cb[1]; cl[j + 5] = cb[2]; i++; },
+        reset() { i = 0; }, flush() { g.attributes.instanceStart.data.needsUpdate = true; g.attributes.instanceColorStart.data.needsUpdate = true; g.instanceCount = i; } };
+}
+function ball(v, r, color) { const me = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 12), new THREE.MeshPhongMaterial({ color: rgbHex(color), emissive: rgbHex(color), emissiveIntensity: 0.35, shininess: 80 })); v.root.add(me); return me; }
+function label(v, text, css, scale) { const sp = VisualFX.makeLabel(text, css, { scale: scale || 0.4 }); v.root.add(sp); return sp; }
+function makeAxes(v, names, dirs) {
+    const grp = new THREE.Group(); v.root.add(grp);
+    const L = Lines(v, names.length, { width: 2.2, normal: true, order: 5 }); grp.add(L.obj);
+    const items = names.map(nm => { const hex = AXIS_HEX[nm]; const cone = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 14), new THREE.MeshBasicMaterial({ color: hex })); cone.renderOrder = 6; grp.add(cone); const lab = VisualFX.makeLabel(nm, hexCss(hex), { scale: 0.42 }); grp.add(lab); return { nm, rgb: hexRGB(hex), cone, lab }; });
+    const up = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3();
+    v.frames.push(() => {
+        grp.visible = S.axes; if (!S.axes) return; L.reset();
+        items.forEach(it => { const d = dirs(it.nm), len = Math.hypot(d[0], d[1], d[2]); L.seg([0, 0, 0], d, it.rgb); const vis = len > 0.08; it.cone.visible = vis; it.lab.visible = len > 0.15; if (vis) { tmp.set(d[0], d[1], d[2]).normalize(); it.cone.quaternion.setFromUnitVectors(up, tmp); it.cone.position.set(d[0], d[1], d[2]); } it.lab.position.set(d[0] + tmp.x * 0.22, d[1] + tmp.y * 0.22, d[2] + tmp.z * 0.22); });
+        L.flush();
+    });
+}
+const AXL = 2.7;
+
+// ---- 左：球面 S² ----
+(function buildA() {
+    const v = VA, R2 = RS;
+    // 緯線・経線
+    const nlat = 5, nlon = 12, seg = 48, L = Lines(v, nlat * seg + nlon * seg / 2 + seg, { width: 1 });
+    for (let i = 1; i <= nlat; i++) { const th = Math.PI * i / (nlat + 1), z = R2 * Math.cos(th), rr = R2 * Math.sin(th); for (let s = 0; s < seg; s++) { const a = TAU * s / seg, b = TAU * (s + 1) / seg; L.seg([rr * Math.cos(a), rr * Math.sin(a), z], [rr * Math.cos(b), rr * Math.sin(b), z], [0.25, 0.3, 0.5]); } }
+    for (let j = 0; j < nlon; j++) { const a = TAU * j / nlon; for (let s = 0; s < seg / 2; s++) { const t1 = Math.PI * s / (seg / 2), t2 = Math.PI * (s + 1) / (seg / 2); L.seg([R2 * Math.sin(t1) * Math.cos(a), R2 * Math.sin(t1) * Math.sin(a), R2 * Math.cos(t1)], [R2 * Math.sin(t2) * Math.cos(a), R2 * Math.sin(t2) * Math.sin(a), R2 * Math.cos(t2)], [0.25, 0.3, 0.5]); } }
+    for (let s = 0; s < seg; s++) { const a = TAU * s / seg, b = TAU * (s + 1) / seg; L.seg([R2 * Math.cos(a), R2 * Math.sin(a), 0], [R2 * Math.cos(b), R2 * Math.sin(b), 0], [0.6, 0.65, 0.9]); }   // 赤道
+    L.flush();
+    v.root.add(new THREE.Mesh(new THREE.SphereGeometry(R2 * 0.995, 64, 40), new THREE.MeshPhongMaterial({ color: 0x1e3a8a, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide })));
+    // 固定の目印
+    FIXED.forEach(m => { if (!m.p2) return; const b = ball(v, m.r * 1.1, m.col); b.position.set(...scl(m.p2, R2)); const lab = label(v, m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36); lab.position.set(...scl(m.p2, R2 * 1.12)); });
+    // 歩く人
+    const me = ball(v, 0.09, [1, 1, 1]), cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 })); v.root.add(cone);
+    const trail = Lines(v, 6000, { width: 2.4, order: 3 }), foot = new THREE.Group(); v.root.add(foot);
+    const marks = new THREE.Group(); v.root.add(marks);
+    const up = new THREE.Vector3(0, 1, 0), t = new THREE.Vector3();
+    v.frames.push(() => {
+        const P = scl(W2.p, R2); me.position.set(...P);
+        const d = look2(); t.set(d[0], d[1], d[2]); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(P[0] + d[0] * 0.25, P[1] + d[1] * 0.25, P[2] + d[2] * 0.25);
+        trail.reset(); const T = W2.trail; for (let i = 0; i + 1 < T.length; i++) { const f = 0.3 + 0.7 * i / T.length; trail.seg(scl(T[i], R2), scl(T[i + 1], R2), scl(hsl(200 + 160 * i / T.length, 0.9, 0.6), f)); } trail.flush();
+        while (foot.children.length < W2.foot.length) { const b = ball(v, 0.035, [0.8, 0.85, 1]); v.root.remove(b); foot.add(b); }
+        foot.children.forEach((b, i) => { b.visible = i < W2.foot.length && S.foot; if (b.visible) b.position.set(...scl(W2.foot[i], R2)); });
+        while (marks.children.length < W.marks.length * 2) { const m = W.marks[marks.children.length / 2]; const b = ball(v, 0.08, m.col); v.root.remove(b); marks.add(b); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); }
+        W.marks.forEach((m, i) => { marks.children[2 * i].position.set(...scl(m.p2, R2)); marks.children[2 * i + 1].position.set(...scl(m.p2, R2 * 1.1)); });
+    });
+    makeAxes(v, ['x', 'y', 'z'], nm => { const e = [0, 0, 0]; e['xyz'.indexOf(nm)] = AXL; return e; });
+})();
+
+// ---- 真ん中：S³ の地図 ----
+(function buildB() {
+    const v = VB;
+    // 赤道の球面 S²（w = 0）の網目、経線（x・y・z と w の大円）、赤道の輪
+    const eqPairs = [], nlat = 5, nlon = 12, seg = 36;
+    for (let i = 1; i <= nlat; i++) { const th = Math.PI * i / (nlat + 1), z = Math.cos(th), rr = Math.sin(th); for (let s = 0; s < seg; s++) { const a = TAU * s / seg, b = TAU * (s + 1) / seg; eqPairs.push([[rr * Math.cos(a), rr * Math.sin(a), z, 0], [rr * Math.cos(b), rr * Math.sin(b), z, 0]]); } }
+    for (let j = 0; j < nlon; j++) { const a = TAU * j / nlon; for (let s = 0; s < seg / 2; s++) { const t1 = Math.PI * s / (seg / 2), t2 = Math.PI * (s + 1) / (seg / 2); eqPairs.push([[Math.sin(t1) * Math.cos(a), Math.sin(t1) * Math.sin(a), Math.cos(t1), 0], [Math.sin(t2) * Math.cos(a), Math.sin(t2) * Math.sin(a), Math.cos(t2), 0]]); } }
+    const circ = [], CN = 96;
+    [[0, 3, AXIS_HEX.x], [1, 3, AXIS_HEX.y], [2, 3, AXIS_HEX.z], [0, 1, 0xd8dcf0], [1, 2, 0xd8dcf0], [2, 0, 0xd8dcf0]].forEach(([i, j, hex]) => { for (let s = 0; s < CN; s++) { const a = TAU * s / CN, b = TAU * (s + 1) / CN, A = [0, 0, 0, 0], B = [0, 0, 0, 0]; A[i] = Math.cos(a); A[j] = Math.sin(a); B[i] = Math.cos(b); B[j] = Math.sin(b); circ.push([A, B, hexRGB(hex)]); } });
+    const room = cell120(), rseg = 3, roomPairs = []; room.edges.forEach(([A, B]) => { for (let s = 0; s < rseg; s++) roomPairs.push([slerp(A, B, s / rseg), slerp(A, B, (s + 1) / rseg)]); });
+    const Leq = Lines(v, eqPairs.length, { width: 1.1 }), Lc = Lines(v, circ.length, { width: 1.8 }), Lr = Lines(v, roomPairs.length, { width: 1.0 });
+    const trail = Lines(v, 6000, { width: 3.4, order: 3, normal: true });
+    v.root.add(new THREE.Mesh(new THREE.SphereGeometry(RS, 48, 32), new THREE.MeshPhongMaterial({ color: 0x1e3a8a, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide })));
+    const me = ball(v, 0.1, [1, 1, 1]), cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 })); v.root.add(cone);
+    const fixed = FIXED.map(m => ({ m, b: ball(v, m.r, m.col), lab: label(v, m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36) }));
+    const foot = new THREE.Group(), marks = new THREE.Group(); v.root.add(foot, marks);
+    const a = [0, 0, 0], b = [0, 0, 0], Z = [0, 0, 0], up = new THREE.Vector3(0, 1, 0), t = new THREE.Vector3();
+    const drawPairs = (L, pairs, color, maxLen, cut) => {
+        L.reset();
+        for (let i = 0; i < pairs.length; i++) { const da = mapS3(pairs[i][0], a), db = mapS3(pairs[i][1], b); if (!(da === da) || !(db === db) || (cut && da < S.cut && db < S.cut) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > maxLen) { L.seg(Z, Z, Z); continue; } L.seg(a, b, color(da, i), color(db, i)); }
+        L.flush();
+    };
+    const place = (obj, p, base) => { const d = mapS3(p, a); if (!(d === d)) { obj.visible = false; return NaN; } obj.visible = true; obj.position.set(a[0], a[1], a[2]); obj.scale.setScalar(base * Math.min(2.5, kOf(p))); return d; };
+    v.frames.push(() => {
+        Leq.obj.visible = S.eq; Lc.obj.visible = S.circ; Lr.obj.visible = S.room;
+        if (S.eq) drawPairs(Leq, eqPairs, d => depthColor(d, 0.8), 3, true);
+        if (S.circ) drawPairs(Lc, circ, (d, i) => scl(circ[i][2], 0.25 + 0.75 * Math.pow((d + 1) / 2, 1.5)), 3, true);
+        if (S.room) drawPairs(Lr, roomPairs, d => depthColor(d, 0.32), 2.5, true);
+        const T = W.trail; trail.reset(); for (let i = 0; i + 1 < T.length; i++) { const da = mapS3(T[i], a), db = mapS3(T[i + 1], b); if (!(da === da) || !(db === db) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.5) continue; const f = 0.45 + 0.55 * i / T.length; trail.seg(a, b, scl(hsl(200 + 160 * i / T.length, 0.95, 0.62), f)); } trail.flush();
+        place(me, W.p, 1);
+        const F = lookFrame(), q = nrm(add(scl(W.p, Math.cos(0.12)), F.L, Math.sin(0.12)));
+        if (mapS3(W.p, a) === mapS3(W.p, a) && mapS3(q, b) === mapS3(q, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); const l = t.length(); if (l > 1e-6) { t.normalize(); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(a[0] + t.x * 0.28, a[1] + t.y * 0.28, a[2] + t.z * 0.28); cone.scale.setScalar(Math.min(2.5, kOf(W.p))); cone.visible = true; } } else cone.visible = false;
+        fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { o.lab.visible = true; const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); } else o.lab.visible = false; });
+        while (foot.children.length < W.foot.length) { const bb = ball(v, 0.04, [0.8, 0.85, 1]); v.root.remove(bb); foot.add(bb); }
+        foot.children.forEach((bb, i) => { if (i < W.foot.length && S.foot) place(bb, W.foot[i], 1); else bb.visible = false; });
+        while (marks.children.length < W.marks.length * 2) { const m = W.marks[marks.children.length / 2]; const bb = ball(v, 0.085, m.col); v.root.remove(bb); marks.add(bb); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); }
+        W.marks.forEach((m, i) => { const d = place(marks.children[2 * i], m.p, 1); const lab = marks.children[2 * i + 1]; lab.visible = d === d; if (lab.visible) lab.position.copy(marks.children[2 * i].position).add(new THREE.Vector3(0, 0, 0.18)); });
+    });
+    makeAxes(v, ['x', 'y', 'z', 'w'], nm => { const e = [0, 0, 0, 0]; e['xyzw'.indexOf(nm)] = 1; const q = NDGeom.apply(R4, 4, e, []); return scl([q[0], q[1], q[2]], AXL); });
+})();
+
+// ---------------------------------------------------------------------
+// 5. 右：中にいる人の景色（光線追跡）
+//    光：p(t) = cos t·p₀ + sin t·v。目印の玉は式で当たりを求め、経線・部屋の辺（管）は少しずつ進めて探す
+// ---------------------------------------------------------------------
+const NMK = 64;
+const RAY_FRAG = `
+precision highp float;
+uniform vec2 uRes; uniform float uTanF;
+uniform vec4 uP, uR, uU, uF;
+uniform vec4 uMk[${NMK}]; uniform vec4 uMkC[${NMK}]; uniform int uNM;
+uniform vec4 uN[12]; uniform int uRoom, uCirc, uEq;
+uniform float uFog, uMaxD, uTube;
+const float PI = 3.14159265;
+vec3 bg(vec3 d){ return mix(vec3(0.012,0.02,0.05), vec3(0.05,0.04,0.12), 0.5+0.5*d.y); }
+float pixW(float t){ return min(abs(sin(t)) * 2.0*uTanF/uRes.y * 1.6, 0.3); }
+float circDist(vec4 p, int i, int j){ float a = i==0?p.x:(i==1?p.y:(i==2?p.z:p.w)); float b = j==0?p.x:(j==1?p.y:(j==2?p.z:p.w)); return acos(clamp(sqrt(a*a+b*b), 0.0, 1.0)); }
+void main(){
+    vec2 uv = (gl_FragCoord.xy / uRes)*2.0 - 1.0;
+    vec3 dir = normalize(vec3(uv.x*uTanF*uRes.x/uRes.y, uv.y*uTanF, -1.0));
+    vec4 p0 = uP; vec4 v = normalize(dir.x*uR + dir.y*uU - dir.z*uF);
+    vec3 col = bg(dir); float tBest = uMaxD; vec3 cBest = col; bool hit = false;
+    // ---- 目印の玉（式で）----
+    for(int i=0;i<${NMK};i++){
+        if(i>=uNM) break;
+        vec4 c = uMk[i]; float rad = uMkC[i].w;
+        float A = dot(p0,c), B = dot(v,c); float amp = sqrt(A*A+B*B); float cr = cos(rad + pixW(1.0)*0.0);
+        if(amp < cr) continue;
+        float phi = atan(B, A); float dt = acos(clamp(cr/amp, -1.0, 1.0));
+        float t = phi - dt; t = mod(t, 2.0*PI);
+        for(int k=0;k<2;k++){
+            if(t > 0.002 && t < tBest){
+                vec4 q = cos(t)*p0 + sin(t)*v; vec4 vt = -sin(t)*p0 + cos(t)*v;
+                vec4 n = normalize(q - c*dot(q,c)); float li = 0.3 + 0.7*max(0.0, -dot(n, vt));
+                vec3 base = uMkC[i].xyz * li;
+                // 玉の表面の模様（経線のしま）で、どちらを向いているかわかるように
+                float str = 0.85 + 0.15*sin(12.0*atan(dot(n,uU), dot(n,uR)));
+                cBest = base*str; tBest = t; hit = true;
+            }
+            t += 2.0*PI;
+        }
+    }
+    // ---- 経線・赤道の輪・部屋の辺（管。少しずつ進める）----
+    if(uCirc==1 || uRoom==1){
+        vec4 p = p0; vec4 vv = v; vec4 pf = p0; vec4 vf = v; float t = 0.0;
+        for(int i=0;i<160;i++){
+            float d = 1e9; vec3 cc = vec3(1.0); float li = 1.0;
+            if(uCirc==1){
+                float dx = circDist(p,0,3), dy = circDist(p,1,3), dz = circDist(p,2,3);
+                float e1 = circDist(p,0,1), e2 = circDist(p,1,2), e3 = circDist(p,2,0);
+                vec4 n;   // 管の外向き（大円の面に直交する成分）→ 上からの光で陰影
+                d = dx; cc = vec3(1.0,0.36,0.42); n = vec4(0.0,p.y,p.z,0.0);
+                if(dy<d){ d=dy; cc=vec3(0.24,0.86,0.52); n = vec4(p.x,0.0,p.z,0.0); } if(dz<d){ d=dz; cc=vec3(0.34,0.66,1.0); n = vec4(p.x,p.y,0.0,0.0); }
+                if(e1<d){ d=e1; cc=vec3(0.85,0.86,0.95); n = vec4(0.0,0.0,p.z,p.w); } if(e2<d){ d=e2; cc=vec3(0.85,0.86,0.95); n = vec4(p.x,0.0,0.0,p.w); } if(e3<d){ d=e3; cc=vec3(0.85,0.86,0.95); n = vec4(0.0,p.y,0.0,p.w); }
+                li = 0.55 + 0.45*dot(normalize(n + 1e-6), uU);
+            }
+            if(uRoom==1){
+                for(int pass=0; pass<4; pass++){ bool any=false; for(int f=0; f<12; f++){ float s = dot(pf,uN[f]); if(s>1e-7){ pf -= 2.0*s*uN[f]; vf -= 2.0*dot(vf,uN[f])*uN[f]; any=true; } } if(!any) break; }
+                float e1=-1e9, e2=-1e9;
+                for(int f=0; f<12; f++){ float s = asin(clamp(dot(pf,uN[f]),-1.0,1.0)); if(s>e1){ e2=e1; e1=s; } else if(s>e2){ e2=s; } }
+                float dr = sqrt(e1*e1+e2*e2);
+                if(dr < d){ d = dr; cc = vec3(0.62,0.5,0.95); li = 0.5 + 0.5*cos(2.0*atan(-e2, -e1) - 0.7); }
+            }
+            float wpx = pixW(t); float sd = d - uTube - wpx;
+            float st;
+            if(sd < 0.0015){
+                if(t > 0.1){ if(t < tBest){ float cover = uTube/(uTube+wpx); vec3 c2 = cc*1.15*li; cBest = mix(bg(dir), c2, cover); tBest = t; hit = true; } break; }
+                st = 0.012;   // 出発点が管の中（北極には経線が 3 本集まる）：抜けるまで進む
+            } else st = max(sd*0.9, 0.003);
+            float c = cos(st), s = sin(st);
+            vec4 np = c*p + s*vv; vv = -s*p + c*vv; p = np;
+            vec4 npf = c*pf + s*vf; vf = -s*pf + c*vf; pf = npf;
+            t += st; if(t > tBest) break;
+        }
+    }
+    col = hit ? mix(bg(dir), cBest, exp(-tBest*uFog)) : bg(dir);
+    // ---- 赤道の膜 S²（w = 0）：当たった所より手前なら薄く重ねる ----
+    if(uEq==1){
+        float te = atan(-p0.w, v.w); if(te < 0.0) te += PI;
+        for(int k=0;k<2;k++){
+            if(te > 0.002 && te < tBest){
+                vec4 q = cos(te)*p0 + sin(te)*v;
+                float lat = asin(clamp(q.z,-1.0,1.0)), lon = atan(q.y, q.x);
+                float g = max(smoothstep(0.06, 0.0, abs(fract(lat/(PI/6.0)+0.5)-0.5)*(PI/6.0)), smoothstep(0.06, 0.0, abs(fract(lon/(PI/6.0)+0.5)-0.5)*(PI/6.0)*cos(lat)));
+                vec3 film = mix(vec3(0.3,0.45,0.9), vec3(0.8,0.9,1.0), g);
+                float a = (0.08 + 0.4*g) * exp(-te*uFog);
+                col = mix(col, film, a);
+            }
+            te += PI;
+        }
+    }
+    gl_FragColor = vec4(pow(col, vec3(0.9)), 1.0);
+}`;
+const ray = (() => {
+    const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const U = { uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * d2r) }, uP: { value: new THREE.Vector4() }, uR: { value: new THREE.Vector4() }, uU: { value: new THREE.Vector4() }, uF: { value: new THREE.Vector4() },
+        uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uNM: { value: 0 },
+        uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uFog: { value: 0.12 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
+    const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: RAY_FRAG, depthTest: false, depthWrite: false });
+    scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
+    cell120().planes.forEach((v, i) => U.uN.value[i].set(v[0], v[1], v[2], v[3]));
+    return { scene, cam, U };
+})();
+function rebuildMarks() {
+    const U = ray.U; let n = 0;
+    const put = (p, c, r) => { if (n >= NMK) return; U.uMk.value[n].set(p[0], p[1], p[2], p[3]); U.uMkC.value[n].set(c[0], c[1], c[2], r); n++; };
+    FIXED.forEach(m => put(m.p, m.col, m.r));
+    W.marks.forEach(m => put(m.p, m.col, 0.1));
+    if (S.foot) W.foot.forEach(p => put(p, [0.8, 0.85, 1], 0.03));
+    ray.U.uNM.value = n; ray._nFoot = W.foot.length; ray._nMk = W.marks.length;
+}
+function setRayUniforms() {
+    const U = ray.U, F = lookFrame();
+    U.uP.value.set(...W.p); U.uR.value.set(...F.R); U.uU.value.set(...F.U); U.uF.value.set(...F.L);
+    U.uRoom.value = S.room ? 1 : 0; U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uMaxD.value = S.maxd;
+    U.uRes.value.set(VC.r.domElement.width, VC.r.domElement.height);
+    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self) { rebuildMarks(); ray._foot = S.foot; ray._self = S.self; }
+    // 自分の玉：いつも今の場所（最後の 1 つを入れかえる）
+    if (S.self) { const n = Math.min(NMK - 1, U.uNM.value); U.uMk.value[n].set(...W.p); U.uMkC.value[n].set(1, 1, 1, 0.09); U.uNM.value = n + 1; ray._selfSlot = n; }
+    else if (ray._selfSlot !== undefined) { rebuildMarks(); ray._selfSlot = undefined; }
+}
+
+// ---------------------------------------------------------------------
+// 6. 操作
+// ---------------------------------------------------------------------
+const $ = id => document.getElementById(id);
+$('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
+const toggles = { 'b-walk': 'walk', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
+$('b-stop').addEventListener('click', () => { S.walk = false; refreshUI(); });
+$('b-trip').addEventListener('click', () => { resetNorth(); S.walk = true; say('北極から出発。向きを変えずに進むと、南極を通って北極に戻る'); refreshUI(); });
+$('b-north').addEventListener('click', () => { resetNorth(); S.walk = false; refreshUI(); });
+$('b-clear').addEventListener('click', () => { W.trail = []; W2.trail = []; W.foot = []; W2.foot = []; req(3); });
+$('b-mark').addEventListener('click', addMark);
+$('b-mkclear').addEventListener('click', () => { W.marks = []; rebuildMarks(); refreshUI(); req(3); });
+$('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90').addEventListener('click', () => { S.az = 90; onLook(); });
+$('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
+$('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
+$('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; save(); refreshUI(); req(3); });
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
+    's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
+Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (['xw', 'yw', 'zw'].includes(k)) S.follow = false; save(); refreshUI(); req(3); }));
+function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
+function refreshUI() {
+    Object.entries(toggles).forEach(([id, k]) => $(id).classList.toggle('on', !!S[k]));
+    Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
+    ['A', 'B', 'C'].forEach(x => $('wrap' + x).classList.toggle('off', !S['w' + x]));
+    $('mklist').innerHTML = W.marks.map(m => `<span style="border-color:${hexCss(rgbHex(m.col))}">${m.n}：北極から ${Math.acos(Math.max(-1, Math.min(1, m.p[3]))).toFixed(2)}</span>`).join('') || '<span style="color:#64748b;border:0">（まだ置いていない）</span>';
+}
+function updateHUD() {
+    const dN = Math.acos(Math.max(-1, Math.min(1, W.p[3]))), lap = W.dist / TAU;
+    $('hudC').innerHTML = `進んだ距離 <b>${W.dist.toFixed(2)}</b>（${lap.toFixed(2)} 周）<br>北極から <b>${dN.toFixed(2)}</b>　南極から <b>${(Math.PI - dN).toFixed(2)}</b><br>方位 <b>${S.az}°</b>　仰角 <b>${S.el}°</b><br>位置 (${W.p.map(x => x.toFixed(2)).join(', ')})`;
+    const d2 = Math.acos(Math.max(-1, Math.min(1, W2.p[2])));
+    $('hudA').innerHTML = `北極から <b>${d2.toFixed(2)}</b>　緯度 ${(90 - d2 / d2r).toFixed(0)}°<br>方位 <b>${S.az}°</b>（仰角は無い）`;
+    $('trip-bar').style.width = (100 * (W.dist % TAU) / TAU).toFixed(1) + '%';
+    const el = $('axlen'); el.innerHTML = ['x', 'y', 'z', 'w'].map((nm, i) => { const e = [0, 0, 0, 0]; e[i] = 1; const q = NDGeom.apply(R4, 4, e, []); const L = Math.hypot(q[0], q[1], q[2]); return `<span style="color:${hexCss(AXIS_HEX[nm])};font-style:italic">${nm}</span> ${(L * 100).toFixed(0)}%`; }).join('　');
+}
+function setSidebar(open) { document.body.classList.toggle('sidebar-hidden', !open); setTimeout(resizeAll, 0); }
+$('sidebar-close').addEventListener('click', () => setSidebar(false)); $('sidebar-open').addEventListener('click', () => setSidebar(true));
+if (window.innerWidth < 760) setSidebar(false);
+let dock = null;
+try { dock = UIDock.create({ prefix: 's3walk', onResize: () => resizeAll(), onChange: () => req(3) }); document.querySelectorAll('#sb-scroll > section.sb-sec').forEach(sec => { const h = sec.querySelector(':scope > .sb-h'); if (h) dock.add(sec, { handle: h }); }); dock.restore(); } catch (e) { console.warn('ui-dock', e); }
+
+// 右の窓：ドラッグで見回す（方位・仰角）、ホイールで前後
+(() => {
+    const cv = $('cvC'); let st = null;
+    cv.addEventListener('pointerdown', e => { st = { x: e.clientX, y: e.clientY, id: e.pointerId }; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', e => { if (!st || e.pointerId !== st.id) return; S.az += (e.clientX - st.x) * 0.3; S.el -= (e.clientY - st.y) * 0.3; st.x = e.clientX; st.y = e.clientY; onLook(); });
+    cv.addEventListener('pointerup', () => { st = null; });
+    cv.addEventListener('wheel', e => { e.preventDefault(); walkStep([0, 0, 1], -e.deltaY * 0.0015 * S.spd); }, { passive: false });
+    document.querySelectorAll('#inpad button').forEach(b => { b.addEventListener('pointerdown', e => { e.preventDefault(); IN.pad = b.dataset.mv; b.setPointerCapture(e.pointerId); }); b.addEventListener('pointerup', () => { IN.pad = null; }); b.addEventListener('pointercancel', () => { IN.pad = null; }); });
+})();
+// 真ん中の窓：Shift＋ドラッグで 4次元の回転
+(() => {
+    let st = null; const el = $('wrapB');
+    el.addEventListener('pointerdown', e => { if (!e.shiftKey) return; e.stopPropagation(); e.preventDefault(); st = { x: e.clientX, y: e.clientY, xw: S.xw, yw: S.yw, id: e.pointerId }; el.setPointerCapture(e.pointerId); }, true);
+    el.addEventListener('pointermove', e => { if (!st || e.pointerId !== st.id) return; e.stopPropagation(); const wrap = a => ((a + 180) % 360 + 360) % 360 - 180; S.xw = Math.round(wrap(st.xw + (e.clientX - st.x) * 0.5)); S.yw = Math.round(wrap(st.yw - (e.clientY - st.y) * 0.5)); S.follow = false; refreshUI(); req(3); }, true);
+    el.addEventListener('pointerup', e => { if (st && e.pointerId === st.id) { e.stopPropagation(); st = null; save(); } }, true);
+})();
+const IN = { keys: new Set(), pad: null };
+window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (['w', 'a', 's', 'd', 'q', 'e', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { IN.keys.add(k); e.preventDefault(); return; }
+    if (k === ' ') { e.preventDefault(); setSidebar(document.body.classList.contains('sidebar-hidden')); return; }
+    if (k === 'x') { S.axes = !S.axes; save(); refreshUI(); req(3); }
+    if (k === 'f') { S.foot = !S.foot; save(); refreshUI(); req(3); }
+    if (k === 'm') addMark();
+    if (k === 'r') { resetNorth(); S.walk = false; refreshUI(); }
+});
+window.addEventListener('keyup', e => IN.keys.delete(e.key.toLowerCase()));
+window.addEventListener('blur', () => IN.keys.clear());
+
+// ---------------------------------------------------------------------
+// 7. 描く
+// ---------------------------------------------------------------------
+let last = performance.now(), hudT = 0;
+function loop(now) {
+    requestAnimationFrame(loop);
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const K = IN.keys, sp = 0.9 * S.spd * dt; const mv = [0, 0, 0];
+    if (K.has('w') || K.has('arrowup') || IN.pad === 'fwd' || S.walk) mv[2] += 1;
+    if (K.has('s') || K.has('arrowdown') || IN.pad === 'back') mv[2] -= 1;
+    if (K.has('a')) mv[0] -= 1; if (K.has('d')) mv[0] += 1;
+    if (K.has('q') || IN.pad === 'up') mv[1] += 1; if (K.has('e') || IN.pad === 'down') mv[1] -= 1;
+    if (K.has('arrowleft')) { S.az -= dt * 60; onLook(); } if (K.has('arrowright')) { S.az += dt * 60; onLook(); }
+    if (mv[0] || mv[1] || mv[2]) walkStep(mv, sp);
+    updateRot();
+    if (VA.ctl.update()) need = Math.max(need, 1);
+    if (VB.ctl.update()) need = Math.max(need, 1);
+    if (need <= 0) return;
+    need--;
+    if (S.wA) { VA.frames.forEach(f => f()); VA.r.render(VA.scene, VA.cam); }
+    if (S.wB) { VB.frames.forEach(f => f()); VB.r.render(VB.scene, VB.cam); }
+    if (S.wC) { setRayUniforms(); VC.r.render(ray.scene, ray.cam); }
+    updateHUD();
+}
+homeView(VA, 9.6); homeView(VB, 9.6);
+try { lucide.createIcons(); } catch (e) {}
+resetNorth(); rebuildMarks(); refreshUI(); updateRot(); resizeAll();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
