@@ -419,6 +419,19 @@
                 </div>
             </a>
 
+            <a class="card" href="s3walk.html" style="--accent: var(--d4);">
+                <div class="thumb"><svg data-thumb="s3walk" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
+                <div class="body">
+                    <div class="title-row"><h3>球面さんぽ ― 3次元球面を進む</h3><span class="new">NEW</span></div>
+                    <div class="sub">超球アプリの付録</div>
+                    <p>3次元球面 S³ の中を歩きます。北極から出発して南極を通り、2π でまた北極へ。左に球面 S² の仲間、真ん中に 4次元から写した S³ の地図、右に中にいる人の景色（光を大円に沿って進めて描く）。方位・仰角を決めて進み、目印や足あとを置いて、どう見えるかを確かめられます。</p>
+                    <div class="meta">
+                        <div class="dims"><span class="dim d2">2D</span><span class="dim d3">3D</span><span class="dim d4">4D</span></div>
+                        <span class="file">s3walk.html <span class="arrow">→</span></span>
+                    </div>
+                </div>
+            </a>
+
             <div class="card multi" style="--accent: var(--d5);">
                 <div class="thumb"><svg data-thumb="sphere5" viewBox="-50 -50 100 100" aria-hidden="true"></svg></div>
                 <div class="body">
@@ -640,10 +653,23 @@
             for (let k = 0; k < 20; k++) arc(2 * Math.PI * k / 20 - Math.PI / 2, 0.12, 0.7, 0.4);
         }
 
+        // 球面さんぽ：球面の上を北極から南極へ回る大円の道と、歩く人・足あと
+        function drawS3walk(svg) {
+            const R = 40;
+            svg.appendChild(el('circle', { ...stroke, cx: 0, cy: 0, r: R, 'stroke-width': 1.6 }));
+            svg.appendChild(el('ellipse', { ...stroke, cx: 0, cy: 0, rx: R, ry: 12, 'stroke-width': 0.9, opacity: 0.45 }));
+            svg.appendChild(el('ellipse', { ...stroke, cx: 0, cy: 0, rx: 14, ry: R, 'stroke-width': 2, opacity: 0.95 }));   // 北極→南極→北極の大円
+            svg.appendChild(el('circle', { cx: 0, cy: -R, r: 3.4, fill: '#a5f3fc' }));
+            svg.appendChild(el('circle', { cx: 0, cy: R, r: 3.4, fill: '#fbbf24' }));
+            [-50, -20, 20, 50].forEach(a => { const t = a * Math.PI / 180; svg.appendChild(el('circle', { cx: (14 * Math.sin(t)).toFixed(1), cy: (-R * Math.cos(t)).toFixed(1), r: 1.5, fill: 'var(--accent)', opacity: 0.8 })); });
+            svg.appendChild(el('circle', { cx: (14 * Math.sin(1.2)).toFixed(1), cy: (-R * Math.cos(1.2)).toFixed(1), r: 3.2, fill: '#ffffff' }));
+        }
+
         document.querySelectorAll('svg[data-thumb]').forEach(svg => {
             switch (svg.dataset.thumb) {
                 case 'monty':   drawMonty(svg); break;
                 case 'hyper':   drawHyper(svg); break;
+                case 's3walk':  drawS3walk(svg); break;
                 case 'euler':   drawEuler(svg); break;
                 case 'buffon':  drawBuffon(svg); break;
                 case 'star':    drawStar(svg, 7, 3, 42); break;
