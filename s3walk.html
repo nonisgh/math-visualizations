@@ -21,6 +21,7 @@
     <!-- 次元おりがみと同じ共通部品 -->
     <script src="lib/visual-fx.js"></script>
     <script src="lib/ui-dock.js"></script>
+    <script src="lib/state-sync.js"></script>
     <script src="lib/nd-geom.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
@@ -401,6 +402,14 @@
                 </div>
             </section>
 
+            <section class="sb-sec" data-sec="sync">
+                <h3 class="sb-h"><i data-lucide="cloud" class="w-3.5 h-3.5"></i>設定の保存（GitHub の Gist）<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
+                    <p class="note">設定（ボタン・スライダー・欄のたたみ）は、このブラウザにいつも自動で保存されます。GitHub の鍵を入れると、シークレット Gist にも上げて、別の端末（PC・iPad など）でも同じ設定にそろえます（開いた時に新しい方にそろう）。鍵と Gist は次元おりがみ・グラフ電卓と共通。欄の分離の並びは端末ごと（同期しない）。</p>
+                    <div id="syncBox"></div>
+                </div>
+            </section>
+
             <section class="sb-sec">
                 <h3 class="sb-h"><i data-lucide="book-open" class="w-3.5 h-3.5"></i>説明</h3>
                 <div id="desc">
@@ -505,7 +514,9 @@ const isPic = () => S.mk === 'pic';
 const shellMinTheta = () => (S.mk === 'pic' ? 0.13 * 1.5 : S.mk === 'dot' ? 0.13 * 1.9 : 0.13) + 0.06;
 S.walk = false; S.roam = false; S.spiral = false; S.grav = false; S.hopf = false; S.ring = false; S.ringView = false;
 const AUTO = { k: 1 };   // 自動で軽く：中の景色の細かさにかける倍率（0.4〜1）
-let saveT = 0; function save() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('s3walk-state', JSON.stringify(S)); } catch (e) {} }, 300); }
+// Gist の設定に入れかえて読み直す途中は、今の設定で上書きしない（state-sync が sessionStorage に印を付けてから読み直す）
+const gistApplying = () => { try { return !!sessionStorage.getItem('s3walkGistApplied'); } catch (e) { return false; } };
+let saveT = 0; function save() { clearTimeout(saveT); saveT = setTimeout(() => { if (gistApplying()) return; try { localStorage.setItem('s3walk-state', JSON.stringify(S)); } catch (e) {} }, 300); }
 
 // 歩く人（S³）と、その仲間（S²）
 const W = { p: [0, 0, 0, 1], r: [0, 1, 0, 0], u: [0, 0, 1, 0], f: [1, 0, 0, 0], dist: 0, trail: [], foot: [], marks: [], lastFoot: 0, lastTrail: 0, wasW: 1, passed: {} };
@@ -1753,6 +1764,16 @@ homeView(VA, 9.6); homeView(VB, 9.6);
 try { lucide.createIcons(); } catch (e) {}
 resetNorth(); rebuildMarks(); refreshUI(); updateRot(); resizeAll();
 requestAnimationFrame(loop);
+
+// ---- 設定の保存（共通部品 state-sync）：s3walk で始まる保存（s3walk-state＝ボタン・スライダー、s3walk-folds＝欄のたたみ）をシークレット Gist に上げ、別の端末では新しい方にそろえる ----
+//   画面の状態はもともと s3walk-state に保存しているので、snapshot・restore は空（グラフ電卓と同じ使い方）。欄の分離の並び（s3walkFloats）は端末ごとなので同期しない
+//   鍵と Gist ID は次元おりがみ・グラフ電卓と同じもの（hypercubeGistToken・hypercubeGistId）。Gist の中は s3walk-state.json
+if (window.StateSync) {
+    try {
+        const sync = StateSync.create({ app: 's3walk', build: '20261024-1920', tokenKey: 'hypercubeGistToken', idKey: 'hypercubeGistId', snapshot: () => ({}), restore: () => {}, exclude: ['s3walkFloats'] });
+        sync.start(); sync.mountUI($('syncBox')); window._s3sync = sync;
+    } catch (e) { console.warn('state-sync', e); }
+}
 </script>
 </body>
 </html>
