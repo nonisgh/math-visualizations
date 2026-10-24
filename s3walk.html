@@ -37,15 +37,24 @@
         body.sidebar-hidden.dock-right-on { --dock-r: 0px; }
         body.sidebar-hidden #dock-left, body.sidebar-hidden #dock-right { display: none; }
         body:not(.sidebar-hidden) #dock-right { right: var(--sb); }
+        body { --mapw: 0.4; }
         #main { position: fixed; top: 0; bottom: 0; left: var(--dock-l); right: calc(var(--sb) + var(--dock-r)); display: flex; }
-        .vw { position: relative; min-width: 0; min-height: 0; flex: 1 1 0; overflow: hidden; border-right: 1px solid #1e293b; }
-        .vw:last-child { border-right: 0; }
+        /* 左：地図 2 つ（S² の仲間・S³ の地図）を縦に。右：散歩の景色。幅の割合は --mapw（スライダー） */
+        #maps { flex: none; width: calc(var(--mapw) * 100%); display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid #1e293b; }
+        #maps.off { display: none; }
+        #main.nowalk #maps { width: auto; flex: 1 1 0; border-right: 0; }
+        .vw { position: relative; min-width: 0; min-height: 0; flex: 1 1 0; overflow: hidden; }
+        #maps .vw { border-bottom: 1px solid #1e293b; }
+        #maps .vw:last-child { border-bottom: 0; }
         .vw.off { display: none; }
         .cv { position: absolute; inset: 0; }
         .cv canvas { display: block; touch-action: none; }
         @media (max-aspect-ratio: 1/1) {
             #main { flex-direction: column; }
-            .vw { border-right: 0; border-bottom: 1px solid #1e293b; }
+            #maps { width: auto; height: calc(var(--mapw) * 100%); flex-direction: row; border-right: 0; border-bottom: 1px solid #1e293b; }
+            #main.nowalk #maps { height: auto; }
+            #maps .vw { border-bottom: 0; border-right: 1px solid #1e293b; }
+            #maps .vw:last-child { border-right: 0; }
         }
         #ui-overlay { position: fixed; top: 0; right: 0; height: 100%; width: var(--sb-w); z-index: 30; display: flex; flex-direction: column; border-width: 0 0 0 1px !important; }
         body.sidebar-hidden #ui-overlay { display: none; }
@@ -98,6 +107,7 @@
 <body class="select-none" style="height: 100vh; height: 100dvh;">
 
     <div id="main">
+        <div id="maps">
         <div id="wrapA" class="vw">
             <div id="cvA" class="cv"></div>
             <div id="badgeA" class="badge">球面 S²（2次元の仲間）<small>同じ操作を、ふつうの球面の上でした場合。北極から出発して南極を通り、北極に戻る</small></div>
@@ -107,6 +117,7 @@
             <div id="cvB" class="cv"></div>
             <div id="badgeB" class="badge">S³ の地図（4次元から 3次元へ写した模型）<small>白い玉＝自分、黄色＝進む向き。N＝北極（水色）、S＝南極（金色）。線の色＝w（赤紫＝手前・水色＝奥）</small></div>
             <div id="axlen" class="hud" style="left:auto;right:12px;top:12px;bottom:auto"></div>
+        </div>
         </div>
         <div id="wrapC" class="vw">
             <div id="cvC" class="cv"></div>
@@ -205,6 +216,7 @@
                     <button class="btn" id="b-wB">S³ の地図</button>
                     <button class="btn" id="b-wC">中の景色</button>
                 </div>
+                <div class="sl"><span>地図の幅</span><input id="s-mapw" type="range" min="0.15" max="0.75" step="0.01" title="左の地図（S² の仲間・S³ の地図）と右の散歩の景色の幅の割合。縦長の画面では高さの割合"><output id="o-mapw"></output></div>
                 <div class="row">
                     <button class="btn" id="b-axes" title="x・y・z（S³ の地図では w も）の軸">軸</button>
                     <button class="btn" id="b-home" title="地図の見る向きを最初に戻す">向きを戻す</button>
@@ -319,7 +331,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, mapW: 0.4, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
@@ -780,7 +792,7 @@ $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90')
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
     's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (['xw', 'yw', 'zw'].includes(k)) S.follow = false; save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
@@ -789,6 +801,8 @@ function refreshUI() {
     document.querySelectorAll('.btn.mk').forEach(b => b.classList.toggle('on', b.dataset.mk === S.mk));
     Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
     ['A', 'B', 'C'].forEach(x => $('wrap' + x).classList.toggle('off', !S['w' + x]));
+    $('maps').classList.toggle('off', !S.wA && !S.wB); $('main').classList.toggle('nowalk', !S.wC);
+    document.body.style.setProperty('--mapw', S.mapW);
     $('mklist').innerHTML = W.marks.map(m => `<span style="border-color:${hexCss(rgbHex(m.col))}">${m.pic} ${m.n}：北極から ${Math.acos(Math.max(-1, Math.min(1, m.p[3]))).toFixed(2)}</span>`).join('') || '<span style="color:#64748b;border:0">（まだ置いていない）</span>';
 }
 function updateHUD() {
