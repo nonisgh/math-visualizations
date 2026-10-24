@@ -297,8 +297,9 @@
                 <div class="row">
                     <span class="note">目印の見せ方：</span>
                     <button class="btn mk" data-mk="ball" title="色つきの玉（既定）">玉</button>
-                    <button class="btn mk" data-mk="pic" title="絵（兎・亀・たぬき…）。P キーで順に切りかえ">🐰 絵</button>
+                    <button class="btn mk" data-mk="pic" title="絵（兎・亀・たぬき…）。P キーで 玉 → 絵 → 色の点 → なし と順に切りかえ">🐰 絵</button>
                     <button class="btn mk" data-mk="dot" title="大きめの平らな色の点。いちばん軽い">● 色の点</button>
+                    <button class="btn mk" data-mk="none" title="目印を何も出さない（北極・南極・赤道の目印と、置いた目印。中の景色と地図の両方）。仲間・惑星・自分の玉・足あとはそのまま">なし</button>
                 </div>
                 <div class="row">
                     <button class="btn" id="b-foot" title="0.6 進むごとに小さな足あとを落とす">足あと</button>
@@ -510,6 +511,7 @@ try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}'))
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
 if (S.pic !== undefined) { S.mk = S.pic ? 'pic' : 'ball'; delete S.pic; }   // 古い保存（絵のモードの ON/OFF）を読みかえる
 const isPic = () => S.mk === 'pic';
+const noMk = () => S.mk === 'none';   // 目印を何も出さない
 // 球層のいちばん内側の殻（北は赤・南は紫）の極からの距離：極の目印（⛄・🌴）の玉がちょうど中に収まるように、玉の半径＋少し（超球アプリは 0.08 だが、そこに目印の玉は無い）
 const shellMinTheta = () => (S.mk === 'pic' ? 0.13 * 1.5 : S.mk === 'dot' ? 0.13 * 1.9 : 0.13) + 0.06;
 S.walk = false; S.roam = false; S.spiral = false; S.grav = false; S.hopf = false; S.ring = false; S.ringView = false;
@@ -995,9 +997,9 @@ const AXL = 2.7;
         trail.reset(); const T = W2.trail; for (let i = 0; i + 1 < T.length; i++) { const f = 0.3 + 0.7 * i / T.length; trail.seg(scl(T[i], R2), scl(T[i + 1], R2), scl(hsl(200 + 160 * i / T.length, 0.9, 0.6), f)); } trail.flush();
         while (foot.children.length < W2.foot.length) { const b = ball(v, 0.035, [0.8, 0.85, 1]); v.root.remove(b); foot.add(b); }
         foot.children.forEach((b, i) => { b.visible = i < W2.foot.length && S.foot; if (b.visible) b.position.set(...scl(W2.foot[i], R2)); });
-        fixedA.forEach((o, k) => { const hide = S.solar && k === 0; o.b.visible = !isPic() && !hide; o.lab.visible = !isPic() && !hide; o.sp.visible = isPic() && !hide; });   // 太陽系の時、北極は太陽
+        fixedA.forEach((o, k) => { const hide = (S.solar && k === 0) || noMk(); o.b.visible = !isPic() && !hide; o.lab.visible = !isPic() && !hide; o.sp.visible = isPic() && !hide; });   // 太陽系の時、北極は太陽
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const b = ball(v, 0.08, m.col); v.root.remove(b); marks.add(b); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
-        W.marks.forEach((m, i) => { const [b, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; b.position.set(...scl(m.p2, R2)); lab.position.set(...scl(m.p2, R2 * 1.1)); sp.position.set(...scl(m.p2, R2)); b.visible = !isPic(); lab.visible = !isPic(); sp.visible = isPic(); });
+        W.marks.forEach((m, i) => { const [b, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; b.position.set(...scl(m.p2, R2)); lab.position.set(...scl(m.p2, R2 * 1.1)); sp.position.set(...scl(m.p2, R2)); b.visible = !isPic() && !noMk(); lab.visible = !isPic() && !noMk(); sp.visible = isPic(); });
     });
     makeAxes(v, ['x', 'y', 'z'], nm => { const e = [0, 0, 0]; e['xyz'.indexOf(nm)] = AXL; return e; });
 })();
@@ -1074,11 +1076,11 @@ const AXL = 2.7;
         if (S.heading && mapS3(W.p, a) === mapS3(W.p, a) && mapS3(q, b) === mapS3(q, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); const l = t.length(); if (l > 1e-6) { t.normalize(); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(a[0] + t.x * 0.28, a[1] + t.y * 0.28, a[2] + t.z * 0.28); cone.scale.setScalar(Math.min(2.5, kOf(W.p))); cone.visible = true; } } else cone.visible = false;
         { const on = Math.abs(S.hy) > 0.5 || Math.abs(S.hp) > 0.5, qv = on ? nrm(add(scl(W.p, Math.cos(0.12)), viewFrame().L, Math.sin(0.12))) : null; vcone.visible = false;
           if (on && mapS3(W.p, a) === mapS3(W.p, a) && mapS3(qv, b) === mapS3(qv, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); if (t.length() > 1e-6) { t.normalize(); vcone.quaternion.setFromUnitVectors(up, t); vcone.position.set(a[0] + t.x * 0.26, a[1] + t.y * 0.26, a[2] + t.z * 0.26); vcone.scale.setScalar(Math.min(2.5, kOf(W.p))); vcone.visible = true; } } }
-        fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } const hide = S.solar && o.m.label === 'N'; o.lab.visible = d === d && !isPic() && !hide; o.sp.visible = d === d && isPic() && !hide; o.b.visible = d === d && !isPic() && !hide; });
+        fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } const hide = (S.solar && o.m.label === 'N') || noMk(); o.lab.visible = d === d && !isPic() && !hide; o.sp.visible = d === d && isPic() && !hide; o.b.visible = d === d && !isPic() && !hide; });
         while (foot.children.length < W.foot.length) { const bb = ball(v, 0.04, [0.8, 0.85, 1]); v.root.remove(bb); foot.add(bb); }
         foot.children.forEach((bb, i) => { if (i < W.foot.length && S.foot) place(bb, W.foot[i], 1); else bb.visible = false; });
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const bb = ball(v, 0.085, m.col); v.root.remove(bb); marks.add(bb); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
-        W.marks.forEach((m, i) => { const [bb, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; const d = place(bb, m.p, 1); const ok = d === d; lab.visible = ok && !isPic(); sp.visible = ok && isPic(); bb.visible = ok && !isPic(); if (ok) { lab.position.copy(bb.position).add(new THREE.Vector3(0, 0, 0.18)); sp.position.copy(bb.position); sp.scale.setScalar(0.45 * Math.min(2.5, kOf(m.p))); } });
+        W.marks.forEach((m, i) => { const [bb, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; const d = place(bb, m.p, 1); const ok = d === d && !noMk(); lab.visible = ok && !isPic(); sp.visible = ok && isPic(); bb.visible = ok && !isPic(); if (ok) { lab.position.copy(bb.position).add(new THREE.Vector3(0, 0, 0.18)); sp.position.copy(bb.position); sp.scale.setScalar(0.45 * Math.min(2.5, kOf(m.p))); } });
     });
     makeAxes(v, ['x', 'y', 'z', 'w'], nm => { const e = [0, 0, 0, 0]; e['xyzw'.indexOf(nm)] = 1; const q = NDGeom.apply(R4, 4, e, []); return scl([q[0], q[1], q[2]], AXL); });
 })();
@@ -1487,8 +1489,8 @@ function rebuildMarks() {
     const big = S.mk === 'pic' ? 1.5 : S.mk === 'dot' ? 1.9 : 1;   // 絵・色の点のモードは玉を大きめに
     const put = (p, c, r, pic) => { if (n >= NMK) return; U.uMk.value[n].set(p[0], p[1], p[2], p[3]); U.uMkC.value[n].set(c[0], c[1], c[2], r * big); U.uMkT.value[n] = ATLAS.of(pic); n++; };
     if (planetKey()) put(SP4, [0.58, 0.44, 0.3], S.planetR / big, null);   // 南極の星（地面）
-    FIXED.forEach(m => { if (S.solar && m.label === 'N') put(SUN.p, SUN.col, SUN.r, SUN.pic); else put(m.p, m.col, m.r, m.pic); });   // 太陽系の時は北極に太陽
-    W.marks.forEach(m => put(m.p, m.col, 0.1, m.pic));
+    FIXED.forEach(m => { if (S.solar && m.label === 'N') put(SUN.p, SUN.col, SUN.r, SUN.pic); else if (!noMk()) put(m.p, m.col, m.r, m.pic); });   // 「なし」の時は北極・南極・赤道の目印を出さない   // 太陽系の時は北極に太陽
+    if (!noMk()) W.marks.forEach(m => put(m.p, m.col, 0.1, m.pic));
     if (S.foot) W.foot.forEach(p => put(p, [0.8, 0.85, 1], 0.03, PIC.foot));
     ray.U.uNM.value = n; ray._base = n; ray._nFoot = W.foot.length; ray._nMk = W.marks.length;
 }
@@ -1707,7 +1709,7 @@ window.addEventListener('keydown', e => {
     if (k === ' ') { e.preventDefault(); setSidebar(document.body.classList.contains('sidebar-hidden')); return; }
     if (k === 'x') { S.axes = !S.axes; save(); refreshUI(); req(3); }
     if (k === 'f') { S.foot = !S.foot; save(); refreshUI(); req(3); }
-    if (k === 'p') { S.mk = S.mk === 'ball' ? 'pic' : S.mk === 'pic' ? 'dot' : 'ball'; save(); refreshUI(); req(3); }
+    if (k === 'p') { S.mk = S.mk === 'ball' ? 'pic' : S.mk === 'pic' ? 'dot' : S.mk === 'dot' ? 'none' : 'ball'; save(); refreshUI(); req(3); }
     if (k === 'm') addMark();
     if (k === 'r') { resetNorth(); S.walk = false; refreshUI(); }
     if (k === 'j') gravJump();
