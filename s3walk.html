@@ -225,6 +225,13 @@
                     <button class="btn" id="b-wB">S³ の地図</button>
                     <button class="btn" id="b-wC">中の景色</button>
                 </div>
+                <div class="row">
+                    <span class="note">レンズ：</span>
+                    <button class="btn lens" data-lens="normal" title="ふつうのカメラ（ピンホール）。視野角は 150° まで">通常</button>
+                    <button class="btn lens" data-lens="fish" title="魚眼レンズ（等距離射影）。180° を超えて、360° なら後ろまで 1 枚に">魚眼</button>
+                    <button class="btn lens" data-lens="pano" title="横 360°・縦 180° のパノラマ（正距円筒）。前後左右上下が全部 1 枚に">360°</button>
+                </div>
+                <div class="sl"><span>視野角</span><input id="s-fov" type="range" min="30" max="360" step="1" title="中の景色の縦の視野角。通常のレンズは 150° まで、魚眼は 360° まで。360° レンズでは使わない"><output id="o-fov"></output></div>
                 <div class="sl"><span>地図の幅</span><input id="s-mapw" type="range" min="0.15" max="0.75" step="0.01" title="左の地図（S² の仲間・S³ の地図）と右の散歩の景色の幅の割合。縦長の画面では高さの割合"><output id="o-mapw"></output></div>
                 <div class="row">
                     <button class="btn" id="b-axes" title="x・y・z（S³ の地図では w も）の軸">軸</button>
@@ -340,7 +347,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, tilt: 0.6, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, mapW: 0.4, shell: false, shellSolid: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
@@ -624,7 +631,7 @@ const AXL = 2.7;
 const NMK = 64;
 const RAY_FRAG = `
 precision highp float;
-uniform vec2 uRes; uniform float uTanF;
+uniform vec2 uRes; uniform float uTanF, uFovY, uPixAng; uniform int uLens;
 uniform vec4 uP, uR, uU, uF;
 uniform vec4 uMk[${NMK}]; uniform vec4 uMkC[${NMK}]; uniform float uMkT[${NMK}]; uniform int uNM;
 uniform sampler2D uAtlas; uniform int uPic, uBgMesh, uPasses;
@@ -633,7 +640,7 @@ uniform float uFog, uMaxD, uTube, uFade, uPicLine;
 uniform int uShell, uShellN, uShellSolid; uniform float uShellOp, uShellBack;
 const float PI = 3.14159265;
 vec3 bg(vec3 d){ return mix(vec3(0.012,0.02,0.05), vec3(0.05,0.04,0.12), 0.5+0.5*d.y); }
-float pixW(float t){ return min(abs(sin(t)) * 2.0*uTanF/uRes.y * 1.6, 0.3); }
+float pixW(float t){ return min(abs(sin(t)) * uPixAng * 1.6, 0.3); }
 float circDist(vec4 p, int i, int j){ float a = i==0?p.x:(i==1?p.y:(i==2?p.z:p.w)); float b = j==0?p.x:(j==1?p.y:(j==2?p.z:p.w)); return acos(clamp(sqrt(a*a+b*b), 0.0, 1.0)); }
 // 目印の玉に光が当たる所：当たりの道のり t と色・不透明度を返す（当たらなければ t = 1e9）
 //   lastT より先の当たりだけ探す → 4 回くり返すと、手前から 4 つまでの当たりが集まる（透けて見える分）
@@ -742,7 +749,15 @@ void shellsBetween(vec4 p0, vec4 v, float t0, float t1, inout vec3 col, inout fl
 vec3 haze(vec3 d){ return mix(vec3(0.16,0.19,0.30), vec3(0.22,0.24,0.36), 0.5+0.5*d.y); }   // 空気のもや（散乱光）の色
 void main(){
     vec2 uv = (gl_FragCoord.xy / uRes)*2.0 - 1.0;
-    vec3 dir = normalize(vec3(uv.x*uTanF*uRes.x/uRes.y, uv.y*uTanF, -1.0));
+    vec3 dir; float asp = uRes.x/uRes.y;
+    if(uLens==0){ dir = normalize(vec3(uv.x*uTanF*asp, uv.y*uTanF, -1.0)); }                         // 通常（ピンホール）
+    else if(uLens==1){                                                                              // 魚眼（等距離射影）：縦の半径 1 ↔ 視野の半分
+        vec2 sc = vec2(uv.x*asp, uv.y); float r = length(sc); float ang = r*uFovY*0.5;
+        if(ang > PI){ gl_FragColor = vec4(0.01, 0.015, 0.03, 1.0); return; }
+        vec2 d2 = r > 1e-6 ? sc/r : vec2(0.0); dir = vec3(sin(ang)*d2, -cos(ang));
+    } else {                                                                                        // 360°（正距円筒）：横 360°・縦 180°
+        float lon = uv.x*PI, lat = uv.y*PI*0.5; dir = vec3(cos(lat)*sin(lon), sin(lat), -cos(lat)*cos(lon));
+    }
     vec4 p0 = uP; vec4 v = normalize(dir.x*uR + dir.y*uU - dir.z*uF);
     // 重ねる層：0〜3 目印（手前から）、4 管（経線・部屋）、5・6 赤道の膜、7〜16 軽い線（緯度の殻 5 枚 × 光が 2 回通る）
     float Lt[17]; vec3 Lc[17]; float La[17];
@@ -843,7 +858,7 @@ void main(){
 }`;
 const ray = (() => {
     const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    const U = { uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * d2r) }, uP: { value: new THREE.Vector4() }, uR: { value: new THREE.Vector4() }, uU: { value: new THREE.Vector4() }, uF: { value: new THREE.Vector4() },
+    const U = { uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * d2r) }, uFovY: { value: 70 * d2r }, uPixAng: { value: 0.002 }, uLens: { value: 0 }, uP: { value: new THREE.Vector4() }, uR: { value: new THREE.Vector4() }, uU: { value: new THREE.Vector4() }, uF: { value: new THREE.Vector4() },
         uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkT: { value: new Float32Array(NMK).fill(-1) }, uNM: { value: 0 }, uAtlas: { value: ATLAS.tex }, uPic: { value: 0 }, uBgMesh: { value: 0 }, uPasses: { value: 4 },
         uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uLite: { value: 1 }, uShell: { value: 0 }, uShellSolid: { value: 0 }, uShellN: { value: 11 }, uShellOp: { value: 0.22 }, uShellBack: { value: 0.6 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uPicLine: { value: 0.3 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
     const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: RAY_FRAG, depthTest: false, depthWrite: false });
@@ -865,6 +880,9 @@ function setRayUniforms() {
     U.uP.value.set(...W.p); U.uR.value.set(...F.R); U.uU.value.set(...F.U); U.uF.value.set(...F.L);
     U.uRoom.value = S.room ? 1 : 0; U.uLite.value = S.lite ? 1 : 0; U.uShell.value = S.shell ? 1 : 0; U.uShellSolid.value = S.shellSolid ? 1 : 0; U.uShellN.value = Math.max(2, Math.min(21, Math.round(S.shellN))); U.uShellOp.value = S.shellOp; U.uShellBack.value = S.shellBack; U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uFade.value = S.fade; U.uPicLine.value = S.picLine; U.uMaxD.value = S.maxd;
     U.uRes.value.set(VC.r.domElement.width, VC.r.domElement.height);
+    const lens = S.lens === 'fish' ? 1 : S.lens === 'pano' ? 2 : 0, fov = lens === 0 ? Math.min(150, S.fov) : lens === 1 ? S.fov : 180;
+    U.uLens.value = lens; U.uFovY.value = fov * d2r; U.uTanF.value = Math.tan(Math.min(150, S.fov) * d2r / 2);
+    U.uPixAng.value = (lens === 2 ? Math.PI : fov * d2r) / Math.max(1, VC.r.domElement.height);
     U.uPic.value = S.mk === 'pic' ? 1 : S.mk === 'dot' ? 2 : 0; U.uBgMesh.value = S.bgMesh ? 1 : 0; U.uPasses.value = S.passes;
     if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.mk) { rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.mk; }
     // 自分の玉：いつも今の場所（最後の 1 つを入れかえる）
@@ -882,6 +900,7 @@ Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () 
 $('b-stop').addEventListener('click', () => { S.walk = false; S.roam = false; S.spiral = false; refreshUI(); });
 $('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; S.walk = false; S.roam = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
 document.querySelectorAll('.btn.mk').forEach(b => b.addEventListener('click', () => { S.mk = b.dataset.mk; save(); refreshUI(); req(3); }));
+document.querySelectorAll('.btn.lens').forEach(b => b.addEventListener('click', () => { S.lens = b.dataset.lens; if (S.lens === 'fish' && S.fov < 150) S.fov = 180; if (S.lens === 'normal' && S.fov > 150) S.fov = 110; save(); refreshUI(); req(3); }));
 $('b-light').addEventListener('click', () => { Object.assign(S, { mk: 'dot', bgMesh: true, lite: false, circ: false, room: false, eq: false, passes: 1, q: 0.6 }); resizeAll(); save(); refreshUI(); req(3); say('軽量モード：色の点・色の地図・線なし'); });
 $('b-std').addEventListener('click', () => { Object.assign(S, { mk: 'ball', bgMesh: false, lite: true, circ: false, room: false, eq: true, passes: 4, q: 0.7 }); resizeAll(); save(); refreshUI(); req(3); say('標準の見え方に戻しました'); });
 $('b-trip').addEventListener('click', () => { resetNorth(); S.walk = true; say('北極から出発。向きを変えずに進むと、南極を通って北極に戻る'); refreshUI(); });
@@ -893,13 +912,14 @@ $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90')
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
     's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (['xw', 'yw', 'zw'].includes(k)) S.follow = false; save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
 function refreshUI() {
     Object.entries(toggles).forEach(([id, k]) => $(id).classList.toggle('on', !!S[k]));
     document.querySelectorAll('.btn.mk').forEach(b => b.classList.toggle('on', b.dataset.mk === S.mk));
+    document.querySelectorAll('.btn.lens').forEach(b => b.classList.toggle('on', b.dataset.lens === (S.lens || 'normal')));
     Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
     ['A', 'B', 'C'].forEach(x => $('wrap' + x).classList.toggle('off', !S['w' + x]));
     $('maps').classList.toggle('off', !S.wA && !S.wB); $('main').classList.toggle('nowalk', !S.wC);
