@@ -332,6 +332,7 @@
                 <div class="row">
                     <button class="btn" id="b-shell" title="超球アプリの「球殻積層」と同じ見た目の球層の中を歩く：北・南それぞれ n 枚の w = 一定の球殻（半透明＋網目、極から赤道へ色が変わる。ふちと裏側は暗く）。式だけで描くので軽め">🫧 球層（超球アプリ）</button>
                     <button class="btn" id="b-shellsolid" title="球層を立体に：超球アプリの「不透明」＋「影」の見た目（面に光とつや、ふちは暗い輪郭）。ただし、うっすら透ける">立体</button>
+                    <button class="btn" id="b-shellbare" title="立体の殻だけ（網目の線なし）：中の景色は立体の殻から網目を消し、S³ の地図も殻を線ではなく半透明の立体の球面で描く">立体だけ（網目なし）</button>
                 </div>
                 <div class="sl"><span>層数</span><input id="s-shelln" type="range" min="3" max="21" step="1" title="球層：北・南それぞれの球殻の枚数（赤道は共通）"><output id="o-shelln"></output></div>
                 <div class="sl"><span>透明度</span><input id="s-shellop" type="range" min="0.05" max="0.75" step="0.01" title="球層：1 枚の殻の濃さ"><output id="o-shellop"></output></div>
@@ -512,7 +513,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, spin: false, spinRate: 6, spinTilt: 23.4, spinAz: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
@@ -1039,7 +1040,18 @@ const AXL = 2.7;
     // 足し合わせの線で暗い色（紫など）が沈まないよう、色の強い成分を 1 にそろえてから明るさ k をかける（白は少しだけ）。白を多く混ぜると紫が白く飛ぶ
     const vivid = (c, k) => { const m = Math.max(c[0], c[1], c[2], 1e-3), q = Math.min(1, k); return c.map(x => (x / m * 0.92 + 0.08) * q); };
     const shellSet = n => { const out = []; const m0 = shellMinTheta(); for (let i = 0; i < 2 * n - 1; i++) { const j = i < n ? i : 2 * n - 2 - i, t = j / Math.max(1, n - 1), th = m0 + t * (Math.PI / 2 - m0), wc = (i < n ? 1 : -1) * Math.cos(th), sn = Math.sin(th); const col = hslRGB(i < n ? t * 0.5 : 0.80 - t * 0.30, 0.95, 0.52); const pairs = []; eqPairs.forEach(([A, B]) => pairs.push([[A[0] * sn, A[1] * sn, A[2] * sn, wc], [B[0] * sn, B[1] * sn, B[2] * sn, wc], col, i < n ? th : Math.PI - th])); out.push(...pairs); } return out; };
-    const Lshell = Lines(v, 21 * 2 * eqPairs.length, { width: 1.0 }); let shellPairs = null, shellKey = '', shellDrawKey = '';
+    const Lshell = Lines(v, 21 * 2 * eqPairs.length, { width: 1.0 });
+    // 網目なし（S.shellBare）：殻を半透明の立体の球面で。殻 i は w = wc、半径 sn の球面（4次元の点）を、地図の写し方で 3次元へ写したもの
+    const shellMesh = new THREE.Group(); v.root.add(shellMesh); let meshKey = '', meshN = '';
+    const SG = new THREE.SphereGeometry(1, 40, 20), SGP = SG.attributes.position.array.slice();   // 単位球の向き（写す前）
+    const buildShellMeshes = n => { while (shellMesh.children.length) { const c = shellMesh.children.pop(); c.geometry.dispose(); c.material.dispose(); }
+        const m0 = shellMinTheta(); for (let i = 0; i < 2 * n - 1; i++) { const j = i < n ? i : 2 * n - 2 - i, t = j / Math.max(1, n - 1), th = m0 + t * (Math.PI / 2 - m0), col = hslRGB(i < n ? t * 0.5 : 0.80 - t * 0.30, 0.95, 0.52);
+            const g = SG.clone(), me = new THREE.Mesh(g, new THREE.MeshPhongMaterial({ color: new THREE.Color(col[0], col[1], col[2]), transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide, shininess: 40, specular: 0x333333 }));
+            me.userData = { wc: (i < n ? 1 : -1) * Math.cos(th), sn: Math.sin(th) }; me.renderOrder = 1; shellMesh.add(me); } };
+    const placeShellMeshes = () => { const a3 = [0, 0, 0];
+        shellMesh.children.forEach(me => { const { wc, sn } = me.userData, pa = me.geometry.attributes.position, ar = pa.array;
+            for (let k = 0; k < ar.length; k += 3) { const d = mapS3([SGP[k] * sn, SGP[k + 1] * sn, SGP[k + 2] * sn, wc], a3); if (d === d) { ar[k] = a3[0]; ar[k + 1] = a3[1]; ar[k + 2] = a3[2]; } }
+            pa.needsUpdate = true; me.geometry.computeVertexNormals(); me.geometry.computeBoundingSphere(); me.material.opacity = Math.min(0.5, 0.06 + S.shellOp * 0.35); }); }; let shellPairs = null, shellKey = '', shellDrawKey = '';
     const shPairs = [];   // 軽い線：緯度の殻（30°・60°・120°・150°。赤道は eqPairs）
     [1, 2, 4, 5].forEach(k => { const th = k * Math.PI / 6, sn = Math.sin(th), cs = Math.cos(th); eqPairs.forEach(([A, B]) => shPairs.push([[A[0] * sn, A[1] * sn, A[2] * sn, cs], [B[0] * sn, B[1] * sn, B[2] * sn, cs]])); });
     const room = cell120(), rseg = 3, roomPairs = []; room.edges.forEach(([A, B]) => { for (let s = 0; s < rseg; s++) roomPairs.push([slerp(A, B, s / rseg), slerp(A, B, (s + 1) / rseg)]); });
@@ -1062,9 +1074,11 @@ const AXL = 2.7;
     const place = (obj, p, base) => { const d = mapS3(p, a); if (!(d === d)) { obj.visible = false; return NaN; } obj.visible = true; obj.position.set(a[0], a[1], a[2]); obj.scale.setScalar(base * Math.min(2.5, kOf(p))); return d; };
     v.frames.push(() => {
         const only = S.shell && S.shOnly;   // 地図は球殻だけ：球全体にかかる線は地図から消す
-        Leq.obj.visible = S.eq && !only; Lsh.obj.visible = S.lite && !only; Lc.obj.visible = S.circ && !only; Lr.obj.visible = S.room && !only; spL.obj.visible = S.spiral; Lshell.obj.visible = S.shell;
+        Leq.obj.visible = S.eq && !only; Lsh.obj.visible = S.lite && !only; Lc.obj.visible = S.circ && !only; Lr.obj.visible = S.room && !only; spL.obj.visible = S.spiral; Lshell.obj.visible = S.shell && !S.shellBare; shellMesh.visible = S.shell && S.shellBare;
         // 動かない線（赤道・殻・経線・部屋・螺旋の道）は、写し方（4次元の回転・遠近・奥を消す）か中身が変わった時だけ描き直す
         const statKey = Array.from(R4, x => x.toFixed(5)).join(',') + '|' + S.D + '|' + S.cut + '|' + [S.eq, S.lite, S.circ, S.room, S.shell, S.shellN, S.spiral, S.turns, S.tilt, S.prec, SP.lap].join(',');
+        if (S.shell && S.shellBare) { const n = Math.max(2, Math.min(21, Math.round(S.shellN))), nk = n + '/' + shellMinTheta(); if (nk !== meshN) { meshN = nk; buildShellMeshes(n); meshKey = ''; }
+            const mk = Array.from(R4, x => x.toFixed(5)).join(',') + '|' + S.D + '|' + S.shellOp; if (mk !== meshKey) { meshKey = mk; placeShellMeshes(); } }
         if (statKey !== mapStatKey) { mapStatKey = statKey;
         if (S.spiral) { if (spKey !== S.turns + '/' + S.tilt + '/' + S.prec + '/' + SP.lap) { spKey = S.turns + '/' + S.tilt + '/' + S.prec + '/' + SP.lap; const path = spiralPath(1200); spPath = []; for (let i = 0; i + 1 < path.length; i++) spPath.push([path[i].p, path[i + 1].p]); } drawPairs(spL, spPath, d => scl([0.55, 0.5, 0.9], 0.5 + 0.5 * (d + 1) / 2), 1.5, false); }
         if (S.eq) drawPairs(Leq, eqPairs, d => depthColor(d, 0.8), 3, true);
@@ -1240,7 +1254,7 @@ uniform vec4 uMk[${NMK}]; uniform vec4 uMkC[${NMK}]; uniform float uMkT[${NMK}];
 uniform sampler2D uAtlas; uniform int uPic, uBgMesh, uPasses;
 uniform vec4 uN[12]; uniform int uRoom, uCirc, uEq, uLite;
 uniform float uFog, uMaxD, uTube, uFade, uPicLine;
-uniform int uShell, uShellN, uShellSolid; uniform float uShellOp, uShellBack, uShellRange;
+uniform int uShell, uShellN, uShellSolid, uShellBare; uniform float uShellOp, uShellBack, uShellRange;
 const float PI = 3.14159265;
 vec3 bg(vec3 d){ return mix(vec3(0.012,0.02,0.05), vec3(0.05,0.04,0.12), 0.5+0.5*d.y); }
 float pixW(float t){ return min(abs(sin(t)) * uPixAng * 1.6, 0.3); }
@@ -1349,13 +1363,13 @@ void shellsBetween(vec4 p0, vec4 v, float t0, float t1, inout vec3 col, inout fl
                 c = c*dif + vec3(spec);
                 if(cv < 0.0) c *= 1.0 - uShellBack*0.5;                        // 裏側（極の側から見た面）は暗く
                 float edge = smoothstep(0.80, 0.97, rimK) * smoothstep(0.08, 0.45, t);   // ふちの暗い輪郭（すぐそばの殻は全方向がふちになるので付けない）
-                vec3 sp = normalize(q.xyz + 1e-6); float g = gridLine15(asin(clamp(sp.z,-1.0,1.0)), atan(sp.y, sp.x)) * 0.35;   // 網目はごく薄く（面の向きが分かる程度）
+                vec3 sp = normalize(q.xyz + 1e-6); float g = uShellBare==1 ? 0.0 : gridLine15(asin(clamp(sp.z,-1.0,1.0)), atan(sp.y, sp.x)) * 0.35;   // 網目はごく薄く（面の向きが分かる程度）。網目なしなら 0
                 cc = mix(mix(c, shellCol(i, n)*1.3, g), c*0.2, edge);
                 al = min(0.9, (uShellOp*1.8*faceK + 0.25*g)*(0.12 + 0.88*abs(cv)) + 0.3*edge*faceK);   // うっすら。かすめて見る所はさらに薄く
             } else {
                 c *= 1.0 - 0.5*pow(rimK, 1.6);      // ふちほど暗く（リム影）
                 if(cv < 0.0) c *= 1.0 - uShellBack*0.6;                       // 極の側（内側）から見た面は暗く（裏側を暗く）
-                vec3 sp = normalize(q.xyz + 1e-6); float g = gridLine15(asin(clamp(sp.z,-1.0,1.0)), atan(sp.y, sp.x));   // 網目
+                vec3 sp = normalize(q.xyz + 1e-6); float g = uShellBare==1 ? 0.0 : gridLine15(asin(clamp(sp.z,-1.0,1.0)), atan(sp.y, sp.x));   // 網目
                 cc = mix(c, shellCol(i, n)*1.4, g*0.8);
                 al = min(0.9, (uShellOp*faceK + 0.62*g) * (0.25 + 0.75*abs(cv)));   // かすめて見る所（自分が殻のすぐそばにいる時）は薄く
             }
@@ -1508,7 +1522,7 @@ const ray = (() => {
     const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const U = { uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * d2r) }, uFovY: { value: 70 * d2r }, uPixAng: { value: 0.002 }, uLens: { value: 0 }, uP: { value: new THREE.Vector4() }, uR: { value: new THREE.Vector4() }, uU: { value: new THREE.Vector4() }, uF: { value: new THREE.Vector4() },
         uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkT: { value: new Float32Array(NMK).fill(-1) }, uNM: { value: 0 }, uAtlas: { value: ATLAS.tex }, uPic: { value: 0 }, uBgMesh: { value: 0 }, uPasses: { value: 4 },
-        uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uLite: { value: 1 }, uShell: { value: 0 }, uOuter: { value: 0 }, uShellLum: { value: 0.65 }, uShellSolid: { value: 0 }, uShellN: { value: 11 }, uShellOp: { value: 0.22 }, uShellRange: { value: 1.0 }, uShMin: { value: 0.25 }, uShellBack: { value: 0.6 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uPicLine: { value: 0.3 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
+        uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uLite: { value: 1 }, uShell: { value: 0 }, uOuter: { value: 0 }, uShellLum: { value: 0.65 }, uShellSolid: { value: 0 }, uShellBare: { value: 0 }, uShellN: { value: 11 }, uShellOp: { value: 0.22 }, uShellRange: { value: 1.0 }, uShMin: { value: 0.25 }, uShellBack: { value: 0.6 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uPicLine: { value: 0.3 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
     const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: RAY_FRAG, depthTest: false, depthWrite: false });
     scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
     cell120().planes.forEach((v, i) => U.uN.value[i].set(v[0], v[1], v[2], v[3]));
@@ -1527,7 +1541,7 @@ function rebuildMarks() {
 function setRayUniforms() {
     const U = ray.U, F = viewFrame();   // 画面に写すのは見渡した向き
     U.uP.value.set(...W.p); U.uR.value.set(...F.R); U.uU.value.set(...F.U); U.uF.value.set(...F.L);
-    U.uRoom.value = S.room ? 1 : 0; U.uLite.value = S.lite ? 1 : 0; U.uShell.value = S.shell ? 1 : 0; U.uOuter.value = S.dyson ? S.outer : 0; U.uShellLum.value = S.shellLum; U.uShellSolid.value = S.shellSolid ? 1 : 0; U.uShellN.value = Math.max(2, Math.min(21, Math.round(S.shellN))); U.uShellOp.value = S.shellOp; U.uShellBack.value = S.shellBack; U.uShellRange.value = S.shellRange; U.uShMin.value = shellMinTheta(); U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uFade.value = S.fade; U.uPicLine.value = S.picLine; U.uMaxD.value = S.maxd;
+    U.uRoom.value = S.room ? 1 : 0; U.uLite.value = S.lite ? 1 : 0; U.uShell.value = S.shell ? 1 : 0; U.uOuter.value = S.dyson ? S.outer : 0; U.uShellLum.value = S.shellLum; U.uShellSolid.value = S.shellSolid ? 1 : 0; U.uShellBare.value = S.shellBare ? 1 : 0; U.uShellN.value = Math.max(2, Math.min(21, Math.round(S.shellN))); U.uShellOp.value = S.shellOp; U.uShellBack.value = S.shellBack; U.uShellRange.value = S.shellRange; U.uShMin.value = shellMinTheta(); U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uFade.value = S.fade; U.uPicLine.value = S.picLine; U.uMaxD.value = S.maxd;
     U.uRes.value.set(VC.r.domElement.width, VC.r.domElement.height);
     const lens = S.lens === 'fish' ? 1 : S.lens === 'pano' ? 2 : 0, fov = lens === 0 ? Math.min(150, S.fov) : lens === 1 ? S.fov : 180;
     U.uLens.value = lens; U.uFovY.value = fov * d2r; U.uTanF.value = Math.tan(Math.min(150, S.fov) * d2r / 2);
@@ -1550,7 +1564,7 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
 $('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
@@ -1558,6 +1572,7 @@ $('b-solar').addEventListener('click', () => { if (S.solar) say('☀️ 太陽�
 $('b-tour').addEventListener('click', () => { if (!S.solar) { S.solar = true; refreshUI(); } S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = (TOUR.i + 1) % PLANETS.length; TOUR.ride = false; const P = PLANETS[TOUR.i]; say(`${P.pic} ${P.name}へ出発（太陽から ${P.r.toFixed(2)}）`); refreshUI(); });
 $('b-tour0').addEventListener('click', () => { TOUR.i = -1; resetNorth(); S.az = 0; S.el = 0; onLook(); say('太陽のそば（北極）に戻った'); });
 $('b-headreset').addEventListener('click', headReset);
+$('b-shellbare').addEventListener('click', () => { if (S.shellBare) { S.shell = true; S.shellSolid = true; } refreshUI(); req(3); });   // 網目なしは立体の殻で
 $('b-spin0').addEventListener('click', () => { SPIN.ang = 0; req(3); }); $('headReset').addEventListener('click', headReset);
 $('b-stop').addEventListener('click', () => { S.walk = false; S.roam = false; S.spiral = false; refreshUI(); });
 $('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; SP.lap = 0; S.walk = false; S.roam = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
