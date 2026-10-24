@@ -87,6 +87,8 @@
         #trip .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #38bdf8, #a78bfa); border-radius: 5px; }
         #trip .mk { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #fde68a; }
         #trip .lab { display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; margin-top: 2px; }
+        #headReset { position: absolute; right: 12px; top: 74px; z-index: 11; display: none; background: rgba(15, 23, 42, 0.9); color: #e2e8f0; border: 1px solid #7dd3fc; border-radius: 10px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+        #headReset:hover { background: #1e3a5f; }
         #inpad { position: absolute; right: 14px; bottom: 14px; z-index: 12; display: flex; gap: 6px; flex-direction: column; align-items: flex-end; }
         #inpad button { width: 46px; height: 40px; border-radius: 12px; background: rgba(15, 23, 42, 0.85); border: 1px solid #475569; color: #e2e8f0; font-size: 16px; touch-action: none; user-select: none; }
         #inpad button:active { background: rgba(124, 58, 237, 0.45); }
@@ -131,7 +133,7 @@
         <div id="split" title="ドラッグで地図と中の景色の広さを変える（ダブルクリックで元に戻す）"></div>
         <div id="wrapC" class="vw">
             <div id="cvC" class="cv"></div>
-            <div id="badgeC" class="badge">中にいる人の景色<small>光をまっすぐ（大円に沿って）進めて描く。ドラッグで見回す・向いた方へ進む</small></div>
+            <div id="badgeC" class="badge">中にいる人の景色<small>光をまっすぐ（大円に沿って）進めて描く。ドラッグで向きを変える・向いた方へ進む。Shift＋ドラッグで進む向きはそのまま見渡す</small></div>
             <!-- 地図の奥（w′）の向き：中の人から見て、地図に写らない向きがどちらか -->
             <svg id="wArrow" viewBox="-100 -100 200 200" style="position:absolute;left:50%;top:50%;width:min(44%,44vh);height:min(44%,44vh);transform:translate(-50%,-50%);pointer-events:none;z-index:9;overflow:visible">
                 <g id="wa-now" stroke="#c4a8ff" fill="#c4a8ff" stroke-linecap="round" opacity="0.38"><line id="wa-nline" x1="0" y1="0" x2="0" y2="0" stroke-width="3" stroke-dasharray="5 5"/><polygon id="wa-nhead" points="0,0 0,0 0,0" stroke="none"/></g>
@@ -143,6 +145,7 @@
             </svg>
             <div id="trip"><div class="t">1 周（2π ≈ 6.28）のうち</div><div class="bar"><i id="trip-bar"></i><span class="mk" style="left:50%"></span></div><div class="lab"><span>北極</span><span>南極</span><span>北極</span></div></div>
             <div id="hudC" class="hud"></div>
+            <button id="headReset" title="見渡しをやめて、進む向き（正面）を見る">↺ 前を見る</button>
             <div id="inpad">
                 <button data-mv="up" title="上へ（仰角の方へ）">⤒</button>
                 <button data-mv="fwd" title="前へ（押している間）">▲</button>
@@ -202,6 +205,12 @@
                     <button class="btn" id="b-hopf" title="ホップの円：自分と 6 人の仲間（🐧🦉🐝🦋🐙🐬）が、少し離れて並んで、それぞれまっすぐ（大円に沿って）歩く。x-y 面と z-w 面を同じ速さで回す二重回転。距離はずっと同じなのに、1 周でお互いのまわりを 1 回まわる">🔗 ホップの円</button>
                     <button class="btn" id="b-hopfplain" title="比べる用：仲間が、出発の時に自分と同じ向きのふつうの大円を歩く（S² の平行と同じ）。距離が縮んだり戻ったりして、まわらない">ふつうの平行と比べる</button>
                 </div>
+                <div class="row">
+                    <button class="btn" id="b-para" title="空間の曲がりを見る：自分の左右に少し離れて（距離 d₀）、同じ向きにまっすぐ歩く 2 人（🐧 右・🐬 左）と一緒に歩く。平らな空間ならずっと d₀ のまま並んで歩けるが、S³ では近づいて π/2 で 3 人が 1 点で出会い、π でまた d₀（左右が入れかわる）。押すと今の場所・向きから歩き出す">平行な仲間と歩く（空間の曲がり）</button>
+                </div>
+                <div class="sl"><span>仲間の先行</span><input id="s-paralead" type="range" min="0" max="1.2" step="0.05" title="平行な仲間は、同じ大円の上を少し前（この距離だけ先）を歩く。真横（0）だと視野に入らないので。距離の数字とグラフは、同じだけ進んだ所どうしで測る"><output id="o-paralead"></output></div>
+                <div class="sl"><span>並ぶ間 d₀</span><input id="s-parad" type="range" min="0.05" max="1.2" step="0.05" title="平行な仲間：出発の時の、自分と仲間の間の距離"><output id="o-parad"></output></div>
+                <p class="note">「平行な仲間と歩く」は空間そのものの曲がりを見るもの（地図の写し方にはよらず、S³ のどこでも同じ）。🐧（右）と 🐬（左）は、自分と同じ向きにまっすぐ（大円）歩きます。平らな空間なら、平行に出発した道の間はずっと d₀ のまま。S³ では道の間が縮んで、π/2 進むと 3 人の道が 1 点で出会い、π でまた d₀ に戻ります（でも左右が入れかわる）。HUD のグラフの点線が平らな空間、水色の線が S³。仲間は見えるように少し前を歩きます（「仲間の先行」）。</p>
                 <div class="sl"><span>仲間の距離</span><input id="s-hopfd" type="range" min="0.15" max="1.2" step="0.05" title="ホップの円：自分と仲間の距離（S³ の中の距離）"><output id="o-hopfd"></output></div>
                 <div class="sl"><span>歳差</span><input id="s-prec" type="range" min="0" max="45" step="1" title="歳差の螺旋：1 周ごとに輪の面を x 軸のまわりに何度回すか。0 なら毎回同じ道。15° なら 6 周目あたりで輪が縦になり、上下（±z）のてっぺんまで届く"><output id="o-prec"></output></div>
                 <div class="sl"><span>傾き</span><input id="s-tilt" type="range" min="0" max="1" step="0.05" title="二重の螺旋：巻く面が進むにつれて z の方へ傾く度合い。0 なら 1 枚の球面の上の平らな竜巻（左の S² と同じ）、1 なら北極では z の向きに巻き始め、南極では −z の向きに"><output id="o-tilt"></output></div>
@@ -288,6 +297,7 @@
                 <div class="row">
                     <button class="btn" id="b-axes" title="x・y・z（S³ の地図では w も）の軸">軸</button>
                     <button class="btn" id="b-home" title="地図の見る向きを最初に戻す">向きを戻す</button>
+                    <button class="btn" id="b-headreset" title="Shift＋ドラッグ（中の景色）で見渡した向きを戻して、進む向きを見る">見渡しを戻す</button>
                     <button class="btn" id="b-heading" title="地図（S² と S³）の黄色い円すい。歩いている間は進む向き、止まっている時は見ている向き">進む向き</button>
                     <button class="btn" id="b-warrow" title="中の景色に紫の矢印：まっすぐ進む道が、S³ の地図の上ではどちらへどれだけ曲がって見えるか。地図の真ん中を通る道はまっすぐ（矢印なし）、地図の球のふちに沿う道で強さ 1">地図での曲がり</button>
                 </div>
@@ -406,7 +416,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // ---------------------------------------------------------------------
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
-const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
+const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
     mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
@@ -432,6 +442,14 @@ function lookFrame() {
     const U = add(scl(h, -se), W.u, ce);
     return { L, R, U };
 }
+// 見渡し：進む向きの枠（lookFrame）から、頭だけを横 S.hy°・縦 S.hp° 回した、画面に写す向き。進む向きは変わらない（Shift＋ドラッグ）
+function viewFrame() {
+    const F = lookFrame(); if (!S.hy && !S.hp) return F;
+    const cy = Math.cos(S.hy * d2r), sy = Math.sin(S.hy * d2r), cp = Math.cos(S.hp * d2r), sp = Math.sin(S.hp * d2r);
+    const hL = add(scl(F.L, cy), F.R, sy), R = add(scl(F.L, -sy), F.R, cy);
+    return { L: add(scl(hL, cp), F.U, sp), R, U: add(scl(hL, -sp), F.U, cp) };
+}
+function headReset() { S.hy = 0; S.hp = 0; onLook(); }
 function look2() { const ca = Math.cos(S.az * d2r), sa = Math.sin(S.az * d2r); return add(scl(W2.f, ca), W2.r, sa); }
 // 大円に沿って s だけ進む。体の枠は平行移動
 function moveAlong(X, d, s) {
@@ -507,6 +525,29 @@ function hopfInfo() {   // 1 人目の仲間までの距離と、自分の体か
     const c = hopfPos(HOPF.comps[0], HOPF.t), dist = Math.acos(Math.max(-1, Math.min(1, dot(c, W.p))));
     const e = nrm(add(c, W.p, -dot(c, W.p))), ang = Math.atan2(dot(e, W.u), dot(e, W.r)) / d2r;
     return { dist, ang };
+}
+// ---- 平行な仲間（空間の曲がり）：自分の右・左に距離 d₀ 離れて、自分と同じ向きにまっすぐ（大円）歩く 2 人 ----
+//   右の仲間 c(s) = cos s·(cos d₀·p₀ + sin d₀·R₀) + sin s·v₀（R₀・v₀ は p₀ と自分の進む向きに直交なので、平行移動しても変わらない）
+//   自分との距離 d(s) = arccos(cos²s·cos d₀ + sin²s)。平らな空間ならずっと d₀ だが、S³ では縮んで s = π/2 で 0（3 人が 1 点で出会う）、π でまた d₀（左右が入れかわる）
+//   これが空間そのものの曲がり（どこでも同じ。地図の写し方にはよらない）。仲間は同じ大円の上を S.paraLead だけ先を歩かせて描く（真横だと視野に入らない）。距離は同じだけ進んだ所どうし
+const PARA = { p0: null, v0: null, R0: null, d0: 0.3, dist0: 0, p2: null, v2: null, r2: null, key: 0, said: 0 };
+const PARA_PIC = ['🐧', '🐬'], PARA_COL = [[0.4, 0.8, 1], [0.3, 0.95, 0.8]];
+function paraStart() {
+    const F = lookFrame(), v = nrm(add(F.L, W.p, -dot(F.L, W.p))), R0 = add(F.R, W.p, -dot(F.R, W.p)), R = nrm(add(R0, v, -dot(R0, v)));
+    const L2 = look2(), R2 = nrm(add(scl(W2.f, -Math.sin(S.az * d2r)), W2.r, Math.cos(S.az * d2r)));
+    Object.assign(PARA, { p0: W.p.slice(), v0: v, R0: R, d0: S.paraD, dist0: W.dist, p2: W2.p.slice(), v2: L2, r2: R2, said: 0 }); PARA.key++; req(3);
+}
+const paraS = () => W.dist - PARA.dist0;
+const paraTheory = s => Math.acos(Math.max(-1, Math.min(1, Math.cos(s) ** 2 * Math.cos(PARA.d0) + Math.sin(s) ** 2)));
+function paraPos(j, s) { const q = add(scl(PARA.p0, Math.cos(PARA.d0)), PARA.R0, (j ? -1 : 1) * Math.sin(PARA.d0)); return add(scl(q, Math.cos(s)), PARA.v0, Math.sin(s)); }   // j = 0 右（🐧）、1 左（🐬）
+function para2Pos(j, s) { const q = add(scl(PARA.p2, Math.cos(PARA.d0)), PARA.r2, (j ? -1 : 1) * Math.sin(PARA.d0)); return add(scl(q, Math.cos(s)), PARA.v2, Math.sin(s)); }
+function paraCheck() {   // 自分が出発の時の大円から外れたら（向きを変えて歩いたら）、今の場所・向きで並べ直す
+    if (!S.para || !PARA.p0) return;
+    if (S.hopf || S.ring || S.spiral || S.grav || S.roam) { S.para = false; refreshUI(); return; }   // ほかの動き方が始まったらやめる
+    const s = paraS(), me = add(scl(PARA.p0, Math.cos(s)), PARA.v0, Math.sin(s));
+    if (dot(me, W.p) < Math.cos(0.02)) { paraStart(); say('向きが変わったので、仲間を並べ直した（まっすぐ歩くと比べられる）'); return; }
+    const k = Math.floor((s + 0.01) / (Math.PI / 2));
+    if (k > PARA.said) { PARA.said = k; say(['π/2：平行に出発した 3 人が 1 点で出会った！（平らな空間なら決して出会わない）', 'π：また d₀ 離れた。でも 🐧 と 🐬 の左右が入れかわった', '3π/2：また 1 点で出会った', '2π：出発の時と同じ並びに戻った'][(k - 1) % 4]); }
 }
 // ---- 重力モード：4次元で w の＋から−へ向かう重力 −g·ŵ。S³ の中で感じるのは、それの S³ に沿った部分 −g(ŵ − w·p)（南極へ引く。赤道で最強、両極でゼロ）----
 //   左の S² も同じ：−g(ẑ − z·p)。南極に「星」（測地線の半径 planetR の玉。S² では円板）を置くと、その表面に立てる
@@ -851,6 +892,7 @@ const AXL = 2.7;
     v.root.add(new THREE.Mesh(new THREE.SphereGeometry(RS, 48, 32), new THREE.MeshPhongMaterial({ color: 0x1e3a8a, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide })));
     const planetM = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), new THREE.MeshPhongMaterial({ color: 0x94704c, transparent: true, opacity: 0.6, shininess: 10, depthWrite: false })); v.root.add(planetM);
     const me = ball(v, 0.1, [1, 1, 1]), cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 })); v.root.add(cone);
+    const vcone = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.26, 12), new THREE.MeshBasicMaterial({ color: 0x7dd3fc })); v.root.add(vcone);   // 見渡している時の、見ている向き
     const fixed = FIXED.map(m => { const sp = emojiSprite(m.pic, 0.5); v.root.add(sp); return { m, b: ball(v, m.r, m.col), lab: label(v, m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36), sp }; });
     const foot = new THREE.Group(), marks = new THREE.Group(); v.root.add(foot, marks);
     const a = [0, 0, 0], b = [0, 0, 0], Z = [0, 0, 0], up = new THREE.Vector3(0, 1, 0), t = new THREE.Vector3();
@@ -874,28 +916,30 @@ const AXL = 2.7;
         }
         // 球層：「今いる所だけ」なら、自分のいる殻ははっきり、となりはうっすら、遠い所と裏側は透明（動くたびに描き直す）
         if (S.shell) { const n = Math.max(2, Math.min(21, Math.round(S.shellN))); Lshell.obj.material.linewidth = S.shFocus || S.shLight ? 1.8 : 1.0;
-            const dk = statKey + '|' + n + '|' + (S.shFocus ? W.p.map(x => x.toFixed(3)).join(',') + '|' + S.shFocusR : '') + (S.shLight ? '|L' + [...W.p, ...lookFrame().L, ...lookFrame().R].map(x => x.toFixed(3)).join(',') + '|' + [S.fov, S.lens, S.shellRange, S.maxd, VC.r.domElement.width, VC.r.domElement.height].join(',') : '');
+            const dk = statKey + '|' + n + '|' + (S.shFocus ? W.p.map(x => x.toFixed(3)).join(',') + '|' + S.shFocusR : '') + (S.shLight ? '|L' + [...W.p, ...viewFrame().L, ...viewFrame().R].map(x => x.toFixed(3)).join(',') + '|' + [S.fov, S.lens, S.shellRange, S.maxd, VC.r.domElement.width, VC.r.domElement.height].join(',') : '');
             if (dk !== shellDrawKey) { shellDrawKey = dk;
                 if (shellKey !== n + '/' + shellMinTheta()) { shellKey = n + '/' + shellMinTheta(); shellPairs = shellSet(n); }
                 const m0 = shellMinTheta(), gap = (Math.PI / 2 - m0) / Math.max(1, n - 1), thMe = Math.acos(Math.max(-1, Math.min(1, W.p[3]))), R = S.shFocusR;
                 // 今いる所だけ：透明になる殻（層が離れている・両端とも遠い）は最初から描かない
                 const cR = Math.cos(R), sub = !S.shFocus ? shellPairs : shellPairs.filter(P => Math.abs(P[3] - thMe) < 2.2 * gap && (dot(P[0], W.p) > cR || dot(P[1], W.p) > cR));
                 if (S.shLight) {   // 空間ライト：画面に写っている所だけ（視野の中、殻の見える距離まで）
-                    const F = lookFrame(), Rl = Math.min(S.shellRange, S.maxd, Math.PI), cl = Math.cos(Rl), vis = q => inView(q, F) && dot(q, W.p) >= cl;
+                    const F = viewFrame(), Rl = Math.min(S.shellRange, S.maxd, Math.PI), cl = Math.cos(Rl), vis = q => inView(q, F) && dot(q, W.p) >= cl;
                     const lit = shellPairs.filter(P => vis(P[0]) || vis(P[1]));
                     drawPairs(Lshell, lit, (d, i, e) => { const q = lit[i][e], dg = Math.acos(Math.max(-1, Math.min(1, dot(q, W.p)))), k = vis(q) ? (1 - Math.min(1, Math.max(0, (dg - 0.6 * Rl) / (0.4 * Rl)))) * (0.75 + 0.25 * (d + 1) / 2) * 1.3 : 0;
-                        return vivid(lit[i][2], k); }, 3, true);
+                        return vivid(lit[i][2], k); }, 3, false);   // 照らした所は「奥を消す」でも消さない（自分のまわりだけなので）
                 } else
                 drawPairs(Lshell, sub, (d, i, e) => { const P = sub[i]; if (!S.shFocus) return scl(P[2], 0.35 + 0.65 * Math.pow((d + 1) / 2, 1.2));
                     // 足し合わせの線なので、紫などの暗い色も vivid で明るく、奥の暗くなり方も弱める
                     const lay = Math.max(0, 1 - Math.abs(P[3] - thMe) / (2.2 * gap)), dg = Math.acos(Math.max(-1, Math.min(1, dot(P[e], W.p)))), near = 1 - Math.min(1, Math.max(0, (dg - 0.6 * R) / (0.4 * R)));
                     const k = (0.35 + 0.65 * lay * lay) * near * (0.75 + 0.25 * (d + 1) / 2) * 1.3;
-                    return vivid(P[2], k); }, 3, true); } }
+                    return vivid(P[2], k); }, 3, !S.shFocus); } }   // 今いる所だけの時は「奥を消す」でも消さない
         const T = W.trail; trail.reset(); for (let i = 0; i + 1 < T.length; i++) { const da = mapS3(T[i], a), db = mapS3(T[i + 1], b); if (!(da === da) || !(db === db) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.5) continue; const f = 0.45 + 0.55 * i / T.length; trail.seg(a, b, scl(hsl(200 + 160 * i / T.length, 0.95, 0.62), f)); } trail.flush();
         { const pk = planetKey(); planetM.visible = false; if (pk) { const d = mapS3(SP4, a); if (d === d) { planetM.visible = true; planetM.position.set(a[0], a[1], a[2]); planetM.scale.setScalar(Math.sin(pk) * RS * Math.min(3, kOf(SP4))); } } }   // 南極の星
         place(me, W.p, 1);
         const F = lookFrame(), dv = W.lastDir && performance.now() - (W.lastDirT || 0) < 400 ? W.lastDir : F.L, q = nrm(add(scl(W.p, Math.cos(0.12)), dv, Math.sin(0.12)));   // 歩いている間は進む向き、止まっている時は見ている向き
         if (S.heading && mapS3(W.p, a) === mapS3(W.p, a) && mapS3(q, b) === mapS3(q, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); const l = t.length(); if (l > 1e-6) { t.normalize(); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(a[0] + t.x * 0.28, a[1] + t.y * 0.28, a[2] + t.z * 0.28); cone.scale.setScalar(Math.min(2.5, kOf(W.p))); cone.visible = true; } } else cone.visible = false;
+        { const on = Math.abs(S.hy) > 0.5 || Math.abs(S.hp) > 0.5, qv = on ? nrm(add(scl(W.p, Math.cos(0.12)), viewFrame().L, Math.sin(0.12))) : null; vcone.visible = false;
+          if (on && mapS3(W.p, a) === mapS3(W.p, a) && mapS3(qv, b) === mapS3(qv, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); if (t.length() > 1e-6) { t.normalize(); vcone.quaternion.setFromUnitVectors(up, t); vcone.position.set(a[0] + t.x * 0.26, a[1] + t.y * 0.26, a[2] + t.z * 0.26); vcone.scale.setScalar(Math.min(2.5, kOf(W.p))); vcone.visible = true; } } }
         fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } o.lab.visible = d === d && !isPic(); o.sp.visible = d === d && isPic(); o.b.visible = d === d && !isPic(); });
         while (foot.children.length < W.foot.length) { const bb = ball(v, 0.04, [0.8, 0.85, 1]); v.root.remove(bb); foot.add(bb); }
         foot.children.forEach((bb, i) => { if (i < W.foot.length && S.foot) place(bb, W.foot[i], 1); else bb.visible = false; });
@@ -938,6 +982,38 @@ const AXL = 2.7;
         HOPF.comps.forEach((c, j) => { const d = mapS3(hopfPos(c, HOPF.t), a); if (!(d === d)) return; const o = ballsB[j], k = Math.min(2.5, kOf(hopfPos(c, HOPF.t))); o.b.position.set(...a); o.sp.position.set(...a); o.b.scale.setScalar(k); o.sp.scale.setScalar(0.42 * k); o.b.visible = !isPic(); o.sp.visible = isPic(); });
     });
 })();
+
+// ---- 平行な仲間の道と玉（S² と S³ の地図）----
+(function buildPara() {
+    const CN = 96, Z = [0, 0, 0], a = [0, 0, 0], b = [0, 0, 0];
+    const mk = (v, j) => { const bl = ball(v, 0.075, PARA_COL[j]); const sp = emojiSprite(PARA_PIC[j], 0.42); v.root.add(sp); return { b: bl, sp }; };
+    // S²
+    const LA = Lines(VA, 3 * CN, { width: 1.6 }), bA = [0, 1].map(j => mk(VA, j)); let keyA = -1;
+    VA.frames.push(() => {
+        const on = S.para && PARA.p2; LA.obj.visible = !!on; bA.forEach(o => { o.b.visible = o.sp.visible = false; }); if (!on) return;
+        if (keyA !== PARA.key) { keyA = PARA.key; LA.reset();
+            const circ = (q, f, col) => { for (let k = 0; k < CN; k++) { const t1 = TAU * k / CN, t2 = TAU * (k + 1) / CN; LA.seg(scl(add(scl(q, Math.cos(t1)), f, Math.sin(t1)), RS), scl(add(scl(q, Math.cos(t2)), f, Math.sin(t2)), RS), col); } };
+            circ(PARA.p2, PARA.v2, [0.75, 0.75, 0.8]); [0, 1].forEach(j => circ(para2Pos(j, 0), PARA.v2, scl(PARA_COL[j], 0.7))); LA.flush(); }
+        bA.forEach((o, j) => { const P = scl(para2Pos(j, paraS() + S.paraLead), RS); o.b.position.set(...P); o.sp.position.set(...P); o.b.visible = !isPic(); o.sp.visible = isPic(); });
+    });
+    // S³ の地図
+    const LB = Lines(VB, 3 * CN, { width: 1.6 }), bB = [0, 1].map(j => mk(VB, j));
+    VB.frames.push(() => {
+        const on = S.para && PARA.p0; LB.obj.visible = !!on; bB.forEach(o => { o.b.visible = o.sp.visible = false; }); if (!on) return;
+        const rk = PARA.key + '|' + Array.from(R4, x => x.toFixed(5)).join(',') + '|' + S.D;
+        if (rk !== LB._key) { LB._key = rk; LB.reset();
+            const path = (fn, col) => { for (let k = 0; k < CN; k++) { const A = fn(TAU * k / CN), B = fn(TAU * (k + 1) / CN), da = mapS3(A, a), db = mapS3(B, b); if (!(da === da) || !(db === db) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.5) { LB.seg(Z, Z, Z); continue; } LB.seg(a, b, scl(col, 0.35 + 0.5 * (da + 1) / 2), scl(col, 0.35 + 0.5 * (db + 1) / 2)); } };
+            path(t => add(scl(PARA.p0, Math.cos(t)), PARA.v0, Math.sin(t)), [0.75, 0.75, 0.8]); [0, 1].forEach(j => path(t => paraPos(j, t), PARA_COL[j])); LB.flush(); }
+        bB.forEach((o, j) => { const q = paraPos(j, paraS() + S.paraLead), d = mapS3(q, a); if (!(d === d)) return; const k = Math.min(2.5, kOf(q)); o.b.position.set(...a); o.sp.position.set(...a); o.b.scale.setScalar(k); o.sp.scale.setScalar(0.42 * k); o.b.visible = !isPic(); o.sp.visible = isPic(); });
+    });
+})();
+// 平行な仲間のグラフ（HUD）：横 s（0〜2π）、縦 自分と仲間の距離。点線＝平らな空間（d₀ のまま）、実線＝S³
+function paraGraph() {
+    const W0 = 210, H0 = 64, x = t => 6 + (W0 - 12) * t / TAU, y = d => H0 - 8 - (H0 - 18) * d / Math.max(PARA.d0, 1e-3);
+    let path = ''; for (let k = 0; k <= 120; k++) { const t = TAU * k / 120; path += (k ? 'L' : 'M') + x(t).toFixed(1) + ',' + y(paraTheory(t)).toFixed(1); }
+    const s = ((paraS() % TAU) + TAU) % TAU, ticks = [1, 2, 3].map(k => `<line x1="${x(k * Math.PI / 2)}" y1="${H0 - 8}" x2="${x(k * Math.PI / 2)}" y2="${H0 - 4}" stroke="#64748b"/><text x="${x(k * Math.PI / 2)}" y="${H0}" fill="#94a3b8" font-size="8" text-anchor="middle">${['π/2', 'π', '3π/2'][k - 1]}</text>`).join('');
+    return `<svg width="${W0}" height="${H0}" style="display:block;margin-top:3px;background:rgba(15,23,42,0.5);border-radius:4px"><line x1="6" y1="${y(PARA.d0)}" x2="${W0 - 6}" y2="${y(PARA.d0)}" stroke="#94a3b8" stroke-dasharray="3 3"/><text x="${W0 - 8}" y="${y(PARA.d0) - 2}" fill="#94a3b8" font-size="8" text-anchor="end">平らなら d₀ のまま</text><line x1="6" y1="${H0 - 8}" x2="${W0 - 6}" y2="${H0 - 8}" stroke="#475569"/>${ticks}<path d="${path}" fill="none" stroke="#7dd3fc" stroke-width="1.6"/><circle cx="${x(s).toFixed(1)}" cy="${y(paraTheory(s)).toFixed(1)}" r="3.5" fill="#fde047"/></svg>`;
+}
 
 // ---------------------------------------------------------------------
 // 5. 右：中にいる人の景色（光線追跡）
@@ -1207,7 +1283,7 @@ function rebuildMarks() {
     ray.U.uNM.value = n; ray._base = n; ray._nFoot = W.foot.length; ray._nMk = W.marks.length;
 }
 function setRayUniforms() {
-    const U = ray.U, F = lookFrame();
+    const U = ray.U, F = viewFrame();   // 画面に写すのは見渡した向き
     U.uP.value.set(...W.p); U.uR.value.set(...F.R); U.uU.value.set(...F.U); U.uF.value.set(...F.L);
     U.uRoom.value = S.room ? 1 : 0; U.uLite.value = S.lite ? 1 : 0; U.uShell.value = S.shell ? 1 : 0; U.uShellLum.value = S.shellLum; U.uShellSolid.value = S.shellSolid ? 1 : 0; U.uShellN.value = Math.max(2, Math.min(21, Math.round(S.shellN))); U.uShellOp.value = S.shellOp; U.uShellBack.value = S.shellBack; U.uShellRange.value = S.shellRange; U.uShMin.value = shellMinTheta(); U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uFade.value = S.fade; U.uPicLine.value = S.picLine; U.uMaxD.value = S.maxd;
     U.uRes.value.set(VC.r.domElement.width, VC.r.domElement.height);
@@ -1220,6 +1296,7 @@ function setRayUniforms() {
     // 毎コマ動くもの（ホップの円の仲間・自分の玉）は、固定の目印のあと（ray._base から）に入れ直す
     let n = ray._base || 0; const big = S.mk === 'pic' ? 1.5 : S.mk === 'dot' ? 1.9 : 1;
     if (S.hopf) HOPF.comps.forEach(c => { if (n >= NMK - 1) return; U.uMk.value[n].set(...hopfPos(c, HOPF.t)); U.uMkC.value[n].set(c.col[0], c.col[1], c.col[2], 0.06 * big); U.uMkT.value[n] = ATLAS.of(c.pic); n++; });
+    if (S.para && PARA.p0) [0, 1].forEach(j => { if (n >= NMK - 1) return; U.uMk.value[n].set(...paraPos(j, paraS() + S.paraLead)); const c = PARA_COL[j]; U.uMkC.value[n].set(c[0], c[1], c[2], 0.06 * big); U.uMkT.value[n] = ATLAS.of(PARA_PIC[j]); n++; });
     if (S.self && n < NMK) { U.uMk.value[n].set(...W.p); U.uMkC.value[n].set(1, 1, 1, S.mk === 'ball' ? 0.09 : 0.13); U.uMkT.value[n] = ATLAS.of(PIC.self); n++; }
     U.uNM.value = n;
 }
@@ -1229,10 +1306,11 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
 $('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
+$('b-headreset').addEventListener('click', headReset); $('headReset').addEventListener('click', headReset);
 $('b-stop').addEventListener('click', () => { S.walk = false; S.roam = false; S.spiral = false; refreshUI(); });
 $('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; SP.lap = 0; S.walk = false; S.roam = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
 document.querySelectorAll('.btn.mk').forEach(b => b.addEventListener('click', () => { S.mk = b.dataset.mk; save(); refreshUI(); req(3); }));
@@ -1242,6 +1320,8 @@ $('b-std').addEventListener('click', () => { Object.assign(S, { mk: 'ball', bgMe
 $('b-trip').addEventListener('click', () => { S.grav = false; resetNorth(); S.walk = true; say('北極から出発。向きを変えずに進むと、南極を通って北極に戻る'); refreshUI(); });
 $('b-north').addEventListener('click', () => { resetNorth(); S.walk = false; G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; refreshUI(); });
 $('b-grav').addEventListener('click', () => { if (S.grav) { S.walk = S.roam = S.spiral = false; G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; say('重力 ON：w の＋から−へ。中の人には「南極へ引く力」に感じる'); } refreshUI(); });
+$('b-para').addEventListener('click', () => { if (S.para) { S.roam = S.spiral = S.grav = S.hopf = S.ring = false; paraStart(); S.walk = true; say('平行な仲間と出発：🐧（右）と 🐬（左）が同じ向きにまっすぐ歩く'); } refreshUI(); });
+$('s-parad').addEventListener('change', () => { if (S.para) paraStart(); });
 $('b-hopf').addEventListener('click', () => { if (S.hopf) { S.walk = S.roam = S.spiral = S.grav = false; hopfStart(); say(S.hopfPlain ? '仲間と並んで出発（ふつうの平行）' : '仲間と並んでまっすぐ出発（ホップの円）'); } refreshUI(); });
 $('b-hopfplain').addEventListener('click', () => { if (S.hopf) hopfStart(); });
 $('b-ring').addEventListener('click', () => { if (S.ring) { S.walk = S.roam = S.spiral = S.grav = S.hopf = false; ringStart(); say(S.ringAxis === 'w' ? '🐱 と 🐶 を通る輪を歩く（赤道の球面の上）。1 周ごとに輪が少しずつ回る' : '北極と南極を通る輪を歩く。1 周ごとに輪が少しずつ回る'); } else S.ringView = false; refreshUI(); });
@@ -1254,11 +1334,12 @@ $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90')
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; S.ringView = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 6.2 ? '（全部）' : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-parad': ['paraD', v => (+v).toFixed(2)], 's-paralead': ['paraLead', v => +v <= 0 ? '真横' : (+v).toFixed(2)], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 6.2 ? '（全部）' : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
     's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (k === 'hopfD' && S.hopf) hopfStart(); if (['xw', 'yw', 'zw'].includes(k)) { S.follow = false; S.ringView = false; } save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
 function refreshUI() {
+    { const hb = $('headReset'); const on = Math.abs(S.hy) > 0.5 || Math.abs(S.hp) > 0.5; hb.style.display = on && S.wC ? 'block' : 'none'; if (on) hb.textContent = `↺ 前を見る（見渡し 横 ${Math.round(S.hy)}°・縦 ${Math.round(S.hp)}°）`; }
     Object.entries(toggles).forEach(([id, k]) => $(id).classList.toggle('on', !!S[k]));
     document.querySelectorAll('.btn.mk').forEach(b => b.classList.toggle('on', b.dataset.mk === S.mk));
     document.querySelectorAll('.btn.rax').forEach(b => b.classList.toggle('on', b.dataset.ax === S.ringAxis));
@@ -1279,7 +1360,7 @@ function inView(q, F) {   // 点 q が中の景色の画面に写る向きにあ
     const tf = Math.tan(Math.min(150, S.fov) * Math.PI / 360); return f > 1e-6 && Math.abs(r / f) <= tf * asp && Math.abs(u / f) <= tf;
 }
 function mapBend(ahead) {   // ahead：今の場所から進む向きに ahead だけ先の点で測る（体の枠はその点まで平行に運ぶので、画面の向きのまま比べられる）
-    const p0 = W.p, F = lookFrame(), dv0 = W.lastDir && performance.now() - (W.lastDirT || 0) < 400 ? W.lastDir : F.L;
+    const p0 = W.p, F0 = lookFrame(), F = viewFrame(), dv0 = W.lastDir && performance.now() - (W.lastDirT || 0) < 400 ? W.lastDir : F0.L;   // 進む向き（見渡しでは変わらない）。画面の右・上は見渡した向き F
     const v0 = nrm(add(dv0, p0, -dot(dv0, p0))), s0 = ahead || 0;
     const p = add(scl(p0, Math.cos(s0)), v0, Math.sin(s0)), v = add(scl(p0, -Math.sin(s0)), v0, Math.cos(s0)), carry = e => add(e, add(v, v0, -1), dot(e, v0));   // 大円に沿った平行移動
     const eR = carry(F.R), eU = carry(F.U), h = 0.01, geo = (e, t) => add(scl(p, Math.cos(t)), e, Math.sin(t));
@@ -1342,6 +1423,8 @@ function updateHUD() {
     $('hudC').innerHTML = `進んだ距離 <b>${W.dist.toFixed(2)}</b>（${lap.toFixed(2)} 周）<br>北極から <b>${dN.toFixed(2)}</b>　南極から <b>${(Math.PI - dN).toFixed(2)}</b><br>方位 <b>${Math.round(S.az)}°</b>　仰角 <b>${Math.round(S.el)}°</b><br>位置 (${W.p.map(x => x.toFixed(2)).join(', ')})`;
     if (S.spiral) $('hudC').innerHTML += `<br>🌪 ${SP.lap + 1} 周目${S.prec ? `　輪の面の傾き ${Math.round(((SP.lap + SP.th / TAU) * S.prec) % 360)}°` : ''}　z ${W.p[2].toFixed(2)}`;
     if (S.wArrow && IN.wa) $('hudC').innerHTML += `<br><span style="color:#c4b5fd">地図での曲がり ${IN.wa0 ? `今 <b>${IN.wa0.K.toFixed(2)}</b> → ${S.bendAhead.toFixed(2)} 先 ` : ''}<b>${IN.wa.K.toFixed(2)}</b>（まっすぐ＝0、地図の球のふちの大円＝1）　地図の縮み ×${IN.wa.sp.toFixed(2)}</span>`;
+    if (S.para && PARA.p0) { const sP = paraS(), c0 = paraPos(0, sP), c1 = paraPos(1, sP), dR = Math.acos(Math.max(-1, Math.min(1, dot(c0, W.p)))), dB = Math.acos(Math.max(-1, Math.min(1, dot(c0, c1))));
+        $('hudC').innerHTML += `<br><span style="color:#7dd3fc">平行な仲間：進んだ <b>${sP.toFixed(2)}</b>　🐧 の道までの間 <b>${dR.toFixed(3)}</b>（平らなら ${PARA.d0.toFixed(3)} のまま）　🐧〜🐬 の道の間 <b>${dB.toFixed(3)}</b></span>` + paraGraph(); }
     if (S.ring) $('hudC').innerHTML += `<br>🌐 ${Math.floor(RING.T / TAU) + 1} 周目　輪の向き ${Math.round(((S.ringStep * RING.T / TAU) % 360))}°（軸 ${S.ringAxis === 'all' ? '全部' : S.ringAxis}）`;
     if (S.hopf) { const h = hopfInfo(); $('hudC').innerHTML += `<br>🔗 ${(HOPF.t / TAU).toFixed(2)} 周　🐧 までの距離 <b>${h.dist.toFixed(3)}</b>　🐧 のまわりの角 <b>${Math.round(h.ang)}°</b>`; }
     if (S.grav) { const sp = Math.hypot(...G.v), dS = Math.PI - Math.acos(Math.max(-1, Math.min(1, W.p[3]))); $('hudC').innerHTML += `<br>🍎 速さ <b>${sp.toFixed(2)}</b>　${G.on ? '星の上に立っている' : '宙に浮いている'}`; }
@@ -1374,8 +1457,10 @@ try { dock = UIDock.create({ prefix: 's3walk', onResize: () => resizeAll(), onCh
 // 右の窓：ドラッグで見回す（方位・仰角）、ホイールで前後
 (() => {
     const cv = $('cvC'); let st = null;
-    cv.addEventListener('pointerdown', e => { st = { x: e.clientX, y: e.clientY, id: e.pointerId }; cv.setPointerCapture(e.pointerId); });
-    cv.addEventListener('pointermove', e => { if (!st || e.pointerId !== st.id) return; S.az += (e.clientX - st.x) * 0.3; S.el -= (e.clientY - st.y) * 0.3; st.x = e.clientX; st.y = e.clientY; onLook(); });
+    cv.addEventListener('pointerdown', e => { st = { x: e.clientX, y: e.clientY, id: e.pointerId, head: e.shiftKey || e.button === 1 }; if (e.button === 1) e.preventDefault(); cv.setPointerCapture(e.pointerId); });
+    // ふつうのドラッグ＝進む向き（方位・仰角）を変える。Shift＋ドラッグ（か中ボタン）＝進む向きはそのまま、頭だけ回して見渡す
+    cv.addEventListener('pointermove', e => { if (!st || e.pointerId !== st.id) return; const dx = (e.clientX - st.x) * 0.3, dy = (e.clientY - st.y) * 0.3; st.x = e.clientX; st.y = e.clientY;
+        if (st.head || e.shiftKey) { S.hy = ((S.hy + dx + 180) % 360 + 360) % 360 - 180; S.hp = Math.max(-89, Math.min(89, S.hp - dy)); onLook(); } else { S.az += dx; S.el -= dy; onLook(); } });
     cv.addEventListener('pointerup', () => { st = null; });
     cv.addEventListener('wheel', e => { e.preventDefault(); walkStep([0, 0, 1], -e.deltaY * 0.0015 * S.spd); }, { passive: false });
     document.querySelectorAll('#inpad button').forEach(b => { b.addEventListener('pointerdown', e => { e.preventDefault(); IN.pad = b.dataset.mv; b.setPointerCapture(e.pointerId); }); b.addEventListener('pointerup', () => { IN.pad = null; }); b.addEventListener('pointercancel', () => { IN.pad = null; }); });
@@ -1430,6 +1515,7 @@ function loop(now) {
     else if (S.hopf) { hopfStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
     else if (S.spiral) { spiralStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
     else if (mv[0] || mv[1] || mv[2]) walkStep(mv, sp);
+    if (S.para) paraCheck();
     updateRot();
     if (VA.ctl.update()) need = Math.max(need, 1);
     if (VB.ctl.update()) need = Math.max(need, 1);
