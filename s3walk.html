@@ -104,6 +104,16 @@
         #inpad button:active { background: rgba(124, 58, 237, 0.45); }
         #msg { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); z-index: 15; pointer-events: none; font-size: 13px; font-weight: 700; color: #fde68a; background: rgba(15, 23, 42, 0.92); border: 1px solid #a16207; padding: 6px 14px; border-radius: 10px; opacity: 0; transition: opacity .3s; white-space: nowrap; }
         #msg.on { opacity: 1; }
+        /* スクリーンセーバー（?saver）：中の景色だけを画面いっぱいに。パネル・地図・文字・ボタンは出さない */
+        body.saver { cursor: none; }
+        body.saver #main { left: 0 !important; right: 0 !important; }
+        body.saver #maps, body.saver #split, body.saver #sidebar-open, body.saver #ui-overlay, body.saver .uid-layer, body.saver .dock-rail { display: none !important; }
+        body.saver #wrapC > :not(#cvC):not(#saverCap):not(#saverFade) { display: none !important; }
+        #saverFade { position: absolute; inset: 0; z-index: 20; background: #000; opacity: 0; pointer-events: none; transition: opacity 1.4s ease; }
+        #saverFade.on { opacity: 1; }
+        #saverCap { position: absolute; left: 28px; bottom: 24px; z-index: 21; pointer-events: none; color: #e2e8f0; font-size: 15px; letter-spacing: 0.08em; text-shadow: 0 2px 10px #000; opacity: 0; transition: opacity 2s ease; }
+        #saverCap small { display: block; font-size: 11px; color: #94a3b8; letter-spacing: 0.04em; margin-top: 3px; }
+        #saverCap.on { opacity: 0.85; }
 
         .sb-sec { background: rgba(2, 6, 23, 0.35); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .sb-h { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #cbd5e1; margin: 0; }
@@ -153,6 +163,8 @@
         <div id="split" title="ドラッグで地図と中の景色の広さを変える（ダブルクリックで元に戻す）"></div>
         <div id="wrapC" class="vw">
             <div id="cvC" class="cv"></div>
+            <div id="saverFade"></div>
+            <div id="saverCap"></div>
             <div id="badgeC" class="badge">中にいる人の景色<small>光をまっすぐ（大円に沿って）進めて描く。ドラッグで見渡す（進む向きはそのまま）・Enter でその向きへ進む。Shift＋ドラッグで進む向きを変える（地図の上でも）</small></div>
             <!-- 地図の奥（w′）の向き：中の人から見て、地図に写らない向きがどちらか -->
             <svg id="wArrow" viewBox="-100 -100 200 200" style="position:absolute;left:50%;top:50%;width:min(44%,44vh);height:min(44%,44vh);transform:translate(-50%,-50%);pointer-events:none;z-index:9;overflow:visible">
@@ -230,6 +242,9 @@
                 <div class="sl"><span>巻き数</span><input id="s-turns" type="range" min="1" max="12" step="0.5" title="螺旋で北極から南極まで行く間に何回まわるか"><output id="o-turns"></output></div>
                 <div class="sl"><span>歳差</span><input id="s-prec" type="range" min="0" max="45" step="1" title="歳差の螺旋：1 周ごとに輪の面を x 軸のまわりに何度回すか。0 なら毎回同じ道。15° なら 6 周目あたりで輪が縦になり、上下（±z）のてっぺんまで届く"><output id="o-prec"></output></div>
                 <div class="sl"><span>傾き</span><input id="s-tilt" type="range" min="0" max="1" step="0.05" title="二重の螺旋：巻く面が進むにつれて z の方へ傾く度合い。0 なら 1 枚の球面の上の平らな竜巻（左の S² と同じ）、1 なら北極では z の向きに巻き始め、南極では −z の向きに"><output id="o-tilt"></output></div>
+                <div class="row">
+                    <button class="btn" id="b-fill" title="埋め尽くし：北極から大円で 1 周して戻ったら、向きを変えてまた 1 周。左の S² では 0° → 90° → 45° → 135° → 22.5° … とすきまを半分ずつ埋める。S³ では北極で進める向き（球面）のうち、今までの道からいちばん離れた向きを選ぶ（軸 3 本 → 面の真ん中 → …）。地図の軌跡が、だんだん球を埋めていく">🧶 埋め尽くし</button>
+                </div>
                 <div class="row">
                     <button class="btn" id="b-ring" title="北極と南極を通る輪（経線）を歩く。1 周ごとに輪が軸のまわりに少しずつ回って、だんだん球面をおおう。地図は北極が上・南極が下の向きになる">🌐 回る輪</button>
                 </div>
@@ -397,6 +412,7 @@
                     <button class="btn" id="b-headreset" title="ドラッグ（中の景色）で見渡した向きを戻して、進む向きを見る。見ている向きへ進むなら Enter">見渡しを戻す</button>
                 </div>
                 <div class="row">
+                    <button class="btn" id="b-saver" title="スクリーンセーバー：中の景色だけを画面いっぱいに、場面（球層の海・太陽系・4次元の回転・まっすぐ進む・ダイソン球）を順に流す。F で全画面、クリックか Esc で戻る。今の設定は変えない。Mac のスクリーンセーバーにするには s3walk.html?saver を WebViewScreenSaver に入れる" onclick="location.href = location.pathname + '?saver'">🌙 スクリーンセーバー</button>
                     <button class="btn" id="b-grand" title="壮大モード：同じ速さでも、広い所を進んでいるように見せる。自分のまわりに細かい光の塵（近くの粒だけ速く流れ去る）、球層の網目を 5° ごとの細かい線に、遠くをかすませる（もや 1.6 倍）、目印を 7 割の大きさに">✨ 壮大モード</button>
                 </div>
                 <div class="sl"><span>塵の数</span><input id="s-dustn" type="range" min="0" max="4000" step="100" title="壮大モードの、自分のまわりの光の粒の数（0 で塵なし）"><output id="o-dustn"></output></div>
@@ -568,7 +584,9 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, spin: false, spinRate: 6, spinTilt: 23.4, spinAz: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
     mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
-try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
+// スクリーンセーバー（s3walk.html?saver、?saver&sec=60 で 1 場面の秒数、&scene=2 でその場面だけ）：保存は読まず・書かず、同期もしない（ふだんの設定と別に動く）
+const SAVER = (() => { try { const q = new URLSearchParams(location.search); if (!q.has('saver')) return null; return { sec: Math.max(10, +q.get('sec') || 50), only: q.has('scene') ? +q.get('scene') : null }; } catch (e) { return null; } })();
+if (!SAVER) try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
 S.m2 = Object.assign({ view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, S.m2 || {});   // 2 枚目の地図の設定（古い保存に足りない所を補う）
 if (S.pic !== undefined) { S.mk = S.pic ? 'pic' : 'ball'; delete S.pic; }   // 古い保存（絵のモードの ON/OFF）を読みかえる
@@ -576,11 +594,11 @@ const isPic = () => S.mk === 'pic';
 const noMk = () => S.mk === 'none';   // 目印を何も出さない
 // 球層のいちばん内側の殻（北は赤・南は紫）の極からの距離：極の目印（⛄・🌴）の玉がちょうど中に収まるように、玉の半径＋少し（超球アプリは 0.08 だが、そこに目印の玉は無い）
 const shellMinTheta = () => (S.mk === 'pic' ? 0.13 * 1.5 : S.mk === 'dot' ? 0.13 * 1.9 : 0.13) + 0.06;
-S.walk = false; S.roam = false; S.spiral = false; S.grav = false; S.hopf = false; S.ring = false; S.ringView = false;
+S.walk = false; S.roam = false; S.spiral = false; S.grav = false; S.hopf = false; S.ring = false; S.ringView = false; S.fill = false;
 const AUTO = { k: 1 };   // 自動で軽く：中の景色の細かさにかける倍率（0.4〜1）
 // Gist の設定に入れかえて読み直す途中は、今の設定で上書きしない（state-sync が sessionStorage に印を付けてから読み直す）
 const gistApplying = () => { try { return !!sessionStorage.getItem('s3walkGistApplied'); } catch (e) { return false; } };
-let saveT = 0; function save() { clearTimeout(saveT); saveT = setTimeout(() => { if (gistApplying()) return; try { localStorage.setItem('s3walk-state', JSON.stringify(S)); } catch (e) {} }, 300); }
+let saveT = 0; function save() { if (SAVER) return; clearTimeout(saveT); saveT = setTimeout(() => { if (gistApplying()) return; try { localStorage.setItem('s3walk-state', JSON.stringify(S)); } catch (e) {} }, 300); }
 
 // 歩く人（S³）と、その仲間（S²）
 const W = { p: [0, 0, 0, 1], r: [0, 1, 0, 0], u: [0, 0, 1, 0], f: [1, 0, 0, 0], dist: 0, trail: [], foot: [], marks: [], lastFoot: 0, lastTrail: 0, wasW: 1, passed: {} };
@@ -681,6 +699,49 @@ function ringStep(ds) {
     const lap = Math.floor(RING.T / TAU);
     if (lap > RING.lapSaid) { RING.lapSaid = lap; say(`${lap + 1} 周目：輪が ${Math.round((lap * S.ringStep) % 360)}° 回った`); }
 }
+// ---- 埋め尽くし：北極から大円で 1 周して戻ったら、向きを変えてまた 1 周。向きは「今までの道からいちばん離れた向き」（いちばん大きいすきま）を順に選ぶ
+//   左の S²：0° → 90° → 45° → 135° → 22.5° …（すきまを半分ずつ。北極を通る大円は 180° で同じ輪なので 0〜180°）
+//   S³：北極で進める向きは球面 S²（x, y, z）。反対向き（−d）は同じ大円なので、向きどうしの角は acos|d·e|。候補（八面体を細かく分けた点、粗い順）から、
+//   今までの向きとのいちばん小さい角がいちばん大きいものを選ぶ（同じなら粗い方）＝ 軸 3 本 → 面の真ん中 → 辺の真ん中 → …
+const FILL = { T: 0, lapSaid: -1, dirs: [], gaps: [] };
+function fillBuild(N) {
+    const cand = [], seen = new Set();
+    for (const n of [1, 2, 3, 4, 6, 8, 12, 16, 24]) for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) for (const k of [n - Math.abs(i) - Math.abs(j)]) {
+        if (k < 0) continue;
+        let v = nrm([i, j, k]); const f = v.find(x => Math.abs(x) > 1e-9); if (f < 0) v = scl(v, -1);   // 反対向きは同じ輪なので、最初の 0 でない成分を＋にそろえる
+        const key = v.map(x => Math.round(x * 1e6)).join(','); if (seen.has(key)) continue; seen.add(key); cand.push(v);
+    }
+    const dirs = [[1, 0, 0]], gaps = [90], best = cand.map(c => Math.acos(Math.min(1, Math.abs(dot(c, dirs[0])))));
+    while (dirs.length < N) {
+        let bi = -1, bv = -1; for (let i = 0; i < cand.length; i++) if (best[i] > bv + 1e-9) { bv = best[i]; bi = i; }
+        if (bi < 0 || bv < 1e-6) break;
+        const d = cand[bi]; dirs.push(d); gaps.push(bv / d2r);
+        for (let i = 0; i < cand.length; i++) best[i] = Math.min(best[i], Math.acos(Math.min(1, Math.abs(dot(cand[i], d)))));
+    }
+    FILL.dirs = dirs; FILL.gaps = gaps;
+}
+const vdc = k => { let x = 0, b = 0.5; while (k > 0) { if (k & 1) x += b; k >>= 1; b /= 2; } return x; };   // 0, 1/2, 1/4, 3/4, 1/8, 5/8 …（すきまを半分ずつ）
+function fillPoint(T) {
+    const lap = Math.max(0, Math.floor(T / TAU)), th = T - lap * TAU, sn = Math.sin(th), cs = Math.cos(th);
+    const u = FILL.dirs[lap % FILL.dirs.length], ph = vdc(lap) * Math.PI;
+    return { p: [sn * u[0], sn * u[1], sn * u[2], cs], p2: [sn * Math.cos(ph), sn * Math.sin(ph), cs], lap };
+}
+function fillStart() {
+    if (!FILL.dirs.length) fillBuild(300);
+    resetNorth(); FILL.T = 0.002; FILL.lapSaid = -1;
+    const q = fillPoint(FILL.T); W.p = q.p.slice(); W2.p = q.p2.slice(); orthoFrame(W); orthoFrame(W2); req(3);
+}
+function fillStep(ds) {
+    FILL.T += ds;   // 大円の上は T がそのまま進んだ距離
+    const q = fillPoint(FILL.T);   // 北極を通り過ぎる時に、次の向きの大円へ乗りかえる（北極ではどの向きにも進めるので、道はつながる）
+    const d = nrm(add(q.p, W.p, -dot(q.p, W.p))), d2 = nrm(add(q.p2, W2.p, -dot(q.p2, W2.p)));
+    const s3 = Math.acos(Math.max(-1, Math.min(1, dot(q.p, W.p))));
+    if (!(s3 > 1e-9) || !isFinite(d[0]) || !isFinite(d2[0])) return;
+    step(d, d2, s3);
+    W.p = q.p.slice(); W2.p = q.p2.slice(); orthoFrame(W); orthoFrame(W2);
+    S.az = Math.atan2(dot(d, W.r), dot(d, W.f)) / d2r; S.el = Math.asin(Math.max(-1, Math.min(1, dot(d, W.u)))) / d2r;   // 見る向き＝進む向き
+    if (q.lap > FILL.lapSaid) { FILL.lapSaid = q.lap; if (q.lap > 0) say(`${q.lap + 1} 本目：いちばん大きいすきまへ（今までの道から ${FILL.gaps[q.lap % FILL.gaps.length].toFixed(1)}°）。S² の向きは ${(vdc(q.lap) * 180).toFixed(1)}°`); }
+}
 // ---- ホップの円：q を複素数 2 つ (x+iy, z+iw) と見て、e^{it}·q と回す（x-y 面と z-w 面を同じ速さで同時に回す二重回転）。
 //   どの点の道も大円（まっすぐ）で、となりどうしの距離は変わらない（クリフォード平行）。でも 1 周すると、お互いのまわりをちょうど 1 回まわる
 const HOPF = { t: 0, q0: [0, 0, 0, 1], comps: [], comps2: [], key: 0, lapSaid: 0 };
@@ -729,7 +790,7 @@ function paraPos(j, s) { const q = add(scl(PARA.p0, Math.cos(PARA.d0)), PARA.R0,
 function para2Pos(j, s) { const q = add(scl(PARA.p2, Math.cos(PARA.d0)), PARA.r2, (j ? -1 : 1) * Math.sin(PARA.d0)); return add(scl(q, Math.cos(s)), PARA.v2, Math.sin(s)); }
 function paraCheck() {   // 自分が出発の時の大円から外れたら（向きを変えて歩いたら）、今の場所・向きで並べ直す
     if (!S.para || !PARA.p0) return;
-    if (S.hopf || S.ring || S.spiral || S.grav || S.roam) { S.para = false; refreshUI(); return; }   // ほかの動き方が始まったらやめる
+    if (S.hopf || S.ring || S.spiral || S.grav || S.roam || S.fill) { S.para = false; refreshUI(); return; }   // ほかの動き方が始まったらやめる
     const s = paraS(), me = add(scl(PARA.p0, Math.cos(s)), PARA.v0, Math.sin(s));
     if (dot(me, W.p) < Math.cos(0.02)) { paraStart(); say('向きが変わったので、仲間を並べ直した（まっすぐ歩くと比べられる）'); return; }
     const k = Math.floor((s + 0.01) / (Math.PI / 2));
@@ -1758,12 +1819,12 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-trail': 'trail', 'b-grand': 'grand', 'b-gridspin': 'gridSpin', 'b-rot4others': 'rot4Others', 'b-rot4': 'rot4', 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-fill': 'fill', 'b-trail': 'trail', 'b-grand': 'grand', 'b-gridspin': 'gridSpin', 'b-rot4others': 'rot4Others', 'b-rot4': 'rot4', 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
 $('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
 $('b-solar').addEventListener('click', () => { if (S.solar) say('☀️ 太陽系：太陽は北極。「次の惑星へ ▶」でツアー'); else TOUR.i = -1; refreshUI(); req(3); });
-$('b-tour').addEventListener('click', () => { if (!S.solar) { S.solar = true; refreshUI(); } S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = (TOUR.i + 1) % PLANETS.length; TOUR.ride = false; const P = PLANETS[TOUR.i]; say(`${P.pic} ${P.name}へ出発（太陽から ${P.r.toFixed(2)}）`); refreshUI(); });
+$('b-tour').addEventListener('click', () => { if (!S.solar) { S.solar = true; refreshUI(); } S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = S.fill = false; TOUR.i = (TOUR.i + 1) % PLANETS.length; TOUR.ride = false; const P = PLANETS[TOUR.i]; say(`${P.pic} ${P.name}へ出発（太陽から ${P.r.toFixed(2)}）`); refreshUI(); });
 $('b-tour0').addEventListener('click', () => { TOUR.i = -1; resetNorth(); S.az = 0; S.el = 0; onLook(); say('太陽のそば（北極）に戻った'); });
 $('b-headreset').addEventListener('click', headReset);
 ['xw', 'yw', 'zw'].forEach(k => $('s-m2' + k).addEventListener('input', e => { S.m2[k] = +e.target.value; $('o-m2' + k).textContent = S.m2[k] + '°'; save(); req(3); }));
@@ -1775,19 +1836,20 @@ $('b-grid90').addEventListener('click', () => { S.gridTilt = 90; save(); refresh
 $('b-shellbare').addEventListener('click', () => { if (S.shellBare) { S.shell = true; S.shellSolid = true; } refreshUI(); req(3); });   // 網目なしは立体の殻で
 $('b-spin0').addEventListener('click', () => { SPIN.ang = 0; req(3); }); $('headReset').addEventListener('click', headReset); $('headGo').addEventListener('click', headGo);
 $('b-stop').addEventListener('click', () => { S.walk = false; S.roam = false; S.spiral = false; refreshUI(); });
-$('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; SP.lap = 0; S.walk = false; S.roam = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
+$('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; SP.lap = 0; S.walk = false; S.roam = false; S.fill = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
 document.querySelectorAll('.btn.mk').forEach(b => b.addEventListener('click', () => { S.mk = b.dataset.mk; save(); refreshUI(); req(3); }));
 document.querySelectorAll('.btn.lens').forEach(b => b.addEventListener('click', () => { S.lens = b.dataset.lens; if (S.lens === 'fish' && S.fov < 150) S.fov = 180; if (S.lens === 'normal' && S.fov > 150) S.fov = 110; save(); refreshUI(); req(3); }));
 $('b-light').addEventListener('click', () => { Object.assign(S, { mk: 'dot', bgMesh: true, lite: false, circ: false, room: false, eq: false, passes: 1, q: 0.6 }); resizeAll(); save(); refreshUI(); req(3); say('軽量モード：色の点・色の地図・線なし'); });
 $('b-std').addEventListener('click', () => { Object.assign(S, { mk: 'ball', bgMesh: false, lite: true, circ: false, room: false, eq: true, passes: 4, q: 0.7 }); resizeAll(); save(); refreshUI(); req(3); say('標準の見え方に戻しました'); });
 $('b-trip').addEventListener('click', () => { S.grav = false; resetNorth(); S.walk = true; say('北極から出発。向きを変えずに進むと、南極を通って北極に戻る'); refreshUI(); });
 $('b-north').addEventListener('click', () => { resetNorth(); S.walk = false; G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; refreshUI(); });
-$('b-grav').addEventListener('click', () => { if (S.grav) { S.walk = S.roam = S.spiral = false; G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; say('重力 ON：w の＋から−へ。中の人には「南極へ引く力」に感じる'); } refreshUI(); });
-$('b-para').addEventListener('click', () => { if (S.para) { S.roam = S.spiral = S.grav = S.hopf = S.ring = false; paraStart(); S.walk = true; say('平行な仲間と出発：🐧（右）と 🐬（左）が同じ向きにまっすぐ歩く'); } refreshUI(); });
+$('b-grav').addEventListener('click', () => { if (S.grav) { S.walk = S.roam = S.spiral = S.fill = false; G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; say('重力 ON：w の＋から−へ。中の人には「南極へ引く力」に感じる'); } refreshUI(); });
+$('b-para').addEventListener('click', () => { if (S.para) { S.roam = S.spiral = S.grav = S.hopf = S.ring = S.fill = false; paraStart(); S.walk = true; say('平行な仲間と出発：🐧（右）と 🐬（左）が同じ向きにまっすぐ歩く'); } refreshUI(); });
 $('s-parad').addEventListener('change', () => { if (S.para) paraStart(); });
-$('b-hopf').addEventListener('click', () => { if (S.hopf) { S.walk = S.roam = S.spiral = S.grav = false; hopfStart(); say(S.hopfPlain ? '仲間と並んで出発（ふつうの平行）' : '仲間と並んでまっすぐ出発（ホップの円）'); } refreshUI(); });
+$('b-hopf').addEventListener('click', () => { if (S.hopf) { S.walk = S.roam = S.spiral = S.grav = S.fill = false; hopfStart(); say(S.hopfPlain ? '仲間と並んで出発（ふつうの平行）' : '仲間と並んでまっすぐ出発（ホップの円）'); } refreshUI(); });
 $('b-hopfplain').addEventListener('click', () => { if (S.hopf) hopfStart(); });
-$('b-ring').addEventListener('click', () => { if (S.ring) { S.walk = S.roam = S.spiral = S.grav = S.hopf = false; ringStart(); say(S.ringAxis === 'w' ? '🐱 と 🐶 を通る輪を歩く（赤道の球面の上）。1 周ごとに輪が少しずつ回る' : '北極と南極を通る輪を歩く。1 周ごとに輪が少しずつ回る'); } else S.ringView = false; refreshUI(); });
+$('b-fill').addEventListener('click', () => { if (S.fill) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = -1; fillStart(); say('埋め尽くし：北極から 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）'); } refreshUI(); });
+$('b-ring').addEventListener('click', () => { if (S.ring) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.fill = false; ringStart(); say(S.ringAxis === 'w' ? '🐱 と 🐶 を通る輪を歩く（赤道の球面の上）。1 周ごとに輪が少しずつ回る' : '北極と南極を通る輪を歩く。1 周ごとに輪が少しずつ回る'); } else S.ringView = false; refreshUI(); });
 document.querySelectorAll('.btn.rax').forEach(b => b.addEventListener('click', () => { S.ringAxis = b.dataset.ax; if (S.ring) ringStart(); save(); refreshUI(); }));
 $('b-jump').addEventListener('click', gravJump); $('b-kick').addEventListener('click', gravKick); $('b-drop').addEventListener('click', () => { S.grav = true; S.walk = S.roam = S.spiral = false; dropFromEquator(); refreshUI(); });
 $('b-clear').addEventListener('click', () => { W.trail = []; W2.trail = []; W.foot = []; W2.foot = []; req(3); });
@@ -1899,6 +1961,7 @@ function updateHUD() {
         $('hudC').innerHTML += `<br><span style="color:#7dd3fc">平行な仲間：進んだ <b>${sP.toFixed(2)}</b>　🐧 の道までの間 <b>${dR.toFixed(3)}</b>（平らなら ${PARA.d0.toFixed(3)} のまま）　🐧〜🐬 の道の間 <b>${dB.toFixed(3)}</b></span>` + paraGraph(); }
     if (S.rot4) $('hudC').innerHTML += `<br><span style="color:${ROT4.near ? '#fde047' : '#9be7ff'}">🔄 4次元の回転 ${S.rot4Plane.toUpperCase().replace('W', '-W')} ${Math.round(S[S.rot4Plane])}°：地図の上で N と S の間 <b>${(ROT4.dist / RS).toFixed(2)}</b>（4次元では いつも π）${ROT4.near ? '　← 重なっている！' : ''}</span>`;
     if (S.spin) $('hudC').innerHTML += `<br><span style="color:#f9a8d4">🌀 自転 <b>${S.spinRate.toFixed(1)}</b> 回/分　いま ${Math.round(SPIN.ang / d2r)}°　地軸の傾き ${S.spinTilt.toFixed(1)}°・向き ${Math.round(S.spinAz)}°</span>`;
+    if (S.fill) { const L = Math.floor(FILL.T / TAU); $('hudC').innerHTML += `<br>🧶 埋め尽くし ${L + 1} 本目　すきま ${FILL.gaps[L % FILL.gaps.length].toFixed(1)}°（S² の向き ${(vdc(L) * 180).toFixed(1)}°）`; }
     if (S.ring) $('hudC').innerHTML += `<br>🌐 ${Math.floor(RING.T / TAU) + 1} 周目　輪の向き ${Math.round(((S.ringStep * RING.T / TAU) % 360))}°（軸 ${S.ringAxis === 'all' ? '全部' : S.ringAxis}）`;
     if (S.hopf) { const h = hopfInfo(); $('hudC').innerHTML += `<br>🔗 ${(HOPF.t / TAU).toFixed(2)} 周　🐧 までの距離 <b>${h.dist.toFixed(3)}</b>　🐧 のまわりの角 <b>${Math.round(h.ang)}°</b>`; }
     if (S.grav) { const sp = Math.hypot(...G.v), dS = Math.PI - Math.acos(Math.max(-1, Math.min(1, W.p[3]))); $('hudC').innerHTML += `<br>🍎 速さ <b>${sp.toFixed(2)}</b>　${G.on ? '星の上に立っている' : '宙に浮いている'}`; }
@@ -2008,6 +2071,7 @@ function loop(now) {
     if (S.solar) { SOL.t += dt * S.solarSpd; req(2);
         if (TOUR.i >= 0) { if (mv[0] || mv[1] || mv[2]) { TOUR.i = -1; say('ツアーをやめた（歩いた）'); } else tourStep(dt); } }
     if (S.grav) { gravityStep(dt, mv); }
+    else if (S.fill) { fillStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
     else if (S.ring) { ringStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
     else if (S.hopf) { hopfStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
     else if (S.spiral) { spiralStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
@@ -2029,15 +2093,51 @@ function loop(now) {
     if (S.wC) { setRayUniforms(); VC.r.render(ray.scene, ray.cam); if (S.grand) DUST.draw(); }
     updateHUD();
 }
+// ---- スクリーンセーバー：場面を順に（暗くして入れかえ、明るくする）。クリックか Esc でふつうの画面へ、F で全画面 ----
+const SAVER_BASE = { walk: false, roam: false, spiral: false, grav: false, hopf: false, ring: false, ringView: false, para: false, solar: false, rot4: false, spin: false, dyson: false, gridSpin: false,
+    shell: true, shellSolid: false, shellBare: false, shellN: 11, shellOp: 0.22, shellRange: 3, grand: true, dustN: 2000, mk: 'ball', foot: false, eq: true, circ: false, room: false, lite: false, wArrow: false, lens: 'normal', fov: 75,
+    wA: false, wB: false, wC: true, hy: 0, hp: 0, xw: 0, yw: 0, zw: 0, follow: false, autoQ: true };
+const SAVER_SCENES = [
+    { name: '球層の海をただよう', sub: 'どこへ進んでも、いつか戻ってくる', set: { roam: true, roamK: 0.55, spd: 0.4 } },
+    { name: '3次元球面の太陽系', sub: '太陽は北極、惑星はそのまわりの球面の上', set: { solar: true, solarSpd: 1, shell: false, spd: 0.6 }, tour: true },
+    { name: '4次元の回転', sub: '北極と南極が、空間の中ですれちがう', set: { rot4: true, rot4Plane: 'yw', rot4Spd: 14, rot4Others: true, shellOp: 0.35 } },
+    { name: 'まっすぐ進む', sub: '網目が回るのは、空間が曲がっているから', set: { walk: true, spd: 0.5, shellSolid: true, gridSpin: true, gridSpinRate: 1.5 } },
+    { name: '外側のダイソン球', sub: 'もし 3次元球面の外が光る殻で囲まれていたら', set: { dyson: true, outer: 1, walk: true, spd: 0.35, spin: true, spinRate: 1.5, spinTilt: 23.4, shell: false } },
+];
+function saverScene(i) {
+    const sc = SAVER_SCENES[i % SAVER_SCENES.length];
+    Object.assign(S, JSON.parse(JSON.stringify(SAVER_BASE)), sc.set);
+    resetNorth(); TOUR.i = -1; TOUR.ride = false; SPIN.ang = 0; GRID.spin = 0; IN.roamT = Math.random() * 100;
+    S.az = Math.round(Math.random() * 360 - 180); S.el = sc.set.walk ? Math.round(Math.random() * 40 - 20) : 0;
+    if (sc.tour) { TOUR.i = Math.floor(Math.random() * PLANETS.length); SAVER.tourT = 0; }
+    else { const az = S.az, el = S.el; S.el = 0; S.az = Math.round(Math.random() * 360 - 180); const d = 0.45 + Math.random() * 0.7; for (let k = 0; k < 40; k++) walkStep([0, 0, 1], d / 40); S.az = az; S.el = el; W.trail = []; W2.trail = []; }   // 北極のすぐそば（いちばん内側の赤い殻の中）だと画面が壁でうまるので、少し出たところから
+    updateRot(); rebuildMarks(); refreshUI(); resizeAll(); req(3);
+    const cap = $('saverCap'); cap.innerHTML = sc.name + '<small>' + sc.sub + '</small>'; cap.classList.add('on'); setTimeout(() => cap.classList.remove('on'), 7000);
+}
+function saverStart() {
+    document.body.classList.add('saver'); setSidebar(false);
+    let i = SAVER.only !== null ? SAVER.only : Math.floor(Math.random() * SAVER_SCENES.length);
+    saverScene(i);
+    if (SAVER.only === null) setInterval(() => {
+        $('saverFade').classList.add('on');
+        setTimeout(() => { i = (i + 1) % SAVER_SCENES.length; saverScene(i); $('saverFade').classList.remove('on'); }, 1500);
+    }, SAVER.sec * 1000);
+    // 太陽系の場面：着いて並んで飛んだら、しばらくして次の惑星へ
+    setInterval(() => { if (S.solar && TOUR.i >= 0 && TOUR.ride && (SAVER.tourT = (SAVER.tourT || 0) + 1) >= 12) { SAVER.tourT = 0; TOUR.i = (TOUR.i + 1) % PLANETS.length; TOUR.ride = false; } }, 1000);
+    const leave = () => { location.href = location.pathname; };
+    window.addEventListener('keydown', e => { if (e.key === 'Escape') leave(); else if (e.key === 'f' || e.key === 'F') { const d = document.documentElement; if (!document.fullscreenElement && d.requestFullscreen) d.requestFullscreen().catch(() => {}); } }, true);
+    window.addEventListener('pointerdown', leave, true);
+}
 homeView(VA, 9.6); homeView(VB, 9.6);
 try { lucide.createIcons(); } catch (e) {}
 resetNorth(); rebuildMarks(); refreshUI(); updateRot(); resizeAll();
+if (SAVER) saverStart();
 requestAnimationFrame(loop);
 
 // ---- 設定の保存（共通部品 state-sync）：s3walk で始まる保存（s3walk-state＝ボタン・スライダー、s3walk-folds＝欄のたたみ）をシークレット Gist に上げ、別の端末では新しい方にそろえる ----
 //   画面の状態はもともと s3walk-state に保存しているので、snapshot・restore は空（グラフ電卓と同じ使い方）。欄の分離の並び（s3walkFloats）は端末ごとなので同期しない
 //   鍵と Gist ID は次元おりがみ・グラフ電卓と同じもの（hypercubeGistToken・hypercubeGistId）。Gist の中は s3walk-state.json
-if (window.StateSync) {
+if (window.StateSync && !SAVER) {
     try {
         const sync = StateSync.create({ app: 's3walk', build: '20261024-1920', tokenKey: 'hypercubeGistToken', idKey: 'hypercubeGistId', snapshot: () => ({}), restore: () => {}, exclude: ['s3walkFloats'] });
         sync.start(); sync.mountUI($('syncBox')); window._s3sync = sync;
@@ -2046,7 +2146,7 @@ if (window.StateSync) {
 // ---- 設定の同期（共通部品 supa-sync）：Supabase の表 mathviz_state の自分の行へ。メールのリンクでログイン、ほかの端末の変更はリアルタイムで届く ----
 //   ほかの端末の変更は、読み直さずにその場で反映する（ボタン・スライダー＝s3walk-state、欄のたたみ＝s3walk-folds、分離と連結の並び＝s3walkFloats）
 //   ぬるぬる同期では、画面まわり（並び・たたみ・パネルの開閉・地図のカメラ）と道すじ・足あと・目印も送り合う＝画面まるごと
-if (window.SupaSync) {
+if (window.SupaSync && !SAVER) {
     try {
         const applyLive = d => {
             if (d['s3walk-state']) { const st = JSON.parse(d['s3walk-state']); Object.assign(S, st); updateRot(); refreshUI(); resizeAll(); req(3); }
