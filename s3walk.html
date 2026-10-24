@@ -220,7 +220,8 @@
                     <p><b>3次元球面 S³</b> は、4次元の超球の表面にあたる <b>3次元の空間</b>です。中にいる人は前後・左右・上下に動けますが、どの向きにまっすぐ進んでも、<b>2π（約 6.28）進むと元の場所に戻ります</b>。途中 π で反対側の点（対蹠点）を通ります。</p>
                     <p class="an">2次元の仲間：ふつうの球面 S²。北極から どの方位にまっすぐ歩いても、南極を通って北極に戻る（経線をたどる）。左の窓はそれです。</p>
                     <p>出発した北極では、<b>空全体が金色</b>に見えます。これは反対側（π 先）の南極の玉。S³ では、ちょうど反対側の点から出た光がどの向きからも届くので、そこにある物が空いっぱいに広がって見えます。少し歩くと金色の玉はまとまって見えてきます。</p>
-                    <p><b>絵のモード</b>：目印を 🐰🐢🦝 などの絵にし、中の景色の線を消します。どの目印が前に（遠回りして）見えているのか、一目で分かります。絵はいつもこちらを向きます（反対回りの光で見える像は左右が裏返ります）。</p>
+                    <p><b>絵のモード</b>：目印を 🐰🐢🦝 などの絵にし、中の景色の線を消します。どの目印が前に（遠回りして）見えているのか、一目で分かります。各絵の<b>右上に赤い点</b>があります。</p>
+                    <p><b>像の向き</b>：光の道のりが π より短い物は正しい向き（赤い点が右上）。ちょうど π（反対側）の物は空いっぱいに広がり、向きは正しいまま。π より長い（反対側を回ってきた光で見える）物は <b>180° 回った像</b>＝上下も左右も逆（赤い点が左下）。鏡のように左右だけ裏返ることはありません。反対側の点がレンズの焦点のように働いて、そこを越えた光は像をひっくり返すのです。</p>
                     <p>中の景色（右）：光も大円に沿って進むので、<b>π 先の対蹠点が空いっぱいに広がって見え</b>、2π 先には自分の背中が見えます。遠くの目印は、π に近づくほど逆に大きく見えます。</p>
                     <p>S³ の地図（真ん中）：4次元の超球を、次元おりがみと同じ遠近で 3次元に写した模型。手前の半分（w が＋、赤紫）と奥の半分（w が−、水色）が重なって 1 つの玉に見えます。地図の上の白い玉が自分です。</p>
                 </div>
@@ -382,7 +383,9 @@ const ATLAS = (() => {
     const list = [PIC.N, PIC.S, PIC.px, PIC.nx, PIC.py, PIC.ny, PIC.pz, PIC.nz, PIC.self, PIC.foot, ...PIC.marks], N = 8, C = 128;
     const cv = document.createElement('canvas'); cv.width = cv.height = N * C; const ctx = cv.getContext('2d');
     ctx.font = '96px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const idx = {}; list.forEach((ch, i) => { idx[ch] = i; ctx.fillText(ch, (i % N) * C + C / 2, Math.floor(i / N) * C + C / 2 + 6); });
+    const idx = {}; list.forEach((ch, i) => { const x0 = (i % N) * C, y0 = Math.floor(i / N) * C; idx[ch] = i; ctx.fillText(ch, x0 + C / 2, y0 + C / 2 + 6);
+        ctx.beginPath(); ctx.arc(x0 + 0.74 * C, y0 + 0.26 * C, 10, 0, TAU); ctx.fillStyle = '#ef4444'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();   // 玉の表面に写る範囲（真ん中から 0.4）の内側に   // 右上に赤い点：上下逆・左右逆が分かる目印（180° 回った像では左下に来る）
+    });
     const tex = new THREE.CanvasTexture(cv); tex.flipY = false; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.generateMipmaps = true;
     return { tex, idx, n: N, of: ch => (ch in idx ? idx[ch] : -1) };
 })();
@@ -575,7 +578,7 @@ void nearestMarker(vec4 p0, vec4 v, float lastT, out float tOut, out vec3 cOut, 
                 if(uPic==1 && uMkT[i] >= 0.0){
                     vec4 Rp = normalize(uR - c*dot(uR,c));
                     vec4 Up = uU - c*dot(uU,c); Up = normalize(Up - Rp*dot(Up,Rp));
-                    vec2 xy = vec2(dot(n,Rp), dot(n,Up)) * 1.25;
+                    vec2 xy = vec2(dot(n,Rp), dot(n,Up)) * 0.8;   // ふち（|xy| = 1）が絵のます目のふちに来るように
                     float cell = uMkT[i]; float cx = mod(cell, 8.0), cy = floor(cell/8.0);
                     vec2 uv = clamp(0.5 + 0.5*xy, 0.02, 0.98);
                     vec4 tx = texture2D(uAtlas, vec2((cx + uv.x)/8.0, (cy + 1.0 - uv.y)/8.0));
