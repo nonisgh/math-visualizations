@@ -136,9 +136,7 @@
             <svg id="wArrow" viewBox="-100 -100 200 200" style="position:absolute;left:50%;top:50%;width:min(44%,44vh);height:min(44%,44vh);transform:translate(-50%,-50%);pointer-events:none;z-index:9;overflow:visible">
                 <g id="wa-arrow" stroke="#c4a8ff" fill="#c4a8ff" stroke-linecap="round"><line id="wa-line" x1="0" y1="0" x2="0" y2="0" stroke-width="5"/><polygon id="wa-head" points="0,0 0,0 0,0" stroke="none"/></g>
                 <circle id="wa-c" cx="0" cy="0" r="10" fill="rgba(20,10,40,0.35)" stroke="#c4a8ff" stroke-width="3"/>
-                <g id="wa-x" stroke="#c4a8ff" stroke-width="3" stroke-linecap="round"><line id="wa-x1"/><line id="wa-x2"/></g>
-                <circle id="wa-dot" cx="0" cy="0" r="3" fill="#c4a8ff"/>
-                <text id="wa-lab" x="0" y="0" fill="#e9ddff" font-size="12" font-weight="700" text-anchor="middle" style="paint-order:stroke;stroke:rgba(10,6,25,0.9);stroke-width:3px">地図の奥 w′</text>
+                <text id="wa-lab" x="0" y="0" fill="#e9ddff" font-size="12" font-weight="700" text-anchor="middle" style="paint-order:stroke;stroke:rgba(10,6,25,0.9);stroke-width:3px">地図ではこっちへ曲がる</text>
             </svg>
             <div id="trip"><div class="t">1 周（2π ≈ 6.28）のうち</div><div class="bar"><i id="trip-bar"></i><span class="mk" style="left:50%"></span></div><div class="lab"><span>北極</span><span>南極</span><span>北極</span></div></div>
             <div id="hudC" class="hud"></div>
@@ -249,7 +247,8 @@
                     <button class="btn" id="b-shell" title="超球アプリの「球殻積層」と同じ見た目の球層の中を歩く：北・南それぞれ n 枚の w = 一定の球殻（半透明＋網目、極から赤道へ色が変わる。ふちと裏側は暗く）。式だけで描くので軽め">🫧 球層（超球アプリ）</button>
                     <button class="btn" id="b-shellsolid" title="球層を立体に：超球アプリの「不透明」＋「影」の見た目（面に光とつや、ふちは暗い輪郭）。ただし、うっすら透ける">立体</button>
                     <button class="btn" id="b-shfocus" title="S³ の地図の球層を、今いる所のまわりだけに：自分のいる殻をはっきり、となりの殻はうっすら、遠い所と裏側は透明">地図は今いる所だけ</button>
-                    <button class="btn" id="b-shlat" title="S³ の地図の球層を、緯度の線（横の輪）だけで描く。経線（縦の線）を省くので、殻の重なりが見やすい">地図の殻は緯度線だけ</button>
+                    <button class="btn" id="b-shlight" title="空間ライト：中の景色の画面に写っている所（視野の中で、殻の見える距離まで）だけを S³ の地図の球層に照らす。向きを変えると、地図の上の照らされる所も動く">空間ライト（画面に写る所だけ）</button>
+                    <button class="btn" id="b-shonly" title="球層の時、S³ の地図には球殻だけを描く：地図の球全体にかかる線（赤道の網目・軽い線・経線と赤道の輪・部屋）を地図から消す。中の景色はそのまま">地図は球殻だけ</button>
                     <button class="btn" id="b-room" title="S³ をちょうど 120 個の正十二面体で区切った部屋（120 胞体）の辺。光を少しずつ進めて探すので重い">部屋（120 胞体）重い</button>
                     <button class="btn" id="b-self" title="自分の場所に白い玉。光が 1 周（2π）してくると、自分の背中が見える">自分の玉</button>
                 </div>
@@ -258,7 +257,7 @@
                 <div class="sl"><span>裏側</span><input id="s-shellback" type="range" min="0" max="1" step="0.05" title="球層：極の側（内側）から見た面をどれだけ暗くするか"><output id="o-shellback"></output></div>
                 <div class="sl"><span>殻の見える距離</span><input id="s-shellrange" type="range" min="0.3" max="6.3" step="0.05" title="球層の殻を、自分からこの距離までだけ描く。殻は本物の壁なので、遠くまで描くと何十枚も重なって、1 周して戻ってくる景色（反対側の像）を隠してしまう。1 くらいにすると、近くの殻と、遠回りして戻ってくる目印の両方が見える（遠い殻ほど薄く描く）"><output id="o-shellrange"></output></div>
                 <div class="sl"><span>地図の近さ</span><input id="s-shfocusr" type="range" min="0.3" max="3.2" step="0.05" title="「地図は今いる所だけ」で、自分からこの距離までの殻を地図に描く（遠くなるほど薄く）"><output id="o-shfocusr"></output></div>
-                <p class="note">「球層」は超球アプリ（hypersphere.html）の右の窓と同じ球殻の積み重ね。「立体」で不透明モード風（光・つや・輪郭。透明度のスライダーで透け具合）。北極を囲む殻は赤→水色、南極を囲む殻は紫→水色（赤道が水色）。歩く人はその殻を次々に通り抜けます。「地図は今いる所だけ」で、S³ の地図の球層は自分のまわりだけ（自分のいる殻ははっきり、となりはうっすら、遠い所と裏側は透明。広さは「地図の近さ」）。「地図の殻は緯度線だけ」で、地図の殻の縦の線を省く。</p>
+                <p class="note">「球層」は超球アプリ（hypersphere.html）の右の窓と同じ球殻の積み重ね。「立体」で不透明モード風（光・つや・輪郭。透明度のスライダーで透け具合）。北極を囲む殻は赤→水色、南極を囲む殻は紫→水色（赤道が水色）。歩く人はその殻を次々に通り抜けます。「地図は今いる所だけ」で、S³ の地図の球層は自分のまわりだけ（自分のいる殻ははっきり、となりはうっすら、遠い所と裏側は透明。広さは「地図の近さ」）。「空間ライト」で、中の景色の画面に写っている所（視野の中、殻の見える距離まで）だけを地図の球層に照らす（懐中電灯のように、向きを変えると照らす所も動く）。「地図は球殻だけ」で、地図の球全体にかかる線（赤道の網目・軽い線など）を消して球殻だけに。</p>
                 <p class="note">「軽い線」は、北極からの距離が 30°・60°・90°（赤道）・120°・150° の 5 枚の球面（S³ の緯度の殻）に、緯度・経度の線を描いたもの。赤紫＝北寄り、水色＝南寄り。「部屋」と「経線・赤道の輪」は光を少しずつ進めて探すので重め。</p>
                 <p class="note">はじめから：N（北極・水色）、S（南極・金色）、赤道の 6 か所（±x 赤・±y 緑・±z 青）。絵のモードでは N＝⛄、S＝🌴、+x＝🐰、−x＝🐢、+y＝🦝（たぬき）、−y＝🐸、+z＝🐱、−z＝🐶、自分＝🙂、足あと＝👣。置いた目印は 🦊🐻🐼… の順。</p>
             </section>
@@ -286,7 +285,7 @@
                     <button class="btn" id="b-axes" title="x・y・z（S³ の地図では w も）の軸">軸</button>
                     <button class="btn" id="b-home" title="地図の見る向きを最初に戻す">向きを戻す</button>
                     <button class="btn" id="b-heading" title="地図（S² と S³）の黄色い円すい。歩いている間は進む向き、止まっている時は見ている向き">進む向き</button>
-                    <button class="btn" id="b-warrow" title="中の景色に、地図の奥（地図に写らない w′ の向き）が自分から見てどちらかを紫の矢印で。奥の向きが画面に垂直になると矢印は消え、真ん中の ⊗（前の奥）／⊙（後ろ）が大きくなる">地図の奥の向き</button>
+                    <button class="btn" id="b-warrow" title="中の景色に紫の矢印：まっすぐ進む道が、S³ の地図の上ではどちらへどれだけ曲がって見えるか。地図の真ん中を通る道はまっすぐ（矢印なし）、地図の球のふちに沿う道で強さ 1">地図での曲がり</button>
                 </div>
                 <div class="sl"><span>光の距離</span><input id="s-maxd" type="range" min="1" max="6.4" step="0.05" title="中の景色で光をどこまで進めるか。π で反対側（対蹠点）、2π で自分の背中"><output id="o-maxd"></output></div>
                 <div class="sl"><span>もや</span><input id="s-fog" type="range" min="0" max="0.6" step="0.01" title="空気のもや（散乱光）。遠い物ほど、もやの色に溶ける"><output id="o-fog"></output></div>
@@ -316,7 +315,7 @@
                     <p class="an">2次元の仲間：ふつうの球面 S²。北極から どの方位にまっすぐ歩いても、南極を通って北極に戻る（経線をたどる）。左の窓はそれです。</p>
                     <p>出発した北極では、<b>空全体が金色</b>に見えます。これは反対側（π 先）の南極の玉。S³ では、ちょうど反対側の点から出た光がどの向きからも届くので、そこにある物が空いっぱいに広がって見えます。少し歩くと金色の玉はまとまって見えてきます。</p>
                     <p><b>目印の見せ方</b>：玉（既定）／絵（🐰🐢🦝 など）／大きめの色の点。絵と色の点では、中の景色の線を細く薄くします（「絵の時の線」で濃さを変えられ、0 で消えます）。<b>軽量モード</b>のボタンで、色の点・色の地図の背景・線なし・透けの重ねは手前 1 つだけ、のいちばん軽い組み合わせになります。どの目印が前に（遠回りして）見えているのか、一目で分かります。各絵の<b>右上に赤い点</b>があります。</p>
-                    <p><b>地図の奥の向き</b>（中の景色の紫の矢印）：S³ の地図は 4次元を 3次元に写したもので、写らない向き（地図の奥・w′）が 1 本あります。中の景色の紫の矢印は「その奥の向きが、いま自分から見てどちらか」です。中の人にとってはただの 1 つの向きですが、この向きへ進むと、地図の上では動きが縮んで「ぎゅっと曲がった」ように見えます。奥の向きが画面に垂直（真正面・真後ろ）になると矢印は消え、真ん中の印が大きくなります（⊗ ＝ 前の奥、⊙ ＝ 後ろ）。</p>
+                    <p><b>地図での曲がり</b>（中の景色の紫の矢印）：中の人はまっすぐ（大円の上を）進んでいますが、S³ の地図は 4次元を 3次元に写したものなので、その道は地図の上ではふつう曲がって見えます。紫の矢印は「地図の上で、自分の道がどちらへ曲がって見えるか」を自分から見た向きで表し、長さは曲がりの強さです。強さは地図の球の半径を 1 とした曲率で、地図の真ん中を通る道は 0（まっすぐ）、地図の球のふちに沿う大円は 1、地図の奥（向こう側）の小さく縮んだ所では 1 より大きくなります。同じ場所でも進む向きで変わり、ふちの点でも真ん中へ向かって進めば 0 です。HUD の「地図の縮み」は、1 歩が地図の上で何倍の長さに写るか。</p>
                     <p><b>回る輪</b>（🌐）：北極と南極を通る輪（経線）を歩き、1 周ごとに輪の向きを軸のまわりに少しずつ回します。軸 z なら輪はすべて地図の球面（z = 0 の球面）の上に乗り、北極を上にした地図で、輪がだんだん球面をおおっていきます。x・y を軸にすると、別の球面をおおいます。「全部」では輪の向きが全方向を巡り、S³ ぜんたいをおおいます。「w」では、輪は北極・南極の代わりに +z（🐱）と −z（🐶）を通り、S³ の赤道の球面（w = 0）をおおいます。4 本の軸は対等で、北極・南極は w の向きに付けた名前にすぎないことが分かります。</p>
                     <p><b>ホップの円</b>（🔗）：自分と 6 人の仲間が、少し離れて輪になって並び、それぞれまっすぐ（大円に沿って）歩きます。x-y 面と z-w 面を同じ速さで回す「二重回転」で、4次元にしかない動きです。仲間との距離はずっと変わらないのに、1 周するとお互いのまわりをちょうど 1 回まわります（クリフォード平行）。S³ の地図では、7 本の円がどの 2 本も鎖の輪のようにからみ合っています。「ふつうの平行と比べる」では、仲間は出発の時に同じ向きのふつうの大円を歩きます。こちらは距離が縮んだり戻ったりし（横のずれは途中で 0 になる）、まわりもしません。左の S² の 2 人も、ふつうの平行です。</p>
                     <p><b>重力モード</b>（🍎）：4次元で w の＋から−へ向かう重力をかけます。S³ に垂直な部分は中の人には存在しない向きなので感じず、S³ に沿った部分だけが「南極へ引く力」として感じられます（赤道で最強、両極でゼロ。南極のまわりではバネの力）。何もなければ南極を通り越して振り子のように揺れ続け、横に蹴ると南極のまわりを回ります。<b>立つには地面が要る</b>ので、「南極に星」を置くとその表面に立てます（下＝南極、上＝北極）。左の S² では、星は南極のまわりの円板、立つ所はそのふちの円です。</p>
@@ -403,7 +402,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, heading: true, shFocus: false, shFocusR: 0.9, shLat: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
@@ -834,7 +833,7 @@ const AXL = 2.7;
     [[0, 3, AXIS_HEX.x], [1, 3, AXIS_HEX.y], [2, 3, AXIS_HEX.z], [0, 1, 0xd8dcf0], [1, 2, 0xd8dcf0], [2, 0, 0xd8dcf0]].forEach(([i, j, hex]) => { for (let s = 0; s < CN; s++) { const a = TAU * s / CN, b = TAU * (s + 1) / CN, A = [0, 0, 0, 0], B = [0, 0, 0, 0]; A[i] = Math.cos(a); A[j] = Math.sin(a); B[i] = Math.cos(b); B[j] = Math.sin(b); circ.push([A, B, hexRGB(hex)]); } });
     // 球層（超球アプリと同じ色の殻の網目）：S.shell の時、枚数 S.shellN で作り直す
     const hslRGB = (h, sa, l) => hsl(((h % 1) + 1) % 1 * 360, sa, l);
-    const shellSet = n => { const out = []; const m0 = shellMinTheta(); for (let i = 0; i < 2 * n - 1; i++) { const j = i < n ? i : 2 * n - 2 - i, t = j / Math.max(1, n - 1), th = m0 + t * (Math.PI / 2 - m0), wc = (i < n ? 1 : -1) * Math.cos(th), sn = Math.sin(th); const col = hslRGB(i < n ? t * 0.5 : 0.80 - t * 0.30, 0.95, 0.52); const pairs = []; eqPairs.forEach(([A, B], k) => pairs.push([[A[0] * sn, A[1] * sn, A[2] * sn, wc], [B[0] * sn, B[1] * sn, B[2] * sn, wc], col, i < n ? th : Math.PI - th, k < nlat * seg])); out.push(...pairs); } return out; };
+    const shellSet = n => { const out = []; const m0 = shellMinTheta(); for (let i = 0; i < 2 * n - 1; i++) { const j = i < n ? i : 2 * n - 2 - i, t = j / Math.max(1, n - 1), th = m0 + t * (Math.PI / 2 - m0), wc = (i < n ? 1 : -1) * Math.cos(th), sn = Math.sin(th); const col = hslRGB(i < n ? t * 0.5 : 0.80 - t * 0.30, 0.95, 0.52); const pairs = []; eqPairs.forEach(([A, B]) => pairs.push([[A[0] * sn, A[1] * sn, A[2] * sn, wc], [B[0] * sn, B[1] * sn, B[2] * sn, wc], col, i < n ? th : Math.PI - th])); out.push(...pairs); } return out; };
     const Lshell = Lines(v, 21 * 2 * eqPairs.length, { width: 1.0 }); let shellPairs = null, shellKey = '', shellDrawKey = '';
     const shPairs = [];   // 軽い線：緯度の殻（30°・60°・120°・150°。赤道は eqPairs）
     [1, 2, 4, 5].forEach(k => { const th = k * Math.PI / 6, sn = Math.sin(th), cs = Math.cos(th); eqPairs.forEach(([A, B]) => shPairs.push([[A[0] * sn, A[1] * sn, A[2] * sn, cs], [B[0] * sn, B[1] * sn, B[2] * sn, cs]])); });
@@ -855,7 +854,8 @@ const AXL = 2.7;
     };
     const place = (obj, p, base) => { const d = mapS3(p, a); if (!(d === d)) { obj.visible = false; return NaN; } obj.visible = true; obj.position.set(a[0], a[1], a[2]); obj.scale.setScalar(base * Math.min(2.5, kOf(p))); return d; };
     v.frames.push(() => {
-        Leq.obj.visible = S.eq; Lsh.obj.visible = S.lite; Lc.obj.visible = S.circ; Lr.obj.visible = S.room; spL.obj.visible = S.spiral; Lshell.obj.visible = S.shell;
+        const only = S.shell && S.shOnly;   // 地図は球殻だけ：球全体にかかる線は地図から消す
+        Leq.obj.visible = S.eq && !only; Lsh.obj.visible = S.lite && !only; Lc.obj.visible = S.circ && !only; Lr.obj.visible = S.room && !only; spL.obj.visible = S.spiral; Lshell.obj.visible = S.shell;
         // 動かない線（赤道・殻・経線・部屋・螺旋の道）は、写し方（4次元の回転・遠近・奥を消す）か中身が変わった時だけ描き直す
         const statKey = Array.from(R4, x => x.toFixed(5)).join(',') + '|' + S.D + '|' + S.cut + '|' + [S.eq, S.lite, S.circ, S.room, S.shell, S.shellN, S.spiral, S.turns, S.tilt, S.prec, SP.lap].join(',');
         if (statKey !== mapStatKey) { mapStatKey = statKey;
@@ -866,14 +866,19 @@ const AXL = 2.7;
         if (S.room) drawPairs(Lr, roomPairs, d => depthColor(d, 0.32), 2.5, true);
         }
         // 球層：「今いる所だけ」なら、自分のいる殻ははっきり、となりはうっすら、遠い所と裏側は透明（動くたびに描き直す）
-        if (S.shell) { const n = Math.max(2, Math.min(21, Math.round(S.shellN))); Lshell.obj.material.linewidth = S.shFocus ? 1.8 : 1.0;
-            const dk = statKey + '|' + n + '|' + S.shLat + '|' + (S.shFocus ? W.p.map(x => x.toFixed(3)).join(',') + '|' + S.shFocusR : '');
+        if (S.shell) { const n = Math.max(2, Math.min(21, Math.round(S.shellN))); Lshell.obj.material.linewidth = S.shFocus || S.shLight ? 1.8 : 1.0;
+            const dk = statKey + '|' + n + '|' + (S.shFocus ? W.p.map(x => x.toFixed(3)).join(',') + '|' + S.shFocusR : '') + (S.shLight ? '|L' + [...W.p, ...lookFrame().L, ...lookFrame().R].map(x => x.toFixed(3)).join(',') + '|' + [S.fov, S.lens, S.shellRange, S.maxd, VC.r.domElement.width, VC.r.domElement.height].join(',') : '');
             if (dk !== shellDrawKey) { shellDrawKey = dk;
                 if (shellKey !== n + '/' + shellMinTheta()) { shellKey = n + '/' + shellMinTheta(); shellPairs = shellSet(n); }
                 const m0 = shellMinTheta(), gap = (Math.PI / 2 - m0) / Math.max(1, n - 1), thMe = Math.acos(Math.max(-1, Math.min(1, W.p[3]))), R = S.shFocusR;
                 // 今いる所だけ：透明になる殻（層が離れている・両端とも遠い）は最初から描かない
-                // 緯度線だけ（S.shLat）なら経線を省く
-                const cR = Math.cos(R), sub = !S.shFocus && !S.shLat ? shellPairs : shellPairs.filter(P => (!S.shLat || P[4]) && (!S.shFocus || (Math.abs(P[3] - thMe) < 2.2 * gap && (dot(P[0], W.p) > cR || dot(P[1], W.p) > cR))));
+                const cR = Math.cos(R), sub = !S.shFocus ? shellPairs : shellPairs.filter(P => Math.abs(P[3] - thMe) < 2.2 * gap && (dot(P[0], W.p) > cR || dot(P[1], W.p) > cR));
+                if (S.shLight) {   // 空間ライト：画面に写っている所だけ（視野の中、殻の見える距離まで）
+                    const F = lookFrame(), Rl = Math.min(S.shellRange, S.maxd, Math.PI), cl = Math.cos(Rl), vis = q => inView(q, F) && dot(q, W.p) >= cl;
+                    const lit = shellPairs.filter(P => vis(P[0]) || vis(P[1]));
+                    drawPairs(Lshell, lit, (d, i, e) => { const q = lit[i][e], dg = Math.acos(Math.max(-1, Math.min(1, dot(q, W.p)))), k = vis(q) ? Math.min(1.8, (1 - Math.min(1, Math.max(0, (dg - 0.6 * Rl) / (0.4 * Rl)))) * (0.75 + 0.25 * (d + 1) / 2) * 1.8) : 0;
+                        return lit[i][2].map(c => (c * 0.65 + 0.35) * k); }, 3, true);
+                } else
                 drawPairs(Lshell, sub, (d, i, e) => { const P = sub[i]; if (!S.shFocus) return scl(P[2], 0.35 + 0.65 * Math.pow((d + 1) / 2, 1.2));
                     // 足し合わせの線なので、紫などの暗い色は白を少し混ぜて明るく、奥の暗くなり方も弱める
                     const lay = Math.max(0, 1 - Math.abs(P[3] - thMe) / (2.2 * gap)), dg = Math.acos(Math.max(-1, Math.min(1, dot(P[e], W.p)))), near = 1 - Math.min(1, Math.max(0, (dg - 0.6 * R) / (0.4 * R)));
@@ -1212,8 +1217,10 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlat': 'shLat', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
+$('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
+$('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
 $('b-stop').addEventListener('click', () => { S.walk = false; S.roam = false; S.spiral = false; refreshUI(); });
 $('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; SP.lap = 0; S.walk = false; S.roam = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
 document.querySelectorAll('.btn.mk').forEach(b => b.addEventListener('click', () => { S.mk = b.dataset.mk; save(); refreshUI(); req(3); }));
@@ -1250,29 +1257,50 @@ function refreshUI() {
     document.body.style.setProperty('--mapw', S.mapW);
     $('mklist').innerHTML = W.marks.map(m => `<span style="border-color:${hexCss(rgbHex(m.col))}">${m.pic} ${m.n}：北極から ${Math.acos(Math.max(-1, Math.min(1, m.p[3]))).toFixed(2)}</span>`).join('') || '<span style="color:#64748b;border:0">（まだ置いていない）</span>';
 }
-function updateWArrow() {   // 地図の奥 w′（R4 の 4 行目の向き）を、自分の場所の接空間に落として、体の枠（右・上・前）で表す
+// 地図での曲がり：まっすぐ（大円）進む道を S³ の地図に写すと、ふつうは曲がって見える。その曲がり（地図の上の曲率のベクトル）を、
+// 地図の写し方のヤコビ行列で自分の場所の接空間へ引き戻し、体の枠（右・上・前）で表す。強さ K は地図の球の半径を 1 とした曲率（ふちの大円＝1、まっすぐ＝0）
+const _m1 = [0, 0, 0], _m2 = [0, 0, 0];
+function inView(q, F) {   // 点 q が中の景色の画面に写る向きにあるか（光が最初に届く向き。レンズは中の景色と同じ）
+    const p = W.p, t = add(q, p, -dot(q, p)), r = dot(t, F.R), u = dot(t, F.U), f = dot(t, F.L), asp = VC.r.domElement.width / Math.max(1, VC.r.domElement.height);
+    if (S.lens === 'pano') return true;
+    if (S.lens === 'fish') { const ang = Math.atan2(Math.hypot(r, u), f), rs = ang / (S.fov * Math.PI / 360), h = Math.hypot(r, u) || 1; return Math.abs(rs * r / h) <= asp && Math.abs(rs * u / h) <= 1; }
+    const tf = Math.tan(Math.min(150, S.fov) * Math.PI / 360); return f > 1e-6 && Math.abs(r / f) <= tf * asp && Math.abs(u / f) <= tf;
+}
+function mapBend() {
+    const p = W.p, F = lookFrame(), dv0 = W.lastDir && performance.now() - (W.lastDirT || 0) < 400 ? W.lastDir : F.L;
+    const v = nrm(add(dv0, p, -dot(dv0, p))), h = 0.01, geo = (e, t) => add(scl(p, Math.cos(t)), e, Math.sin(t));
+    const A = [0, 0, 0], B = [0, 0, 0], C = [0, 0, 0];
+    if (!(mapS3(geo(v, -h), A) === mapS3(geo(v, -h), A)) || !(mapS3(p, B) === mapS3(p, B)) || !(mapS3(geo(v, h), C) === mapS3(geo(v, h), C))) return null;
+    const d1 = [0, 1, 2].map(i => (C[i] - A[i]) / (2 * h)), d2 = [0, 1, 2].map(i => (C[i] - 2 * B[i] + A[i]) / (h * h));
+    const sp = Math.hypot(...d1); if (!(sp > 1e-9)) return null;
+    const T = d1.map(x => x / sp), a = d2[0] * T[0] + d2[1] * T[1] + d2[2] * T[2], kv = d2.map((x, i) => (x - a * T[i]) / (sp * sp));   // 地図の上の曲率のベクトル
+    const K = Math.hypot(...kv) * RS;
+    // ヤコビ行列 J（体の右・上・前の 1 歩が、地図の上でどう動くか）
+    const J = [F.R, F.U, v].map(e => { mapS3(geo(e, -h), _m1); mapS3(geo(e, h), _m2); return [0, 1, 2].map(i => (_m2[i] - _m1[i]) / (2 * h)); });
+    const det = (c0, c1, c2) => c0[0] * (c1[1] * c2[2] - c1[2] * c2[1]) - c1[0] * (c0[1] * c2[2] - c0[2] * c2[1]) + c2[0] * (c0[1] * c1[2] - c0[2] * c1[1]);
+    const D0 = det(J[0], J[1], J[2]); if (!(Math.abs(D0) > 1e-9)) return null;
+    const r = det(kv, J[1], J[2]) / D0, u = det(J[0], kv, J[2]) / D0, f = det(J[0], J[1], kv) / D0;   // クラメルの公式で引き戻す
+    return { K, r, u, f, sp: sp / RS };
+}
+function updateWArrow() {   // 中の景色の紫の矢印：地図の上で、まっすぐの道がどちらへどれだけ曲がって見えるか
     const svg = $('wArrow'); svg.style.display = S.wArrow && S.wC ? '' : 'none'; if (!S.wArrow || !S.wC) return;
-    const ew = [R4[12], R4[13], R4[14], R4[15]], p = W.p, t = add(ew, p, -dot(ew, p)), F = lookFrame();
-    const r = dot(t, F.R), u = dot(t, F.U), f = dot(t, F.L), sc = Math.hypot(r, u), tm = Math.hypot(...t);
-    IN.wa = { r, u, f, sc, tm };
-    const op = Math.min(1, tm * 1.5); svg.style.opacity = op.toFixed(2);
-    const L = 88 * sc, dx = sc > 1e-4 ? r / sc : 0, dy = sc > 1e-4 ? -u / sc : 0, ex = dx * L, ey = dy * L;
-    const ar = $('wa-arrow'); ar.style.display = sc > 0.04 ? '' : 'none';
+    const b = mapBend(); IN.wa = b; if (!b) { svg.style.opacity = '0'; return; } svg.style.opacity = '1';
+    const sc = Math.hypot(b.r, b.u), L = 95 * (1 - Math.exp(-b.K)), dx = sc > 1e-9 ? b.r / sc : 0, dy = sc > 1e-9 ? -b.u / sc : 0, ex = dx * L, ey = dy * L, show = b.K > 0.03;
+    $('wa-arrow').style.display = show ? '' : 'none';
     $('wa-line').setAttribute('x2', (ex - dx * 10).toFixed(1)); $('wa-line').setAttribute('y2', (ey - dy * 10).toFixed(1));
     const hx = -dy, hy = dx, hl = Math.min(18, 6 + L * 0.2);
     $('wa-head').setAttribute('points', `${ex.toFixed(1)},${ey.toFixed(1)} ${(ex - dx * hl + hx * hl * 0.55).toFixed(1)},${(ey - dy * hl + hy * hl * 0.55).toFixed(1)} ${(ex - dx * hl - hx * hl * 0.55).toFixed(1)},${(ey - dy * hl - hy * hl * 0.55).toFixed(1)}`);
-    const lab = $('wa-lab'); lab.setAttribute('x', (ex + dx * 18).toFixed(1)); lab.setAttribute('y', (ey + dy * 18 + 4).toFixed(1)); lab.style.display = sc > 0.04 ? '' : 'none';
-    const cr = 6 + 24 * Math.abs(f); const c = $('wa-c'); c.setAttribute('r', cr.toFixed(1)); c.style.opacity = (0.25 + 0.75 * Math.abs(f)).toFixed(2);
-    const fw = f > 0.05, bk = f < -0.05, k = cr * 0.6;   // ⊗＝前の奥（画面の向こうへ）、⊙＝後ろ（こちらへ）
-    $('wa-x').style.display = fw ? '' : 'none'; $('wa-x1').setAttribute('x1', -k); $('wa-x1').setAttribute('y1', -k); $('wa-x1').setAttribute('x2', k); $('wa-x1').setAttribute('y2', k); $('wa-x2').setAttribute('x1', -k); $('wa-x2').setAttribute('y1', k); $('wa-x2').setAttribute('x2', k); $('wa-x2').setAttribute('y2', -k);
-    const dot0 = $('wa-dot'); dot0.style.display = bk ? '' : 'none'; dot0.setAttribute('r', Math.max(3, cr * 0.25).toFixed(1));
+    // 文字は矢印の中ほどの横に（画面の端で切れないように）
+    const side = dy > 0.3 ? -1 : 1, lab = $('wa-lab'); lab.setAttribute('x', (ex / 2 + hx * 16 * side).toFixed(1)); lab.setAttribute('y', (ey / 2 + hy * 16 * side + 4).toFixed(1)); lab.setAttribute('text-anchor', 'middle'); lab.style.display = show ? '' : 'none';
+    lab.textContent = `地図で曲がる向き ${b.K.toFixed(2)}`;
+    const c = $('wa-c'); c.setAttribute('r', '6'); c.style.opacity = '0.8';
 }
 function updateHUD() {
     updateWArrow();
     const dN = Math.acos(Math.max(-1, Math.min(1, W.p[3]))), lap = W.dist / TAU;
     $('hudC').innerHTML = `進んだ距離 <b>${W.dist.toFixed(2)}</b>（${lap.toFixed(2)} 周）<br>北極から <b>${dN.toFixed(2)}</b>　南極から <b>${(Math.PI - dN).toFixed(2)}</b><br>方位 <b>${Math.round(S.az)}°</b>　仰角 <b>${Math.round(S.el)}°</b><br>位置 (${W.p.map(x => x.toFixed(2)).join(', ')})`;
     if (S.spiral) $('hudC').innerHTML += `<br>🌪 ${SP.lap + 1} 周目${S.prec ? `　輪の面の傾き ${Math.round(((SP.lap + SP.th / TAU) * S.prec) % 360)}°` : ''}　z ${W.p[2].toFixed(2)}`;
-    if (S.wArrow && IN.wa) $('hudC').innerHTML += `<br><span style="color:#c4b5fd">地図の奥 w′：画面の上で ${Math.round(IN.wa.sc * 100)}%・${IN.wa.f >= 0 ? '前' : '後ろ'}へ ${Math.round(Math.abs(IN.wa.f) * 100)}%</span>`;
+    if (S.wArrow && IN.wa) $('hudC').innerHTML += `<br><span style="color:#c4b5fd">地図での曲がり <b>${IN.wa.K.toFixed(2)}</b>（まっすぐ＝0、地図の球のふちの大円＝1）　地図の縮み ×${IN.wa.sp.toFixed(2)}</span>`;
     if (S.ring) $('hudC').innerHTML += `<br>🌐 ${Math.floor(RING.T / TAU) + 1} 周目　輪の向き ${Math.round(((S.ringStep * RING.T / TAU) % 360))}°（軸 ${S.ringAxis === 'all' ? '全部' : S.ringAxis}）`;
     if (S.hopf) { const h = hopfInfo(); $('hudC').innerHTML += `<br>🔗 ${(HOPF.t / TAU).toFixed(2)} 周　🐧 までの距離 <b>${h.dist.toFixed(3)}</b>　🐧 のまわりの角 <b>${Math.round(h.ang)}°</b>`; }
     if (S.grav) { const sp = Math.hypot(...G.v), dS = Math.PI - Math.acos(Math.max(-1, Math.min(1, W.p[3]))); $('hudC').innerHTML += `<br>🍎 速さ <b>${sp.toFixed(2)}</b>　${G.on ? '星の上に立っている' : '宙に浮いている'}`; }
