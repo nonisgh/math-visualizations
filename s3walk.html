@@ -201,9 +201,14 @@
                     <button class="btn" id="b-eq" title="赤道の球面 S²（w = 0）を薄い膜で">赤道の膜</button>
                     <button class="btn" id="b-circ" title="x・y・z の 3 本の経線（北極と南極を通る大円）と、3 本の赤道の輪を管で。光を少しずつ進めて探すので重め">経線・赤道の輪（重め）</button>
                     <button class="btn" id="b-lite" title="緯度・経度の線を式だけで描く軽いモード（北極からの距離 30°・60°・90°・120°・150° の 5 枚の殻に、30° ごとの線）">軽い線（緯度経度）</button>
+                    <button class="btn" id="b-shell" title="超球アプリの「球殻積層」と同じ見た目の球層の中を歩く：北・南それぞれ n 枚の w = 一定の球殻（半透明＋網目、極から赤道へ色が変わる。ふちと裏側は暗く）。式だけで描くので軽め">🫧 球層（超球アプリ）</button>
                     <button class="btn" id="b-room" title="S³ をちょうど 120 個の正十二面体で区切った部屋（120 胞体）の辺。光を少しずつ進めて探すので重い">部屋（120 胞体）重い</button>
                     <button class="btn" id="b-self" title="自分の場所に白い玉。光が 1 周（2π）してくると、自分の背中が見える">自分の玉</button>
                 </div>
+                <div class="sl"><span>層数</span><input id="s-shelln" type="range" min="3" max="21" step="1" title="球層：北・南それぞれの球殻の枚数（赤道は共通）"><output id="o-shelln"></output></div>
+                <div class="sl"><span>透明度</span><input id="s-shellop" type="range" min="0.05" max="0.75" step="0.01" title="球層：1 枚の殻の濃さ"><output id="o-shellop"></output></div>
+                <div class="sl"><span>裏側</span><input id="s-shellback" type="range" min="0" max="1" step="0.05" title="球層：極の側（内側）から見た面をどれだけ暗くするか"><output id="o-shellback"></output></div>
+                <p class="note">「球層」は超球アプリ（hypersphere.html）の右の窓と同じ球殻の積み重ね。北極を囲む殻は赤→水色、南極を囲む殻は紫→水色（赤道が水色）。歩く人はその殻を次々に通り抜けます。</p>
                 <p class="note">「軽い線」は、北極からの距離が 30°・60°・90°（赤道）・120°・150° の 5 枚の球面（S³ の緯度の殻）に、緯度・経度の線を描いたもの。赤紫＝北寄り、水色＝南寄り。「部屋」と「経線・赤道の輪」は光を少しずつ進めて探すので重め。</p>
                 <p class="note">はじめから：N（北極・水色）、S（南極・金色）、赤道の 6 か所（±x 赤・±y 緑・±z 青）。絵のモードでは N＝⛄、S＝🌴、+x＝🐰、−x＝🐢、+y＝🦝（たぬき）、−y＝🐸、+z＝🐱、−z＝🐶、自分＝🙂、足あと＝👣。置いた目印は 🦊🐻🐼… の順。</p>
             </section>
@@ -334,7 +339,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, tilt: 0.6, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, mapW: 0.4, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, mapW: 0.4, shell: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
@@ -569,6 +574,10 @@ const AXL = 2.7;
     for (let j = 0; j < nlon; j++) { const a = TAU * j / nlon; for (let s = 0; s < seg / 2; s++) { const t1 = Math.PI * s / (seg / 2), t2 = Math.PI * (s + 1) / (seg / 2); eqPairs.push([[Math.sin(t1) * Math.cos(a), Math.sin(t1) * Math.sin(a), Math.cos(t1), 0], [Math.sin(t2) * Math.cos(a), Math.sin(t2) * Math.sin(a), Math.cos(t2), 0]]); } }
     const circ = [], CN = 96;
     [[0, 3, AXIS_HEX.x], [1, 3, AXIS_HEX.y], [2, 3, AXIS_HEX.z], [0, 1, 0xd8dcf0], [1, 2, 0xd8dcf0], [2, 0, 0xd8dcf0]].forEach(([i, j, hex]) => { for (let s = 0; s < CN; s++) { const a = TAU * s / CN, b = TAU * (s + 1) / CN, A = [0, 0, 0, 0], B = [0, 0, 0, 0]; A[i] = Math.cos(a); A[j] = Math.sin(a); B[i] = Math.cos(b); B[j] = Math.sin(b); circ.push([A, B, hexRGB(hex)]); } });
+    // 球層（超球アプリと同じ色の殻の網目）：S.shell の時、枚数 S.shellN で作り直す
+    const hslRGB = (h, sa, l) => hsl(((h % 1) + 1) % 1 * 360, sa, l);
+    const shellSet = n => { const out = []; for (let i = 0; i < 2 * n - 1; i++) { const j = i < n ? i : 2 * n - 2 - i, t = j / Math.max(1, n - 1), th = 0.08 + t * (Math.PI / 2 - 0.08), wc = (i < n ? 1 : -1) * Math.cos(th), sn = Math.sin(th); const col = hslRGB(i < n ? t * 0.5 : 0.80 - t * 0.30, 0.95, 0.52); const pairs = []; eqPairs.forEach(([A, B]) => pairs.push([[A[0] * sn, A[1] * sn, A[2] * sn, wc], [B[0] * sn, B[1] * sn, B[2] * sn, wc], col])); out.push(...pairs); } return out; };
+    const Lshell = Lines(v, 21 * 2 * eqPairs.length, { width: 1.0 }); let shellPairs = null, shellKey = '';
     const shPairs = [];   // 軽い線：緯度の殻（30°・60°・120°・150°。赤道は eqPairs）
     [1, 2, 4, 5].forEach(k => { const th = k * Math.PI / 6, sn = Math.sin(th), cs = Math.cos(th); eqPairs.forEach(([A, B]) => shPairs.push([[A[0] * sn, A[1] * sn, A[2] * sn, cs], [B[0] * sn, B[1] * sn, B[2] * sn, cs]])); });
     const room = cell120(), rseg = 3, roomPairs = []; room.edges.forEach(([A, B]) => { for (let s = 0; s < rseg; s++) roomPairs.push([slerp(A, B, s / rseg), slerp(A, B, (s + 1) / rseg)]); });
@@ -587,7 +596,8 @@ const AXL = 2.7;
     };
     const place = (obj, p, base) => { const d = mapS3(p, a); if (!(d === d)) { obj.visible = false; return NaN; } obj.visible = true; obj.position.set(a[0], a[1], a[2]); obj.scale.setScalar(base * Math.min(2.5, kOf(p))); return d; };
     v.frames.push(() => {
-        Leq.obj.visible = S.eq; Lsh.obj.visible = S.lite; Lc.obj.visible = S.circ; Lr.obj.visible = S.room; spL.obj.visible = S.spiral;
+        Leq.obj.visible = S.eq; Lsh.obj.visible = S.lite; Lc.obj.visible = S.circ; Lr.obj.visible = S.room; spL.obj.visible = S.spiral; Lshell.obj.visible = S.shell;
+        if (S.shell) { const n = Math.max(2, Math.min(21, Math.round(S.shellN))); if (shellKey !== String(n)) { shellKey = String(n); shellPairs = shellSet(n); } drawPairs(Lshell, shellPairs, (d, i) => scl(shellPairs[i][2], 0.35 + 0.65 * Math.pow((d + 1) / 2, 1.2)), 3, true); }
         if (S.spiral) { if (spKey !== S.turns + '/' + S.tilt) { spKey = S.turns + '/' + S.tilt; const path = spiralPath(1200); spPath = []; for (let i = 0; i + 1 < path.length; i++) spPath.push([path[i].p, path[i + 1].p]); } drawPairs(spL, spPath, d => scl([0.55, 0.5, 0.9], 0.5 + 0.5 * (d + 1) / 2), 1.5, false); }
         if (S.eq) drawPairs(Leq, eqPairs, d => depthColor(d, 0.8), 3, true);
         if (S.lite) drawPairs(Lsh, shPairs, d => depthColor(d, 0.45), 3, true);
@@ -619,6 +629,7 @@ uniform vec4 uMk[${NMK}]; uniform vec4 uMkC[${NMK}]; uniform float uMkT[${NMK}];
 uniform sampler2D uAtlas; uniform int uPic, uBgMesh, uPasses;
 uniform vec4 uN[12]; uniform int uRoom, uCirc, uEq, uLite;
 uniform float uFog, uMaxD, uTube, uFade, uPicLine;
+uniform int uShell, uShellN; uniform float uShellOp, uShellBack;
 const float PI = 3.14159265;
 vec3 bg(vec3 d){ return mix(vec3(0.012,0.02,0.05), vec3(0.05,0.04,0.12), 0.5+0.5*d.y); }
 float pixW(float t){ return min(abs(sin(t)) * 2.0*uTanF/uRes.y * 1.6, 0.3); }
@@ -672,6 +683,44 @@ vec3 skyMesh(vec4 v){
     vec3 base = pal(lon/(2.0*PI) + 0.5) * (0.22 + 0.2*(v.w*0.5 + 0.5));
     float g = max(gridLine(lat, lon), smoothstep(0.03, 0.0, abs(fract(lat2/(PI/6.0)+0.5)-0.5)*(PI/6.0)));
     return mix(base, base*1.9 + 0.08, g*0.8);
+}
+vec3 haze(vec3 d);
+// ---- 球層（超球アプリの「球殻積層」と同じ見た目）：北・南それぞれ n 枚の w = ±cos θ の球殻（赤道は共通）。色は超球アプリの layerColor（redCenter）----
+vec3 hsl2rgb(vec3 c){ vec3 rgb = clamp(abs(mod(c.x*6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0); return c.z + c.y*(rgb - 0.5)*(1.0 - abs(2.0*c.z - 1.0)); }
+const float SH_MIN = 0.08;   // 超球アプリの MIN_THETA
+float shellW(int i, int n){ int j = i < n ? i : 2*n - 2 - i; float th = SH_MIN + float(j)/max(float(n - 1), 1.0)*(PI/2.0 - SH_MIN); float wc = cos(th); return i < n ? wc : -wc; }
+vec3 shellCol(int i, int n){ int j = i < n ? i : 2*n - 2 - i; float t = float(j)/max(float(n - 1), 1.0); float h = i < n ? t*0.50 : 0.80 - t*0.30; return hsl2rgb(vec3(h, 0.95, 0.52)); }
+float gridLine15(float lat, float lon){ float st = PI/12.0; return max(smoothstep(0.025, 0.0, abs(fract(lat/st+0.5)-0.5)*st), smoothstep(0.025, 0.0, abs(fract(lon/st+0.5)-0.5)*st*cos(lat))); }
+// 道のり t0 〜 t1 の間にある球殻との交わりを、手前から順に重ねる。w(t) = amp·cos(t − φ) なので、減る区間・増える区間ごとに殻を順にたどれば並べかえがいらない
+void shellsBetween(vec4 p0, vec4 v, float t0, float t1, inout vec3 col, inout float T, vec3 dir){
+    int n = uShellN; int nTot = 2*n - 1;
+    float A = p0.w, B = v.w; float amp = sqrt(A*A+B*B); if(amp < 1e-5) return;
+    float phi = atan(B, A); float s0 = mod(-phi, 2.0*PI); int m0 = int(floor(s0/PI));
+    for(int ph=0; ph<3; ph++){
+        int m = m0 + ph; bool dec = mod(float(m), 2.0) < 0.5;
+        for(int k=0; k<41; k++){
+            if(k >= nTot) break;
+            int i = dec ? k : nTot - 1 - k;
+            float wc = shellW(i, n); if(abs(wc) > amp) continue;
+            float a = acos(clamp(wc/amp, -1.0, 1.0));
+            float s = dec ? float(m)*PI + a : float(m+1)*PI - a;
+            float t = s - s0;
+            if(t < 0.002 || t < t0 || t >= t1 || t >= uMaxD) continue;
+            vec4 q = cos(t)*p0 + sin(t)*v; vec4 vt = -sin(t)*p0 + cos(t)*v;
+            vec4 pole = vec4(0.0, 0.0, 0.0, i < n ? 1.0 : -1.0);           // この殻が囲む極
+            vec4 nP = normalize(pole - q*dot(q, pole) + 1e-6);             // 殻の面に直交する向き（極の方）
+            float cv = dot(vt, nP);
+            vec3 c = shellCol(i, n);
+            float rimK = 1.0 - abs(cv); c *= 1.0 - 0.5*pow(rimK, 1.6);      // ふちほど暗く（リム影）
+            if(cv < 0.0) c *= 1.0 - uShellBack*0.6;                       // 極の側（内側）から見た面は暗く（裏側を暗く）
+            vec3 sp = normalize(q.xyz + 1e-6); float g = gridLine15(asin(clamp(sp.z,-1.0,1.0)), atan(sp.y, sp.x));   // 網目
+            vec3 cc = mix(c, shellCol(i, n)*1.4, g*0.8);
+            float al = min(0.9, (uShellOp + 0.62*g) * (0.25 + 0.75*abs(cv)));   // かすめて見る所（自分が殻のすぐそばにいる時）は薄く
+            cc = mix(cc, haze(dir), 1.0 - exp(-t*uFog));
+            col += T*al*cc; T *= (1.0 - al);
+            if(T < 0.01) return;
+        }
+    }
 }
 vec3 haze(vec3 d){ return mix(vec3(0.16,0.19,0.30), vec3(0.22,0.24,0.36), 0.5+0.5*d.y); }   // 空気のもや（散乱光）の色
 void main(){
@@ -760,15 +809,17 @@ void main(){
     // ---- 手前から順に並べる ----
     for(int i=0;i<16;i++) for(int j=0;j<16;j++){ if(Lt[j+1] < Lt[j]){ float t=Lt[j]; Lt[j]=Lt[j+1]; Lt[j+1]=t; vec3 c=Lc[j]; Lc[j]=Lc[j+1]; Lc[j+1]=c; float a=La[j]; La[j]=La[j+1]; La[j+1]=a; } }
     // ---- 手前から重ねる：遠いほど透け（uFade）、遠いほどもやに溶ける（uFog）----
-    vec3 col = vec3(0.0); float T = 1.0;
+    vec3 col = vec3(0.0); float T = 1.0; float prevT = 0.0;
     for(int k=0;k<17;k++){
         if(Lt[k] > 1e8) break;
         float t = Lt[k];
+        if(uShell==1){ shellsBetween(p0, v, prevT, t, col, T, dir); if(T < 0.01) break; }
         float a = La[k] * exp(-t*uFade);
         vec3 c = mix(Lc[k], haze(dir), 1.0 - exp(-t*uFog));
-        col += T*a*c; T *= (1.0 - a);
+        col += T*a*c; T *= (1.0 - a); prevT = t;
         if(T < 0.003) break;
     }
+    if(uShell==1 && T > 0.01) shellsBetween(p0, v, prevT, uMaxD, col, T, dir);
     vec3 sky = uBgMesh==1 ? skyMesh(v) : bg(dir);
     col += T * mix(sky, haze(dir), (uBgMesh==1 ? 0.35 : 1.0) * (1.0 - exp(-uMaxD*uFog*0.6)));
     gl_FragColor = vec4(pow(col, vec3(0.9)), 1.0);
@@ -777,7 +828,7 @@ const ray = (() => {
     const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const U = { uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * d2r) }, uP: { value: new THREE.Vector4() }, uR: { value: new THREE.Vector4() }, uU: { value: new THREE.Vector4() }, uF: { value: new THREE.Vector4() },
         uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkT: { value: new Float32Array(NMK).fill(-1) }, uNM: { value: 0 }, uAtlas: { value: ATLAS.tex }, uPic: { value: 0 }, uBgMesh: { value: 0 }, uPasses: { value: 4 },
-        uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uLite: { value: 1 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uPicLine: { value: 0.3 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
+        uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uLite: { value: 1 }, uShell: { value: 0 }, uShellN: { value: 11 }, uShellOp: { value: 0.22 }, uShellBack: { value: 0.6 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uPicLine: { value: 0.3 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
     const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: RAY_FRAG, depthTest: false, depthWrite: false });
     scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
     cell120().planes.forEach((v, i) => U.uN.value[i].set(v[0], v[1], v[2], v[3]));
@@ -795,7 +846,7 @@ function rebuildMarks() {
 function setRayUniforms() {
     const U = ray.U, F = lookFrame();
     U.uP.value.set(...W.p); U.uR.value.set(...F.R); U.uU.value.set(...F.U); U.uF.value.set(...F.L);
-    U.uRoom.value = S.room ? 1 : 0; U.uLite.value = S.lite ? 1 : 0; U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uFade.value = S.fade; U.uPicLine.value = S.picLine; U.uMaxD.value = S.maxd;
+    U.uRoom.value = S.room ? 1 : 0; U.uLite.value = S.lite ? 1 : 0; U.uShell.value = S.shell ? 1 : 0; U.uShellN.value = Math.max(2, Math.min(21, Math.round(S.shellN))); U.uShellOp.value = S.shellOp; U.uShellBack.value = S.shellBack; U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uFade.value = S.fade; U.uPicLine.value = S.picLine; U.uMaxD.value = S.maxd;
     U.uRes.value.set(VC.r.domElement.width, VC.r.domElement.height);
     U.uPic.value = S.mk === 'pic' ? 1 : S.mk === 'dot' ? 2 : 0; U.uBgMesh.value = S.bgMesh ? 1 : 0; U.uPasses.value = S.passes;
     if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.mk) { rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.mk; }
@@ -809,7 +860,7 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-stop').addEventListener('click', () => { S.walk = false; S.roam = false; S.spiral = false; refreshUI(); });
 $('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; S.walk = false; S.roam = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
@@ -825,7 +876,7 @@ $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90')
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
     's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (['xw', 'yw', 'zw'].includes(k)) S.follow = false; save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
