@@ -168,6 +168,7 @@
                 <div class="sl"><span>重力</span><input id="s-g" type="range" min="0.1" max="5" step="0.05" title="重力の強さ"><output id="o-g"></output></div>
                 <div class="sl"><span>星の大きさ</span><input id="s-pr" type="range" min="0.1" max="1.2" step="0.01" title="南極の星の半径（S³ の中での距離。π/2 で赤道まで）"><output id="o-pr"></output></div>
                 <div class="sl"><span>空気抵抗</span><input id="s-gdamp" type="range" min="0" max="2" step="0.01" title="0 なら振り子はずっと揺れ続ける。大きいと南極（星の上）に落ち着く"><output id="o-gdamp"></output></div>
+                <div class="sl"><span>歳差</span><input id="s-prec" type="range" min="0" max="45" step="1" title="歳差の螺旋：1 周ごとに輪の面を x 軸のまわりに何度回すか。0 なら毎回同じ道。15° なら 6 周目あたりで輪が縦になり、上下（±z）のてっぺんまで届く"><output id="o-prec"></output></div>
                 <div class="sl"><span>傾き</span><input id="s-tilt" type="range" min="0" max="1" step="0.05" title="二重の螺旋：巻く面が進むにつれて z の方へ傾く度合い。0 なら 1 枚の球面の上の平らな竜巻（左の S² と同じ）、1 なら北極では z の向きに巻き始め、南極では −z の向きに"><output id="o-tilt"></output></div>
                 <div class="row">
                     <button class="btn" id="b-north" title="北極 N に立って、進んだ距離を 0 に。足あとと道すじも消す">北極に戻す</button>
@@ -357,7 +358,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // ---------------------------------------------------------------------
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
-const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
+const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
     mk: 'ball', bgMesh: false, passes: 4, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
@@ -511,19 +512,23 @@ function walkStep(local, s) {   // local＝[右, 上, 前] の割合（見てい
     step(d, d2, s * (d2 ? h2 / Math.hypot(local[0], local[1], local[2]) : 1));
 }
 // 螺旋（竜巻）：北極からの距離 θ を一定の速さで進めながら、まわりの角 φ = k·θ を回す。S³ では z = 0 の球面 S² の上の螺旋（左の S² と同じ道）
-const SP = { th: 0.002 };
+const SP = { th: 0.002, lap: 0 };   // lap：何周目か（歳差で使う）
 // 二重の螺旋：巻く面の向き u（3 つの向きの球面の上の点）も、進むにつれて z の方から −z の方へ傾いていく（傾き 0 なら z = 0 の面のまま＝S² と同じ竜巻）
 //   p = (sinθ·u, cosθ)、u = (sinψ cosφ, sinψ sinφ, cosψ)、φ = k·θ、ψ = π/2 − 傾き·(π/2)·cosθ
 //   cosθ で「北極で上向き → 南極で下向き → 北極で上向き」と行って戻るので、帰り道（sinθ < 0）は行きと対称に、北・南 × 上・下の 4 区画をすべて通る
-function spiralPoint(th) {
+// 歳差：輪の面そのものを、進んだ量（何周目かもこめた θ の合計）に比例して x 軸のまわりに回す（1 周で S.prec 度）。
+//   周を重ねるうちに輪が立ち、赤道を横切る時に縦になった周で上下（±z）のてっぺんまで届く。x 軸を通る輪を全部たどるので、いずれ S³ をまんべんなく巡る
+function spiralPoint(th, lap) {
     const k = 2 * S.turns, ph = k * th, sn = Math.sin(th), psi = Math.PI / 2 - S.tilt * (Math.PI / 2) * Math.cos(th), sp = Math.sin(psi), cp = Math.cos(psi);
-    return { p: [sn * sp * Math.cos(ph), sn * sp * Math.sin(ph), sn * cp, Math.cos(th)], p2: [sn * Math.cos(ph), sn * Math.sin(ph), Math.cos(th)] };
+    let x = sp * Math.cos(ph), y = sp * Math.sin(ph), z = cp;
+    if (S.prec) { const a = (S.prec * d2r) * ((lap === undefined ? SP.lap : lap) + th / TAU), ca = Math.cos(a), sa = Math.sin(a); const y2 = ca * y - sa * z, z2 = sa * y + ca * z; y = y2; z = z2; }
+    return { p: [sn * x, sn * y, sn * z, Math.cos(th)], p2: [sn * Math.cos(ph), sn * Math.sin(ph), Math.cos(th)] };
 }
 function spiralStep(ds) {
     const h = 1e-4, a = spiralPoint(SP.th - h).p, b = spiralPoint(SP.th + h).p;
     const speed = Math.max(1e-6, Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2], b[3] - a[3]) / (2 * h));   // |dp/dθ|（数値で）
     SP.th += ds / speed;   // 道のりが ds になるように θ を進める
-    if (SP.th > TAU) SP.th -= TAU;
+    if (SP.th > TAU) { SP.th -= TAU; SP.lap++; if (S.prec) say(`${SP.lap + 1} 周目：輪の面が ${Math.round((SP.lap * S.prec) % 360)}° 傾いた`); }
     const q = spiralPoint(SP.th);
     const d = nrm(add(q.p, W.p, -dot(q.p, W.p))), d2 = nrm(add(q.p2, W2.p, -dot(q.p2, W2.p)));
     const s3 = Math.acos(Math.max(-1, Math.min(1, dot(q.p, W.p))));
@@ -720,7 +725,7 @@ const AXL = 2.7;
     v.frames.push(() => {
         Leq.obj.visible = S.eq; Lsh.obj.visible = S.lite; Lc.obj.visible = S.circ; Lr.obj.visible = S.room; spL.obj.visible = S.spiral; Lshell.obj.visible = S.shell;
         if (S.shell) { const n = Math.max(2, Math.min(21, Math.round(S.shellN))); if (shellKey !== String(n)) { shellKey = String(n); shellPairs = shellSet(n); } drawPairs(Lshell, shellPairs, (d, i) => scl(shellPairs[i][2], 0.35 + 0.65 * Math.pow((d + 1) / 2, 1.2)), 3, true); }
-        if (S.spiral) { if (spKey !== S.turns + '/' + S.tilt) { spKey = S.turns + '/' + S.tilt; const path = spiralPath(1200); spPath = []; for (let i = 0; i + 1 < path.length; i++) spPath.push([path[i].p, path[i + 1].p]); } drawPairs(spL, spPath, d => scl([0.55, 0.5, 0.9], 0.5 + 0.5 * (d + 1) / 2), 1.5, false); }
+        if (S.spiral) { if (spKey !== S.turns + '/' + S.tilt + '/' + S.prec + '/' + SP.lap) { spKey = S.turns + '/' + S.tilt + '/' + S.prec + '/' + SP.lap; const path = spiralPath(1200); spPath = []; for (let i = 0; i + 1 < path.length; i++) spPath.push([path[i].p, path[i + 1].p]); } drawPairs(spL, spPath, d => scl([0.55, 0.5, 0.9], 0.5 + 0.5 * (d + 1) / 2), 1.5, false); }
         if (S.eq) drawPairs(Leq, eqPairs, d => depthColor(d, 0.8), 3, true);
         if (S.lite) drawPairs(Lsh, shPairs, d => depthColor(d, 0.45), 3, true);
         if (S.circ) drawPairs(Lc, circ, (d, i) => scl(circ[i][2], 0.25 + 0.75 * Math.pow((d + 1) / 2, 1.5)), 3, true);
@@ -1014,7 +1019,7 @@ $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_
 const toggles = { 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-stop').addEventListener('click', () => { S.walk = false; S.roam = false; S.spiral = false; refreshUI(); });
-$('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; S.walk = false; S.roam = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
+$('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; SP.lap = 0; S.walk = false; S.roam = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
 document.querySelectorAll('.btn.mk').forEach(b => b.addEventListener('click', () => { S.mk = b.dataset.mk; save(); refreshUI(); req(3); }));
 document.querySelectorAll('.btn.lens').forEach(b => b.addEventListener('click', () => { S.lens = b.dataset.lens; if (S.lens === 'fish' && S.fov < 150) S.fov = 180; if (S.lens === 'normal' && S.fov > 150) S.fov = 110; save(); refreshUI(); req(3); }));
 $('b-light').addEventListener('click', () => { Object.assign(S, { mk: 'dot', bgMesh: true, lite: false, circ: false, room: false, eq: false, passes: 1, q: 0.6 }); resizeAll(); save(); refreshUI(); req(3); say('軽量モード：色の点・色の地図・線なし'); });
@@ -1030,7 +1035,7 @@ $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90')
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
     's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (['xw', 'yw', 'zw'].includes(k)) S.follow = false; save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
@@ -1047,6 +1052,7 @@ function refreshUI() {
 function updateHUD() {
     const dN = Math.acos(Math.max(-1, Math.min(1, W.p[3]))), lap = W.dist / TAU;
     $('hudC').innerHTML = `進んだ距離 <b>${W.dist.toFixed(2)}</b>（${lap.toFixed(2)} 周）<br>北極から <b>${dN.toFixed(2)}</b>　南極から <b>${(Math.PI - dN).toFixed(2)}</b><br>方位 <b>${Math.round(S.az)}°</b>　仰角 <b>${Math.round(S.el)}°</b><br>位置 (${W.p.map(x => x.toFixed(2)).join(', ')})`;
+    if (S.spiral) $('hudC').innerHTML += `<br>🌪 ${SP.lap + 1} 周目${S.prec ? `　輪の面の傾き ${Math.round(((SP.lap + SP.th / TAU) * S.prec) % 360)}°` : ''}　z ${W.p[2].toFixed(2)}`;
     if (S.grav) { const sp = Math.hypot(...G.v), dS = Math.PI - Math.acos(Math.max(-1, Math.min(1, W.p[3]))); $('hudC').innerHTML += `<br>🍎 速さ <b>${sp.toFixed(2)}</b>　${G.on ? '星の上に立っている' : '宙に浮いている'}`; }
     const d2 = Math.acos(Math.max(-1, Math.min(1, W2.p[2])));
     $('hudA').innerHTML = `北極から <b>${d2.toFixed(2)}</b>　緯度 ${(90 - d2 / d2r).toFixed(0)}°<br>方位 <b>${Math.round(S.az)}°</b>（仰角は無い）`;
