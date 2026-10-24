@@ -4404,7 +4404,10 @@
         //   レインボーの球柱と同じ仕組み（枠の線・膜・間の面なし）で、w の段ごとに 玉の代わりに その w での輪切りの形を置く。色は積む順（w：−1 赤 → +1 紫）。
         //   デュオシリンダー（x²＋y² ≤ r²、z²＋w² ≤ r²）の輪切り＝円柱：半径 r はいつも同じ、高さ 2√(r²−w²) が変わる（まん中で最も高く、両端でぺちゃんこ）。
         //   タイガー（(ρ₁−R₁)²＋(ρ₂−R₂)² ≤ r²、ρ₁＝√(x²＋y²)、ρ₂＝√(z²＋w²)）の輪切り＝z の上下に 2 つのドーナツ（ρ₂ の円を z ＝ ±√(ρ₂²−w²) へ）。w が進むと 2 つが近づいて 1 つにつながり、最後に消える。
-        //   左の窓（3次元の仲間）：デュオシリンダー → x にのびた円柱（y²＋z² ≤ r²）の輪切り＝高さの変わる長方形、タイガー → x-z の面のドーナツの輪切り＝2 つの丸が近づいてつながる
+        //   左の窓（3次元の仲間）：x-y の円を x の 2 点（|x|）に、z-w の円を y-z の円に落とす（左の積む向き z が右の w）。
+        //   デュオシリンダー → x にのびた円柱（|x| ≤ r、y²＋z² ≤ r²）の輪切り＝高さの変わる長方形、
+        //   タイガー → x ＝ ±R₁ に立てたドーナツ 2 つ（(|x|−R₁)²＋(√(y²＋z²)−R₂)² ≤ r²）の輪切り＝4 つの丸（右のドーナツ 1 つ ↔ 左の丸 2 つ）が、上下 2 つずつ近づいてつながり、最後に消える
+        //   （2026-10-24 まではドーナツ 1 つ＝4次元トーラスの仲間だった）
         let wSliceShape = ''; try { wSliceShape = localStorage.getItem('hypercubeSliceShape') || ''; } catch (_) {}   // ''＝玉（球柱）、'duo'、'tiger'
         const sliceShape = () => sphOnly() ? wSliceShape : '';
         const slTarget = (slot, t) => slot === undefined || slot === null ? t : -1 + (2 * Math.round(slot * (WPACK.N - 1)) + 1) / WPACK.N;   // 段の行き先の w（外から飛んでくる途中は、いる所ではなく 着く所の輪切りの形にする）
@@ -4413,14 +4416,11 @@
         function slMeasure(kind, w, left) {   // 輪切りの体積（右・4次元）／面積（左・3次元の仲間）
             const r = SL_TG_r, M = 64;
             if (kind === 'duo') return left ? 2 * SL_DUO_R * 2 * slH(w) : Math.PI * SL_DUO_R * SL_DUO_R * 2 * slH(w);
-            if (left) {   // x-z の面のドーナツ（輪の半径 R₁、太さ r）を z で切った面積：y ごとに x の長さ
-                let s = 0; for (let i = 0; i < M; i++) { const y = -r + 2 * r * (i + 0.5) / M, d = Math.sqrt(Math.max(0, r * r - y * y)), a = SL_TG_R1 - d, b = SL_TG_R1 + d, X = q => Math.sqrt(Math.max(0, q * q - w * w)); s += 2 * (X(b) - (a > Math.abs(w) ? X(a) : 0)) * 2 * r / M; } return s;
-            }
-            const zm = SL_TG_R2 + r; if (Math.abs(w) >= zm) return 0;   // タイガー：2π R₁ × （ρ₁−R₁ と z の面の面積）（パップス）
+            const zm = SL_TG_R2 + r; if (Math.abs(w) >= zm) return 0;   // A＝（ρ₁−R₁ と z の面）の切り口の面積
             let A = 0; const Z = Math.sqrt(zm * zm - w * w); for (let i = 0; i < M; i++) { const z = -Z + 2 * Z * (i + 0.5) / M, e = Math.hypot(z, w) - SL_TG_R2; A += 2 * Math.sqrt(Math.max(0, r * r - e * e)) * 2 * Z / M; }
-            return 2 * Math.PI * SL_TG_R1 * A;
+            return left ? 2 * A : 2 * Math.PI * SL_TG_R1 * A;   // 左：立てたドーナツ 2 つ＝ρ₁ の円が x ＝ ±R₁ の 2 点に（2 × A）。右：タイガー＝2π R₁ × A（パップス）
         }
-        const slTotal = (kind, left) => kind === 'duo' ? (left ? 2 * Math.PI * SL_DUO_R ** 3 : Math.PI ** 2 * SL_DUO_R ** 4) : (left ? 2 * Math.PI ** 2 * SL_TG_R1 * SL_TG_r ** 2 : 4 * Math.PI ** 3 * SL_TG_R1 * SL_TG_R2 * SL_TG_r ** 2);
+        const slTotal = (kind, left) => kind === 'duo' ? (left ? 2 * Math.PI * SL_DUO_R ** 3 : Math.PI ** 2 * SL_DUO_R ** 4) : (left ? 4 * Math.PI ** 2 * SL_TG_R2 * SL_TG_r ** 2 : 4 * Math.PI ** 3 * SL_TG_R1 * SL_TG_R2 * SL_TG_r ** 2);
         const slInt = (kind, a, b, left) => { if (!(b > a)) return 0; const M = 160; let s = 0; for (let i = 0; i < M; i++) s += slMeasure(kind, a + (b - a) * (i + 0.5) / M, left); return s * (b - a) / M; };
         const slTpl = {};
         function slTemplate(kind) {   // 1 枚分の形のつなぎ方（点の並びは slPoints と同じ順）
@@ -4485,13 +4485,16 @@
             const f = (t + 1) / 2, ROWS = 24, X = x => (x + 1) / 2;
             const quad = (x0, x1, ya, x2, x3, yb) => { const q = [at(X(x0), X(ya)), at(X(x1), X(ya)), at(X(x3), X(yb)), at(X(x2), X(yb))]; [q[0], q[1], q[2], q[0], q[2], q[3]].forEach(v => pF(v, f, 4)); };
             if (kind === 'duo') { const r = SL_DUO_R, h = slH(t); if (h > 1e-4) quad(-r, r, -h, -r, r, h); return; }   // 長方形（横 2r、高さ 2√(r²−z²)）
-            const r = SL_TG_r, R = SL_TG_R1, Xo = q => Math.sqrt(Math.max(0, q * q - t * t));
-            const span = y => { const d = Math.sqrt(Math.max(0, r * r - y * y)), a = R - d, b = R + d; return [a > Math.abs(t) ? Xo(a) : 0, Xo(b)]; };   // y の行の x の範囲（内側〜外側。内側 0＝2 つがつながった）
-            for (let i = 0; i < ROWS; i++) {
-                const ya = -r + 2 * r * i / ROWS, yb = -r + 2 * r * (i + 1) / ROWS, A = span(ya), B = span(yb);
-                if (A[1] <= 0 && B[1] <= 0) continue;
-                quad(A[0], A[1], ya, B[0], B[1], yb); quad(-A[1], -A[0], ya, -B[1], -B[0], yb);   // 右と左の丸
-            }
+            // タイガーの仲間＝x ＝ ±R₁ に立てたドーナツ 2 つ（(|x|−R₁)²＋(√(y²＋z²)−R₂)² ≤ r²）を z ＝ t で切る：x ＝ ±R₁ の左右に、y の上下に丸（|t| が R₂−r を越えると上下がつながる）
+            const r = SL_TG_r, R1 = SL_TG_R1, R2 = SL_TG_R2, hi2 = (R2 + r) * (R2 + r) - t * t;
+            if (hi2 <= 0) return;
+            const hi = Math.sqrt(hi2), lo = Math.sqrt(Math.max(0, (R2 - r) * (R2 - r) - t * t));   // |y| の範囲
+            const dAt = y => { const q = Math.sqrt(y * y + t * t) - R2; return Math.sqrt(Math.max(0, r * r - q * q)); };   // その行の丸の半分の幅（x の向き）
+            const band = (y0, y1) => {   // y0〜y1 の帯（端ほど細かく）
+                const Y = i => (y0 + y1) / 2 - (y1 - y0) / 2 * Math.cos(Math.PI * i / ROWS);
+                for (let i = 0; i < ROWS; i++) { const ya = Y(i), yb = Y(i + 1), da = dAt(ya), db = dAt(yb); quad(R1 - da, R1 + da, ya, R1 - db, R1 + db, yb); quad(-R1 - da, -R1 + da, ya, -R1 - db, -R1 + db, yb); }   // 右と左
+            };
+            if (lo > 0) { band(lo, hi); band(-hi, -lo); } else band(-hi, hi);   // 上下に分かれた丸／つながった丸
         }
         const sphK = () => Math.max(1, Math.min(16, Math.round(480 / WPACK.N)));   // 球柱：1 段の中に重ねる玉の数（全部で 480 個くらい。多すぎると 1 個の球の分割が粗くなる。立方体の数が多い時は少なく）
         const dbFilmOn = () => (wSlice.pack || wDuo.on) && wDbFilm && filmNeeded() && !sphOnly();   // 膜を描く（薄い膜・両方）。4D積分の敷きつめの時だけ
@@ -7549,8 +7552,8 @@
                 const slk = sliceShape();
                 if (slk) {   // 輪切りの形を積む：V(w)＝輪切りの体積（左は面積）を数値で積分。全部で デュオシリンダー π²r⁴（左：円柱 2πr³）、タイガー 4π³R₁R₂r²（左：ドーナツ 2π²Rr²）
                     const left = d === 2, wf = wSlice.packFront !== undefined ? wSlice.packFront : -1, lb = wSlice.packBack !== undefined ? wSlice.packBack : -1, val = slInt(slk, lb, wf, left), tot = slTotal(slk, left), pct = Math.min(100, val / tot * 100);
-                    const sg = x => (x < -0.0005 ? '−' : '+') + Math.abs(x).toFixed(2), nm = slk === 'duo' ? (left ? '円柱の体積 2πr³' : 'デュオシリンダーの 4次元の体積 π²r⁴') : (left ? 'ドーナツの体積 2π²Rr²' : 'タイガーの 4次元の体積 4π³R₁R₂r²');
-                    const vNow = slMeasure(slk, Math.max(-1, Math.min(1, wf)), left), sec = slk === 'duo' ? (left ? '長方形' : '円柱') : (left ? '2 つの丸' : '2 つのドーナツ');
+                    const sg = x => (x < -0.0005 ? '−' : '+') + Math.abs(x).toFixed(2), nm = slk === 'duo' ? (left ? '円柱の体積 2πr³' : 'デュオシリンダーの 4次元の体積 π²r⁴') : (left ? 'ドーナツ 2 つの体積 4π²R₂r²' : 'タイガーの 4次元の体積 4π³R₁R₂r²');
+                    const vNow = slMeasure(slk, Math.max(-1, Math.min(1, wf)), left), sec = slk === 'duo' ? (left ? '長方形' : '円柱') : (left ? (Math.abs(wf) < SL_TG_R2 - SL_TG_r ? '4 つの丸' : '2 つの丸') : '2 つのドーナツ');
                     const head = '<span style="font-family:TeXMath,Georgia,serif">∫<sub>' + sg(lb) + '</sub><sup>' + sg(wf) + '</sup> V(' + ax + ') d' + ax + '</span>　＝ <b style="color:#fbcfe8">' + val.toFixed(3) + '</b> ／ ' + tot.toFixed(3);
                     if (fitHud(el)) { el.innerHTML = head + hudBar(pct, HUD_RAINBOW); return; }
                     el.innerHTML = '<div style="font-size:16px">' + head + '</div>'
