@@ -703,7 +703,7 @@ function ringStep(ds) {
 //   左の S²：0° → 90° → 45° → 135° → 22.5° …（すきまを半分ずつ。北極を通る大円は 180° で同じ輪なので 0〜180°）
 //   S³：北極で進める向きは球面 S²（x, y, z）。反対向き（−d）は同じ大円なので、向きどうしの角は acos|d·e|。候補（八面体を細かく分けた点、粗い順）から、
 //   今までの向きとのいちばん小さい角がいちばん大きいものを選ぶ（同じなら粗い方）＝ 軸 3 本 → 面の真ん中 → 辺の真ん中 → …
-const FILL = { T: 0, lapSaid: -1, dirs: [], gaps: [] };
+const FILL = { T: 0, lapSaid: 0, dirs: [], gaps: [], sg3: [1], sg2: [1], turn: null };
 function fillBuild(N) {
     const cand = [], seen = new Set();
     for (const n of [1, 2, 3, 4, 6, 8, 12, 16, 24]) for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) for (const k of [n - Math.abs(i) - Math.abs(j)]) {
@@ -721,26 +721,73 @@ function fillBuild(N) {
     FILL.dirs = dirs; FILL.gaps = gaps;
 }
 const vdc = k => { let x = 0, b = 0.5; while (k > 0) { if (k & 1) x += b; k >>= 1; b /= 2; } return x; };   // 0, 1/2, 1/4, 3/4, 1/8, 5/8 …（すきまを半分ずつ）
+// lap 本目の向き。反対向きも同じ大円なので、曲がる角が小さくなる側（sg3・sg2 が −1 なら反対向き）から入る（周の始めに次の周の側を決める）
+const fillU = lap => scl(FILL.dirs[lap % FILL.dirs.length], FILL.sg3[lap] || 1);
+const fillPh = lap => vdc(lap) * Math.PI + ((FILL.sg2[lap] || 1) < 0 ? Math.PI : 0);
+const fillU2 = lap => [Math.cos(fillPh(lap)), Math.sin(fillPh(lap))];
+function fillSigns(lap) {   // 次の周（lap）の入る側を、前の周の向きに近い方に
+    if (FILL.sg3[lap] !== undefined) return;
+    const a = fillU(lap - 1), raw = FILL.dirs[lap % FILL.dirs.length]; FILL.sg3[lap] = dot(raw, a) < 0 ? -1 : 1;
+    let dph = ((vdc(lap) * Math.PI - fillPh(lap - 1)) % TAU + TAU) % TAU; if (dph > Math.PI) dph -= TAU;
+    FILL.sg2[lap] = Math.abs(dph) > Math.PI / 2 ? -1 : 1;
+}
 function fillPoint(T) {
     const lap = Math.max(0, Math.floor(T / TAU)), th = T - lap * TAU, sn = Math.sin(th), cs = Math.cos(th);
-    const u = FILL.dirs[lap % FILL.dirs.length], ph = vdc(lap) * Math.PI;
+    const u = fillU(lap), ph = fillPh(lap);
     return { p: [sn * u[0], sn * u[1], sn * u[2], cs], p2: [sn * Math.cos(ph), sn * Math.sin(ph), cs], lap };
 }
+// 北極のまわりの小さなターン：北極から距離 FILL_TT 手前で曲がり始め、円弧で次の大円に接して、北極から FILL_TT 先で抜ける。
+//   北極のまわりを「北極からの向き×距離」の平らな地図（正距方位）で考える。北極を通る大円はこの地図でまっすぐ。
+//   角 θ の角を半径 ρ = FILL_TT / tan(θ/2) の円弧で丸める（90° なら半径 FILL_TT）。S² と S³ で同じ進み具合で回る
+const FILL_TT = 0.16;
+function arcPt(a, b, t, f) {   // 入る向き a・出る向き b（単位ベクトル、2 次元か 3 次元）、角の手前の距離 t、進み具合 f（0〜1）→ 平らな地図の点・円弧の長さ
+    const c = Math.max(-1, Math.min(1, dot(a, b))), th = Math.acos(c);
+    if (th < 1e-4) return { x: scl(a, -t + 2 * t * f), len: 2 * t };
+    const rho = t / Math.tan(th / 2), n1 = nrm(add(b, a, -c)), C = add(scl(a, -t), n1, rho), ph = th * f;
+    return { x: add(add(C, n1, -rho * Math.cos(ph)), a, rho * Math.sin(ph)), len: rho * th, th };
+}
+const expN = x => { const r = Math.hypot(...x); if (r < 1e-12) return x.length === 3 ? [0, 0, 0, 1] : [0, 0, 1]; const s = Math.sin(r) / r; return [...x.map(v => v * s), Math.cos(r)]; };
 function fillStart() {
     if (!FILL.dirs.length) fillBuild(300);
-    resetNorth(); FILL.T = 0.002; FILL.lapSaid = -1;
+    resetNorth(); FILL.T = 0.002; FILL.lapSaid = 0; FILL.sg3 = [1]; FILL.sg2 = [1]; FILL.turn = null; fillSigns(1);
     const q = fillPoint(FILL.T); W.p = q.p.slice(); W2.p = q.p2.slice(); orthoFrame(W); orthoFrame(W2); req(3);
 }
-function fillStep(ds) {
-    FILL.T += ds;   // 大円の上は T がそのまま進んだ距離
-    const q = fillPoint(FILL.T);   // 北極を通り過ぎる時に、次の向きの大円へ乗りかえる（北極ではどの向きにも進めるので、道はつながる）
-    const d = nrm(add(q.p, W.p, -dot(q.p, W.p))), d2 = nrm(add(q.p2, W2.p, -dot(q.p2, W2.p)));
-    const s3 = Math.acos(Math.max(-1, Math.min(1, dot(q.p, W.p))));
+function fillGo(qp, qp2) {   // qp・qp2 へ進む（体は進む向きにそろえる＝前を向いたまま曲がる。S² も同じ）
+    const d = nrm(add(qp, W.p, -dot(qp, W.p))), d2 = nrm(add(qp2, W2.p, -dot(qp2, W2.p)));
+    const s3 = Math.acos(Math.max(-1, Math.min(1, dot(qp, W.p))));
     if (!(s3 > 1e-9) || !isFinite(d[0]) || !isFinite(d2[0])) return;
+    const p0 = W.p.slice(), p02 = W2.p.slice(), s2 = Math.acos(Math.max(-1, Math.min(1, dot(qp2, W2.p))));
     step(d, d2, s3);
-    W.p = q.p.slice(); W2.p = q.p2.slice(); orthoFrame(W); orthoFrame(W2);
-    S.az = Math.atan2(dot(d, W.r), dot(d, W.f)) / d2r; S.el = Math.asin(Math.max(-1, Math.min(1, dot(d, W.u)))) / d2r;   // 見る向き＝進む向き
-    if (q.lap > FILL.lapSaid) { FILL.lapSaid = q.lap; if (q.lap > 0) say(`${q.lap + 1} 本目：いちばん大きいすきまへ（今までの道から ${FILL.gaps[q.lap % FILL.gaps.length].toFixed(1)}°）。S² の向きは ${(vdc(q.lap) * 180).toFixed(1)}°`); }
+    W.p = qp.slice(); W2.p = qp2.slice();
+    // 着いた所での進む向き（大円に沿って運んだ d）
+    const dd = nrm(add(add(scl(p0, -Math.sin(s3)), d, Math.cos(s3)), W.p, 0)), dd2 = nrm(add(scl(p02, -Math.sin(s2)), d2, Math.cos(s2)));
+    const g = (v, P, others) => { let t = add(v, P, -dot(v, P)); for (const o of others) t = add(t, o, -dot(t, o)); return nrm(t); };
+    W.f = dd; W.r = g(W.r, W.p, [W.f]); W.u = g(W.u, W.p, [W.f, W.r]);
+    W2.f = dd2; W2.r = g(W2.r, W2.p, [W2.f]);
+    S.az = 0; S.el = 0;
+}
+function fillStep(ds) {
+    if (FILL.turn) {   // ターン中：円弧の上を進む
+        const tu = FILL.turn; tu.f = Math.min(1, tu.f + ds / Math.max(1e-6, tu.len));
+        const A3 = arcPt(tu.a3, tu.b3, FILL_TT, tu.f), A2 = arcPt(tu.a2, tu.b2, FILL_TT, tu.f);
+        fillGo(expN(A3.x), expN(A2.x));
+        if (tu.f >= 1) { FILL.turn = null; FILL.T = tu.lap * TAU + FILL_TT; fillSigns(tu.lap + 1); }
+        return;
+    }
+    const lap = Math.floor(FILL.T / TAU);
+    FILL.T += ds;   // 大円の上は T がそのまま進んだ距離
+    if ((lap + 1) * TAU - FILL.T <= FILL_TT) {   // 北極の手前 FILL_TT：ターンに入る
+        const nx = lap + 1; fillSigns(nx);
+        const a3 = fillU(lap), b3 = fillU(nx), a2 = fillU2(lap), b2 = fillU2(nx);
+        FILL.turn = { f: 0, lap: nx, a3, b3, a2, b2, len: arcPt(a3, b3, FILL_TT, 0).len };
+        FILL.T = nx * TAU - FILL_TT;
+        const q = fillPoint(FILL.T); fillGo(q.p, q.p2);
+        const th = Math.acos(Math.max(-1, Math.min(1, dot(a3, b3)))) / d2r, th2 = Math.acos(Math.max(-1, Math.min(1, dot(a2, b2)))) / d2r;
+        say(`${nx + 1} 本目へ：北極のまわりで ${th.toFixed(1)}° ターン（S² では ${th2.toFixed(1)}°）。いちばん大きいすきまへ（今までの道から ${FILL.gaps[nx % FILL.gaps.length].toFixed(1)}°）`);
+        FILL.lapSaid = nx;
+        return;
+    }
+    const q = fillPoint(FILL.T); fillGo(q.p, q.p2);
 }
 // ---- ホップの円：q を複素数 2 つ (x+iy, z+iw) と見て、e^{it}·q と回す（x-y 面と z-w 面を同じ速さで同時に回す二重回転）。
 //   どの点の道も大円（まっすぐ）で、となりどうしの距離は変わらない（クリフォード平行）。でも 1 周すると、お互いのまわりをちょうど 1 回まわる
