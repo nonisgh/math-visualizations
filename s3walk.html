@@ -206,6 +206,11 @@
                     <button class="btn" id="b-hopfplain" title="比べる用：仲間が、出発の時に自分と同じ向きのふつうの大円を歩く（S² の平行と同じ）。距離が縮んだり戻ったりして、まわらない">ふつうの平行と比べる</button>
                 </div>
                 <div class="row">
+                    <button class="btn" id="b-dyson" title="架空：S³ が外からダイソン球のような模様の殻で囲まれていたら。外の光は 4次元目から差すので中の人には向きがなく、その場所のもやが、真上の模様の色に光って見える（北は金色・南は青白のパネル）">🌐 外のダイソン球</button>
+                </div>
+                <div class="sl"><span>外の光の強さ</span><input id="s-outer" type="range" min="0.1" max="2" step="0.05" title="外のダイソン球の光で光るもやの強さ"><output id="o-outer"></output></div>
+                <p class="note">「🌐 外のダイソン球」は架空の見え方。中の人の視線は S³ の中を一周するだけで外へ出ないので、外の殻そのものは決して見えません。でも外の光が 4次元目（球の外向き）から差し込むなら、それは前後・左右・上下のどれとも直角で向きがないので、その場所の空気（もや）が「真上」の模様の色に光るように感じるはず。中の景色は、視線に沿ってそのもやの光を足し合わせたもの（近いほど強く）。模様は、ところどころ光るパネル（北は金色・南は青白みがかる）。地図の色の点が、その模様を S³ に写したものです。</p>
+                <div class="row">
                     <button class="btn" id="b-solar" title="3次元球面の太陽系（架空）：太陽 ☀️ を北極に置き、8 つの惑星がそれぞれ太陽から決まった距離の円を回る。S³ では太陽から π/2（赤道）より遠い惑星は、反対側（南極 🌴）を囲む小さな円を回る">☀️ 太陽系</button>
                     <button class="btn" id="b-tour" title="太陽系ツアー：次の惑星へ飛んで行き、着いたらその惑星のすぐ後ろを並んで飛ぶ（Shift＋ドラッグで見渡せる）。歩くと止まる">次の惑星へ ▶</button>
                     <button class="btn" id="b-tour0" title="ツアーをやめて、太陽のそば（北極）に戻る">太陽に戻る</button>
@@ -423,7 +428,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // ---------------------------------------------------------------------
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
-const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
+const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
     mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
@@ -1085,6 +1090,31 @@ const AXL = 2.7;
         put(sunB, SUN.p); PLANETS.forEach((P, k) => put(plB[k], planetPos(P))); put(moB, moonPos(PLANETS[2]));
     });
 })();
+// ---- 外のダイソン球の模様を、S³ の地図に色の点で（シェーダーの dysonCol と同じ式）----
+function dysonColJS(q) {
+    const eta = Math.atan2(Math.hypot(q[2], q[3]), Math.hypot(q[0], q[1])), x1 = Math.atan2(q[1], q[0]), x2 = Math.atan2(q[3], q[2]);
+    const g = [eta / (Math.PI / 2) * 5, (x1 + Math.PI) / TAU * 10, (x2 + Math.PI) / TAU * 10], f = g.map(x => Math.abs(x - Math.floor(x) - 0.5));
+    const m = Math.max(...f), seam = m < 0.36 ? 0 : m > 0.5 ? 1 : ((m - 0.36) / 0.14) ** 2 * (3 - 2 * (m - 0.36) / 0.14);
+    const id = g.map(Math.floor), hv = Math.sin(id[0] * 12.9898 + id[1] * 78.233 + id[2] * 37.719) * 43758.5453, h = hv - Math.floor(hv), k = 0.5 - 0.5 * q[3];
+    const base = [1 + (0.5 - 1) * k, 0.72 + (0.78 - 0.72) * k, 0.3 + (1 - 0.3) * k];
+    const lit = (h < 0.62 ? 0 : h > 0.72 ? 1 : ((h - 0.62) / 0.1) ** 2 * (3 - 2 * (h - 0.62) / 0.1)) * (1 - seam), hh = h * 7 - Math.floor(h * 7);
+    return base.map((c, i) => c * 0.1 + c * (0.6 + 0.4 * Math.cos(TAU * (hh + i * 0.33))) * lit * 3.2);
+}
+(function buildDyson() {
+    const N = 4000, pts = [], rnd = (() => { let x = 12345; return () => { x = (x * 1103515245 + 12345) % 2147483648; return x / 2147483648; }; })();
+    for (let i = 0; i < N; i++) { const g = () => { const u = Math.max(1e-9, rnd()), v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }; pts.push(nrm([g(), g(), g(), g()])); }
+    const geo = new THREE.BufferGeometry(), pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+    pts.forEach((q, i) => { const c = dysonColJS(q); col.set(c, i * 3); });
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const obj = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.07, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
+    obj.frustumCulled = false; VB.root.add(obj); let key = ''; const a = [0, 0, 0];
+    VB.frames.push(() => {
+        obj.visible = S.dyson; if (!S.dyson) return;
+        const k = Array.from(R4, x => x.toFixed(5)).join(',') + '|' + S.D + '|' + S.cut; if (k === key) return; key = k;
+        pts.forEach((q, i) => { const d = mapS3(q, a); if (!(d === d) || d < S.cut) { pos[i * 3] = pos[i * 3 + 1] = pos[i * 3 + 2] = 1e5; return; } pos.set(a, i * 3); });
+        geo.attributes.position.needsUpdate = true;
+    });
+})();
 // 平行な仲間のグラフ（HUD）：横 s（0〜2π）、縦 自分と仲間の距離。点線＝平らな空間（d₀ のまま）、実線＝S³
 function paraGraph() {
     const W0 = 210, H0 = 64, x = t => 6 + (W0 - 12) * t / TAU, y = d => H0 - 8 - (H0 - 18) * d / Math.max(PARA.d0, 1e-3);
@@ -1227,6 +1257,28 @@ void shellsBetween(vec4 p0, vec4 v, float t0, float t1, inout vec3 col, inout fl
         }
     }
 }
+// ---- 外のダイソン球（架空）：S³ を外から囲む模様。外の光は 4次元目（球の外向き）から差すので、中の人には「どの向きから」ではなく、
+//      その場所のもやが、真上にある模様の色に光るように感じる。光の道に沿ってその色を足し合わせる（中の人に見えるのはこのもや）
+uniform float uOuter;
+vec3 dysonCol(vec4 q){   // 模様：ホップの座標（η, ξ₁, ξ₂）のます目のパネル、継ぎ目は暗く。北（w > 0）は金色、南は青白
+    float eta = atan(length(q.zw), length(q.xy)), x1 = atan(q.y, q.x), x2 = atan(q.w, q.z);
+    vec3 g = vec3(eta/(PI*0.5)*5.0, (x1 + PI)/(2.0*PI)*10.0, (x2 + PI)/(2.0*PI)*10.0);
+    vec3 f = abs(fract(g) - 0.5); float seam = smoothstep(0.36, 0.5, max(f.x, max(f.y, f.z)));
+    vec3 id = floor(g); float h = fract(sin(dot(id, vec3(12.9898, 78.233, 37.719)))*43758.5453);
+    vec3 base = mix(vec3(1.0, 0.72, 0.30), vec3(0.50, 0.78, 1.0), 0.5 - 0.5*q.w);
+    // 光るのはところどころのパネルだけ（全部が光ると、光の道に沿って混ざって灰色にぼやける）。ほかはうっすら色づくだけ
+    float lit = smoothstep(0.62, 0.72, h) * (1.0 - seam);
+    vec3 tint = 0.6 + 0.4*cos(6.2832*(fract(h*7.0) + vec3(0.0, 0.33, 0.67)));   // 光るパネルごとに少し色を変える
+    return base * 0.10 + base * tint * lit * 3.2;
+}
+float _gj = 0.5;   // 1 画素ごとの、たどる点のずらし（縞が出ないように）
+vec3 glowSeg(vec4 p0, vec4 v, float t0, float t1){   // 距離 t0〜t1 の間のもやの光（手前ほど強く、遠いほど薄れる）
+    if(uOuter <= 0.0 || t1 <= t0) return vec3(0.0);
+    // 近くの光ほど強く効く（遠くの色まで混ぜると白くぼやけるので、もやの濃さ 1.1 で薄れさせる）。たどる点は手前ほど細かく
+    vec3 acc = vec3(0.0); float Lg = min(uMaxD, 3.2);
+    for(int j=0;j<40;j++){ float u = (float(j) + _gj)/40.0, tj = Lg*u*u, w = Lg*2.0*u/40.0; if(tj <= t0) continue; if(tj > t1) break; vec4 q = cos(tj)*p0 + sin(tj)*v; acc += dysonCol(q) * exp(-1.1*tj) * w; }
+    return acc * 0.9 * uOuter;
+}
 vec3 haze(vec3 d){ return mix(vec3(0.16,0.19,0.30), vec3(0.22,0.24,0.36), 0.5+0.5*d.y); }   // 空気のもや（散乱光）の色
 void main(){
     vec2 uv = (gl_FragCoord.xy / uRes)*2.0 - 1.0;
@@ -1324,27 +1376,30 @@ void main(){
     // ---- 手前から重ねる：遠いほど透け（uFade）、遠いほどもやに溶ける（uFog）----
     //   並べかえはせず、毎回「まだ使っていない中でいちばん手前」を選ぶ（配列を書きかえないので速い）
     vec3 col = vec3(0.0); float T = 1.0; float prevT = 0.0; float lastSel = -1.0;
+    _gj = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)))*43758.5453);
     for(int k=0;k<17;k++){
         float t = 1e9; vec3 lc = vec3(0.0); float la = 0.0;
         for(int i=0;i<17;i++){ if(Lt[i] > lastSel && Lt[i] < t){ t = Lt[i]; lc = Lc[i]; la = La[i]; } }
         if(t > 1e8) break;
         lastSel = t;
+        col += T*glowSeg(p0, v, prevT, t);
         if(uShell==1){ shellsBetween(p0, v, prevT, t, col, T, dir); if(T < 0.01) break; }
         float a = la * exp(-t*uFade);
         vec3 c = mix(lc, haze(dir), 1.0 - exp(-t*uFog));
         col += T*a*c; T *= (1.0 - a); prevT = t;
         if(T < 0.003) break;
     }
+    col += T*glowSeg(p0, v, prevT, uMaxD);
     if(uShell==1 && T > 0.01) shellsBetween(p0, v, prevT, uMaxD, col, T, dir);
     vec3 sky = uBgMesh==1 ? skyMesh(v) : bg(dir);
-    col += T * mix(sky, haze(dir), (uBgMesh==1 ? 0.35 : 1.0) * (1.0 - exp(-uMaxD*uFog*0.6)));
+    col += T * mix(sky, haze(dir), (uBgMesh==1 ? 0.35 : 1.0) * (1.0 - exp(-uMaxD*uFog*0.6))) * (uOuter > 0.0 ? 0.3 : 1.0);   // ダイソン球の時は背景を暗く（外の光のもやが見えるように）
     gl_FragColor = vec4(pow(col, vec3(0.9)), 1.0);
 }`;
 const ray = (() => {
     const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const U = { uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * d2r) }, uFovY: { value: 70 * d2r }, uPixAng: { value: 0.002 }, uLens: { value: 0 }, uP: { value: new THREE.Vector4() }, uR: { value: new THREE.Vector4() }, uU: { value: new THREE.Vector4() }, uF: { value: new THREE.Vector4() },
         uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkT: { value: new Float32Array(NMK).fill(-1) }, uNM: { value: 0 }, uAtlas: { value: ATLAS.tex }, uPic: { value: 0 }, uBgMesh: { value: 0 }, uPasses: { value: 4 },
-        uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uLite: { value: 1 }, uShell: { value: 0 }, uShellLum: { value: 0.65 }, uShellSolid: { value: 0 }, uShellN: { value: 11 }, uShellOp: { value: 0.22 }, uShellRange: { value: 1.0 }, uShMin: { value: 0.25 }, uShellBack: { value: 0.6 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uPicLine: { value: 0.3 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
+        uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uLite: { value: 1 }, uShell: { value: 0 }, uOuter: { value: 0 }, uShellLum: { value: 0.65 }, uShellSolid: { value: 0 }, uShellN: { value: 11 }, uShellOp: { value: 0.22 }, uShellRange: { value: 1.0 }, uShMin: { value: 0.25 }, uShellBack: { value: 0.6 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uPicLine: { value: 0.3 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
     const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: RAY_FRAG, depthTest: false, depthWrite: false });
     scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
     cell120().planes.forEach((v, i) => U.uN.value[i].set(v[0], v[1], v[2], v[3]));
@@ -1363,7 +1418,7 @@ function rebuildMarks() {
 function setRayUniforms() {
     const U = ray.U, F = viewFrame();   // 画面に写すのは見渡した向き
     U.uP.value.set(...W.p); U.uR.value.set(...F.R); U.uU.value.set(...F.U); U.uF.value.set(...F.L);
-    U.uRoom.value = S.room ? 1 : 0; U.uLite.value = S.lite ? 1 : 0; U.uShell.value = S.shell ? 1 : 0; U.uShellLum.value = S.shellLum; U.uShellSolid.value = S.shellSolid ? 1 : 0; U.uShellN.value = Math.max(2, Math.min(21, Math.round(S.shellN))); U.uShellOp.value = S.shellOp; U.uShellBack.value = S.shellBack; U.uShellRange.value = S.shellRange; U.uShMin.value = shellMinTheta(); U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uFade.value = S.fade; U.uPicLine.value = S.picLine; U.uMaxD.value = S.maxd;
+    U.uRoom.value = S.room ? 1 : 0; U.uLite.value = S.lite ? 1 : 0; U.uShell.value = S.shell ? 1 : 0; U.uOuter.value = S.dyson ? S.outer : 0; U.uShellLum.value = S.shellLum; U.uShellSolid.value = S.shellSolid ? 1 : 0; U.uShellN.value = Math.max(2, Math.min(21, Math.round(S.shellN))); U.uShellOp.value = S.shellOp; U.uShellBack.value = S.shellBack; U.uShellRange.value = S.shellRange; U.uShMin.value = shellMinTheta(); U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uFade.value = S.fade; U.uPicLine.value = S.picLine; U.uMaxD.value = S.maxd;
     U.uRes.value.set(VC.r.domElement.width, VC.r.domElement.height);
     const lens = S.lens === 'fish' ? 1 : S.lens === 'pano' ? 2 : 0, fov = lens === 0 ? Math.min(150, S.fov) : lens === 1 ? S.fov : 180;
     U.uLens.value = lens; U.uFovY.value = fov * d2r; U.uTanF.value = Math.tan(Math.min(150, S.fov) * d2r / 2);
@@ -1386,7 +1441,7 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
 $('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
@@ -1417,7 +1472,7 @@ $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90')
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; S.ringView = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-solarspd': ['solarSpd', v => +v <= 0 ? '止める' : '×' + (+v).toFixed(1)], 's-parad': ['paraD', v => (+v).toFixed(2)], 's-paralead': ['paraLead', v => +v <= 0 ? '真横' : (+v).toFixed(2)], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 6.2 ? '（全部）' : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-outer': ['outer', v => '×' + (+v).toFixed(2)], 's-solarspd': ['solarSpd', v => +v <= 0 ? '止める' : '×' + (+v).toFixed(1)], 's-parad': ['paraD', v => (+v).toFixed(2)], 's-paralead': ['paraLead', v => +v <= 0 ? '真横' : (+v).toFixed(2)], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 6.2 ? '（全部）' : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
     's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (k === 'hopfD' && S.hopf) hopfStart(); if (['xw', 'yw', 'zw'].includes(k)) { S.follow = false; S.ringView = false; } save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
