@@ -42,6 +42,13 @@
         /* 左：地図 2 つ（S² の仲間・S³ の地図）を縦に。右：散歩の景色。幅の割合は --mapw（スライダー） */
         #maps { flex: none; width: calc(var(--mapw) * 100%); display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid #1e293b; }
         #maps.off { display: none; }
+        /* 地図と中の景色の境目のつまみ（ドラッグで広さを変える） */
+        #split { flex: none; width: 14px; margin: 0 -7px; z-index: 20; position: relative; cursor: col-resize; touch-action: none; }
+        #split::after { content: ''; position: absolute; left: 50%; top: 50%; width: 5px; height: 48px; transform: translate(-50%, -50%); border-radius: 4px; background: rgba(148, 163, 184, 0.35); transition: background .15s; }
+        #split:hover::after, #split.drag::after { background: rgba(167, 139, 250, 0.95); }
+        #maps.off + #split, #main.nowalk #split { display: none; }
+        body.split-dragging, body.split-dragging * { cursor: col-resize !important; user-select: none !important; }
+        body.split-dragging.split-col, body.split-dragging.split-col * { cursor: row-resize !important; }
         #main.nowalk #maps { width: auto; flex: 1 1 0; border-right: 0; }
         .vw { position: relative; min-width: 0; min-height: 0; flex: 1 1 0; overflow: hidden; }
         #maps .vw { border-bottom: 1px solid #1e293b; }
@@ -55,6 +62,8 @@
             #main.nowalk #maps { height: auto; }
             #maps .vw { border-bottom: 0; border-right: 1px solid #1e293b; }
             #maps .vw:last-child { border-right: 0; }
+            #split { width: auto; height: 14px; margin: -7px 0; cursor: row-resize; }
+            #split::after { width: 48px; height: 5px; }
         }
         #ui-overlay { position: fixed; top: 0; right: 0; height: 100%; width: var(--sb-w); z-index: 30; display: flex; flex-direction: column; border-width: 0 0 0 1px !important; }
         body.sidebar-hidden #ui-overlay { display: none; }
@@ -119,6 +128,7 @@
             <div id="axlen" class="hud" style="left:auto;right:12px;top:12px;bottom:auto"></div>
         </div>
         </div>
+        <div id="split" title="ドラッグで地図と中の景色の広さを変える（ダブルクリックで元に戻す）"></div>
         <div id="wrapC" class="vw">
             <div id="cvC" class="cv"></div>
             <div id="badgeC" class="badge">中にいる人の景色<small>光をまっすぐ（大円に沿って）進めて描く。ドラッグで見回す・向いた方へ進む</small></div>
@@ -249,7 +259,7 @@
                     <button class="btn lens" data-lens="pano" title="横 360°・縦 180° のパノラマ（正距円筒）。前後左右上下が全部 1 枚に">360°</button>
                 </div>
                 <div class="sl"><span>視野角</span><input id="s-fov" type="range" min="30" max="360" step="1" title="中の景色の縦の視野角。通常のレンズは 150° まで、魚眼は 360° まで。360° レンズでは使わない"><output id="o-fov"></output></div>
-                <div class="sl"><span>地図の幅</span><input id="s-mapw" type="range" min="0.15" max="0.75" step="0.01" title="左の地図（S² の仲間・S³ の地図）と右の散歩の景色の幅の割合。縦長の画面では高さの割合"><output id="o-mapw"></output></div>
+                <div class="sl"><span>地図の幅</span><input id="s-mapw" type="range" min="0.12" max="0.85" step="0.01" title="左の地図（S² の仲間・S³ の地図）と右の散歩の景色の幅の割合。縦長の画面では高さの割合"><output id="o-mapw"></output></div>
                 <div class="row">
                     <button class="btn" id="b-axes" title="x・y・z（S³ の地図では w も）の軸">軸</button>
                     <button class="btn" id="b-home" title="地図の見る向きを最初に戻す">向きを戻す</button>
@@ -1169,6 +1179,21 @@ if (window.innerWidth < 760) setSidebar(false);
 let dock = null;
 try { dock = UIDock.create({ prefix: 's3walk', onResize: () => resizeAll(), onChange: () => req(3) }); document.querySelectorAll('#sb-scroll > section.sb-sec').forEach(sec => { const h = sec.querySelector(':scope > .sb-h'); if (h) dock.add(sec, { handle: h }); }); dock.restore(); } catch (e) { console.warn('ui-dock', e); }
 
+// 地図と中の景色の境目：ドラッグで広さ（S.mapW）を変える。縦長の画面では上下
+(() => {
+    const sp = $('split'); let st = null;
+    sp.addEventListener('pointerdown', e => { e.preventDefault(); st = { id: e.pointerId }; sp.setPointerCapture(e.pointerId); sp.classList.add('drag');
+        const col = getComputedStyle($('main')).flexDirection === 'column'; document.body.classList.add('split-dragging'); document.body.classList.toggle('split-col', col); });
+    sp.addEventListener('pointermove', e => {
+        if (!st || e.pointerId !== st.id) return;
+        const r = $('main').getBoundingClientRect(), col = getComputedStyle($('main')).flexDirection === 'column';
+        const f = col ? (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
+        S.mapW = Math.round(Math.max(0.12, Math.min(0.85, f)) * 100) / 100; refreshUI(); req(3);
+    });
+    const end = () => { if (!st) return; st = null; sp.classList.remove('drag'); document.body.classList.remove('split-dragging', 'split-col'); save(); };
+    sp.addEventListener('pointerup', end); sp.addEventListener('pointercancel', end);
+    sp.addEventListener('dblclick', () => { S.mapW = 0.4; save(); refreshUI(); req(3); });
+})();
 // 右の窓：ドラッグで見回す（方位・仰角）、ホイールで前後
 (() => {
     const cv = $('cvC'); let st = null;
