@@ -158,6 +158,16 @@
                 <div class="sl"><span>速さ</span><input id="s-spd" type="range" min="0.1" max="2" step="0.05"><output id="o-spd"></output></div>
                 <div class="sl"><span>曲がり</span><input id="s-roam" type="range" min="0.2" max="3" step="0.05" title="縦横無尽の時の、向きの変わりやすさ"><output id="o-roam"></output></div>
                 <div class="sl"><span>巻き数</span><input id="s-turns" type="range" min="1" max="12" step="0.5" title="螺旋で北極から南極まで行く間に何回まわるか"><output id="o-turns"></output></div>
+                <div class="row">
+                    <button class="btn" id="b-grav" title="4次元で w の＋から−へ向かう重力をかける。中の人には「南極へ引く力」（赤道で最強、両極でゼロ）に感じる。左の S² も同じ">🍎 重力</button>
+                    <button class="btn" id="b-planet" title="南極に岩の星（地面）を置く。重力 ON の時、その表面に立てる（S² では南極のまわりの円板）">南極に星</button>
+                    <button class="btn" id="b-drop" title="重力 ON にして、赤道に止まった状態で手をはなす（振り子の実験）">赤道から落とす</button>
+                    <button class="btn" id="b-jump" title="星の上からジャンプ（J キー）">ジャンプ</button>
+                    <button class="btn" id="b-kick" title="見ている水平の向きへ勢いをつける。南極のまわりを回る軌道になる">横に蹴る</button>
+                </div>
+                <div class="sl"><span>重力</span><input id="s-g" type="range" min="0.1" max="5" step="0.05" title="重力の強さ"><output id="o-g"></output></div>
+                <div class="sl"><span>星の大きさ</span><input id="s-pr" type="range" min="0.1" max="1.2" step="0.01" title="南極の星の半径（S³ の中での距離。π/2 で赤道まで）"><output id="o-pr"></output></div>
+                <div class="sl"><span>空気抵抗</span><input id="s-gdamp" type="range" min="0" max="2" step="0.01" title="0 なら振り子はずっと揺れ続ける。大きいと南極（星の上）に落ち着く"><output id="o-gdamp"></output></div>
                 <div class="sl"><span>傾き</span><input id="s-tilt" type="range" min="0" max="1" step="0.05" title="二重の螺旋：巻く面が進むにつれて z の方へ傾く度合い。0 なら 1 枚の球面の上の平らな竜巻（左の S² と同じ）、1 なら北極では z の向きに巻き始め、南極では −z の向きに"><output id="o-tilt"></output></div>
                 <div class="row">
                     <button class="btn" id="b-north" title="北極 N に立って、進んだ距離を 0 に。足あとと道すじも消す">北極に戻す</button>
@@ -264,6 +274,7 @@
                     <p class="an">2次元の仲間：ふつうの球面 S²。北極から どの方位にまっすぐ歩いても、南極を通って北極に戻る（経線をたどる）。左の窓はそれです。</p>
                     <p>出発した北極では、<b>空全体が金色</b>に見えます。これは反対側（π 先）の南極の玉。S³ では、ちょうど反対側の点から出た光がどの向きからも届くので、そこにある物が空いっぱいに広がって見えます。少し歩くと金色の玉はまとまって見えてきます。</p>
                     <p><b>目印の見せ方</b>：玉（既定）／絵（🐰🐢🦝 など）／大きめの色の点。絵と色の点では、中の景色の線を細く薄くします（「絵の時の線」で濃さを変えられ、0 で消えます）。<b>軽量モード</b>のボタンで、色の点・色の地図の背景・線なし・透けの重ねは手前 1 つだけ、のいちばん軽い組み合わせになります。どの目印が前に（遠回りして）見えているのか、一目で分かります。各絵の<b>右上に赤い点</b>があります。</p>
+                    <p><b>重力モード</b>（🍎）：4次元で w の＋から−へ向かう重力をかけます。S³ に垂直な部分は中の人には存在しない向きなので感じず、S³ に沿った部分だけが「南極へ引く力」として感じられます（赤道で最強、両極でゼロ。南極のまわりではバネの力）。何もなければ南極を通り越して振り子のように揺れ続け、横に蹴ると南極のまわりを回ります。<b>立つには地面が要る</b>ので、「南極に星」を置くとその表面に立てます（下＝南極、上＝北極）。左の S² では、星は南極のまわりの円板、立つ所はそのふちの円です。</p>
                     <p><b>像の向き</b>：光の道のりが π より短い物は正しい向き（赤い点が右上）。ちょうど π（反対側）の物は空いっぱいに広がり、向きは正しいまま。π より長い（反対側を回ってきた光で見える）物は <b>180° 回った像</b>＝上下も左右も逆（赤い点が左下）。鏡のように左右だけ裏返ることはありません。反対側の点がレンズの焦点のように働いて、そこを越えた光は像をひっくり返すのです。</p>
                     <p>中の景色（右）：光も大円に沿って進むので、<b>π 先の対蹠点が空いっぱいに広がって見え</b>、2π 先には自分の背中が見えます。遠くの目印は、π に近づくほど逆に大きく見えます。</p>
                     <p>S³ の地図（真ん中）：4次元の超球を、次元おりがみと同じ遠近で 3次元に写した模型。手前の半分（w が＋、赤紫）と奥の半分（w が−、水色）が重なって 1 つの玉に見えます。地図の上の白い玉が自分です。</p>
@@ -346,14 +357,14 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // ---------------------------------------------------------------------
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
-const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, tilt: 0.6, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
+const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
     mk: 'ball', bgMesh: false, passes: 4, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
 if (S.pic !== undefined) { S.mk = S.pic ? 'pic' : 'ball'; delete S.pic; }   // 古い保存（絵のモードの ON/OFF）を読みかえる
 const isPic = () => S.mk === 'pic';
-S.walk = false; S.roam = false; S.spiral = false;
+S.walk = false; S.roam = false; S.spiral = false; S.grav = false;
 let saveT = 0; function save() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('s3walk-state', JSON.stringify(S)); } catch (e) {} }, 300); }
 
 // 歩く人（S³）と、その仲間（S²）
@@ -378,6 +389,102 @@ function moveAlong(X, d, s) {
     for (const k of ['r', 'u', 'f']) { if (!X[k]) continue; const t = X[k]; const a = dot(t, d); X[k] = nrm(add(add(t, d, -a), d2, a)); }
     // 直交を保つ（誤差がたまらないように）
     for (const k of ['r', 'u', 'f']) { if (!X[k]) continue; let t = add(X[k], X.p, -dot(X[k], X.p)); for (const j of ['r', 'u', 'f']) { if (j === k) break; if (X[j]) t = add(t, X[j], -dot(t, X[j])); } X[k] = nrm(t); }
+}
+// ---- 重力モード：4次元で w の＋から−へ向かう重力 −g·ŵ。S³ の中で感じるのは、それの S³ に沿った部分 −g(ŵ − w·p)（南極へ引く。赤道で最強、両極でゼロ）----
+//   左の S² も同じ：−g(ẑ − z·p)。南極に「星」（測地線の半径 planetR の玉。S² では円板）を置くと、その表面に立てる
+const G = { v: [0, 0, 0, 0], v2: [0, 0, 0], on: false, on2: false };
+const SP4 = [0, 0, 0, -1], SP3 = [0, 0, -1], NP4 = [0, 0, 0, 1], NP3 = [0, 0, 1];
+const planetKey = () => S.grav && S.planet ? S.planetR : 0;
+function orthoFrame(X) {   // 点 p を動かした後、体の枠を p に直交・正規直交に直す
+    for (const k of ['r', 'u', 'f']) { if (!X[k]) continue; let t = add(X[k], X.p, -dot(X[k], X.p)); for (const j of ['r', 'u', 'f']) { if (j === k) break; if (X[j]) t = add(t, X[j], -dot(t, X[j])); } X[k] = nrm(t); }
+}
+function outward(p, Sv) {   // 南極から遠ざかる向き（＝北極の向き、上）。南極・北極の上では決まらない
+    const c = dot(p, Sv), t = add(scl(p, c), Sv, -1), L = Math.hypot(...t); return L > 1e-9 ? scl(t, 1 / L) : null;
+}
+function groundCheck(X, vel, Sv) {   // 星の中に入ったら表面へ戻し、めりこむ向きの速さを消す
+    if (!(S.grav && S.planet)) return { vel, on: false };
+    const c = Math.max(-1, Math.min(1, dot(X.p, Sv))), dS = Math.acos(c), rp = S.planetR;
+    if (dS > rp + 1e-3) return { vel, on: false };
+    let u = add(X.p, Sv, -c); const L = Math.hypot(...u);
+    if (L < 1e-9) u = X.f || X.r; else u = scl(u, 1 / L);
+    if (dS < rp + 5e-4) { X.p = nrm(add(scl(Sv, Math.cos(rp + 5e-4)), u, Math.sin(rp + 5e-4))); orthoFrame(X); vel = add(vel, X.p, -dot(vel, X.p)); }
+    const out = outward(X.p, Sv); if (out) { const vn = dot(vel, out); if (vn < 0) vel = add(vel, out, -vn); }
+    return { vel, on: true };
+}
+function snapGround(X, vel, Sv) {   // 星の上を歩いている間は、地面の高さに戻す（まっすぐ歩くと地面から離れていくので）
+    const c = Math.max(-1, Math.min(1, dot(X.p, Sv))); let u = add(X.p, Sv, -c); const L = Math.hypot(...u); if (L < 1e-9) return vel; u = scl(u, 1 / L);
+    const rp = S.planetR + 5e-4; X.p = nrm(add(scl(Sv, Math.cos(rp)), u, Math.sin(rp))); orthoFrame(X);
+    vel = add(vel, X.p, -dot(vel, X.p)); const out = outward(X.p, Sv); if (out) vel = add(vel, out, -dot(vel, out)); return vel;
+}
+function gravMove(X, vel, h) {   // 速さ vel で h 秒、大円に沿って進む。進んだ先での速さ（平行移動したもの）と道のりを返す
+    const sp = Math.hypot(...vel); if (sp < 1e-9) return { vel, s: 0, d: null };
+    const s = sp * h, d = scl(vel, 1 / sp), d2 = add(scl(X.p, -Math.sin(s)), d, Math.cos(s));
+    return { vel: scl(nrm(d2), sp), s, d };
+}
+function alignUp(X, k) {   // 体の「上」を北極の向き（星の上なら空の向き）へなめらかに合わせる
+    const up = outward(X.p, SP4); if (!up || !X.u) return;
+    X.u = nrm(add(scl(X.u, 1 - k), up, k)); X.u = nrm(add(X.u, X.p, -dot(X.u, X.p)));
+    X.f = nrm(add(add(X.f, X.u, -dot(X.f, X.u)), X.p, -dot(X.f, X.p)));
+    let r = add(add(add(X.r, X.u, -dot(X.r, X.u)), X.f, -dot(X.r, X.f)), X.p, -dot(X.r, X.p)); X.r = nrm(r);
+}
+function gravityStep(dt, mv) {
+    const g = S.gStr, sub = 4, h = dt / sub, walkV = 0.6 * S.spd;
+    const F = lookFrame(), ca = Math.cos(S.az * d2r), sa = Math.sin(S.az * d2r);
+    const hor = nrm(add(scl(W.f, ca), W.r, sa)), side = nrm(add(scl(W.f, -sa), W.r, ca));   // 水平の前・右（体の枠の中で）
+    const L2 = look2(), R2 = nrm(add(scl(W2.f, -sa), W2.r, ca));
+    const wasOn = G.on;
+    for (let i = 0; i < sub; i++) {
+        // S³
+        G.v = add(G.v, add(NP4, W.p, -W.p[3]), -g * h); G.v = add(G.v, W.p, -dot(G.v, W.p)); G.v = scl(G.v, Math.exp(-S.gDamp * h));
+        let r = groundCheck(W, G.v, SP4); G.v = r.vel; G.on = r.on;
+        if (G.on) {   // 星の上：キーで歩く（地面に沿って）。キーを離すと止まる
+            const out = outward(W.p, SP4);
+            let wd = add(scl(hor, mv[2]), side, mv[0]); if (out) wd = add(wd, out, -dot(wd, out));
+            const vn = out ? Math.max(0, dot(G.v, out)) : 0;
+            if (Math.hypot(...wd) > 1e-6) G.v = add(scl(nrm(wd), walkV), out || [0, 0, 0, 0], vn);
+            else { const tang = out ? add(G.v, out, -dot(G.v, out)) : G.v; G.v = add(G.v, tang, -(1 - Math.exp(-8 * h))); }
+        } else if (mv[0] || mv[1] || mv[2]) {   // 宙では弱く押す
+            G.v = add(G.v, nrm(add(add(scl(F.R, mv[0]), F.U, mv[1]), F.L, mv[2])), 0.8 * h);
+        }
+        // S²
+        G.v2 = add(G.v2, add(NP3, W2.p, -W2.p[2]), -g * h); G.v2 = add(G.v2, W2.p, -dot(G.v2, W2.p)); G.v2 = scl(G.v2, Math.exp(-S.gDamp * h));
+        r = groundCheck(W2, G.v2, SP3); G.v2 = r.vel; G.on2 = r.on;
+        if (G.on2) {
+            const out = outward(W2.p, SP3);
+            let wd = add(scl(L2, mv[2]), R2, mv[0]); if (out) wd = add(wd, out, -dot(wd, out));
+            const vn = out ? Math.max(0, dot(G.v2, out)) : 0;
+            if (Math.hypot(...wd) > 1e-6) G.v2 = add(scl(nrm(wd), walkV), out || [0, 0, 0], vn);
+            else { const tang = out ? add(G.v2, out, -dot(G.v2, out)) : G.v2; G.v2 = add(G.v2, tang, -(1 - Math.exp(-8 * h))); }
+        } else if (mv[0] || mv[2]) G.v2 = add(G.v2, nrm(add(scl(R2, mv[0]), L2, mv[2])), 0.8 * h);
+        // 進む（S² が先：道すじの記録に両方の場所が入るように）。地面の上を歩いていたら（上向きの速さがほぼ 0）、進んだ後も地面に戻す
+        const o1 = outward(W.p, SP4), o2 = outward(W2.p, SP3);
+        const stick = G.on && !(o1 && dot(G.v, o1) > 0.02), stick2 = G.on2 && !(o2 && dot(G.v2, o2) > 0.02);
+        const m2 = gravMove(W2, G.v2, h); if (m2.s > 0) { moveAlong(W2, m2.d, m2.s); G.v2 = m2.vel; if (stick2) G.v2 = snapGround(W2, G.v2, SP3); }
+        const m = gravMove(W, G.v, h); if (m.s > 0) { step(m.d, null, m.s); G.v = m.vel; if (stick) G.v = snapGround(W, G.v, SP4); }
+    }
+    alignUp(W, Math.min(1, 3 * dt));
+    if (!wasOn && G.on) say('着地！ 南極の星の上に立った（下＝南極の向き、上＝北極の向き）');
+    req(2);
+}
+function gravJump() {   // その場の重力（南極からの距離 d で g·sin d）に合わせて、高さ 0.3 くらいまで跳ぶ
+    let did = false; const jv = d => Math.sqrt(2 * S.gStr * Math.max(0.05, Math.sin(d)) * 0.3) + 0.05;
+    if (G.on) { const out = outward(W.p, SP4); if (out) { G.v = add(G.v, out, jv(Math.acos(-W.p[3]))); G.on = false; did = true; } }
+    if (G.on2) { const out = outward(W2.p, SP3); if (out) { G.v2 = add(G.v2, out, jv(Math.acos(-W2.p[2]))); G.on2 = false; } }
+    if (did) say('ジャンプ！');
+}
+function gravKick() {   // 見ている水平の向きへ勢い。南極のまわりを回る軌道になる
+    const ca = Math.cos(S.az * d2r), sa = Math.sin(S.az * d2r);
+    let d = nrm(add(scl(W.f, ca), W.r, sa)); const out = outward(W.p, SP4); if (out) d = nrm(add(d, out, -dot(d, out)));
+    G.v = add(G.v, d, 0.9 * Math.sqrt(S.gStr)); G.on = false;
+    let d2 = look2(); const o2 = outward(W2.p, SP3); if (o2) d2 = nrm(add(d2, o2, -dot(d2, o2)));
+    G.v2 = add(G.v2, d2, 0.9 * Math.sqrt(S.gStr)); G.on2 = false;
+    say('横に蹴った：南極のまわりを回る');
+}
+function dropFromEquator() {   // 赤道（+x）に止まった状態で置く（上＝北極）
+    Object.assign(W, { p: [1, 0, 0, 0], r: [0, 0, -1, 0], u: [0, 0, 0, 1], f: [0, 1, 0, 0] });
+    Object.assign(W2, { p: [1, 0, 0], r: [0, 0, 1], f: [0, 1, 0] });
+    G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; G.on = G.on2 = false; W.trail = []; W2.trail = []; W.wasW = 0; W.passed = {};
+    say('赤道から手をはなした：南極へ落ちていく'); req(3);
 }
 function step(dirS3, dir2, s) {
     moveAlong(W, dirS3, s);
@@ -556,10 +663,15 @@ const AXL = 2.7;
     const me = ball(v, 0.09, [1, 1, 1]), cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 })); v.root.add(cone);
     const trail = Lines(v, 6000, { width: 2.4, order: 3 }), foot = new THREE.Group(); v.root.add(foot);
     const spL = Lines(v, 1200, { width: 1.1 }); let spKey = '';
+    // 南極の星（S² では南極のまわりの円板＝球面の帽子）
+    const capMat = new THREE.MeshPhongMaterial({ color: 0x94704c, transparent: true, opacity: 0.75, side: THREE.DoubleSide, shininess: 10 });
+    let capMesh = null, capKey = '';
     const marks = new THREE.Group(); v.root.add(marks);
     const up = new THREE.Vector3(0, 1, 0), t = new THREE.Vector3();
     v.frames.push(() => {
         spL.obj.visible = S.spiral;
+        const pk = planetKey();
+        if (String(pk) !== capKey) { capKey = String(pk); if (capMesh) { v.root.remove(capMesh); capMesh.geometry.dispose(); capMesh = null; } if (pk) { capMesh = new THREE.Mesh(new THREE.SphereGeometry(R2 * 1.004, 64, 16, 0, TAU, Math.PI - pk, pk).rotateX(Math.PI / 2), capMat); v.root.add(capMesh); } }
         if (S.spiral && spKey !== String(S.turns)) { spKey = String(S.turns); const path = spiralPath(1200); spL.reset(); for (let i = 0; i + 1 < path.length; i++) spL.seg(scl(path[i].p2, R2), scl(path[i + 1].p2, R2), [0.55, 0.5, 0.9]); spL.flush(); }
         const P = scl(W2.p, R2); me.position.set(...P);
         const d = look2(); t.set(d[0], d[1], d[2]); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(P[0] + d[0] * 0.25, P[1] + d[1] * 0.25, P[2] + d[2] * 0.25);
@@ -593,6 +705,7 @@ const AXL = 2.7;
     const trail = Lines(v, 6000, { width: 3.4, order: 3, normal: true });
     const spL = Lines(v, 1200, { width: 1.1 }); let spPath = null, spKey = '';
     v.root.add(new THREE.Mesh(new THREE.SphereGeometry(RS, 48, 32), new THREE.MeshPhongMaterial({ color: 0x1e3a8a, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide })));
+    const planetM = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), new THREE.MeshPhongMaterial({ color: 0x94704c, transparent: true, opacity: 0.6, shininess: 10, depthWrite: false })); v.root.add(planetM);
     const me = ball(v, 0.1, [1, 1, 1]), cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 })); v.root.add(cone);
     const fixed = FIXED.map(m => { const sp = emojiSprite(m.pic, 0.5); v.root.add(sp); return { m, b: ball(v, m.r, m.col), lab: label(v, m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36), sp }; });
     const foot = new THREE.Group(), marks = new THREE.Group(); v.root.add(foot, marks);
@@ -612,6 +725,7 @@ const AXL = 2.7;
         if (S.circ) drawPairs(Lc, circ, (d, i) => scl(circ[i][2], 0.25 + 0.75 * Math.pow((d + 1) / 2, 1.5)), 3, true);
         if (S.room) drawPairs(Lr, roomPairs, d => depthColor(d, 0.32), 2.5, true);
         const T = W.trail; trail.reset(); for (let i = 0; i + 1 < T.length; i++) { const da = mapS3(T[i], a), db = mapS3(T[i + 1], b); if (!(da === da) || !(db === db) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.5) continue; const f = 0.45 + 0.55 * i / T.length; trail.seg(a, b, scl(hsl(200 + 160 * i / T.length, 0.95, 0.62), f)); } trail.flush();
+        { const pk = planetKey(); planetM.visible = false; if (pk) { const d = mapS3(SP4, a); if (d === d) { planetM.visible = true; planetM.position.set(a[0], a[1], a[2]); planetM.scale.setScalar(Math.sin(pk) * RS * Math.min(3, kOf(SP4))); } } }   // 南極の星
         place(me, W.p, 1);
         const F = lookFrame(), q = nrm(add(scl(W.p, Math.cos(0.12)), F.L, Math.sin(0.12)));
         if (mapS3(W.p, a) === mapS3(W.p, a) && mapS3(q, b) === mapS3(q, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); const l = t.length(); if (l > 1e-6) { t.normalize(); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(a[0] + t.x * 0.28, a[1] + t.y * 0.28, a[2] + t.z * 0.28); cone.scale.setScalar(Math.min(2.5, kOf(W.p))); cone.visible = true; } } else cone.visible = false;
@@ -870,6 +984,7 @@ function rebuildMarks() {
     const U = ray.U; let n = 0;
     const big = S.mk === 'pic' ? 1.5 : S.mk === 'dot' ? 1.9 : 1;   // 絵・色の点のモードは玉を大きめに
     const put = (p, c, r, pic) => { if (n >= NMK) return; U.uMk.value[n].set(p[0], p[1], p[2], p[3]); U.uMkC.value[n].set(c[0], c[1], c[2], r * big); U.uMkT.value[n] = ATLAS.of(pic); n++; };
+    if (planetKey()) put(SP4, [0.58, 0.44, 0.3], S.planetR / big, null);   // 南極の星（地面）
     FIXED.forEach(m => put(m.p, m.col, m.r, m.pic));
     W.marks.forEach(m => put(m.p, m.col, 0.1, m.pic));
     if (S.foot) W.foot.forEach(p => put(p, [0.8, 0.85, 1], 0.03, PIC.foot));
@@ -884,7 +999,7 @@ function setRayUniforms() {
     U.uLens.value = lens; U.uFovY.value = fov * d2r; U.uTanF.value = Math.tan(Math.min(150, S.fov) * d2r / 2);
     U.uPixAng.value = (lens === 2 ? Math.PI : fov * d2r) / Math.max(1, VC.r.domElement.height);
     U.uPic.value = S.mk === 'pic' ? 1 : S.mk === 'dot' ? 2 : 0; U.uBgMesh.value = S.bgMesh ? 1 : 0; U.uPasses.value = S.passes;
-    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.mk) { rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.mk; }
+    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.mk || ray._planet !== planetKey()) { ray._planet = planetKey(); rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.mk; }
     // 自分の玉：いつも今の場所（最後の 1 つを入れかえる）
     if (S.self) { const n = Math.min(NMK - 1, U.uNM.value); U.uMk.value[n].set(...W.p); U.uMkC.value[n].set(1, 1, 1, S.mk === 'ball' ? 0.09 : 0.13); U.uMkT.value[n] = ATLAS.of(PIC.self); U.uNM.value = n + 1; ray._selfSlot = n; }
     else if (ray._selfSlot !== undefined) { rebuildMarks(); ray._selfSlot = undefined; }
@@ -895,7 +1010,7 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-stop').addEventListener('click', () => { S.walk = false; S.roam = false; S.spiral = false; refreshUI(); });
 $('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; S.walk = false; S.roam = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
@@ -903,8 +1018,10 @@ document.querySelectorAll('.btn.mk').forEach(b => b.addEventListener('click', ()
 document.querySelectorAll('.btn.lens').forEach(b => b.addEventListener('click', () => { S.lens = b.dataset.lens; if (S.lens === 'fish' && S.fov < 150) S.fov = 180; if (S.lens === 'normal' && S.fov > 150) S.fov = 110; save(); refreshUI(); req(3); }));
 $('b-light').addEventListener('click', () => { Object.assign(S, { mk: 'dot', bgMesh: true, lite: false, circ: false, room: false, eq: false, passes: 1, q: 0.6 }); resizeAll(); save(); refreshUI(); req(3); say('軽量モード：色の点・色の地図・線なし'); });
 $('b-std').addEventListener('click', () => { Object.assign(S, { mk: 'ball', bgMesh: false, lite: true, circ: false, room: false, eq: true, passes: 4, q: 0.7 }); resizeAll(); save(); refreshUI(); req(3); say('標準の見え方に戻しました'); });
-$('b-trip').addEventListener('click', () => { resetNorth(); S.walk = true; say('北極から出発。向きを変えずに進むと、南極を通って北極に戻る'); refreshUI(); });
-$('b-north').addEventListener('click', () => { resetNorth(); S.walk = false; refreshUI(); });
+$('b-trip').addEventListener('click', () => { S.grav = false; resetNorth(); S.walk = true; say('北極から出発。向きを変えずに進むと、南極を通って北極に戻る'); refreshUI(); });
+$('b-north').addEventListener('click', () => { resetNorth(); S.walk = false; G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; refreshUI(); });
+$('b-grav').addEventListener('click', () => { if (S.grav) { S.walk = S.roam = S.spiral = false; G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; say('重力 ON：w の＋から−へ。中の人には「南極へ引く力」に感じる'); } refreshUI(); });
+$('b-jump').addEventListener('click', gravJump); $('b-kick').addEventListener('click', gravKick); $('b-drop').addEventListener('click', () => { S.grav = true; S.walk = S.roam = S.spiral = false; dropFromEquator(); refreshUI(); });
 $('b-clear').addEventListener('click', () => { W.trail = []; W2.trail = []; W.foot = []; W2.foot = []; req(3); });
 $('b-mark').addEventListener('click', addMark);
 $('b-mkclear').addEventListener('click', () => { W.marks = []; rebuildMarks(); refreshUI(); req(3); });
@@ -912,7 +1029,7 @@ $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90')
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
     's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (['xw', 'yw', 'zw'].includes(k)) S.follow = false; save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
@@ -929,6 +1046,7 @@ function refreshUI() {
 function updateHUD() {
     const dN = Math.acos(Math.max(-1, Math.min(1, W.p[3]))), lap = W.dist / TAU;
     $('hudC').innerHTML = `進んだ距離 <b>${W.dist.toFixed(2)}</b>（${lap.toFixed(2)} 周）<br>北極から <b>${dN.toFixed(2)}</b>　南極から <b>${(Math.PI - dN).toFixed(2)}</b><br>方位 <b>${Math.round(S.az)}°</b>　仰角 <b>${Math.round(S.el)}°</b><br>位置 (${W.p.map(x => x.toFixed(2)).join(', ')})`;
+    if (S.grav) { const sp = Math.hypot(...G.v), dS = Math.PI - Math.acos(Math.max(-1, Math.min(1, W.p[3]))); $('hudC').innerHTML += `<br>🍎 速さ <b>${sp.toFixed(2)}</b>　${G.on ? '星の上に立っている' : '宙に浮いている'}`; }
     const d2 = Math.acos(Math.max(-1, Math.min(1, W2.p[2])));
     $('hudA').innerHTML = `北極から <b>${d2.toFixed(2)}</b>　緯度 ${(90 - d2 / d2r).toFixed(0)}°<br>方位 <b>${Math.round(S.az)}°</b>（仰角は無い）`;
     $('trip-bar').style.width = (100 * (W.dist % TAU) / TAU).toFixed(1) + '%';
@@ -967,6 +1085,7 @@ window.addEventListener('keydown', e => {
     if (k === 'p') { S.mk = S.mk === 'ball' ? 'pic' : S.mk === 'pic' ? 'dot' : 'ball'; save(); refreshUI(); req(3); }
     if (k === 'm') addMark();
     if (k === 'r') { resetNorth(); S.walk = false; refreshUI(); }
+    if (k === 'j') gravJump();
 });
 window.addEventListener('keyup', e => IN.keys.delete(e.key.toLowerCase()));
 window.addEventListener('blur', () => IN.keys.clear());
@@ -993,7 +1112,8 @@ function loop(now) {
     if (K.has('a')) mv[0] -= 1; if (K.has('d')) mv[0] += 1;
     if (K.has('q') || IN.pad === 'up') mv[1] += 1; if (K.has('e') || IN.pad === 'down') mv[1] -= 1;
     if (K.has('arrowleft')) { S.az -= dt * 60; onLook(); } if (K.has('arrowright')) { S.az += dt * 60; onLook(); }
-    if (S.spiral) { spiralStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
+    if (S.grav) { gravityStep(dt, mv); }
+    else if (S.spiral) { spiralStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
     else if (mv[0] || mv[1] || mv[2]) walkStep(mv, sp);
     updateRot();
     if (VA.ctl.update()) need = Math.max(need, 1);
