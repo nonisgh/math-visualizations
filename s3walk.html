@@ -171,13 +171,16 @@
                 </div>
                 <div id="mklist"></div>
                 <div class="row">
+                    <button class="btn" id="b-pic" title="目印を玉ではなく絵（兎・亀・たぬき…）で見せる。中の景色では線（部屋・経線・赤道の膜）を消して、絵だけにする（P キー）">🐰 絵のモード</button>
+                </div>
+                <div class="row">
                     <button class="btn" id="b-foot" title="0.6 進むごとに小さな足あとを落とす">足あと</button>
                     <button class="btn" id="b-eq" title="赤道の球面 S²（w = 0）を薄い膜で">赤道の膜</button>
                     <button class="btn" id="b-circ" title="x・y・z の 3 本の経線（北極と南極を通る大円）と、3 本の赤道の輪">経線・赤道の輪</button>
                     <button class="btn" id="b-room" title="S³ をちょうど 120 個の正十二面体で区切った部屋（120 胞体）の辺">部屋（120 胞体）</button>
                     <button class="btn" id="b-self" title="自分の場所に白い玉。光が 1 周（2π）してくると、自分の背中が見える">自分の玉</button>
                 </div>
-                <p class="note">はじめから：N（北極・水色）、S（南極・金色）、赤道の 6 か所（±x 赤・±y 緑・±z 青）。</p>
+                <p class="note">はじめから：N（北極・水色）、S（南極・金色）、赤道の 6 か所（±x 赤・±y 緑・±z 青）。絵のモードでは N＝⛄、S＝🌴、+x＝🐰、−x＝🐢、+y＝🦝（たぬき）、−y＝🐸、+z＝🐱、−z＝🐶、自分＝🙂、足あと＝👣。置いた目印は 🦊🐻🐼… の順。</p>
             </section>
 
             <section class="sb-sec">
@@ -216,11 +219,12 @@
                     <p><b>3次元球面 S³</b> は、4次元の超球の表面にあたる <b>3次元の空間</b>です。中にいる人は前後・左右・上下に動けますが、どの向きにまっすぐ進んでも、<b>2π（約 6.28）進むと元の場所に戻ります</b>。途中 π で反対側の点（対蹠点）を通ります。</p>
                     <p class="an">2次元の仲間：ふつうの球面 S²。北極から どの方位にまっすぐ歩いても、南極を通って北極に戻る（経線をたどる）。左の窓はそれです。</p>
                     <p>出発した北極では、<b>空全体が金色</b>に見えます。これは反対側（π 先）の南極の玉。S³ では、ちょうど反対側の点から出た光がどの向きからも届くので、そこにある物が空いっぱいに広がって見えます。少し歩くと金色の玉はまとまって見えてきます。</p>
+                    <p><b>絵のモード</b>：目印を 🐰🐢🦝 などの絵にし、中の景色の線を消します。どの目印が前に（遠回りして）見えているのか、一目で分かります。絵はいつもこちらを向きます（反対回りの光で見える像は左右が裏返ります）。</p>
                     <p>中の景色（右）：光も大円に沿って進むので、<b>π 先の対蹠点が空いっぱいに広がって見え</b>、2π 先には自分の背中が見えます。遠くの目印は、π に近づくほど逆に大きく見えます。</p>
                     <p>S³ の地図（真ん中）：4次元の超球を、次元おりがみと同じ遠近で 3次元に写した模型。手前の半分（w が＋、赤紫）と奥の半分（w が−、水色）が重なって 1 つの玉に見えます。地図の上の白い玉が自分です。</p>
                 </div>
             </section>
-            <p class="note px-1 pb-2">キー：X 軸　F 足あと　M 目印を置く　R 北極に戻す　Space パネル</p>
+            <p class="note px-1 pb-2">キー：X 軸　F 足あと　M 目印を置く　P 絵のモード　R 北極に戻す　Space パネル</p>
         </div>
     </aside>
 
@@ -298,7 +302,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, foot: true, eq: true, circ: true, room: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    maxd: 5.9, fog: 0.22, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    pic: false, maxd: 5.9, fog: 0.22, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 S.walk = false;
@@ -358,17 +362,38 @@ function resetNorth() {
 }
 function addMark() {
     const i = W.marks.length, hue = (i * 47 + 20) % 360;
-    W.marks.push({ p: W.p.slice(), p2: W2.p.slice(), col: hsl(hue, 0.9, 0.6), n: i + 1, dist: W.dist });
+    W.marks.push({ p: W.p.slice(), p2: W2.p.slice(), col: hsl(hue, 0.9, 0.6), n: i + 1, dist: W.dist, pic: picOfMark(i) });
     rebuildMarks(); refreshUI(); req(3);
 }
 // 固定の目印：N・S・赤道の 6 か所
+// 絵のモードの絵（絵文字）。固定の目印・自分・足あと・置いた目印の順ぐり
+const PIC = { N: '⛄', S: '🌴', px: '🐰', nx: '🐢', py: '🦝', ny: '🐸', pz: '🐱', nz: '🐶', self: '🙂', foot: '👣',
+    marks: ['🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐭', '🐵', '🐧', '🦉', '🦄', '🐝', '🦋', '🐙', '🐬', '🐳', '🍎', '🍓', '🍉', '⚽', '🎸', '🚀', '⭐', '🍩', '🧸', '🎲'] };
 const FIXED = [
-    { p: [0, 0, 0, 1], p2: [0, 0, 1], col: [0.6, 0.95, 1], r: 0.13, label: 'N' },
-    { p: [0, 0, 0, -1], p2: [0, 0, -1], col: hexRGB(0xfbbf24), r: 0.13, label: 'S' },
-    { p: [1, 0, 0, 0], p2: [1, 0, 0], col: hexRGB(AXIS_HEX.x), r: 0.09, label: '+x' }, { p: [-1, 0, 0, 0], p2: [-1, 0, 0], col: scl(hexRGB(AXIS_HEX.x), 0.6), r: 0.09, label: '−x' },
-    { p: [0, 1, 0, 0], p2: [0, 1, 0], col: hexRGB(AXIS_HEX.y), r: 0.09, label: '+y' }, { p: [0, -1, 0, 0], p2: [0, -1, 0], col: scl(hexRGB(AXIS_HEX.y), 0.6), r: 0.09, label: '−y' },
-    { p: [0, 0, 1, 0], p2: null, col: hexRGB(AXIS_HEX.z), r: 0.09, label: '+z' }, { p: [0, 0, -1, 0], p2: null, col: scl(hexRGB(AXIS_HEX.z), 0.6), r: 0.09, label: '−z' },
+    { p: [0, 0, 0, 1], p2: [0, 0, 1], col: [0.6, 0.95, 1], r: 0.13, label: 'N', pic: PIC.N },
+    { p: [0, 0, 0, -1], p2: [0, 0, -1], col: hexRGB(0xfbbf24), r: 0.13, label: 'S', pic: PIC.S },
+    { p: [1, 0, 0, 0], p2: [1, 0, 0], col: hexRGB(AXIS_HEX.x), r: 0.09, label: '+x', pic: PIC.px }, { p: [-1, 0, 0, 0], p2: [-1, 0, 0], col: scl(hexRGB(AXIS_HEX.x), 0.6), r: 0.09, label: '−x', pic: PIC.nx },
+    { p: [0, 1, 0, 0], p2: [0, 1, 0], col: hexRGB(AXIS_HEX.y), r: 0.09, label: '+y', pic: PIC.py }, { p: [0, -1, 0, 0], p2: [0, -1, 0], col: scl(hexRGB(AXIS_HEX.y), 0.6), r: 0.09, label: '−y', pic: PIC.ny },
+    { p: [0, 0, 1, 0], p2: null, col: hexRGB(AXIS_HEX.z), r: 0.09, label: '+z', pic: PIC.pz }, { p: [0, 0, -1, 0], p2: null, col: scl(hexRGB(AXIS_HEX.z), 0.6), r: 0.09, label: '−z', pic: PIC.nz },
 ];
+// 絵の表（アトラス）：8×8 のます目に絵文字を描いた 1 枚の画像。シェーダーはます目の番号で絵を選ぶ
+const ATLAS = (() => {
+    const list = [PIC.N, PIC.S, PIC.px, PIC.nx, PIC.py, PIC.ny, PIC.pz, PIC.nz, PIC.self, PIC.foot, ...PIC.marks], N = 8, C = 128;
+    const cv = document.createElement('canvas'); cv.width = cv.height = N * C; const ctx = cv.getContext('2d');
+    ctx.font = '96px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const idx = {}; list.forEach((ch, i) => { idx[ch] = i; ctx.fillText(ch, (i % N) * C + C / 2, Math.floor(i / N) * C + C / 2 + 6); });
+    const tex = new THREE.CanvasTexture(cv); tex.flipY = false; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.generateMipmaps = true;
+    return { tex, idx, n: N, of: ch => (ch in idx ? idx[ch] : -1) };
+})();
+const picOfMark = i => PIC.marks[i % PIC.marks.length];
+// 絵文字 1 つの札（地図の窓に出す）
+function emojiSprite(ch, scale) {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128; const ctx = cv.getContext('2d');
+    ctx.font = '96px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.beginPath(); ctx.arc(64, 64, 62, 0, TAU); ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fill();
+    ctx.fillText(ch, 64, 70);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true })); sp.scale.setScalar(scale || 0.5); sp.renderOrder = 1002; return sp;
+}
 let msgT = 0;
 function say(t) { const el = document.getElementById('msg'); el.textContent = t; el.classList.add('on'); clearTimeout(msgT); msgT = setTimeout(() => el.classList.remove('on'), 3200); }
 
@@ -452,7 +477,7 @@ const AXL = 2.7;
     L.flush();
     v.root.add(new THREE.Mesh(new THREE.SphereGeometry(R2 * 0.995, 64, 40), new THREE.MeshPhongMaterial({ color: 0x1e3a8a, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide })));
     // 固定の目印
-    FIXED.forEach(m => { if (!m.p2) return; const b = ball(v, m.r * 1.1, m.col); b.position.set(...scl(m.p2, R2)); const lab = label(v, m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36); lab.position.set(...scl(m.p2, R2 * 1.12)); });
+    const fixedA = FIXED.filter(m => m.p2).map(m => { const b = ball(v, m.r * 1.1, m.col); b.position.set(...scl(m.p2, R2)); const lab = label(v, m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36); lab.position.set(...scl(m.p2, R2 * 1.12)); const sp = emojiSprite(m.pic, 0.5); v.root.add(sp); sp.position.set(...scl(m.p2, R2)); return { b, lab, sp }; });
     // 歩く人
     const me = ball(v, 0.09, [1, 1, 1]), cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 })); v.root.add(cone);
     const trail = Lines(v, 6000, { width: 2.4, order: 3 }), foot = new THREE.Group(); v.root.add(foot);
@@ -464,8 +489,9 @@ const AXL = 2.7;
         trail.reset(); const T = W2.trail; for (let i = 0; i + 1 < T.length; i++) { const f = 0.3 + 0.7 * i / T.length; trail.seg(scl(T[i], R2), scl(T[i + 1], R2), scl(hsl(200 + 160 * i / T.length, 0.9, 0.6), f)); } trail.flush();
         while (foot.children.length < W2.foot.length) { const b = ball(v, 0.035, [0.8, 0.85, 1]); v.root.remove(b); foot.add(b); }
         foot.children.forEach((b, i) => { b.visible = i < W2.foot.length && S.foot; if (b.visible) b.position.set(...scl(W2.foot[i], R2)); });
-        while (marks.children.length < W.marks.length * 2) { const m = W.marks[marks.children.length / 2]; const b = ball(v, 0.08, m.col); v.root.remove(b); marks.add(b); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); }
-        W.marks.forEach((m, i) => { marks.children[2 * i].position.set(...scl(m.p2, R2)); marks.children[2 * i + 1].position.set(...scl(m.p2, R2 * 1.1)); });
+        fixedA.forEach(o => { o.b.visible = !S.pic; o.lab.visible = !S.pic; o.sp.visible = S.pic; });
+        while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const b = ball(v, 0.08, m.col); v.root.remove(b); marks.add(b); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
+        W.marks.forEach((m, i) => { const [b, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; b.position.set(...scl(m.p2, R2)); lab.position.set(...scl(m.p2, R2 * 1.1)); sp.position.set(...scl(m.p2, R2)); b.visible = !S.pic; lab.visible = !S.pic; sp.visible = S.pic; });
     });
     makeAxes(v, ['x', 'y', 'z'], nm => { const e = [0, 0, 0]; e['xyz'.indexOf(nm)] = AXL; return e; });
 })();
@@ -484,7 +510,7 @@ const AXL = 2.7;
     const trail = Lines(v, 6000, { width: 3.4, order: 3, normal: true });
     v.root.add(new THREE.Mesh(new THREE.SphereGeometry(RS, 48, 32), new THREE.MeshPhongMaterial({ color: 0x1e3a8a, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide })));
     const me = ball(v, 0.1, [1, 1, 1]), cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 })); v.root.add(cone);
-    const fixed = FIXED.map(m => ({ m, b: ball(v, m.r, m.col), lab: label(v, m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36) }));
+    const fixed = FIXED.map(m => { const sp = emojiSprite(m.pic, 0.5); v.root.add(sp); return { m, b: ball(v, m.r, m.col), lab: label(v, m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36), sp }; });
     const foot = new THREE.Group(), marks = new THREE.Group(); v.root.add(foot, marks);
     const a = [0, 0, 0], b = [0, 0, 0], Z = [0, 0, 0], up = new THREE.Vector3(0, 1, 0), t = new THREE.Vector3();
     const drawPairs = (L, pairs, color, maxLen, cut) => {
@@ -502,11 +528,11 @@ const AXL = 2.7;
         place(me, W.p, 1);
         const F = lookFrame(), q = nrm(add(scl(W.p, Math.cos(0.12)), F.L, Math.sin(0.12)));
         if (mapS3(W.p, a) === mapS3(W.p, a) && mapS3(q, b) === mapS3(q, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); const l = t.length(); if (l > 1e-6) { t.normalize(); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(a[0] + t.x * 0.28, a[1] + t.y * 0.28, a[2] + t.z * 0.28); cone.scale.setScalar(Math.min(2.5, kOf(W.p))); cone.visible = true; } } else cone.visible = false;
-        fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { o.lab.visible = true; const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); } else o.lab.visible = false; });
+        fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } o.lab.visible = d === d && !S.pic; o.sp.visible = d === d && S.pic; o.b.visible = d === d && !S.pic; });
         while (foot.children.length < W.foot.length) { const bb = ball(v, 0.04, [0.8, 0.85, 1]); v.root.remove(bb); foot.add(bb); }
         foot.children.forEach((bb, i) => { if (i < W.foot.length && S.foot) place(bb, W.foot[i], 1); else bb.visible = false; });
-        while (marks.children.length < W.marks.length * 2) { const m = W.marks[marks.children.length / 2]; const bb = ball(v, 0.085, m.col); v.root.remove(bb); marks.add(bb); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); }
-        W.marks.forEach((m, i) => { const d = place(marks.children[2 * i], m.p, 1); const lab = marks.children[2 * i + 1]; lab.visible = d === d; if (lab.visible) lab.position.copy(marks.children[2 * i].position).add(new THREE.Vector3(0, 0, 0.18)); });
+        while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const bb = ball(v, 0.085, m.col); v.root.remove(bb); marks.add(bb); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
+        W.marks.forEach((m, i) => { const [bb, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; const d = place(bb, m.p, 1); const ok = d === d; lab.visible = ok && !S.pic; sp.visible = ok && S.pic; bb.visible = ok && !S.pic; if (ok) { lab.position.copy(bb.position).add(new THREE.Vector3(0, 0, 0.18)); sp.position.copy(bb.position); sp.scale.setScalar(0.45 * Math.min(2.5, kOf(m.p))); } });
     });
     makeAxes(v, ['x', 'y', 'z', 'w'], nm => { const e = [0, 0, 0, 0]; e['xyzw'.indexOf(nm)] = 1; const q = NDGeom.apply(R4, 4, e, []); return scl([q[0], q[1], q[2]], AXL); });
 })();
@@ -520,7 +546,8 @@ const RAY_FRAG = `
 precision highp float;
 uniform vec2 uRes; uniform float uTanF;
 uniform vec4 uP, uR, uU, uF;
-uniform vec4 uMk[${NMK}]; uniform vec4 uMkC[${NMK}]; uniform int uNM;
+uniform vec4 uMk[${NMK}]; uniform vec4 uMkC[${NMK}]; uniform float uMkT[${NMK}]; uniform int uNM;
+uniform sampler2D uAtlas; uniform int uPic;
 uniform vec4 uN[12]; uniform int uRoom, uCirc, uEq;
 uniform float uFog, uMaxD, uTube;
 const float PI = 3.14159265;
@@ -545,15 +572,28 @@ void main(){
                 vec4 q = cos(t)*p0 + sin(t)*v; vec4 vt = -sin(t)*p0 + cos(t)*v;
                 vec4 n = normalize(q - c*dot(q,c)); float li = 0.3 + 0.7*max(0.0, -dot(n, vt));
                 vec3 base = uMkC[i].xyz * li;
-                // 玉の表面の模様（経線のしま）で、どちらを向いているかわかるように
-                float str = 0.85 + 0.15*sin(12.0*atan(dot(n,uU), dot(n,uR)));
-                cBest = base*str; tBest = t; hit = true;
+                if(uPic==1 && uMkT[i] >= 0.0){
+                    // 絵のモード：玉の表面に、見ている人の方を向いた絵（絵文字）を貼る。右＝uR・上＝uU を玉の所へ写して、その成分で絵の座標に
+                    vec4 Rp = uR - c*dot(uR,c); Rp = normalize(Rp - n*0.0);
+                    vec4 Up = uU - c*dot(uU,c); Up = normalize(Up - Rp*dot(Up,Rp));
+                    vec2 xy = vec2(dot(n,Rp), dot(n,Up)) * 1.25;
+                    float cell = uMkT[i]; float cx = mod(cell, 8.0), cy = floor(cell/8.0);
+                    vec2 uv = clamp(0.5 + 0.5*xy, 0.02, 0.98);
+                    vec4 tx = texture2D(uAtlas, vec2((cx + uv.x)/8.0, (cy + 1.0 - uv.y)/8.0));
+                    vec3 disc = mix(vec3(0.97), uMkC[i].xyz, 0.25);
+                    cBest = mix(disc, tx.rgb, tx.a) * (0.55 + 0.45*li);
+                } else {
+                    // 玉の表面の模様（経線のしま）で、どちらを向いているかわかるように
+                    float str = 0.85 + 0.15*sin(12.0*atan(dot(n,uU), dot(n,uR)));
+                    cBest = base*str;
+                }
+                tBest = t; hit = true;
             }
             t += 2.0*PI;
         }
     }
     // ---- 経線・赤道の輪・部屋の辺（管。少しずつ進める）----
-    if(uCirc==1 || uRoom==1){
+    if(uPic==0 && (uCirc==1 || uRoom==1)){
         vec4 p = p0; vec4 vv = v; vec4 pf = p0; vec4 vf = v; float t = 0.0;
         for(int i=0;i<160;i++){
             float d = 1e9; vec3 cc = vec3(1.0); float li = 1.0;
@@ -587,7 +627,7 @@ void main(){
     }
     col = hit ? mix(bg(dir), cBest, exp(-tBest*uFog)) : bg(dir);
     // ---- 赤道の膜 S²（w = 0）：当たった所より手前なら薄く重ねる ----
-    if(uEq==1){
+    if(uPic==0 && uEq==1){
         float te = atan(-p0.w, v.w); if(te < 0.0) te += PI;
         for(int k=0;k<2;k++){
             if(te > 0.002 && te < tBest){
@@ -606,7 +646,7 @@ void main(){
 const ray = (() => {
     const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const U = { uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * d2r) }, uP: { value: new THREE.Vector4() }, uR: { value: new THREE.Vector4() }, uU: { value: new THREE.Vector4() }, uF: { value: new THREE.Vector4() },
-        uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uNM: { value: 0 },
+        uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkT: { value: new Float32Array(NMK).fill(-1) }, uNM: { value: 0 }, uAtlas: { value: ATLAS.tex }, uPic: { value: 0 },
         uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uFog: { value: 0.12 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
     const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: RAY_FRAG, depthTest: false, depthWrite: false });
     scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
@@ -615,10 +655,11 @@ const ray = (() => {
 })();
 function rebuildMarks() {
     const U = ray.U; let n = 0;
-    const put = (p, c, r) => { if (n >= NMK) return; U.uMk.value[n].set(p[0], p[1], p[2], p[3]); U.uMkC.value[n].set(c[0], c[1], c[2], r); n++; };
-    FIXED.forEach(m => put(m.p, m.col, m.r));
-    W.marks.forEach(m => put(m.p, m.col, 0.1));
-    if (S.foot) W.foot.forEach(p => put(p, [0.8, 0.85, 1], 0.03));
+    const big = S.pic ? 1.5 : 1;   // 絵のモードは玉を大きめに（絵が見えるように）
+    const put = (p, c, r, pic) => { if (n >= NMK) return; U.uMk.value[n].set(p[0], p[1], p[2], p[3]); U.uMkC.value[n].set(c[0], c[1], c[2], r * big); U.uMkT.value[n] = ATLAS.of(pic); n++; };
+    FIXED.forEach(m => put(m.p, m.col, m.r, m.pic));
+    W.marks.forEach(m => put(m.p, m.col, 0.1, m.pic));
+    if (S.foot) W.foot.forEach(p => put(p, [0.8, 0.85, 1], 0.03, PIC.foot));
     ray.U.uNM.value = n; ray._nFoot = W.foot.length; ray._nMk = W.marks.length;
 }
 function setRayUniforms() {
@@ -626,9 +667,10 @@ function setRayUniforms() {
     U.uP.value.set(...W.p); U.uR.value.set(...F.R); U.uU.value.set(...F.U); U.uF.value.set(...F.L);
     U.uRoom.value = S.room ? 1 : 0; U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uMaxD.value = S.maxd;
     U.uRes.value.set(VC.r.domElement.width, VC.r.domElement.height);
-    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self) { rebuildMarks(); ray._foot = S.foot; ray._self = S.self; }
+    U.uPic.value = S.pic ? 1 : 0;
+    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.pic) { rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.pic; }
     // 自分の玉：いつも今の場所（最後の 1 つを入れかえる）
-    if (S.self) { const n = Math.min(NMK - 1, U.uNM.value); U.uMk.value[n].set(...W.p); U.uMkC.value[n].set(1, 1, 1, 0.09); U.uNM.value = n + 1; ray._selfSlot = n; }
+    if (S.self) { const n = Math.min(NMK - 1, U.uNM.value); U.uMk.value[n].set(...W.p); U.uMkC.value[n].set(1, 1, 1, S.pic ? 0.13 : 0.09); U.uMkT.value[n] = ATLAS.of(PIC.self); U.uNM.value = n + 1; ray._selfSlot = n; }
     else if (ray._selfSlot !== undefined) { rebuildMarks(); ray._selfSlot = undefined; }
 }
 
@@ -637,7 +679,7 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-walk': 'walk', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-walk': 'walk', 'b-pic': 'pic', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-stop').addEventListener('click', () => { S.walk = false; refreshUI(); });
 $('b-trip').addEventListener('click', () => { resetNorth(); S.walk = true; say('北極から出発。向きを変えずに進むと、南極を通って北極に戻る'); refreshUI(); });
@@ -657,7 +699,7 @@ function refreshUI() {
     Object.entries(toggles).forEach(([id, k]) => $(id).classList.toggle('on', !!S[k]));
     Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
     ['A', 'B', 'C'].forEach(x => $('wrap' + x).classList.toggle('off', !S['w' + x]));
-    $('mklist').innerHTML = W.marks.map(m => `<span style="border-color:${hexCss(rgbHex(m.col))}">${m.n}：北極から ${Math.acos(Math.max(-1, Math.min(1, m.p[3]))).toFixed(2)}</span>`).join('') || '<span style="color:#64748b;border:0">（まだ置いていない）</span>';
+    $('mklist').innerHTML = W.marks.map(m => `<span style="border-color:${hexCss(rgbHex(m.col))}">${m.pic} ${m.n}：北極から ${Math.acos(Math.max(-1, Math.min(1, m.p[3]))).toFixed(2)}</span>`).join('') || '<span style="color:#64748b;border:0">（まだ置いていない）</span>';
 }
 function updateHUD() {
     const dN = Math.acos(Math.max(-1, Math.min(1, W.p[3]))), lap = W.dist / TAU;
@@ -697,6 +739,7 @@ window.addEventListener('keydown', e => {
     if (k === ' ') { e.preventDefault(); setSidebar(document.body.classList.contains('sidebar-hidden')); return; }
     if (k === 'x') { S.axes = !S.axes; save(); refreshUI(); req(3); }
     if (k === 'f') { S.foot = !S.foot; save(); refreshUI(); req(3); }
+    if (k === 'p') { S.pic = !S.pic; save(); refreshUI(); req(3); }
     if (k === 'm') addMark();
     if (k === 'r') { resetNorth(); S.walk = false; refreshUI(); }
 });
