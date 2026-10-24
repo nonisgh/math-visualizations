@@ -173,7 +173,13 @@
                 </div>
                 <div id="mklist"></div>
                 <div class="row">
-                    <button class="btn" id="b-pic" title="目印を玉ではなく絵（兎・亀・たぬき…）で見せる。中の景色では線（部屋・経線・赤道の膜）を細く薄くして、絵を主役にする（P キー）">🐰 絵のモード</button>
+                    <span class="note">目印の見せ方：</span>
+                    <button class="btn mk" data-mk="ball" title="色つきの玉（既定）">玉</button>
+                    <button class="btn mk" data-mk="pic" title="絵（兎・亀・たぬき…）。P キーで順に切りかえ">🐰 絵</button>
+                    <button class="btn mk" data-mk="dot" title="大きめの平らな色の点。いちばん軽い">● 色の点</button>
+                </div>
+                <div class="row">
+                    <button class="btn" id="b-bgmesh" title="背景を地図のような色のメッシュに（光の 4次元の向きで色が決まる。経度で色相・北は明るく南は暗く・30° ごとに線）。式だけで描くので軽い">色の地図（背景）</button>
                 </div>
                 <div class="sl"><span>絵の時の線</span><input id="s-picline" type="range" min="0" max="1" step="0.05" title="絵のモードでの線（部屋・経線・赤道の膜）の濃さ。0 で消える"><output id="o-picline"></output></div>
                 <div class="row">
@@ -190,6 +196,10 @@
 
             <section class="sb-sec">
                 <h3 class="sb-h"><i data-lucide="eye" class="w-3.5 h-3.5"></i>窓と見え方</h3>
+                <div class="row">
+                    <button class="btn big" id="b-light" title="いちばん軽い組み合わせにする：目印は色の点、背景は色の地図、線は全部消す、透けの重ねは手前の 1 つだけ、画質 60%">⚡ 軽量モード</button>
+                    <button class="btn" id="b-std" title="いつもの見え方に戻す：玉、暗い空、軽い線と赤道の膜、透けの重ね 4 つ、画質 70%">標準に戻す</button>
+                </div>
                 <div class="row">
                     <button class="btn" id="b-wA">S² の仲間</button>
                     <button class="btn" id="b-wB">S³ の地図</button>
@@ -225,13 +235,13 @@
                     <p><b>3次元球面 S³</b> は、4次元の超球の表面にあたる <b>3次元の空間</b>です。中にいる人は前後・左右・上下に動けますが、どの向きにまっすぐ進んでも、<b>2π（約 6.28）進むと元の場所に戻ります</b>。途中 π で反対側の点（対蹠点）を通ります。</p>
                     <p class="an">2次元の仲間：ふつうの球面 S²。北極から どの方位にまっすぐ歩いても、南極を通って北極に戻る（経線をたどる）。左の窓はそれです。</p>
                     <p>出発した北極では、<b>空全体が金色</b>に見えます。これは反対側（π 先）の南極の玉。S³ では、ちょうど反対側の点から出た光がどの向きからも届くので、そこにある物が空いっぱいに広がって見えます。少し歩くと金色の玉はまとまって見えてきます。</p>
-                    <p><b>絵のモード</b>：目印を 🐰🐢🦝 などの絵にし、中の景色の線を細く薄くします（「絵の時の線」で濃さを変えられ、0 で消えます）。どの目印が前に（遠回りして）見えているのか、一目で分かります。各絵の<b>右上に赤い点</b>があります。</p>
+                    <p><b>目印の見せ方</b>：玉（既定）／絵（🐰🐢🦝 など）／大きめの色の点。絵と色の点では、中の景色の線を細く薄くします（「絵の時の線」で濃さを変えられ、0 で消えます）。<b>軽量モード</b>のボタンで、色の点・色の地図の背景・線なし・透けの重ねは手前 1 つだけ、のいちばん軽い組み合わせになります。どの目印が前に（遠回りして）見えているのか、一目で分かります。各絵の<b>右上に赤い点</b>があります。</p>
                     <p><b>像の向き</b>：光の道のりが π より短い物は正しい向き（赤い点が右上）。ちょうど π（反対側）の物は空いっぱいに広がり、向きは正しいまま。π より長い（反対側を回ってきた光で見える）物は <b>180° 回った像</b>＝上下も左右も逆（赤い点が左下）。鏡のように左右だけ裏返ることはありません。反対側の点がレンズの焦点のように働いて、そこを越えた光は像をひっくり返すのです。</p>
                     <p>中の景色（右）：光も大円に沿って進むので、<b>π 先の対蹠点が空いっぱいに広がって見え</b>、2π 先には自分の背中が見えます。遠くの目印は、π に近づくほど逆に大きく見えます。</p>
                     <p>S³ の地図（真ん中）：4次元の超球を、次元おりがみと同じ遠近で 3次元に写した模型。手前の半分（w が＋、赤紫）と奥の半分（w が−、水色）が重なって 1 つの玉に見えます。地図の上の白い玉が自分です。</p>
                 </div>
             </section>
-            <p class="note px-1 pb-2">キー：X 軸　F 足あと　M 目印を置く　P 絵のモード　R 北極に戻す　Space パネル</p>
+            <p class="note px-1 pb-2">キー：X 軸　F 足あと　M 目印を置く　P 目印の見せ方を順に　R 北極に戻す　Space パネル</p>
         </div>
     </aside>
 
@@ -309,10 +319,12 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    pic: false, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
+if (S.pic !== undefined) { S.mk = S.pic ? 'pic' : 'ball'; delete S.pic; }   // 古い保存（絵のモードの ON/OFF）を読みかえる
+const isPic = () => S.mk === 'pic';
 S.walk = false; S.roam = false;
 let saveT = 0; function save() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('s3walk-state', JSON.stringify(S)); } catch (e) {} }, 300); }
 
@@ -499,9 +511,9 @@ const AXL = 2.7;
         trail.reset(); const T = W2.trail; for (let i = 0; i + 1 < T.length; i++) { const f = 0.3 + 0.7 * i / T.length; trail.seg(scl(T[i], R2), scl(T[i + 1], R2), scl(hsl(200 + 160 * i / T.length, 0.9, 0.6), f)); } trail.flush();
         while (foot.children.length < W2.foot.length) { const b = ball(v, 0.035, [0.8, 0.85, 1]); v.root.remove(b); foot.add(b); }
         foot.children.forEach((b, i) => { b.visible = i < W2.foot.length && S.foot; if (b.visible) b.position.set(...scl(W2.foot[i], R2)); });
-        fixedA.forEach(o => { o.b.visible = !S.pic; o.lab.visible = !S.pic; o.sp.visible = S.pic; });
+        fixedA.forEach(o => { o.b.visible = !isPic(); o.lab.visible = !isPic(); o.sp.visible = isPic(); });
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const b = ball(v, 0.08, m.col); v.root.remove(b); marks.add(b); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
-        W.marks.forEach((m, i) => { const [b, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; b.position.set(...scl(m.p2, R2)); lab.position.set(...scl(m.p2, R2 * 1.1)); sp.position.set(...scl(m.p2, R2)); b.visible = !S.pic; lab.visible = !S.pic; sp.visible = S.pic; });
+        W.marks.forEach((m, i) => { const [b, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; b.position.set(...scl(m.p2, R2)); lab.position.set(...scl(m.p2, R2 * 1.1)); sp.position.set(...scl(m.p2, R2)); b.visible = !isPic(); lab.visible = !isPic(); sp.visible = isPic(); });
     });
     makeAxes(v, ['x', 'y', 'z'], nm => { const e = [0, 0, 0]; e['xyz'.indexOf(nm)] = AXL; return e; });
 })();
@@ -541,11 +553,11 @@ const AXL = 2.7;
         place(me, W.p, 1);
         const F = lookFrame(), q = nrm(add(scl(W.p, Math.cos(0.12)), F.L, Math.sin(0.12)));
         if (mapS3(W.p, a) === mapS3(W.p, a) && mapS3(q, b) === mapS3(q, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); const l = t.length(); if (l > 1e-6) { t.normalize(); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(a[0] + t.x * 0.28, a[1] + t.y * 0.28, a[2] + t.z * 0.28); cone.scale.setScalar(Math.min(2.5, kOf(W.p))); cone.visible = true; } } else cone.visible = false;
-        fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } o.lab.visible = d === d && !S.pic; o.sp.visible = d === d && S.pic; o.b.visible = d === d && !S.pic; });
+        fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } o.lab.visible = d === d && !isPic(); o.sp.visible = d === d && isPic(); o.b.visible = d === d && !isPic(); });
         while (foot.children.length < W.foot.length) { const bb = ball(v, 0.04, [0.8, 0.85, 1]); v.root.remove(bb); foot.add(bb); }
         foot.children.forEach((bb, i) => { if (i < W.foot.length && S.foot) place(bb, W.foot[i], 1); else bb.visible = false; });
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const bb = ball(v, 0.085, m.col); v.root.remove(bb); marks.add(bb); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
-        W.marks.forEach((m, i) => { const [bb, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; const d = place(bb, m.p, 1); const ok = d === d; lab.visible = ok && !S.pic; sp.visible = ok && S.pic; bb.visible = ok && !S.pic; if (ok) { lab.position.copy(bb.position).add(new THREE.Vector3(0, 0, 0.18)); sp.position.copy(bb.position); sp.scale.setScalar(0.45 * Math.min(2.5, kOf(m.p))); } });
+        W.marks.forEach((m, i) => { const [bb, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; const d = place(bb, m.p, 1); const ok = d === d; lab.visible = ok && !isPic(); sp.visible = ok && isPic(); bb.visible = ok && !isPic(); if (ok) { lab.position.copy(bb.position).add(new THREE.Vector3(0, 0, 0.18)); sp.position.copy(bb.position); sp.scale.setScalar(0.45 * Math.min(2.5, kOf(m.p))); } });
     });
     makeAxes(v, ['x', 'y', 'z', 'w'], nm => { const e = [0, 0, 0, 0]; e['xyzw'.indexOf(nm)] = 1; const q = NDGeom.apply(R4, 4, e, []); return scl([q[0], q[1], q[2]], AXL); });
 })();
@@ -560,7 +572,7 @@ precision highp float;
 uniform vec2 uRes; uniform float uTanF;
 uniform vec4 uP, uR, uU, uF;
 uniform vec4 uMk[${NMK}]; uniform vec4 uMkC[${NMK}]; uniform float uMkT[${NMK}]; uniform int uNM;
-uniform sampler2D uAtlas; uniform int uPic;
+uniform sampler2D uAtlas; uniform int uPic, uBgMesh, uPasses;
 uniform vec4 uN[12]; uniform int uRoom, uCirc, uEq, uLite;
 uniform float uFog, uMaxD, uTube, uFade, uPicLine;
 const float PI = 3.14159265;
@@ -584,7 +596,9 @@ void nearestMarker(vec4 p0, vec4 v, float lastT, out float tOut, out vec3 cOut, 
                 vec4 n = normalize(q - c*dot(q,c)); float li = 0.3 + 0.7*max(0.0, -dot(n, vt));
                 float edge = smoothstep(0.0, 0.25, (amp - cr)/max(1.0 - cr, 1e-4));   // ふちはやわらかく
                 vec3 col;
-                if(uPic==1 && uMkT[i] >= 0.0){
+                if(uPic==2){
+                    col = uMkC[i].xyz * (0.75 + 0.25*li);   // 色の点：平らな色（陰影は少しだけ）
+                } else if(uPic==1 && uMkT[i] >= 0.0){
                     vec4 Rp = normalize(uR - c*dot(uR,c));
                     vec4 Up = uU - c*dot(uU,c); Up = normalize(Up - Rp*dot(Up,Rp));
                     vec2 xy = vec2(dot(n,Rp), dot(n,Up)) * 0.8;   // ふち（|xy| = 1）が絵のます目のふちに来るように
@@ -606,6 +620,14 @@ void nearestMarker(vec4 p0, vec4 v, float lastT, out float tOut, out vec3 cOut, 
 // 緯度・経度の線（格子）：lat・lon が 30° の倍数の近くで 1
 float gridLine(float lat, float lon){
     return max(smoothstep(0.03, 0.0, abs(fract(lat/(PI/6.0)+0.5)-0.5)*(PI/6.0)), smoothstep(0.03, 0.0, abs(fract(lon/(PI/6.0)+0.5)-0.5)*(PI/6.0)*cos(lat)));
+}
+vec3 pal(float h){ return 0.55 + 0.45*cos(6.2831*(h + vec3(0.0, 0.33, 0.67))); }   // 色相 h（0〜1）→ 色
+// 地図のような色のメッシュの空：光の向き v（4次元の単位ベクトル）で色を決める。経度（x–y の角）で色相、w（北＝明るい・南＝暗い）で明るさ、30° ごとに線
+vec3 skyMesh(vec4 v){
+    float lon = atan(v.y, v.x), lat = asin(clamp(v.w, -1.0, 1.0)), lat2 = asin(clamp(v.z, -1.0, 1.0));
+    vec3 base = pal(lon/(2.0*PI) + 0.5) * (0.22 + 0.2*(v.w*0.5 + 0.5));
+    float g = max(gridLine(lat, lon), smoothstep(0.03, 0.0, abs(fract(lat2/(PI/6.0)+0.5)-0.5)*(PI/6.0)));
+    return mix(base, base*1.9 + 0.08, g*0.8);
 }
 vec3 haze(vec3 d){ return mix(vec3(0.16,0.19,0.30), vec3(0.22,0.24,0.36), 0.5+0.5*d.y); }   // 空気のもや（散乱光）の色
 void main(){
@@ -630,7 +652,7 @@ void main(){
                     if(g > 0.01){
                         float u = (wc + 1.0)*0.5;   // 北（w が＋）は赤紫、南（w が−）は水色、赤道は白っぽく
                         vec3 cc = mix(vec3(0.45,0.85,1.0), vec3(1.0,0.55,0.85), u); if(s==2) cc = vec3(0.85,0.9,1.0);
-                        Lt[7+s*2+k] = t; Lc[7+s*2+k] = cc; La[7+s*2+k] = (uPic==1 ? max(uPicLine, 0.0)*1.2 : 0.55)*g;
+                        Lt[7+s*2+k] = t; Lc[7+s*2+k] = cc; La[7+s*2+k] = (uPic>=1 ? max(uPicLine, 0.0)*1.2 : 0.55)*g;
                     }
                 }
             }
@@ -638,13 +660,14 @@ void main(){
     }
     float lastT = 0.0;
     for(int k=0;k<4;k++){
+        if(k >= uPasses) break;   // 軽量モードでは手前の 1 つだけ
         float t; vec3 c; float a; nearestMarker(p0, v, lastT, t, c, a);
         if(t > 1e8) break;
         Lt[k] = t; Lc[k] = c; La[k] = a; lastT = t;
     }
     // ---- 経線・赤道の輪・部屋の辺（管。少しずつ進める）----
     if((uPic==0 || uPicLine > 0.0) && (uCirc==1 || uRoom==1)){
-        float tube = uPic==1 ? uTube*0.5 : uTube;   // 絵のモードでは細く
+        float tube = uPic>=1 ? uTube*0.5 : uTube;   // 絵・色の点のモードでは細く
         vec4 p = p0; vec4 vv = v; vec4 pf = p0; vec4 vf = v; float t = 0.0;
         for(int i=0;i<160;i++){
             float d = 1e9; vec3 cc = vec3(1.0); float li = 1.0;
@@ -667,7 +690,7 @@ void main(){
             float wpx = pixW(t); float sd = d - tube - wpx;
             float st;
             if(sd < 0.0015){
-                if(t > 0.1){ if(t < uMaxD){ float cover = tube/(tube+wpx); Lt[4] = t; Lc[4] = cc*1.15*li; La[4] = (uPic==1 ? uPicLine : 0.92)*cover; } break; }
+                if(t > 0.1){ if(t < uMaxD){ float cover = tube/(tube+wpx); Lt[4] = t; Lc[4] = cc*1.15*li; La[4] = (uPic>=1 ? uPicLine : 0.92)*cover; } break; }
                 st = 0.012;
             } else st = max(sd*0.9, 0.003);
             float c = cos(st), s = sin(st);
@@ -678,7 +701,7 @@ void main(){
     }
     // ---- 赤道の膜 S²（w = 0）----
     if((uPic==0 || uPicLine > 0.0) && uEq==1){
-        float film = uPic==1 ? uPicLine : 1.0;
+        float film = uPic>=1 ? uPicLine : 1.0;
         float te = atan(-p0.w, v.w); if(te < 0.0) te += PI;
         for(int k=5;k<7;k++){
             if(te > 0.002 && te < uMaxD){
@@ -702,13 +725,14 @@ void main(){
         col += T*a*c; T *= (1.0 - a);
         if(T < 0.003) break;
     }
-    col += T * mix(bg(dir), haze(dir), 1.0 - exp(-uMaxD*uFog*0.6));
+    vec3 sky = uBgMesh==1 ? skyMesh(v) : bg(dir);
+    col += T * mix(sky, haze(dir), (uBgMesh==1 ? 0.35 : 1.0) * (1.0 - exp(-uMaxD*uFog*0.6)));
     gl_FragColor = vec4(pow(col, vec3(0.9)), 1.0);
 }`;
 const ray = (() => {
     const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const U = { uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * d2r) }, uP: { value: new THREE.Vector4() }, uR: { value: new THREE.Vector4() }, uU: { value: new THREE.Vector4() }, uF: { value: new THREE.Vector4() },
-        uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkT: { value: new Float32Array(NMK).fill(-1) }, uNM: { value: 0 }, uAtlas: { value: ATLAS.tex }, uPic: { value: 0 },
+        uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkT: { value: new Float32Array(NMK).fill(-1) }, uNM: { value: 0 }, uAtlas: { value: ATLAS.tex }, uPic: { value: 0 }, uBgMesh: { value: 0 }, uPasses: { value: 4 },
         uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uLite: { value: 1 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uPicLine: { value: 0.3 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
     const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: RAY_FRAG, depthTest: false, depthWrite: false });
     scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
@@ -717,7 +741,7 @@ const ray = (() => {
 })();
 function rebuildMarks() {
     const U = ray.U; let n = 0;
-    const big = S.pic ? 1.5 : 1;   // 絵のモードは玉を大きめに（絵が見えるように）
+    const big = S.mk === 'pic' ? 1.5 : S.mk === 'dot' ? 1.9 : 1;   // 絵・色の点のモードは玉を大きめに
     const put = (p, c, r, pic) => { if (n >= NMK) return; U.uMk.value[n].set(p[0], p[1], p[2], p[3]); U.uMkC.value[n].set(c[0], c[1], c[2], r * big); U.uMkT.value[n] = ATLAS.of(pic); n++; };
     FIXED.forEach(m => put(m.p, m.col, m.r, m.pic));
     W.marks.forEach(m => put(m.p, m.col, 0.1, m.pic));
@@ -729,10 +753,10 @@ function setRayUniforms() {
     U.uP.value.set(...W.p); U.uR.value.set(...F.R); U.uU.value.set(...F.U); U.uF.value.set(...F.L);
     U.uRoom.value = S.room ? 1 : 0; U.uLite.value = S.lite ? 1 : 0; U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uFade.value = S.fade; U.uPicLine.value = S.picLine; U.uMaxD.value = S.maxd;
     U.uRes.value.set(VC.r.domElement.width, VC.r.domElement.height);
-    U.uPic.value = S.pic ? 1 : 0;
-    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.pic) { rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.pic; }
+    U.uPic.value = S.mk === 'pic' ? 1 : S.mk === 'dot' ? 2 : 0; U.uBgMesh.value = S.bgMesh ? 1 : 0; U.uPasses.value = S.passes;
+    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.mk) { rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.mk; }
     // 自分の玉：いつも今の場所（最後の 1 つを入れかえる）
-    if (S.self) { const n = Math.min(NMK - 1, U.uNM.value); U.uMk.value[n].set(...W.p); U.uMkC.value[n].set(1, 1, 1, S.pic ? 0.13 : 0.09); U.uMkT.value[n] = ATLAS.of(PIC.self); U.uNM.value = n + 1; ray._selfSlot = n; }
+    if (S.self) { const n = Math.min(NMK - 1, U.uNM.value); U.uMk.value[n].set(...W.p); U.uMkC.value[n].set(1, 1, 1, S.mk === 'ball' ? 0.09 : 0.13); U.uMkT.value[n] = ATLAS.of(PIC.self); U.uNM.value = n + 1; ray._selfSlot = n; }
     else if (ray._selfSlot !== undefined) { rebuildMarks(); ray._selfSlot = undefined; }
 }
 
@@ -741,9 +765,12 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-walk': 'walk', 'b-roam': 'roam', 'b-pic': 'pic', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-walk': 'walk', 'b-roam': 'roam', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-stop').addEventListener('click', () => { S.walk = false; S.roam = false; refreshUI(); });
+document.querySelectorAll('.btn.mk').forEach(b => b.addEventListener('click', () => { S.mk = b.dataset.mk; save(); refreshUI(); req(3); }));
+$('b-light').addEventListener('click', () => { Object.assign(S, { mk: 'dot', bgMesh: true, lite: false, circ: false, room: false, eq: false, passes: 1, q: 0.6 }); resizeAll(); save(); refreshUI(); req(3); say('軽量モード：色の点・色の地図・線なし'); });
+$('b-std').addEventListener('click', () => { Object.assign(S, { mk: 'ball', bgMesh: false, lite: true, circ: false, room: false, eq: true, passes: 4, q: 0.7 }); resizeAll(); save(); refreshUI(); req(3); say('標準の見え方に戻しました'); });
 $('b-trip').addEventListener('click', () => { resetNorth(); S.walk = true; say('北極から出発。向きを変えずに進むと、南極を通って北極に戻る'); refreshUI(); });
 $('b-north').addEventListener('click', () => { resetNorth(); S.walk = false; refreshUI(); });
 $('b-clear').addEventListener('click', () => { W.trail = []; W2.trail = []; W.foot = []; W2.foot = []; req(3); });
@@ -759,6 +786,7 @@ Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
 function refreshUI() {
     Object.entries(toggles).forEach(([id, k]) => $(id).classList.toggle('on', !!S[k]));
+    document.querySelectorAll('.btn.mk').forEach(b => b.classList.toggle('on', b.dataset.mk === S.mk));
     Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
     ['A', 'B', 'C'].forEach(x => $('wrap' + x).classList.toggle('off', !S['w' + x]));
     $('mklist').innerHTML = W.marks.map(m => `<span style="border-color:${hexCss(rgbHex(m.col))}">${m.pic} ${m.n}：北極から ${Math.acos(Math.max(-1, Math.min(1, m.p[3]))).toFixed(2)}</span>`).join('') || '<span style="color:#64748b;border:0">（まだ置いていない）</span>';
@@ -801,7 +829,7 @@ window.addEventListener('keydown', e => {
     if (k === ' ') { e.preventDefault(); setSidebar(document.body.classList.contains('sidebar-hidden')); return; }
     if (k === 'x') { S.axes = !S.axes; save(); refreshUI(); req(3); }
     if (k === 'f') { S.foot = !S.foot; save(); refreshUI(); req(3); }
-    if (k === 'p') { S.pic = !S.pic; save(); refreshUI(); req(3); }
+    if (k === 'p') { S.mk = S.mk === 'ball' ? 'pic' : S.mk === 'pic' ? 'dot' : 'ball'; save(); refreshUI(); req(3); }
     if (k === 'm') addMark();
     if (k === 'r') { resetNorth(); S.walk = false; refreshUI(); }
 });
