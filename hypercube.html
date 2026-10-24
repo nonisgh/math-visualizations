@@ -29,7 +29,7 @@
     <!-- 高い次元の立体の質感（5次元の面をガラス・結晶・樹脂に、辺を管と玉に）。共通部品/nd-solid -->
     <script src="lib/nd-solid.js?b=20261021-1602"></script>
     <script src="lib/supa-config.js?b=20261025-0630"></script>
-    <script src="lib/supa-sync.js?b=20261025-0630"></script>
+    <script src="lib/supa-sync.js?b=20261025-0731"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
         
@@ -11318,6 +11318,7 @@
                 dock.restore();   // 保存されていた並びを復元（昔の形式も読みかえる）
                 return dock;
             })();
+            window._hcDock = uiDock;   // Supabase の同期で、ほかの端末の並びをその場で当てる
 
             // ===== 5次元モード（β）の切替と、5次元だけの4面の操作 =====
             // 5次元モードのドラッグの切り替え（文字は「押すとこうなる」、4次元モードと同じ関係のときは紫）
@@ -11980,7 +11981,18 @@
             if (!window.SupaSync) return;
             // ボタンを押して合わせる必要があるもの（これが変わった時だけ restoreSession を使う。ふだんは角度・進み・分解・カメラを直接）
             const STRUCT = ['displayMode', 'panelHidden', 'leftFull3D', 'speed', 'loop', 'autoFitZoom', 'wire', 'accurate', 'axes', 'pin', 'stagger', 'screenAxis', 'seri', 'seriPath', 'rhombi', 'cycle', 'spins'];
-            const liveGet = () => { const s = sessionSnapshot(); delete s.ui; delete s.pp; return s; };   // パネルのスクロール・往復の中身は送らない
+            // 画面まわり：分離と連結の並び（hypercubeFloats）・パネルの左右・開いているタブ。受け取った値が変わった時だけ当てる
+            const scr = () => ({ fl: window._hcDock ? window._hcDock.layout() : null, side: document.body.classList.contains('sidebar-left') ? 'left' : 'right',
+                tab: (document.querySelector('.sb-tab.active') || { getAttribute: () => null }).getAttribute('data-tab') });
+            const got = {};
+            const once = (k, v, fn) => { const sv = JSON.stringify(v); if (v === undefined || v === null || got[k] === sv) return; got[k] = sv; fn(v); };
+            const scrSet = u => {
+                once('fl', u.fl, L => { if (window._hcDock && JSON.stringify(window._hcDock.layout()) !== JSON.stringify(L)) window._hcDock.apply(L); });
+                once('side', u.side, sd => { if ((sd === 'left') !== document.body.classList.contains('sidebar-left')) document.getElementById('sidebar-side').click(); });
+                once('tab', u.tab, t => { const b = document.querySelector('.sb-tab[data-tab="' + t + '"]'); if (b && !b.classList.contains('active')) b.click(); });
+            };
+            const LIVE_KEYS = ['hypercubeSession', 'hypercubeFloats', 'hypercubeSidebarSide', 'hypercubeSidebarTab'];   // 読み直さずに当てられる保存
+            const liveGet = () => { const s = sessionSnapshot(); delete s.ui; delete s.pp; s.scr = scr(); return s; };   // パネルのスクロール・往復の中身は送らない
             const camSet = (c, ctl, v) => { if (!c || !ctl || !v || !Array.isArray(v.p) || !Array.isArray(v.t)) return; c.position.fromArray(v.p); ctl.target.fromArray(v.t); if (isFinite(v.z)) c.zoom = v.z; c.updateProjectionMatrix(); ctl.update(); };
             const liveSet = s => {
                 const cur = liveGet();
@@ -11993,11 +12005,17 @@
                     if (isFinite(s.explode) && s.explode !== cur.explode) { setExplodeRaw(s.explode); if (typeof syncExplodeUI === 'function') syncExplodeUI(); }
                 }
                 camSet(camera2D, controls2D, s.cam2); camSet(camera3D, controls3D, s.cam3);   // ぬるぬる同期ではカメラも合わせる（開いた時の restoreSession は戻さない）
+                if (s.scr) scrSet(s.scr);
                 requestRender(3);
             };
             try {
-                const supa = SupaSync.create({ app: 'hypercube', build: APP_BUILD, exclude: ['hypercubeFloats'],
-                    applyLive: d => { if (d.hypercubeSession) restoreSession(); },
+                // 画面まるごと：hypercube で始まる保存ぜんぶ＋共通の見た目（vfx）。並び・左右・タブ・画面の状態はその場で、ほかの設定が変わった時は手を止めたら読み直す
+                const supa = SupaSync.create({ app: 'hypercube', build: APP_BUILD, exclude: [], also: ['vfx'],
+                    applyLive: (d, changed) => {
+                        if (changed.includes('hypercubeSession')) restoreSession();
+                        scrSet({ fl: d.hypercubeFloats ? JSON.parse(d.hypercubeFloats) : null, side: d.hypercubeSidebarSide || null, tab: d.hypercubeSidebarTab || null });
+                        return changed.every(k => LIVE_KEYS.includes(k));
+                    },
                     live: { hz: 12, get: liveGet, set: liveSet } });
                 supa.start(); supa.mountUI(document.getElementById('supaBox')); window._hcSupa = supa; window._hcLive = { get: liveGet, set: liveSet };
             } catch (e) { console.warn('supa-sync', e); }
