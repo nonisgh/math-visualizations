@@ -1898,7 +1898,24 @@ if (window.SupaSync) {
             if (d['s3walk-state']) { const st = JSON.parse(d['s3walk-state']); Object.assign(S, st); updateRot(); refreshUI(); resizeAll(); req(3); }
             if (d['s3walk-folds']) { const f = JSON.parse(d['s3walk-folds']); document.querySelectorAll('#sb-scroll > section.sb-sec[data-sec]').forEach(x => x.classList.toggle('folded', !!f[x.dataset.sec])); }
         };
-        const supa = SupaSync.create({ app: 's3walk', build: '20261025-0600', exclude: ['s3walkFloats', 's3walkSession'], applyLive });
+        // ライブ同期（ぬるぬる）：設定・位置と向き・進んだ距離・S² の仲間・自転／網目／惑星／ホップの円の時刻を、1 秒に 12 回送り合う（小数は 5 桁に丸めて、こだまさせない）
+        const r5 = x => Math.round(x * 1e5) / 1e5, rv = v => v.map(r5);
+        let liveUI = 0;
+        const live = {
+            hz: 12,
+            get: () => ({ S: JSON.parse(JSON.stringify(S, (k, v) => typeof v === 'number' ? r5(v) : v)),
+                W: { p: rv(W.p), r: rv(W.r), u: rv(W.u), f: rv(W.f), dist: r5(W.dist) }, W2: { p: rv(W2.p), r: rv(W2.r), f: rv(W2.f) },
+                t: { spin: r5(SPIN.ang), grid: r5(GRID.spin), sol: r5(SOL.t), hopf: r5(HOPF.t) } }),
+            set: st => {
+                if (st.S) Object.assign(S, st.S);
+                if (st.W) { W.p = st.W.p.slice(); W.r = st.W.r.slice(); W.u = st.W.u.slice(); W.f = st.W.f.slice(); W.dist = st.W.dist; }
+                if (st.W2) { W2.p = st.W2.p.slice(); W2.r = st.W2.r.slice(); W2.f = st.W2.f.slice(); }
+                if (st.t) { SPIN.ang = st.t.spin; GRID.spin = st.t.grid; SOL.t = st.t.sol; HOPF.t = st.t.hopf; }
+                updateRot(); req(2);
+                const now = performance.now(); if (now - liveUI > 250) { liveUI = now; refreshUI(); }   // ボタン・スライダーの見た目は 1 秒に 4 回まで
+            },
+        };
+        const supa = SupaSync.create({ app: 's3walk', build: '20261025-0640', exclude: ['s3walkFloats', 's3walkSession'], applyLive, live });
         supa.start(); supa.mountUI($('supaBox')); window._s3supa = supa;
     } catch (e) { console.warn('supa-sync', e); }
 }
