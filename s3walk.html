@@ -402,6 +402,17 @@
                     <button class="btn" id="b-follow" title="自分がいつも真ん中（手前）に来るように S³ を回して写す">自分を真ん中に</button>
                     <button class="btn" id="b-rot0" title="回転を最初に戻す（Y-W 90°：北極が手前の左、南極が奥の右）">↺ 最初の向き</button>
                 </div>
+                <div class="row">
+                    <button class="btn" id="b-rot4" title="S³ の地図を 4次元で回し続ける（X-W・Y-W・Z-W のどれかの面）。4次元ではいちばん遠い北極 N と南極 S が、3次元の地図の上では近づいて重なり、すれちがって入れかわる。球層の殻の線も奥行きで強めに">🔄 4次元回転の実演（北極と南極のすれちがい）</button>
+                </div>
+                <div class="row">
+                    <span class="note">回す面：</span>
+                    <button class="btn r4p" data-p="xw" title="x と w の面で回す">X-W</button>
+                    <button class="btn r4p" data-p="yw" title="y と w の面で回す">Y-W</button>
+                    <button class="btn r4p" data-p="zw" title="z と w の面で回す">Z-W</button>
+                </div>
+                <div class="sl"><span>回す速さ</span><input id="s-rot4spd" type="range" min="-90" max="90" step="1" title="1 秒に何度回すか（マイナスで逆向き）"><output id="o-rot4spd"></output></div>
+                <p class="note">「4次元回転の実演」：w を含む面で回すと、北極 N（w = +1）と南極 S（w = −1）が回り、地図（3次元）の上では近づいて真ん中で重なり、すれちがって入れかわります。4次元では N と S はいつもいちばん遠い（π）のに、3次元に写すと重なる——立方体の影で、奥の面と手前の面が重なって見えるのと同じことが、1 つ上の次元で起きています。N と S の通った道を水色・金色の線で残します。</p>
                 <div class="sl"><b style="color:#ff5d6c;font-style:italic">X-W</b><input id="s-xw" type="range" min="-180" max="180" step="1"><output id="o-xw"></output></div>
                 <div class="sl"><b style="color:#3ddc84;font-style:italic">Y-W</b><input id="s-yw" type="range" min="-180" max="180" step="1"><output id="o-yw"></output></div>
                 <div class="sl"><b style="color:#56a8ff;font-style:italic">Z-W</b><input id="s-zw" type="range" min="-180" max="180" step="1"><output id="o-zw"></output></div>
@@ -513,7 +524,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, spin: false, spinRate: 6, spinTilt: 23.4, spinAz: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
@@ -556,6 +567,7 @@ function viewFrame() {
 // ---- 自転：自分（体・目）が地軸のまわりに回る。進む向きは変わらない（地球が自転しながら公転するように）----
 //   地軸 a ＝ 上 U を、向き S.spinAz の方へ S.spinTilt° 傾けたもの（傾き 0 で上下の軸＝こま、90 で前後の軸＝きりもみ）
 const SPIN = { ang: 0 };
+const ROT4 = { trailN: [], trailS: [], near: false, dist: 0 };   // 4次元回転の実演：地図の上の N と S の通った道、重なっているか
 function spinAxis(F) { const t = S.spinTilt * d2r, z = S.spinAz * d2r; return add(scl(F.U, Math.cos(t)), add(scl(F.L, Math.cos(z)), F.R, Math.sin(z)), Math.sin(t)); }
 function cross3(a, b, F) {   // 接空間（右 R・上 U・前 L の 3 次元）の中の外積 a × b
     const A = [dot(a, F.R), dot(a, F.U), dot(a, F.L)], B = [dot(b, F.R), dot(b, F.U), dot(b, F.L)];
@@ -1060,6 +1072,9 @@ const AXL = 2.7;
     const spL = Lines(v, 1200, { width: 1.1 }); let spPath = null, spKey = '';
     v.root.add(new THREE.Mesh(new THREE.SphereGeometry(RS, 48, 32), new THREE.MeshPhongMaterial({ color: 0x1e3a8a, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide })));
     const planetM = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), new THREE.MeshPhongMaterial({ color: 0x94704c, transparent: true, opacity: 0.6, shininess: 10, depthWrite: false })); v.root.add(planetM);
+    // 4次元回転の実演：北極 N・南極 S を光る玉と名札で強調し、通った道を残す
+    const r4N = ball(v, 0.16, [0.55, 0.95, 1]), r4S = ball(v, 0.16, [1, 0.8, 0.25]); r4N.material.emissiveIntensity = 0.9; r4S.material.emissiveIntensity = 0.9;
+    const r4NL = label(v, 'N 北極', '#9be7ff', 0.42), r4SL = label(v, 'S 南極', '#fcd34d', 0.42), LR4 = Lines(v, 1200, { width: 2.6, normal: true, order: 4 }), r4a = [0, 0, 0], r4b = [0, 0, 0];
     const me = ball(v, 0.1, [1, 1, 1]), cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 })); v.root.add(cone);
     const vcone = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.26, 12), new THREE.MeshBasicMaterial({ color: 0x7dd3fc })); v.root.add(vcone);
     const Laxis = Lines(v, 1, { width: 3, normal: true, order: 6 }), ax0 = [0, 0, 0], ax1 = [0, 0, 0];   // 自転の地軸（桃色の線）   // 見渡している時の、見ている向き
@@ -1087,8 +1102,8 @@ const AXL = 2.7;
         if (S.room) drawPairs(Lr, roomPairs, d => depthColor(d, 0.32), 2.5, true);
         }
         // 球層：「今いる所だけ」なら、自分のいる殻ははっきり、となりはうっすら、遠い所と裏側は透明（動くたびに描き直す）
-        if (S.shell) { const n = Math.max(2, Math.min(21, Math.round(S.shellN))); Lshell.obj.material.linewidth = S.shFocus || S.shLight ? 1.8 : 1.0;
-            const dk = statKey + '|' + n + '|' + (S.shFocus ? W.p.map(x => x.toFixed(3)).join(',') + '|' + S.shFocusR : '') + (S.shLight ? '|L' + [...W.p, ...viewFrame().L, ...viewFrame().R].map(x => x.toFixed(3)).join(',') + '|' + [S.fov, S.lens, S.shellRange, S.maxd, VC.r.domElement.width, VC.r.domElement.height].join(',') : '');
+        if (S.shell) { const n = Math.max(2, Math.min(21, Math.round(S.shellN))); Lshell.obj.material.linewidth = S.shFocus || S.shLight ? 1.8 : S.rot4 ? 1.6 : 1.0;
+            const dk = statKey + '|' + n + '|' + S.rot4 + '|' + (S.shFocus ? W.p.map(x => x.toFixed(3)).join(',') + '|' + S.shFocusR : '') + (S.shLight ? '|L' + [...W.p, ...viewFrame().L, ...viewFrame().R].map(x => x.toFixed(3)).join(',') + '|' + [S.fov, S.lens, S.shellRange, S.maxd, VC.r.domElement.width, VC.r.domElement.height].join(',') : '');
             if (dk !== shellDrawKey) { shellDrawKey = dk;
                 if (shellKey !== n + '/' + shellMinTheta()) { shellKey = n + '/' + shellMinTheta(); shellPairs = shellSet(n); }
                 const m0 = shellMinTheta(), gap = (Math.PI / 2 - m0) / Math.max(1, n - 1), thMe = Math.acos(Math.max(-1, Math.min(1, W.p[3]))), R = S.shFocusR;
@@ -1100,7 +1115,7 @@ const AXL = 2.7;
                     drawPairs(Lshell, lit, (d, i, e) => { const q = lit[i][e], dg = Math.acos(Math.max(-1, Math.min(1, dot(q, W.p)))), k = vis(q) ? (1 - Math.min(1, Math.max(0, (dg - 0.6 * Rl) / (0.4 * Rl)))) * (0.75 + 0.25 * (d + 1) / 2) * 1.3 : 0;
                         return vivid(lit[i][2], k); }, 3, false);   // 照らした所は「奥を消す」でも消さない（自分のまわりだけなので）
                 } else
-                drawPairs(Lshell, sub, (d, i, e) => { const P = sub[i]; if (!S.shFocus) return scl(P[2], 0.35 + 0.65 * Math.pow((d + 1) / 2, 1.2));
+                drawPairs(Lshell, sub, (d, i, e) => { const P = sub[i]; if (!S.shFocus) return scl(P[2], S.rot4 ? 0.12 + 1.0 * Math.pow((d + 1) / 2, 1.8) : 0.35 + 0.65 * Math.pow((d + 1) / 2, 1.2));   // 実演の時は奥行きを強く（手前は明るく、奥は暗く）
                     // 足し合わせの線なので、紫などの暗い色も vivid で明るく、奥の暗くなり方も弱める
                     const lay = Math.max(0, 1 - Math.abs(P[3] - thMe) / (2.2 * gap)), dg = Math.acos(Math.max(-1, Math.min(1, dot(P[e], W.p)))), near = 1 - Math.min(1, Math.max(0, (dg - 0.6 * R) / (0.4 * R)));
                     const k = (0.35 + 0.65 * lay * lay) * near * (0.75 + 0.25 * (d + 1) / 2) * 1.3;
@@ -1110,6 +1125,14 @@ const AXL = 2.7;
         place(me, W.p, 1);
         const F = lookFrame(), dv = W.lastDir && performance.now() - (W.lastDirT || 0) < 400 ? W.lastDir : F.L, q = nrm(add(scl(W.p, Math.cos(0.12)), dv, Math.sin(0.12)));   // 歩いている間は進む向き、止まっている時は見ている向き
         if (S.heading && mapS3(W.p, a) === mapS3(W.p, a) && mapS3(q, b) === mapS3(q, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); const l = t.length(); if (l > 1e-6) { t.normalize(); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(a[0] + t.x * 0.28, a[1] + t.y * 0.28, a[2] + t.z * 0.28); cone.scale.setScalar(Math.min(2.5, kOf(W.p))); cone.visible = true; } } else cone.visible = false;
+        { const on = S.rot4; [r4N, r4S, r4NL, r4SL].forEach(o => { o.visible = false; }); LR4.obj.visible = on;
+          if (on) { const dn = mapS3([0, 0, 0, 1], r4a), ds = mapS3([0, 0, 0, -1], r4b);
+            if (dn === dn) { r4N.position.set(...r4a); r4N.visible = true; r4NL.position.set(r4a[0], r4a[1], r4a[2] + 0.3); r4NL.visible = true; }
+            if (ds === ds) { r4S.position.set(...r4b); r4S.visible = true; r4SL.position.set(r4b[0], r4b[1], r4b[2] - 0.3); r4SL.visible = true; }
+            if (dn === dn && ds === ds) { ROT4.dist = Math.hypot(r4a[0] - r4b[0], r4a[1] - r4b[1], r4a[2] - r4b[2]); const T1 = ROT4.trailN, T2 = ROT4.trailS, last = T1[T1.length - 1];
+                if (!last || Math.hypot(last[0] - r4a[0], last[1] - r4a[1], last[2] - r4a[2]) > 0.02) { T1.push(r4a.slice()); T2.push(r4b.slice()); if (T1.length > 600) { T1.shift(); T2.shift(); } }
+                const near = ROT4.dist < 0.25 * RS; if (near && !ROT4.near) say('北極 N と南極 S が地図の上で重なった！（4次元では いちばん遠い π）'); ROT4.near = near; }
+            LR4.reset(); [[ROT4.trailN, [0.55, 0.95, 1]], [ROT4.trailS, [1, 0.8, 0.25]]].forEach(([T, c]) => { for (let k = 0; k + 1 < T.length; k++) { const f = 0.15 + 0.85 * k / T.length; LR4.seg(T[k], T[k + 1], scl(c, f)); } }); LR4.flush(); } }
         Laxis.obj.visible = false;
         if (S.spin) { const ax = spinAxis(lookFrame()), A = add(scl(W.p, Math.cos(0.28)), ax, -Math.sin(0.28)), B = add(scl(W.p, Math.cos(0.28)), ax, Math.sin(0.28));
             if (mapS3(A, ax0) === mapS3(A, ax0) && mapS3(B, ax1) === mapS3(B, ax1)) { Laxis.reset(); Laxis.seg(ax0, ax1, [1, 0.45, 0.75]); Laxis.flush(); Laxis.obj.visible = true; } }
@@ -1330,7 +1353,8 @@ float gridLine15(float lat, float lon){ float st = PI/12.0; return max(smoothste
 void shellsBetween(vec4 p0, vec4 v, float t0, float t1, inout vec3 col, inout float T, vec3 dir){
     int n = uShellN; int nTot = 2*n - 1;
     float A = p0.w, B = v.w; float amp = sqrt(A*A+B*B); if(amp < 1e-5) return;
-    float phi = atan(B, A); float s0 = mod(-phi, 2.0*PI); int m0 = int(floor(s0/PI));
+    float phi = atan(B, A); float s0 = mod(-phi, 2.0*PI); if(s0 > 2.0*PI - 1e-4) s0 -= 2.0*PI;   // 北極・南極ちょうどでは丸めで 2π ぎりぎりになり、殻が 1 周ずれて抜ける画素が出るので 0 に戻す
+    int m0 = int(floor(s0/PI));
     // 光が何周してもよい（殻の見える距離は 8π まで）。たどる範囲 t0〜t1 に入る半周だけを数える（重くしない）
     for(int ph=0; ph<11; ph++){
         int m = m0 + ph; bool dec = mod(float(m), 2.0) < 0.5;
@@ -1352,7 +1376,7 @@ void shellsBetween(vec4 p0, vec4 v, float t0, float t1, inout vec3 col, inout fl
             vec4 nP = normalize(pole - q*dot(q, pole) + 1e-6);             // 殻の面に直交する向き（極の方）
             float cv = dot(vt, nP);
             vec3 c = shellCol(i, n);
-            float rimK = 1.0 - abs(cv);
+            float rimK = clamp(1.0 - abs(cv), 0.0, 1.0);   // 極ちょうどでは |cv| が丸めで 1 を少しこえ、pow(負, 1.6) が NaN（黒い点）になるので切り詰める
             vec3 cc; float al;
             if(uShellSolid==1){
                 // 立体版：超球アプリの「不透明＋影」の見た目。面に光（見る人の左上・手前から）、つや、ふちは暗い輪郭。色はうっすら透ける
@@ -1564,7 +1588,7 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-rot4': 'rot4', 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
 $('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
@@ -1596,9 +1620,11 @@ $('b-mkclear').addEventListener('click', () => { W.marks = []; rebuildMarks(); r
 $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90').addEventListener('click', () => { S.az = 90; onLook(); });
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
+$('b-rot4').addEventListener('click', () => { if (S.rot4) { S.follow = false; S.ringView = false; ROT4.trailN = []; ROT4.trailS = []; ROT4.near = false; say('4次元で回す：北極 N と南極 S が地図の上ですれちがう'); } refreshUI(); req(3); });
+document.querySelectorAll('.btn.r4p').forEach(b => b.addEventListener('click', () => { S.rot4Plane = b.dataset.p; ROT4.trailN = []; ROT4.trailS = []; save(); refreshUI(); req(3); }));
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; S.ringView = false; save(); refreshUI(); req(3); });
 const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-spinrate': ['spinRate', v => +v === 0 ? '止める' : (+v).toFixed(1) + ' 回/分' + (+v < 0 ? '（逆回り）' : '')], 's-spintilt': ['spinTilt', v => (+v).toFixed(1) + '°' + (Math.abs(v - 23.4) < 0.3 ? '（地球と同じ）' : +v === 0 ? '（こま）' : +v === 90 ? '（きりもみ）' : '')], 's-spinaz': ['spinAz', v => v + '°'], 's-outer': ['outer', v => '×' + (+v).toFixed(2)], 's-solarspd': ['solarSpd', v => +v <= 0 ? '止める' : '×' + (+v).toFixed(1)], 's-parad': ['paraD', v => (+v).toFixed(2)], 's-paralead': ['paraLead', v => +v <= 0 ? '真横' : (+v).toFixed(2)], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 25.1 ? '（どこまでも＝光 4 周）' : +v >= 6.2 ? `（光 ${(v / TAU).toFixed(1)} 周）` : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
-    's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
+    's-rot4spd': ['rot4Spd', v => +v === 0 ? '止める' : v + '°/秒'], 's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (k === 'hopfD' && S.hopf) hopfStart(); if (['xw', 'yw', 'zw'].includes(k)) { S.follow = false; S.ringView = false; } save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
 function refreshUI() {
@@ -1606,6 +1632,7 @@ function refreshUI() {
     Object.entries(toggles).forEach(([id, k]) => $(id).classList.toggle('on', !!S[k]));
     document.querySelectorAll('.btn.mk').forEach(b => b.classList.toggle('on', b.dataset.mk === S.mk));
     document.querySelectorAll('.btn.rax').forEach(b => b.classList.toggle('on', b.dataset.ax === S.ringAxis));
+    document.querySelectorAll('.btn.r4p').forEach(b => b.classList.toggle('on', b.dataset.p === S.rot4Plane));
     document.querySelectorAll('.btn.lens').forEach(b => b.classList.toggle('on', b.dataset.lens === (S.lens || 'normal')));
     Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
     ['A', 'B', 'C'].forEach(x => $('wrap' + x).classList.toggle('off', !S['w' + x]));
@@ -1690,6 +1717,7 @@ function updateHUD() {
         $('hudC').innerHTML += `<br><span style="color:#fcd34d">☀️ 太陽まで <b>${dS.toFixed(2)}</b>（反対回りなら ${(TAU - dS).toFixed(2)}）　いちばん近い ${best.P.pic} ${best.P.name} <b>${best.d.toFixed(2)}</b>${TOUR.i >= 0 ? `　ツアー：${PLANETS[TOUR.i].pic} ${PLANETS[TOUR.i].name}${TOUR.ride ? 'と並んで飛ぶ' : 'へ飛んで行く'}` : ''}</span>`; }
     if (S.para && PARA.p0) { const sP = paraS(), c0 = paraPos(0, sP), c1 = paraPos(1, sP), dR = Math.acos(Math.max(-1, Math.min(1, dot(c0, W.p)))), dB = Math.acos(Math.max(-1, Math.min(1, dot(c0, c1))));
         $('hudC').innerHTML += `<br><span style="color:#7dd3fc">平行な仲間：進んだ <b>${sP.toFixed(2)}</b>　🐧 の道までの間 <b>${dR.toFixed(3)}</b>（平らなら ${PARA.d0.toFixed(3)} のまま）　🐧〜🐬 の道の間 <b>${dB.toFixed(3)}</b></span>` + paraGraph(); }
+    if (S.rot4) $('hudC').innerHTML += `<br><span style="color:${ROT4.near ? '#fde047' : '#9be7ff'}">🔄 4次元の回転 ${S.rot4Plane.toUpperCase().replace('W', '-W')} ${Math.round(S[S.rot4Plane])}°：地図の上で N と S の間 <b>${(ROT4.dist / RS).toFixed(2)}</b>（4次元では いつも π）${ROT4.near ? '　← 重なっている！' : ''}</span>`;
     if (S.spin) $('hudC').innerHTML += `<br><span style="color:#f9a8d4">🌀 自転 <b>${S.spinRate.toFixed(1)}</b> 回/分　いま ${Math.round(SPIN.ang / d2r)}°　地軸の傾き ${S.spinTilt.toFixed(1)}°・向き ${Math.round(S.spinAz)}°</span>`;
     if (S.ring) $('hudC').innerHTML += `<br>🌐 ${Math.floor(RING.T / TAU) + 1} 周目　輪の向き ${Math.round(((S.ringStep * RING.T / TAU) % 360))}°（軸 ${S.ringAxis === 'all' ? '全部' : S.ringAxis}）`;
     if (S.hopf) { const h = hopfInfo(); $('hudC').innerHTML += `<br>🔗 ${(HOPF.t / TAU).toFixed(2)} 周　🐧 までの距離 <b>${h.dist.toFixed(3)}</b>　🐧 のまわりの角 <b>${Math.round(h.ang)}°</b>`; }
@@ -1786,6 +1814,7 @@ function loop(now) {
     if (K.has('a')) mv[0] -= 1; if (K.has('d')) mv[0] += 1;
     if (K.has('q') || IN.pad === 'up') mv[1] += 1; if (K.has('e') || IN.pad === 'down') mv[1] -= 1;
     if (K.has('arrowleft')) { S.az -= dt * 60; onLook(); } if (K.has('arrowright')) { S.az += dt * 60; onLook(); }
+    if (S.rot4 && S.rot4Spd) { const k = S.rot4Plane; S[k] = ((S[k] + S.rot4Spd * dt + 180) % 360 + 360) % 360 - 180; IN.r4UI = (IN.r4UI || 0) + dt; if (IN.r4UI > 0.2) { IN.r4UI = 0; S[k] = Math.round(S[k] * 10) / 10; refreshUI(); } req(2); }   // 4次元回転の実演
     if (S.spin) { SPIN.ang = (SPIN.ang + dt * TAU * S.spinRate / 60) % TAU; req(2); }   // 自転（1 分に spinRate 回）
     if (S.solar) { SOL.t += dt * S.solarSpd; req(2);
         if (TOUR.i >= 0) { if (mv[0] || mv[1] || mv[2]) { TOUR.i = -1; say('ツアーをやめた（歩いた）'); } else tourStep(dt); } }
