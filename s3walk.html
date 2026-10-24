@@ -206,6 +206,13 @@
                     <button class="btn" id="b-hopfplain" title="比べる用：仲間が、出発の時に自分と同じ向きのふつうの大円を歩く（S² の平行と同じ）。距離が縮んだり戻ったりして、まわらない">ふつうの平行と比べる</button>
                 </div>
                 <div class="row">
+                    <button class="btn" id="b-solar" title="3次元球面の太陽系（架空）：太陽 ☀️ を北極に置き、8 つの惑星がそれぞれ太陽から決まった距離の円を回る。S³ では太陽から π/2（赤道）より遠い惑星は、反対側（南極 🌴）を囲む小さな円を回る">☀️ 太陽系</button>
+                    <button class="btn" id="b-tour" title="太陽系ツアー：次の惑星へ飛んで行き、着いたらその惑星のすぐ後ろを並んで飛ぶ（Shift＋ドラッグで見渡せる）。歩くと止まる">次の惑星へ ▶</button>
+                    <button class="btn" id="b-tour0" title="ツアーをやめて、太陽のそば（北極）に戻る">太陽に戻る</button>
+                </div>
+                <div class="sl"><span>公転の速さ</span><input id="s-solarspd" type="range" min="0" max="4" step="0.1" title="惑星が太陽のまわりを回る速さ（0 で止める）"><output id="o-solarspd"></output></div>
+                <p class="note">「☀️ 太陽系」は 3次元球面に置いた架空の太陽系。太陽はどこに置いても同じ（S³ には真ん中も端もない）ので北極に。惑星は太陽から決まった距離の円を回ります。太陽を囲む球面は π/2（赤道）でいちばん大きく、その先はまた小さくなるので、天王星・海王星は反対側の南極 🌴 を囲む小さな円を回ります。遠い惑星から見ると、太陽は π/2 より遠いので逆に大きく見え、反対の向きにも（光が反対回りで届いて）見えます。「次の惑星へ ▶」で飛んで行き、着くと惑星のすぐ後ろを並んで飛びます（Shift＋ドラッグで見渡し、歩くとツアーをやめる）。</p>
+                <div class="row">
                     <button class="btn" id="b-para" title="空間の曲がりを見る：自分の左右に少し離れて（距離 d₀）、同じ向きにまっすぐ歩く 2 人（🐧 右・🐬 左）と一緒に歩く。平らな空間ならずっと d₀ のまま並んで歩けるが、S³ では近づいて π/2 で 3 人が 1 点で出会い、π でまた d₀（左右が入れかわる）。押すと今の場所・向きから歩き出す">平行な仲間と歩く（空間の曲がり）</button>
                 </div>
                 <div class="sl"><span>仲間の先行</span><input id="s-paralead" type="range" min="0" max="1.2" step="0.05" title="平行な仲間は、同じ大円の上を少し前（この距離だけ先）を歩く。真横（0）だと視野に入らないので。距離の数字とグラフは、同じだけ進んだ所どうしで測る"><output id="o-paralead"></output></div>
@@ -416,7 +423,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // ---------------------------------------------------------------------
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
-const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
+const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
     mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
@@ -713,6 +720,51 @@ function addMark() {
 // 絵のモードの絵（絵文字）。固定の目印・自分・足あと・置いた目印の順ぐり
 const PIC = { N: '⛄', S: '🌴', px: '🐰', nx: '🐢', py: '🦝', ny: '🐸', pz: '🐱', nz: '🐶', self: '🙂', foot: '👣',
     marks: ['🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐭', '🐵', '🐧', '🦉', '🦄', '🐝', '🦋', '🐙', '🐬', '🐳', '🍎', '🍓', '🍉', '⚽', '🎸', '🚀', '⭐', '🍩', '🧸', '🎲'] };
+// ---- 3次元球面の太陽系（架空）----
+//   太陽は北極 N（どこに置いても同じ：S³ には真ん中も端もない）。惑星は、太陽から決まった距離 r の球面（太陽を囲む S²）の上の円を回る：
+//   p = (sin r·u(φ), cos r)、u(φ) は軌道の面の向き（少し傾ける）。太陽を囲む球面の大きさは sin r なので、r = π/2（赤道）でいちばん大きく、
+//   その先はまた小さくなり、反対側（南極＝太陽の対蹠点 🌴）を囲む。速さは架空（遠いほどゆっくり）
+const SUN = { p: [0, 0, 0, 1], pic: '☀️', col: [1, 0.82, 0.25], r: 0.13 };
+const PLANETS = [
+    { name: '水星', pic: '🪨', col: [0.72, 0.66, 0.6], r: 0.32, size: 0.04, tilt: 7, node: 20 },
+    { name: '金星', pic: '🟡', col: [1, 0.85, 0.45], r: 0.52, size: 0.055, tilt: 3.4, node: 75 },
+    { name: '地球', pic: '🌍', col: [0.35, 0.65, 1], r: 0.76, size: 0.06, tilt: 0, node: 0, moon: { pic: '🌙', r: 0.13, size: 0.025, w: 6 } },
+    { name: '火星', pic: '🔴', col: [1, 0.42, 0.28], r: 1.0, size: 0.05, tilt: 1.9, node: 50 },
+    { name: '木星', pic: '🟠', col: [1, 0.65, 0.35], r: 1.35, size: 0.1, tilt: 1.3, node: 100 },
+    { name: '土星', pic: '🪐', col: [0.95, 0.85, 0.55], r: 1.75, size: 0.09, tilt: 2.5, node: 115 },
+    { name: '天王星', pic: '🔵', col: [0.5, 0.85, 0.95], r: 2.25, size: 0.07, tilt: 0.8, node: 75 },
+    { name: '海王星', pic: '🟣', col: [0.45, 0.5, 1], r: 2.75, size: 0.07, tilt: 1.8, node: 130 },
+];
+const SOLAR_PICS = [SUN.pic, ...PLANETS.map(P => P.pic), '🌙'];
+const SOL = { t: 0 }, TOUR = { i: -1, ride: false };
+PLANETS.forEach((P, k) => { const n = P.node * Math.PI / 180, ti = P.tilt * Math.PI / 180;   // 軌道の面：x-y 面を傾き tilt だけ、向き node のまわりに傾ける
+    P.a = [Math.cos(n), Math.sin(n), 0]; P.b = [-Math.sin(n) * Math.cos(ti), Math.cos(n) * Math.cos(ti), Math.sin(ti)]; P.w = 0.25 / Math.pow(P.r, 1.5); P.ph = k * 2.1; });
+function planetAt(P, phi) { const sr = Math.sin(P.r), c = Math.cos(phi), sn = Math.sin(phi); return [sr * (c * P.a[0] + sn * P.b[0]), sr * (c * P.a[1] + sn * P.b[1]), sr * (c * P.a[2] + sn * P.b[2]), Math.cos(P.r)]; }
+const planetPhi = P => P.ph + P.w * SOL.t;
+const planetPos = P => planetAt(P, planetPhi(P));
+function moonPos(P) {   // 月：惑星のまわりを、軌道の向きと太陽の向きの面で回る
+    const E = planetPos(P), tg = nrm(add(planetAt(P, planetPhi(P) + 1e-3), E, -1)), sunD = nrm(add(SUN.p, E, -dot(SUN.p, E))), e1 = nrm(add(tg, E, -dot(tg, E))), e2 = nrm(add(sunD, e1, -dot(sunD, e1)));
+    const a = P.moon.w * SOL.t, m = P.moon.r; return add(scl(E, Math.cos(m)), add(scl(e1, Math.cos(a)), e2, Math.sin(a)), Math.sin(m));
+}
+function planet2(P, phi) { const sr = Math.sin(P.r); return [sr * Math.cos(phi), sr * Math.sin(phi), Math.cos(P.r)]; }   // S² のたとえ：太陽は北極、惑星は緯線の上
+function setLook(d) {   // 進む向きを d に（方位・仰角は 0 に。見渡しはそのまま）
+    const p = W.p, f = nrm(add(d, p, -dot(d, p)));
+    let u = add(add(W.u, p, -dot(W.u, p)), f, -dot(W.u, f)); if (Math.hypot(...u) < 1e-4) u = add(add(W.r, p, -dot(W.r, p)), f, -dot(W.r, f)); u = nrm(u);
+    let r = add(add(add(W.r, p, -dot(W.r, p)), f, -dot(W.r, f)), u, -dot(W.r, u)); r = nrm(r);
+    Object.assign(W, { f, u, r }); S.az = 0; S.el = 0;
+}
+function tourStep(dt) {   // 飛んで行く → 着いたら惑星のすぐ後ろを並んで飛ぶ
+    const P = PLANETS[TOUR.i], T = planetPos(P), dist = Math.acos(Math.max(-1, Math.min(1, dot(T, W.p))));
+    if (!TOUR.ride) {
+        const back = 0.16 + P.size * 1.5;
+        if (dist <= back + 0.01) { TOUR.ride = true; say(`${P.pic} ${P.name}に着いた：太陽から ${P.r.toFixed(2)}${P.r > Math.PI / 2 ? '（π/2 より遠い：この軌道は反対側の南極 🌴 を囲む小さな円。太陽は前と後ろの両方に見える）' : ''}`); return; }
+        const d = nrm(add(T, W.p, -dot(T, W.p))); setLook(d); step(d, null, Math.min(dist - back, (0.5 + 1.2 * dist) * dt));   // 遠いほど速く
+    } else {
+        const back = (0.16 + P.size * 1.5) / Math.max(0.2, Math.sin(P.r)), q = planetAt(P, planetPhi(P) - back);   // 軌道の上で、惑星の少し後ろ
+        W.p = q; orthoFrame(W); setLook(add(T, q, -dot(T, q))); W.lastDir = null;
+    }
+    req(2);
+}
 const FIXED = [
     { p: [0, 0, 0, 1], p2: [0, 0, 1], col: [0.6, 0.95, 1], r: 0.13, label: 'N', pic: PIC.N },
     { p: [0, 0, 0, -1], p2: [0, 0, -1], col: hexRGB(0xfbbf24), r: 0.13, label: 'S', pic: PIC.S },
@@ -731,7 +783,7 @@ function fillCentered(ctx, ch, cx, cy) {   // 一度べつの紙に描いて、�
 }
 // 絵の表（アトラス）：8×8 のます目に絵文字を描いた 1 枚の画像。シェーダーはます目の番号で絵を選ぶ
 const ATLAS = (() => {
-    const list = [PIC.N, PIC.S, PIC.px, PIC.nx, PIC.py, PIC.ny, PIC.pz, PIC.nz, PIC.self, PIC.foot, ...PIC.marks], N = 8, C = 128;
+    const list = [PIC.N, PIC.S, PIC.px, PIC.nx, PIC.py, PIC.ny, PIC.pz, PIC.nz, PIC.self, PIC.foot, ...PIC.marks, ...SOLAR_PICS], N = 8, C = 128;
     const cv = document.createElement('canvas'); cv.width = cv.height = N * C; const ctx = cv.getContext('2d');
     ctx.font = '96px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const idx = {}; list.forEach((ch, i) => { const x0 = (i % N) * C, y0 = Math.floor(i / N) * C; idx[ch] = i; fillCentered(ctx, ch, x0 + C / 2, y0 + C / 2);
@@ -861,7 +913,7 @@ const AXL = 2.7;
         trail.reset(); const T = W2.trail; for (let i = 0; i + 1 < T.length; i++) { const f = 0.3 + 0.7 * i / T.length; trail.seg(scl(T[i], R2), scl(T[i + 1], R2), scl(hsl(200 + 160 * i / T.length, 0.9, 0.6), f)); } trail.flush();
         while (foot.children.length < W2.foot.length) { const b = ball(v, 0.035, [0.8, 0.85, 1]); v.root.remove(b); foot.add(b); }
         foot.children.forEach((b, i) => { b.visible = i < W2.foot.length && S.foot; if (b.visible) b.position.set(...scl(W2.foot[i], R2)); });
-        fixedA.forEach(o => { o.b.visible = !isPic(); o.lab.visible = !isPic(); o.sp.visible = isPic(); });
+        fixedA.forEach((o, k) => { const hide = S.solar && k === 0; o.b.visible = !isPic() && !hide; o.lab.visible = !isPic() && !hide; o.sp.visible = isPic() && !hide; });   // 太陽系の時、北極は太陽
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const b = ball(v, 0.08, m.col); v.root.remove(b); marks.add(b); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
         W.marks.forEach((m, i) => { const [b, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; b.position.set(...scl(m.p2, R2)); lab.position.set(...scl(m.p2, R2 * 1.1)); sp.position.set(...scl(m.p2, R2)); b.visible = !isPic(); lab.visible = !isPic(); sp.visible = isPic(); });
     });
@@ -940,7 +992,7 @@ const AXL = 2.7;
         if (S.heading && mapS3(W.p, a) === mapS3(W.p, a) && mapS3(q, b) === mapS3(q, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); const l = t.length(); if (l > 1e-6) { t.normalize(); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(a[0] + t.x * 0.28, a[1] + t.y * 0.28, a[2] + t.z * 0.28); cone.scale.setScalar(Math.min(2.5, kOf(W.p))); cone.visible = true; } } else cone.visible = false;
         { const on = Math.abs(S.hy) > 0.5 || Math.abs(S.hp) > 0.5, qv = on ? nrm(add(scl(W.p, Math.cos(0.12)), viewFrame().L, Math.sin(0.12))) : null; vcone.visible = false;
           if (on && mapS3(W.p, a) === mapS3(W.p, a) && mapS3(qv, b) === mapS3(qv, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); if (t.length() > 1e-6) { t.normalize(); vcone.quaternion.setFromUnitVectors(up, t); vcone.position.set(a[0] + t.x * 0.26, a[1] + t.y * 0.26, a[2] + t.z * 0.26); vcone.scale.setScalar(Math.min(2.5, kOf(W.p))); vcone.visible = true; } } }
-        fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } o.lab.visible = d === d && !isPic(); o.sp.visible = d === d && isPic(); o.b.visible = d === d && !isPic(); });
+        fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } const hide = S.solar && o.m.label === 'N'; o.lab.visible = d === d && !isPic() && !hide; o.sp.visible = d === d && isPic() && !hide; o.b.visible = d === d && !isPic() && !hide; });
         while (foot.children.length < W.foot.length) { const bb = ball(v, 0.04, [0.8, 0.85, 1]); v.root.remove(bb); foot.add(bb); }
         foot.children.forEach((bb, i) => { if (i < W.foot.length && S.foot) place(bb, W.foot[i], 1); else bb.visible = false; });
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const bb = ball(v, 0.085, m.col); v.root.remove(bb); marks.add(bb); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
@@ -1005,6 +1057,32 @@ const AXL = 2.7;
             const path = (fn, col) => { for (let k = 0; k < CN; k++) { const A = fn(TAU * k / CN), B = fn(TAU * (k + 1) / CN), da = mapS3(A, a), db = mapS3(B, b); if (!(da === da) || !(db === db) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.5) { LB.seg(Z, Z, Z); continue; } LB.seg(a, b, scl(col, 0.35 + 0.5 * (da + 1) / 2), scl(col, 0.35 + 0.5 * (db + 1) / 2)); } };
             path(t => add(scl(PARA.p0, Math.cos(t)), PARA.v0, Math.sin(t)), [0.75, 0.75, 0.8]); [0, 1].forEach(j => path(t => paraPos(j, t), PARA_COL[j])); LB.flush(); }
         bB.forEach((o, j) => { const q = paraPos(j, paraS() + S.paraLead), d = mapS3(q, a); if (!(d === d)) return; const k = Math.min(2.5, kOf(q)); o.b.position.set(...a); o.sp.position.set(...a); o.b.scale.setScalar(k); o.sp.scale.setScalar(0.42 * k); o.b.visible = !isPic(); o.sp.visible = isPic(); });
+    });
+})();
+// ---- 太陽系の軌道と惑星（S² と S³ の地図）----
+(function buildSolar() {
+    const CN = 96, Z = [0, 0, 0], a = [0, 0, 0], b = [0, 0, 0];
+    const mk = (v, pic, col, r, sz) => { const bl = ball(v, r, col); const sp = emojiSprite(pic, sz); v.root.add(sp); return { b: bl, sp, sz }; };
+    // S²：太陽は北極、惑星は緯線（太陽からの距離 r の円）
+    const LA = Lines(VA, PLANETS.length * CN, { width: 1.1 }); let keyA = '';
+    const sunA = mk(VA, SUN.pic, SUN.col, 0.14, 0.6), plA = PLANETS.map(P => mk(VA, P.pic, P.col, 0.04 + P.size * 0.6, 0.36));
+    VA.frames.push(() => {
+        const on = S.solar; LA.obj.visible = on; [sunA, ...plA].forEach(o => { o.b.visible = o.sp.visible = false; }); if (!on) return;
+        if (!keyA) { keyA = '1'; LA.reset(); PLANETS.forEach(P => { for (let k = 0; k < CN; k++) LA.seg(scl(planet2(P, TAU * k / CN), RS), scl(planet2(P, TAU * (k + 1) / CN), RS), scl(P.col, 0.55)); }); LA.flush(); }
+        const S0 = [0, 0, RS]; sunA.b.position.set(...S0); sunA.sp.position.set(...S0); sunA.b.visible = !isPic(); sunA.sp.visible = isPic();
+        PLANETS.forEach((P, k) => { const o = plA[k], q = scl(planet2(P, planetPhi(P)), RS); o.b.position.set(...q); o.sp.position.set(...q); o.b.visible = !isPic(); o.sp.visible = isPic(); });
+    });
+    // S³ の地図
+    const LB = Lines(VB, PLANETS.length * CN, { width: 1.3 });
+    const sunB = mk(VB, SUN.pic, SUN.col, 0.15, 0.6), plB = PLANETS.map(P => mk(VB, P.pic, P.col, 0.04 + P.size * 0.6, 0.38)), moB = mk(VB, '🌙', [0.9, 0.9, 0.85], 0.03, 0.22);
+    VB.frames.push(() => {
+        const on = S.solar; LB.obj.visible = on; [sunB, ...plB, moB].forEach(o => { o.b.visible = o.sp.visible = false; }); if (!on) return;
+        const rk = Array.from(R4, x => x.toFixed(5)).join(',') + '|' + S.D;
+        if (rk !== LB._key) { LB._key = rk; LB.reset();
+            PLANETS.forEach(P => { for (let k = 0; k < CN; k++) { const A = planetAt(P, TAU * k / CN), B = planetAt(P, TAU * (k + 1) / CN), da = mapS3(A, a), db = mapS3(B, b); if (!(da === da) || !(db === db) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.5) { LB.seg(Z, Z, Z); continue; } LB.seg(a, b, scl(P.col, 0.35 + 0.5 * (da + 1) / 2), scl(P.col, 0.35 + 0.5 * (db + 1) / 2)); } });
+            LB.flush(); }
+        const put = (o, q) => { const d = mapS3(q, a); if (!(d === d)) return; const k = Math.min(2.5, kOf(q)); o.b.position.set(...a); o.sp.position.set(...a); o.b.scale.setScalar(k); o.sp.scale.setScalar(o.sz * k); o.b.visible = !isPic(); o.sp.visible = isPic(); };
+        put(sunB, SUN.p); PLANETS.forEach((P, k) => put(plB[k], planetPos(P))); put(moB, moonPos(PLANETS[2]));
     });
 })();
 // 平行な仲間のグラフ（HUD）：横 s（0〜2π）、縦 自分と仲間の距離。点線＝平らな空間（d₀ のまま）、実線＝S³
@@ -1277,7 +1355,7 @@ function rebuildMarks() {
     const big = S.mk === 'pic' ? 1.5 : S.mk === 'dot' ? 1.9 : 1;   // 絵・色の点のモードは玉を大きめに
     const put = (p, c, r, pic) => { if (n >= NMK) return; U.uMk.value[n].set(p[0], p[1], p[2], p[3]); U.uMkC.value[n].set(c[0], c[1], c[2], r * big); U.uMkT.value[n] = ATLAS.of(pic); n++; };
     if (planetKey()) put(SP4, [0.58, 0.44, 0.3], S.planetR / big, null);   // 南極の星（地面）
-    FIXED.forEach(m => put(m.p, m.col, m.r, m.pic));
+    FIXED.forEach(m => { if (S.solar && m.label === 'N') put(SUN.p, SUN.col, SUN.r, SUN.pic); else put(m.p, m.col, m.r, m.pic); });   // 太陽系の時は北極に太陽
     W.marks.forEach(m => put(m.p, m.col, 0.1, m.pic));
     if (S.foot) W.foot.forEach(p => put(p, [0.8, 0.85, 1], 0.03, PIC.foot));
     ray.U.uNM.value = n; ray._base = n; ray._nFoot = W.foot.length; ray._nMk = W.marks.length;
@@ -1291,11 +1369,13 @@ function setRayUniforms() {
     U.uLens.value = lens; U.uFovY.value = fov * d2r; U.uTanF.value = Math.tan(Math.min(150, S.fov) * d2r / 2);
     U.uPixAng.value = (lens === 2 ? Math.PI : fov * d2r) / Math.max(1, VC.r.domElement.height);
     U.uPic.value = S.mk === 'pic' ? 1 : S.mk === 'dot' ? 2 : 0; U.uBgMesh.value = S.bgMesh ? 1 : 0; U.uPasses.value = S.passes;
-    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.mk || ray._planet !== planetKey() || ray._shell !== S.shell) { ray._planet = planetKey(); ray._shell = S.shell; rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.mk; }
+    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.mk || ray._planet !== planetKey() || ray._shell !== S.shell || ray._solar !== S.solar) { ray._planet = planetKey(); ray._shell = S.shell; ray._solar = S.solar; rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.mk; }
     // 自分の玉：いつも今の場所（最後の 1 つを入れかえる）
     // 毎コマ動くもの（ホップの円の仲間・自分の玉）は、固定の目印のあと（ray._base から）に入れ直す
     let n = ray._base || 0; const big = S.mk === 'pic' ? 1.5 : S.mk === 'dot' ? 1.9 : 1;
     if (S.hopf) HOPF.comps.forEach(c => { if (n >= NMK - 1) return; U.uMk.value[n].set(...hopfPos(c, HOPF.t)); U.uMkC.value[n].set(c.col[0], c.col[1], c.col[2], 0.06 * big); U.uMkT.value[n] = ATLAS.of(c.pic); n++; });
+    if (S.solar) PLANETS.forEach(P => { if (n >= NMK - 2) return; U.uMk.value[n].set(...planetPos(P)); U.uMkC.value[n].set(P.col[0], P.col[1], P.col[2], P.size * big); U.uMkT.value[n] = ATLAS.of(P.pic); n++;
+        if (P.moon) { U.uMk.value[n].set(...moonPos(P)); U.uMkC.value[n].set(0.9, 0.9, 0.85, P.moon.size * big); U.uMkT.value[n] = ATLAS.of(P.moon.pic); n++; } });
     if (S.para && PARA.p0) [0, 1].forEach(j => { if (n >= NMK - 1) return; U.uMk.value[n].set(...paraPos(j, paraS() + S.paraLead)); const c = PARA_COL[j]; U.uMkC.value[n].set(c[0], c[1], c[2], 0.06 * big); U.uMkT.value[n] = ATLAS.of(PARA_PIC[j]); n++; });
     if (S.self && n < NMK) { U.uMk.value[n].set(...W.p); U.uMkC.value[n].set(1, 1, 1, S.mk === 'ball' ? 0.09 : 0.13); U.uMkT.value[n] = ATLAS.of(PIC.self); n++; }
     U.uNM.value = n;
@@ -1306,10 +1386,13 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
 $('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
+$('b-solar').addEventListener('click', () => { if (S.solar) say('☀️ 太陽系：太陽は北極。「次の惑星へ ▶」でツアー'); else TOUR.i = -1; refreshUI(); req(3); });
+$('b-tour').addEventListener('click', () => { if (!S.solar) { S.solar = true; refreshUI(); } S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = (TOUR.i + 1) % PLANETS.length; TOUR.ride = false; const P = PLANETS[TOUR.i]; say(`${P.pic} ${P.name}へ出発（太陽から ${P.r.toFixed(2)}）`); refreshUI(); });
+$('b-tour0').addEventListener('click', () => { TOUR.i = -1; resetNorth(); S.az = 0; S.el = 0; onLook(); say('太陽のそば（北極）に戻った'); });
 $('b-headreset').addEventListener('click', headReset); $('headReset').addEventListener('click', headReset);
 $('b-stop').addEventListener('click', () => { S.walk = false; S.roam = false; S.spiral = false; refreshUI(); });
 $('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; SP.lap = 0; S.walk = false; S.roam = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
@@ -1334,7 +1417,7 @@ $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90')
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; S.ringView = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-parad': ['paraD', v => (+v).toFixed(2)], 's-paralead': ['paraLead', v => +v <= 0 ? '真横' : (+v).toFixed(2)], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 6.2 ? '（全部）' : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-solarspd': ['solarSpd', v => +v <= 0 ? '止める' : '×' + (+v).toFixed(1)], 's-parad': ['paraD', v => (+v).toFixed(2)], 's-paralead': ['paraLead', v => +v <= 0 ? '真横' : (+v).toFixed(2)], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 6.2 ? '（全部）' : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
     's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (k === 'hopfD' && S.hopf) hopfStart(); if (['xw', 'yw', 'zw'].includes(k)) { S.follow = false; S.ringView = false; } save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
@@ -1423,6 +1506,8 @@ function updateHUD() {
     $('hudC').innerHTML = `進んだ距離 <b>${W.dist.toFixed(2)}</b>（${lap.toFixed(2)} 周）<br>北極から <b>${dN.toFixed(2)}</b>　南極から <b>${(Math.PI - dN).toFixed(2)}</b><br>方位 <b>${Math.round(S.az)}°</b>　仰角 <b>${Math.round(S.el)}°</b><br>位置 (${W.p.map(x => x.toFixed(2)).join(', ')})`;
     if (S.spiral) $('hudC').innerHTML += `<br>🌪 ${SP.lap + 1} 周目${S.prec ? `　輪の面の傾き ${Math.round(((SP.lap + SP.th / TAU) * S.prec) % 360)}°` : ''}　z ${W.p[2].toFixed(2)}`;
     if (S.wArrow && IN.wa) $('hudC').innerHTML += `<br><span style="color:#c4b5fd">地図での曲がり ${IN.wa0 ? `今 <b>${IN.wa0.K.toFixed(2)}</b> → ${S.bendAhead.toFixed(2)} 先 ` : ''}<b>${IN.wa.K.toFixed(2)}</b>（まっすぐ＝0、地図の球のふちの大円＝1）　地図の縮み ×${IN.wa.sp.toFixed(2)}</span>`;
+    if (S.solar) { const dS = Math.acos(Math.max(-1, Math.min(1, dot(SUN.p, W.p)))); let best = null; PLANETS.forEach(P => { const d = Math.acos(Math.max(-1, Math.min(1, dot(planetPos(P), W.p)))); if (!best || d < best.d) best = { P, d }; });
+        $('hudC').innerHTML += `<br><span style="color:#fcd34d">☀️ 太陽まで <b>${dS.toFixed(2)}</b>（反対回りなら ${(TAU - dS).toFixed(2)}）　いちばん近い ${best.P.pic} ${best.P.name} <b>${best.d.toFixed(2)}</b>${TOUR.i >= 0 ? `　ツアー：${PLANETS[TOUR.i].pic} ${PLANETS[TOUR.i].name}${TOUR.ride ? 'と並んで飛ぶ' : 'へ飛んで行く'}` : ''}</span>`; }
     if (S.para && PARA.p0) { const sP = paraS(), c0 = paraPos(0, sP), c1 = paraPos(1, sP), dR = Math.acos(Math.max(-1, Math.min(1, dot(c0, W.p)))), dB = Math.acos(Math.max(-1, Math.min(1, dot(c0, c1))));
         $('hudC').innerHTML += `<br><span style="color:#7dd3fc">平行な仲間：進んだ <b>${sP.toFixed(2)}</b>　🐧 の道までの間 <b>${dR.toFixed(3)}</b>（平らなら ${PARA.d0.toFixed(3)} のまま）　🐧〜🐬 の道の間 <b>${dB.toFixed(3)}</b></span>` + paraGraph(); }
     if (S.ring) $('hudC').innerHTML += `<br>🌐 ${Math.floor(RING.T / TAU) + 1} 周目　輪の向き ${Math.round(((S.ringStep * RING.T / TAU) % 360))}°（軸 ${S.ringAxis === 'all' ? '全部' : S.ringAxis}）`;
@@ -1510,6 +1595,8 @@ function loop(now) {
     if (K.has('a')) mv[0] -= 1; if (K.has('d')) mv[0] += 1;
     if (K.has('q') || IN.pad === 'up') mv[1] += 1; if (K.has('e') || IN.pad === 'down') mv[1] -= 1;
     if (K.has('arrowleft')) { S.az -= dt * 60; onLook(); } if (K.has('arrowright')) { S.az += dt * 60; onLook(); }
+    if (S.solar) { SOL.t += dt * S.solarSpd; req(2);
+        if (TOUR.i >= 0) { if (mv[0] || mv[1] || mv[2]) { TOUR.i = -1; say('ツアーをやめた（歩いた）'); } else tourStep(dt); } }
     if (S.grav) { gravityStep(dt, mv); }
     else if (S.ring) { ringStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
     else if (S.hopf) { hopfStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
