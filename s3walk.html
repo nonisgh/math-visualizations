@@ -23,7 +23,7 @@
     <script src="lib/ui-dock.js"></script>
     <script src="lib/state-sync.js"></script>
     <script src="lib/supa-config.js"></script>
-    <script src="lib/supa-sync.js"></script>
+    <script src="lib/supa-sync.js?b=20261025-0731"></script>
     <script src="lib/nd-geom.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
@@ -2044,13 +2044,22 @@ if (window.StateSync) {
     } catch (e) { console.warn('state-sync', e); }
 }
 // ---- 設定の同期（共通部品 supa-sync）：Supabase の表 mathviz_state の自分の行へ。メールのリンクでログイン、ほかの端末の変更はリアルタイムで届く ----
-//   ほかの端末の変更は、読み直さずにその場で反映する（ボタン・スライダー＝s3walk-state、欄のたたみ＝s3walk-folds）
+//   ほかの端末の変更は、読み直さずにその場で反映する（ボタン・スライダー＝s3walk-state、欄のたたみ＝s3walk-folds、分離と連結の並び＝s3walkFloats）
+//   ぬるぬる同期では、画面まわり（並び・たたみ・パネルの開閉・地図のカメラ）と道すじ・足あと・目印も送り合う＝画面まるごと
 if (window.SupaSync) {
     try {
         const applyLive = d => {
             if (d['s3walk-state']) { const st = JSON.parse(d['s3walk-state']); Object.assign(S, st); updateRot(); refreshUI(); resizeAll(); req(3); }
-            if (d['s3walk-folds']) { const f = JSON.parse(d['s3walk-folds']); document.querySelectorAll('#sb-scroll > section.sb-sec[data-sec]').forEach(x => x.classList.toggle('folded', !!f[x.dataset.sec])); }
+            if (d['s3walk-folds']) setFolds(JSON.parse(d['s3walk-folds']));
+            if (d.s3walkFloats && dock && JSON.stringify(dock.layout()) !== d.s3walkFloats) dock.apply(d.s3walkFloats);
         };
+        // 画面まわり：欄のたたみ・分離と連結の並び・パネルを閉じているか・地図 3 つのカメラ
+        const getFolds = () => { const o = {}; document.querySelectorAll('#sb-scroll > section.sb-sec[data-sec]').forEach(x => { o[x.dataset.sec] = x.classList.contains('folded'); }); return o; };
+        const setFolds = f => document.querySelectorAll('#sb-scroll > section.sb-sec[data-sec]').forEach(x => x.classList.toggle('folded', !!f[x.dataset.sec]));
+        const camGet = (c, ctl) => ({ p: c.position.toArray().map(r5), t: ctl.target.toArray().map(r5) });
+        const camSet = (c, ctl, v) => { if (!v || !Array.isArray(v.p) || !Array.isArray(v.t)) return; c.position.fromArray(v.p); ctl.target.fromArray(v.t); c.updateProjectionMatrix(); ctl.update(); };
+        const got = {};   // 前に受け取った画面まわりの値（受け取った値が変わった時だけ当てる：画面の大きさで位置が詰められても、毎回並べ直さないように）
+        const once = (k, v, fn) => { const sv = JSON.stringify(v); if (v === undefined || got[k] === sv) return; got[k] = sv; fn(v); };
         // ライブ同期（ぬるぬる）：設定・位置と向き・進んだ距離・S² の仲間・自転／網目／惑星／ホップの円の時刻を、1 秒に 12 回送り合う（小数は 5 桁に丸めて、こだまさせない）
         const r5 = x => Math.round(x * 1e5) / 1e5, rv = v => v.map(r5);
         let liveUI = 0;
@@ -2058,18 +2067,36 @@ if (window.SupaSync) {
             hz: 12,
             get: () => ({ S: JSON.parse(JSON.stringify(S, (k, v) => typeof v === 'number' ? r5(v) : v)),
                 W: { p: rv(W.p), r: rv(W.r), u: rv(W.u), f: rv(W.f), dist: r5(W.dist) }, W2: { p: rv(W2.p), r: rv(W2.r), f: rv(W2.f) },
-                t: { spin: r5(SPIN.ang), grid: r5(GRID.spin), sol: r5(SOL.t), hopf: r5(HOPF.t) } }),
+                t: { spin: r5(SPIN.ang), grid: r5(GRID.spin), sol: r5(SOL.t), hopf: r5(HOPF.t) },
+                // 道すじの数（0＝消した）・足あと・目印（場所だけ。色と絵は番号で決まる）
+                tn: W.trail.length, ft: [W.foot.map(rv), W2.foot.map(rv)], mk: W.marks.map(m => [rv(m.p), rv(m.p2), r5(m.dist)]),
+                ui: { fl: dock ? dock.layout() : null, fo: getFolds(), sb: document.body.classList.contains('sidebar-hidden'),
+                    cam: { A: camGet(VA.cam, VA.ctl), B: camGet(VB.cam, VB.ctl), M2: camGet(M2.cam, M2.ctl) } } }),
             set: st => {
                 if (st.S) Object.assign(S, st.S);
                 if (st.W) { W.p = st.W.p.slice(); W.r = st.W.r.slice(); W.u = st.W.u.slice(); W.f = st.W.f.slice(); W.dist = st.W.dist; }
                 if (st.W2) { W2.p = st.W2.p.slice(); W2.r = st.W2.r.slice(); W2.f = st.W2.f.slice(); }
+                // 道すじ：送り手が消したら消す。ほかは送り手と同じ決まり（0.02 進むごと）で、ついていく側でも足していく
+                if (st.tn !== undefined) {
+                    if (st.tn === 0 || st.tn < (got.tn || 0) || st.W && st.W.dist < W.lastTrail) { W.trail = []; W2.trail = []; W.lastTrail = W.dist; }
+                    got.tn = st.tn;
+                    if (st.tn > 0 && (!W.trail.length || W.dist - W.lastTrail >= 0.02)) { W.trail.push(W.p.slice()); W2.trail.push(W2.p.slice()); W.lastTrail = W.dist; if (W.trail.length > 12000) { W.trail.shift(); W2.trail.shift(); } }
+                }
+                once('ft', st.ft, f => { W.foot = f[0].map(a => a.slice()); W2.foot = f[1].map(a => a.slice()); rebuildMarks(); });
+                once('mk', st.mk, m => { W.marks = m.map((a, i) => ({ p: a[0].slice(), p2: a[1].slice(), col: hsl((i * 47 + 20) % 360, 0.9, 0.6), n: i + 1, dist: a[2], pic: picOfMark(i) })); rebuildMarks(); refreshUI(); });
+                if (st.ui) {
+                    once('fo', st.ui.fo, setFolds);
+                    once('fl', st.ui.fl, L => { if (dock && L) dock.apply(L); });
+                    once('sb', st.ui.sb, h => setSidebar(!h));
+                    if (st.ui.cam) { camSet(VA.cam, VA.ctl, st.ui.cam.A); camSet(VB.cam, VB.ctl, st.ui.cam.B); camSet(M2.cam, M2.ctl, st.ui.cam.M2); }
+                }
                 if (st.t) { SPIN.ang = st.t.spin; GRID.spin = st.t.grid; SOL.t = st.t.sol; HOPF.t = st.t.hopf; }
                 updateRot(); req(2);
                 const now = performance.now(); if (now - liveUI > 250) { liveUI = now; refreshUI(); }   // ボタン・スライダーの見た目は 1 秒に 4 回まで
             },
         };
-        const supa = SupaSync.create({ app: 's3walk', build: '20261025-0640', exclude: ['s3walkFloats', 's3walkSession'], applyLive, live });
-        supa.start(); supa.mountUI($('supaBox')); window._s3supa = supa;
+        const supa = SupaSync.create({ app: 's3walk', build: '20261025-0640', exclude: ['s3walkSession'], applyLive, live });
+        supa.start(); supa.mountUI($('supaBox')); window._s3supa = supa; window._s3live = { live, applyLive };
     } catch (e) { console.warn('supa-sync', e); }
 }
 </script>
