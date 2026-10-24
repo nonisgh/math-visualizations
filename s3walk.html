@@ -158,11 +158,12 @@
                 <div class="sl"><span>速さ</span><input id="s-spd" type="range" min="0.1" max="2" step="0.05"><output id="o-spd"></output></div>
                 <div class="sl"><span>曲がり</span><input id="s-roam" type="range" min="0.2" max="3" step="0.05" title="縦横無尽の時の、向きの変わりやすさ"><output id="o-roam"></output></div>
                 <div class="sl"><span>巻き数</span><input id="s-turns" type="range" min="1" max="12" step="0.5" title="螺旋で北極から南極まで行く間に何回まわるか"><output id="o-turns"></output></div>
+                <div class="sl"><span>傾き</span><input id="s-tilt" type="range" min="0" max="1" step="0.05" title="二重の螺旋：巻く面が進むにつれて z の方へ傾く度合い。0 なら 1 枚の球面の上の平らな竜巻（左の S² と同じ）、1 なら北極では z の向きに巻き始め、南極では −z の向きに"><output id="o-tilt"></output></div>
                 <div class="row">
                     <button class="btn" id="b-north" title="北極 N に立って、進んだ距離を 0 に。足あとと道すじも消す">北極に戻す</button>
                     <button class="btn" id="b-clear" title="道すじと足あとを消す（場所はそのまま）">道すじを消す</button>
                 </div>
-                <p class="note">キー：W/S・↑↓ 前後　A/D 横　Q/E 上下　←→ 方位　ホイール 前後。右の窓をドラッグすると見回す（向いた方へ進む）。「縦横無尽」は歩きながら向きがひとりでに変わり続けるモード（「曲がり」で変わりやすさ）。「螺旋で一周」は北極から竜巻のように巻きながら南極へ行き、反対側を巻いて北極へ戻る（「巻き数」で北極→南極の間に回る回数）。</p>
+                <p class="note">キー：W/S・↑↓ 前後　A/D 横　Q/E 上下　←→ 方位　ホイール 前後。右の窓をドラッグすると見回す（向いた方へ進む）。「縦横無尽」は歩きながら向きがひとりでに変わり続けるモード（「曲がり」で変わりやすさ）。「螺旋で一周」は北極から竜巻のように巻きながら南極へ行き、反対側を巻いて北極へ戻る（「巻き数」で北極→南極の間に回る回数）。「傾き」を 0 より大きくすると<b>二重の螺旋</b>：巻く面そのものが z の方へ傾いていく 4次元らしい渦（左の S² には対応する動きがないので、左は平らな竜巻のまま）。</p>
             </section>
 
             <section class="sb-sec">
@@ -332,7 +333,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // ---------------------------------------------------------------------
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
-const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
+const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, tilt: 0.6, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
     mk: 'ball', bgMesh: false, passes: 4, mapW: 0.4, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
@@ -391,10 +392,16 @@ function walkStep(local, s) {   // local＝[右, 上, 前] の割合（見てい
 }
 // 螺旋（竜巻）：北極からの距離 θ を一定の速さで進めながら、まわりの角 φ = k·θ を回す。S³ では z = 0 の球面 S² の上の螺旋（左の S² と同じ道）
 const SP = { th: 0.002 };
-function spiralPoint(th) { const k = 2 * S.turns, ph = k * th, sn = Math.sin(th); return { p: [sn * Math.cos(ph), sn * Math.sin(ph), 0, Math.cos(th)], p2: [sn * Math.cos(ph), sn * Math.sin(ph), Math.cos(th)] }; }
+// 二重の螺旋：巻く面の向き u（3 つの向きの球面の上の点）も、進むにつれて z の方から −z の方へ傾いていく（傾き 0 なら z = 0 の面のまま＝S² と同じ竜巻）
+//   p = (sinθ·u, cosθ)、u = (sinψ cosφ, sinψ sinφ, cosψ)、φ = k·θ、ψ = π/2 − 傾き·(π/2 − θ)
+function spiralPoint(th) {
+    const k = 2 * S.turns, ph = k * th, sn = Math.sin(th), psi = Math.PI / 2 - S.tilt * (Math.PI / 2 - th), sp = Math.sin(psi), cp = Math.cos(psi);
+    return { p: [sn * sp * Math.cos(ph), sn * sp * Math.sin(ph), sn * cp, Math.cos(th)], p2: [sn * Math.cos(ph), sn * Math.sin(ph), Math.cos(th)] };
+}
 function spiralStep(ds) {
-    const k = 2 * S.turns, sn = Math.sin(SP.th);
-    SP.th += ds / Math.sqrt(1 + k * k * sn * sn);   // 道のりが ds になるように θ を進める（ds² = dθ² + sin²θ dφ²）
+    const h = 1e-4, a = spiralPoint(SP.th - h).p, b = spiralPoint(SP.th + h).p;
+    const speed = Math.max(1e-6, Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2], b[3] - a[3]) / (2 * h));   // |dp/dθ|（数値で）
+    SP.th += ds / speed;   // 道のりが ds になるように θ を進める
     if (SP.th > TAU) SP.th -= TAU;
     const q = spiralPoint(SP.th);
     const d = nrm(add(q.p, W.p, -dot(q.p, W.p))), d2 = nrm(add(q.p2, W2.p, -dot(q.p2, W2.p)));
@@ -581,7 +588,7 @@ const AXL = 2.7;
     const place = (obj, p, base) => { const d = mapS3(p, a); if (!(d === d)) { obj.visible = false; return NaN; } obj.visible = true; obj.position.set(a[0], a[1], a[2]); obj.scale.setScalar(base * Math.min(2.5, kOf(p))); return d; };
     v.frames.push(() => {
         Leq.obj.visible = S.eq; Lsh.obj.visible = S.lite; Lc.obj.visible = S.circ; Lr.obj.visible = S.room; spL.obj.visible = S.spiral;
-        if (S.spiral) { if (spKey !== String(S.turns)) { spKey = String(S.turns); const path = spiralPath(1200); spPath = []; for (let i = 0; i + 1 < path.length; i++) spPath.push([path[i].p, path[i + 1].p]); } drawPairs(spL, spPath, d => scl([0.55, 0.5, 0.9], 0.5 + 0.5 * (d + 1) / 2), 1.5, false); }
+        if (S.spiral) { if (spKey !== S.turns + '/' + S.tilt) { spKey = S.turns + '/' + S.tilt; const path = spiralPath(1200); spPath = []; for (let i = 0; i + 1 < path.length; i++) spPath.push([path[i].p, path[i + 1].p]); } drawPairs(spL, spPath, d => scl([0.55, 0.5, 0.9], 0.5 + 0.5 * (d + 1) / 2), 1.5, false); }
         if (S.eq) drawPairs(Leq, eqPairs, d => depthColor(d, 0.8), 3, true);
         if (S.lite) drawPairs(Lsh, shPairs, d => depthColor(d, 0.45), 3, true);
         if (S.circ) drawPairs(Lc, circ, (d, i) => scl(circ[i][2], 0.25 + 0.75 * Math.pow((d + 1) / 2, 1.5)), 3, true);
@@ -818,7 +825,7 @@ $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90')
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
     's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (['xw', 'yw', 'zw'].includes(k)) S.follow = false; save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
