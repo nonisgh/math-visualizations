@@ -171,8 +171,9 @@
                 </div>
                 <div id="mklist"></div>
                 <div class="row">
-                    <button class="btn" id="b-pic" title="目印を玉ではなく絵（兎・亀・たぬき…）で見せる。中の景色では線（部屋・経線・赤道の膜）を消して、絵だけにする（P キー）">🐰 絵のモード</button>
+                    <button class="btn" id="b-pic" title="目印を玉ではなく絵（兎・亀・たぬき…）で見せる。中の景色では線（部屋・経線・赤道の膜）を細く薄くして、絵を主役にする（P キー）">🐰 絵のモード</button>
                 </div>
+                <div class="sl"><span>絵の時の線</span><input id="s-picline" type="range" min="0" max="1" step="0.05" title="絵のモードでの線（部屋・経線・赤道の膜）の濃さ。0 で消える"><output id="o-picline"></output></div>
                 <div class="row">
                     <button class="btn" id="b-foot" title="0.6 進むごとに小さな足あとを落とす">足あと</button>
                     <button class="btn" id="b-eq" title="赤道の球面 S²（w = 0）を薄い膜で">赤道の膜</button>
@@ -220,7 +221,7 @@
                     <p><b>3次元球面 S³</b> は、4次元の超球の表面にあたる <b>3次元の空間</b>です。中にいる人は前後・左右・上下に動けますが、どの向きにまっすぐ進んでも、<b>2π（約 6.28）進むと元の場所に戻ります</b>。途中 π で反対側の点（対蹠点）を通ります。</p>
                     <p class="an">2次元の仲間：ふつうの球面 S²。北極から どの方位にまっすぐ歩いても、南極を通って北極に戻る（経線をたどる）。左の窓はそれです。</p>
                     <p>出発した北極では、<b>空全体が金色</b>に見えます。これは反対側（π 先）の南極の玉。S³ では、ちょうど反対側の点から出た光がどの向きからも届くので、そこにある物が空いっぱいに広がって見えます。少し歩くと金色の玉はまとまって見えてきます。</p>
-                    <p><b>絵のモード</b>：目印を 🐰🐢🦝 などの絵にし、中の景色の線を消します。どの目印が前に（遠回りして）見えているのか、一目で分かります。各絵の<b>右上に赤い点</b>があります。</p>
+                    <p><b>絵のモード</b>：目印を 🐰🐢🦝 などの絵にし、中の景色の線を細く薄くします（「絵の時の線」で濃さを変えられ、0 で消えます）。どの目印が前に（遠回りして）見えているのか、一目で分かります。各絵の<b>右上に赤い点</b>があります。</p>
                     <p><b>像の向き</b>：光の道のりが π より短い物は正しい向き（赤い点が右上）。ちょうど π（反対側）の物は空いっぱいに広がり、向きは正しいまま。π より長い（反対側を回ってきた光で見える）物は <b>180° 回った像</b>＝上下も左右も逆（赤い点が左下）。鏡のように左右だけ裏返ることはありません。反対側の点がレンズの焦点のように働いて、そこを越えた光は像をひっくり返すのです。</p>
                     <p>中の景色（右）：光も大円に沿って進むので、<b>π 先の対蹠点が空いっぱいに広がって見え</b>、2π 先には自分の背中が見えます。遠くの目印は、π に近づくほど逆に大きく見えます。</p>
                     <p>S³ の地図（真ん中）：4次元の超球を、次元おりがみと同じ遠近で 3次元に写した模型。手前の半分（w が＋、赤紫）と奥の半分（w が−、水色）が重なって 1 つの玉に見えます。地図の上の白い玉が自分です。</p>
@@ -304,7 +305,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, foot: true, eq: true, circ: true, room: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    pic: false, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    pic: false, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 S.walk = false;
@@ -553,7 +554,7 @@ uniform vec4 uP, uR, uU, uF;
 uniform vec4 uMk[${NMK}]; uniform vec4 uMkC[${NMK}]; uniform float uMkT[${NMK}]; uniform int uNM;
 uniform sampler2D uAtlas; uniform int uPic;
 uniform vec4 uN[12]; uniform int uRoom, uCirc, uEq;
-uniform float uFog, uMaxD, uTube, uFade;
+uniform float uFog, uMaxD, uTube, uFade, uPicLine;
 const float PI = 3.14159265;
 vec3 bg(vec3 d){ return mix(vec3(0.012,0.02,0.05), vec3(0.05,0.04,0.12), 0.5+0.5*d.y); }
 float pixW(float t){ return min(abs(sin(t)) * 2.0*uTanF/uRes.y * 1.6, 0.3); }
@@ -609,7 +610,8 @@ void main(){
         Lt[k] = t; Lc[k] = c; La[k] = a; lastT = t;
     }
     // ---- 経線・赤道の輪・部屋の辺（管。少しずつ進める）----
-    if(uPic==0 && (uCirc==1 || uRoom==1)){
+    if((uPic==0 || uPicLine > 0.0) && (uCirc==1 || uRoom==1)){
+        float tube = uPic==1 ? uTube*0.5 : uTube;   // 絵のモードでは細く
         vec4 p = p0; vec4 vv = v; vec4 pf = p0; vec4 vf = v; float t = 0.0;
         for(int i=0;i<160;i++){
             float d = 1e9; vec3 cc = vec3(1.0); float li = 1.0;
@@ -629,10 +631,10 @@ void main(){
                 float dr = sqrt(e1*e1+e2*e2);
                 if(dr < d){ d = dr; cc = vec3(0.62,0.5,0.95); li = 0.5 + 0.5*cos(2.0*atan(-e2, -e1) - 0.7); }
             }
-            float wpx = pixW(t); float sd = d - uTube - wpx;
+            float wpx = pixW(t); float sd = d - tube - wpx;
             float st;
             if(sd < 0.0015){
-                if(t > 0.1){ if(t < uMaxD){ float cover = uTube/(uTube+wpx); Lt[4] = t; Lc[4] = cc*1.15*li; La[4] = 0.92*cover; } break; }
+                if(t > 0.1){ if(t < uMaxD){ float cover = tube/(tube+wpx); Lt[4] = t; Lc[4] = cc*1.15*li; La[4] = (uPic==1 ? uPicLine : 0.92)*cover; } break; }
                 st = 0.012;
             } else st = max(sd*0.9, 0.003);
             float c = cos(st), s = sin(st);
@@ -642,14 +644,15 @@ void main(){
         }
     }
     // ---- 赤道の膜 S²（w = 0）----
-    if(uPic==0 && uEq==1){
+    if((uPic==0 || uPicLine > 0.0) && uEq==1){
+        float film = uPic==1 ? uPicLine : 1.0;
         float te = atan(-p0.w, v.w); if(te < 0.0) te += PI;
         for(int k=5;k<7;k++){
             if(te > 0.002 && te < uMaxD){
                 vec4 q = cos(te)*p0 + sin(te)*v;
                 float lat = asin(clamp(q.z,-1.0,1.0)), lon = atan(q.y, q.x);
                 float g = max(smoothstep(0.06, 0.0, abs(fract(lat/(PI/6.0)+0.5)-0.5)*(PI/6.0)), smoothstep(0.06, 0.0, abs(fract(lon/(PI/6.0)+0.5)-0.5)*(PI/6.0)*cos(lat)));
-                Lt[k] = te; Lc[k] = mix(vec3(0.3,0.45,0.9), vec3(0.8,0.9,1.0), g); La[k] = 0.08 + 0.4*g;
+                Lt[k] = te; Lc[k] = mix(vec3(0.3,0.45,0.9), vec3(0.8,0.9,1.0), g); La[k] = (0.08 + 0.4*g)*film;
             }
             te += PI;
         }
@@ -673,7 +676,7 @@ const ray = (() => {
     const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const U = { uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * d2r) }, uP: { value: new THREE.Vector4() }, uR: { value: new THREE.Vector4() }, uU: { value: new THREE.Vector4() }, uF: { value: new THREE.Vector4() },
         uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkT: { value: new Float32Array(NMK).fill(-1) }, uNM: { value: 0 }, uAtlas: { value: ATLAS.tex }, uPic: { value: 0 },
-        uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
+        uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uPicLine: { value: 0.3 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
     const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: RAY_FRAG, depthTest: false, depthWrite: false });
     scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
     cell120().planes.forEach((v, i) => U.uN.value[i].set(v[0], v[1], v[2], v[3]));
@@ -691,7 +694,7 @@ function rebuildMarks() {
 function setRayUniforms() {
     const U = ray.U, F = lookFrame();
     U.uP.value.set(...W.p); U.uR.value.set(...F.R); U.uU.value.set(...F.U); U.uF.value.set(...F.L);
-    U.uRoom.value = S.room ? 1 : 0; U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uFade.value = S.fade; U.uMaxD.value = S.maxd;
+    U.uRoom.value = S.room ? 1 : 0; U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog; U.uFade.value = S.fade; U.uPicLine.value = S.picLine; U.uMaxD.value = S.maxd;
     U.uRes.value.set(VC.r.domElement.width, VC.r.domElement.height);
     U.uPic.value = S.pic ? 1 : 0;
     if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.pic) { rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.pic; }
@@ -717,7 +720,7 @@ $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90')
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%'],
     's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (['xw', 'yw', 'zw'].includes(k)) S.follow = false; save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
