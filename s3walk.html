@@ -210,7 +210,7 @@
             <section class="sb-sec" data-sec="walk">
                 <h3 class="sb-h"><i data-lucide="footprints" class="w-3.5 h-3.5"></i>歩く（まずはここ）<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
                 <div class="sec-body">
-                <p class="note sec-hint">まっすぐ歩くと、ぐるっと回ってもとの場所に戻ってきます。出発は<b>アナ極（4 次元の北）</b>、ちょうど反対側が<b>カタ極（4 次元の南）</b>。</p>
+                <p class="note sec-hint" id="wnHint" data-notr>まっすぐ歩くと、ぐるっと回ってもとの場所に戻ってきます。出発は<b>アナ極（4 次元の北）</b>、ちょうど反対側が<b>カタ極（4 次元の南）</b>。</p>
                 <div class="row">
                     <button class="btn big" id="b-trip" title="アナ極に立ち、今の方位・仰角で歩き続ける。カタ極を通ってアナ極に戻る（2π）">▶ アナ極から一周</button>
                     <button class="btn" id="b-walk" title="向いている方へ歩き続ける（W キー＝押している間だけ）">歩き続ける</button>
@@ -289,11 +289,11 @@
             <section class="sb-sec" data-sec="goto">
                 <h3 class="sb-h"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i>座標へ向かう<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
                 <div class="sec-body">
-                <p class="note">S³ の点は x² + y² + z² + w² = 1。x・y・z・w は区別なし。<b>最後に入れた数がいちばん優先</b>（①最新はそのまま、②③ は残りの幅に合わせて調整され、スライダーの明るい帯が狭まる。例：w を 0.5 にすると、ほかは 1 − 0.25 ＝ 0.75 を分け合う）。まだ入れていない軸は残りを等しく分け合う。3 つ入れたら残りの 1 つは自動で決まり（＋か−）、4 つ目を入れると、いちばん前に入れた数が外れて自動の側に入れ替わる。数は 1→1、5→0.5、34→0.34、-5→−0.5（小数点なしは桁の数だけ 10 で割る。小数点を打ってもよい）。白い点が目的地。</p>
+                <p class="note">S³ の点は w² + x² + y² + z² = 1。w・x・y・z は区別なし。<b>最後に入れた数がいちばん優先</b>（①最新はそのまま、②③ は残りの幅に合わせて調整され、スライダーの明るい帯が狭まる。例：w を 0.5 にすると、ほかは 1 − 0.25 ＝ 0.75 を分け合う）。まだ入れていない軸は残りを等しく分け合う。3 つ入れたら残りの 1 つは自動で決まり（＋か−）、4 つ目を入れると、いちばん前に入れた数が外れて自動の側に入れ替わる。数は 1→1、5→0.5、34→0.34、-5→−0.5（小数点なしは桁の数だけ 10 で割る。小数点を打ってもよい）。白い点が目的地。</p>
+                <div class="gtrow"><b style="color:#b07cff">w</b><input type="range" class="gtr" data-a="w" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="w" inputmode="decimal"><span class="gtl" data-a="w"></span></div>
                 <div class="gtrow"><b style="color:#ff5d6c">x</b><input type="range" class="gtr" data-a="x" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="x" inputmode="decimal"><span class="gtl" data-a="x"></span></div>
                 <div class="gtrow"><b style="color:#3ddc84">y</b><input type="range" class="gtr" data-a="y" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="y" inputmode="decimal"><span class="gtl" data-a="y"></span></div>
                 <div class="gtrow"><b style="color:#56a8ff">z</b><input type="range" class="gtr" data-a="z" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="z" inputmode="decimal"><span class="gtl" data-a="z"></span></div>
-                <div class="gtrow"><b style="color:#b07cff">w</b><input type="range" class="gtr" data-a="w" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="w" inputmode="decimal"><span class="gtl" data-a="w"></span></div>
                 <div class="row">
                     <button class="btn" id="b-gtreset" title="入れた数を全部外す（4 つの軸が残りを等しく分け合う、0.5 ずつ）">やり直す</button>
                     <button class="btn" id="b-gthere" title="今いる場所の座標を入れる（x→y→z の順に固定、w は自動）">今いる所を入れる</button>
@@ -366,7 +366,13 @@
                     <button class="btn" id="b-mkclear" title="置いた目印を消す（アナ極・カタ極・赤道の 6 つは残る）">置いた目印を消す</button>
                 </div>
                 <div id="mklist"></div>
-                <p class="note"><b>アナ極（4 次元の北）・カタ極（4 次元の南）</b>は w の両はし（出発はアナ極）。北極・南極は y、東極・西極は x、天極・地極は z の両はし。アナ・カタは、4 次元の 4 本目の向き（w の＋と−）の名前。</p>
+                <p class="note" id="wnNote" data-notr><b>アナ極（4 次元の北）・カタ極（4 次元の南）</b>は w の両はし（出発はアナ極）。北極・南極は y、東極・西極は x、天極・地極は z の両はし。アナ・カタは、4 次元の 4 本目の向き（w の＋と−）の名前。</p>
+                <div class="row" data-notr>
+                    <span class="note">w極の呼称：</span>
+                    <button class="btn wnm" data-n="ana" title="アナ極・カタ極：4 次元の 4 本目の向きの名前（ヒントンの ana・kata）。いちばんもとの呼び方">アナ極・カタ極</button>
+                    <button class="btn wnm" data-n="cho" title="超北極・超南極：超立方体の「超」のように、4 次元の北と南（このアプリのお遊びの呼び名・非公式）">超北極・超南極</button>
+                    <button class="btn wnm" data-n="omote" title="表極・裏極：3 次元の世界の表と裏のような、4 次元の向きの両はし（このアプリのお遊びの呼び名・非公式）">表極・裏極</button>
+                </div>
                 <div class="row">
                     <button class="btn" id="b-poles" title="極点を表示：8 つの極（アナ極 +w・カタ極 −w と、x・y・z 軸の両はしの 6 つ）を、中の景色と地図（S³ の地図・S² の窓・地図 2）に、平らな点と名前で出す（玉にするとゆがむので点だけ。殻や線の奥でも見える。地図では球の奥の側は薄く）。アナ極は赤、カタ極は紫。東 +x・西 −x・北 +y・南 −y・天 +z・地 −z。アナ極から軸の向きに 90° 進むと、ちょうどとなりの極に着く。8 つは正十六胞体の頂点">📍 極点を表示</button>
                 </div>
@@ -638,7 +644,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, spin: false, spinRate: 6, spinTilt: 23.4, spinAz: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', gt: { v: { x: 0.5, y: 0.5, z: 0.5, w: 0.5 }, ord: '', sg: { x: 1, y: 1, z: 1, w: 1 } }, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, wName: 'ana', shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', gt: { v: { x: 0.5, y: 0.5, z: 0.5, w: 0.5 }, ord: '', sg: { x: 1, y: 1, z: 1, w: 1 } }, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 // スクリーンセーバー（s3walk.html?saver、?saver&sec=60 で 1 場面の秒数、&scene=2 でその場面だけ）：保存は読まず・書かず、同期もしない（ふだんの設定と別に動く）
 const SAVER = (() => { try { const q = new URLSearchParams(location.search); if (!q.has('saver')) return null; return { sec: Math.max(10, +q.get('sec') || 50), only: q.has('scene') ? +q.get('scene') : null }; } catch (e) { return null; } })();
@@ -653,7 +659,13 @@ const shellMinTheta = () => (S.mk === 'pic' ? 0.13 * 1.5 : S.mk === 'dot' ? 0.13
 S.walk = false; S.roam = false; S.spiral = false; S.grav = false; S.hopf = false; S.ring = false; S.ringView = false; S.fill = false;
 if (S.fillS !== undefined) { if (!S.fillMode || S.fillMode === 'half') S.fillMode = S.fillS ? 'half' : 'full'; delete S.fillS; }   // 前の保存（カタ極でもターン ON/OFF）を読みかえる
 // 画面に出す軸の文字の入れかえの仕組み（中の軸 i → 画面の軸 PERM[i]）。今は入れかえなし（w のまま）
-const NS_I = 3;   // 今は w のまま（軸の名前は、w＝北・南、y＝北・南、x＝東・西、z＝天・地 に決めた）
+const NS_I = 3;   // 今は w のまま（軸の名前は、w＝アナ・カタ、y＝北・南、x＝東・西、z＝天・地 に決めた）
+// w極の呼称（S.wName）：w の両はしの呼び名をお遊びで言いかえる。公式に近いのはアナ極・カタ極（ヒントンの ana・kata）。
+//   ほかは このアプリの非公式の呼び名。画面に出る文字（今は全部アナ・カタで書いてある）を、出す所で言いかえる（trW）
+const W_NAMES = { ana: ['アナ', 'カタ'], cho: ['超北', '超南'], omote: ['表', '裏'] };
+const WN = W_NAMES[S.wName] || W_NAMES.ana, WN_ON = !!W_NAMES[S.wName] && S.wName !== 'ana';
+const trW = t => WN_ON ? String(t).replace(/アナ/g, WN[0]).replace(/カタ/g, WN[1]) : t;
+const wPoleN = () => WN_ON ? `${WN[0]}極（アナ極）` : 'アナ極', wPoleS = () => WN_ON ? `${WN[1]}極（カタ極）` : 'カタ極';   // 説明用：公式の名前を添える
 const PERM = [0, 1, 2, 3]; PERM[3] = NS_I; PERM[NS_I] = 3;   // 中の軸 i → 画面の軸 PERM[i]（入れかえなので、逆も同じ）
 const axL = i => 'xyzw'[PERM[i]];   // 中の軸 → 画面の文字
 const axI = L => PERM['xyzw'.indexOf(L)];   // 画面の文字 → 中の軸
@@ -1038,7 +1050,7 @@ function gtRender() {
     document.querySelectorAll('.gtl').forEach(el => { const a = el.dataset.a;
         el.textContent = f.idx[a] ? `${CT_NUM[f.idx[a] - 1]}${f.idx[a] === 1 ? '最新' : ''} ±${f.lim[a].toFixed(2)}` : last ? `自動 ${v[a] >= 0 ? '+' : '−'}${f.rr.toFixed(2)}` : `分け合う`; });
     const T = gtTarget(), d = Math.acos(Math.max(-1, Math.min(1, dot(W.p, T)))), dn = Math.acos(Math.max(-1, Math.min(1, T[3])));
-    const info = $('gtInfo'); if (info) info.textContent = `目的地 (${toDisp(T).map(x => x.toFixed(2)).join(', ')})　ここから ${d.toFixed(2)}　アナ極から ${dn.toFixed(2)}` + (GOTO.on ? '　向かっています' : '');
+    const info = $('gtInfo'); if (info) info.textContent = trW(`目的地 (${toDisp(T).map(x => x.toFixed(2)).join(', ')})　ここから ${d.toFixed(2)}　アナ極から ${dn.toFixed(2)}` + (GOTO.on ? '　向かっています' : ''));
 }
 function gotoStep(sp, dt) {   // まず目的地の方を向き（1 秒に 180°）、向いたら大円に沿って進み、手前でブレーキ
     const T = gtTarget(), c = Math.max(-1, Math.min(1, dot(W.p, T))), dist = Math.acos(c);
@@ -1057,7 +1069,7 @@ function gotoStep(sp, dt) {   // まず目的地の方を向き（1 秒に 180°
 //   S² の窓は、選んだ極のうち S² にある 6 つ（アナ・カタ・東・西・北・南）を同じ順で巡る。天・地は S² に無いので、S² は自分の道のりで進む（S³ と別々に）
 const CT_P3 = { N: [0, 0, 0, 1], S: [0, 0, 0, -1], E: [1, 0, 0, 0], W: [-1, 0, 0, 0], A: [0, 1, 0, 0], K: [0, -1, 0, 0], T: [0, 0, 1, 0], G: [0, 0, -1, 0] };
 const CT_P2 = { N: [0, 0, 1], S: [0, 0, -1], E: [1, 0, 0], W: [-1, 0, 0], A: [0, 1, 0], K: [0, -1, 0] };
-const CT_NAME = { N: 'アナ極', S: 'カタ極', E: '東極', W: '西極', A: '北極', K: '南極', T: '天極', G: '地極' };
+const CT_NAME = { N: trW('アナ極'), S: trW('カタ極'), E: '東極', W: '西極', A: '北極', K: '南極', T: '天極', G: '地極' };
 const CT_NUM = '①②③④⑤⑥⑦⑧';
 const CT = { w3: null, w2: null };
 function ctPerp(P) { for (let i = 0; i < P.length; i++) { const e = P.map((_, j) => j === i ? 1 : 0); if (Math.abs(dot(e, P)) < 0.5) return e; } return null; }
@@ -1449,7 +1461,7 @@ FIXED.forEach(m => { if (m.pole && m.label !== 'N' && m.label !== 'S') { const i
 const POLES = FIXED.filter(m => m.pole);
 const dotCss = m => m.tgt ? '#ffffff' : '#' + (S.shCol === 'axis' ? AXIS_HEX[axL(m.p.findIndex(x => Math.abs(x) > 0.5))] : m.dot !== undefined ? m.dot : rgbHex(m.col)).toString(16).padStart(6, '0');   // 球層が軸色なら、極もその軸の色
 const poleColor = (e, m) => { const c = dotCss(m); if (e._c !== c) { e._c = c; e.firstChild.style.background = c; e.lastChild.style.color = c; } };
-const poleName = m => m.name ? m.name : m.label === 'N' ? 'アナ極' : m.label === 'S' ? 'カタ極' : m.label.split(' ')[0] + '極';
+const poleName = m => trW(m.name ? m.name : m.label === 'N' ? 'アナ極' : m.label === 'S' ? 'カタ極' : m.label.split(' ')[0] + '極');
 const polePts = () => S.poles && S.mk !== 'pic';   // 絵のモードでは、極はいつもの絵（🐰🐢🦝🐸🐱🐶）のまま
 // 絵文字を、見た目の外わく（字形の箱）の真ん中がちょうど (cx, cy) に来るように描く（textBaseline: middle だけだと字体によって少し下にずれる）
 const _glyphCv = document.createElement('canvas'); _glyphCv.width = _glyphCv.height = 192;
@@ -1481,7 +1493,7 @@ function emojiSprite(ch, scale) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true })); sp.scale.setScalar(scale || 0.5); sp.renderOrder = 1002; return sp;
 }
 let msgT = 0;
-function say(t) { const el = document.getElementById('msg'); el.textContent = t; el.classList.add('on'); clearTimeout(msgT); msgT = setTimeout(() => el.classList.remove('on'), 3200); }
+function say(t) { const el = document.getElementById('msg'); el.textContent = trW(t); el.classList.add('on'); clearTimeout(msgT); msgT = setTimeout(() => el.classList.remove('on'), 3200); }
 
 // 4次元の回転（S³ の地図）
 let R4 = NDGeom.rotation(4, []);
@@ -1739,7 +1751,7 @@ function Lines(v, nSeg, o) {
         load(k) { const e = cache.get(k); if (!e) return false; pos.set(e.p); cl.set(e.c); i = e.n; this.flush(); return true; } };
 }
 function ball(v, r, color) { const me = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 12), new THREE.MeshPhongMaterial({ color: rgbHex(color), emissive: rgbHex(color), emissiveIntensity: 0.35, shininess: 80 })); v.root.add(me); return me; }
-function label(v, text, css, scale) { const sp = VisualFX.makeLabel(text, css, { scale: scale || 0.4 }); v.root.add(sp); return sp; }
+function label(v, text, css, scale) { const sp = VisualFX.makeLabel(trW(text), css, { scale: scale || 0.4 }); v.root.add(sp); return sp; }
 function makeAxes(v, names, dirs) {
     const grp = new THREE.Group(); v.root.add(grp);
     const L = Lines(v, names.length, { width: 2.2, normal: true, order: 5 }); grp.add(L.obj);
@@ -2427,6 +2439,21 @@ $('b-gtstop').addEventListener('click', () => { GOTO.on = false; refreshUI(); gt
     const bb = $('badgeB') && $('badgeB').querySelector('small'); if (bb) bb.innerHTML = bb.innerHTML.replace('線の色＝w', '線の色＝' + axL(3));
     document.querySelectorAll('.btn.shax').forEach(b => { const i = axI(b.dataset.a), ns = FIXED.filter(m => Math.abs(m.p[i]) > 0.5).map(m => poleName(m)).join('・'); b.title = `${b.dataset.a} の極（${ns}）を囲む殻`; b.style.color = '#' + AXIS_HEX[b.dataset.a].toString(16).padStart(6, '0'); });
 })();
+document.querySelectorAll('.btn.wnm').forEach(b => b.addEventListener('click', () => {   // 呼び名を変えたら、保存して読み直す（画面の文字をそろえる）
+    if (b.dataset.n === (S.wName || 'ana')) return;
+    S.wName = b.dataset.n; try { localStorage.setItem('s3walk-state', JSON.stringify(S)); } catch (e) {} location.reload();
+}));
+// 画面の文字の言いかえ（w極の呼称）：はじめに 1 回、文字と title をアナ・カタから選んだ呼び名へ（data-notr の中は除く）。説明には公式の名前と「非公式」を添える
+if (WN_ON) {
+    const skip = el => el.closest && el.closest('[data-notr], script, style');
+    const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = tw.nextNode(); n; n = tw.nextNode()) if (/アナ|カタ/.test(n.nodeValue) && !skip(n.parentElement)) n.nodeValue = trW(n.nodeValue);
+    document.querySelectorAll('[title]').forEach(el => { if (/アナ|カタ/.test(el.title) && !skip(el)) el.title = trW(el.title); });
+    const N = wPoleN(), Sx = wPoleS(), note = '（' + WN[0] + '極・' + WN[1] + '極は、このアプリのお遊びの呼び名で非公式）';
+    $('wnHint').innerHTML = `まっすぐ歩くと、ぐるっと回ってもとの場所に戻ってきます。出発は<b>${WN[0]}極（アナ極・4 次元の北）</b>、ちょうど反対側が<b>${WN[1]}極（カタ極・4 次元の南）</b>。`;
+    $('wnNote').innerHTML = `<b>${WN[0]}極（アナ極・4 次元の北）・${WN[1]}極（カタ極・4 次元の南）</b>は w の両はし（出発は${WN[0]}極）。北極・南極は y、東極・西極は x、天極・地極は z の両はし。アナ・カタは、4 次元の 4 本目の向き（w の＋と−）の名前${note}。`;
+    const bb = $('badgeB') && $('badgeB').querySelector('small'); if (bb) bb.innerHTML = bb.innerHTML.replace(WN[0] + '極（4 次元の北・', N.replace('）', '、') + '4 次元の北・').replace(WN[1] + '極（4 次元の南・', Sx.replace('）', '、') + '4 次元の南・');
+}
 const FILL_SAY = { full: 'ターン（全周 360°）：アナ極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）', half: 'ターン（半周 180°）：アナ極→カタ極→アナ極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ', q: 'ターン（90°）：90° 進むごとに、まだ通っていない方へターン。極には戻らない', tour: '極めぐり：アナ極→東→北→天→カタ極→西→南→地→アナ極。となりの極だけをたどる、いちばん短い 1 周（4π）', ctour: '選んで巡る：選んだ極を ①から順に巡って、①に戻る' };
 document.querySelectorAll('.btn.fsel').forEach(b => b.addEventListener('click', () => { S.fillMode = b.dataset.fs; save(); if (S.fill) { fillStart(); say(FILL_SAY[S.fillMode]); } refreshUI(); }));
 $('b-fill').addEventListener('click', () => { if (S.fill) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = -1; fillStart(); say(FILL_SAY[S.fillMode] || FILL_SAY.half); } refreshUI(); });
@@ -2454,6 +2481,7 @@ function refreshUI() {
     document.querySelectorAll('.btn.shcol').forEach(b => b.classList.toggle('on', b.dataset.c === S.shCol));
     document.querySelectorAll('.btn.shax').forEach(b => { b.classList.toggle('on', S.shAxes.includes(b.dataset.a)); b.disabled = S.shCol !== 'axis'; b.style.opacity = S.shCol === 'axis' ? '' : '0.4'; });
     document.querySelectorAll('.btn.tsel').forEach(b => b.classList.toggle('on', b.dataset.ts === S.turnStyle));
+    document.querySelectorAll('.btn.wnm').forEach(b => b.classList.toggle('on', b.dataset.n === (S.wName || 'ana')));
     if ($('gtInfo')) gtRender();
     document.querySelectorAll('.btn.ctp').forEach(b => { const i = (S.ctOrder || '').indexOf(b.dataset.k); b.classList.toggle('on', i >= 0); b.textContent = (i >= 0 ? CT_NUM[i] + ' ' : '') + CT_NAME[b.dataset.k]; });
     document.querySelectorAll('.btn.fsel').forEach(b => b.classList.toggle('on', b.dataset.fs === S.fillMode));
@@ -2462,12 +2490,12 @@ function refreshUI() {
     Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
     ['A', 'B', 'C'].forEach(x => $('wrap' + x).classList.toggle('off', !S['w' + x]));
     { const m2 = S.wAmode === 'map2'; $('cvA2').style.display = m2 ? 'block' : 'none'; $('hudA').style.display = m2 ? 'none' : '';
-      $('badgeA').innerHTML = m2 ? 'S³ の地図 2<small>2 枚目の地図。窓の右下で見方（ふつう／自己中心）と範囲（全体／今いる所／写る所）を選ぶ。ドラッグで回す</small>' : '球面 S²（2次元の仲間）<small>同じ操作を、ふつうの球面の上でした場合。アナ極から出発してカタ極を通り、アナ極に戻る。上下（z）は S³ の w にあたるので、上下の極はアナ極・カタ極（天極・地極ではない。S³ の天・地の向きは S² には無い）</small>';
+      $('badgeA').innerHTML = trW(m2 ? 'S³ の地図 2<small>2 枚目の地図。窓の右下で見方（ふつう／自己中心）と範囲（全体／今いる所／写る所）を選ぶ。ドラッグで回す</small>' : '球面 S²（2次元の仲間）<small>同じ操作を、ふつうの球面の上でした場合。アナ極から出発してカタ極を通り、アナ極に戻る。上下（z）は S³ の w にあたるので、上下の極はアナ極・カタ極（天極・地極ではない。S³ の天・地の向きは S² には無い）</small>');
       ['xw', 'yw', 'zw'].forEach(k => { const el = $('s-m2' + k); if (document.activeElement !== el) el.value = S.m2[k]; $('o-m2' + k).textContent = S.m2[k] + '°'; });
       renderChips(); }
     $('maps').classList.toggle('off', !S.wA && !S.wB); $('main').classList.toggle('nowalk', !S.wC);
     document.body.style.setProperty('--mapw', S.mapW);
-    $('mklist').innerHTML = W.marks.map(m => `<span style="border-color:${hexCss(rgbHex(m.col))}">${m.pic} ${m.n}：アナ極から ${Math.acos(Math.max(-1, Math.min(1, m.p[3]))).toFixed(2)}</span>`).join('') || '<span style="color:#64748b;border:0">（まだ置いていない）</span>';
+    $('mklist').innerHTML = trW(W.marks.map(m => `<span style="border-color:${hexCss(rgbHex(m.col))}">${m.pic} ${m.n}：アナ極から ${Math.acos(Math.max(-1, Math.min(1, m.p[3]))).toFixed(2)}</span>`).join('') || '<span style="color:#64748b;border:0">（まだ置いていない）</span>');
 }
 // 地図での曲がり：まっすぐ（大円）進む道を S³ の地図に写すと、ふつうは曲がって見える。その曲がり（地図の上の曲率のベクトル）を、
 // 地図の写し方のヤコビ行列の転置で自分の場所の接空間へ移し、体の枠（右・上・前）で表す。強さ K は地図の球の半径を 1 とした曲率（ふちの大円＝1、まっすぐ＝0）
@@ -2558,6 +2586,7 @@ function updateHUD() {
     const d2 = Math.acos(Math.max(-1, Math.min(1, W2.p[2])));
     $('hudA').innerHTML = `アナ極から <b>${d2.toFixed(2)}</b>　緯度 ${(90 - d2 / d2r).toFixed(0)}°<br>方位 <b>${Math.round(S.az)}°</b>（仰角は無い）`;
     $('trip-bar').style.width = (100 * (W.dist % TAU) / TAU).toFixed(1) + '%';
+    if (WN_ON) ['hudC', 'hudA'].forEach(id => { const e = $(id); if (e) e.innerHTML = trW(e.innerHTML); });
     const el = $('axlen'); el.innerHTML = ['x', 'y', 'z', 'w'].map(nm => { const e = [0, 0, 0, 0]; e[axI(nm)] = 1; const q = NDGeom.apply(R4, 4, e, []); const L = Math.hypot(q[0], q[1], q[2]); return `<span style="color:${hexCss(AXIS_HEX[nm])};font-style:italic">${nm}</span> ${(L * 100).toFixed(0)}%`; }).join('　');
 }
 function setSidebar(open) { document.body.classList.toggle('sidebar-hidden', !open); setTimeout(resizeAll, 0); }
@@ -2706,7 +2735,7 @@ function saverScene(i) {
     if (sc.tour) { TOUR.i = Math.floor(Math.random() * PLANETS.length); SAVER.tourT = 0; }
     else { const az = S.az, el = S.el; S.el = 0; S.az = Math.round(Math.random() * 360 - 180); const d = 0.45 + Math.random() * 0.7; for (let k = 0; k < 40; k++) walkStep([0, 0, 1], d / 40); S.az = az; S.el = el; W.trail = []; W2.trail = []; }   // アナ極のすぐそば（いちばん内側の赤い殻の中）だと画面が壁でうまるので、少し出たところから
     updateRot(); rebuildMarks(); refreshUI(); resizeAll(); req(3);
-    const cap = $('saverCap'); cap.innerHTML = sc.name + '<small>' + sc.sub + '</small>'; cap.classList.add('on'); setTimeout(() => cap.classList.remove('on'), 7000);
+    const cap = $('saverCap'); cap.innerHTML = trW(sc.name + '<small>' + sc.sub + '</small>'); cap.classList.add('on'); setTimeout(() => cap.classList.remove('on'), 7000);
 }
 function saverStart() {
     document.body.classList.add('saver'); setSidebar(false);
