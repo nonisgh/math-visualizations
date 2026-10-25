@@ -258,7 +258,18 @@
                     <button class="btn fsel" data-fs="q" title="90°：大円を 90°（4 分の 1 周）進むごとにターン。極には戻らず、ターンする点から、その先の 90° の道が今までの軌跡からいちばん離れている向き（まだ通っていない方）へ曲がって、さまよいながら広がる。S² と S³ はそれぞれ自分の軌跡で選ぶ">90°</button>
                     <button class="btn fsel" data-fs="tour" title="極めぐり：アナ極から、となり合う極（90° はなれている）だけをたどって 8 つの極を全部回り、アナ極に戻る（アナ極→東→北→天→カタ極→西→南→地→アナ極）。90° × 8 本＝4π がいちばん短い 1 周。毎回 90° の双曲線ターンで、ずっとくり返す。S² の窓は 6 つの極を同じように回る">極めぐり</button>
                     <button class="btn fsel" data-fs="ctour" title="選んで巡る：下の極を押した順に ①②③… と番号が付き、①から順に巡って、最後の次は①に戻る。選ばなかった極は通らない。となりの極へは 90°（4 分の 1 周）、反対の極へは 180°（半周、まっすぐ）。S² の窓は、選んだ極のうち S² にあるもの（天・地を除く）を同じ順で巡る">選んで巡る</button>
+                    <button class="btn fsel" data-fs="star" title="星形：600 胞体（4次元の正多面体の仲間）の 120 個の頂点のあいだを、ひと飛び同じ角度の大円で飛び回る。通った辺が地図に虹色で残り、星形正多胞体の骨組みができていく。アナ極から出発">✴ 星形</button>
                 </div>
+                <div class="row" id="starRow" title="星形：ひと飛びの角度。星形正多胞体（10 個）はどれもこの 120 個の頂点を使い、辺はこのどれかの角度">
+                    <span class="note">ひと飛び：</span>
+                    <button class="btn sang" data-a="36" title="36°：ふつうの 600 胞体の辺（正四面体 600 個）。1 点から 12 本">36°</button><button class="btn sang" data-a="72" title="72°：大円の上では五角形。1 点から 12 本">72°</button><button class="btn sang" data-a="108" title="108°：大円の上では十芒星 {10/3}。1 点から 12 本">108°</button><button class="btn sang" data-a="144" title="144°：大円の上では五芒星 {5/2}。五芒星がからみ合う骨組み。1 点から 12 本">144°</button><button class="btn sang" data-a="60" title="60°：1 点から 20 本">60°</button><button class="btn sang" data-a="120" title="120°：1 点から 20 本">120°</button>
+                </div>
+                <div class="row">
+                    <button class="btn" id="b-starstraight" title="なるべくまっすぐ：まだ通っていない辺のうち、曲がる角のいちばん小さい方へ（大円の上の星形 {5/2} などを先に描く）。切ると、まだ通っていない辺から気まぐれに選ぶ">なるべくまっすぐ</button>
+                    <button class="btn" id="b-starghost" title="まだ通っていない辺も薄く描く（できあがりの形が先に見える）">残りの辺を薄く</button>
+                    <button class="btn" id="b-starview" title="S³ の地図を、X-W・Y-W・Z-W を全部 0 に（w の軸の上から写す。アナ極とカタ極が真ん中で重なる）して、x・y・z の軸を出す">w を引っ込めた見え方</button>
+                </div>
+                <div class="sl"><span>星形の速さ</span><input id="s-stark" type="range" min="1" max="40" step="1" title="星形の時だけ、ふつうの速さの何倍で飛ぶか（144° の骨組みは 720 本、120° は 1200 本あるので、速めがおすすめ）"><output id="o-stark"></output></div>
                 <div class="row" id="ctRow" title="選んで巡る：押した順に番号。もう一度押すと外れて、番号が詰まる">
                     <span class="note">巡る順：</span>
                     <button class="btn ctp" data-k="N">アナ極</button><button class="btn ctp" data-k="S">カタ極</button><button class="btn ctp" data-k="E">東極</button><button class="btn ctp" data-k="W">西極</button>
@@ -644,7 +655,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, spin: false, spinRate: 6, spinTilt: 23.4, spinAz: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, wName: 'ana', shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', gt: { v: { x: 0.5, y: 0.5, z: 0.5, w: 0.5 }, ord: '', sg: { x: 1, y: 1, z: 1, w: 1 } }, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, wName: 'ana', shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', starAng: 144, starStraight: true, starGhost: true, starK: 6, gt: { v: { x: 0.5, y: 0.5, z: 0.5, w: 0.5 }, ord: '', sg: { x: 1, y: 1, z: 1, w: 1 } }, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 // スクリーンセーバー（s3walk.html?saver、?saver&sec=60 で 1 場面の秒数、&scene=2 でその場面だけ）：保存は読まず・書かず、同期もしない（ふだんの設定と別に動く）
 const SAVER = (() => { try { const q = new URLSearchParams(location.search); if (!q.has('saver')) return null; return { sec: Math.max(10, +q.get('sec') || 50), only: q.has('scene') ? +q.get('scene') : null }; } catch (e) { return null; } })();
@@ -918,6 +929,7 @@ function fillPlan(nx) {   // nx 本目へのターンを用意する
 const expN = (x, sg = 1) => { const r = Math.hypot(...x); if (r < 1e-12) return x.length === 3 ? [0, 0, 0, sg] : [0, 0, sg]; const s = Math.sin(r) / r; return [...x.map(v => v * s), sg * Math.cos(r)]; };   // sg＝−1 ならカタ極のまわり
 function fillStart() {
     if (S.fillMode === 'ctour') { ctStart(); return; }
+    if (S.fillMode === 'star') { starStart(); return; }
     if (S.fillMode === 'q' || S.fillMode === 'tour') { fqStart(); return; }
     FILL.half = S.fillMode === 'half';
     if (!FILL.dirs.length) fillBuild(300);
@@ -1005,6 +1017,88 @@ function fqStep(ds) {
     }
     fillGo(add(scl(FQ.P, Math.cos(FQ.s)), FQ.b, Math.sin(FQ.s)), add(scl(FQ.P2, Math.cos(FQ.s)), FQ.b2, Math.sin(FQ.s)));
 }
+// ---- 星形（S.fillMode === 'star'）：600 胞体の 120 個の頂点のあいだを、ひと飛び S.starAng° の大円で飛び、通った辺を地図に残す。
+//   星形正多胞体（シュレーフリ・ヘスの 10 個）はどれも、この 120 個の頂点を使い、辺はこのどれかの角度（36°・72°・108°・144°・60°・120°）。
+//   1 本の大円の上には頂点が 36° おきに 10 個並ぶので、144° で飛ぶと大円の上では五芒星 {5/2}、108° で {10/3}、72° で五角形。
+//   アナ極から出発。頂点でその場で向きを変える（直角と同じ。骨組みの辺をちょうどたどる）。まだ通っていない辺を優先し、「まっすぐ」なら曲がる角のいちばん小さいもの。
+//   まわりに通っていない辺が無ければ、いちばん近い「まだ辺が残っている頂点」へ向かう。全部通ったら止まる。
+//   左の S² は 3 次元の仲間：正二十面体の 12 個の頂点（63.4° でとなり。116.6° で飛ぶと大十二面体・小星形十二面体などの星形の辺）。S³ の 1 本と同じ時間で 1 本飛ぶ
+const STAR = { key: '', g3: null, g2: null, w3: null, w2: null, tu: null, f: 0, done: false };
+function cell600V() {
+    const P = (1 + Math.sqrt(5)) / 2, out = [], seen = new Set(), put = v => { const k = v.map(x => x.toFixed(4)).join(); if (!seen.has(k)) { seen.add(k); out.push(nrm(v)); } };
+    const sg = v => { let r = [[]]; v.forEach(x => { r = r.flatMap(a => x ? [[...a, x], [...a, -x]] : [[...a, 0]]); }); return r; };
+    for (let i = 0; i < 4; i++) for (const s of [1, -1]) { const v = [0, 0, 0, 0]; v[i] = s; put(v); }
+    sg([0.5, 0.5, 0.5, 0.5]).forEach(put);
+    const ev = [[0, 1, 2, 3], [0, 2, 3, 1], [0, 3, 1, 2], [1, 0, 3, 2], [1, 2, 0, 3], [1, 3, 2, 0], [2, 0, 1, 3], [2, 1, 3, 0], [2, 3, 0, 1], [3, 0, 2, 1], [3, 1, 0, 2], [3, 2, 1, 0]];   // 偶置換 12 個
+    sg([P / 2, 0.5, 1 / (2 * P), 0]).forEach(b => ev.forEach(q => put(q.map(i => b[i]))));
+    return out;
+}
+function icoV() {   // アナ極（+z）を頂点にした正二十面体
+    const z = 1 / Math.sqrt(5), r = 2 / Math.sqrt(5), out = [[0, 0, 1], [0, 0, -1]];
+    for (let k = 0; k < 5; k++) { const a = k * 72 * d2r, b = (k * 72 + 36) * d2r; out.push([r * Math.cos(a), r * Math.sin(a), z], [r * Math.cos(b), r * Math.sin(b), -z]); }
+    return out;
+}
+const STAR_ANG2 = a => a < 90 ? Math.acos(1 / Math.sqrt(5)) : Math.acos(-1 / Math.sqrt(5));   // S² の飛ぶ角：近い方（63.4°）か遠い方（116.6°）
+function starGraph(V, th) {
+    const c = Math.cos(th), adj = V.map(() => []), edges = [];
+    for (let i = 0; i < V.length; i++) for (let j = i + 1; j < V.length; j++) if (Math.abs(dot(V[i], V[j]) - c) < 1e-3) { adj[i].push(j); adj[j].push(i); edges.push([i, j]); }
+    return { V, adj, edges, th };
+}
+const starKey = (a, b) => a < b ? a * 1000 + b : b * 1000 + a;
+function starWalker(G) { return { G, cur: 0, prev: -1, nxt: -1, seen: new Set(), order: [], left: G.edges.length }; }
+function starPick(wk, F) {   // 次の頂点。F＝今の進む向き（頂点で）
+    const { G } = wk, A = G.adj[wk.cur], P = G.V[wk.cur];
+    const tang = j => { const t = add(G.V[j], P, -dot(G.V[j], P)); return nrm(t); };
+    let cand = A.filter(j => !wk.seen.has(starKey(wk.cur, j)));
+    if (!cand.length) {   // まわりは全部通った：まだ辺が残っている頂点へ、いちばん少ない飛び数で
+        const from = new Map([[wk.cur, -1]]), q = [wk.cur]; let goal = -1;
+        while (q.length && goal < 0) { const u = q.shift(); for (const v of G.adj[u]) { if (from.has(v)) continue; from.set(v, u); if (G.adj[v].some(x => !wk.seen.has(starKey(v, x)))) { goal = v; break; } q.push(v); } }
+        if (goal >= 0) { let v = goal; while (from.get(v) !== wk.cur) v = from.get(v); return v; }
+        cand = A.filter(j => j !== wk.prev);
+    }
+    if (!F || !S.starStraight) return cand[Math.floor(Math.random() * cand.length)];
+    let best = cand[0], bs = -9; for (const j of cand) { const sc = dot(tang(j), F) + 1e-6 * Math.random(); if (sc > bs) { bs = sc; best = j; } }
+    return best;
+}
+function starStart() {
+    STAR.key = S.starAng + ''; const th = S.starAng * d2r;
+    STAR.g3 = starGraph(cell600V(), th); STAR.g2 = starGraph(icoV(), STAR_ANG2(S.starAng));
+    STAR.w3 = starWalker(STAR.g3); STAR.w2 = starWalker(STAR.g2); STAR.tu = null; STAR.f = 0; STAR.done = false;
+    resetNorth(); STAR.w3.nxt = starPick(STAR.w3, null); STAR.w2.nxt = starPick(STAR.w2, null);
+    // 最初の向き：体の前を、最初の辺の向きに
+    const t3 = nrm(add(STAR.g3.V[STAR.w3.nxt], W.p, -dot(STAR.g3.V[STAR.w3.nxt], W.p))), t2 = nrm(add(STAR.g2.V[STAR.w2.nxt], W2.p, -dot(STAR.g2.V[STAR.w2.nxt], W2.p)));
+    const g = (v, P, others) => { let t = add(v, P, -dot(v, P)); for (const o of others) t = add(t, o, -dot(t, o)); return nrm(t); };
+    W.f = t3; W.r = g(W.r, W.p, [W.f]); W.u = g(W.u, W.p, [W.f, W.r]); W2.f = t2; W2.r = g(W2.r, W2.p, [W2.f]);
+    S.az = 0; S.el = 0; req(3);
+}
+function starLegPt(wk, f) { const A = wk.G.V[wk.cur], B = wk.G.V[wk.nxt], th = wk.G.th, t = nrm(add(B, A, -dot(B, A))); return add(scl(A, Math.cos(th * f)), t, Math.sin(th * f)); }
+function starStep(ds) {
+    if (STAR.key !== S.starAng + '' || !STAR.w3) starStart();
+    if (STAR.done) return;
+    if (STAR.tu) { turnStep(STAR.tu, ds); if (!STAR.tu.pv) STAR.tu = null; return; }   // 頂点で向きを変えている
+    const w3 = STAR.w3, w2 = STAR.w2;
+    STAR.f = Math.min(1, STAR.f + ds / w3.G.th);
+    fillGo(starLegPt(w3, STAR.f), starLegPt(w2, STAR.f));
+    if (STAR.f < 1) return;
+    // 頂点に着いた：辺を記録して、次の頂点を選び、その場で向きを変える
+    for (const wk of [w3, w2]) { const k = starKey(wk.cur, wk.nxt); if (!wk.seen.has(k)) { wk.seen.add(k); wk.order.push([wk.cur, wk.nxt]); wk.left--; } wk.prev = wk.cur; wk.cur = wk.nxt; }
+    W.p = w3.G.V[w3.cur].slice(); W2.p = w2.G.V[w2.cur].slice(); orthoFrame(W); orthoFrame(W2);
+    if (w3.left <= 0) { STAR.done = true; say(`星形の骨組みができた！ ${w3.order.length} 本の辺（ひと飛び ${S.starAng}°）。🧶 ターンを押し直すと最初から`); return; }
+    if (w2.left <= 0) { w2.seen.clear(); w2.order = []; w2.left = w2.G.edges.length; }   // S² は辺が少ないので、できたら描き直す
+    w3.nxt = starPick(w3, W.f); w2.nxt = starPick(w2, W2.f); STAR.f = 0;
+    const plane = (P, Q, d) => { const t = nrm(add(Q, P, -dot(Q, P))); const A = nrm(add(d, P, -dot(d, P))), B0 = add(t, A, -dot(t, A)), bl = Math.hypot(...B0); return { A, B: bl > 1e-6 ? scl(B0, 1 / bl) : A, th: bl > 1e-6 ? Math.acos(Math.max(-1, Math.min(1, dot(A, t)))) : 0 }; };
+    const p3 = plane(W.p, w3.G.V[w3.nxt], W.f), p2 = plane(W2.p, w2.G.V[w2.nxt], W2.f);
+    if (Math.max(p3.th, p2.th) > 1e-3) STAR.tu = { pv: { t: 0, len: 0.12 + 0.3 * Math.max(p3.th, p2.th) / (Math.PI / 2), F: { f: W.f.slice(), r: W.r.slice(), u: W.u.slice() }, G: { f: W2.f.slice(), r: W2.r.slice() }, A3: p3.A, B3: p3.B, th3: p3.th, A2: p2.A, B2: p2.B, th2: p2.th } };
+}
+// 星形の骨組みを地図に描く：通った辺は通った順の虹色、まだの辺は薄く。点は大円を細かく分けた線分 [A, B, 色]
+function starSegs(wk, ghost, to) {
+    const G = wk.G, n = Math.max(4, Math.ceil(G.th / d2r / 8)), out = [], N = Math.max(1, G.edges.length);
+    const arc = (i, j, col) => { const A = G.V[i], B = G.V[j], t = nrm(add(B, A, -dot(B, A))); let pv = to(A); for (let k = 1; k <= n; k++) { const q = to(add(scl(A, Math.cos(G.th * k / n)), t, Math.sin(G.th * k / n))); out.push([pv, q, col]); pv = q; } };
+    if (ghost) G.edges.forEach(([i, j]) => { if (!wk.seen.has(starKey(i, j))) arc(i, j, null); });
+    wk.order.forEach(([i, j], k) => arc(i, j, hsl(330 * k / N, 0.85, 0.6)));
+    return out;
+}
+const starOn = () => S.fill && S.fillMode === 'star' && STAR.w3;
 // ---- 座標へ向かう：x・y・z・w は区別なし。最後に入れた数ほど優先（①＝最後に入れた数はそのまま、②③ は残りの幅に合わせて調整）。
 //   まだ入れていない軸は、残りを等しく分け合う。3 つ入れたあとで 4 つ目を入れると、いちばん前に入れた数が外れて、自動で決まる側に回る（入れ替わる）。
 //   S.gt.ord は入れた順（古い → 新しい、3 つまで）。目的地へは、まずその方を向き、いちばん短い大円で
@@ -1158,6 +1252,7 @@ function ctStart() {
 function ctStep(ds) { ctWalk(CT.w3, W, true, ds); ctWalk(CT.w2, W2, false, ds); S.az = 0; S.el = 0; }
 function fillStep(ds) {
     if (S.fillMode === 'ctour') { ctStep(ds); return; }
+    if (S.fillMode === 'star') { starStep(ds * S.starK); return; }
     if (S.fillMode === 'q' || S.fillMode === 'tour') { fqStep(ds); return; }
     if (FILL.turn) {   // ターン中：双曲線の上を進む（S³ の長さで進み具合を決め、S² も同じ割合）
         const tu = FILL.turn;
@@ -1338,11 +1433,12 @@ function step(dirS3, dir2, s) {
     if (S.foot && W.dist - W.lastFoot >= 0.6) { W.foot.push(W.p.slice()); W2.foot.push(W2.p.slice()); W.lastFoot = W.dist; if (W.foot.length > 40) { W.foot.shift(); W2.foot.shift(); } }
     // 赤道・カタ極・アナ極を通ったら知らせる
     const w = W.p[3], dN = Math.acos(Math.max(-1, Math.min(1, w))), dS = Math.PI - dN;
-    if (W.wasW > 0 && w <= 0) say('赤道を通過（アナ極から π/2 ≈ 1.57）');
-    if (W.wasW < 0 && w > 0) say('赤道を通過（アナ極まであと π/2）');
+    const quiet = starOn();   // 星形の間は、赤道・極の知らせを出さない（何度も通るので）
+    if (!quiet && W.wasW > 0 && w <= 0) say('赤道を通過（アナ極から π/2 ≈ 1.57）');
+    if (!quiet && W.wasW < 0 && w > 0) say('赤道を通過（アナ極まであと π/2）');
     // カタ極・アナ極のいちばん近く（距離が減ってから増えに転じた所）を通ったら知らせる
-    if (W.prevS !== undefined && W.prevS < 0.2 && dS > W.prevS && !W.passed.S) { say(dS < 0.03 ? 'カタ極を通過！ ここはアナ極の反対側（対蹠点）' : `カタ極のすぐそば（${W.prevS.toFixed(2)}）を通過。アナ極の反対側`); W.passed.S = true; W.passed.N = false; }
-    if (W.prevN !== undefined && W.prevN < 0.2 && dN > W.prevN && !W.passed.N && W.dist > 1) { say(dN < 0.03 ? 'アナ極に戻ってきた！（1 周 = 2π ≈ 6.28）' : `アナ極のすぐそば（${W.prevN.toFixed(2)}）まで戻ってきた（1 周 ≈ 6.28）`); W.passed.N = true; W.passed.S = false; }
+    if (!quiet && W.prevS !== undefined && W.prevS < 0.2 && dS > W.prevS && !W.passed.S) { say(dS < 0.03 ? 'カタ極を通過！ ここはアナ極の反対側（対蹠点）' : `カタ極のすぐそば（${W.prevS.toFixed(2)}）を通過。アナ極の反対側`); W.passed.S = true; W.passed.N = false; }
+    if (!quiet && W.prevN !== undefined && W.prevN < 0.2 && dN > W.prevN && !W.passed.N && W.dist > 1) { say(dN < 0.03 ? 'アナ極に戻ってきた！（1 周 = 2π ≈ 6.28）' : `アナ極のすぐそば（${W.prevN.toFixed(2)}）まで戻ってきた（1 周 ≈ 6.28）`); W.passed.N = true; W.passed.S = false; }
     W.prevS = dS; W.prevN = dN; W.wasW = w;
     req(2);
 }
@@ -1782,6 +1878,7 @@ const AXL = 2.7;
     const me = ball(v, 0.09, [1, 1, 1]), cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 })); v.root.add(cone);
     const trail = Lines(v, 12000, { width: 2.4, order: 3 }), foot = new THREE.Group(); v.root.add(foot);
     const spL = Lines(v, 1200, { width: 1.1 }); let spKey = '';
+    const starL = Lines(v, 1200, { width: 1.8, order: 3, normal: true }), starG = Lines(v, 1200, { width: 1 });   // 星形：通った辺・まだの辺
     // カタ極の星（S² ではカタ極のまわりの円板＝球面の帽子）
     const capMat = new THREE.MeshPhongMaterial({ color: 0x94704c, transparent: true, opacity: 0.75, side: THREE.DoubleSide, shininess: 10 });
     let capMesh = null, capKey = '';
@@ -1794,10 +1891,11 @@ const AXL = 2.7;
         if (S.spiral && spKey !== String(S.turns)) { spKey = String(S.turns); const path = spiralPath(1200); spL.reset(); for (let i = 0; i + 1 < path.length; i++) spL.seg(scl(path[i].p2, R2), scl(path[i + 1].p2, R2), [0.55, 0.5, 0.9]); spL.flush(); }
         const P = scl(W2.p, R2); me.position.set(...P);
         cone.visible = S.heading; const d = look2(); t.set(d[0], d[1], d[2]); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(P[0] + d[0] * 0.25, P[1] + d[1] * 0.25, P[2] + d[2] * 0.25);
-        trail.obj.visible = S.trail; trail.obj.material.linewidth = 2.4 * S.trailW;
+        { const on = starOn(); starL.obj.visible = !!on; starG.obj.visible = !!on && S.starGhost; if (on) { starL.reset(); starG.reset(); starSegs(STAR.w2, S.starGhost, q => scl(q, R2 * 1.003)).forEach(([a, b, c]) => c ? starL.seg(a, b, c) : starG.seg(a, b, [0.22, 0.24, 0.32])); starL.flush(); starG.flush(); } }
+        trail.obj.visible = S.trail && !starOn(); trail.obj.material.linewidth = 2.4 * S.trailW;
         trail.reset(); const T = W2.trail; for (let i = 0; i + 1 < T.length; i++) { const f = 0.3 + 0.7 * i / T.length; trail.seg(scl(T[i], R2), scl(T[i + 1], R2), scl(hsl(200 + 160 * i / T.length, 0.9, 0.6), f)); } trail.flush();
         while (foot.children.length < W2.foot.length) { const b = ball(v, 0.035, [0.8, 0.85, 1]); v.root.remove(b); foot.add(b); }
-        foot.children.forEach((b, i) => { b.visible = i < W2.foot.length && S.foot; if (b.visible) b.position.set(...scl(W2.foot[i], R2)); });
+        foot.children.forEach((b, i) => { b.visible = i < W2.foot.length && S.foot && !starOn(); if (b.visible) b.position.set(...scl(W2.foot[i], R2)); });
         fixedA.forEach((o, k) => { const hide = (S.solar && k === 0) || noMk(); o.b.visible = !isPic() && !hide; o.lab.visible = !isPic() && !hide; o.sp.visible = isPic() && !hide; o.okPt = true; if (polePts()) o.b.visible = o.lab.visible = o.sp.visible = false; });   // 太陽系の時、アナ極は太陽
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const b = ball(v, 0.08, m.col); v.root.remove(b); marks.add(b); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
         W.marks.forEach((m, i) => { const [b, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; b.position.set(...scl(m.p2, R2)); lab.position.set(...scl(m.p2, R2 * 1.1)); sp.position.set(...scl(m.p2, R2)); b.visible = !isPic() && !noMk(); lab.visible = !isPic() && !noMk(); sp.visible = isPic(); });
@@ -1836,6 +1934,7 @@ const AXL = 2.7;
     const room = cell120(), rseg = 3, roomPairs = []; room.edges.forEach(([A, B]) => { for (let s = 0; s < rseg; s++) roomPairs.push([slerp(A, B, s / rseg), slerp(A, B, (s + 1) / rseg)]); });
     const Leq = Lines(v, eqPairs.length, { width: 1.1 }), Lsh = Lines(v, shPairs.length, { width: 0.9 }), Lc = Lines(v, circ.length, { width: 1.8 }), Lr = Lines(v, roomPairs.length, { width: 1.0 });
     const trail = Lines(v, 12000, { width: 3.4, order: 3, normal: true }); let mapStatKey = '';
+    const starL = Lines(v, 20000, { width: 1.5, order: 3, normal: true }), starG = Lines(v, 20000, { width: 0.8 });   // 星形：通った辺（虹色）・まだの辺（薄く）
     const spL = Lines(v, 1200, { width: 1.1 }); let spPath = null, spKey = '';
     v.root.add(new THREE.Mesh(new THREE.SphereGeometry(RS, 48, 32), new THREE.MeshPhongMaterial({ color: 0x1e3a8a, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide })));
     const planetM = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), new THREE.MeshPhongMaterial({ color: 0x94704c, transparent: true, opacity: 0.6, shininess: 10, depthWrite: false })); v.root.add(planetM);
@@ -1897,7 +1996,12 @@ const AXL = 2.7;
                     const lay = Math.max(0, 1 - Math.abs(P[3] - thOf(P)) / (2.2 * gap)), dg = Math.acos(Math.max(-1, Math.min(1, dot(P[e], W.p)))), near = 1 - Math.min(1, Math.max(0, (dg - 0.6 * R) / (0.4 * R)));
                     const k = (0.35 + 0.65 * lay * lay) * near * (0.75 + 0.25 * (d + 1) / 2) * 1.3;
                     return vivid(P[2], k * Math.sqrt(fk)); }, 3, !S.shFocus); Lshell.save(dk); } else shellDrawKey = dk; }   // 今いる所だけの時は「奥を消す」でも消さない
-        trail.obj.visible = S.trail; trail.obj.material.linewidth = 3.4 * S.trailW;
+        { const on = starOn(); starL.obj.visible = !!on; starG.obj.visible = !!on && S.starGhost;
+          if (on) { starL.reset(); starG.reset(); starL.obj.material.linewidth = 1.5 * S.trailW;
+            for (const [A, B, c] of starSegs(STAR.w3, S.starGhost, q => q)) { const da = mapS3(A, a), db = mapS3(B, b); if (!(da === da) || !(db === db) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.5) continue;
+              if (c) { const fa = 0.55 + 0.45 * (da + 1) / 2, fb = 0.55 + 0.45 * (db + 1) / 2; starL.seg(a, b, scl(c, fa), scl(c, fb)); } else starG.seg(a, b, scl([0.3, 0.33, 0.45], 0.4 + 0.3 * (da + 1) / 2)); }
+            starL.flush(); starG.flush(); } }
+        trail.obj.visible = S.trail && !starOn(); trail.obj.material.linewidth = 3.4 * S.trailW;
         const T = W.trail; trail.reset(); for (let i = 0; i + 1 < T.length; i++) { const da = mapS3(T[i], a), db = mapS3(T[i + 1], b); if (!(da === da) || !(db === db) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.5) continue; const f = 0.45 + 0.55 * i / T.length; trail.seg(a, b, scl(hsl(200 + 160 * i / T.length, 0.95, 0.62), f)); } trail.flush();
         { const pk = planetKey(); planetM.visible = false; if (pk) { const d = mapS3(SP4, a); if (d === d) { planetM.visible = true; planetM.position.set(a[0], a[1], a[2]); planetM.scale.setScalar(Math.sin(pk) * RS * Math.min(3, kOf(SP4))); } } }   // カタ極の星
         place(me, W.p, 1); me.scale.setScalar(Math.min(ME_MAX, kOf(W.p)));   // 自分の白い玉と、進む向き（黄）・見ている向き（水色）の円すい：遠近で大きくなる上限は 1.4 倍（ほかの玉の 2.5 倍より小さく。遠近 2.5 の時の最大 1.67 より少しだけ小さく）
@@ -1923,7 +2027,7 @@ const AXL = 2.7;
         { const T = gtTarget(); tgtO.m.p = T; const d = place(tgtO.b, T, 1); tgtO.okPt = d === d; tgtO.b.visible = false; }
         fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } const hide = (S.solar && o.m.label === 'N') || noMk(); o.lab.visible = d === d && !isPic() && !hide; o.sp.visible = d === d && isPic() && !hide; o.b.visible = d === d && !isPic() && !hide; o.okPt = d === d; if (polePts()) o.b.visible = o.lab.visible = o.sp.visible = false; });
         while (foot.children.length < W.foot.length) { const bb = ball(v, 0.04, [0.8, 0.85, 1]); v.root.remove(bb); foot.add(bb); }
-        foot.children.forEach((bb, i) => { if (i < W.foot.length && S.foot) place(bb, W.foot[i], 1); else bb.visible = false; });
+        foot.children.forEach((bb, i) => { if (i < W.foot.length && S.foot && !starOn()) place(bb, W.foot[i], 1); else bb.visible = false; });
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const bb = ball(v, 0.085, m.col); v.root.remove(bb); marks.add(bb); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
         W.marks.forEach((m, i) => { const [bb, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; const d = place(bb, m.p, 1); const ok = d === d && !noMk(); lab.visible = ok && !isPic(); sp.visible = ok && isPic(); bb.visible = ok && !isPic(); if (ok) { lab.position.copy(bb.position).add(new THREE.Vector3(0, 0, 0.18)); sp.position.copy(bb.position); sp.scale.setScalar(0.45 * Math.min(2.5, kOf(m.p))); } });
     });
@@ -2392,7 +2496,7 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-poles': 'poles', 'b-fill': 'fill', 'b-trail': 'trail', 'b-grand': 'grand', 'b-gridspin': 'gridSpin', 'b-rot4others': 'rot4Others', 'b-rot4': 'rot4', 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-poles': 'poles', 'b-starstraight': 'starStraight', 'b-starghost': 'starGhost', 'b-fill': 'fill', 'b-trail': 'trail', 'b-grand': 'grand', 'b-gridspin': 'gridSpin', 'b-rot4others': 'rot4Others', 'b-rot4': 'rot4', 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
 $('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
@@ -2455,9 +2559,12 @@ if (WN_ON) {
     $('wnNote').innerHTML = `<b>${WN[0]}極（アナ極・4 次元の北）・${WN[1]}極（カタ極・4 次元の南）</b>は w の両はし（出発は${WN[0]}極）。北極・南極は y、東極・西極は x、天極・地極は z の両はし。アナ・カタは、4 次元の 4 本目の向き（w の＋と−）の名前${note}。`;
     const bb = $('badgeB') && $('badgeB').querySelector('small'); if (bb) bb.innerHTML = bb.innerHTML.replace(WN[0] + '極（4 次元の北・', N.replace('）', '、') + '4 次元の北・').replace(WN[1] + '極（4 次元の南・', Sx.replace('）', '、') + '4 次元の南・');
 }
-const FILL_SAY = { full: 'ターン（全周 360°）：アナ極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）', half: 'ターン（半周 180°）：アナ極→カタ極→アナ極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ', q: 'ターン（90°）：90° 進むごとに、まだ通っていない方へターン。極には戻らない', tour: '極めぐり：アナ極→東→北→天→カタ極→西→南→地→アナ極。となりの極だけをたどる、いちばん短い 1 周（4π）', ctour: '選んで巡る：選んだ極を ①から順に巡って、①に戻る' };
+const FILL_SAY = { full: 'ターン（全周 360°）：アナ極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）', half: 'ターン（半周 180°）：アナ極→カタ極→アナ極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ', q: 'ターン（90°）：90° 進むごとに、まだ通っていない方へターン。極には戻らない', tour: '極めぐり：アナ極→東→北→天→カタ極→西→南→地→アナ極。となりの極だけをたどる、いちばん短い 1 周（4π）', ctour: '選んで巡る：選んだ極を ①から順に巡って、①に戻る', star: '星形：アナ極から、600 胞体の頂点を同じ角度で飛び回る。通った辺が虹色で残って、星形正多胞体の骨組みになる（左の S² は正二十面体の仲間）' };
 document.querySelectorAll('.btn.fsel').forEach(b => b.addEventListener('click', () => { S.fillMode = b.dataset.fs; save(); if (S.fill) { fillStart(); say(FILL_SAY[S.fillMode]); } refreshUI(); }));
-$('b-fill').addEventListener('click', () => { if (S.fill) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = -1; fillStart(); say(FILL_SAY[S.fillMode] || FILL_SAY.half); } refreshUI(); });
+document.querySelectorAll('.btn.sang').forEach(b => b.addEventListener('click', () => { S.starAng = +b.dataset.a; save(); if (S.fill && S.fillMode === 'star') { starStart(); say(`星形：ひと飛び ${S.starAng}°（${STAR.g3.edges.length} 本の辺、1 点から ${STAR.g3.adj[0].length} 本）`); } refreshUI(); }));
+function starView() { S.xw = 0; S.yw = 0; S.zw = 0; S.follow = false; S.ringView = false; S.rot4 = false; S.axes = true; S.wB = true; save(); updateRot(); refreshUI(); req(3); }
+$('b-starview').addEventListener('click', () => { starView(); say('w を引っ込めた見え方：w の軸の上から写す。アナ極とカタ極は真ん中で重なる'); });
+$('b-fill').addEventListener('click', () => { if (S.fill) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = -1; if (S.fillMode === 'star') starView(); fillStart(); say(FILL_SAY[S.fillMode] || FILL_SAY.half); } refreshUI(); });
 $('b-ring').addEventListener('click', () => { if (S.ring) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.fill = false; ringStart(); say(S.ringAxis === 'w' ? '🐱 と 🐶 を通る輪を歩く（赤道の球面の上）。1 周ごとに輪が少しずつ回る' : 'アナ極とカタ極を通る輪を歩く。1 周ごとに輪が少しずつ回る'); } else S.ringView = false; refreshUI(); });
 document.querySelectorAll('.btn.rax').forEach(b => b.addEventListener('click', () => { S.ringAxis = b.dataset.ax; if (S.ring) ringStart(); save(); refreshUI(); }));
 $('b-jump').addEventListener('click', gravJump); $('b-kick').addEventListener('click', gravKick); $('b-drop').addEventListener('click', () => { S.grav = true; S.walk = S.roam = S.spiral = false; dropFromEquator(); refreshUI(); });
@@ -2470,7 +2577,7 @@ $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.
 $('b-rot4').addEventListener('click', () => { if (S.rot4) { S.follow = false; S.ringView = false; ROT4.trailN = []; ROT4.trailS = []; ROT4.near = false; say('4次元で回す：アナ極 とカタ極 が地図の上ですれちがう'); } refreshUI(); req(3); });
 document.querySelectorAll('.btn.r4p').forEach(b => b.addEventListener('click', () => { S.rot4Plane = b.dataset.p; ROT4.trailN = []; ROT4.trailS = []; save(); refreshUI(); req(3); }));
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; S.ringView = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-spinrate': ['spinRate', v => +v === 0 ? '止める' : (+v).toFixed(1) + ' 回/分' + (+v < 0 ? '（逆回り）' : '')], 's-spintilt': ['spinTilt', v => (+v).toFixed(1) + '°' + (Math.abs(v - 23.4) < 0.3 ? '（地球と同じ）' : +v === 0 ? '（こま）' : +v === 90 ? '（きりもみ）' : '')], 's-spinaz': ['spinAz', v => v + '°'], 's-outer': ['outer', v => '×' + (+v).toFixed(2)], 's-solarspd': ['solarSpd', v => +v <= 0 ? '止める' : '×' + (+v).toFixed(1)], 's-parad': ['paraD', v => (+v).toFixed(2)], 's-paralead': ['paraLead', v => +v <= 0 ? '真横' : (+v).toFixed(2)], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 25.1 ? '（どこまでも＝光 4 周）' : +v >= 6.2 ? `（光 ${(v / TAU).toFixed(1)} 周）` : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-stark': ['starK', v => '×' + v], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-spinrate': ['spinRate', v => +v === 0 ? '止める' : (+v).toFixed(1) + ' 回/分' + (+v < 0 ? '（逆回り）' : '')], 's-spintilt': ['spinTilt', v => (+v).toFixed(1) + '°' + (Math.abs(v - 23.4) < 0.3 ? '（地球と同じ）' : +v === 0 ? '（こま）' : +v === 90 ? '（きりもみ）' : '')], 's-spinaz': ['spinAz', v => v + '°'], 's-outer': ['outer', v => '×' + (+v).toFixed(2)], 's-solarspd': ['solarSpd', v => +v <= 0 ? '止める' : '×' + (+v).toFixed(1)], 's-parad': ['paraD', v => (+v).toFixed(2)], 's-paralead': ['paraLead', v => +v <= 0 ? '真横' : (+v).toFixed(2)], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 25.1 ? '（どこまでも＝光 4 周）' : +v >= 6.2 ? `（光 ${(v / TAU).toFixed(1)} 周）` : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
     's-gridspinrate': ['gridSpinRate', v => +v === 0 ? '止める' : (+v).toFixed(1) + ' 回/分'], 's-gridtilt': ['gridTilt', v => v + '°'], 's-gridaz': ['gridAz', v => v + '°'], 's-trailw': ['trailW', v => '×' + (+v).toFixed(2)], 's-dustn': ['dustN', v => +v === 0 ? 'なし' : v + ' 粒'], 's-rot4spd': ['rot4Spd', v => +v === 0 ? '止める' : v + '°/秒'], 's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (k === 'hopfD' && S.hopf) hopfStart(); if (['xw', 'yw', 'zw'].includes(k)) { S.follow = false; S.ringView = false; } save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
@@ -2486,6 +2593,7 @@ function refreshUI() {
     if ($('gtInfo')) gtRender();
     document.querySelectorAll('.btn.ctp').forEach(b => { const i = (S.ctOrder || '').indexOf(b.dataset.k); b.classList.toggle('on', i >= 0); b.textContent = (i >= 0 ? CT_NUM[i] + ' ' : '') + CT_NAME[b.dataset.k]; });
     document.querySelectorAll('.btn.fsel').forEach(b => b.classList.toggle('on', b.dataset.fs === S.fillMode));
+    document.querySelectorAll('.btn.sang').forEach(b => b.classList.toggle('on', +b.dataset.a === S.starAng));
     document.querySelectorAll('.btn.r4p').forEach(b => b.classList.toggle('on', b.dataset.p === S.rot4Plane));
     document.querySelectorAll('.btn.lens').forEach(b => b.classList.toggle('on', b.dataset.lens === (S.lens || 'normal')));
     Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
@@ -2577,7 +2685,8 @@ function updateHUD() {
         $('hudC').innerHTML += `<br><span style="color:#7dd3fc">平行な仲間：進んだ <b>${sP.toFixed(2)}</b>　🐧 の道までの間 <b>${dR.toFixed(3)}</b>（平らなら ${PARA.d0.toFixed(3)} のまま）　🐧〜🐬 の道の間 <b>${dB.toFixed(3)}</b></span>` + paraGraph(); }
     if (S.rot4) $('hudC').innerHTML += `<br><span style="color:${ROT4.near ? '#fde047' : '#9be7ff'}">🔄 4次元の回転 ${S.rot4Plane.toUpperCase().replace('W', '-W')} ${Math.round(S[S.rot4Plane])}°：地図の上で N と S の間 <b>${(ROT4.dist / RS).toFixed(2)}</b>（4次元では いつも π）${ROT4.near ? '　← 重なっている！' : ''}</span>`;
     if (S.spin) $('hudC').innerHTML += `<br><span style="color:#f9a8d4">🌀 自転 <b>${S.spinRate.toFixed(1)}</b> 回/分　いま ${Math.round(SPIN.ang / d2r)}°　地軸の傾き ${S.spinTilt.toFixed(1)}°・向き ${Math.round(S.spinAz)}°</span>`;
-    if (S.fill && S.fillMode === 'ctour' && CT.w3) { const w = CT.w3, n = w.route.length, a = w.route[w.idx % n], b = w.route[(w.idx + 1) % n]; $('hudC').innerHTML += `<br>🧶 選んで巡る ${CT_NUM[w.idx % n]} ${CT_NAME[a.k]} → ${CT_NUM[(w.idx + 1) % n]} ${CT_NAME[b.k]}　${(Math.min(w.s, w.len) / d2r).toFixed(0)}° / ${(w.len / d2r).toFixed(0)}°`; }
+    if (starOn()) { const w = STAR.w3; $('hudC').innerHTML += `<br>✴ 星形 ひと飛び ${S.starAng}°　辺 <b>${w.order.length}</b> / ${w.G.edges.length}${STAR.done ? '（できた！）' : ''}`; }
+    else if (S.fill && S.fillMode === 'ctour' && CT.w3) { const w = CT.w3, n = w.route.length, a = w.route[w.idx % n], b = w.route[(w.idx + 1) % n]; $('hudC').innerHTML += `<br>🧶 選んで巡る ${CT_NUM[w.idx % n]} ${CT_NAME[a.k]} → ${CT_NUM[(w.idx + 1) % n]} ${CT_NAME[b.k]}　${(Math.min(w.s, w.len) / d2r).toFixed(0)}° / ${(w.len / d2r).toFixed(0)}°`; }
     else if (S.fill && S.fillMode === 'tour') $('hudC').innerHTML += `<br>🧶 極めぐり ${FQ.leg % 8 + 1} / 8 本目　${fqPoleName(FQ.P)} → ${fqPoleName(add(scl(FQ.P, 0), FQ.b, 1))}　${(FQ.s / d2r).toFixed(0)}° / 90°`;
     else if (S.fill && S.fillMode === 'q') $('hudC').innerHTML += `<br>🧶 ターン（90°） ${FQ.leg + 1} 本目　この道の ${(FQ.s / d2r).toFixed(0)}° / 90°`;
     else if (S.fill) { const L = Math.floor(FILL.T / fillPer()); $('hudC').innerHTML += `<br>🧶 ターン（${FILL.half ? '半周 180°' : '全周 360°'}） ${L + 1} 本目　すきま ${fillGap(L).toFixed(1)}°（S² の向き ${fillPhDeg(L).toFixed(1)}°）`; }
