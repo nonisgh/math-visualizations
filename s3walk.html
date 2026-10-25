@@ -404,6 +404,11 @@
                     <button class="btn" id="b-foot" title="0.6 進むごとに小さな足あとを落とす">足あと</button>
                     <button class="btn" id="b-self" title="自分の場所に白い玉。光が 1 周（2π）してくると、自分の背中が見える">自分の玉</button>
                 </div>
+                <div class="row">
+                    <button class="btn" id="b-ghostback" title="遠回りで回ってきた像（反対向きから届いた光）を、絵を裏から見た形にする。光が反対側の点を通ると像は 180° 回る（上下も左右も入れかわる。右上の赤い点が左下に）。物の向こう側の面から出た光なので、本当は裏が見える：紙の絵なら左右が鏡になり、合わせると上下だけの反転（赤い点が右下に）。切ると、絵はいつも表で 180° 回ったまま">回ってきた像を裏から見る</button>
+                    <button class="btn" id="b-hidepair" title="−の側の極の目印（🐢 −x・🐸 −y・🐶 −z・🌴 カタ極）を中の景色から隠す。🐰 の回ってきた像は、ちょうど反対側の 🐢 と同じ線の上に同じ大きさで重なって隠れているので、隠すと見えるようになる">反対側の相棒を隠す</button>
+                </div>
+                <p class="note">回ってきた像（絵の時）：遠回りで届いた光は、途中で目印の反対側の点を通って 1 点に集まり、また広がるので、像は 180° 回って見えます（右上の赤い点が左下に）。極の動物はどれも反対側に相棒がいて（🐰↔🐢 など）、回ってきた像は相棒と同じ線の上に同じ大きさで重なって隠れます。ふだん見えるのが右上に赤い点のある絵ばかりなのはそのため。「反対側の相棒を隠す」で見えるようになります。「回ってきた像を裏から見る」は、物の向こう側の面から出た光だということも入れた形（紙の絵を裏から見る＝左右が鏡）で、合わせて上下だけの反転（赤い点が右下に）になります。</p>
                 <p class="note">はじめから：N（アナ極・水色）、S（カタ極・金色）、赤道の 6 か所（±x 赤・±y 緑・±z 青）。絵のモードでは N＝⛄、S＝🌴、+x＝🐰、−x＝🐢、+y＝🦝（たぬき）、−y＝🐸、+z＝🐱、−z＝🐶、自分＝🙂、足あと＝👣。置いた目印は 🦊🐻🐼… の順。</p>
                 </div>
             </section>
@@ -661,7 +666,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, spin: false, spinRate: 6, spinTilt: 23.4, spinAz: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, wName: 'ana', shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', starAng: 144, starStraight: true, starGhost: true, starK: 10, starFF: false, starDraw: 'trail', gt: { v: { x: 0.5, y: 0.5, z: 0.5, w: 0.5 }, ord: '', sg: { x: 1, y: 1, z: 1, w: 1 } }, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, wName: 'ana', shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', ghostBack: false, hidePair: false, starAng: 144, starStraight: true, starGhost: true, starK: 10, starFF: false, starDraw: 'trail', gt: { v: { x: 0.5, y: 0.5, z: 0.5, w: 0.5 }, ord: '', sg: { x: 1, y: 1, z: 1, w: 1 } }, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 // スクリーンセーバー（s3walk.html?saver、?saver&sec=60 で 1 場面の秒数、&scene=2 でその場面だけ）：保存は読まず・書かず、同期もしない（ふだんの設定と別に動く）
 const SAVER = (() => { try { const q = new URLSearchParams(location.search); if (!q.has('saver')) return null; return { sec: Math.max(10, +q.get('sec') || 50), only: q.has('scene') ? +q.get('scene') : null }; } catch (e) { return null; } })();
@@ -2188,7 +2193,7 @@ precision highp float;
 uniform vec2 uRes; uniform float uTanF, uFovY, uPixAng; uniform int uLens;
 uniform vec4 uP, uR, uU, uF;
 uniform vec4 uMk[${NMK}]; uniform vec4 uMkC[${NMK}]; uniform float uMkT[${NMK}]; uniform int uNM;
-uniform sampler2D uAtlas; uniform int uPic, uBgMesh, uPasses;
+uniform sampler2D uAtlas; uniform int uPic, uBgMesh, uPasses, uGhostBack;
 uniform vec4 uN[12]; uniform int uRoom, uCirc, uEq, uLite;
 uniform float uFog, uMaxD, uTube, uFade, uPicLine, uGridSt;
 // uGridM：世界の xyz → 球層の網目の枠
@@ -2197,14 +2202,16 @@ const float PI = 3.14159265;
 vec3 bg(vec3 d){ return mix(vec3(0.012,0.02,0.05), vec3(0.05,0.04,0.12), 0.5+0.5*d.y); }
 float pixW(float t){ return min(abs(sin(t)) * uPixAng * 1.6, 0.3); }
 float circDist(vec4 p, int i, int j){ float a = i==0?p.x:(i==1?p.y:(i==2?p.z:p.w)); float b = j==0?p.x:(j==1?p.y:(j==2?p.z:p.w)); return acos(clamp(sqrt(a*a+b*b), 0.0, 1.0)); }
-// 目印の玉の色（当たった点 q・そこでの光の向き vt）
-vec3 markerShade(vec3 base, float cellT, vec4 c, vec4 q, vec4 vt){
+// 目印の玉の色（当たった点 q・そこでの光の向き vt）。back＝1：遠回りで回ってきた像を、絵の裏から見た形にする（左右を鏡に。光が反対側の点を通って
+//   180° 回った分と合わせて、上下だけが反転した形になる。0 なら絵はいつも表＝回ってきた像は 180° 回ったまま）
+vec3 markerShade(vec3 base, float cellT, vec4 c, vec4 q, vec4 vt, float back){
     vec4 n = normalize(q - c*dot(q,c)); float li = 0.3 + 0.7*max(0.0, -dot(n, vt));
     if(uPic==2) return base * (0.75 + 0.25*li);   // 色の点：平らな色（陰影は少しだけ）
     if(uPic==1 && cellT >= 0.0){
         vec4 Rp = normalize(uR - c*dot(uR,c));
         vec4 Up = uU - c*dot(uU,c); Up = normalize(Up - Rp*dot(Up,Rp));
         vec2 xy = vec2(dot(n,Rp), dot(n,Up)) * 0.8;   // ふち（|xy| = 1）が絵のます目のふちに来るように
+        if(back > 0.5) xy.x = -xy.x;
         float cx = mod(cellT, 8.0), cy = floor(cellT/8.0);
         vec2 uv = clamp(0.5 + 0.5*xy, 0.02, 0.98);
         vec4 tx = texture2D(uAtlas, vec2((cx + uv.x)/8.0, (cy + 1.0 - uv.y)/8.0));
@@ -2230,11 +2237,12 @@ void markersTop(vec4 p0, vec4 v, out float t0, out vec3 c0, out float a0, out fl
         float phi = atan(B, A); float dt = acos(clamp(cr/amp, -1.0, 1.0));
         float t = mod(phi - dt, 2.0*PI);
         float edge = smoothstep(0.0, 0.25, (amp - cr)/max(1.0 - cr, 1e-4));   // ふちはやわらかく
+        float back = (uGhostBack == 1 && mod(phi, 2.0*PI) > PI) ? 1.0 : 0.0;   // 目印の真ん中が π より先＝遠回り（反対向きから回ってきた像）。1 周足しても同じ
         for(int k=0;k<2;k++){
             float tcut = uPasses >= 4 ? t3 : uPasses == 3 ? t2 : uPasses == 2 ? t1 : t0;   // 要る数より奥の当たりは、色を計算しない
             if(t > 1e-4 && t < uMaxD && t < tcut){
                 vec4 q = cos(t)*p0 + sin(t)*v; vec4 vt = -sin(t)*p0 + cos(t)*v;
-                ins4(t, markerShade(mc.xyz, uMkT[i], c, q, vt), edge, t0, c0, a0, t1, c1, a1, t2, c2, a2, t3, c3, a3);
+                ins4(t, markerShade(mc.xyz, uMkT[i], c, q, vt, back), edge, t0, c0, a0, t1, c1, a1, t2, c2, a2, t3, c3, a3);
             }
             t += 2.0*PI;
         }
@@ -2478,7 +2486,7 @@ void main(){
 const ray = (() => {
     const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const U = { uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * d2r) }, uFovY: { value: 70 * d2r }, uPixAng: { value: 0.002 }, uLens: { value: 0 }, uP: { value: new THREE.Vector4() }, uR: { value: new THREE.Vector4() }, uU: { value: new THREE.Vector4() }, uF: { value: new THREE.Vector4() },
-        uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkT: { value: new Float32Array(NMK).fill(-1) }, uNM: { value: 0 }, uAtlas: { value: ATLAS.tex }, uPic: { value: 0 }, uBgMesh: { value: 0 }, uPasses: { value: 4 },
+        uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkT: { value: new Float32Array(NMK).fill(-1) }, uNM: { value: 0 }, uAtlas: { value: ATLAS.tex }, uPic: { value: 0 }, uBgMesh: { value: 0 }, uPasses: { value: 4 }, uGhostBack: { value: 0 },
         uShAxis: { value: 0 }, uShAx: { value: new THREE.Vector4(1, 1, 1, 1) }, uAxC: { value: [0, 1, 2, 3].map(i => new THREE.Vector3(...hexRGB(AXIS_HEX[axL(i)]))) },
         uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uLite: { value: 1 }, uShell: { value: 0 }, uOuter: { value: 0 }, uShellLum: { value: 0.65 }, uShellSolid: { value: 0 }, uShellBare: { value: 0 }, uGridSt: { value: Math.PI / 12 }, uGridM: { value: new THREE.Matrix3() }, uShellN: { value: 11 }, uShellOp: { value: 0.22 }, uShellRange: { value: 1.0 }, uShMin: { value: 0.25 }, uShellBack: { value: 0.6 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uPicLine: { value: 0.3 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
     const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: RAY_FRAG, depthTest: false, depthWrite: false });
@@ -2491,7 +2499,8 @@ function rebuildMarks() {
     const big = (S.mk === 'pic' ? 1.5 : S.mk === 'dot' ? 1.9 : 1) * (S.grand ? 0.7 : 1);   // 絵・色の点のモードは玉を大きめに。壮大モードは 7 割（小さい物は遠くに見える）
     const put = (p, c, r, pic) => { if (n >= NMK) return; U.uMk.value[n].set(p[0], p[1], p[2], p[3]); U.uMkC.value[n].set(c[0], c[1], c[2], r * big); U.uMkT.value[n] = ATLAS.of(pic); n++; };
     if (planetKey()) put(SP4, [0.58, 0.44, 0.3], S.planetR / big, null);   // カタ極の星（地面）
-    FIXED.forEach(m => { if (polePts() && m.pole && !(S.solar && m.label === 'N')) return; if (S.solar && m.label === 'N') put(SUN.p, SUN.col, SUN.r, SUN.pic); else if (!noMk()) put(m.p, m.col, m.r, m.pic); });   // 「なし」の時はアナ極・カタ極・赤道の目印を出さない   // 太陽系の時はアナ極に太陽
+    // 「反対側の相棒を隠す」：−の側の極（🐢🐸🐶🌴）を出さない。前に重なっていた、回ってきた像が見える
+    FIXED.forEach(m => { if (polePts() && m.pole && !(S.solar && m.label === 'N')) return; if (S.hidePair && m.pole && m.p.some(x => x < -0.5)) return; if (S.solar && m.label === 'N') put(SUN.p, SUN.col, SUN.r, SUN.pic); else if (!noMk()) put(m.p, m.col, m.r, m.pic); });   // 「なし」の時はアナ極・カタ極・赤道の目印を出さない   // 太陽系の時はアナ極に太陽
     if (!noMk()) W.marks.forEach(m => put(m.p, m.col, 0.1, m.pic));
     if (S.foot) W.foot.forEach(p => put(p, [0.8, 0.85, 1], 0.03, PIC.foot));
     ray.U.uNM.value = n; ray._base = n; ray._nFoot = W.foot.length; ray._nMk = W.marks.length;
@@ -2505,8 +2514,8 @@ function setRayUniforms() {
     const lens = S.lens === 'fish' ? 1 : S.lens === 'pano' ? 2 : 0, fov = lens === 0 ? Math.min(150, S.fov) : lens === 1 ? S.fov : 180;
     U.uLens.value = lens; U.uFovY.value = fov * d2r; U.uTanF.value = Math.tan(Math.min(150, S.fov) * d2r / 2);
     U.uPixAng.value = (lens === 2 ? Math.PI : fov * d2r) / Math.max(1, VC.r.domElement.height);
-    U.uPic.value = S.mk === 'pic' ? 1 : S.mk === 'dot' ? 2 : 0; U.uBgMesh.value = S.bgMesh ? 1 : 0; U.uPasses.value = S.passes;
-    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.mk || ray._planet !== planetKey() || ray._shell !== S.shell || ray._solar !== S.solar || ray._grand !== S.grand || ray._poles !== S.poles) { ray._planet = planetKey(); ray._shell = S.shell; ray._solar = S.solar; ray._grand = S.grand; ray._poles = S.poles; rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.mk; }
+    U.uPic.value = S.mk === 'pic' ? 1 : S.mk === 'dot' ? 2 : 0; U.uBgMesh.value = S.bgMesh ? 1 : 0; U.uPasses.value = S.passes; U.uGhostBack.value = S.ghostBack ? 1 : 0;
+    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.mk || ray._planet !== planetKey() || ray._shell !== S.shell || ray._solar !== S.solar || ray._grand !== S.grand || ray._poles !== S.poles || ray._hide !== S.hidePair) { ray._hide = S.hidePair; ray._planet = planetKey(); ray._shell = S.shell; ray._solar = S.solar; ray._grand = S.grand; ray._poles = S.poles; rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.mk; }
     // 自分の玉：いつも今の場所（最後の 1 つを入れかえる）
     // 毎コマ動くもの（ホップの円の仲間・自分の玉）は、固定の目印のあと（ray._base から）に入れ直す
     let n = ray._base || 0; const big = (S.mk === 'pic' ? 1.5 : S.mk === 'dot' ? 1.9 : 1) * (S.grand ? 0.7 : 1);
@@ -2523,7 +2532,7 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-poles': 'poles', 'b-starstraight': 'starStraight', 'b-starff': 'starFF', 'b-starghost': 'starGhost', 'b-fill': 'fill', 'b-trail': 'trail', 'b-grand': 'grand', 'b-gridspin': 'gridSpin', 'b-rot4others': 'rot4Others', 'b-rot4': 'rot4', 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-poles': 'poles', 'b-ghostback': 'ghostBack', 'b-hidepair': 'hidePair', 'b-starstraight': 'starStraight', 'b-starff': 'starFF', 'b-starghost': 'starGhost', 'b-fill': 'fill', 'b-trail': 'trail', 'b-grand': 'grand', 'b-gridspin': 'gridSpin', 'b-rot4others': 'rot4Others', 'b-rot4': 'rot4', 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
 $('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
