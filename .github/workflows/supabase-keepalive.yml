@@ -1,0 +1,23 @@
+# Supabase の無料プランは、しばらく使われないとプロジェクトが一時停止される。
+# 3 日ごとに、球面さんぽ・次元おりがみの同期の表（mathviz_state）を 1 回読んで、使われている状態にしておく。
+# 鍵は公開用の publishable key（lib/supa-config.js と同じ。読み書きの守りは RLS がするので、読んでも 0 行が返るだけ）。
+name: Supabase を眠らせない
+
+on:
+  schedule:
+    - cron: '17 3 */3 * *'   # 3 日ごと、日本時間 12:17 ごろ
+  workflow_dispatch:          # Actions の画面から手で動かすこともできる
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Supabase の表を 1 回読む
+        env:
+          SUPA_URL: https://jkpiaqrxuygqtonfikkc.supabase.co
+          SUPA_KEY: sb_publishable_IjpsktD0soa2FptBa91wPw_aYRdvMT4
+        run: |
+          code=$(curl -s -o body.txt -w '%{http_code}' "$SUPA_URL/rest/v1/mathviz_state?select=app&limit=1" -H "apikey: $SUPA_KEY")
+          echo "答え：$code $(head -c 200 body.txt)"
+          test "$code" = "200"
