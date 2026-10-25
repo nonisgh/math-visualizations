@@ -154,14 +154,14 @@
         <div id="maps">
         <div id="wrapA" class="vw">
             <div id="cvA" class="cv"></div>
-            <div id="badgeA" class="badge">球面 S²（2次元の仲間）<small>同じ操作を、ふつうの球面の上でした場合。北極から出発して南極を通り、北極に戻る</small></div>
+            <div id="badgeA" class="badge">球面 S²（2次元の仲間）<small>同じ操作を、ふつうの球面の上でした場合。アナ極から出発してカタ極を通り、アナ極に戻る。上下（z）は S³ の w にあたるので、上下の極はアナ極・カタ極（天極・地極ではない。S³ の天・地の向きは S² には無い）</small></div>
             <div id="hudA" class="hud"></div>
             <div id="cvA2" class="cv"><canvas id="cvA2c"></canvas></div>
             <div class="mchips" id="chipsA"></div>
         </div>
         <div id="wrapB" class="vw">
             <div id="cvB" class="cv"></div>
-            <div id="badgeB" class="badge">S³ の地図（4次元から 3次元へ写した模型）<small>白い玉＝自分、黄色＝進む向き。N＝北極（水色）、S＝南極（金色）。線の色＝w（赤紫＝手前・水色＝奥）</small></div>
+            <div id="badgeB" class="badge">S³ の地図（4次元から 3次元へ写した模型）<small>白い玉＝自分、黄色＝進む向き。アナ極（4 次元の北・水色）・カタ極（4 次元の南・金色）。線の色＝w（赤紫＝手前・水色＝奥）</small></div>
             <div id="axlen" class="hud" style="left:auto;right:12px;top:12px;bottom:auto"></div>
             <div class="mchips" id="chipsB"></div>
         </div>
@@ -181,7 +181,7 @@
                 <circle id="wa-dot" cx="0" cy="0" r="3" fill="#c4a8ff"/>
                 <text id="wa-lab" x="0" y="0" fill="#e9ddff" font-size="12" font-weight="700" text-anchor="middle" style="paint-order:stroke;stroke:rgba(10,6,25,0.9);stroke-width:3px">地図ではこっちへ曲がる</text>
             </svg>
-            <div id="trip"><div class="t">1 周（2π ≈ 6.28）のうち</div><div class="bar"><i id="trip-bar"></i><span class="mk" style="left:50%"></span></div><div class="lab"><span>北極</span><span>南極</span><span>北極</span></div></div>
+            <div id="trip"><div class="t">1 周（2π ≈ 6.28）のうち</div><div class="bar"><i id="trip-bar"></i><span class="mk" style="left:50%"></span></div><div class="lab"><span>アナ極</span><span>カタ極</span><span>アナ極</span></div></div>
             <div id="hudC" class="hud"></div>
             <div id="poleLabs" style="position:absolute;inset:0;pointer-events:none;z-index:8;overflow:hidden"></div>
             <button id="headReset" title="見渡しをやめて、進む向き（正面）を見る">↺ 前を見る</button>
@@ -210,9 +210,9 @@
             <section class="sb-sec" data-sec="walk">
                 <h3 class="sb-h"><i data-lucide="footprints" class="w-3.5 h-3.5"></i>歩く（まずはここ）<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
                 <div class="sec-body">
-                <p class="note sec-hint">まっすぐ歩くと、ぐるっと回ってもとの場所に戻ってきます。</p>
+                <p class="note sec-hint">まっすぐ歩くと、ぐるっと回ってもとの場所に戻ってきます。出発は<b>アナ極（4 次元の北）</b>、ちょうど反対側が<b>カタ極（4 次元の南）</b>。</p>
                 <div class="row">
-                    <button class="btn big" id="b-trip" title="北極に立ち、今の方位・仰角で歩き続ける。南極を通って北極に戻る（2π）">▶ 北極から一周</button>
+                    <button class="btn big" id="b-trip" title="アナ極に立ち、今の方位・仰角で歩き続ける。カタ極を通ってアナ極に戻る（2π）">▶ アナ極から一周</button>
                     <button class="btn" id="b-walk" title="向いている方へ歩き続ける（W キー＝押している間だけ）">歩き続ける</button>
                     <button class="btn" id="b-stop" title="立ち止まる">止まる</button>
                 </div>
@@ -226,12 +226,12 @@
                     <button class="btn" id="b-el45">仰角 45°</button>
                 </div>
                 <div class="row">
-                    <button class="btn" id="b-north" title="北極 N に立って、進んだ距離を 0 に。足あとと道すじも消す">北極に戻す</button>
+                    <button class="btn" id="b-north" title="アナ極 に立って、進んだ距離を 0 に。足あとと道すじも消す">アナ極に戻す</button>
                     <button class="btn" id="b-clear" title="道すじと足あとを消す（場所はそのまま）">道すじを消す</button>
                     <button class="btn" id="b-trail" title="地図（S² の仲間・S³ の地図・2 枚目の地図）に、歩いた道すじ（軌跡）を描くかどうか。消しても記録は続く">〰️ 地図に軌跡</button>
                 </div>
                 <div class="sl"><span>軌跡の太さ</span><input id="s-trailw" type="range" min="0.25" max="4" step="0.05" title="地図の軌跡の線の太さ（1 がもとの太さ）"><output id="o-trailw"></output></div>
-                <p class="note">キー：W/S・↑↓ 前後　A/D 横　Q/E 上下　←→ 方位　ホイール 前後。右の窓をドラッグすると見渡す（進む向きはそのまま）、Enter でその向きへ進む。Shift＋ドラッグで進む向きを変える（地図の窓でも）。「縦横無尽」は歩きながら向きがひとりでに変わり続けるモード（「曲がり」で変わりやすさ）。「螺旋で一周」は北極から竜巻のように巻きながら南極へ行き、反対側を巻いて北極へ戻る（「巻き数」で北極→南極の間に回る回数）。「傾き」を 0 より大きくすると<b>二重の螺旋</b>：巻く面そのものが z の方へ傾いていく 4次元らしい渦（左の S² には対応する動きがないので、左は平らな竜巻のまま）。</p>
+                <p class="note">キー：W/S・↑↓ 前後　A/D 横　Q/E 上下　←→ 方位　ホイール 前後。右の窓をドラッグすると見渡す（進む向きはそのまま）、Enter でその向きへ進む。Shift＋ドラッグで進む向きを変える（地図の窓でも）。「縦横無尽」は歩きながら向きがひとりでに変わり続けるモード（「曲がり」で変わりやすさ）。「螺旋で一周」はアナ極から竜巻のように巻きながらカタ極へ行き、反対側を巻いてアナ極へ戻る（「巻き数」でアナ極→カタ極の間に回る回数）。「傾き」を 0 より大きくすると<b>二重の螺旋</b>：巻く面そのものが z の方へ傾いていく 4次元らしい渦（左の S² には対応する動きがないので、左は平らな竜巻のまま）。</p>
                 <p class="note">方位 0°・90° は x・y の経線の管の真上を歩くので、管の中の景色になります（少しずらすと管が横に見える）。方位＝自分の体の「前」から右へ何度か（体の向きは歩いても変わらない＝平行移動）。仰角＝水平から上へ何度か。<b class="an">S² の仲間には仰角がない</b>ので、左の窓は方位だけで動きます。まっすぐ進む＝向きを変えずに進む。向きを変えると別の大円に乗りかえる。</p>
                 </div>
             </section>
@@ -244,25 +244,25 @@
                 </div>
                 <div class="sl"><span>曲がり</span><input id="s-roam" type="range" min="0.2" max="3" step="0.05" title="縦横無尽の時の、向きの変わりやすさ"><output id="o-roam"></output></div>
                 <div class="row">
-                    <button class="btn" id="b-spiral" title="北極から竜巻のような螺旋で進む：極の近くでは小さく回り、赤道で大きく回って、南極へ。そのまま反対側を巻いて北極へ戻る。左の S² も同じ螺旋">🌪 螺旋で一周</button>
+                    <button class="btn" id="b-spiral" title="アナ極から竜巻のような螺旋で進む：極の近くでは小さく回り、赤道で大きく回って、カタ極へ。そのまま反対側を巻いてアナ極へ戻る。左の S² も同じ螺旋">🌪 螺旋で一周</button>
                 </div>
-                <div class="sl"><span>巻き数</span><input id="s-turns" type="range" min="1" max="12" step="0.5" title="螺旋で北極から南極まで行く間に何回まわるか"><output id="o-turns"></output></div>
+                <div class="sl"><span>巻き数</span><input id="s-turns" type="range" min="1" max="12" step="0.5" title="螺旋でアナ極からカタ極まで行く間に何回まわるか"><output id="o-turns"></output></div>
                 <div class="sl"><span>歳差</span><input id="s-prec" type="range" min="0" max="45" step="1" title="歳差の螺旋：1 周ごとに輪の面を x 軸のまわりに何度回すか。0 なら毎回同じ道。15° なら 6 周目あたりで輪が縦になり、上下（±z）のてっぺんまで届く"><output id="o-prec"></output></div>
-                <div class="sl"><span>傾き</span><input id="s-tilt" type="range" min="0" max="1" step="0.05" title="二重の螺旋：巻く面が進むにつれて z の方へ傾く度合い。0 なら 1 枚の球面の上の平らな竜巻（左の S² と同じ）、1 なら北極では z の向きに巻き始め、南極では −z の向きに"><output id="o-tilt"></output></div>
+                <div class="sl"><span>傾き</span><input id="s-tilt" type="range" min="0" max="1" step="0.05" title="二重の螺旋：巻く面が進むにつれて z の方へ傾く度合い。0 なら 1 枚の球面の上の平らな竜巻（左の S² と同じ）、1 ならアナ極では z の向きに巻き始め、カタ極では −z の向きに"><output id="o-tilt"></output></div>
                 <div class="row">
                     
-                    <button class="btn" id="b-fill" title="ターン：北極から大円を進み、極に戻るたびに、すきまの大きい向きへ双曲線で極をよけてターンして、また進む。地図の軌跡が、だんだん球を埋めていく。「全周 360°」は北極で 1 周するごとにターン（南極はまっすぐ通り抜ける）。「半周 180°」は北極と南極の両方でターン（南極では北極と東西逆に曲がる）。「90°」は 90° ごとに、まだ通っていない方へ（極には戻らない）">🧶 ターン</button>
+                    <button class="btn" id="b-fill" title="ターン：アナ極から大円を進み、極に戻るたびに、すきまの大きい向きへ双曲線で極をよけてターンして、また進む。地図の軌跡が、だんだん球を埋めていく。「全周 360°」はアナ極で 1 周するごとにターン（カタ極はまっすぐ通り抜ける）。「半周 180°」はアナ極とカタ極の両方でターン（カタ極ではアナ極と東西逆に曲がる）。「90°」は 90° ごとに、まだ通っていない方へ（極には戻らない）">🧶 ターン</button>
                     <span class="note">ターンするまで：</span>
-                    <button class="btn fsel" data-fs="full" title="全周 360°：北極を出て、南極をまっすぐ通り抜け、大円を 1 周して北極に戻ったらターン。左の S² では 0° → 90° → 45° → 135° → … とすきまを半分ずつ埋める">全周 360°</button>
-                    <button class="btn fsel" data-fs="half" title="半周 180°：北極→南極、南極→北極と経線（半円）を進むごとに、両方の極でターン。向きは全部（S² は 0〜360°）から、すきまが大きく前の経線に直角に近いものを選ぶ。南極では北極と東西逆に曲がる（S³ では曲がる回転の軸を前とそろえる）">半周 180°</button>
+                    <button class="btn fsel" data-fs="full" title="全周 360°：アナ極を出て、カタ極をまっすぐ通り抜け、大円を 1 周してアナ極に戻ったらターン。左の S² では 0° → 90° → 45° → 135° → … とすきまを半分ずつ埋める">全周 360°</button>
+                    <button class="btn fsel" data-fs="half" title="半周 180°：アナ極→カタ極、カタ極→アナ極と経線（半円）を進むごとに、両方の極でターン。向きは全部（S² は 0〜360°）から、すきまが大きく前の経線に直角に近いものを選ぶ。カタ極ではアナ極と東西逆に曲がる（S³ では曲がる回転の軸を前とそろえる）">半周 180°</button>
                     <button class="btn fsel" data-fs="q" title="90°：大円を 90°（4 分の 1 周）進むごとにターン。極には戻らず、ターンする点から、その先の 90° の道が今までの軌跡からいちばん離れている向き（まだ通っていない方）へ曲がって、さまよいながら広がる。S² と S³ はそれぞれ自分の軌跡で選ぶ">90°</button>
-                    <button class="btn fsel" data-fs="tour" title="極めぐり：北極から、となり合う極（90° はなれている）だけをたどって 8 つの極を全部回り、北極に戻る（北極→東→アナ→天→南極→西→カタ→地→北極）。90° × 8 本＝4π がいちばん短い 1 周。毎回 90° の双曲線ターンで、ずっとくり返す。S² の窓は 6 つの極を同じように回る">極めぐり</button>
+                    <button class="btn fsel" data-fs="tour" title="極めぐり：アナ極から、となり合う極（90° はなれている）だけをたどって 8 つの極を全部回り、アナ極に戻る（アナ極→東→北→天→カタ極→西→南→地→アナ極）。90° × 8 本＝4π がいちばん短い 1 周。毎回 90° の双曲線ターンで、ずっとくり返す。S² の窓は 6 つの極を同じように回る">極めぐり</button>
                     <button class="btn fsel" data-fs="ctour" title="選んで巡る：下の極を押した順に ①②③… と番号が付き、①から順に巡って、最後の次は①に戻る。選ばなかった極は通らない。となりの極へは 90°（4 分の 1 周）、反対の極へは 180°（半周、まっすぐ）。S² の窓は、選んだ極のうち S² にあるもの（天・地を除く）を同じ順で巡る">選んで巡る</button>
                 </div>
                 <div class="row" id="ctRow" title="選んで巡る：押した順に番号。もう一度押すと外れて、番号が詰まる">
                     <span class="note">巡る順：</span>
-                    <button class="btn ctp" data-k="N">北極</button><button class="btn ctp" data-k="S">南極</button><button class="btn ctp" data-k="E">東極</button><button class="btn ctp" data-k="W">西極</button>
-                    <button class="btn ctp" data-k="T">天極</button><button class="btn ctp" data-k="G">地極</button><button class="btn ctp" data-k="A">アナ極</button><button class="btn ctp" data-k="K">カタ極</button>
+                    <button class="btn ctp" data-k="N">アナ極</button><button class="btn ctp" data-k="S">カタ極</button><button class="btn ctp" data-k="E">東極</button><button class="btn ctp" data-k="W">西極</button>
+                    <button class="btn ctp" data-k="T">天極</button><button class="btn ctp" data-k="G">地極</button><button class="btn ctp" data-k="A">北極</button><button class="btn ctp" data-k="K">南極</button>
                     <button class="btn" id="b-ctclear" title="選んだ極を全部外す">外す</button>
                 </div>
                 <div class="row">
@@ -271,16 +271,16 @@
                     <button class="btn tsel" data-ts="sharp" title="直角：曲がる点までまっすぐ進み、その場で向きを変えて、まっすぐ出る。道は極（曲がる点）をちょうど通って、角でぴったり曲がる（極めぐり・90° なら直角の角）">直角</button>
                 </div>
                 <div class="row">
-                    <button class="btn" id="b-ring" title="北極と南極を通る輪（経線）を歩く。1 周ごとに輪が軸のまわりに少しずつ回って、だんだん球面をおおう。地図は北極が上・南極が下の向きになる">🌐 回る輪</button>
+                    <button class="btn" id="b-ring" title="アナ極とカタ極を通る輪（経線）を歩く。1 周ごとに輪が軸のまわりに少しずつ回って、だんだん球面をおおう。地図はアナ極が上・カタ極が下の向きになる">🌐 回る輪</button>
                 </div>
                 <div class="row">
                     <span class="note">軸：</span>
                     <button class="btn rax" data-ax="x" title="輪が x 軸のまわりに回る">x</button>
                     <button class="btn rax" data-ax="y" title="輪が y 軸のまわりに回る">y</button>
                     <button class="btn rax" data-ax="z" title="輪が z 軸のまわりに回る">z</button>
-                    <button class="btn rax" data-ax="w" title="輪が w 軸のまわりに回る：輪は北極・南極ではなく +z（🐱）と −z（🐶）を通り、S³ の赤道の球面（w = 0）をおおう">w</button>
+                    <button class="btn rax" data-ax="w" title="輪が w 軸のまわりに回る：輪はアナ極・カタ極ではなく +z（🐱）と −z（🐶）を通り、S³ の赤道の球面（w = 0）をおおう">w</button>
                     <button class="btn rax" data-ax="all" title="輪の向きが、向きの球ぜんたいを巡る（S³ ぜんたいをおおう）">全部</button>
-                    <button class="btn" id="b-ringview" title="地図を、北極が上・南極が下、輪の回る軸が奥行きになる向きにする">北極を上に</button>
+                    <button class="btn" id="b-ringview" title="地図を、アナ極が上・カタ極が下、輪の回る軸が奥行きになる向きにする">アナ極を上に</button>
                 </div>
                 <div class="sl"><span>1 周で回す角</span><input id="s-ringstep" type="range" min="2" max="45" step="1" title="回る輪：1 周ごとに輪を何度回すか（10° なら 18 周で球面をひとめぐり）"><output id="o-ringstep"></output></div>
                 </div>
@@ -328,15 +328,15 @@
                 <h3 class="sb-h"><i data-lucide="apple" class="w-3.5 h-3.5"></i>重力<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
                 <div class="sec-body">
                 <div class="row">
-                    <button class="btn" id="b-grav" title="4次元で w の＋から−へ向かう重力をかける。中の人には「南極へ引く力」（赤道で最強、両極でゼロ）に感じる。左の S² も同じ">🍎 重力</button>
-                    <button class="btn" id="b-planet" title="南極に岩の星（地面）を置く。重力 ON の時、その表面に立てる（S² では南極のまわりの円板）">南極に星</button>
+                    <button class="btn" id="b-grav" title="4次元で w の＋から−へ向かう重力をかける。中の人には「カタ極へ引く力」（赤道で最強、両極でゼロ）に感じる。左の S² も同じ">🍎 重力</button>
+                    <button class="btn" id="b-planet" title="カタ極に岩の星（地面）を置く。重力 ON の時、その表面に立てる（S² ではカタ極のまわりの円板）">カタ極に星</button>
                     <button class="btn" id="b-drop" title="重力 ON にして、赤道に止まった状態で手をはなす（振り子の実験）">赤道から落とす</button>
                     <button class="btn" id="b-jump" title="星の上からジャンプ（J キー）">ジャンプ</button>
-                    <button class="btn" id="b-kick" title="見ている水平の向きへ勢いをつける。南極のまわりを回る軌道になる">横に蹴る</button>
+                    <button class="btn" id="b-kick" title="見ている水平の向きへ勢いをつける。カタ極のまわりを回る軌道になる">横に蹴る</button>
                 </div>
                 <div class="sl"><span>重力</span><input id="s-g" type="range" min="0.1" max="5" step="0.05" title="重力の強さ"><output id="o-g"></output></div>
-                <div class="sl"><span>星の大きさ</span><input id="s-pr" type="range" min="0.1" max="1.2" step="0.01" title="南極の星の半径（S³ の中での距離。π/2 で赤道まで）"><output id="o-pr"></output></div>
-                <div class="sl"><span>空気抵抗</span><input id="s-gdamp" type="range" min="0" max="2" step="0.01" title="0 なら振り子はずっと揺れ続ける。大きいと南極（星の上）に落ち着く"><output id="o-gdamp"></output></div>
+                <div class="sl"><span>星の大きさ</span><input id="s-pr" type="range" min="0.1" max="1.2" step="0.01" title="カタ極の星の半径（S³ の中での距離。π/2 で赤道まで）"><output id="o-pr"></output></div>
+                <div class="sl"><span>空気抵抗</span><input id="s-gdamp" type="range" min="0" max="2" step="0.01" title="0 なら振り子はずっと揺れ続ける。大きいとカタ極（星の上）に落ち着く"><output id="o-gdamp"></output></div>
                 </div>
             </section>
 
@@ -344,17 +344,17 @@
                 <h3 class="sb-h"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i>架空の世界（太陽系・ダイソン球）<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
                 <div class="sec-body">
                 <div class="row">
-                    <button class="btn" id="b-solar" title="3次元球面の太陽系（架空）：太陽 ☀️ を北極に置き、8 つの惑星がそれぞれ太陽から決まった距離の円を回る。S³ では太陽から π/2（赤道）より遠い惑星は、反対側（南極 🌴）を囲む小さな円を回る">☀️ 太陽系</button>
+                    <button class="btn" id="b-solar" title="3次元球面の太陽系（架空）：太陽 ☀️ をアナ極に置き、8 つの惑星がそれぞれ太陽から決まった距離の円を回る。S³ では太陽から π/2（赤道）より遠い惑星は、反対側（カタ極 🌴）を囲む小さな円を回る">☀️ 太陽系</button>
                     <button class="btn" id="b-tour" title="太陽系ツアー：次の惑星へ飛んで行き、着いたらその惑星のすぐ後ろを並んで飛ぶ（ドラッグで見渡せる）。歩くと止まる">次の惑星へ ▶</button>
-                    <button class="btn" id="b-tour0" title="ツアーをやめて、太陽のそば（北極）に戻る">太陽に戻る</button>
+                    <button class="btn" id="b-tour0" title="ツアーをやめて、太陽のそば（アナ極）に戻る">太陽に戻る</button>
                 </div>
                 <div class="sl"><span>公転の速さ</span><input id="s-solarspd" type="range" min="0" max="4" step="0.1" title="惑星が太陽のまわりを回る速さ（0 で止める）"><output id="o-solarspd"></output></div>
-                <p class="note">「☀️ 太陽系」は 3次元球面に置いた架空の太陽系。太陽はどこに置いても同じ（S³ には真ん中も端もない）ので北極に。惑星は太陽から決まった距離の円を回ります。太陽を囲む球面は π/2（赤道）でいちばん大きく、その先はまた小さくなるので、天王星・海王星は反対側の南極 🌴 を囲む小さな円を回ります。遠い惑星から見ると、太陽は π/2 より遠いので逆に大きく見え、反対の向きにも（光が反対回りで届いて）見えます。「次の惑星へ ▶」で飛んで行き、着くと惑星のすぐ後ろを並んで飛びます（Shift＋ドラッグで見渡し、歩くとツアーをやめる）。</p>
+                <p class="note">「☀️ 太陽系」は 3次元球面に置いた架空の太陽系。太陽はどこに置いても同じ（S³ には真ん中も端もない）のでアナ極に。惑星は太陽から決まった距離の円を回ります。太陽を囲む球面は π/2（赤道）でいちばん大きく、その先はまた小さくなるので、天王星・海王星は反対側のカタ極 🌴 を囲む小さな円を回ります。遠い惑星から見ると、太陽は π/2 より遠いので逆に大きく見え、反対の向きにも（光が反対回りで届いて）見えます。「次の惑星へ ▶」で飛んで行き、着くと惑星のすぐ後ろを並んで飛びます（Shift＋ドラッグで見渡し、歩くとツアーをやめる）。</p>
                 <div class="row">
-                    <button class="btn" id="b-dyson" title="架空：S³ が外からダイソン球のような模様の殻で囲まれていたら。外の光は 4次元目から差すので中の人には向きがなく、その場所のもやが、真上の模様の色に光って見える（北は金色・南は青白のパネル）">🌐 外のダイソン球</button>
+                    <button class="btn" id="b-dyson" title="架空：S³ が外からダイソン球のような模様の殻で囲まれていたら。外の光は 4次元目から差すので中の人には向きがなく、その場所のもやが、真上の模様の色に光って見える（アナは金色・カタは青白のパネル）">🌐 外のダイソン球</button>
                 </div>
                 <div class="sl"><span>外の光の強さ</span><input id="s-outer" type="range" min="0.1" max="2" step="0.05" title="外のダイソン球の光で光るもやの強さ"><output id="o-outer"></output></div>
-                <p class="note">「🌐 外のダイソン球」は架空の見え方。中の人の視線は S³ の中を一周するだけで外へ出ないので、外の殻そのものは決して見えません。でも外の光が 4次元目（球の外向き）から差し込むなら、それは前後・左右・上下のどれとも直角で向きがないので、その場所の空気（もや）が「真上」の模様の色に光るように感じるはず。中の景色は、視線に沿ってそのもやの光を足し合わせたもの（近いほど強く）。模様は、ところどころ光るパネル（北は金色・南は青白みがかる）。地図の色の点が、その模様を S³ に写したものです。</p>
+                <p class="note">「🌐 外のダイソン球」は架空の見え方。中の人の視線は S³ の中を一周するだけで外へ出ないので、外の殻そのものは決して見えません。でも外の光が 4次元目（球の外向き）から差し込むなら、それは前後・左右・上下のどれとも直角で向きがないので、その場所の空気（もや）が「真上」の模様の色に光るように感じるはず。中の景色は、視線に沿ってそのもやの光を足し合わせたもの（近いほど強く）。模様は、ところどころ光るパネル（アナは金色・カタは青白みがかる）。地図の色の点が、その模様を S³ に写したものです。</p>
                 </div>
             </section>
 
@@ -363,24 +363,25 @@
                 <div class="sec-body">
                 <div class="row">
                     <button class="btn" id="b-mark" title="今いる場所に、番号つきの玉を置く">ここに目印を置く</button>
-                    <button class="btn" id="b-mkclear" title="置いた目印を消す（北極・南極・赤道の 6 つは残る）">置いた目印を消す</button>
+                    <button class="btn" id="b-mkclear" title="置いた目印を消す（アナ極・カタ極・赤道の 6 つは残る）">置いた目印を消す</button>
                 </div>
                 <div id="mklist"></div>
+                <p class="note"><b>アナ極（4 次元の北）・カタ極（4 次元の南）</b>は w の両はし（出発はアナ極）。北極・南極は y、東極・西極は x、天極・地極は z の両はし。アナ・カタは、4 次元の 4 本目の向き（w の＋と−）の名前。</p>
                 <div class="row">
-                    <button class="btn" id="b-poles" title="極点を表示：8 つの極（北極 +w・南極 −w と、x・y・z 軸の両はしの 6 つ）を、中の景色と地図（S³ の地図・S² の窓・地図 2）に、平らな点と名前で出す（玉にするとゆがむので点だけ。殻や線の奥でも見える。地図では球の奥の側は薄く）。北極は赤、南極は紫。東 +x・西 −x・アナ +y・カタ −y・天 +z・地 −z。北極から軸の向きに 90° 進むと、ちょうどとなりの極に着く。8 つは正十六胞体の頂点">📍 極点を表示</button>
+                    <button class="btn" id="b-poles" title="極点を表示：8 つの極（アナ極 +w・カタ極 −w と、x・y・z 軸の両はしの 6 つ）を、中の景色と地図（S³ の地図・S² の窓・地図 2）に、平らな点と名前で出す（玉にするとゆがむので点だけ。殻や線の奥でも見える。地図では球の奥の側は薄く）。アナ極は赤、カタ極は紫。東 +x・西 −x・北 +y・南 −y・天 +z・地 −z。アナ極から軸の向きに 90° 進むと、ちょうどとなりの極に着く。8 つは正十六胞体の頂点">📍 極点を表示</button>
                 </div>
                 <div class="row">
                     <span class="note">目印の見せ方：</span>
                     <button class="btn mk" data-mk="ball" title="色つきの玉（既定）">玉</button>
                     <button class="btn mk" data-mk="pic" title="絵（兎・亀・たぬき…）。P キーで 玉 → 絵 → 色の点 → なし と順に切りかえ">🐰 絵</button>
                     <button class="btn mk" data-mk="dot" title="大きめの平らな色の点。いちばん軽い">● 色の点</button>
-                    <button class="btn mk" data-mk="none" title="目印を何も出さない（北極・南極・赤道の目印と、置いた目印。中の景色と地図の両方）。仲間・惑星・自分の玉・足あとはそのまま">なし</button>
+                    <button class="btn mk" data-mk="none" title="目印を何も出さない（アナ極・カタ極・赤道の目印と、置いた目印。中の景色と地図の両方）。仲間・惑星・自分の玉・足あとはそのまま">なし</button>
                 </div>
                 <div class="row">
                     <button class="btn" id="b-foot" title="0.6 進むごとに小さな足あとを落とす">足あと</button>
                     <button class="btn" id="b-self" title="自分の場所に白い玉。光が 1 周（2π）してくると、自分の背中が見える">自分の玉</button>
                 </div>
-                <p class="note">はじめから：N（北極・水色）、S（南極・金色）、赤道の 6 か所（±x 赤・±y 緑・±z 青）。絵のモードでは N＝⛄、S＝🌴、+x＝🐰、−x＝🐢、+y＝🦝（たぬき）、−y＝🐸、+z＝🐱、−z＝🐶、自分＝🙂、足あと＝👣。置いた目印は 🦊🐻🐼… の順。</p>
+                <p class="note">はじめから：N（アナ極・水色）、S（カタ極・金色）、赤道の 6 か所（±x 赤・±y 緑・±z 青）。絵のモードでは N＝⛄、S＝🌴、+x＝🐰、−x＝🐢、+y＝🦝（たぬき）、−y＝🐸、+z＝🐱、−z＝🐶、自分＝🙂、足あと＝👣。置いた目印は 🦊🐻🐼… の順。</p>
                 </div>
             </section>
 
@@ -388,16 +389,16 @@
                 <h3 class="sb-h"><i data-lucide="grid-3x3" class="w-3.5 h-3.5"></i>中の景色の線と背景<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
                 <div class="sec-body">
                 <div class="row">
-                    <button class="btn" id="b-lite" title="緯度・経度の線を式だけで描く軽いモード（北極からの距離 30°・60°・90°・120°・150° の 5 枚の殻に、30° ごとの線）">軽い線（緯度経度）</button>
+                    <button class="btn" id="b-lite" title="緯度・経度の線を式だけで描く軽いモード（アナ極からの距離 30°・60°・90°・120°・150° の 5 枚の殻に、30° ごとの線）">軽い線（緯度経度）</button>
                     <button class="btn" id="b-eq" title="赤道の球面 S²（w = 0）を薄い膜で">赤道の膜</button>
-                    <button class="btn" id="b-circ" title="x・y・z の 3 本の経線（北極と南極を通る大円）と、3 本の赤道の輪を管で。光を少しずつ進めて探すので重め">経線・赤道の輪（重め）</button>
+                    <button class="btn" id="b-circ" title="x・y・z の 3 本の経線（アナ極とカタ極を通る大円）と、3 本の赤道の輪を管で。光を少しずつ進めて探すので重め">経線・赤道の輪（重め）</button>
                     <button class="btn" id="b-room" title="S³ をちょうど 120 個の正十二面体で区切った部屋（120 胞体）の辺。光を少しずつ進めて探すので重い">部屋（120 胞体）重い</button>
                 </div>
                 <div class="row">
-                    <button class="btn" id="b-bgmesh" title="背景を地図のような色のメッシュに（光の 4次元の向きで色が決まる。経度で色相・北は明るく南は暗く・30° ごとに線）。式だけで描くので軽い">色の地図（背景）</button>
+                    <button class="btn" id="b-bgmesh" title="背景を地図のような色のメッシュに（光の 4次元の向きで色が決まる。経度で色相・アナは明るくカタは暗く・30° ごとに線）。式だけで描くので軽い">色の地図（背景）</button>
                 </div>
                 <div class="sl"><span>絵の時の線</span><input id="s-picline" type="range" min="0" max="1" step="0.05" title="絵のモードでの線（部屋・経線・赤道の膜）の濃さ。0 で消える"><output id="o-picline"></output></div>
-                <p class="note">「軽い線」は、北極からの距離が 30°・60°・90°（赤道）・120°・150° の 5 枚の球面（S³ の緯度の殻）に、緯度・経度の線を描いたもの。赤紫＝北寄り、水色＝南寄り。「部屋」と「経線・赤道の輪」は光を少しずつ進めて探すので重め。</p>
+                <p class="note">「軽い線」は、アナ極からの距離が 30°・60°・90°（赤道）・120°・150° の 5 枚の球面（S³ の緯度の殻）に、緯度・経度の線を描いたもの。赤紫＝アナ寄り、水色＝カタ寄り。「部屋」と「経線・赤道の輪」は光を少しずつ進めて探すので重め。</p>
                 </div>
             </section>
 
@@ -405,31 +406,31 @@
                 <h3 class="sb-h"><i data-lucide="layers" class="w-3.5 h-3.5"></i>球層（超球アプリ）<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
                 <div class="sec-body">
                 <div class="row">
-                    <button class="btn" id="b-shell" title="超球アプリの「球殻積層」と同じ見た目の球層の中を歩く：北・南それぞれ n 枚の w = 一定の球殻（半透明＋網目、極から赤道へ色が変わる。ふちと裏側は暗く）。式だけで描くので軽め">🫧 球層（超球アプリ）</button>
+                    <button class="btn" id="b-shell" title="超球アプリの「球殻積層」と同じ見た目の球層の中を歩く：アナ・カタそれぞれ n 枚の w = 一定の球殻（半透明＋網目、極から赤道へ色が変わる。ふちと裏側は暗く）。式だけで描くので軽め">🫧 球層（超球アプリ）</button>
                     <button class="btn" id="b-shellsolid" title="球層を立体に：超球アプリの「不透明」＋「影」の見た目（面に光とつや、ふちは暗い輪郭）。ただし、うっすら透ける">立体</button>
                     <button class="btn" id="b-shellbare" title="立体の殻だけ（網目の線なし）：中の景色は立体の殻から網目を消し、S³ の地図も殻を線ではなく半透明の立体の球面で描く">立体だけ（網目なし）</button>
                 </div>
                 <div class="row">
                     <span class="note">殻の色：</span>
-                    <button class="btn shcol" data-c="rainbow" title="標準（レインボー）：北極・南極を囲む殻を、北は赤から、南は紫まで虹の色で。いつもはこれ">標準（レインボー）</button>
-                    <button class="btn shcol" data-c="axis" title="軸色：x・y・z・w の 4 本の軸それぞれの極を囲む殻を、その軸の色で重ねる（x 赤・y 緑・z 青・w 紫＝北極・南極の殻）。殻は「その軸の成分＝一定」の球面で、4 次元の方眼のように交わる。極点の色も軸の色になる">軸色</button>
+                    <button class="btn shcol" data-c="rainbow" title="標準（レインボー）：アナ極・カタ極を囲む殻を、アナは赤から、カタは紫まで虹の色で。いつもはこれ">標準（レインボー）</button>
+                    <button class="btn shcol" data-c="axis" title="軸色：x・y・z・w の 4 本の軸それぞれの極を囲む殻を、その軸の色で重ねる（x 赤・y 緑・z 青・w 紫＝アナ極・カタ極の殻）。殻は「その軸の成分＝一定」の球面で、4 次元の方眼のように交わる。極点の色も軸の色になる">軸色</button>
                     <span class="note">軸：</span>
                     <button class="btn shax" data-a="x" title="x の極（東極・西極）を囲む殻（赤）">x</button>
-                    <button class="btn shax" data-a="y" title="y の極（アナ極・カタ極）を囲む殻（緑）">y</button>
+                    <button class="btn shax" data-a="y" title="y の極（北極・南極）を囲む殻（緑）">y</button>
                     <button class="btn shax" data-a="z" title="z の極（天極・地極）を囲む殻（青）">z</button>
-                    <button class="btn shax" data-a="w" title="w の極（北極・南極）を囲む殻（紫）">w</button>
+                    <button class="btn shax" data-a="w" title="w の極（アナ極・カタ極）を囲む殻（紫）">w</button>
                 </div>
                 <div class="row">
                     <button class="btn" id="b-gridspin" title="球層の網目（緯線・経線）を、網目の極のまわりにくるくる回す（殻そのものは同じ。中の景色と S³ の地図の両方）">🌀 網目を自転</button>
                     <button class="btn" id="b-grid0" title="網目の向きと自転を最初に戻す（極は z）">網目の向きを戻す</button>
-                    <button class="btn" id="b-grid90" title="網目を 90° 倒す（北極から出発した時に経線が画面の方を向かず、横から見えるように）">網目を横に倒す</button>
+                    <button class="btn" id="b-grid90" title="網目を 90° 倒す（アナ極から出発した時に経線が画面の方を向かず、横から見えるように）">網目を横に倒す</button>
                 </div>
                 <div class="sl"><span>網目の自転の速さ</span><input id="s-gridspinrate" type="range" min="-30" max="30" step="0.5" title="1 分に何回まわるか（マイナスで逆回り）"><output id="o-gridspinrate"></output></div>
                 <div class="sl"><span>網目の傾き</span><input id="s-gridtilt" type="range" min="0" max="180" step="1" title="網目の極を z からどれだけ倒すか"><output id="o-gridtilt"></output></div>
                 <div class="sl"><span>網目の傾きの向き</span><input id="s-gridaz" type="range" min="-180" max="180" step="1" title="網目の極をどちらへ倒すか（0 で x、90 で y の方）"><output id="o-gridaz"></output></div>
-                <div class="sl"><span>層数</span><input id="s-shelln" type="range" min="3" max="21" step="1" title="球層：北・南それぞれの球殻の枚数（赤道は共通）"><output id="o-shelln"></output></div>
+                <div class="sl"><span>層数</span><input id="s-shelln" type="range" min="3" max="21" step="1" title="球層：アナ・カタそれぞれの球殻の枚数（赤道は共通）"><output id="o-shelln"></output></div>
                 <div class="sl"><span>透明度</span><input id="s-shellop" type="range" min="0.05" max="0.75" step="0.01" title="球層：1 枚の殻の濃さ"><output id="o-shellop"></output></div>
-                <div class="sl"><span>暗い色の持ち上げ</span><input id="s-shelllum" type="range" min="0" max="0.75" step="0.05" title="中の景色の球層：青・紫など目に暗く見える色を、色合いはそのままで白を少し混ぜて明るくする（南の殻が真っ暗に見えないように）。0 で超球アプリと同じ色"><output id="o-shelllum"></output></div>
+                <div class="sl"><span>暗い色の持ち上げ</span><input id="s-shelllum" type="range" min="0" max="0.75" step="0.05" title="中の景色の球層：青・紫など目に暗く見える色を、色合いはそのままで白を少し混ぜて明るくする（カタの殻が真っ暗に見えないように）。0 で超球アプリと同じ色"><output id="o-shelllum"></output></div>
                 <div class="sl"><span>裏側</span><input id="s-shellback" type="range" min="0" max="1" step="0.05" title="球層：極の側（内側）から見た面をどれだけ暗くするか"><output id="o-shellback"></output></div>
                 <div class="sl"><span>殻の見える距離</span><input id="s-shellrange" type="range" min="0.3" max="25.15" step="0.05" title="球層の殻を、自分からこの距離までだけ描く（いちばん右で光 4 周＝どこまでも。遠くまで見る時は殻の面がうすくなり、網目の線で奥まで見える）。殻は本物の壁なので、遠くまで描くと何十枚も重なって、1 周して戻ってくる景色（反対側の像）を隠してしまう。1 くらいにすると、近くの殻と、遠回りして戻ってくる目印の両方が見える（遠い殻ほど薄く描く）"><output id="o-shellrange"></output></div>
                 <div class="row">
@@ -439,7 +440,7 @@
                     <button class="btn" id="b-shonly" title="球層の時、S³ の地図には球殻だけを描く：地図の球全体にかかる線（赤道の網目・軽い線・経線と赤道の輪・部屋）を地図から消す。中の景色はそのまま">地図は球殻だけ</button>
                 </div>
                 <div class="sl"><span>地図の近さ</span><input id="s-shfocusr" type="range" min="0.3" max="3.2" step="0.05" title="「地図は今いる所だけ」で、自分からこの距離までの殻を地図に描く（遠くなるほど薄く）"><output id="o-shfocusr"></output></div>
-                <p class="note">「球層」は超球アプリ（hypersphere.html）の右の窓と同じ球殻の積み重ね。「網目を自転」「網目の傾き・向き」で、殻の網目（緯線・経線）だけを回したり倒したりできます（殻そのものは同じ。北極から出発すると経線が画面の方を向いて見にくい時に）。「立体」で不透明モード風（光・つや・輪郭。透明度のスライダーで透け具合）。北極を囲む殻は赤→水色、南極を囲む殻は紫→水色（赤道が水色）。歩く人はその殻を次々に通り抜けます。「地図は今いる所だけ」で、S³ の地図の球層は自分のまわりだけ（自分のいる殻ははっきり、となりはうっすら、遠い所と裏側は透明。広さは「地図の近さ」）。「空間ライト」で、中の景色の画面に写っている所（視野の中、殻の見える距離まで）だけを地図の球層に照らす（懐中電灯のように、向きを変えると照らす所も動く）。「地図は球殻だけ」で、地図の球全体にかかる線（赤道の網目・軽い線など）を消して球殻だけに。</p>
+                <p class="note">「球層」は超球アプリ（hypersphere.html）の右の窓と同じ球殻の積み重ね。「網目を自転」「網目の傾き・向き」で、殻の網目（緯線・経線）だけを回したり倒したりできます（殻そのものは同じ。アナ極から出発すると経線が画面の方を向いて見にくい時に）。「立体」で不透明モード風（光・つや・輪郭。透明度のスライダーで透け具合）。アナ極を囲む殻は赤→水色、カタ極を囲む殻は紫→水色（赤道が水色）。歩く人はその殻を次々に通り抜けます。「地図は今いる所だけ」で、S³ の地図の球層は自分のまわりだけ（自分のいる殻ははっきり、となりはうっすら、遠い所と裏側は透明。広さは「地図の近さ」）。「空間ライト」で、中の景色の画面に写っている所（視野の中、殻の見える距離まで）だけを地図の球層に照らす（懐中電灯のように、向きを変えると照らす所も動く）。「地図は球殻だけ」で、地図の球全体にかかる線（赤道の網目・軽い線など）を消して球殻だけに。</p>
                 </div>
             </section>
 
@@ -498,7 +499,7 @@
                 </div>
                 <div class="row">
                     <button class="btn" id="b-follow" title="自分がいつも真ん中（手前）に来るように S³ を回して写す">自分を真ん中に</button>
-                    <button class="btn" id="b-rot0" title="回転を最初に戻す（Y-W 90°：北極が手前の左、南極が奥の右）">↺ 最初の向き</button>
+                    <button class="btn" id="b-rot0" title="回転を最初に戻す（Y-W 90°：アナ極が手前の左、カタ極が奥の右）">↺ 最初の向き</button>
                 </div>
                 <div class="row">
                     <span class="note">地図を 2 枚：</span>
@@ -511,7 +512,7 @@
                 <div class="sl"><b style="color:#56a8ff;font-style:italic">地図 2 Z-W</b><input id="s-m2zw" type="range" min="-180" max="180" step="1"><output id="o-m2zw"></output></div>
                 <p class="note">「地図を 2 枚」：左上の窓を、S² の仲間か 2 枚目の S³ の地図に切りかえられます（窓の右下のボタンでも）。地図ごとに、見方（ふつう／自己中心＝自分が真ん中で球の方が回る）と、範囲（全体／今いる所だけ／画面に写る所。球層の殻に効く）を窓の右下で選べます。2 枚目の 4次元の向きは上の 3 本で。2 枚目を出している間だけ少し重くなります。</p>
                 <div class="row">
-                    <button class="btn" id="b-rot4" title="S³ の地図を 4次元で回し続ける（X-W・Y-W・Z-W のどれかの面）。4次元ではいちばん遠い北極 N と南極 S が、3次元の地図の上では近づいて重なり、すれちがって入れかわる。球層の殻の線も奥行きで強めに">🔄 4次元回転の実演（北極と南極のすれちがい）</button>
+                    <button class="btn" id="b-rot4" title="S³ の地図を 4次元で回し続ける（X-W・Y-W・Z-W のどれかの面）。4次元ではいちばん遠いアナ極 とカタ極 が、3次元の地図の上では近づいて重なり、すれちがって入れかわる。球層の殻の線も奥行きで強めに">🔄 4次元回転の実演（アナ極とカタ極のすれちがい）</button>
                 </div>
                 <div class="row">
                     <span class="note">回す面：</span>
@@ -523,7 +524,7 @@
                     <button class="btn" id="b-rot4others" title="実演の時、赤玉・紫玉のほかの殻もうっすら出す（切ると赤玉と紫玉だけ）">ほかの殻もうっすら</button>
                 </div>
                 <div class="sl"><span>回す速さ</span><input id="s-rot4spd" type="range" min="-90" max="90" step="1" title="1 秒に何度回すか（マイナスで逆向き）"><output id="o-rot4spd"></output></div>
-                <p class="note">「4次元回転の実演」：赤玉（北極を囲むいちばん内側の殻）と紫玉（南極を囲むいちばん内側の殻）を太いワイヤーで描き、手前は明るく奥は暗くします（ほかの殻はうっすら、切ると出さない）。w を含む面で回すと、北極 N（w = +1）と南極 S（w = −1）が回り、地図（3次元）の上では近づいて真ん中で重なり、すれちがって入れかわります。4次元では N と S はいつもいちばん遠い（π）のに、3次元に写すと重なる——立方体の影で、奥の面と手前の面が重なって見えるのと同じことが、1 つ上の次元で起きています。N と S の通った道を水色・金色の線で残します。</p>
+                <p class="note">「4次元回転の実演」：赤玉（アナ極を囲むいちばん内側の殻）と紫玉（カタ極を囲むいちばん内側の殻）を太いワイヤーで描き、手前は明るく奥は暗くします（ほかの殻はうっすら、切ると出さない）。w を含む面で回すと、アナ極（w = +1）とカタ極（w = −1）が回り、地図（3次元）の上では近づいて真ん中で重なり、すれちがって入れかわります。4次元では N と S はいつもいちばん遠い（π）のに、3次元に写すと重なる——立方体の影で、奥の面と手前の面が重なって見えるのと同じことが、1 つ上の次元で起きています。N と S の通った道を水色・金色の線で残します。</p>
                 <div class="sl"><b style="color:#ff5d6c;font-style:italic">X-W</b><input id="s-xw" type="range" min="-180" max="180" step="1"><output id="o-xw"></output></div>
                 <div class="sl"><b style="color:#3ddc84;font-style:italic">Y-W</b><input id="s-yw" type="range" min="-180" max="180" step="1"><output id="o-yw"></output></div>
                 <div class="sl"><b style="color:#56a8ff;font-style:italic">Z-W</b><input id="s-zw" type="range" min="-180" max="180" step="1"><output id="o-zw"></output></div>
@@ -547,19 +548,19 @@
                 <h3 class="sb-h"><i data-lucide="book-open" class="w-3.5 h-3.5"></i>説明</h3>
                 <div id="desc">
                     <p><b>3次元球面 S³</b> は、4次元の超球の表面にあたる <b>3次元の空間</b>です。中にいる人は前後・左右・上下に動けますが、どの向きにまっすぐ進んでも、<b>2π（約 6.28）進むと元の場所に戻ります</b>。途中 π で反対側の点（対蹠点）を通ります。</p>
-                    <p class="an">2次元の仲間：ふつうの球面 S²。北極から どの方位にまっすぐ歩いても、南極を通って北極に戻る（経線をたどる）。左の窓はそれです。</p>
-                    <p>出発した北極では、<b>空全体が金色</b>に見えます。これは反対側（π 先）の南極の玉。S³ では、ちょうど反対側の点から出た光がどの向きからも届くので、そこにある物が空いっぱいに広がって見えます。少し歩くと金色の玉はまとまって見えてきます。</p>
+                    <p class="an">2次元の仲間：ふつうの球面 S²。アナ極から どの方位にまっすぐ歩いても、カタ極を通ってアナ極に戻る（経線をたどる）。左の窓はそれです。</p>
+                    <p>出発したアナ極では、<b>空全体が金色</b>に見えます。これは反対側（π 先）のカタ極の玉。S³ では、ちょうど反対側の点から出た光がどの向きからも届くので、そこにある物が空いっぱいに広がって見えます。少し歩くと金色の玉はまとまって見えてきます。</p>
                     <p><b>目印の見せ方</b>：玉（既定）／絵（🐰🐢🦝 など）／大きめの色の点。絵と色の点では、中の景色の線を細く薄くします（「絵の時の線」で濃さを変えられ、0 で消えます）。<b>軽量モード</b>のボタンで、色の点・色の地図の背景・線なし・透けの重ねは手前 1 つだけ、のいちばん軽い組み合わせになります。どの目印が前に（遠回りして）見えているのか、一目で分かります。各絵の<b>右上に赤い点</b>があります。</p>
                     <p><b>地図での曲がり</b>（中の景色の紫の矢印）：中の人はまっすぐ（大円の上を）進んでいますが、S³ の地図は 4次元を 3次元に写したものなので、その道は地図の上ではふつう曲がって見えます。紫の矢印は「地図の上で、自分の道がどちらへ曲がって見えるか」を自分から見た向きで表し、長さは曲がりの強さです。強さは地図の球の半径を 1 とした曲率で、地図の真ん中を通る道は 0（まっすぐ）、地図の球のふちに沿う大円は 1、地図の奥（向こう側）の小さく縮んだ所では 1 より大きくなります。同じ場所でも進む向きで変わり、ふちの点でも真ん中へ向かって進めば 0 です。曲がりの向きが入れ替わる所（地図の上でまっすぐになる所）では、矢印は画面の奥（真ん中の ⊗）を通ってくるんと反対側へ回ります。歩いて地図の道が変わるのにつれて回るので、地図と連動しています。濃い矢印は「曲がりの先読み」の距離だけ先（これから曲がっていく向き）、薄い点線の矢印は今の曲がり。HUD の「地図の縮み」は、1 歩が地図の上で何倍の長さに写るか。</p>
-                    <p><b>回る輪</b>（🌐）：北極と南極を通る輪（経線）を歩き、1 周ごとに輪の向きを軸のまわりに少しずつ回します。軸 z なら輪はすべて地図の球面（z = 0 の球面）の上に乗り、北極を上にした地図で、輪がだんだん球面をおおっていきます。x・y を軸にすると、別の球面をおおいます。「全部」では輪の向きが全方向を巡り、S³ ぜんたいをおおいます。「w」では、輪は北極・南極の代わりに +z（🐱）と −z（🐶）を通り、S³ の赤道の球面（w = 0）をおおいます。4 本の軸は対等で、北極・南極は w の向きに付けた名前にすぎないことが分かります。</p>
+                    <p><b>回る輪</b>（🌐）：アナ極とカタ極を通る輪（経線）を歩き、1 周ごとに輪の向きを軸のまわりに少しずつ回します。軸 z なら輪はすべて地図の球面（z = 0 の球面）の上に乗り、アナ極を上にした地図で、輪がだんだん球面をおおっていきます。x・y を軸にすると、別の球面をおおいます。「全部」では輪の向きが全方向を巡り、S³ ぜんたいをおおいます。「w」では、輪はアナ極・カタ極の代わりに +z（🐱）と −z（🐶）を通り、S³ の赤道の球面（w = 0）をおおいます。4 本の軸は対等で、アナ極・カタ極は w の向きに付けた名前にすぎないことが分かります。</p>
                     <p><b>ホップの円</b>（🔗）：自分と 6 人の仲間が、少し離れて輪になって並び、それぞれまっすぐ（大円に沿って）歩きます。x-y 面と z-w 面を同じ速さで回す「二重回転」で、4次元にしかない動きです。仲間との距離はずっと変わらないのに、1 周するとお互いのまわりをちょうど 1 回まわります（クリフォード平行）。S³ の地図では、7 本の円がどの 2 本も鎖の輪のようにからみ合っています。「ふつうの平行と比べる」では、仲間は出発の時に同じ向きのふつうの大円を歩きます。こちらは距離が縮んだり戻ったりし（横のずれは途中で 0 になる）、まわりもしません。左の S² の 2 人も、ふつうの平行です。</p>
-                    <p><b>重力モード</b>（🍎）：4次元で w の＋から−へ向かう重力をかけます。S³ に垂直な部分は中の人には存在しない向きなので感じず、S³ に沿った部分だけが「南極へ引く力」として感じられます（赤道で最強、両極でゼロ。南極のまわりではバネの力）。何もなければ南極を通り越して振り子のように揺れ続け、横に蹴ると南極のまわりを回ります。<b>立つには地面が要る</b>ので、「南極に星」を置くとその表面に立てます（下＝南極、上＝北極）。左の S² では、星は南極のまわりの円板、立つ所はそのふちの円です。</p>
+                    <p><b>重力モード</b>（🍎）：4次元で w の＋から−へ向かう重力をかけます。S³ に垂直な部分は中の人には存在しない向きなので感じず、S³ に沿った部分だけが「カタ極へ引く力」として感じられます（赤道で最強、両極でゼロ。カタ極のまわりではバネの力）。何もなければカタ極を通り越して振り子のように揺れ続け、横に蹴るとカタ極のまわりを回ります。<b>立つには地面が要る</b>ので、「カタ極に星」を置くとその表面に立てます（下＝カタ極、上＝アナ極）。左の S² では、星はカタ極のまわりの円板、立つ所はそのふちの円です。</p>
                     <p><b>像の向き</b>：光の道のりが π より短い物は正しい向き（赤い点が右上）。ちょうど π（反対側）の物は空いっぱいに広がり、向きは正しいまま。π より長い（反対側を回ってきた光で見える）物は <b>180° 回った像</b>＝上下も左右も逆（赤い点が左下）。鏡のように左右だけ裏返ることはありません。反対側の点がレンズの焦点のように働いて、そこを越えた光は像をひっくり返すのです。</p>
                     <p>中の景色（右）：光も大円に沿って進むので、<b>π 先の対蹠点が空いっぱいに広がって見え</b>、2π 先には自分の背中が見えます。遠くの目印は、π に近づくほど逆に大きく見えます。</p>
                     <p>S³ の地図（真ん中）：4次元の超球を、次元おりがみと同じ遠近で 3次元に写した模型。手前の半分（w が＋、赤紫）と奥の半分（w が−、水色）が重なって 1 つの玉に見えます。地図の上の白い玉が自分です。</p>
                 </div>
             </section>
-            <p class="note px-1 pb-2">キー：X 軸　F 足あと　M 目印を置く　P 目印の見せ方を順に　R 北極に戻す　Space パネル</p>
+            <p class="note px-1 pb-2">キー：X 軸　F 足あと　M 目印を置く　P 目印の見せ方を順に　R アナ極に戻す　Space パネル</p>
         </div>
     </aside>
 
@@ -647,10 +648,16 @@ S.m2 = Object.assign({ view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, S.m2 
 if (S.pic !== undefined) { S.mk = S.pic ? 'pic' : 'ball'; delete S.pic; }   // 古い保存（絵のモードの ON/OFF）を読みかえる
 const isPic = () => S.mk === 'pic';
 const noMk = () => S.mk === 'none';   // 目印を何も出さない
-// 球層のいちばん内側の殻（北は赤・南は紫）の極からの距離：極の目印（⛄・🌴）の玉がちょうど中に収まるように、玉の半径＋少し（超球アプリは 0.08 だが、そこに目印の玉は無い）
+// 球層のいちばん内側の殻（アナは赤・カタは紫）の極からの距離：極の目印（⛄・🌴）の玉がちょうど中に収まるように、玉の半径＋少し（超球アプリは 0.08 だが、そこに目印の玉は無い）
 const shellMinTheta = () => (S.mk === 'pic' ? 0.13 * 1.5 : S.mk === 'dot' ? 0.13 * 1.9 : 0.13) + 0.06;
 S.walk = false; S.roam = false; S.spiral = false; S.grav = false; S.hopf = false; S.ring = false; S.ringView = false; S.fill = false;
-if (S.fillS !== undefined) { if (!S.fillMode || S.fillMode === 'half') S.fillMode = S.fillS ? 'half' : 'full'; delete S.fillS; }   // 前の保存（南極でもターン ON/OFF）を読みかえる
+if (S.fillS !== undefined) { if (!S.fillMode || S.fillMode === 'half') S.fillMode = S.fillS ? 'half' : 'full'; delete S.fillS; }   // 前の保存（カタ極でもターン ON/OFF）を読みかえる
+// 画面に出す軸の文字の入れかえの仕組み（中の軸 i → 画面の軸 PERM[i]）。今は入れかえなし（w のまま）
+const NS_I = 3;   // 今は w のまま（軸の名前は、w＝北・南、y＝北・南、x＝東・西、z＝天・地 に決めた）
+const PERM = [0, 1, 2, 3]; PERM[3] = NS_I; PERM[NS_I] = 3;   // 中の軸 i → 画面の軸 PERM[i]（入れかえなので、逆も同じ）
+const axL = i => 'xyzw'[PERM[i]];   // 中の軸 → 画面の文字
+const axI = L => PERM['xyzw'.indexOf(L)];   // 画面の文字 → 中の軸
+const toDisp = p => { const d = [0, 0, 0, 0]; p.forEach((v, i) => { d[PERM[i]] = v; }); return d; };
 const AUTO = { k: 1 };   // 自動で軽く：中の景色の細かさにかける倍率（0.4〜1）
 // Gist の設定に入れかえて読み直す途中は、今の設定で上書きしない（state-sync が sessionStorage に印を付けてから読み直す）
 const gistApplying = () => { try { return !!sessionStorage.getItem('s3walkGistApplied'); } catch (e) { return false; } };
@@ -685,7 +692,7 @@ function viewFrame() {
 //   地軸 a ＝ 上 U を、向き S.spinAz の方へ S.spinTilt° 傾けたもの（傾き 0 で上下の軸＝こま、90 で前後の軸＝きりもみ）
 const SPIN = { ang: 0 };
 // ---- 球層の網目の向き：網目の極（ふだんは z）を、向き gridAz の方へ gridTilt° 倒し、その極のまわりに GRID.spin 回す（網目の自転）----
-//   北極から出発すると網目の経線が画面の方を向いて見にくいので、網目だけを回して見やすくする（殻そのものは同じ：w = 一定の球面）
+//   アナ極から出発すると網目の経線が画面の方を向いて見にくいので、網目だけを回して見やすくする（殻そのものは同じ：w = 一定の球面）
 const GRID = { spin: 0 };
 function gridM() {   // 網目の枠 → 世界の xyz の 3×3（行ごと）。M = Rz(向き)·Ry(傾き)·Rz(自転)
     const t = S.gridTilt * d2r, a = S.gridAz * d2r, sp = GRID.spin, ct = Math.cos(t), st = Math.sin(t), ca = Math.cos(a), sa = Math.sin(a), cs = Math.cos(sp), ss = Math.sin(sp);
@@ -720,8 +727,8 @@ function moveAlong(X, d, s) {
     // 直交を保つ（誤差がたまらないように）
     for (const k of ['r', 'u', 'f']) { if (!X[k]) continue; let t = add(X[k], X.p, -dot(X[k], X.p)); for (const j of ['r', 'u', 'f']) { if (j === k) break; if (X[j]) t = add(t, X[j], -dot(t, X[j])); } X[k] = nrm(t); }
 }
-// ---- 回る輪：北極と南極を通る大円（経線の輪）を歩く。1 周ごとに、輪の向き u を軸のまわりに少しずつ回す。
-//   p = cosθ·北極 + sinθ·u、u は「軸に直交する面」の上の向き（角 φ）。φ は進んだ量に比例して増える（1 周で S.ringStep 度）。
+// ---- 回る輪：アナ極とカタ極を通る大円（経線の輪）を歩く。1 周ごとに、輪の向き u を軸のまわりに少しずつ回す。
+//   p = cosθ·アナ極 + sinθ·u、u は「軸に直交する面」の上の向き（角 φ）。φ は進んだ量に比例して増える（1 周で S.ringStep 度）。
 //   軸 z なら u は x-y 面の上 → 輪はすべて z = 0 の球面（地図の球面）の上に乗り、だんだん球面をおおう。「全部」は u が向きの球ぜんたいを巡る
 const RING = { T: 0, lapSaid: 0 };
 function ringDir(T) {
@@ -738,7 +745,7 @@ function ringPoint(T) {
 }
 function ringStart() {
     resetNorth(); RING.T = 0.002; RING.lapSaid = 0; S.ringView = true;
-    if (S.ringAxis === 'w') Object.assign(W, { p: [0, 0, 1, 0], r: [0, -1, 0, 0], u: [0, 0, 0, 1], f: [1, 0, 0, 0] });   // +z（🐱）から出発。体の上＝北極の向き
+    if (S.ringAxis === 'w') Object.assign(W, { p: [0, 0, 1, 0], r: [0, -1, 0, 0], u: [0, 0, 0, 1], f: [1, 0, 0, 0] });   // +z（🐱）から出発。体の上＝アナ極の向き
     const q = ringPoint(RING.T); W.p = q.p.slice(); W2.p = q.p2.slice(); orthoFrame(W); orthoFrame(W2); req(3);
 }
 function ringStep(ds) {
@@ -755,15 +762,15 @@ function ringStep(ds) {
     const lap = Math.floor(RING.T / TAU);
     if (lap > RING.lapSaid) { RING.lapSaid = lap; say(`${lap + 1} 周目：輪が ${Math.round((lap * S.ringStep) % 360)}° 回った`); }
 }
-// ---- ターン（地図の軌跡で球を埋め尽くす）：北極から大円で 1 周して戻ったら、向きを変えてまた 1 周。向きは「今までの道からいちばん離れた向き」（いちばん大きいすきま）を順に選ぶ
-//   左の S²：0° → 90° → 45° → 135° → 22.5° …（すきまを半分ずつ。北極を通る大円は 180° で同じ輪なので 0〜180°）
-//   S³：北極で進める向きは球面 S²（x, y, z）。反対向き（−d）は同じ大円なので、向きどうしの角は acos|d·e|。候補（八面体を細かく分けた点、粗い順）から、
+// ---- ターン（地図の軌跡で球を埋め尽くす）：アナ極から大円で 1 周して戻ったら、向きを変えてまた 1 周。向きは「今までの道からいちばん離れた向き」（いちばん大きいすきま）を順に選ぶ
+//   左の S²：0° → 90° → 45° → 135° → 22.5° …（すきまを半分ずつ。アナ極を通る大円は 180° で同じ輪なので 0〜180°）
+//   S³：アナ極で進める向きは球面 S²（x, y, z）。反対向き（−d）は同じ大円なので、向きどうしの角は acos|d·e|。候補（八面体を細かく分けた点、粗い順）から、
 //   今までの向きとのいちばん小さい角がいちばん大きいものを選ぶ（同じなら粗い方）＝ 軸 3 本 → 面の真ん中 → 辺の真ん中 → …
 const FILL = { T: 0, lapSaid: 0, dirs: [], gaps: [], sg3: [1], sg2: [1], turn: null, half: false, dirsH: [], gapsH: [], phH: [] };
-// 半周 180°（S.fillMode === 'half'）：北極→南極、南極→北極と半円（経線）ずつ進み、両方の極で双曲線で曲がる。
+// 半周 180°（S.fillMode === 'half'）：アナ極→カタ極、カタ極→アナ極と半円（経線）ずつ進み、両方の極で双曲線で曲がる。
 //   半円なので、向きは反対向き（−d）も別の経線＝全部の向き（S² は 0〜360°、S³ は球面全体）から選ぶ（半分の向きだけだと、球の半分にしか道が来ない）。
 //   次の経線：すきまが十分大きい候補（いちばん大きいすきまの 3/4 以上）のうち、前の経線にいちばん直角に近いもの（＝極でいつもしっかり曲がる。真反対を選ぶと極をまっすぐ通り抜けてしまう）。
-//   曲がる向き：北極と南極では左右が裏返しなので、南極では北極と逆（東西逆）に曲がると、経線が同じ回り方で順に進む。
+//   曲がる向き：アナ極とカタ極では左右が裏返しなので、カタ極ではアナ極と逆（東西逆）に曲がると、経線が同じ回り方で順に進む。
 //   S³ では左右の代わりに、曲がる回転の軸 a×b（a＝着く向き、b＝出る向き）を前のターンとそろえる
 function fillBuildHalf(N) {
     const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -827,15 +834,15 @@ function fillSigns(lap) {   // 次の周（lap）の入る側を、前の周の�
     FILL.sg2[lap] = Math.abs(dph) > Math.PI / 2 ? -1 : 1;
 }
 function fillPoint(T) {
-    const per = fillPer(), lap = Math.max(0, Math.floor(T / per)), th = T - lap * per, sn = Math.sin(th), cs = Math.cos(th) * (FILL.half && lap % 2 ? -1 : 1);   // 南極からの半円は w を逆に
+    const per = fillPer(), lap = Math.max(0, Math.floor(T / per)), th = T - lap * per, sn = Math.sin(th), cs = Math.cos(th) * (FILL.half && lap % 2 ? -1 : 1);   // カタ極からの半円は w を逆に
     const u = fillU(lap), ph = fillPh(lap);
     return { p: [sn * u[0], sn * u[1], sn * u[2], cs], p2: [sn * Math.cos(ph), sn * Math.sin(ph), cs], lap };
 }
-// 北極のまわりのターン（双曲線）：来た道（向き a で北極へ向かう大円）と次の道（向き b で北極から出る大円）を漸近線にした双曲線で曲がる。
-//   北極のまわりを「北極からの向き×距離」の平らな地図（正距方位）で考える（北極を通る大円はこの地図でまっすぐ）。
+// アナ極のまわりのターン（双曲線）：来た道（向き a でアナ極へ向かう大円）と次の道（向き b でアナ極から出る大円）を漸近線にした双曲線で曲がる。
+//   アナ極のまわりを「アナ極からの向き×距離」の平らな地図（正距方位）で考える（アナ極を通る大円はこの地図でまっすぐ）。
 //   x(τ) = √k (e^{−τ}(−a) + e^{τ} b)：反比例 u·v = k と同じ形。遠くでは道にほとんど重なり、少しずつ曲がり始め、
-//   いちばん北極に近づく所（τ = 0）で北極から FILL_DV、また少しずつまっすぐに戻る。北極そのものは通らない。
-//   北極から L 手前で入り、L 先で抜ける（そこで道にぴったり合うよう、残りのごくわずかなずれを smoothstep で消す）
+//   いちばんアナ極に近づく所（τ = 0）でアナ極から FILL_DV、また少しずつまっすぐに戻る。アナ極そのものは通らない。
+//   アナ極から L 手前で入り、L 先で抜ける（そこで道にぴったり合うよう、残りのごくわずかなずれを smoothstep で消す）
 const FILL_DV = 0.1;
 // いちばん近づく距離：曲がる角 θ が 90° をこえると双曲線の先がとがる（先の曲率半径＝距離×tan²((180°−θ)/2)）ので、先の半径が FILL_DV より小さくならないよう遠めを通る
 const hypDV = th => { const t = Math.tan((Math.PI - th) / 2); return FILL_DV / Math.min(1, t * t); };
@@ -896,7 +903,7 @@ function fillPlan(nx) {   // nx 本目へのターンを用意する
     const a3 = scl(fillU(lap), sa), b3 = fillU(nx), a2 = scl(fillU2(lap), sa), b2 = fillU2(nx), L = Math.min(1.3, Math.max(hypL(a3, b3), hypL(a2, b2)));
     FILL.plan = { lap: nx, L, a3, b3, a2, b2, psg: FILL.half && nx % 2 ? -1 : 1, h3: turnTable(a3, b3, L, 240), h2: turnTable(a2, b2, L, 240), sharp: S.turnStyle === 'sharp' };
 }
-const expN = (x, sg = 1) => { const r = Math.hypot(...x); if (r < 1e-12) return x.length === 3 ? [0, 0, 0, sg] : [0, 0, sg]; const s = Math.sin(r) / r; return [...x.map(v => v * s), sg * Math.cos(r)]; };   // sg＝−1 なら南極のまわり
+const expN = (x, sg = 1) => { const r = Math.hypot(...x); if (r < 1e-12) return x.length === 3 ? [0, 0, 0, sg] : [0, 0, sg]; const s = Math.sin(r) / r; return [...x.map(v => v * s), sg * Math.cos(r)]; };   // sg＝−1 ならカタ極のまわり
 function fillStart() {
     if (S.fillMode === 'ctour') { ctStart(); return; }
     if (S.fillMode === 'q' || S.fillMode === 'tour') { fqStart(); return; }
@@ -947,10 +954,10 @@ function fqChoose(Q, a, hist, dim) {   // まだ通っていない方：候補�
     }
     return Object.assign(best, { E, nov: bv / 6 });
 }
-// 極めぐり（S.fillMode === 'tour'）：北極から、となり合う極（90° はなれている）だけをたどって 8 つ全部を回り、北極に戻る。
+// 極めぐり（S.fillMode === 'tour'）：アナ極から、となり合う極（90° はなれている）だけをたどって 8 つ全部を回り、アナ極に戻る。
 //   どの極へも 90° より近くは行けないので、90° × 8 本 ＝ 4π がいちばん短い 1 周。毎回 90° の双曲線ターン。S² は 6 つの極を同じように回る
-const FQ_R3 = [[0, 0, 0, 1], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0]];   // 北・東・アナ・天・南・西・カタ・地
-const FQ_R2 = [[0, 0, 1], [1, 0, 0], [0, 1, 0], [0, 0, -1], [-1, 0, 0], [0, -1, 0]];   // 北・東・アナ・南・西・カタ
+const FQ_R3 = [[0, 0, 0, 1], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0]];   // アナ・東・北・天・カタ・西・南・地
+const FQ_R2 = [[0, 0, 1], [1, 0, 0], [0, 1, 0], [0, 0, -1], [-1, 0, 0], [0, -1, 0]];   // アナ・東・北・カタ・西・南
 function fqToward(Q, a, T) {   // 極 Q から、となりの極 T へ（Q と T は直交なので、出る向きは T そのもの）
     const E = fqBasis(Q, a), u = E.map(e => dot(T, e)), th = Math.acos(Math.max(-1, Math.min(1, u[0]))) / d2r;
     return { u, c: T.slice(), th, E, nov: 0 };
@@ -1003,7 +1010,7 @@ function gtFix() {
     free.forEach(a => { lim[a] = rr; g.v[a] = (g.sg[a] < 0 ? -1 : 1) * rr / Math.sqrt(free.length); });   // まだ入れていない軸は、残りを等しく分け合う
     return { lim, idx, free, rr };
 }
-const gtTarget = () => { gtFix(); const v = S.gt.v; return nrm([v.x, v.y, v.z, v.w]); };
+const gtTarget = () => { gtFix(); const v = S.gt.v; return nrm([0, 1, 2, 3].map(i => v[axL(i)])); };   // 画面の座標 → 中の座標
 function gtSet(a, val) {   // 軸 a に val を入れる：いちばん新しい（いちばん優先）にする。4 つ目なら、いちばん前に入れた軸が外れて自動の側へ
     const g = S.gt; gtFix();
     const ord = [...g.ord].filter(c => c !== a); ord.push(a); g.v[a] = val; g.e = g.e || {}; g.e[a] = val; g.sg[a] = val < 0 ? -1 : 1;
@@ -1031,7 +1038,7 @@ function gtRender() {
     document.querySelectorAll('.gtl').forEach(el => { const a = el.dataset.a;
         el.textContent = f.idx[a] ? `${CT_NUM[f.idx[a] - 1]}${f.idx[a] === 1 ? '最新' : ''} ±${f.lim[a].toFixed(2)}` : last ? `自動 ${v[a] >= 0 ? '+' : '−'}${f.rr.toFixed(2)}` : `分け合う`; });
     const T = gtTarget(), d = Math.acos(Math.max(-1, Math.min(1, dot(W.p, T)))), dn = Math.acos(Math.max(-1, Math.min(1, T[3])));
-    const info = $('gtInfo'); if (info) info.textContent = `目的地 (${T.map(x => x.toFixed(2)).join(', ')})　ここから ${d.toFixed(2)}　北極から ${dn.toFixed(2)}` + (GOTO.on ? '　向かっています' : '');
+    const info = $('gtInfo'); if (info) info.textContent = `目的地 (${toDisp(T).map(x => x.toFixed(2)).join(', ')})　ここから ${d.toFixed(2)}　アナ極から ${dn.toFixed(2)}` + (GOTO.on ? '　向かっています' : '');
 }
 function gotoStep(sp, dt) {   // まず目的地の方を向き（1 秒に 180°）、向いたら大円に沿って進み、手前でブレーキ
     const T = gtTarget(), c = Math.max(-1, Math.min(1, dot(W.p, T))), dist = Math.acos(c);
@@ -1047,10 +1054,10 @@ function gotoStep(sp, dt) {   // まず目的地の方を向き（1 秒に 180°
 }
 // ---- 選んで巡る（S.fillMode === 'ctour'）：選んだ極（S.ctOrder＝選んだ順の記号の並び）を、①から順に巡って①に戻るのをくり返す。
 //   となりの極（直交）へは 90°（4 分の 1 周）、反対の極へは 180°（半周、来た向きのまままっすぐ）。極でのターンは、ほかのターンと同じ（スムーズ／直角）。
-//   S² の窓は、選んだ極のうち S² にある 6 つ（北・南・東・西・アナ・カタ）を同じ順で巡る。天・地は S² に無いので、S² は自分の道のりで進む（S³ と別々に）
+//   S² の窓は、選んだ極のうち S² にある 6 つ（アナ・カタ・東・西・北・南）を同じ順で巡る。天・地は S² に無いので、S² は自分の道のりで進む（S³ と別々に）
 const CT_P3 = { N: [0, 0, 0, 1], S: [0, 0, 0, -1], E: [1, 0, 0, 0], W: [-1, 0, 0, 0], A: [0, 1, 0, 0], K: [0, -1, 0, 0], T: [0, 0, 1, 0], G: [0, 0, -1, 0] };
 const CT_P2 = { N: [0, 0, 1], S: [0, 0, -1], E: [1, 0, 0], W: [-1, 0, 0], A: [0, 1, 0], K: [0, -1, 0] };
-const CT_NAME = { N: '北極', S: '南極', E: '東極', W: '西極', A: 'アナ極', K: 'カタ極', T: '天極', G: '地極' };
+const CT_NAME = { N: 'アナ極', S: 'カタ極', E: '東極', W: '西極', A: '北極', K: '南極', T: '天極', G: '地極' };
 const CT_NUM = '①②③④⑤⑥⑦⑧';
 const CT = { w3: null, w2: null };
 function ctPerp(P) { for (let i = 0; i < P.length; i++) { const e = P.map((_, j) => j === i ? 1 : 0); if (Math.abs(dot(e, P)) < 0.5) return e; } return null; }
@@ -1154,7 +1161,7 @@ function fillStep(ds) {
         FILL.T = nx * per - P.L;
         const q = fillPoint(FILL.T); fillGo(q.p, q.p2);
         const th = Math.acos(Math.max(-1, Math.min(1, dot(a3, b3)))) / d2r, th2 = Math.acos(Math.max(-1, Math.min(1, dot(a2, b2)))) / d2r;
-        say(`${nx + 1} 本目へ：${P.psg < 0 ? '南極' : '北極'}をよけて ${th.toFixed(1)}° ターン（S² では ${th2.toFixed(1)}°、双曲線）。すきまの大きい向きへ（今までの道から ${fillGap(nx).toFixed(1)}°）`);
+        say(`${nx + 1} 本目へ：${P.psg < 0 ? 'カタ極' : 'アナ極'}をよけて ${th.toFixed(1)}° ターン（S² では ${th2.toFixed(1)}°、双曲線）。すきまの大きい向きへ（今までの道から ${fillGap(nx).toFixed(1)}°）`);
         FILL.lapSaid = nx;
         return;
     }
@@ -1168,7 +1175,7 @@ const hopfRot = (q, t) => { const c = Math.cos(t), s = Math.sin(t); return [q[0]
 function transportV(p, e, s, v) { const a = dot(v, e); return add(add(v, e, -a), add(scl(p, -Math.sin(s)), e, Math.cos(s)), a); }   // 点 p から向き e へ s 進む間に、ベクトル v を平行移動
 function hopfStart() {
     resetNorth();
-    Object.assign(W, { r: [0, 1, 0, 0], u: [1, 0, 0, 0], f: [0, 0, -1, 0] });   // 前＝ホップの円の進む向き（i·北極 ＝ −z）
+    Object.assign(W, { r: [0, 1, 0, 0], u: [1, 0, 0, 0], f: [0, 0, -1, 0] });   // 前＝ホップの円の進む向き（i·アナ極 ＝ −z）
     Object.assign(W2, { p: [0, 0, 1], r: [0, 1, 0], f: [1, 0, 0] });
     S.az = 0; S.el = 0; HOPF.t = 0; HOPF.lapSaid = 0;
     const d = S.hopfD, beta = 35 * d2r;   // 仲間は、自分から距離 d、少し前（35°）に輪になって並ぶ
@@ -1214,15 +1221,15 @@ function paraCheck() {   // 自分が出発の時の大円から外れたら（�
     const k = Math.floor((s + 0.01) / (Math.PI / 2));
     if (k > PARA.said) { PARA.said = k; say(['π/2：平行に出発した 3 人が 1 点で出会った！（平らな空間なら決して出会わない）', 'π：また d₀ 離れた。でも 🐧 と 🐬 の左右が入れかわった', '3π/2：また 1 点で出会った', '2π：出発の時と同じ並びに戻った'][(k - 1) % 4]); }
 }
-// ---- 重力モード：4次元で w の＋から−へ向かう重力 −g·ŵ。S³ の中で感じるのは、それの S³ に沿った部分 −g(ŵ − w·p)（南極へ引く。赤道で最強、両極でゼロ）----
-//   左の S² も同じ：−g(ẑ − z·p)。南極に「星」（測地線の半径 planetR の玉。S² では円板）を置くと、その表面に立てる
+// ---- 重力モード：4次元で w の＋から−へ向かう重力 −g·ŵ。S³ の中で感じるのは、それの S³ に沿った部分 −g(ŵ − w·p)（カタ極へ引く。赤道で最強、両極でゼロ）----
+//   左の S² も同じ：−g(ẑ − z·p)。カタ極に「星」（測地線の半径 planetR の玉。S² では円板）を置くと、その表面に立てる
 const G = { v: [0, 0, 0, 0], v2: [0, 0, 0], on: false, on2: false };
 const SP4 = [0, 0, 0, -1], SP3 = [0, 0, -1], NP4 = [0, 0, 0, 1], NP3 = [0, 0, 1];
 const planetKey = () => S.grav && S.planet ? S.planetR : 0;
 function orthoFrame(X) {   // 点 p を動かした後、体の枠を p に直交・正規直交に直す
     for (const k of ['r', 'u', 'f']) { if (!X[k]) continue; let t = add(X[k], X.p, -dot(X[k], X.p)); for (const j of ['r', 'u', 'f']) { if (j === k) break; if (X[j]) t = add(t, X[j], -dot(t, X[j])); } X[k] = nrm(t); }
 }
-function outward(p, Sv) {   // 南極から遠ざかる向き（＝北極の向き、上）。南極・北極の上では決まらない
+function outward(p, Sv) {   // カタ極から遠ざかる向き（＝アナ極の向き、上）。カタ極・アナ極の上では決まらない
     const c = dot(p, Sv), t = add(scl(p, c), Sv, -1), L = Math.hypot(...t); return L > 1e-9 ? scl(t, 1 / L) : null;
 }
 function groundCheck(X, vel, Sv) {   // 星の中に入ったら表面へ戻し、めりこむ向きの速さを消す
@@ -1245,7 +1252,7 @@ function gravMove(X, vel, h) {   // 速さ vel で h 秒、大円に沿って進
     const s = sp * h, d = scl(vel, 1 / sp), d2 = add(scl(X.p, -Math.sin(s)), d, Math.cos(s));
     return { vel: scl(nrm(d2), sp), s, d };
 }
-function alignUp(X, k) {   // 体の「上」を北極の向き（星の上なら空の向き）へなめらかに合わせる
+function alignUp(X, k) {   // 体の「上」をアナ極の向き（星の上なら空の向き）へなめらかに合わせる
     const up = outward(X.p, SP4); if (!up || !X.u) return;
     X.u = nrm(add(scl(X.u, 1 - k), up, k)); X.u = nrm(add(X.u, X.p, -dot(X.u, X.p)));
     X.f = nrm(add(add(X.f, X.u, -dot(X.f, X.u)), X.p, -dot(X.f, X.p)));
@@ -1287,28 +1294,28 @@ function gravityStep(dt, mv) {
         const m = gravMove(W, G.v, h); if (m.s > 0) { step(m.d, null, m.s); G.v = m.vel; if (stick) G.v = snapGround(W, G.v, SP4); }
     }
     alignUp(W, Math.min(1, 3 * dt));
-    if (!wasOn && G.on) say('着地！ 南極の星の上に立った（下＝南極の向き、上＝北極の向き）');
+    if (!wasOn && G.on) say('着地！ カタ極の星の上に立った（下＝カタ極の向き、上＝アナ極の向き）');
     req(2);
 }
-function gravJump() {   // その場の重力（南極からの距離 d で g·sin d）に合わせて、高さ 0.3 くらいまで跳ぶ
+function gravJump() {   // その場の重力（カタ極からの距離 d で g·sin d）に合わせて、高さ 0.3 くらいまで跳ぶ
     let did = false; const jv = d => Math.sqrt(2 * S.gStr * Math.max(0.05, Math.sin(d)) * 0.3) + 0.05;
     if (G.on) { const out = outward(W.p, SP4); if (out) { G.v = add(G.v, out, jv(Math.acos(-W.p[3]))); G.on = false; did = true; } }
     if (G.on2) { const out = outward(W2.p, SP3); if (out) { G.v2 = add(G.v2, out, jv(Math.acos(-W2.p[2]))); G.on2 = false; } }
     if (did) say('ジャンプ！');
 }
-function gravKick() {   // 見ている水平の向きへ勢い。南極のまわりを回る軌道になる
+function gravKick() {   // 見ている水平の向きへ勢い。カタ極のまわりを回る軌道になる
     const ca = Math.cos(S.az * d2r), sa = Math.sin(S.az * d2r);
     let d = nrm(add(scl(W.f, ca), W.r, sa)); const out = outward(W.p, SP4); if (out) d = nrm(add(d, out, -dot(d, out)));
     G.v = add(G.v, d, 0.9 * Math.sqrt(S.gStr)); G.on = false;
     let d2 = look2(); const o2 = outward(W2.p, SP3); if (o2) d2 = nrm(add(d2, o2, -dot(d2, o2)));
     G.v2 = add(G.v2, d2, 0.9 * Math.sqrt(S.gStr)); G.on2 = false;
-    say('横に蹴った：南極のまわりを回る');
+    say('横に蹴った：カタ極のまわりを回る');
 }
-function dropFromEquator() {   // 赤道（+x）に止まった状態で置く（上＝北極）
+function dropFromEquator() {   // 赤道（+x）に止まった状態で置く（上＝アナ極）
     Object.assign(W, { p: [1, 0, 0, 0], r: [0, 0, -1, 0], u: [0, 0, 0, 1], f: [0, 1, 0, 0] });
     Object.assign(W2, { p: [1, 0, 0], r: [0, 0, 1], f: [0, 1, 0] });
     G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; G.on = G.on2 = false; W.trail = []; W2.trail = []; W.wasW = 0; W.passed = {};
-    say('赤道から手をはなした：南極へ落ちていく'); req(3);
+    say('赤道から手をはなした：カタ極へ落ちていく'); req(3);
 }
 function step(dirS3, dir2, s) {
     moveAlong(W, dirS3, s);
@@ -1317,13 +1324,13 @@ function step(dirS3, dir2, s) {
     W.dist += s;
     if (W.dist - W.lastTrail >= 0.02) { W.trail.push(W.p.slice()); W2.trail.push(W2.p.slice()); W.lastTrail = W.dist; if (W.trail.length > 12000) { W.trail.shift(); W2.trail.shift(); } }
     if (S.foot && W.dist - W.lastFoot >= 0.6) { W.foot.push(W.p.slice()); W2.foot.push(W2.p.slice()); W.lastFoot = W.dist; if (W.foot.length > 40) { W.foot.shift(); W2.foot.shift(); } }
-    // 赤道・南極・北極を通ったら知らせる
+    // 赤道・カタ極・アナ極を通ったら知らせる
     const w = W.p[3], dN = Math.acos(Math.max(-1, Math.min(1, w))), dS = Math.PI - dN;
-    if (W.wasW > 0 && w <= 0) say('赤道を通過（北極から π/2 ≈ 1.57）');
-    if (W.wasW < 0 && w > 0) say('赤道を通過（北極まであと π/2）');
-    // 南極・北極のいちばん近く（距離が減ってから増えに転じた所）を通ったら知らせる
-    if (W.prevS !== undefined && W.prevS < 0.2 && dS > W.prevS && !W.passed.S) { say(dS < 0.03 ? '南極を通過！ ここは北極の反対側（対蹠点）' : `南極のすぐそば（${W.prevS.toFixed(2)}）を通過。北極の反対側`); W.passed.S = true; W.passed.N = false; }
-    if (W.prevN !== undefined && W.prevN < 0.2 && dN > W.prevN && !W.passed.N && W.dist > 1) { say(dN < 0.03 ? '北極に戻ってきた！（1 周 = 2π ≈ 6.28）' : `北極のすぐそば（${W.prevN.toFixed(2)}）まで戻ってきた（1 周 ≈ 6.28）`); W.passed.N = true; W.passed.S = false; }
+    if (W.wasW > 0 && w <= 0) say('赤道を通過（アナ極から π/2 ≈ 1.57）');
+    if (W.wasW < 0 && w > 0) say('赤道を通過（アナ極まであと π/2）');
+    // カタ極・アナ極のいちばん近く（距離が減ってから増えに転じた所）を通ったら知らせる
+    if (W.prevS !== undefined && W.prevS < 0.2 && dS > W.prevS && !W.passed.S) { say(dS < 0.03 ? 'カタ極を通過！ ここはアナ極の反対側（対蹠点）' : `カタ極のすぐそば（${W.prevS.toFixed(2)}）を通過。アナ極の反対側`); W.passed.S = true; W.passed.N = false; }
+    if (W.prevN !== undefined && W.prevN < 0.2 && dN > W.prevN && !W.passed.N && W.dist > 1) { say(dN < 0.03 ? 'アナ極に戻ってきた！（1 周 = 2π ≈ 6.28）' : `アナ極のすぐそば（${W.prevN.toFixed(2)}）まで戻ってきた（1 周 ≈ 6.28）`); W.passed.N = true; W.passed.S = false; }
     W.prevS = dS; W.prevN = dN; W.wasW = w;
     req(2);
 }
@@ -1335,11 +1342,11 @@ function walkStep(local, s) {   // local＝[右, 上, 前] の割合（見てい
     const d2 = h2 > 1e-6 ? nrm(add(scl(R2, local[0]), L2, local[2])) : null;   // 上下は S² には無い
     step(d, d2, s * (d2 ? h2 / Math.hypot(local[0], local[1], local[2]) : 1));
 }
-// 螺旋（竜巻）：北極からの距離 θ を一定の速さで進めながら、まわりの角 φ = k·θ を回す。S³ では z = 0 の球面 S² の上の螺旋（左の S² と同じ道）
+// 螺旋（竜巻）：アナ極からの距離 θ を一定の速さで進めながら、まわりの角 φ = k·θ を回す。S³ では z = 0 の球面 S² の上の螺旋（左の S² と同じ道）
 const SP = { th: 0.002, lap: 0 };   // lap：何周目か（歳差で使う）
 // 二重の螺旋：巻く面の向き u（3 つの向きの球面の上の点）も、進むにつれて z の方から −z の方へ傾いていく（傾き 0 なら z = 0 の面のまま＝S² と同じ竜巻）
 //   p = (sinθ·u, cosθ)、u = (sinψ cosφ, sinψ sinφ, cosψ)、φ = k·θ、ψ = π/2 − 傾き·(π/2)·cosθ
-//   cosθ で「北極で上向き → 南極で下向き → 北極で上向き」と行って戻るので、帰り道（sinθ < 0）は行きと対称に、北・南 × 上・下の 4 区画をすべて通る
+//   cosθ で「アナ極で上向き → カタ極で下向き → アナ極で上向き」と行って戻るので、帰り道（sinθ < 0）は行きと対称に、アナ・カタ × 上・下の 4 区画をすべて通る
 // 歳差：輪の面そのものを、進んだ量（何周目かもこめた θ の合計）に比例して x 軸のまわりに回す（1 周で S.prec 度）。
 //   周を重ねるうちに輪が立ち、赤道を横切る時に縦になった周で上下（±z）のてっぺんまで届く。x 軸を通る輪を全部たどるので、いずれ S³ をまんべんなく巡る
 function spiralPoint(th, lap) {
@@ -1379,9 +1386,9 @@ function addMark() {
 const PIC = { N: '⛄', S: '🌴', px: '🐰', nx: '🐢', py: '🦝', ny: '🐸', pz: '🐱', nz: '🐶', self: '🙂', foot: '👣',
     marks: ['🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐭', '🐵', '🐧', '🦉', '🦄', '🐝', '🦋', '🐙', '🐬', '🐳', '🍎', '🍓', '🍉', '⚽', '🎸', '🚀', '⭐', '🍩', '🧸', '🎲'] };
 // ---- 3次元球面の太陽系（架空）----
-//   太陽は北極 N（どこに置いても同じ：S³ には真ん中も端もない）。惑星は、太陽から決まった距離 r の球面（太陽を囲む S²）の上の円を回る：
+//   太陽はアナ極（どこに置いても同じ：S³ には真ん中も端もない）。惑星は、太陽から決まった距離 r の球面（太陽を囲む S²）の上の円を回る：
 //   p = (sin r·u(φ), cos r)、u(φ) は軌道の面の向き（少し傾ける）。太陽を囲む球面の大きさは sin r なので、r = π/2（赤道）でいちばん大きく、
-//   その先はまた小さくなり、反対側（南極＝太陽の対蹠点 🌴）を囲む。速さは架空（遠いほどゆっくり）
+//   その先はまた小さくなり、反対側（カタ極＝太陽の対蹠点 🌴）を囲む。速さは架空（遠いほどゆっくり）
 const SUN = { p: [0, 0, 0, 1], pic: '☀️', col: [1, 0.82, 0.25], r: 0.13 };
 const PLANETS = [
     { name: '水星', pic: '🪨', col: [0.72, 0.66, 0.6], r: 0.32, size: 0.04, tilt: 7, node: 20 },
@@ -1404,7 +1411,7 @@ function moonPos(P) {   // 月：惑星のまわりを、軌道の向きと太�
     const E = planetPos(P), tg = nrm(add(planetAt(P, planetPhi(P) + 1e-3), E, -1)), sunD = nrm(add(SUN.p, E, -dot(SUN.p, E))), e1 = nrm(add(tg, E, -dot(tg, E))), e2 = nrm(add(sunD, e1, -dot(sunD, e1)));
     const a = P.moon.w * SOL.t, m = P.moon.r; return add(scl(E, Math.cos(m)), add(scl(e1, Math.cos(a)), e2, Math.sin(a)), Math.sin(m));
 }
-function planet2(P, phi) { const sr = Math.sin(P.r); return [sr * Math.cos(phi), sr * Math.sin(phi), Math.cos(P.r)]; }   // S² のたとえ：太陽は北極、惑星は緯線の上
+function planet2(P, phi) { const sr = Math.sin(P.r); return [sr * Math.cos(phi), sr * Math.sin(phi), Math.cos(P.r)]; }   // S² のたとえ：太陽はアナ極、惑星は緯線の上
 function setLook(d) {   // 進む向きを d に（方位・仰角は 0 に。見渡しはそのまま）
     const p = W.p, f = nrm(add(d, p, -dot(d, p)));
     let u = add(add(W.u, p, -dot(W.u, p)), f, -dot(W.u, f)); if (Math.hypot(...u) < 1e-4) u = add(add(W.r, p, -dot(W.r, p)), f, -dot(W.r, f)); u = nrm(u);
@@ -1415,7 +1422,7 @@ function tourStep(dt) {   // 飛んで行く → 着いたら惑星のすぐ後�
     const P = PLANETS[TOUR.i], T = planetPos(P), dist = Math.acos(Math.max(-1, Math.min(1, dot(T, W.p))));
     if (!TOUR.ride) {
         const back = 0.16 + P.size * 1.5;
-        if (dist <= back + 0.01) { TOUR.ride = true; say(`${P.pic} ${P.name}に着いた：太陽から ${P.r.toFixed(2)}${P.r > Math.PI / 2 ? '（π/2 より遠い：この軌道は反対側の南極 🌴 を囲む小さな円。太陽は前と後ろの両方に見える）' : ''}`); return; }
+        if (dist <= back + 0.01) { TOUR.ride = true; say(`${P.pic} ${P.name}に着いた：太陽から ${P.r.toFixed(2)}${P.r > Math.PI / 2 ? '（π/2 より遠い：この軌道は反対側のカタ極 🌴 を囲む小さな円。太陽は前と後ろの両方に見える）' : ''}`); return; }
         const d = nrm(add(T, W.p, -dot(T, W.p))); setLook(d); step(d, null, Math.min(dist - back, (0.5 + 1.2 * dist) * dt));   // 遠いほど速く
     } else {
         const back = (0.16 + P.size * 1.5) / Math.max(0.2, Math.sin(P.r)), q = planetAt(P, planetPhi(P) - back);   // 軌道の上で、惑星の少し後ろ
@@ -1424,24 +1431,25 @@ function tourStep(dt) {   // 飛んで行く → 着いたら惑星のすぐ後�
     req(2);
 }
 const FIXED = [
-    { p: [0, 0, 0, 1], p2: [0, 0, 1], col: [0.6, 0.95, 1], r: 0.13, label: 'N', pic: PIC.N, pole: true, dot: 0xef4444 },   // 極点の点では、北極は赤（いちばん内側の殻の色）
-    { p: [0, 0, 0, -1], p2: [0, 0, -1], col: hexRGB(0xfbbf24), r: 0.13, label: 'S', pic: PIC.S, pole: true, dot: 0xa855f7 },   // 南極は紫
-    // 8 つの極のうち、北極・南極のほかの 6 つ（x・y・z 軸の両はし）。どれも北極・南極と同じく、S³ の中では対等な点
+    { p: [0, 0, 0, 1], p2: [0, 0, 1], col: [0.6, 0.95, 1], r: 0.13, label: 'N', pic: PIC.N, pole: true, dot: 0xef4444 },   // 極点の点では、アナ極は赤（いちばん内側の殻の色）
+    { p: [0, 0, 0, -1], p2: [0, 0, -1], col: hexRGB(0xfbbf24), r: 0.13, label: 'S', pic: PIC.S, pole: true, dot: 0xa855f7 },   // カタ極は紫
+    // 8 つの極のうち、アナ極・カタ極のほかの 6 つ（x・y・z 軸の両はし）。どれもアナ極・カタ極と同じく、S³ の中では対等な点
     { p: [1, 0, 0, 0], p2: [1, 0, 0], col: hexRGB(0xfb923c), r: 0.09, label: '東 +x', pic: PIC.px, pole: true }, { p: [-1, 0, 0, 0], p2: [-1, 0, 0], col: hexRGB(0xfacc15), r: 0.09, label: '西 −x', pic: PIC.nx, pole: true },
-    { p: [0, 1, 0, 0], p2: [0, 1, 0], col: hexRGB(0x4ade80), r: 0.09, label: 'アナ +y', pic: PIC.py, pole: true }, { p: [0, -1, 0, 0], p2: [0, -1, 0], col: hexRGB(0x2dd4bf), r: 0.09, label: 'カタ −y', pic: PIC.ny, pole: true },
+    { p: [0, 1, 0, 0], p2: [0, 1, 0], col: hexRGB(0x4ade80), r: 0.09, label: '北 +y', pic: PIC.py, pole: true }, { p: [0, -1, 0, 0], p2: [0, -1, 0], col: hexRGB(0x2dd4bf), r: 0.09, label: '南 −y', pic: PIC.ny, pole: true },
     { p: [0, 0, 1, 0], p2: null, col: hexRGB(0x60a5fa), r: 0.09, label: '天 +z', pic: PIC.pz, pole: true }, { p: [0, 0, -1, 0], p2: null, col: hexRGB(0xf472b6), r: 0.09, label: '地 −z', pic: PIC.nz, pole: true },
 ];
 // 球層の色：軸色（S.shCol === 'axis'）なら、選んだ軸（S.shAxes）の極を囲む殻を、その軸の色で。殻は「その軸の成分＝一定」の球面
-const shFams = () => S.shCol === 'axis' ? [...'xyzw'].filter(k => S.shAxes.includes(k)).map(k => 'xyzw'.indexOf(k)) : [3];
-const axSwap = (p, ax) => { if (ax === 3) return p; const q = p.slice(); q[ax] = p[3]; q[3] = p[ax]; return q; };   // 北極・南極の殻の点を、軸 ax の極を囲む殻へ（成分を入れかえる）
+const shFams = () => S.shCol === 'axis' ? [...'xyzw'].filter(k => S.shAxes.includes(k)).map(k => axI(k)) : [3];   // 画面の文字 → 中の軸
+const axSwap = (p, ax) => { if (ax === 3) return p; const q = p.slice(); q[ax] = p[3]; q[3] = p[ax]; return q; };   // アナ極・カタ極の殻の点を、軸 ax の極を囲む殻へ（成分を入れかえる）
 function axisShellRGB(ax, i, n) {   // シェーダーの axisShellCol と同じ色
-    const ac = hexRGB(AXIS_HEX['xyzw'[ax]]), j = i < n ? i : 2 * n - 2 - i, t = j / Math.max(1, n - 1), mx = (a, b, k) => a.map((x, m) => x + (b[m] - x) * k);
+    const ac = hexRGB(AXIS_HEX[axL(ax)]), j = i < n ? i : 2 * n - 2 - i, t = j / Math.max(1, n - 1), mx = (a, b, k) => a.map((x, m) => x + (b[m] - x) * k);
     return i < n ? mx(mx(ac, [1, 1, 1], 0.35), ac, t) : mx(scl(ac, 0.62), scl(ac, 0.9), t);
 }
+FIXED.forEach(m => { if (m.pole && m.label !== 'N' && m.label !== 'S') { const i = m.p.findIndex(x => Math.abs(x) > 0.5); m.label = m.label.split(' ')[0] + ' ' + (m.p[i] > 0 ? '+' : '−') + axL(i); } });   // 名前の横の軸の文字（軸の名前に合わせる）
 const POLES = FIXED.filter(m => m.pole);
-const dotCss = m => m.tgt ? '#ffffff' : '#' + (S.shCol === 'axis' ? AXIS_HEX['xyzw'[m.p.findIndex(x => Math.abs(x) > 0.5)]] : m.dot !== undefined ? m.dot : rgbHex(m.col)).toString(16).padStart(6, '0');   // 球層が軸色なら、極もその軸の色
+const dotCss = m => m.tgt ? '#ffffff' : '#' + (S.shCol === 'axis' ? AXIS_HEX[axL(m.p.findIndex(x => Math.abs(x) > 0.5))] : m.dot !== undefined ? m.dot : rgbHex(m.col)).toString(16).padStart(6, '0');   // 球層が軸色なら、極もその軸の色
 const poleColor = (e, m) => { const c = dotCss(m); if (e._c !== c) { e._c = c; e.firstChild.style.background = c; e.lastChild.style.color = c; } };
-const poleName = m => m.name ? m.name : m.label === 'N' ? '北極' : m.label === 'S' ? '南極' : m.label.split(' ')[0] + '極';
+const poleName = m => m.name ? m.name : m.label === 'N' ? 'アナ極' : m.label === 'S' ? 'カタ極' : m.label.split(' ')[0] + '極';
 const polePts = () => S.poles && S.mk !== 'pic';   // 絵のモードでは、極はいつもの絵（🐰🐢🦝🐸🐱🐶）のまま
 // 絵文字を、見た目の外わく（字形の箱）の真ん中がちょうど (cx, cy) に来るように描く（textBaseline: middle だけだと字体によって少し下にずれる）
 const _glyphCv = document.createElement('canvas'); _glyphCv.width = _glyphCv.height = 192;
@@ -1478,7 +1486,7 @@ function say(t) { const el = document.getElementById('msg'); el.textContent = t;
 // 4次元の回転（S³ の地図）
 let R4 = NDGeom.rotation(4, []);
 function updateRot() {
-    if (S.ring && S.ringView) {   // 回る輪：北極を地図の上に、輪の回る軸（x・y・z）を奥行き（写さない向き）に。輪はちょうど地図の球面の上に乗る
+    if (S.ring && S.ringView) {   // 回る輪：アナ極を地図の上に、輪の回る軸（x・y・z）を奥行き（写さない向き）に。輪はちょうど地図の球面の上に乗る
         const e = i => { const v = [0, 0, 0, 0]; v[i] = 1; return v; };
         let rows;
         if (S.ringAxis === 'w') rows = [e(0), e(1), e(2), e(3)];   // 軸 w：回転なし。+z が上、w が奥行き → w = 0 の球面がちょうど地図の球面
@@ -1573,7 +1581,7 @@ const DUST = (() => {
     }
     return { draw, reset() { q.length = 0; } };
 })();
-// ---- 8 つの極（中の景色）：北極・南極と x・y・z 軸の両はしの 6 つを、画面の上の平らな点と名前で出す（玉にすると空間の曲がりとレンズで形がゆがむので、場所だけ）。
+// ---- 8 つの極（中の景色）：アナ極・カタ極と x・y・z 軸の両はしの 6 つを、画面の上の平らな点と名前で出す（玉にすると空間の曲がりとレンズで形がゆがむので、場所だけ）。
 //   自分から極へいちばん近い向き（大円）が、画面のどこに写るかを、中の景色と同じレンズの式で計算する。殻や線の奥でも見える
 const POLE_EL = [];
 function poleScreen(dr, du, dl, w, h) {   // 自分の枠での向き（右・上・前）→ 画面の位置（-1〜1）。写らなければ null
@@ -1600,7 +1608,7 @@ function poleLabels() {
     POLES.forEach((m, i) => {
         if (!pon) { POLE_EL[i].style.display = 'none'; return; }
         const e = POLE_EL[i], c = Math.max(-1, Math.min(1, dot(W.p, m.p))), t = Math.acos(c); poleColor(e, m);
-        if (S.solar && m.label === 'N') { e.style.display = 'none'; return; }   // 太陽系の時、北極は太陽
+        if (S.solar && m.label === 'N') { e.style.display = 'none'; return; }   // 太陽系の時、アナ極は太陽
         const dv = add(m.p, W.p, -c), l = Math.hypot(...dv);
         const sp = l > 1e-6 && t <= S.maxd ? poleScreen(dot(dv, F.R) / l, dot(dv, F.U) / l, dot(dv, F.L) / l, w, h) : null;
         if (!sp || Math.abs(sp[0]) > 1.02 || Math.abs(sp[1]) > 1.02) { e.style.display = 'none'; return; }
@@ -1625,8 +1633,8 @@ function poleLabels() {
 // ---- 8 つの極（地図）：地図の玉の代わりに、画面の上の平らな点と名前（遠近で大きさが変わったりゆがんだりしない）。球の奥の側にある極は薄く
 //   key＝どの窓の点か（'B'＝S³ の地図、'A'＝左上の S²、'A2'＝左上の 2 枚目の地図）。その窓を描いたカメラで、玉の場所を画面に写す
 const MAPDOT = {}, _mdv = new THREE.Vector3(), _mdc = new THREE.Vector3();
-// 点と名前の重なりをさばく：list の各 { e（点＋名前の箱）, x, y（画面の位置）, d（奥行き。小さいほど手前）, n（北極か） }。
-//   点が重なる時は手前の点だけ。名前は北極を先に、あとは手前から順に、点の右・左・上・下で空いている所へ（どこも空いていなければ隠す）
+// 点と名前の重なりをさばく：list の各 { e（点＋名前の箱）, x, y（画面の位置）, d（奥行き。小さいほど手前）, n（アナ極か） }。
+//   点が重なる時は手前の点だけ。名前はアナ極を先に、あとは手前から順に、点の右・左・上・下で空いている所へ（どこも空いていなければ隠す）
 function placeDots(list, w, h) {
     list.sort((a, b) => a.d - b.d);
     const dots = [], labs = [];
@@ -1756,13 +1764,13 @@ const AXL = 2.7;
     L.flush();
     v.root.add(new THREE.Mesh(new THREE.SphereGeometry(R2 * 0.995, 64, 40), new THREE.MeshPhongMaterial({ color: 0x1e3a8a, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide })));
     // 固定の目印
-    const fixedA = FIXED.filter(m => m.p2).map(m => { const b = ball(v, m.r * 1.1, m.col); b.userData.m = m; b.position.set(...scl(m.p2, R2)); const lab = label(v, m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36); lab.position.set(...scl(m.p2, R2 * 1.12)); const sp = emojiSprite(m.pic, 0.5); v.root.add(sp); sp.position.set(...scl(m.p2, R2)); return { b, lab, sp }; });
+    const fixedA = FIXED.filter(m => m.p2).map(m => { const b = ball(v, m.r * 1.1, m.col); b.userData.m = m; b.position.set(...scl(m.p2, R2)); const lab = label(v, m.label === 'N' ? 'アナ' : m.label === 'S' ? 'カタ' : m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36); lab.position.set(...scl(m.p2, R2 * 1.12)); const sp = emojiSprite(m.pic, 0.5); v.root.add(sp); sp.position.set(...scl(m.p2, R2)); return { b, lab, sp }; });
     v.poleObjs = fixedA;   // 8 つの極の点（地図の上の平らな点）に使う
     // 歩く人
     const me = ball(v, 0.09, [1, 1, 1]), cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 })); v.root.add(cone);
     const trail = Lines(v, 12000, { width: 2.4, order: 3 }), foot = new THREE.Group(); v.root.add(foot);
     const spL = Lines(v, 1200, { width: 1.1 }); let spKey = '';
-    // 南極の星（S² では南極のまわりの円板＝球面の帽子）
+    // カタ極の星（S² ではカタ極のまわりの円板＝球面の帽子）
     const capMat = new THREE.MeshPhongMaterial({ color: 0x94704c, transparent: true, opacity: 0.75, side: THREE.DoubleSide, shininess: 10 });
     let capMesh = null, capKey = '';
     const marks = new THREE.Group(); v.root.add(marks);
@@ -1778,7 +1786,7 @@ const AXL = 2.7;
         trail.reset(); const T = W2.trail; for (let i = 0; i + 1 < T.length; i++) { const f = 0.3 + 0.7 * i / T.length; trail.seg(scl(T[i], R2), scl(T[i + 1], R2), scl(hsl(200 + 160 * i / T.length, 0.9, 0.6), f)); } trail.flush();
         while (foot.children.length < W2.foot.length) { const b = ball(v, 0.035, [0.8, 0.85, 1]); v.root.remove(b); foot.add(b); }
         foot.children.forEach((b, i) => { b.visible = i < W2.foot.length && S.foot; if (b.visible) b.position.set(...scl(W2.foot[i], R2)); });
-        fixedA.forEach((o, k) => { const hide = (S.solar && k === 0) || noMk(); o.b.visible = !isPic() && !hide; o.lab.visible = !isPic() && !hide; o.sp.visible = isPic() && !hide; o.okPt = true; if (polePts()) o.b.visible = o.lab.visible = o.sp.visible = false; });   // 太陽系の時、北極は太陽
+        fixedA.forEach((o, k) => { const hide = (S.solar && k === 0) || noMk(); o.b.visible = !isPic() && !hide; o.lab.visible = !isPic() && !hide; o.sp.visible = isPic() && !hide; o.okPt = true; if (polePts()) o.b.visible = o.lab.visible = o.sp.visible = false; });   // 太陽系の時、アナ極は太陽
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const b = ball(v, 0.08, m.col); v.root.remove(b); marks.add(b); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
         W.marks.forEach((m, i) => { const [b, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; b.position.set(...scl(m.p2, R2)); lab.position.set(...scl(m.p2, R2 * 1.1)); sp.position.set(...scl(m.p2, R2)); b.visible = !isPic() && !noMk(); lab.visible = !isPic() && !noMk(); sp.visible = isPic(); });
     });
@@ -1819,16 +1827,16 @@ const AXL = 2.7;
     const spL = Lines(v, 1200, { width: 1.1 }); let spPath = null, spKey = '';
     v.root.add(new THREE.Mesh(new THREE.SphereGeometry(RS, 48, 32), new THREE.MeshPhongMaterial({ color: 0x1e3a8a, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide })));
     const planetM = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), new THREE.MeshPhongMaterial({ color: 0x94704c, transparent: true, opacity: 0.6, shininess: 10, depthWrite: false })); v.root.add(planetM);
-    // 4次元回転の実演：北極 N・南極 S を光る玉と名札で強調し、通った道を残す
-    // 実演の時：赤玉（北極を囲むいちばん内側の殻）と紫玉（南極を囲むいちばん内側の殻）を太いワイヤーで。手前は明るく、奥は暗く
+    // 4次元回転の実演：アナ極・カタ極 を光る玉と名札で強調し、通った道を残す
+    // 実演の時：赤玉（アナ極を囲むいちばん内側の殻）と紫玉（カタ極を囲むいちばん内側の殻）を太いワイヤーで。手前は明るく、奥は暗く
     const Lpole = Lines(v, 2 * eqPairs.length, { width: 2.8, normal: true, order: 5 }), pA = [0, 0, 0], pB = [0, 0, 0];
     const polePairs = () => { const th = shellMinTheta(), out = [], GM = gridM(); [[1, [1, 0.25, 0.25]], [-1, [0.78, 0.4, 1]]].forEach(([sg, col]) => { const sn = Math.sin(th), wc = sg * Math.cos(th); eqPairs.map(([A, B]) => [gridApply(GM, A), gridApply(GM, B)]).forEach(([A, B]) => out.push([[A[0] * sn, A[1] * sn, A[2] * sn, wc], [B[0] * sn, B[1] * sn, B[2] * sn, wc], col])); }); return out; };
     const r4N = ball(v, 0.16, [0.55, 0.95, 1]), r4S = ball(v, 0.16, [1, 0.8, 0.25]); r4N.material.emissiveIntensity = 0.9; r4S.material.emissiveIntensity = 0.9;
-    const r4NL = label(v, 'N 北極', '#9be7ff', 0.42), r4SL = label(v, 'S 南極', '#fcd34d', 0.42), LR4 = Lines(v, 1200, { width: 2.6, normal: true, order: 4 }), r4a = [0, 0, 0], r4b = [0, 0, 0];
+    const r4NL = label(v, 'アナ極', '#9be7ff', 0.42), r4SL = label(v, 'カタ極', '#fcd34d', 0.42), LR4 = Lines(v, 1200, { width: 2.6, normal: true, order: 4 }), r4a = [0, 0, 0], r4b = [0, 0, 0];
     const me = ball(v, 0.1, [1, 1, 1]), cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 14), new THREE.MeshBasicMaterial({ color: 0xfde047 })); v.root.add(cone);
     const vcone = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.26, 12), new THREE.MeshBasicMaterial({ color: 0x7dd3fc })); v.root.add(vcone);
     const Laxis = Lines(v, 1, { width: 3, normal: true, order: 6 }), ax0 = [0, 0, 0], ax1 = [0, 0, 0];   // 自転の地軸（桃色の線）   // 見渡している時の、見ている向き
-    const fixed = FIXED.map(m => { const sp = emojiSprite(m.pic, 0.5); v.root.add(sp); return { m, b: ball(v, m.r, m.col), lab: label(v, m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36), sp }; });
+    const fixed = FIXED.map(m => { const sp = emojiSprite(m.pic, 0.5); v.root.add(sp); return { m, b: ball(v, m.r, m.col), lab: label(v, m.label === 'N' ? 'アナ' : m.label === 'S' ? 'カタ' : m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36), sp }; });
     v.poleObjs = fixed;   // 8 つの極の点（地図の上の平らな点）に使う
     const tgtO = { m: { label: '目的地', name: '目的地', p: [0, 0, 0, 1], col: [1, 1, 1], dot: 0xffffff, tgt: true }, b: ball(v, 0.05, [1, 1, 1]) }; tgtO.b.visible = false; v.tgtObj = tgtO;   // 目的地の点
     const foot = new THREE.Group(), marks = new THREE.Group(); v.root.add(foot, marks);
@@ -1878,7 +1886,7 @@ const AXL = 2.7;
                     return vivid(P[2], k * Math.sqrt(fk)); }, 3, !S.shFocus); Lshell.save(dk); } else shellDrawKey = dk; }   // 今いる所だけの時は「奥を消す」でも消さない
         trail.obj.visible = S.trail; trail.obj.material.linewidth = 3.4 * S.trailW;
         const T = W.trail; trail.reset(); for (let i = 0; i + 1 < T.length; i++) { const da = mapS3(T[i], a), db = mapS3(T[i + 1], b); if (!(da === da) || !(db === db) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.5) continue; const f = 0.45 + 0.55 * i / T.length; trail.seg(a, b, scl(hsl(200 + 160 * i / T.length, 0.95, 0.62), f)); } trail.flush();
-        { const pk = planetKey(); planetM.visible = false; if (pk) { const d = mapS3(SP4, a); if (d === d) { planetM.visible = true; planetM.position.set(a[0], a[1], a[2]); planetM.scale.setScalar(Math.sin(pk) * RS * Math.min(3, kOf(SP4))); } } }   // 南極の星
+        { const pk = planetKey(); planetM.visible = false; if (pk) { const d = mapS3(SP4, a); if (d === d) { planetM.visible = true; planetM.position.set(a[0], a[1], a[2]); planetM.scale.setScalar(Math.sin(pk) * RS * Math.min(3, kOf(SP4))); } } }   // カタ極の星
         place(me, W.p, 1);
         const F = lookFrame(), dv = W.lastDir && performance.now() - (W.lastDirT || 0) < 400 ? W.lastDir : F.L, q = nrm(add(scl(W.p, Math.cos(0.12)), dv, Math.sin(0.12)));   // 歩いている間は進む向き、止まっている時は見ている向き
         if (S.heading && mapS3(W.p, a) === mapS3(W.p, a) && mapS3(q, b) === mapS3(q, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); const l = t.length(); if (l > 1e-6) { t.normalize(); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(a[0] + t.x * 0.28, a[1] + t.y * 0.28, a[2] + t.z * 0.28); cone.scale.setScalar(Math.min(2.5, kOf(W.p))); cone.visible = true; } } else cone.visible = false;
@@ -1892,7 +1900,7 @@ const AXL = 2.7;
             if (ds === ds) { r4S.position.set(...r4b); r4S.visible = true; r4SL.position.set(r4b[0], r4b[1], r4b[2] - 0.3); r4SL.visible = true; }
             if (dn === dn && ds === ds) { ROT4.dist = Math.hypot(r4a[0] - r4b[0], r4a[1] - r4b[1], r4a[2] - r4b[2]); const T1 = ROT4.trailN, T2 = ROT4.trailS, last = T1[T1.length - 1];
                 if (!last || Math.hypot(last[0] - r4a[0], last[1] - r4a[1], last[2] - r4a[2]) > 0.02) { T1.push(r4a.slice()); T2.push(r4b.slice()); if (T1.length > 600) { T1.shift(); T2.shift(); } }
-                const near = ROT4.dist < 0.25 * RS; if (near && !ROT4.near) say('北極 N と南極 S が地図の上で重なった！（4次元では いちばん遠い π）'); ROT4.near = near; }
+                const near = ROT4.dist < 0.25 * RS; if (near && !ROT4.near) say('アナ極 とカタ極 が地図の上で重なった！（4次元では いちばん遠い π）'); ROT4.near = near; }
             LR4.reset(); [[ROT4.trailN, [0.55, 0.95, 1]], [ROT4.trailS, [1, 0.8, 0.25]]].forEach(([T, c]) => { for (let k = 0; k + 1 < T.length; k++) { const f = 0.15 + 0.85 * k / T.length; LR4.seg(T[k], T[k + 1], scl(c, f)); } }); LR4.flush(); } }
         Laxis.obj.visible = false;
         if (S.spin) { const ax = spinAxis(lookFrame()), A = add(scl(W.p, Math.cos(0.28)), ax, -Math.sin(0.28)), B = add(scl(W.p, Math.cos(0.28)), ax, Math.sin(0.28));
@@ -1906,7 +1914,7 @@ const AXL = 2.7;
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const bb = ball(v, 0.085, m.col); v.root.remove(bb); marks.add(bb); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
         W.marks.forEach((m, i) => { const [bb, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; const d = place(bb, m.p, 1); const ok = d === d && !noMk(); lab.visible = ok && !isPic(); sp.visible = ok && isPic(); bb.visible = ok && !isPic(); if (ok) { lab.position.copy(bb.position).add(new THREE.Vector3(0, 0, 0.18)); sp.position.copy(bb.position); sp.scale.setScalar(0.45 * Math.min(2.5, kOf(m.p))); } });
     });
-    makeAxes(v, ['x', 'y', 'z', 'w'], nm => { const e = [0, 0, 0, 0]; e['xyzw'.indexOf(nm)] = 1; const q = NDGeom.apply(R4, 4, e, []); return scl([q[0], q[1], q[2]], AXL); });
+    makeAxes(v, ['x', 'y', 'z', 'w'], nm => { const e = [0, 0, 0, 0]; e[axI(nm)] = 1; const q = NDGeom.apply(R4, 4, e, []); return scl([q[0], q[1], q[2]], AXL); });
 })();
 
 // ---- ホップの円の仲間と、その道（S² と S³ の地図）----
@@ -1971,7 +1979,7 @@ const AXL = 2.7;
 (function buildSolar() {
     const CN = 96, Z = [0, 0, 0], a = [0, 0, 0], b = [0, 0, 0];
     const mk = (v, pic, col, r, sz) => { const bl = ball(v, r, col); const sp = emojiSprite(pic, sz); v.root.add(sp); return { b: bl, sp, sz }; };
-    // S²：太陽は北極、惑星は緯線（太陽からの距離 r の円）
+    // S²：太陽はアナ極、惑星は緯線（太陽からの距離 r の円）
     const LA = Lines(VA, PLANETS.length * CN, { width: 1.1 }); let keyA = '';
     const sunA = mk(VA, SUN.pic, SUN.col, 0.14, 0.6), plA = PLANETS.map(P => mk(VA, P.pic, P.col, 0.04 + P.size * 0.6, 0.36));
     VA.frames.push(() => {
@@ -2093,7 +2101,7 @@ float gridLine(float lat, float lon){
     return max(smoothstep(0.03, 0.0, abs(fract(lat/(PI/6.0)+0.5)-0.5)*(PI/6.0)), smoothstep(0.03, 0.0, abs(fract(lon/(PI/6.0)+0.5)-0.5)*(PI/6.0)*cos(lat)));
 }
 vec3 pal(float h){ return 0.55 + 0.45*cos(6.2831*(h + vec3(0.0, 0.33, 0.67))); }   // 色相 h（0〜1）→ 色
-// 地図のような色のメッシュの空：光の向き v（4次元の単位ベクトル）で色を決める。経度（x–y の角）で色相、w（北＝明るい・南＝暗い）で明るさ、30° ごとに線
+// 地図のような色のメッシュの空：光の向き v（4次元の単位ベクトル）で色を決める。経度（x–y の角）で色相、w（アナ＝明るい・カタ＝暗い）で明るさ、30° ごとに線
 vec3 skyMesh(vec4 v){
     float lon = atan(v.y, v.x), lat = asin(clamp(v.w, -1.0, 1.0)), lat2 = asin(clamp(v.z, -1.0, 1.0));
     vec3 base = pal(lon/(2.0*PI) + 0.5) * (0.22 + 0.2*(v.w*0.5 + 0.5));
@@ -2101,11 +2109,11 @@ vec3 skyMesh(vec4 v){
     return mix(base, base*1.9 + 0.08, g*0.8);
 }
 vec3 haze(vec3 d);
-// ---- 球層（超球アプリの「球殻積層」と同じ見た目）：北・南それぞれ n 枚の w = ±cos θ の球殻（赤道は共通）。色は超球アプリの layerColor（redCenter）----
+// ---- 球層（超球アプリの「球殻積層」と同じ見た目）：アナ・カタそれぞれ n 枚の w = ±cos θ の球殻（赤道は共通）。色は超球アプリの layerColor（redCenter）----
 vec3 hsl2rgb(vec3 c){ vec3 rgb = clamp(abs(mod(c.x*6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0); return c.z + c.y*(rgb - 0.5)*(1.0 - abs(2.0*c.z - 1.0)); }
 uniform float uShMin;   // いちばん内側の殻の、極からの距離（超球アプリの MIN_THETA にあたる。極の目印の玉より外に）
 float shellW(int i, int n){ int j = i < n ? i : 2*n - 2 - i; float th = uShMin + float(j)/max(float(n - 1), 1.0)*(PI/2.0 - uShMin); float wc = cos(th); return i < n ? wc : -wc; }
-// 殻の色（超球アプリと同じ：北極 赤 → 赤道 水色 → 南極 紫）。青・紫は同じ明るさの数字でも目には暗く、南の殻が真っ暗に見えるので、
+// 殻の色（超球アプリと同じ：アナ極 赤 → 赤道 水色 → カタ極 紫）。青・紫は同じ明るさの数字でも目には暗く、カタの殻が真っ暗に見えるので、
 // 色合いはそのままで、目に見える明るさ（輝度）が uShellLum に届かない色だけ白を少し混ぜて持ち上げる
 uniform float uShellLum;
 vec3 shellCol(int i, int n){ int j = i < n ? i : 2*n - 2 - i; float t = float(j)/max(float(n - 1), 1.0); float h = i < n ? t*0.50 : 0.80 - t*0.30;
@@ -2114,7 +2122,7 @@ vec3 shellCol(int i, int n){ int j = i < n ? i : 2*n - 2 - i; float t = float(j)
 // 球層の網目：ふだんは 15° ごと、壮大モードでは 5° ごとの細い線（細かい模様が広がる面は大きく見える）
 float gridLine15(float lat, float lon){ float st = uGridSt, lw = 0.025*st/(PI/12.0); return max(smoothstep(lw, 0.0, abs(fract(lat/st+0.5)-0.5)*st), smoothstep(lw, 0.0, abs(fract(lon/st+0.5)-0.5)*st*cos(lat))); }
 // 道のり t0 〜 t1 の間にある球殻との交わりを、手前から順に重ねる。w(t) = amp·cos(t − φ) なので、減る区間・増える区間ごとに殻を順にたどれば並べかえがいらない
-// 殻をまとめて：レインボーなら北極・南極の殻だけ。軸色なら、選んだ軸（x・y・z・w）の極を囲む殻を順に重ねる
+// 殻をまとめて：レインボーならアナ極・カタ極の殻だけ。軸色なら、選んだ軸（x・y・z・w）の極を囲む殻を順に重ねる
 void shellsBetween(vec4 p0, vec4 v, float t0, float t1, inout vec3 col, inout float T, vec3 dir, int ax);
 void shellsAll(vec4 p0, vec4 v, float t0, float t1, inout vec3 col, inout float T, vec3 dir){
     if(uShAxis == 0){ shellsBetween(p0, v, t0, t1, col, T, dir, 3); return; }
@@ -2127,13 +2135,13 @@ void shellsAll(vec4 p0, vec4 v, float t0, float t1, inout vec3 col, inout float 
 vec3 axisShellCol(vec3 ac, int i, int n){ int j = i < n ? i : 2*n - 2 - i; float t = float(j)/max(float(n - 1), 1.0);
     vec3 c = i < n ? mix(mix(ac, vec3(1.0), 0.35), ac, t) : mix(ac*0.62, ac*0.9, t); float lum = dot(c, vec3(0.299, 0.587, 0.114));
     return mix(c, vec3(1.0), clamp((uShellLum - lum)/(1.0 - lum), 0.0, 0.2)); }   // 白に寄せすぎると軸の色が見分けにくいので、明るくするのは少しだけ
-// ax：どの軸の極を囲む殻か（0＝x、1＝y、2＝z、3＝w＝北極・南極）。殻は「その軸の成分＝一定」の球面
+// ax：どの軸の極を囲む殻か（0＝x、1＝y、2＝z、3＝w＝アナ極・カタ極）。殻は「その軸の成分＝一定」の球面
 void shellsBetween(vec4 p0, vec4 v, float t0, float t1, inout vec3 col, inout float T, vec3 dir, int ax){
     int n = uShellN; int nTot = 2*n - 1;
     vec4 ek = ax == 0 ? vec4(1.0,0.0,0.0,0.0) : ax == 1 ? vec4(0.0,1.0,0.0,0.0) : ax == 2 ? vec4(0.0,0.0,1.0,0.0) : vec4(0.0,0.0,0.0,1.0);
     vec3 axc = ax == 0 ? uAxC[0] : ax == 1 ? uAxC[1] : ax == 2 ? uAxC[2] : uAxC[3];
     float A = dot(p0, ek), B = dot(v, ek); float amp = sqrt(A*A+B*B); if(amp < 1e-5) return;
-    float phi = atan(B, A); float s0 = mod(-phi, 2.0*PI); if(s0 > 2.0*PI - 1e-4) s0 -= 2.0*PI;   // 北極・南極ちょうどでは丸めで 2π ぎりぎりになり、殻が 1 周ずれて抜ける画素が出るので 0 に戻す
+    float phi = atan(B, A); float s0 = mod(-phi, 2.0*PI); if(s0 > 2.0*PI - 1e-4) s0 -= 2.0*PI;   // アナ極・カタ極ちょうどでは丸めで 2π ぎりぎりになり、殻が 1 周ずれて抜ける画素が出るので 0 に戻す
     int m0 = int(floor(s0/PI));
     // 光が何周してもよい（殻の見える距離は 8π まで）。たどる範囲 t0〜t1 に入る半周だけを数える（重くしない）
     for(int ph=0; ph<11; ph++){
@@ -2188,7 +2196,7 @@ void shellsBetween(vec4 p0, vec4 v, float t0, float t1, inout vec3 col, inout fl
 // ---- 外のダイソン球（架空）：S³ を外から囲む模様。外の光は 4次元目（球の外向き）から差すので、中の人には「どの向きから」ではなく、
 //      その場所のもやが、真上にある模様の色に光るように感じる。光の道に沿ってその色を足し合わせる（中の人に見えるのはこのもや）
 uniform float uOuter;
-vec3 dysonCol(vec4 q){   // 模様：ホップの座標（η, ξ₁, ξ₂）のます目のパネル、継ぎ目は暗く。北（w > 0）は金色、南は青白
+vec3 dysonCol(vec4 q){   // 模様：ホップの座標（η, ξ₁, ξ₂）のます目のパネル、継ぎ目は暗く。アナ（w > 0）は金色、カタは青白
     float eta = atan(length(q.zw), length(q.xy)), x1 = atan(q.y, q.x), x2 = atan(q.w, q.z);
     vec3 g = vec3(eta/(PI*0.5)*5.0, (x1 + PI)/(2.0*PI)*10.0, (x2 + PI)/(2.0*PI)*10.0);
     vec3 f = abs(fract(g) - 0.5); float seam = smoothstep(0.36, 0.5, max(f.x, max(f.y, f.z)));
@@ -2236,7 +2244,7 @@ void main(){
                     vec4 q = cos(t)*p0 + sin(t)*v; vec3 sp = normalize(q.xyz);
                     float g = gridLine(asin(clamp(sp.z,-1.0,1.0)), atan(sp.y, sp.x));
                     if(g > 0.01){
-                        float u = (wc + 1.0)*0.5;   // 北（w が＋）は赤紫、南（w が−）は水色、赤道は白っぽく
+                        float u = (wc + 1.0)*0.5;   // アナ（w が＋）は赤紫、カタ（w が−）は水色、赤道は白っぽく
                         vec3 cc = mix(vec3(0.45,0.85,1.0), vec3(1.0,0.55,0.85), u); if(s==2) cc = vec3(0.85,0.9,1.0);
                         Lt[7+s*2+k] = t; Lc[7+s*2+k] = cc; La[7+s*2+k] = (uPic>=1 ? max(uPicLine, 0.0)*1.2 : 0.55)*g;
                     }
@@ -2327,7 +2335,7 @@ const ray = (() => {
     const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const U = { uRes: { value: new THREE.Vector2(1, 1) }, uTanF: { value: Math.tan(35 * d2r) }, uFovY: { value: 70 * d2r }, uPixAng: { value: 0.002 }, uLens: { value: 0 }, uP: { value: new THREE.Vector4() }, uR: { value: new THREE.Vector4() }, uU: { value: new THREE.Vector4() }, uF: { value: new THREE.Vector4() },
         uMk: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkC: { value: [...Array(NMK)].map(() => new THREE.Vector4()) }, uMkT: { value: new Float32Array(NMK).fill(-1) }, uNM: { value: 0 }, uAtlas: { value: ATLAS.tex }, uPic: { value: 0 }, uBgMesh: { value: 0 }, uPasses: { value: 4 },
-        uShAxis: { value: 0 }, uShAx: { value: new THREE.Vector4(1, 1, 1, 1) }, uAxC: { value: ['x', 'y', 'z', 'w'].map(k => new THREE.Vector3(...hexRGB(AXIS_HEX[k]))) },
+        uShAxis: { value: 0 }, uShAx: { value: new THREE.Vector4(1, 1, 1, 1) }, uAxC: { value: [0, 1, 2, 3].map(i => new THREE.Vector3(...hexRGB(AXIS_HEX[axL(i)]))) },
         uN: { value: [...Array(12)].map(() => new THREE.Vector4()) }, uRoom: { value: 1 }, uCirc: { value: 1 }, uEq: { value: 1 }, uLite: { value: 1 }, uShell: { value: 0 }, uOuter: { value: 0 }, uShellLum: { value: 0.65 }, uShellSolid: { value: 0 }, uShellBare: { value: 0 }, uGridSt: { value: Math.PI / 12 }, uGridM: { value: new THREE.Matrix3() }, uShellN: { value: 11 }, uShellOp: { value: 0.22 }, uShellRange: { value: 1.0 }, uShMin: { value: 0.25 }, uShellBack: { value: 0.6 }, uFog: { value: 0.12 }, uFade: { value: 0.25 }, uPicLine: { value: 0.3 }, uMaxD: { value: 6 }, uTube: { value: 0.02 } };
     const mat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: RAY_FRAG, depthTest: false, depthWrite: false });
     scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
@@ -2338,8 +2346,8 @@ function rebuildMarks() {
     const U = ray.U; let n = 0;
     const big = (S.mk === 'pic' ? 1.5 : S.mk === 'dot' ? 1.9 : 1) * (S.grand ? 0.7 : 1);   // 絵・色の点のモードは玉を大きめに。壮大モードは 7 割（小さい物は遠くに見える）
     const put = (p, c, r, pic) => { if (n >= NMK) return; U.uMk.value[n].set(p[0], p[1], p[2], p[3]); U.uMkC.value[n].set(c[0], c[1], c[2], r * big); U.uMkT.value[n] = ATLAS.of(pic); n++; };
-    if (planetKey()) put(SP4, [0.58, 0.44, 0.3], S.planetR / big, null);   // 南極の星（地面）
-    FIXED.forEach(m => { if (polePts() && m.pole && !(S.solar && m.label === 'N')) return; if (S.solar && m.label === 'N') put(SUN.p, SUN.col, SUN.r, SUN.pic); else if (!noMk()) put(m.p, m.col, m.r, m.pic); });   // 「なし」の時は北極・南極・赤道の目印を出さない   // 太陽系の時は北極に太陽
+    if (planetKey()) put(SP4, [0.58, 0.44, 0.3], S.planetR / big, null);   // カタ極の星（地面）
+    FIXED.forEach(m => { if (polePts() && m.pole && !(S.solar && m.label === 'N')) return; if (S.solar && m.label === 'N') put(SUN.p, SUN.col, SUN.r, SUN.pic); else if (!noMk()) put(m.p, m.col, m.r, m.pic); });   // 「なし」の時はアナ極・カタ極・赤道の目印を出さない   // 太陽系の時はアナ極に太陽
     if (!noMk()) W.marks.forEach(m => put(m.p, m.col, 0.1, m.pic));
     if (S.foot) W.foot.forEach(p => put(p, [0.8, 0.85, 1], 0.03, PIC.foot));
     ray.U.uNM.value = n; ray._base = n; ray._nFoot = W.foot.length; ray._nMk = W.marks.length;
@@ -2347,7 +2355,7 @@ function rebuildMarks() {
 function setRayUniforms() {
     const U = ray.U, F = viewFrame();   // 画面に写すのは見渡した向き
     U.uP.value.set(...W.p); U.uR.value.set(...F.R); U.uU.value.set(...F.U); U.uF.value.set(...F.L);
-    U.uShAxis.value = S.shCol === 'axis' ? 1 : 0; U.uShAx.value.set(...['x', 'y', 'z', 'w'].map(k => S.shAxes.includes(k) ? 1 : 0));
+    U.uShAxis.value = S.shCol === 'axis' ? 1 : 0; U.uShAx.value.set(...[0, 1, 2, 3].map(i => S.shAxes.includes(axL(i)) ? 1 : 0));
     U.uRoom.value = S.room ? 1 : 0; U.uLite.value = S.lite ? 1 : 0; U.uShell.value = S.shell ? 1 : 0; U.uOuter.value = S.dyson ? S.outer : 0; U.uShellLum.value = S.shellLum; U.uShellSolid.value = S.shellSolid ? 1 : 0; U.uShellBare.value = S.shellBare ? 1 : 0; { const M = gridM(); U.uGridM.value.set(M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]); } U.uShellN.value = Math.max(2, Math.min(21, Math.round(S.shellN))); U.uShellOp.value = S.shellOp; U.uShellBack.value = S.shellBack; U.uShellRange.value = S.shellRange; U.uShMin.value = shellMinTheta(); U.uCirc.value = S.circ ? 1 : 0; U.uEq.value = S.eq ? 1 : 0; U.uFog.value = S.fog * (S.grand ? 1.6 : 1); U.uGridSt.value = S.grand ? Math.PI / 36 : Math.PI / 12; U.uFade.value = S.fade; U.uPicLine.value = S.picLine; U.uMaxD.value = S.maxd;
     U.uRes.value.set(VC.r.domElement.width, VC.r.domElement.height);
     const lens = S.lens === 'fish' ? 1 : S.lens === 'pano' ? 2 : 0, fov = lens === 0 ? Math.min(150, S.fov) : lens === 1 ? S.fov : 180;
@@ -2375,9 +2383,9 @@ const toggles = { 'b-poles': 'poles', 'b-fill': 'fill', 'b-trail': 'trail', 'b-g
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
 $('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
-$('b-solar').addEventListener('click', () => { if (S.solar) say('☀️ 太陽系：太陽は北極。「次の惑星へ ▶」でツアー'); else TOUR.i = -1; refreshUI(); req(3); });
+$('b-solar').addEventListener('click', () => { if (S.solar) say('☀️ 太陽系：太陽はアナ極。「次の惑星へ ▶」でツアー'); else TOUR.i = -1; refreshUI(); req(3); });
 $('b-tour').addEventListener('click', () => { if (!S.solar) { S.solar = true; refreshUI(); } S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = S.fill = false; TOUR.i = (TOUR.i + 1) % PLANETS.length; TOUR.ride = false; const P = PLANETS[TOUR.i]; say(`${P.pic} ${P.name}へ出発（太陽から ${P.r.toFixed(2)}）`); refreshUI(); });
-$('b-tour0').addEventListener('click', () => { TOUR.i = -1; resetNorth(); S.az = 0; S.el = 0; onLook(); say('太陽のそば（北極）に戻った'); });
+$('b-tour0').addEventListener('click', () => { TOUR.i = -1; resetNorth(); S.az = 0; S.el = 0; onLook(); say('太陽のそば（アナ極）に戻った'); });
 $('b-headreset').addEventListener('click', headReset);
 ['xw', 'yw', 'zw'].forEach(k => $('s-m2' + k).addEventListener('input', e => { S.m2[k] = +e.target.value; $('o-m2' + k).textContent = S.m2[k] + '°'; save(); req(3); }));
 $('b-dual-near').addEventListener('click', () => { S.wA = true; S.wAmode = 'map2'; S.follow = false; S.shFocus = false; S.shLight = false; S.m2.view = 'normal'; S.m2.range = 'near'; if (!S.shell) S.shell = true; save(); updateRot(); refreshUI(); req(3); });
@@ -2388,14 +2396,14 @@ $('b-grid90').addEventListener('click', () => { S.gridTilt = 90; save(); refresh
 $('b-shellbare').addEventListener('click', () => { if (S.shellBare) { S.shell = true; S.shellSolid = true; } refreshUI(); req(3); });   // 網目なしは立体の殻で
 $('b-spin0').addEventListener('click', () => { SPIN.ang = 0; req(3); }); $('headReset').addEventListener('click', headReset); $('headGo').addEventListener('click', headGo);
 $('b-stop').addEventListener('click', () => { S.walk = false; S.roam = false; S.spiral = false; refreshUI(); });
-$('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; SP.lap = 0; S.walk = false; S.roam = false; S.fill = false; say('北極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
+$('b-spiral').addEventListener('click', () => { if (S.spiral) { resetNorth(); SP.th = 0.002; SP.lap = 0; S.walk = false; S.roam = false; S.fill = false; say('アナ極から螺旋で出発。極では小回り、赤道では大回り'); } refreshUI(); });
 document.querySelectorAll('.btn.mk').forEach(b => b.addEventListener('click', () => { S.mk = b.dataset.mk; save(); refreshUI(); req(3); }));
 document.querySelectorAll('.btn.lens').forEach(b => b.addEventListener('click', () => { S.lens = b.dataset.lens; if (S.lens === 'fish' && S.fov < 150) S.fov = 180; if (S.lens === 'normal' && S.fov > 150) S.fov = 110; save(); refreshUI(); req(3); }));
 $('b-light').addEventListener('click', () => { Object.assign(S, { mk: 'dot', bgMesh: true, lite: false, circ: false, room: false, eq: false, passes: 1, q: 0.6 }); resizeAll(); save(); refreshUI(); req(3); say('軽量モード：色の点・色の地図・線なし'); });
 $('b-std').addEventListener('click', () => { Object.assign(S, { mk: 'ball', bgMesh: false, lite: true, circ: false, room: false, eq: true, passes: 4, q: 0.7 }); resizeAll(); save(); refreshUI(); req(3); say('標準の見え方に戻しました'); });
-$('b-trip').addEventListener('click', () => { S.grav = false; resetNorth(); S.walk = true; say('北極から出発。向きを変えずに進むと、南極を通って北極に戻る'); refreshUI(); });
+$('b-trip').addEventListener('click', () => { S.grav = false; resetNorth(); S.walk = true; say('アナ極から出発。向きを変えずに進むと、カタ極を通ってアナ極に戻る'); refreshUI(); });
 $('b-north').addEventListener('click', () => { resetNorth(); S.walk = false; G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; refreshUI(); });
-$('b-grav').addEventListener('click', () => { if (S.grav) { S.walk = S.roam = S.spiral = S.fill = false; G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; say('重力 ON：w の＋から−へ。中の人には「南極へ引く力」に感じる'); } refreshUI(); });
+$('b-grav').addEventListener('click', () => { if (S.grav) { S.walk = S.roam = S.spiral = S.fill = false; G.v = [0, 0, 0, 0]; G.v2 = [0, 0, 0]; say('重力 ON：w の＋から−へ。中の人には「カタ極へ引く力」に感じる'); } refreshUI(); });
 $('b-para').addEventListener('click', () => { if (S.para) { S.roam = S.spiral = S.grav = S.hopf = S.ring = S.fill = false; paraStart(); S.walk = true; say('平行な仲間と出発：🐧（右）と 🐬（左）が同じ向きにまっすぐ歩く'); } refreshUI(); });
 $('s-parad').addEventListener('change', () => { if (S.para) paraStart(); });
 $('b-hopf').addEventListener('click', () => { if (S.hopf) { S.walk = S.roam = S.spiral = S.grav = S.fill = false; hopfStart(); say(S.hopfPlain ? '仲間と並んで出発（ふつうの平行）' : '仲間と並んでまっすぐ出発（ホップの円）'); } refreshUI(); });
@@ -2409,13 +2417,20 @@ document.querySelectorAll('.gtr').forEach(el => el.addEventListener('input', () 
 document.querySelectorAll('.gtn').forEach(el => { const go = () => { const a = el.dataset.a, v = gtParse(el.value, 1); if (v !== null) gtSet(a, v); save(); el.blur(); gtRender(); req(3); };   // 入れた数はいちばん優先なので −1〜1 のまま
     el.addEventListener('change', go); el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); go(); } }); });
 $('b-gtreset').addEventListener('click', () => { S.gt.ord = ''; S.gt.e = {}; S.gt.sg = { x: 1, y: 1, z: 1, w: 1 }; gtFix(); save(); gtRender(); req(3); });
-$('b-gthere').addEventListener('click', () => { S.gt = { v: { x: W.p[0], y: W.p[1], z: W.p[2], w: W.p[3] }, e: { x: W.p[0], y: W.p[1], z: W.p[2] }, ord: 'xyz', sg: { x: 1, y: 1, z: 1, w: W.p[3] < 0 ? -1 : 1 } }; gtFix(); save(); gtRender(); req(3); });
+$('b-gthere').addEventListener('click', () => { const d = toDisp(W.p); S.gt = { v: { x: d[0], y: d[1], z: d[2], w: d[3] }, e: { x: d[0], y: d[1], z: d[2] }, ord: 'xyz', sg: { x: 1, y: 1, z: 1, w: d[3] < 0 ? -1 : 1 } }; gtFix(); save(); gtRender(); req(3); });
 $('b-gtgo').addEventListener('click', () => { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = S.fill = false; TOUR.i = -1; GOTO.on = true; GOTO.k = 0; say('目的地へ：まずその方を向いて、いちばん短い道で'); refreshUI(); gtRender(); req(3); });
 $('b-gtstop').addEventListener('click', () => { GOTO.on = false; refreshUI(); gtRender(); });
-const FILL_SAY = { full: 'ターン（全周 360°）：北極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）', half: 'ターン（半周 180°）：北極→南極→北極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ', q: 'ターン（90°）：90° 進むごとに、まだ通っていない方へターン。極には戻らない', tour: '極めぐり：北極→東→アナ→天→南極→西→カタ→地→北極。となりの極だけをたどる、いちばん短い 1 周（4π）', ctour: '選んで巡る：選んだ極を ①から順に巡って、①に戻る' };
+
+// 軸の名前に合わせて、軸の文字が出る説明を直す（4 次元の回転のスライダー・地図の説明・軸色の殻のボタン）
+(() => {
+    [['s-xw', 0], ['s-yw', 1], ['s-zw', 2]].forEach(([id, i]) => { const b = $(id) && $(id).previousElementSibling; if (b) { b.textContent = (axL(i) + '-' + axL(3)).toUpperCase(); b.style.color = '#' + AXIS_HEX[axL(i)].toString(16).padStart(6, '0'); } });
+    const bb = $('badgeB') && $('badgeB').querySelector('small'); if (bb) bb.innerHTML = bb.innerHTML.replace('線の色＝w', '線の色＝' + axL(3));
+    document.querySelectorAll('.btn.shax').forEach(b => { const i = axI(b.dataset.a), ns = FIXED.filter(m => Math.abs(m.p[i]) > 0.5).map(m => poleName(m)).join('・'); b.title = `${b.dataset.a} の極（${ns}）を囲む殻`; b.style.color = '#' + AXIS_HEX[b.dataset.a].toString(16).padStart(6, '0'); });
+})();
+const FILL_SAY = { full: 'ターン（全周 360°）：アナ極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）', half: 'ターン（半周 180°）：アナ極→カタ極→アナ極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ', q: 'ターン（90°）：90° 進むごとに、まだ通っていない方へターン。極には戻らない', tour: '極めぐり：アナ極→東→北→天→カタ極→西→南→地→アナ極。となりの極だけをたどる、いちばん短い 1 周（4π）', ctour: '選んで巡る：選んだ極を ①から順に巡って、①に戻る' };
 document.querySelectorAll('.btn.fsel').forEach(b => b.addEventListener('click', () => { S.fillMode = b.dataset.fs; save(); if (S.fill) { fillStart(); say(FILL_SAY[S.fillMode]); } refreshUI(); }));
 $('b-fill').addEventListener('click', () => { if (S.fill) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = -1; fillStart(); say(FILL_SAY[S.fillMode] || FILL_SAY.half); } refreshUI(); });
-$('b-ring').addEventListener('click', () => { if (S.ring) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.fill = false; ringStart(); say(S.ringAxis === 'w' ? '🐱 と 🐶 を通る輪を歩く（赤道の球面の上）。1 周ごとに輪が少しずつ回る' : '北極と南極を通る輪を歩く。1 周ごとに輪が少しずつ回る'); } else S.ringView = false; refreshUI(); });
+$('b-ring').addEventListener('click', () => { if (S.ring) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.fill = false; ringStart(); say(S.ringAxis === 'w' ? '🐱 と 🐶 を通る輪を歩く（赤道の球面の上）。1 周ごとに輪が少しずつ回る' : 'アナ極とカタ極を通る輪を歩く。1 周ごとに輪が少しずつ回る'); } else S.ringView = false; refreshUI(); });
 document.querySelectorAll('.btn.rax').forEach(b => b.addEventListener('click', () => { S.ringAxis = b.dataset.ax; if (S.ring) ringStart(); save(); refreshUI(); }));
 $('b-jump').addEventListener('click', gravJump); $('b-kick').addEventListener('click', gravKick); $('b-drop').addEventListener('click', () => { S.grav = true; S.walk = S.roam = S.spiral = false; dropFromEquator(); refreshUI(); });
 $('b-clear').addEventListener('click', () => { W.trail = []; W2.trail = []; W.foot = []; W2.foot = []; req(3); });
@@ -2424,7 +2439,7 @@ $('b-mkclear').addEventListener('click', () => { W.marks = []; rebuildMarks(); r
 $('b-az0').addEventListener('click', () => { S.az = 0; onLook(); }); $('b-az90').addEventListener('click', () => { S.az = 90; onLook(); });
 $('b-el0').addEventListener('click', () => { S.el = 0; onLook(); }); $('b-el45').addEventListener('click', () => { S.el = 45; onLook(); });
 $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.6); });
-$('b-rot4').addEventListener('click', () => { if (S.rot4) { S.follow = false; S.ringView = false; ROT4.trailN = []; ROT4.trailS = []; ROT4.near = false; say('4次元で回す：北極 N と南極 S が地図の上ですれちがう'); } refreshUI(); req(3); });
+$('b-rot4').addEventListener('click', () => { if (S.rot4) { S.follow = false; S.ringView = false; ROT4.trailN = []; ROT4.trailS = []; ROT4.near = false; say('4次元で回す：アナ極 とカタ極 が地図の上ですれちがう'); } refreshUI(); req(3); });
 document.querySelectorAll('.btn.r4p').forEach(b => b.addEventListener('click', () => { S.rot4Plane = b.dataset.p; ROT4.trailN = []; ROT4.trailS = []; save(); refreshUI(); req(3); }));
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; S.ringView = false; save(); refreshUI(); req(3); });
 const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-spinrate': ['spinRate', v => +v === 0 ? '止める' : (+v).toFixed(1) + ' 回/分' + (+v < 0 ? '（逆回り）' : '')], 's-spintilt': ['spinTilt', v => (+v).toFixed(1) + '°' + (Math.abs(v - 23.4) < 0.3 ? '（地球と同じ）' : +v === 0 ? '（こま）' : +v === 90 ? '（きりもみ）' : '')], 's-spinaz': ['spinAz', v => v + '°'], 's-outer': ['outer', v => '×' + (+v).toFixed(2)], 's-solarspd': ['solarSpd', v => +v <= 0 ? '止める' : '×' + (+v).toFixed(1)], 's-parad': ['paraD', v => (+v).toFixed(2)], 's-paralead': ['paraLead', v => +v <= 0 ? '真横' : (+v).toFixed(2)], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 25.1 ? '（どこまでも＝光 4 周）' : +v >= 6.2 ? `（光 ${(v / TAU).toFixed(1)} 周）` : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
@@ -2447,12 +2462,12 @@ function refreshUI() {
     Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
     ['A', 'B', 'C'].forEach(x => $('wrap' + x).classList.toggle('off', !S['w' + x]));
     { const m2 = S.wAmode === 'map2'; $('cvA2').style.display = m2 ? 'block' : 'none'; $('hudA').style.display = m2 ? 'none' : '';
-      $('badgeA').innerHTML = m2 ? 'S³ の地図 2<small>2 枚目の地図。窓の右下で見方（ふつう／自己中心）と範囲（全体／今いる所／写る所）を選ぶ。ドラッグで回す</small>' : '球面 S²（2次元の仲間）<small>同じ操作を、ふつうの球面の上でした場合。北極から出発して南極を通り、北極に戻る</small>';
+      $('badgeA').innerHTML = m2 ? 'S³ の地図 2<small>2 枚目の地図。窓の右下で見方（ふつう／自己中心）と範囲（全体／今いる所／写る所）を選ぶ。ドラッグで回す</small>' : '球面 S²（2次元の仲間）<small>同じ操作を、ふつうの球面の上でした場合。アナ極から出発してカタ極を通り、アナ極に戻る。上下（z）は S³ の w にあたるので、上下の極はアナ極・カタ極（天極・地極ではない。S³ の天・地の向きは S² には無い）</small>';
       ['xw', 'yw', 'zw'].forEach(k => { const el = $('s-m2' + k); if (document.activeElement !== el) el.value = S.m2[k]; $('o-m2' + k).textContent = S.m2[k] + '°'; });
       renderChips(); }
     $('maps').classList.toggle('off', !S.wA && !S.wB); $('main').classList.toggle('nowalk', !S.wC);
     document.body.style.setProperty('--mapw', S.mapW);
-    $('mklist').innerHTML = W.marks.map(m => `<span style="border-color:${hexCss(rgbHex(m.col))}">${m.pic} ${m.n}：北極から ${Math.acos(Math.max(-1, Math.min(1, m.p[3]))).toFixed(2)}</span>`).join('') || '<span style="color:#64748b;border:0">（まだ置いていない）</span>';
+    $('mklist').innerHTML = W.marks.map(m => `<span style="border-color:${hexCss(rgbHex(m.col))}">${m.pic} ${m.n}：アナ極から ${Math.acos(Math.max(-1, Math.min(1, m.p[3]))).toFixed(2)}</span>`).join('') || '<span style="color:#64748b;border:0">（まだ置いていない）</span>';
 }
 // 地図での曲がり：まっすぐ（大円）進む道を S³ の地図に写すと、ふつうは曲がって見える。その曲がり（地図の上の曲率のベクトル）を、
 // 地図の写し方のヤコビ行列の転置で自分の場所の接空間へ移し、体の枠（右・上・前）で表す。強さ K は地図の球の半径を 1 とした曲率（ふちの大円＝1、まっすぐ＝0）
@@ -2524,7 +2539,7 @@ function updateWArrow() {   // 中の景色の紫の矢印：地図の上で、�
 function updateHUD() {
     updateWArrow();
     const dN = Math.acos(Math.max(-1, Math.min(1, W.p[3]))), lap = W.dist / TAU;
-    $('hudC').innerHTML = `進んだ距離 <b>${W.dist.toFixed(2)}</b>（${lap.toFixed(2)} 周）<br>北極から <b>${dN.toFixed(2)}</b>　南極から <b>${(Math.PI - dN).toFixed(2)}</b><br>方位 <b>${Math.round(S.az)}°</b>　仰角 <b>${Math.round(S.el)}°</b><br>位置 (${W.p.map(x => x.toFixed(2)).join(', ')})`;
+    $('hudC').innerHTML = `進んだ距離 <b>${W.dist.toFixed(2)}</b>（${lap.toFixed(2)} 周）<br>アナ極から <b>${dN.toFixed(2)}</b>　カタ極から <b>${(Math.PI - dN).toFixed(2)}</b><br>方位 <b>${Math.round(S.az)}°</b>　仰角 <b>${Math.round(S.el)}°</b><br>位置 (${toDisp(W.p).map(x => x.toFixed(2)).join(', ')})`;
     if (S.spiral) $('hudC').innerHTML += `<br>🌪 ${SP.lap + 1} 周目${S.prec ? `　輪の面の傾き ${Math.round(((SP.lap + SP.th / TAU) * S.prec) % 360)}°` : ''}　z ${W.p[2].toFixed(2)}`;
     if (S.wArrow && IN.wa) $('hudC').innerHTML += `<br><span style="color:#c4b5fd">地図での曲がり ${IN.wa0 ? `今 <b>${IN.wa0.K.toFixed(2)}</b> → ${S.bendAhead.toFixed(2)} 先 ` : ''}<b>${IN.wa.K.toFixed(2)}</b>（まっすぐ＝0、地図の球のふちの大円＝1）　地図の縮み ×${IN.wa.sp.toFixed(2)}</span>`;
     if (S.solar) { const dS = Math.acos(Math.max(-1, Math.min(1, dot(SUN.p, W.p)))); let best = null; PLANETS.forEach(P => { const d = Math.acos(Math.max(-1, Math.min(1, dot(planetPos(P), W.p)))); if (!best || d < best.d) best = { P, d }; });
@@ -2541,9 +2556,9 @@ function updateHUD() {
     if (S.hopf) { const h = hopfInfo(); $('hudC').innerHTML += `<br>🔗 ${(HOPF.t / TAU).toFixed(2)} 周　🐧 までの距離 <b>${h.dist.toFixed(3)}</b>　🐧 のまわりの角 <b>${Math.round(h.ang)}°</b>`; }
     if (S.grav) { const sp = Math.hypot(...G.v), dS = Math.PI - Math.acos(Math.max(-1, Math.min(1, W.p[3]))); $('hudC').innerHTML += `<br>🍎 速さ <b>${sp.toFixed(2)}</b>　${G.on ? '星の上に立っている' : '宙に浮いている'}`; }
     const d2 = Math.acos(Math.max(-1, Math.min(1, W2.p[2])));
-    $('hudA').innerHTML = `北極から <b>${d2.toFixed(2)}</b>　緯度 ${(90 - d2 / d2r).toFixed(0)}°<br>方位 <b>${Math.round(S.az)}°</b>（仰角は無い）`;
+    $('hudA').innerHTML = `アナ極から <b>${d2.toFixed(2)}</b>　緯度 ${(90 - d2 / d2r).toFixed(0)}°<br>方位 <b>${Math.round(S.az)}°</b>（仰角は無い）`;
     $('trip-bar').style.width = (100 * (W.dist % TAU) / TAU).toFixed(1) + '%';
-    const el = $('axlen'); el.innerHTML = ['x', 'y', 'z', 'w'].map((nm, i) => { const e = [0, 0, 0, 0]; e[i] = 1; const q = NDGeom.apply(R4, 4, e, []); const L = Math.hypot(q[0], q[1], q[2]); return `<span style="color:${hexCss(AXIS_HEX[nm])};font-style:italic">${nm}</span> ${(L * 100).toFixed(0)}%`; }).join('　');
+    const el = $('axlen'); el.innerHTML = ['x', 'y', 'z', 'w'].map(nm => { const e = [0, 0, 0, 0]; e[axI(nm)] = 1; const q = NDGeom.apply(R4, 4, e, []); const L = Math.hypot(q[0], q[1], q[2]); return `<span style="color:${hexCss(AXIS_HEX[nm])};font-style:italic">${nm}</span> ${(L * 100).toFixed(0)}%`; }).join('　');
 }
 function setSidebar(open) { document.body.classList.toggle('sidebar-hidden', !open); setTimeout(resizeAll, 0); }
 $('sidebar-close').addEventListener('click', () => setSidebar(false)); $('sidebar-open').addEventListener('click', () => setSidebar(true));
@@ -2678,8 +2693,8 @@ const SAVER_BASE = { walk: false, roam: false, spiral: false, grav: false, hopf:
     wA: false, wB: false, wC: true, hy: 0, hp: 0, xw: 0, yw: 0, zw: 0, follow: false, autoQ: true };
 const SAVER_SCENES = [
     { name: '球層の海をただよう', sub: 'どこへ進んでも、いつか戻ってくる', set: { roam: true, roamK: 0.55, spd: 0.4 } },
-    { name: '3次元球面の太陽系', sub: '太陽は北極、惑星はそのまわりの球面の上', set: { solar: true, solarSpd: 1, shell: false, spd: 0.6 }, tour: true },
-    { name: '4次元の回転', sub: '北極と南極が、空間の中ですれちがう', set: { rot4: true, rot4Plane: 'yw', rot4Spd: 14, rot4Others: true, shellOp: 0.35 } },
+    { name: '3次元球面の太陽系', sub: '太陽はアナ極、惑星はそのまわりの球面の上', set: { solar: true, solarSpd: 1, shell: false, spd: 0.6 }, tour: true },
+    { name: '4次元の回転', sub: 'アナ極とカタ極が、空間の中ですれちがう', set: { rot4: true, rot4Plane: 'yw', rot4Spd: 14, rot4Others: true, shellOp: 0.35 } },
     { name: 'まっすぐ進む', sub: '網目が回るのは、空間が曲がっているから', set: { walk: true, spd: 0.5, shellSolid: true, gridSpin: true, gridSpinRate: 1.5 } },
     { name: '外側のダイソン球', sub: 'もし 3次元球面の外が光る殻で囲まれていたら', set: { dyson: true, outer: 1, walk: true, spd: 0.35, spin: true, spinRate: 1.5, spinTilt: 23.4, shell: false } },
 ];
@@ -2689,7 +2704,7 @@ function saverScene(i) {
     resetNorth(); TOUR.i = -1; TOUR.ride = false; SPIN.ang = 0; GRID.spin = 0; IN.roamT = Math.random() * 100;
     S.az = Math.round(Math.random() * 360 - 180); S.el = sc.set.walk ? Math.round(Math.random() * 40 - 20) : 0;
     if (sc.tour) { TOUR.i = Math.floor(Math.random() * PLANETS.length); SAVER.tourT = 0; }
-    else { const az = S.az, el = S.el; S.el = 0; S.az = Math.round(Math.random() * 360 - 180); const d = 0.45 + Math.random() * 0.7; for (let k = 0; k < 40; k++) walkStep([0, 0, 1], d / 40); S.az = az; S.el = el; W.trail = []; W2.trail = []; }   // 北極のすぐそば（いちばん内側の赤い殻の中）だと画面が壁でうまるので、少し出たところから
+    else { const az = S.az, el = S.el; S.el = 0; S.az = Math.round(Math.random() * 360 - 180); const d = 0.45 + Math.random() * 0.7; for (let k = 0; k < 40; k++) walkStep([0, 0, 1], d / 40); S.az = az; S.el = el; W.trail = []; W2.trail = []; }   // アナ極のすぐそば（いちばん内側の赤い殻の中）だと画面が壁でうまるので、少し出たところから
     updateRot(); rebuildMarks(); refreshUI(); resizeAll(); req(3);
     const cap = $('saverCap'); cap.innerHTML = sc.name + '<small>' + sc.sub + '</small>'; cap.classList.add('on'); setTimeout(() => cap.classList.remove('on'), 7000);
 }
