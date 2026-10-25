@@ -408,6 +408,11 @@
                     <button class="btn" id="b-ghostback" title="遠回りで回ってきた像（反対向きから届いた光）を、絵を裏から見た形にする。光が反対側の点を通ると像は 180° 回る（上下も左右も入れかわる。右上の赤い点が左下に）。物の向こう側の面から出た光なので、本当は裏が見える：紙の絵なら左右が鏡になり、合わせると上下だけの反転（赤い点が右下に）。切ると、絵はいつも表で 180° 回ったまま">回ってきた像を裏から見る</button>
                     <button class="btn" id="b-hidepair" title="−の側の極の目印（🐢 −x・🐸 −y・🐶 −z・🌴 カタ極）を中の景色から隠す。🐰 の回ってきた像は、ちょうど反対側の 🐢 と同じ線の上に同じ大きさで重なって隠れているので、隠すと見えるようになる">反対側の相棒を隠す</button>
                 </div>
+                <div class="row">
+                    <button class="btn" id="b-guests" title="ゲスト：🦊🐼🦄🐙… が S³ の中をふらふら歩き回る（中の景色と S³ の地図）。極の動物とちがって反対側に相棒がいないので、遠回りで回ってきた逆さまの像もいつも見える。場所はでたらめ（端末ごと）">🦊 ゲスト（ふらふら歩く）</button>
+                </div>
+                <div class="sl"><span>ゲストの数</span><input id="s-guestn" type="range" min="1" max="8" step="1" title="何匹出すか（変えると、でたらめな場所に出し直す）"><output id="o-guestn"></output></div>
+                <div class="sl"><span>ゲストの速さ</span><input id="s-guestspd" type="range" min="0" max="1.5" step="0.05" title="1 秒に進む距離（0 で止まる）"><output id="o-guestspd"></output></div>
                 <p class="note">回ってきた像（絵の時）：遠回りで届いた光は、途中で目印の反対側の点を通って 1 点に集まり、また広がるので、像は 180° 回って見えます（右上の赤い点が左下に）。極の動物はどれも反対側に相棒がいて（🐰↔🐢 など）、回ってきた像は相棒と同じ線の上に同じ大きさで重なって隠れます。ふだん見えるのが右上に赤い点のある絵ばかりなのはそのため。「反対側の相棒を隠す」で見えるようになります。「回ってきた像を裏から見る」は、物の向こう側の面から出た光だということも入れた形（紙の絵を裏から見る＝左右が鏡）で、合わせて上下だけの反転（赤い点が右下に）になります。</p>
                 <p class="note">はじめから：N（アナ極・水色）、S（カタ極・金色）、赤道の 6 か所（±x 赤・±y 緑・±z 青）。絵のモードでは N＝⛄、S＝🌴、+x＝🐰、−x＝🐢、+y＝🦝（たぬき）、−y＝🐸、+z＝🐱、−z＝🐶、自分＝🙂、足あと＝👣。置いた目印は 🦊🐻🐼… の順。</p>
                 </div>
@@ -666,7 +671,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, spin: false, spinRate: 6, spinTilt: 23.4, spinAz: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, wName: 'ana', shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', ghostBack: false, hidePair: false, starAng: 144, starStraight: true, starGhost: true, starK: 10, starFF: false, starDraw: 'trail', gt: { v: { x: 0.5, y: 0.5, z: 0.5, w: 0.5 }, ord: '', sg: { x: 1, y: 1, z: 1, w: 1 } }, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, wName: 'ana', shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', ghostBack: false, hidePair: false, guests: false, guestN: 4, guestSpd: 0.25, starAng: 144, starStraight: true, starGhost: true, starK: 10, starFF: false, starDraw: 'trail', gt: { v: { x: 0.5, y: 0.5, z: 0.5, w: 0.5 }, ord: '', sg: { x: 1, y: 1, z: 1, w: 1 } }, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 // スクリーンセーバー（s3walk.html?saver、?saver&sec=60 で 1 場面の秒数、&scene=2 でその場面だけ）：保存は読まず・書かず、同期もしない（ふだんの設定と別に動く）
 const SAVER = (() => { try { const q = new URLSearchParams(location.search); if (!q.has('saver')) return null; return { sec: Math.max(10, +q.get('sec') || 50), only: q.has('scene') ? +q.get('scene') : null }; } catch (e) { return null; } })();
@@ -1351,6 +1356,34 @@ function paraStart() {
 const paraS = () => W.dist - PARA.dist0;
 const paraTheory = s => Math.acos(Math.max(-1, Math.min(1, Math.cos(s) ** 2 * Math.cos(PARA.d0) + Math.sin(s) ** 2)));
 function paraPos(j, s) { const q = add(scl(PARA.p0, Math.cos(PARA.d0)), PARA.R0, (j ? -1 : 1) * Math.sin(PARA.d0)); return add(scl(q, Math.cos(s)), PARA.v0, Math.sin(s)); }   // j = 0 右（🐧）、1 左（🐬）
+// ---- ゲスト：S³ の中をふらふら歩き回る動物。極の動物は反対側に相棒がいて、回ってきた像（逆さま）が相棒に隠れるが、ゲストは相棒がいないので逆さまの像も見える。
+//   それぞれ大円に沿って進み、進む向きを、ゆっくり変わる「曲がりたい向き」n の方へ少しずつ曲げる（なめらかにふらふら）。場所と向きは端末ごとにでたらめ（同期しない）
+const GUEST_PIC = ['🦊', '🐼', '🦄', '🐙', '🐳', '🦁', '🐨', '🐷'], GUEST_COL = [[1, 0.55, 0.2], [0.92, 0.92, 0.95], [0.95, 0.6, 0.95], [1, 0.45, 0.6], [0.35, 0.65, 1], [1, 0.8, 0.3], [0.7, 0.75, 0.8], [1, 0.65, 0.75]];
+const GUEST = { list: [] };
+function guestTan(p, others) {   // p に直交し、others にも直交するでたらめな単位ベクトル
+    for (let k = 0; k < 8; k++) { let v = [0, 0, 0, 0].map(() => Math.random() * 2 - 1); v = add(v, p, -dot(v, p)); for (const o of others) v = add(v, o, -dot(v, o)); const l = Math.hypot(...v); if (l > 1e-3) return scl(v, 1 / l); }
+    return null;
+}
+function guestInit() {
+    const n = Math.max(1, Math.min(GUEST_PIC.length, Math.round(S.guestN)));
+    GUEST.list = [];
+    for (let i = 0; i < n; i++) {
+        let p; do { p = nrm([0, 0, 0, 0].map(() => Math.random() * 2 - 1)); } while (Math.max(...p.map(Math.abs)) > 0.9);   // 極のすぐそばは避ける
+        const d = guestTan(p, []), nn = guestTan(p, [d]);
+        GUEST.list.push({ p, d, n: nn, pic: GUEST_PIC[i], col: GUEST_COL[i] });
+    }
+    GUEST.key = n;
+}
+function guestStep(dt) {
+    if (GUEST.key !== Math.round(S.guestN) || !GUEST.list.length) guestInit();
+    const s = S.guestSpd * dt;
+    for (const g of GUEST.list) {
+        const r = guestTan(g.p, [g.d]); if (r) { g.n = add(g.n, r, 0.8 * dt); g.n = add(g.n, g.p, -dot(g.n, g.p)); g.n = add(g.n, g.d, -dot(g.n, g.d)); g.n = nrm(g.n); }   // 曲がりたい向きをゆっくり変える
+        g.d = nrm(add(g.d, g.n, 0.5 * dt));   // その向きへ少し曲がる
+        const c = Math.cos(s), sn = Math.sin(s), p2 = nrm(add(scl(g.p, c), g.d, sn)), d2 = add(scl(g.p, -sn), g.d, c);
+        g.p = p2; g.d = nrm(add(d2, p2, -dot(d2, p2))); g.n = nrm(add(add(g.n, g.p, -dot(g.n, g.p)), g.d, -dot(g.n, g.d)));
+    }
+}
 function para2Pos(j, s) { const q = add(scl(PARA.p2, Math.cos(PARA.d0)), PARA.r2, (j ? -1 : 1) * Math.sin(PARA.d0)); return add(scl(q, Math.cos(s)), PARA.v2, Math.sin(s)); }
 function paraCheck() {   // 自分が出発の時の大円から外れたら（向きを変えて歩いたら）、今の場所・向きで並べ直す
     if (!S.para || !PARA.p0) return;
@@ -2124,6 +2157,14 @@ const AXL = 2.7;
         bB.forEach((o, j) => { const q = paraPos(j, paraS() + S.paraLead), d = mapS3(q, a); if (!(d === d)) return; const k = Math.min(2.5, kOf(q)); o.b.position.set(...a); o.sp.position.set(...a); o.b.scale.setScalar(k); o.sp.scale.setScalar(0.42 * k); o.b.visible = !isPic(); o.sp.visible = isPic(); });
     });
 })();
+// ---- ゲスト（S³ の地図）：玉か絵、遠近で大きさを変える ----
+(function buildGuests() {
+    const a = [0, 0, 0], objs = GUEST_PIC.map((pic, j) => { const bl = ball(VB, 0.075, GUEST_COL[j]); const sp = emojiSprite(pic, 0.42); VB.root.add(sp); bl.visible = sp.visible = false; return { b: bl, sp }; });
+    VB.frames.push(() => {
+        objs.forEach(o => { o.b.visible = o.sp.visible = false; }); if (!S.guests) return;
+        GUEST.list.forEach((g, j) => { const o = objs[j], d = mapS3(g.p, a); if (!o || !(d === d)) return; const k = Math.min(2.5, kOf(g.p)); o.b.position.set(...a); o.sp.position.set(...a); o.b.scale.setScalar(k); o.sp.scale.setScalar(0.42 * k); o.b.visible = !isPic(); o.sp.visible = isPic(); });
+    });
+})();
 // ---- 太陽系の軌道と惑星（S² と S³ の地図）----
 (function buildSolar() {
     const CN = 96, Z = [0, 0, 0], a = [0, 0, 0], b = [0, 0, 0];
@@ -2523,6 +2564,7 @@ function setRayUniforms() {
     if (S.solar) PLANETS.forEach(P => { if (n >= NMK - 2) return; U.uMk.value[n].set(...planetPos(P)); U.uMkC.value[n].set(P.col[0], P.col[1], P.col[2], P.size * big); U.uMkT.value[n] = ATLAS.of(P.pic); n++;
         if (P.moon) { U.uMk.value[n].set(...moonPos(P)); U.uMkC.value[n].set(0.9, 0.9, 0.85, P.moon.size * big); U.uMkT.value[n] = ATLAS.of(P.moon.pic); n++; } });
     if (S.para && PARA.p0) [0, 1].forEach(j => { if (n >= NMK - 1) return; U.uMk.value[n].set(...paraPos(j, paraS() + S.paraLead)); const c = PARA_COL[j]; U.uMkC.value[n].set(c[0], c[1], c[2], 0.06 * big); U.uMkT.value[n] = ATLAS.of(PARA_PIC[j]); n++; });
+    if (S.guests) GUEST.list.forEach(g => { if (n >= NMK - 1) return; U.uMk.value[n].set(...g.p); U.uMkC.value[n].set(g.col[0], g.col[1], g.col[2], 0.07 * big); U.uMkT.value[n] = ATLAS.of(g.pic); n++; });
     if (S.self && n < NMK) { U.uMk.value[n].set(...W.p); U.uMkC.value[n].set(1, 1, 1, S.mk === 'ball' ? 0.09 : 0.13); U.uMkT.value[n] = ATLAS.of(PIC.self); n++; }
     U.uNM.value = n;
 }
@@ -2532,7 +2574,7 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-poles': 'poles', 'b-ghostback': 'ghostBack', 'b-hidepair': 'hidePair', 'b-starstraight': 'starStraight', 'b-starff': 'starFF', 'b-starghost': 'starGhost', 'b-fill': 'fill', 'b-trail': 'trail', 'b-grand': 'grand', 'b-gridspin': 'gridSpin', 'b-rot4others': 'rot4Others', 'b-rot4': 'rot4', 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-poles': 'poles', 'b-ghostback': 'ghostBack', 'b-guests': 'guests', 'b-hidepair': 'hidePair', 'b-starstraight': 'starStraight', 'b-starff': 'starFF', 'b-starghost': 'starGhost', 'b-fill': 'fill', 'b-trail': 'trail', 'b-grand': 'grand', 'b-gridspin': 'gridSpin', 'b-rot4others': 'rot4Others', 'b-rot4': 'rot4', 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
 $('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
@@ -2614,7 +2656,7 @@ $('b-home').addEventListener('click', () => { homeView(VA, 9.6); homeView(VB, 9.
 $('b-rot4').addEventListener('click', () => { if (S.rot4) { S.follow = false; S.ringView = false; ROT4.trailN = []; ROT4.trailS = []; ROT4.near = false; say('4次元で回す：アナ極 とカタ極 が地図の上ですれちがう'); } refreshUI(); req(3); });
 document.querySelectorAll('.btn.r4p').forEach(b => b.addEventListener('click', () => { S.rot4Plane = b.dataset.p; ROT4.trailN = []; ROT4.trailS = []; save(); refreshUI(); req(3); }));
 $('b-rot0').addEventListener('click', () => { S.xw = 0; S.yw = 90; S.zw = 0; S.follow = false; S.ringView = false; save(); refreshUI(); req(3); });
-const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-stark': ['starK', v => '×' + v], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-spinrate': ['spinRate', v => +v === 0 ? '止める' : (+v).toFixed(1) + ' 回/分' + (+v < 0 ? '（逆回り）' : '')], 's-spintilt': ['spinTilt', v => (+v).toFixed(1) + '°' + (Math.abs(v - 23.4) < 0.3 ? '（地球と同じ）' : +v === 0 ? '（こま）' : +v === 90 ? '（きりもみ）' : '')], 's-spinaz': ['spinAz', v => v + '°'], 's-outer': ['outer', v => '×' + (+v).toFixed(2)], 's-solarspd': ['solarSpd', v => +v <= 0 ? '止める' : '×' + (+v).toFixed(1)], 's-parad': ['paraD', v => (+v).toFixed(2)], 's-paralead': ['paraLead', v => +v <= 0 ? '真横' : (+v).toFixed(2)], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 25.1 ? '（どこまでも＝光 4 周）' : +v >= 6.2 ? `（光 ${(v / TAU).toFixed(1)} 周）` : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
+const sliders = { 's-spd': ['spd', v => '×' + (+v).toFixed(2)], 's-stark': ['starK', v => '×' + v], 's-guestn': ['guestN', v => v + ' 匹'], 's-guestspd': ['guestSpd', v => +v <= 0 ? '止める' : (+v).toFixed(2)], 's-roam': ['roamK', v => '×' + (+v).toFixed(2)], 's-turns': ['turns', v => (+v) + ' 回'], 's-ringstep': ['ringStep', v => v + '°'], 's-spinrate': ['spinRate', v => +v === 0 ? '止める' : (+v).toFixed(1) + ' 回/分' + (+v < 0 ? '（逆回り）' : '')], 's-spintilt': ['spinTilt', v => (+v).toFixed(1) + '°' + (Math.abs(v - 23.4) < 0.3 ? '（地球と同じ）' : +v === 0 ? '（こま）' : +v === 90 ? '（きりもみ）' : '')], 's-spinaz': ['spinAz', v => v + '°'], 's-outer': ['outer', v => '×' + (+v).toFixed(2)], 's-solarspd': ['solarSpd', v => +v <= 0 ? '止める' : '×' + (+v).toFixed(1)], 's-parad': ['paraD', v => (+v).toFixed(2)], 's-paralead': ['paraLead', v => +v <= 0 ? '真横' : (+v).toFixed(2)], 's-hopfd': ['hopfD', v => (+v).toFixed(2)], 's-prec': ['prec', v => +v <= 0 ? 'なし' : v + '°/周'], 's-g': ['gStr', v => '×' + (+v).toFixed(2)], 's-pr': ['planetR', v => (+v).toFixed(2)], 's-gdamp': ['gDamp', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-shelln': ['shellN', v => (+v) + ' 枚'], 's-shellop': ['shellOp', v => (+v).toFixed(2)], 's-shelllum': ['shellLum', v => +v <= 0 ? 'そのまま' : (+v).toFixed(2)], 's-shellback': ['shellBack', v => (+v).toFixed(2)], 's-bendahead': ['bendAhead', v => +v <= 0 ? 'なし（今）' : (+v).toFixed(2)], 's-shfocusr': ['shFocusR', v => (+v).toFixed(2)], 's-shellrange': ['shellRange', v => (+v).toFixed(2) + (+v >= 25.1 ? '（どこまでも＝光 4 周）' : +v >= 6.2 ? `（光 ${(v / TAU).toFixed(1)} 周）` : '')], 's-tilt': ['tilt', v => +v <= 0 ? '平ら' : (+v).toFixed(2)], 's-az': ['az', v => v + '°'], 's-el': ['el', v => v + '°'], 's-maxd': ['maxd', v => (+v).toFixed(2) + (Math.abs(v - Math.PI) < 0.03 ? ' (π)' : Math.abs(v - TAU) < 0.06 ? ' (2π)' : '')], 's-fog': ['fog', v => (+v).toFixed(2)], 's-fade': ['fade', v => (+v).toFixed(2)], 's-mapw': ['mapW', v => Math.round(v * 100) + '%'], 's-fov': ['fov', v => v + '°'], 's-picline': ['picLine', v => +v <= 0 ? 'なし' : (+v).toFixed(2)], 's-q': ['q', v => Math.round(v * 100) + '%' + (S.autoQ && (AUTO.k || 1) < 0.99 ? `（自動 ${Math.round(v * (AUTO.k || 1) * 100)}%）` : '')],
     's-gridspinrate': ['gridSpinRate', v => +v === 0 ? '止める' : (+v).toFixed(1) + ' 回/分'], 's-gridtilt': ['gridTilt', v => v + '°'], 's-gridaz': ['gridAz', v => v + '°'], 's-trailw': ['trailW', v => '×' + (+v).toFixed(2)], 's-dustn': ['dustN', v => +v === 0 ? 'なし' : v + ' 粒'], 's-rot4spd': ['rot4Spd', v => +v === 0 ? '止める' : v + '°/秒'], 's-xw': ['xw', v => v + '°'], 's-yw': ['yw', v => v + '°'], 's-zw': ['zw', v => v + '°'], 's-D': ['D', v => '×' + (+v).toFixed(2)], 's-cut': ['cut', v => v <= -1 ? 'なし' : 'w<' + (+v).toFixed(2)] };
 Object.entries(sliders).forEach(([id, [k]]) => $(id).addEventListener('input', e => { S[k] = +e.target.value; if (k === 'q') resizeAll(); if (k === 'hopfD' && S.hopf) hopfStart(); if (['xw', 'yw', 'zw'].includes(k)) { S.follow = false; S.ringView = false; } save(); refreshUI(); req(3); }));
 function onLook() { S.az = ((S.az + 180) % 360 + 360) % 360 - 180; S.el = Math.max(-89, Math.min(89, S.el)); save(); refreshUI(); req(3); }
@@ -2838,6 +2880,7 @@ function loop(now) {
     if (K.has('arrowleft')) { S.az -= dt * 60; onLook(); } if (K.has('arrowright')) { S.az += dt * 60; onLook(); }
     if (S.rot4 && S.rot4Spd) { const k = S.rot4Plane; S[k] = ((S[k] + S.rot4Spd * dt + 180) % 360 + 360) % 360 - 180; IN.r4UI = (IN.r4UI || 0) + dt; if (IN.r4UI > 0.2) { IN.r4UI = 0; S[k] = Math.round(S[k] * 10) / 10; refreshUI(); } req(2); }   // 4次元回転の実演
     if (S.gridSpin && S.gridSpinRate) { GRID.spin = (GRID.spin + dt * TAU * S.gridSpinRate / 60) % TAU; req(2); }   // 球層の網目の自転
+    if (S.guests) { guestStep(dt); req(2); }   // ゲストがふらふら歩く
     if (S.spin) { SPIN.ang = (SPIN.ang + dt * TAU * S.spinRate / 60) % TAU; req(2); }   // 自転（1 分に spinRate 回）
     if (S.solar) { SOL.t += dt * S.solarSpd; req(2);
         if (TOUR.i >= 0) { if (mv[0] || mv[1] || mv[2]) { TOUR.i = -1; say('ツアーをやめた（歩いた）'); } else tourStep(dt); } }
