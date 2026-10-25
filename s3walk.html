@@ -171,7 +171,7 @@
             <div id="cvC" class="cv"></div>
             <div id="saverFade"></div>
             <div id="saverCap"></div>
-            <div id="badgeC" class="badge">中にいる人の景色<small>光をまっすぐ（大円に沿って）進めて描く。ドラッグで見渡す（進む向きはそのまま）・Enter でその向きへ進む。Shift＋ドラッグで進む向きを変える（地図の上でも）</small></div>
+            <div id="badgeC" class="badge">中にいる人の景色<small>光をまっすぐ（大円に沿って）進めて描く。ドラッグで見渡す（進む向きはそのまま）・Enter でその向きへ進む。Shift＋ドラッグで進む向きを変える（地図の上でも）。⌘＋ドラッグで上下だけ見る、⌘＋Shift＋ドラッグで上下だけ舵を切る</small></div>
             <!-- 地図の奥（w′）の向き：中の人から見て、地図に写らない向きがどちらか -->
             <svg id="wArrow" viewBox="-100 -100 200 200" style="position:absolute;left:50%;top:50%;width:min(44%,44vh);height:min(44%,44vh);transform:translate(-50%,-50%);pointer-events:none;z-index:9;overflow:visible">
                 <g id="wa-now" stroke="#c4a8ff" fill="#c4a8ff" stroke-linecap="round" opacity="0.38"><line id="wa-nline" x1="0" y1="0" x2="0" y2="0" stroke-width="3" stroke-dasharray="5 5"/><polygon id="wa-nhead" points="0,0 0,0 0,0" stroke="none"/></g>
@@ -231,7 +231,7 @@
                     <button class="btn" id="b-trail" title="地図（S² の仲間・S³ の地図・2 枚目の地図）に、歩いた道すじ（軌跡）を描くかどうか。消しても記録は続く">〰️ 地図に軌跡</button>
                 </div>
                 <div class="sl"><span>軌跡の太さ</span><input id="s-trailw" type="range" min="0.25" max="4" step="0.05" title="地図の軌跡の線の太さ（1 がもとの太さ）"><output id="o-trailw"></output></div>
-                <p class="note">キー：W/S・↑↓ 前後　A/D 横　Q/E 上下　←→ 方位　ホイール 前後。右の窓をドラッグすると見渡す（進む向きはそのまま）、Enter でその向きへ進む。Shift＋ドラッグで進む向きを変える（地図の窓でも）。「縦横無尽」は歩きながら向きがひとりでに変わり続けるモード（「曲がり」で変わりやすさ）。「螺旋で一周」はアナ極から竜巻のように巻きながらカタ極へ行き、反対側を巻いてアナ極へ戻る（「巻き数」でアナ極→カタ極の間に回る回数）。「傾き」を 0 より大きくすると<b>二重の螺旋</b>：巻く面そのものが z の方へ傾いていく 4次元らしい渦（左の S² には対応する動きがないので、左は平らな竜巻のまま）。</p>
+                <p class="note">キー：W/S・↑↓ 前後　A/D 横　Q/E 上下　←→ 方位　ホイール 前後。右の窓をドラッグすると見渡す（進む向きはそのまま）、Enter でその向きへ進む。Shift＋ドラッグで進む向きを変える（地図の窓でも）。⌘＋ドラッグで上下（z の向き）だけ見る、⌘＋Shift＋ドラッグで上下だけ舵を切る（そのまま進むと上下に曲がる）。「縦横無尽」は歩きながら向きがひとりでに変わり続けるモード（「曲がり」で変わりやすさ）。「螺旋で一周」はアナ極から竜巻のように巻きながらカタ極へ行き、反対側を巻いてアナ極へ戻る（「巻き数」でアナ極→カタ極の間に回る回数）。「傾き」を 0 より大きくすると<b>二重の螺旋</b>：巻く面そのものが z の方へ傾いていく 4次元らしい渦（左の S² には対応する動きがないので、左は平らな竜巻のまま）。</p>
                 <p class="note">方位 0°・90° は x・y の経線の管の真上を歩くので、管の中の景色になります（少しずらすと管が横に見える）。方位＝自分の体の「前」から右へ何度か（体の向きは歩いても変わらない＝平行移動）。仰角＝水平から上へ何度か。<b class="an">S² の仲間には仰角がない</b>ので、左の窓は方位だけで動きます。まっすぐ進む＝向きを変えずに進む。向きを変えると別の大円に乗りかえる。</p>
                 </div>
             </section>
@@ -2624,10 +2624,12 @@ try { dock = UIDock.create({ prefix: 's3walk', onResize: () => resizeAll(), onCh
 // 右の窓：ドラッグで見回す（方位・仰角）、ホイールで前後
 (() => {
     const cv = $('cvC'); let st = null;
-    cv.addEventListener('pointerdown', e => { st = { x: e.clientX, y: e.clientY, id: e.pointerId, steer: e.shiftKey }; if (e.button === 1) e.preventDefault(); cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointerdown', e => { st = { x: e.clientX, y: e.clientY, id: e.pointerId, steer: e.shiftKey, z: e.metaKey }; if (e.button === 1) e.preventDefault(); cv.setPointerCapture(e.pointerId); });
     // ふつうのドラッグ（か中ボタン）＝進む向きはそのまま、頭だけ回して見渡す。Shift＋ドラッグ＝進む向き（方位・仰角）を変える。見渡した向きへ進むのは Enter
+    // ⌘＋ドラッグ＝上下（z の向き）だけ見る。⌘＋Shift＋ドラッグ＝上下（仰角）だけ舵を切る（左右の動きは使わない）
     cv.addEventListener('pointermove', e => { if (!st || e.pointerId !== st.id) return; const dx = (e.clientX - st.x) * 0.3, dy = (e.clientY - st.y) * 0.3; st.x = e.clientX; st.y = e.clientY;
-        if (st.steer || e.shiftKey) { S.az += dx; S.el -= dy; onLook(); } else { S.hy = ((S.hy + dx + 180) % 360 + 360) % 360 - 180; S.hp = Math.max(-89, Math.min(89, S.hp - dy)); onLook(); } });
+        if (st.z) { if (st.steer || e.shiftKey) S.el -= dy; else S.hp = Math.max(-89, Math.min(89, S.hp - dy)); onLook(); }
+        else if (st.steer || e.shiftKey) { S.az += dx; S.el -= dy; onLook(); } else { S.hy = ((S.hy + dx + 180) % 360 + 360) % 360 - 180; S.hp = Math.max(-89, Math.min(89, S.hp - dy)); onLook(); } });
     cv.addEventListener('pointerup', () => { st = null; });
     cv.addEventListener('wheel', e => { e.preventDefault(); walkStep([0, 0, 1], -e.deltaY * 0.0015 * S.spd); }, { passive: false });
     document.querySelectorAll('#inpad button').forEach(b => { b.addEventListener('pointerdown', e => { e.preventDefault(); IN.pad = b.dataset.mv; b.setPointerCapture(e.pointerId); }); b.addEventListener('pointerup', () => { IN.pad = null; }); b.addEventListener('pointercancel', () => { IN.pad = null; }); });
@@ -2635,8 +2637,10 @@ try { dock = UIDock.create({ prefix: 's3walk', onResize: () => resizeAll(), onCh
 // 地図の窓（真ん中・左上）：Shift＋ドラッグで進む向きを変える（中の景色の Shift＋ドラッグと同じ。地図のカメラは動かさない）
 for (const id of ['wrapA', 'wrapB']) {
     let st = null; const el = $(id);
-    el.addEventListener('pointerdown', e => { if (!e.shiftKey || e.altKey) return; e.stopPropagation(); e.preventDefault(); st = { x: e.clientX, y: e.clientY, id: e.pointerId }; el.setPointerCapture(e.pointerId); }, true);
-    el.addEventListener('pointermove', e => { if (!st || e.pointerId !== st.id) return; e.stopPropagation(); S.az += (e.clientX - st.x) * 0.3; S.el -= (e.clientY - st.y) * 0.3; st.x = e.clientX; st.y = e.clientY; onLook(); }, true);
+    // Shift＋ドラッグ＝進む向き（方位・仰角）。⌘＋ドラッグ＝上下（z の向き）だけ見る（見渡し）。⌘＋Shift＋ドラッグ＝上下（仰角）だけ舵を切る
+    el.addEventListener('pointerdown', e => { if (!(e.shiftKey || e.metaKey) || e.altKey) return; e.stopPropagation(); e.preventDefault(); st = { x: e.clientX, y: e.clientY, id: e.pointerId, steer: e.shiftKey, z: e.metaKey }; el.setPointerCapture(e.pointerId); }, true);
+    el.addEventListener('pointermove', e => { if (!st || e.pointerId !== st.id) return; e.stopPropagation(); const dx = (e.clientX - st.x) * 0.3, dy = (e.clientY - st.y) * 0.3; st.x = e.clientX; st.y = e.clientY;
+        if (st.z) { if (st.steer) S.el -= dy; else S.hp = Math.max(-89, Math.min(89, S.hp - dy)); } else { S.az += dx; S.el -= dy; } onLook(); }, true);
     el.addEventListener('pointerup', e => { if (st && e.pointerId === st.id) { e.stopPropagation(); st = null; } }, true);
 }
 // 真ん中の窓：Option（Alt）＋ドラッグで 4次元の回転
