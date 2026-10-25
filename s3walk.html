@@ -258,7 +258,7 @@
                     <button class="btn fsel" data-fs="q" title="90°：大円を 90°（4 分の 1 周）進むごとにターン。極には戻らず、ターンする点から、その先の 90° の道が今までの軌跡からいちばん離れている向き（まだ通っていない方）へ曲がって、さまよいながら広がる。S² と S³ はそれぞれ自分の軌跡で選ぶ">90°</button>
                     <button class="btn fsel" data-fs="tour" title="極めぐり：アナ極から、となり合う極（90° はなれている）だけをたどって 8 つの極を全部回り、アナ極に戻る（アナ極→東→北→天→カタ極→西→南→地→アナ極）。90° × 8 本＝4π がいちばん短い 1 周。毎回 90° の双曲線ターンで、ずっとくり返す。S² の窓は 6 つの極を同じように回る">極めぐり</button>
                     <button class="btn fsel" data-fs="ctour" title="選んで巡る：下の極を押した順に ①②③… と番号が付き、①から順に巡って、最後の次は①に戻る。選ばなかった極は通らない。となりの極へは 90°（4 分の 1 周）、反対の極へは 180°（半周、まっすぐ）。S² の窓は、選んだ極のうち S² にあるもの（天・地を除く）を同じ順で巡る">選んで巡る</button>
-                    <button class="btn fsel" data-fs="star" title="星形：600 胞体（4次元の正多面体の仲間）の 120 個の頂点のあいだを、ひと飛び同じ角度の大円で飛び回る。通った辺が地図に虹色で残り、星形正多胞体の骨組みができていく。アナ極から出発">✴ 星形</button>
+                    <button class="btn fsel" data-fs="star" title="星形：600 胞体（4次元の正多面体の仲間）の 120 個の頂点のあいだを、ひと飛び同じ角度の大円で飛び回る。通った辺が地図に残り、星形正多胞体の骨組みができていく。アナ極から出発。下の「曲がり方」が効く（スムーズ＝止まらずに丸く曲がる、直角＝頂点でその場で向きを変える）">✴ 星形</button>
                 </div>
                 <div class="row" id="starRow" title="星形：ひと飛びの角度。星形正多胞体（10 個）はどれもこの 120 個の頂点を使い、辺はこのどれかの角度">
                     <span class="note">ひと飛び：</span>
@@ -1026,7 +1026,7 @@ function fqStep(ds) {
 // ---- 星形（S.fillMode === 'star'）：600 胞体の 120 個の頂点のあいだを、ひと飛び S.starAng° の大円で飛び、通った辺を地図に残す。
 //   星形正多胞体（シュレーフリ・ヘスの 10 個）はどれも、この 120 個の頂点を使い、辺はこのどれかの角度（36°・72°・108°・144°・60°・120°）。
 //   1 本の大円の上には頂点が 36° おきに 10 個並ぶので、144° で飛ぶと大円の上では五芒星 {5/2}、108° で {10/3}、72° で五角形。
-//   アナ極から出発。頂点でその場で向きを変える（直角と同じ。骨組みの辺をちょうどたどる）。まだ通っていない辺を優先し、「まっすぐ」なら曲がる角のいちばん小さいもの。
+//   アナ極から出発。曲がり方は「曲がり方」の設定（直角＝頂点でその場で向きを変える、スムーズ＝止まらずに双曲線で）。まだ通っていない辺を優先し、「まっすぐ」なら曲がる角のいちばん小さいもの。
 //   まわりに通っていない辺が無ければ、いちばん近い「まだ辺が残っている頂点」へ向かう。
 //   描き方（S.starDraw）：'trail'＝地図のいつもの軌跡で描き、全部通っても次の周へ飛び続ける（遊覧）。'frame'＝通った辺を虹色で全部残し、全部通ったら止まる。⏩ 早送り（S.starFF）で S.starK 倍
 //   左の S² は 3 次元の仲間：正二十面体の 12 個の頂点（63.4° でとなり。116.6° で飛ぶと大十二面体・小星形十二面体などの星形の辺）。S³ の 1 本と同じ時間で 1 本飛ぶ
@@ -1071,6 +1071,8 @@ function starStart() {
     STAR.key = S.starAng + ''; const th = S.starAng * d2r;
     STAR.g3 = starGraph(cell600V(), th); STAR.g2 = starGraph(icoV(), STAR_ANG2(S.starAng));
     STAR.w3 = starWalker(STAR.g3); STAR.w2 = starWalker(STAR.g2); STAR.tu = null; STAR.f = 0; STAR.done = false; STAR.round = 1;
+    const near = (G, P) => G.V.reduce((bi, v, i) => dot(v, P) > dot(G.V[bi], P) ? i : bi, 0);
+    STAR.w3.cur = near(STAR.g3, [0, 0, 0, 1]); STAR.w2.cur = near(STAR.g2, [0, 0, 1]);   // アナ極の頂点から出発
     resetNorth(); STAR.w3.nxt = starPick(STAR.w3, null); STAR.w2.nxt = starPick(STAR.w2, null);
     // 最初の向き：体の前を、最初の辺の向きに
     const t3 = nrm(add(STAR.g3.V[STAR.w3.nxt], W.p, -dot(STAR.g3.V[STAR.w3.nxt], W.p))), t2 = nrm(add(STAR.g2.V[STAR.w2.nxt], W2.p, -dot(STAR.g2.V[STAR.w2.nxt], W2.p)));
@@ -1079,21 +1081,37 @@ function starStart() {
     S.az = 0; S.el = 0; req(3);
 }
 function starLegPt(wk, f) { const A = wk.G.V[wk.cur], B = wk.G.V[wk.nxt], th = wk.G.th, t = nrm(add(B, A, -dot(B, A))); return add(scl(A, Math.cos(th * f)), t, Math.sin(th * f)); }
+// 曲がり方（S.turnStyle）：直角＝頂点まで行き、その場で向きを変える（止まる）。スムーズ＝頂点の手前 L で次の頂点を決め、ターンと同じ双曲線で止まらずに曲がる
+//   （頂点の平らな地図＝fqBasis・fqFromFlat の上で。曲がる角が小さすぎて双曲線が収まらない時と、150° より大きい時は、その頂点だけ直角）。S² の L は辺の長さの比で縮める
 function starStep(ds) {
     if (STAR.key !== S.starAng + '' || !STAR.w3) starStart();
     if (STAR.done) { if (S.starDraw === 'frame') return; starStart(); }   // 骨組みができて止まった後に「ふつうの軌跡」にしたら、また飛び始める
-    if (STAR.tu) { turnStep(STAR.tu, ds); if (!STAR.tu.pv) STAR.tu = null; return; }   // 頂点で向きを変えている
-    const w3 = STAR.w3, w2 = STAR.w2;
-    STAR.f = Math.min(1, STAR.f + ds / w3.G.th);
+    if (STAR.tu) {
+        if (STAR.tu.h3) { if (turnStep(STAR.tu, ds, STAR.tu.to3, STAR.tu.to2)) { STAR.f = STAR.tu.L / STAR.w3.G.th; STAR.tu = null; } return; }   // スムーズの曲がり
+        turnStep(STAR.tu, ds); if (!STAR.tu.pv) STAR.tu = null; return;   // 頂点で向きを変えている
+    }
+    const w3 = STAR.w3, w2 = STAR.w2, smooth = S.turnStyle !== 'sharp', Lm = smooth ? Math.min(0.6, 0.4 * w3.G.th) : 0, fEnd = 1 - Lm / w3.G.th;
+    STAR.f = Math.min(fEnd, STAR.f + ds / w3.G.th);
     fillGo(starLegPt(w3, STAR.f), starLegPt(w2, STAR.f));
-    if (STAR.f < 1) return;
-    // 頂点に着いた：辺を記録して、次の頂点を選び、その場で向きを変える
+    if (STAR.f < fEnd - 1e-12) return;
+    // 頂点に着いた（スムーズなら頂点の手前 L）：辺を記録して、次の頂点を選ぶ
+    const inDir = wk => { const A = wk.G.V[wk.cur], B = wk.G.V[wk.nxt], t = nrm(add(B, A, -dot(B, A))); return nrm(add(scl(A, -Math.sin(wk.G.th)), t, Math.cos(wk.G.th))); };   // 頂点に着く時の向き
+    const a3 = inDir(w3), a2 = inDir(w2);
     for (const wk of [w3, w2]) { const k = starKey(wk.cur, wk.nxt); if (!wk.seen.has(k)) { wk.seen.add(k); wk.order.push([wk.cur, wk.nxt]); wk.left--; } wk.prev = wk.cur; wk.cur = wk.nxt; }
-    W.p = w3.G.V[w3.cur].slice(); W2.p = w2.G.V[w2.cur].slice(); orthoFrame(W); orthoFrame(W2);
+    if (!smooth) { W.p = w3.G.V[w3.cur].slice(); W2.p = w2.G.V[w2.cur].slice(); orthoFrame(W); orthoFrame(W2); }
     if (w3.left <= 0 && S.starDraw !== 'frame') { STAR.round = (STAR.round || 1) + 1; say(`${w3.order.length} 本の辺を全部通った（ひと飛び ${S.starAng}°）。そのまま ${STAR.round} 周目へ`); w3.seen.clear(); w3.order = []; w3.left = w3.G.edges.length; }
     if (w3.left <= 0) { STAR.done = true; say(`星形の骨組みができた！ ${w3.order.length} 本の辺（ひと飛び ${S.starAng}°）。🧶 ターンを押し直すと最初から`); return; }
     if (w2.left <= 0) { w2.seen.clear(); w2.order = []; w2.left = w2.G.edges.length; }   // S² は辺が少ないので、できたら描き直す
-    w3.nxt = starPick(w3, W.f); w2.nxt = starPick(w2, W2.f); STAR.f = 0;
+    w3.nxt = starPick(w3, a3); w2.nxt = starPick(w2, a2); STAR.f = 0;
+    if (smooth) {
+        const Q3 = w3.G.V[w3.cur], Q2 = w2.G.V[w2.cur], E3 = fqBasis(Q3, a3), E2 = fqBasis(Q2, a2);
+        const out = (Q, B) => nrm(add(B, Q, -dot(B, Q))), u3 = E3.map(e => dot(out(Q3, w3.G.V[w3.nxt]), e)), u2 = E2.map(e => dot(out(Q2, w2.G.V[w2.nxt]), e));
+        const L2 = Lm * w2.G.th / w3.G.th, f3 = [1, 0, 0], f2 = [1, 0];
+        const fits = (u, L) => { const th = Math.acos(Math.max(-1, Math.min(1, u[0]))); return th < 1e-3 || (th <= 150 * d2r && L * 2 * Math.sin(th / 2) / hypDV(th) >= 2); };   // 双曲線が L の中に収まるか
+        const sharp = !(fits(u3, Lm) && fits(u2, L2));
+        STAR.tu = { f: 0, L: Lm, sharp, h3: sharp ? cornerTable(f3, u3, Lm, 240) : hypTable(f3, u3, Lm, 240), h2: sharp ? cornerTable(f2, u2, L2, 240) : hypTable(f2, u2, L2, 240), to3: x => fqFromFlat(Q3, E3, x), to2: x => fqFromFlat(Q2, E2, x) };
+        return;
+    }
     const plane = (P, Q, d) => { const t = nrm(add(Q, P, -dot(Q, P))); const A = nrm(add(d, P, -dot(d, P))), B0 = add(t, A, -dot(t, A)), bl = Math.hypot(...B0); return { A, B: bl > 1e-6 ? scl(B0, 1 / bl) : A, th: bl > 1e-6 ? Math.acos(Math.max(-1, Math.min(1, dot(A, t)))) : 0 }; };
     const p3 = plane(W.p, w3.G.V[w3.nxt], W.f), p2 = plane(W2.p, w2.G.V[w2.nxt], W2.f);
     if (Math.max(p3.th, p2.th) > 1e-3) STAR.tu = { pv: { t: 0, len: 0.12 + 0.3 * Math.max(p3.th, p2.th) / (Math.PI / 2), F: { f: W.f.slice(), r: W.r.slice(), u: W.u.slice() }, G: { f: W2.f.slice(), r: W2.r.slice() }, A3: p3.A, B3: p3.B, th3: p3.th, A2: p2.A, B2: p2.B, th2: p2.th } };
