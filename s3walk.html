@@ -1423,6 +1423,10 @@ function poleLabels() {
         const x = (0.5 + 0.5 * sp[0]) * w, y = (0.5 - 0.5 * sp[1]) * h;
         e.style.display = 'block'; e.style.left = x.toFixed(1) + 'px'; e.style.top = y.toFixed(1) + 'px';
         e.lastChild.textContent = poleName(m) + ' ' + t.toFixed(2);
+        // 遠近：距離 0 で 12px、1.57（90°）で 5px、それより遠くは 5px のまま。ゆるやかな曲線（はじめと終わりがなめらか）で、
+        //   大きさは transform の scale で変える（画素の段にならず、なめらかに縮む）
+        const q = Math.min(1, t / (Math.PI / 2)), k = (12 - 7 * q * q * (3 - 2 * q)) / 12;
+        if (Math.abs((e._k || 0) - k) > 0.002) { e._k = k; e.firstChild.style.transform = 'scale(' + k.toFixed(3) + ')'; }
         list.push({ e, x, y, d: t, n: m.label === 'N' });
     });
     placeDots(list, w, h);
