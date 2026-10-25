@@ -1899,7 +1899,7 @@ const AXL = 2.7;
         trail.obj.visible = S.trail; trail.obj.material.linewidth = 3.4 * S.trailW;
         const T = W.trail; trail.reset(); for (let i = 0; i + 1 < T.length; i++) { const da = mapS3(T[i], a), db = mapS3(T[i + 1], b); if (!(da === da) || !(db === db) || Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1.5) continue; const f = 0.45 + 0.55 * i / T.length; trail.seg(a, b, scl(hsl(200 + 160 * i / T.length, 0.95, 0.62), f)); } trail.flush();
         { const pk = planetKey(); planetM.visible = false; if (pk) { const d = mapS3(SP4, a); if (d === d) { planetM.visible = true; planetM.position.set(a[0], a[1], a[2]); planetM.scale.setScalar(Math.sin(pk) * RS * Math.min(3, kOf(SP4))); } } }   // カタ極の星
-        place(me, W.p, 1);
+        place(me, W.p, 1); me.scale.setScalar(Math.min(1.4, kOf(W.p)));   // 自分の白い玉：遠近で大きくなる上限は 1.4 倍（ほかの玉の 2.5 倍より小さく。遠近 2.5 の時の最大 1.67 より少しだけ小さく）
         const F = lookFrame(), dv = W.lastDir && performance.now() - (W.lastDirT || 0) < 400 ? W.lastDir : F.L, q = nrm(add(scl(W.p, Math.cos(0.12)), dv, Math.sin(0.12)));   // 歩いている間は進む向き、止まっている時は見ている向き
         if (S.heading && mapS3(W.p, a) === mapS3(W.p, a) && mapS3(q, b) === mapS3(q, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); const l = t.length(); if (l > 1e-6) { t.normalize(); cone.quaternion.setFromUnitVectors(up, t); cone.position.set(a[0] + t.x * 0.28, a[1] + t.y * 0.28, a[2] + t.z * 0.28); cone.scale.setScalar(Math.min(2.5, kOf(W.p))); cone.visible = true; } } else cone.visible = false;
         Lpole.obj.visible = S.rot4;
