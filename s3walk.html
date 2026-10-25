@@ -409,7 +409,10 @@
                     <button class="btn" id="b-hidepair" title="−の側の極の目印（🐢 −x・🐸 −y・🐶 −z・🌴 カタ極）を中の景色から隠す。🐰 の回ってきた像は、ちょうど反対側の 🐢 と同じ線の上に同じ大きさで重なって隠れているので、隠すと見えるようになる">反対側の相棒を隠す</button>
                 </div>
                 <div class="row">
-                    <button class="btn" id="b-guests" title="ゲスト：🦊🐼🦄🐙… が S³ の中をふらふら歩き回る（中の景色と S³ の地図）。極の動物とちがって反対側に相棒がいないので、遠回りで回ってきた逆さまの像もいつも見える。場所はでたらめ（端末ごと）">🦊 ゲスト（ふらふら歩く）</button>
+                    <span class="note">キャラ：</span>
+                    <button class="btn chr" data-c="pole" title="極のキャラだけ（⛄ アナ極・🌴 カタ極・🐰🐢🦝🐸🐱🐶 の 6 つの極）">極のキャラ</button>
+                    <button class="btn chr" data-c="guest" title="ゲストだけ：🦊🐼🦄🐙… が S³ の中をふらふら歩き回る（中の景色と S³ の地図）。極のキャラは出さない。ゲストは反対側に相棒がいないので、遠回りで回ってきた逆さまの像もいつも見える。場所はでたらめ（端末ごと）">🦊 ゲスト</button>
+                    <button class="btn chr" data-c="both" title="極のキャラとゲストの両方">両方</button>
                 </div>
                 <div class="sl"><span>ゲストの数</span><input id="s-guestn" type="range" min="1" max="8" step="1" title="何匹出すか（変えると、でたらめな場所に出し直す）"><output id="o-guestn"></output></div>
                 <div class="sl"><span>ゲストの速さ</span><input id="s-guestspd" type="range" min="0" max="1.5" step="0.05" title="1 秒に進む距離（0 で止まる）"><output id="o-guestspd"></output></div>
@@ -678,9 +681,12 @@ const SAVER = (() => { try { const q = new URLSearchParams(location.search); if 
 if (!SAVER) try { Object.assign(S, JSON.parse(localStorage.getItem('s3walk-state') || '{}')); } catch (e) {}
 if (!S.v2) { S.room = false; S.circ = false; S.lite = true; S.v2 = true; }   // 2026-10-24：重い部屋・経線の管を既定で切り、軽い線を既定に（1 回だけ）
 S.m2 = Object.assign({ view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, S.m2 || {});   // 2 枚目の地図の設定（古い保存に足りない所を補う）
+if (!['pole', 'guest', 'both'].includes(S.chars)) S.chars = S.guests ? 'both' : 'pole';   // 出すキャラ：極だけ・ゲストだけ・両方（前の保存は「ゲスト」のオン・オフから）
+S.guests = S.chars !== 'pole';
 if (S.pic !== undefined) { S.mk = S.pic ? 'pic' : 'ball'; delete S.pic; }   // 古い保存（絵のモードの ON/OFF）を読みかえる
 const isPic = () => S.mk === 'pic';
 const noMk = () => S.mk === 'none';   // 目印を何も出さない
+const noPoleChars = () => S.chars === 'guest';   // 「ゲストだけ」：極のキャラ（⛄🌴🐰🐢🦝🐸🐱🐶）を出さない
 // 球層のいちばん内側の殻（アナは赤・カタは紫）の極からの距離：極の目印（⛄・🌴）の玉がちょうど中に収まるように、玉の半径＋少し（超球アプリは 0.08 だが、そこに目印の玉は無い）
 const shellMinTheta = () => (S.mk === 'pic' ? 0.13 * 1.5 : S.mk === 'dot' ? 0.13 * 1.9 : 0.13) + 0.06;
 S.walk = false; S.roam = false; S.spiral = false; S.grav = false; S.hopf = false; S.ring = false; S.ringView = false; S.fill = false;
@@ -1961,7 +1967,7 @@ const AXL = 2.7;
         trail.reset(); const T = W2.trail; for (let i = 0; i + 1 < T.length; i++) { const f = 0.3 + 0.7 * i / T.length; trail.seg(scl(T[i], R2), scl(T[i + 1], R2), scl(hsl(200 + 160 * i / T.length, 0.9, 0.6), f)); } trail.flush();
         while (foot.children.length < W2.foot.length) { const b = ball(v, 0.035, [0.8, 0.85, 1]); v.root.remove(b); foot.add(b); }
         foot.children.forEach((b, i) => { b.visible = i < W2.foot.length && S.foot && !starFrame(); if (b.visible) b.position.set(...scl(W2.foot[i], R2)); });
-        fixedA.forEach((o, k) => { const hide = (S.solar && k === 0) || noMk(); o.b.visible = !isPic() && !hide; o.lab.visible = !isPic() && !hide; o.sp.visible = isPic() && !hide; o.okPt = true; if (polePts()) o.b.visible = o.lab.visible = o.sp.visible = false; });   // 太陽系の時、アナ極は太陽
+        fixedA.forEach((o, k) => { const hide = (S.solar && k === 0) || noMk() || noPoleChars(); o.b.visible = !isPic() && !hide; o.lab.visible = !isPic() && !hide; o.sp.visible = isPic() && !hide; o.okPt = true; if (polePts()) o.b.visible = o.lab.visible = o.sp.visible = false; });   // 太陽系の時、アナ極は太陽
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const b = ball(v, 0.08, m.col); v.root.remove(b); marks.add(b); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
         W.marks.forEach((m, i) => { const [b, lab, sp] = [marks.children[3 * i], marks.children[3 * i + 1], marks.children[3 * i + 2]]; b.position.set(...scl(m.p2, R2)); lab.position.set(...scl(m.p2, R2 * 1.1)); sp.position.set(...scl(m.p2, R2)); b.visible = !isPic() && !noMk(); lab.visible = !isPic() && !noMk(); sp.visible = isPic(); });
     });
@@ -2090,7 +2096,7 @@ const AXL = 2.7;
         { const on = Math.abs(S.hy) > 0.5 || Math.abs(S.hp) > 0.5 || S.spin, qv = on ? nrm(add(scl(W.p, Math.cos(0.12)), viewFrame().L, Math.sin(0.12))) : null; vcone.visible = false;
           if (on && mapS3(W.p, a) === mapS3(W.p, a) && mapS3(qv, b) === mapS3(qv, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); if (t.length() > 1e-6) { t.normalize(); vcone.quaternion.setFromUnitVectors(up, t); vcone.position.set(a[0] + t.x * 0.26, a[1] + t.y * 0.26, a[2] + t.z * 0.26); vcone.scale.setScalar(Math.min(ME_MAX, kOf(W.p))); vcone.visible = true; } } }
         { const T = gtTarget(); tgtO.m.p = T; const d = place(tgtO.b, T, 1); tgtO.okPt = d === d; tgtO.b.visible = false; }
-        fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } const hide = (S.solar && o.m.label === 'N') || noMk(); o.lab.visible = d === d && !isPic() && !hide; o.sp.visible = d === d && isPic() && !hide; o.b.visible = d === d && !isPic() && !hide; o.okPt = d === d; if (polePts()) o.b.visible = o.lab.visible = o.sp.visible = false; });
+        fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } const hide = (S.solar && o.m.label === 'N') || noMk() || noPoleChars(); o.lab.visible = d === d && !isPic() && !hide; o.sp.visible = d === d && isPic() && !hide; o.b.visible = d === d && !isPic() && !hide; o.okPt = d === d; if (polePts()) o.b.visible = o.lab.visible = o.sp.visible = false; });
         while (foot.children.length < W.foot.length) { const bb = ball(v, 0.04, [0.8, 0.85, 1]); v.root.remove(bb); foot.add(bb); }
         foot.children.forEach((bb, i) => { if (i < W.foot.length && S.foot && !starFrame()) place(bb, W.foot[i], 1); else bb.visible = false; });
         while (marks.children.length < W.marks.length * 3) { const m = W.marks[marks.children.length / 3]; const bb = ball(v, 0.085, m.col); v.root.remove(bb); marks.add(bb); const lab = label(v, String(m.n), '#fff', 0.34); v.root.remove(lab); marks.add(lab); const sp = emojiSprite(m.pic, 0.45); marks.add(sp); }
@@ -2541,7 +2547,7 @@ function rebuildMarks() {
     const put = (p, c, r, pic) => { if (n >= NMK) return; U.uMk.value[n].set(p[0], p[1], p[2], p[3]); U.uMkC.value[n].set(c[0], c[1], c[2], r * big); U.uMkT.value[n] = ATLAS.of(pic); n++; };
     if (planetKey()) put(SP4, [0.58, 0.44, 0.3], S.planetR / big, null);   // カタ極の星（地面）
     // 「反対側の相棒を隠す」：−の側の極（🐢🐸🐶🌴）を出さない。前に重なっていた、回ってきた像が見える
-    FIXED.forEach(m => { if (polePts() && m.pole && !(S.solar && m.label === 'N')) return; if (S.hidePair && m.pole && m.p.some(x => x < -0.5)) return; if (S.solar && m.label === 'N') put(SUN.p, SUN.col, SUN.r, SUN.pic); else if (!noMk()) put(m.p, m.col, m.r, m.pic); });   // 「なし」の時はアナ極・カタ極・赤道の目印を出さない   // 太陽系の時はアナ極に太陽
+    FIXED.forEach(m => { if (polePts() && m.pole && !(S.solar && m.label === 'N')) return; if (S.hidePair && m.pole && m.p.some(x => x < -0.5)) return; if (noPoleChars() && m.pole && !(S.solar && m.label === 'N')) return; if (S.solar && m.label === 'N') put(SUN.p, SUN.col, SUN.r, SUN.pic); else if (!noMk()) put(m.p, m.col, m.r, m.pic); });   // 「なし」の時はアナ極・カタ極・赤道の目印を出さない   // 太陽系の時はアナ極に太陽
     if (!noMk()) W.marks.forEach(m => put(m.p, m.col, 0.1, m.pic));
     if (S.foot) W.foot.forEach(p => put(p, [0.8, 0.85, 1], 0.03, PIC.foot));
     ray.U.uNM.value = n; ray._base = n; ray._nFoot = W.foot.length; ray._nMk = W.marks.length;
@@ -2556,7 +2562,7 @@ function setRayUniforms() {
     U.uLens.value = lens; U.uFovY.value = fov * d2r; U.uTanF.value = Math.tan(Math.min(150, S.fov) * d2r / 2);
     U.uPixAng.value = (lens === 2 ? Math.PI : fov * d2r) / Math.max(1, VC.r.domElement.height);
     U.uPic.value = S.mk === 'pic' ? 1 : S.mk === 'dot' ? 2 : 0; U.uBgMesh.value = S.bgMesh ? 1 : 0; U.uPasses.value = S.passes; U.uGhostBack.value = S.ghostBack ? 1 : 0;
-    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.mk || ray._planet !== planetKey() || ray._shell !== S.shell || ray._solar !== S.solar || ray._grand !== S.grand || ray._poles !== S.poles || ray._hide !== S.hidePair) { ray._hide = S.hidePair; ray._planet = planetKey(); ray._shell = S.shell; ray._solar = S.solar; ray._grand = S.grand; ray._poles = S.poles; rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.mk; }
+    if (ray._nFoot !== W.foot.length || ray._nMk !== W.marks.length || ray._foot !== S.foot || ray._self !== S.self || ray._pic !== S.mk || ray._planet !== planetKey() || ray._shell !== S.shell || ray._solar !== S.solar || ray._grand !== S.grand || ray._poles !== S.poles || ray._hide !== S.hidePair || ray._chars !== S.chars) { ray._hide = S.hidePair; ray._chars = S.chars; ray._planet = planetKey(); ray._shell = S.shell; ray._solar = S.solar; ray._grand = S.grand; ray._poles = S.poles; rebuildMarks(); ray._foot = S.foot; ray._self = S.self; ray._pic = S.mk; }
     // 自分の玉：いつも今の場所（最後の 1 つを入れかえる）
     // 毎コマ動くもの（ホップの円の仲間・自分の玉）は、固定の目印のあと（ray._base から）に入れ直す
     let n = ray._base || 0; const big = (S.mk === 'pic' ? 1.5 : S.mk === 'dot' ? 1.9 : 1) * (S.grand ? 0.7 : 1);
@@ -2574,7 +2580,7 @@ function setRayUniforms() {
 // ---------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 $('app-title').textContent = APP_TITLE; $('app-sub').textContent = '← ' + APP_SUB + '（超球アプリを開く）';
-const toggles = { 'b-poles': 'poles', 'b-ghostback': 'ghostBack', 'b-guests': 'guests', 'b-hidepair': 'hidePair', 'b-starstraight': 'starStraight', 'b-starff': 'starFF', 'b-starghost': 'starGhost', 'b-fill': 'fill', 'b-trail': 'trail', 'b-grand': 'grand', 'b-gridspin': 'gridSpin', 'b-rot4others': 'rot4Others', 'b-rot4': 'rot4', 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
+const toggles = { 'b-poles': 'poles', 'b-ghostback': 'ghostBack', 'b-hidepair': 'hidePair', 'b-starstraight': 'starStraight', 'b-starff': 'starFF', 'b-starghost': 'starGhost', 'b-fill': 'fill', 'b-trail': 'trail', 'b-grand': 'grand', 'b-gridspin': 'gridSpin', 'b-rot4others': 'rot4Others', 'b-rot4': 'rot4', 'b-shellbare': 'shellBare', 'b-spin': 'spin', 'b-dyson': 'dyson', 'b-solar': 'solar', 'b-para': 'para', 'b-heading': 'heading', 'b-shfocus': 'shFocus', 'b-shlight': 'shLight', 'b-shonly': 'shOnly', 'b-warrow': 'wArrow', 'b-ring': 'ring', 'b-ringview': 'ringView', 'b-autoq': 'autoQ', 'b-hopf': 'hopf', 'b-hopfplain': 'hopfPlain', 'b-grav': 'grav', 'b-planet': 'planet', 'b-walk': 'walk', 'b-roam': 'roam', 'b-spiral': 'spiral', 'b-shell': 'shell', 'b-shellsolid': 'shellSolid', 'b-bgmesh': 'bgMesh', 'b-foot': 'foot', 'b-eq': 'eq', 'b-circ': 'circ', 'b-room': 'room', 'b-lite': 'lite', 'b-self': 'self', 'b-wA': 'wA', 'b-wB': 'wB', 'b-wC': 'wC', 'b-axes': 'axes', 'b-follow': 'follow' };
 Object.entries(toggles).forEach(([id, k]) => $(id).addEventListener('click', () => { S[k] = !S[k]; if (k.startsWith('w') && !S.wA && !S.wB && !S.wC) S[k] = true; save(); refreshUI(); req(3); }));
 $('b-shfocus').addEventListener('click', () => { if (S.shFocus) { S.shLight = false; refreshUI(); } });
 $('b-shlight').addEventListener('click', () => { if (S.shLight) { S.shFocus = false; refreshUI(); } });
@@ -2639,6 +2645,7 @@ if (WN_ON) {
 }
 const FILL_SAY = { full: 'ターン（全周 360°）：アナ極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）', half: 'ターン（半周 180°）：アナ極→カタ極→アナ極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ', q: 'ターン（90°）：90° 進むごとに、まだ通っていない方へターン。極には戻らない', tour: '極めぐり：アナ極→東→北→天→カタ極→西→南→地→アナ極。となりの極だけをたどる、いちばん短い 1 周（4π）', ctour: '選んで巡る：選んだ極を ①から順に巡って、①に戻る', star: '星形：アナ極から、600 胞体の頂点を同じ角度で飛び回る。通った辺が虹色で残って、星形正多胞体の骨組みになる（左の S² は正二十面体の仲間）' };
 document.querySelectorAll('.btn.fsel').forEach(b => b.addEventListener('click', () => { S.fillMode = b.dataset.fs; save(); if (S.fill) { fillStart(); say(FILL_SAY[S.fillMode]); } refreshUI(); }));
+document.querySelectorAll('.btn.chr').forEach(b => b.addEventListener('click', () => { S.chars = b.dataset.c; S.guests = S.chars !== 'pole'; save(); refreshUI(); req(3); }));
 document.querySelectorAll('.btn.sang').forEach(b => b.addEventListener('click', () => { S.starAng = +b.dataset.a; save(); if (S.fill && S.fillMode === 'star') { starStart(); say(`星形：ひと飛び ${S.starAng}°（${STAR.g3.edges.length} 本の辺、1 点から ${STAR.g3.adj[0].length} 本）`); } refreshUI(); }));
 document.querySelectorAll('.btn.sdraw').forEach(b => b.addEventListener('click', () => { S.starDraw = b.dataset.d; save(); if (S.fill && S.fillMode === 'star' && S.starDraw === 'frame') say('骨組み：通った辺を虹色で全部残す'); refreshUI(); req(3); }));
 function starView() { S.xw = 0; S.yw = 0; S.zw = 0; S.follow = false; S.ringView = false; S.rot4 = false; S.axes = true; S.wB = true; save(); updateRot(); refreshUI(); req(3); }
@@ -2674,6 +2681,7 @@ function refreshUI() {
     document.querySelectorAll('.btn.fsel').forEach(b => b.classList.toggle('on', b.dataset.fs === S.fillMode));
     document.querySelectorAll('.btn.sang').forEach(b => b.classList.toggle('on', +b.dataset.a === S.starAng));
     document.querySelectorAll('.btn.sdraw').forEach(b => b.classList.toggle('on', b.dataset.d === S.starDraw));
+    document.querySelectorAll('.btn.chr').forEach(b => b.classList.toggle('on', b.dataset.c === S.chars));
     document.querySelectorAll('.btn.r4p').forEach(b => b.classList.toggle('on', b.dataset.p === S.rot4Plane));
     document.querySelectorAll('.btn.lens').forEach(b => b.classList.toggle('on', b.dataset.lens === (S.lens || 'normal')));
     Object.entries(sliders).forEach(([id, [k, f]]) => { const el = $(id); if (document.activeElement !== el) el.value = S[k]; $('o' + id.slice(1)).textContent = f(S[k]); });
