@@ -134,6 +134,12 @@
         .btn.big:hover { background: rgba(14, 116, 144, 0.6); }
         .row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
         .sl { display: grid; grid-template-columns: 44px 1fr 52px; gap: 6px; align-items: center; font-size: 11px; color: #cbd5e1; }
+        /* 座標へ向かう：スライダーの明るい帯＝その軸が動ける幅（前の軸を決めるほど狭まる） */
+        .gtrow { display: grid; grid-template-columns: 14px 1fr 50px 58px; gap: 6px; align-items: center; font-size: 11px; color: #cbd5e1; margin: 3px 0; }
+        .gtrow b { font-weight: 700; }
+        input[type=range].gtr { -webkit-appearance: none; appearance: none; height: 8px; border-radius: 4px; background: #334155; }
+        .gtn { width: 50px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 11px; padding: 2px 4px; text-align: right; }
+        .gtl { color: #94a3b8; font-size: 10px; white-space: nowrap; }
         .sl output { font-family: ui-monospace, monospace; font-size: 10px; color: #7dd3fc; text-align: right; }
         #desc p { font-size: 11px; line-height: 1.7; color: #cbd5e1; margin: 0 0 6px; }
         #desc b { color: #f0abfc; font-weight: 600; }
@@ -280,6 +286,22 @@
                 </div>
             </section>
 
+            <section class="sb-sec" data-sec="goto">
+                <h3 class="sb-h"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i>座標へ向かう<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
+                <div class="sec-body">
+                <p class="note">S³ の点は x² + y² + z² + w² = 1。x → y → z の順に決めると、あとの軸が動ける幅（スライダーの明るい帯）が狭まる。w は残りで決まるので、＋か−を選ぶだけ。数は 1→1、5→0.5、34→0.34、-5→−0.5 のように打てる（小数点なしは桁の数だけ 10 で割る。小数点を打ってもよい）。動ける幅をこえた数は端に丸める。白い点が目的地。</p>
+                <div class="gtrow"><b style="color:#ff5d6c">x</b><input type="range" class="gtr" data-a="x" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="x" inputmode="decimal"><span class="gtl" data-a="x"></span></div>
+                <div class="gtrow"><b style="color:#3ddc84">y</b><input type="range" class="gtr" data-a="y" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="y" inputmode="decimal"><span class="gtl" data-a="y"></span></div>
+                <div class="gtrow"><b style="color:#56a8ff">z</b><input type="range" class="gtr" data-a="z" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="z" inputmode="decimal"><span class="gtl" data-a="z"></span></div>
+                <div class="gtrow"><b style="color:#b07cff">w</b><input type="range" class="gtr" data-a="w" min="-1" max="1" step="0.01" title="w は残り（1 − x² − y² − z²）で決まる。スライダーは＋か−を選ぶだけ"><button class="btn" id="b-gtsign" title="w の＋と−を入れかえる（北の側か南の側か）">±</button><span class="gtl" data-a="w"></span></div>
+                <div class="row">
+                    <button class="btn" id="b-gthere" title="今いる場所の座標を入れる">今いる所を入れる</button>
+                    <button class="btn" id="b-gtgo" title="目的地（白い点）の方を向いて、いちばん短い道（大円）で向かう。キーで歩くと止まる">➜ 向かう</button>
+                    <button class="btn" id="b-gtstop" title="向かうのをやめる">止める</button>
+                </div>
+                <p class="note" id="gtInfo"></p>
+                </div>
+            </section>
             <section class="sb-sec" data-sec="curve">
                 <h3 class="sb-h"><i data-lucide="spline" class="w-3.5 h-3.5"></i>空間の曲がりを確かめる<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
                 <div class="sec-body">
@@ -614,7 +636,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, spin: false, spinRate: 6, spinTilt: 23.4, spinAz: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', gt: { x: 0.5, y: 0.5, z: 0.5, ws: 1 }, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 // スクリーンセーバー（s3walk.html?saver、?saver&sec=60 で 1 場面の秒数、&scene=2 でその場面だけ）：保存は読まず・書かず、同期もしない（ふだんの設定と別に動く）
 const SAVER = (() => { try { const q = new URLSearchParams(location.search); if (!q.has('saver')) return null; return { sec: Math.max(10, +q.get('sec') || 50), only: q.has('scene') ? +q.get('scene') : null }; } catch (e) { return null; } })();
@@ -962,6 +984,48 @@ function fqStep(ds) {
         return;
     }
     fillGo(add(scl(FQ.P, Math.cos(FQ.s)), FQ.b, Math.sin(FQ.s)), add(scl(FQ.P2, Math.cos(FQ.s)), FQ.b2, Math.sin(FQ.s)));
+}
+// ---- 座標へ向かう：x → y → z の順に決め、w は残りで決まる（＋か−）。目的地へは、まずその方を向き、いちばん短い大円で進む
+const GOTO = { on: false };
+function gtFix() {   // 順に絞り込む：あとの軸を、動ける幅（残りの半径）に丸める
+    const g = S.gt, cl = (v, r) => Math.max(-r, Math.min(r, v));
+    g.x = cl(+g.x || 0, 1); const ry = Math.sqrt(Math.max(0, 1 - g.x * g.x));
+    g.y = cl(+g.y || 0, ry); const rz = Math.sqrt(Math.max(0, 1 - g.x * g.x - g.y * g.y));
+    g.z = cl(+g.z || 0, rz); const rw = Math.sqrt(Math.max(0, 1 - g.x * g.x - g.y * g.y - g.z * g.z));
+    g.ws = g.ws < 0 ? -1 : 1;
+    return { x: 1, y: ry, z: rz, w: rw };
+}
+const gtTarget = () => { const r = gtFix(), g = S.gt; return nrm([g.x, g.y, g.z, g.ws * r.w + (r.w < 1e-9 && Math.hypot(g.x, g.y, g.z) < 1e-9 ? g.ws : 0)]); };
+function gtParse(str, r) {   // 1→1、5→0.5、34→0.34、-5→−0.5（小数点なしは桁の数だけ 10 で割る）。小数点があればそのまま。動ける幅 r に丸める
+    let t = String(str).trim().replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[．。]/g, '.').replace(/[−ー－]/g, '-').replace(/＋/g, '+');
+    let v;
+    if (/^[+-]?\d*\.\d*$/.test(t)) v = parseFloat(t);
+    else { const m = t.match(/^([+-]?)(\d+)$/); if (!m) return null; v = m[2] === '1' ? 1 : parseInt(m[2], 10) / Math.pow(10, m[2].length); if (m[1] === '-') v = -v; }
+    if (!isFinite(v)) return null;
+    return Math.max(-r, Math.min(r, v));
+}
+function gtRender() {
+    const r = gtFix(), g = S.gt, wv = g.ws * r.w;
+    document.querySelectorAll('.gtr').forEach(el => {
+        const a = el.dataset.a, lim = r[a], v = a === 'w' ? wv : g[a];
+        if (document.activeElement !== el) el.value = v;
+        const lo = (1 - lim) * 50, hi = (1 + lim) * 50;   // 明るい帯＝動ける幅
+        el.style.background = a === 'w' ? `linear-gradient(to right, #334155 ${lo - 1}%, #b07cff ${lo - 1}%, #b07cff ${lo + 1}%, #334155 ${lo + 1}%, #334155 ${hi - 1}%, #b07cff ${hi - 1}%, #b07cff ${hi + 1}%, #334155 ${hi + 1}%)`
+            : `linear-gradient(to right, #1e293b ${lo}%, #38bdf8 ${lo}%, #38bdf8 ${hi}%, #1e293b ${hi}%)`;
+    });
+    document.querySelectorAll('.gtn').forEach(el => { if (document.activeElement !== el) el.value = (+g[el.dataset.a]).toFixed(2); });
+    document.querySelectorAll('.gtl').forEach(el => { const a = el.dataset.a; el.textContent = a === 'w' ? `${wv >= 0 ? '+' : '−'}${r.w.toFixed(2)}` : `±${r[a].toFixed(2)} まで`; });
+    const T = gtTarget(), d = Math.acos(Math.max(-1, Math.min(1, dot(W.p, T)))), dn = Math.acos(Math.max(-1, Math.min(1, T[3])));
+    const info = $('gtInfo'); if (info) info.textContent = `目的地 (${T.map(v => v.toFixed(2)).join(', ')})　ここから ${d.toFixed(2)}　北極から ${dn.toFixed(2)}` + (GOTO.on ? '　向かっています' : '');
+}
+function gotoStep(sp, dt) {   // まず目的地の方を向き（1 秒に 180°）、向いたら大円に沿って進む
+    const T = gtTarget(), c = Math.max(-1, Math.min(1, dot(W.p, T))), dist = Math.acos(c);
+    if (dist < 0.003) { GOTO.on = false; say('目的地に着いた'); refreshUI(); return; }
+    let d = add(T, W.p, -c); if (Math.hypot(...d) < 1e-6) d = lookFrame().L; d = nrm(d);
+    const az = Math.atan2(dot(d, W.r), dot(d, W.f)) / d2r, el = Math.asin(Math.max(-1, Math.min(1, dot(d, W.u)))) / d2r;
+    let da = ((az - S.az + 540) % 360) - 180, de = el - S.el; const turn = Math.hypot(da, de);
+    if (turn > 1.5) { const k = Math.min(1, 180 * dt / turn); S.az += da * k; S.el += de * k; S.hy = S.hp = 0; req(2); return; }
+    S.az = az; S.el = el; walkStep([0, 0, 1], Math.min(sp, dist)); req(2);
 }
 // ---- 選んで巡る（S.fillMode === 'ctour'）：選んだ極（S.ctOrder＝選んだ順の記号の並び）を、①から順に巡って①に戻るのをくり返す。
 //   となりの極（直交）へは 90°（4 分の 1 周）、反対の極へは 180°（半周、来た向きのまままっすぐ）。極でのターンは、ほかのターンと同じ（スムーズ／直角）。
@@ -1357,9 +1421,9 @@ function axisShellRGB(ax, i, n) {   // シェーダーの axisShellCol と同じ
     return i < n ? mx(mx(ac, [1, 1, 1], 0.35), ac, t) : mx(scl(ac, 0.62), scl(ac, 0.9), t);
 }
 const POLES = FIXED.filter(m => m.pole);
-const dotCss = m => '#' + (S.shCol === 'axis' ? AXIS_HEX['xyzw'[m.p.findIndex(x => Math.abs(x) > 0.5)]] : m.dot !== undefined ? m.dot : rgbHex(m.col)).toString(16).padStart(6, '0');   // 球層が軸色なら、極もその軸の色
+const dotCss = m => m.tgt ? '#ffffff' : '#' + (S.shCol === 'axis' ? AXIS_HEX['xyzw'[m.p.findIndex(x => Math.abs(x) > 0.5)]] : m.dot !== undefined ? m.dot : rgbHex(m.col)).toString(16).padStart(6, '0');   // 球層が軸色なら、極もその軸の色
 const poleColor = (e, m) => { const c = dotCss(m); if (e._c !== c) { e._c = c; e.firstChild.style.background = c; e.lastChild.style.color = c; } };
-const poleName = m => m.label === 'N' ? '北極' : m.label === 'S' ? '南極' : m.label.split(' ')[0] + '極';
+const poleName = m => m.name ? m.name : m.label === 'N' ? '北極' : m.label === 'S' ? '南極' : m.label.split(' ')[0] + '極';
 const polePts = () => S.poles && S.mk !== 'pic';   // 絵のモードでは、極はいつもの絵（🐰🐢🦝🐸🐱🐶）のまま
 // 絵文字を、見た目の外わく（字形の箱）の真ん中がちょうど (cx, cy) に来るように描く（textBaseline: middle だけだと字体によって少し下にずれる）
 const _glyphCv = document.createElement('canvas'); _glyphCv.width = _glyphCv.height = 192;
@@ -1513,9 +1577,10 @@ function poleLabels() {
             + `<b style="position:absolute;left:10px;top:-9px;white-space:nowrap;font-size:11px;font-weight:700;color:${col};text-shadow:0 0 3px #000,0 0 3px #000"></b>`;
         box.appendChild(e); POLE_EL.push(e);
     });
-    if (!(polePts() && S.wC)) { POLE_EL.forEach(e => { e.style.display = 'none'; }); return; }
-    const F = viewFrame(), w = box.clientWidth, h = box.clientHeight, list = [];
+    if (!S.wC) { POLE_EL.forEach(e => { e.style.display = 'none'; }); if (POLE_EL.tgt) POLE_EL.tgt.style.display = 'none'; return; }
+    const F = viewFrame(), w = box.clientWidth, h = box.clientHeight, list = [], pon = polePts();
     POLES.forEach((m, i) => {
+        if (!pon) { POLE_EL[i].style.display = 'none'; return; }
         const e = POLE_EL[i], c = Math.max(-1, Math.min(1, dot(W.p, m.p))), t = Math.acos(c); poleColor(e, m);
         if (S.solar && m.label === 'N') { e.style.display = 'none'; return; }   // 太陽系の時、北極は太陽
         const dv = add(m.p, W.p, -c), l = Math.hypot(...dv);
@@ -1530,6 +1595,13 @@ function poleLabels() {
         if (Math.abs((e._k || 0) - k) > 0.002) { e._k = k; e.firstChild.style.transform = 'scale(' + k.toFixed(3) + ')'; }
         list.push({ e, x, y, d: t, n: m.label === 'N' });
     });
+    // 目的地（白い点）
+    if (!POLE_EL.tgt) { const e = document.createElement('div'); e.style.cssText = 'position:absolute;width:0;height:0;display:none'; e.innerHTML = `<i style="position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px rgba(8,12,28,0.85),0 0 8px #fff"></i><b style="position:absolute;white-space:nowrap;font-size:11px;font-weight:700;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000"></b>`; box.appendChild(e); POLE_EL.tgt = e; }
+    { const e = POLE_EL.tgt, T = gtTarget(), c = Math.max(-1, Math.min(1, dot(W.p, T))), t = Math.acos(c), dv = add(T, W.p, -c), l = Math.hypot(...dv);
+      const sp = l > 1e-6 && t <= S.maxd ? poleScreen(dot(dv, F.R) / l, dot(dv, F.U) / l, dot(dv, F.L) / l, w, h) : null;
+      if (!sp || Math.abs(sp[0]) > 1.02 || Math.abs(sp[1]) > 1.02) e.style.display = 'none';
+      else { const x = (0.5 + 0.5 * sp[0]) * w, y = (0.5 - 0.5 * sp[1]) * h, q = Math.min(1, t / (Math.PI / 2)), k = (12 - 7 * q * q * (3 - 2 * q)) / 12;
+          e.style.display = 'block'; e.style.left = x.toFixed(1) + 'px'; e.style.top = y.toFixed(1) + 'px'; e.firstChild.style.transform = 'scale(' + k.toFixed(3) + ')'; e.lastChild.textContent = '目的地 ' + t.toFixed(2); list.push({ e, x, y, d: t, n: true }); } }
     placeDots(list, w, h);
 }
 // ---- 8 つの極（地図）：地図の玉の代わりに、画面の上の平らな点と名前（遠近で大きさが変わったりゆがんだりしない）。球の奥の側にある極は薄く
@@ -1564,12 +1636,12 @@ function mapDots(key, host, cam, root, objs) {
         D.box.appendChild(e); D.els.push(e);
     }
     const on = polePts(), w = host.clientWidth, h = host.clientHeight;
-    D.box.style.display = on ? '' : 'none'; if (!on) return;
+    D.box.style.display = on || objs.some(o => o.m && o.m.tgt) ? '' : 'none';
     cam.updateMatrixWorld(); root.updateMatrixWorld();
     const c0 = root.getWorldPosition(_mdc).applyMatrix4(cam.matrixWorldInverse).z, list = [];   // c0＝球の真ん中の奥行き
     objs.forEach((o, i) => {
         const e = D.els[i], m = o.m || o.b.userData.m; poleColor(e, m);
-        if (!o.okPt || (S.solar && m.label === 'N')) { e.style.display = 'none'; return; }
+        if (!o.okPt || (S.solar && m.label === 'N') || (!on && !m.tgt)) { e.style.display = 'none'; return; }
         o.b.getWorldPosition(_mdv); const z = _mdv.clone().applyMatrix4(cam.matrixWorldInverse).z;
         if (z > -cam.near) { e.style.display = 'none'; return; }
         _mdv.project(cam); const x = (_mdv.x * 0.5 + 0.5) * w, y = (-_mdv.y * 0.5 + 0.5) * h;
@@ -1603,7 +1675,7 @@ function renderMap2() {
     m2Apply(() => {
         VB.frames.forEach(f => f());
         M2.cam.aspect = w / h; M2.cam.fov = w >= h ? 36 : 2 * Math.atan(Math.tan(18 * d2r) / (w / h)) / d2r; M2.cam.updateProjectionMatrix();
-        if (VB.poleObjs) mapDots('A2', $('wrapA'), M2.cam, VB.root, VB.poleObjs);
+        if (VB.poleObjs) mapDots('A2', $('wrapA'), M2.cam, VB.root, VB.poleObjs.concat([VB.tgtObj]));
         VB.r.render(VB.scene, M2.cam);
         M2.ctx.clearRect(0, 0, W2, H2); M2.ctx.drawImage(VB.r.domElement, 0, 0, W2, H2);   // 1 枚目の画面に描いたものを、そのまま左上の窓へ写す（このあと 1 枚目を描き直す）
     });
@@ -1740,6 +1812,7 @@ const AXL = 2.7;
     const Laxis = Lines(v, 1, { width: 3, normal: true, order: 6 }), ax0 = [0, 0, 0], ax1 = [0, 0, 0];   // 自転の地軸（桃色の線）   // 見渡している時の、見ている向き
     const fixed = FIXED.map(m => { const sp = emojiSprite(m.pic, 0.5); v.root.add(sp); return { m, b: ball(v, m.r, m.col), lab: label(v, m.label, '#' + rgbHex(m.col).toString(16).padStart(6, '0'), 0.36), sp }; });
     v.poleObjs = fixed;   // 8 つの極の点（地図の上の平らな点）に使う
+    const tgtO = { m: { label: '目的地', name: '目的地', p: [0, 0, 0, 1], col: [1, 1, 1], dot: 0xffffff, tgt: true }, b: ball(v, 0.05, [1, 1, 1]) }; tgtO.b.visible = false; v.tgtObj = tgtO;   // 目的地の点
     const foot = new THREE.Group(), marks = new THREE.Group(); v.root.add(foot, marks);
     const a = [0, 0, 0], b = [0, 0, 0], Z = [0, 0, 0], up = new THREE.Vector3(0, 1, 0), t = new THREE.Vector3();
     const drawPairs = (L, pairs, color, maxLen, cut) => {
@@ -1808,6 +1881,7 @@ const AXL = 2.7;
             if (mapS3(A, ax0) === mapS3(A, ax0) && mapS3(B, ax1) === mapS3(B, ax1)) { Laxis.reset(); Laxis.seg(ax0, ax1, [1, 0.45, 0.75]); Laxis.flush(); Laxis.obj.visible = true; } }
         { const on = Math.abs(S.hy) > 0.5 || Math.abs(S.hp) > 0.5 || S.spin, qv = on ? nrm(add(scl(W.p, Math.cos(0.12)), viewFrame().L, Math.sin(0.12))) : null; vcone.visible = false;
           if (on && mapS3(W.p, a) === mapS3(W.p, a) && mapS3(qv, b) === mapS3(qv, b)) { t.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); if (t.length() > 1e-6) { t.normalize(); vcone.quaternion.setFromUnitVectors(up, t); vcone.position.set(a[0] + t.x * 0.26, a[1] + t.y * 0.26, a[2] + t.z * 0.26); vcone.scale.setScalar(Math.min(2.5, kOf(W.p))); vcone.visible = true; } } }
+        { const T = gtTarget(); tgtO.m.p = T; const d = place(tgtO.b, T, 1); tgtO.okPt = d === d; tgtO.b.visible = false; }
         fixed.forEach(o => { const d = place(o.b, o.m.p, 1); if (d === d) { const k = Math.min(2.5, kOf(o.m.p)); o.lab.position.copy(o.b.position).add(new THREE.Vector3(0, 0, 0.2 * k)); o.sp.position.copy(o.b.position); o.sp.scale.setScalar(0.5 * k); } const hide = (S.solar && o.m.label === 'N') || noMk(); o.lab.visible = d === d && !isPic() && !hide; o.sp.visible = d === d && isPic() && !hide; o.b.visible = d === d && !isPic() && !hide; o.okPt = d === d; if (polePts()) o.b.visible = o.lab.visible = o.sp.visible = false; });
         while (foot.children.length < W.foot.length) { const bb = ball(v, 0.04, [0.8, 0.85, 1]); v.root.remove(bb); foot.add(bb); }
         foot.children.forEach((bb, i) => { if (i < W.foot.length && S.foot) place(bb, W.foot[i], 1); else bb.visible = false; });
@@ -2313,6 +2387,13 @@ document.querySelectorAll('.btn.shax').forEach(b => b.addEventListener('click', 
 document.querySelectorAll('.btn.tsel').forEach(b => b.addEventListener('click', () => { S.turnStyle = b.dataset.ts; FILL.plan = null; FQ.plan = null; save(); refreshUI(); }));   // 次のターンから
 document.querySelectorAll('.btn.ctp').forEach(b => b.addEventListener('click', () => { const k = b.dataset.k, o = S.ctOrder || ''; S.ctOrder = o.includes(k) ? o.replace(k, '') : o + k; save(); refreshUI(); if (S.fill && S.fillMode === 'ctour') fillStart(); }));
 $('b-ctclear').addEventListener('click', () => { S.ctOrder = ''; save(); refreshUI(); if (S.fill && S.fillMode === 'ctour') { S.fill = false; refreshUI(); } });
+document.querySelectorAll('.gtr').forEach(el => el.addEventListener('input', () => { const a = el.dataset.a; if (a === 'w') S.gt.ws = +el.value < 0 ? -1 : 1; else S.gt[a] = +el.value; gtFix(); save(); gtRender(); req(3); }));
+document.querySelectorAll('.gtn').forEach(el => { const go = () => { const a = el.dataset.a, r = gtFix(), v = gtParse(el.value, r[a]); if (v !== null) S.gt[a] = v; gtFix(); save(); el.blur(); gtRender(); req(3); };
+    el.addEventListener('change', go); el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); go(); } }); });
+$('b-gtsign').addEventListener('click', () => { S.gt.ws = -S.gt.ws; save(); gtRender(); req(3); });
+$('b-gthere').addEventListener('click', () => { Object.assign(S.gt, { x: W.p[0], y: W.p[1], z: W.p[2], ws: W.p[3] < 0 ? -1 : 1 }); save(); gtRender(); req(3); });
+$('b-gtgo').addEventListener('click', () => { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = S.fill = false; TOUR.i = -1; GOTO.on = true; say('目的地へ：まずその方を向いて、いちばん短い道で'); refreshUI(); gtRender(); req(3); });
+$('b-gtstop').addEventListener('click', () => { GOTO.on = false; refreshUI(); gtRender(); });
 const FILL_SAY = { full: 'ターン（全周 360°）：北極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）', half: 'ターン（半周 180°）：北極→南極→北極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ', q: 'ターン（90°）：90° 進むごとに、まだ通っていない方へターン。極には戻らない', tour: '極めぐり：北極→東→アナ→天→南極→西→カタ→地→北極。となりの極だけをたどる、いちばん短い 1 周（4π）', ctour: '選んで巡る：選んだ極を ①から順に巡って、①に戻る' };
 document.querySelectorAll('.btn.fsel').forEach(b => b.addEventListener('click', () => { S.fillMode = b.dataset.fs; save(); if (S.fill) { fillStart(); say(FILL_SAY[S.fillMode]); } refreshUI(); }));
 $('b-fill').addEventListener('click', () => { if (S.fill) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = -1; fillStart(); say(FILL_SAY[S.fillMode] || FILL_SAY.half); } refreshUI(); });
@@ -2340,6 +2421,7 @@ function refreshUI() {
     document.querySelectorAll('.btn.shcol').forEach(b => b.classList.toggle('on', b.dataset.c === S.shCol));
     document.querySelectorAll('.btn.shax').forEach(b => { b.classList.toggle('on', S.shAxes.includes(b.dataset.a)); b.disabled = S.shCol !== 'axis'; b.style.opacity = S.shCol === 'axis' ? '' : '0.4'; });
     document.querySelectorAll('.btn.tsel').forEach(b => b.classList.toggle('on', b.dataset.ts === S.turnStyle));
+    if ($('gtInfo')) gtRender();
     document.querySelectorAll('.btn.ctp').forEach(b => { const i = (S.ctOrder || '').indexOf(b.dataset.k); b.classList.toggle('on', i >= 0); b.textContent = (i >= 0 ? CT_NUM[i] + ' ' : '') + CT_NAME[b.dataset.k]; });
     document.querySelectorAll('.btn.fsel').forEach(b => b.classList.toggle('on', b.dataset.fs === S.fillMode));
     document.querySelectorAll('.btn.r4p').forEach(b => b.classList.toggle('on', b.dataset.p === S.rot4Plane));
@@ -2545,7 +2627,9 @@ function loop(now) {
     if (S.spin) { SPIN.ang = (SPIN.ang + dt * TAU * S.spinRate / 60) % TAU; req(2); }   // 自転（1 分に spinRate 回）
     if (S.solar) { SOL.t += dt * S.solarSpd; req(2);
         if (TOUR.i >= 0) { if (mv[0] || mv[1] || mv[2]) { TOUR.i = -1; say('ツアーをやめた（歩いた）'); } else tourStep(dt); } }
-    if (S.grav) { gravityStep(dt, mv); }
+    if (GOTO.on && (K.size || IN.pad)) GOTO.on = false;   // キーで歩いたら止める
+    if (GOTO.on) { gotoStep(sp, dt); IN.gtUI = (IN.gtUI || 0) + dt; if (IN.gtUI > 0.15) { IN.gtUI = 0; gtRender(); } }
+    else if (S.grav) { gravityStep(dt, mv); }
     else if (S.fill) { fillStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
     else if (S.ring) { ringStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
     else if (S.hopf) { hopfStep(sp); IN.roamUI = (IN.roamUI || 0) + dt; if (IN.roamUI > 0.15) { IN.roamUI = 0; refreshUI(); } req(2); }
@@ -2565,7 +2649,7 @@ function loop(now) {
     need--;
     if (S.wA) { if (S.wAmode === 'map2') renderMap2(); else { VA.frames.forEach(f => f()); VA.r.render(VA.scene, VA.cam); if (VA.poleObjs) mapDots('A', $('wrapA'), VA.cam, VA.root, VA.poleObjs); } }
     for (const [k, on] of [['A', S.wAmode !== 'map2'], ['A2', S.wAmode === 'map2']]) if (MAPDOT[k] && !on) MAPDOT[k].box.style.display = 'none';   // 2 枚目の地図は 1 枚目より先に描く（同じ描く道具を使うので）
-    if (S.wB) { VB.frames.forEach(f => f()); VB.r.render(VB.scene, VB.cam); if (VB.poleObjs) mapDots('B', $('wrapB'), VB.cam, VB.root, VB.poleObjs); }
+    if (S.wB) { VB.frames.forEach(f => f()); VB.r.render(VB.scene, VB.cam); if (VB.poleObjs) mapDots('B', $('wrapB'), VB.cam, VB.root, VB.poleObjs.concat([VB.tgtObj])); }
     if (S.wC) { setRayUniforms(); VC.r.render(ray.scene, ray.cam); if (S.grand) DUST.draw(); }
     poleLabels();
     updateHUD();
