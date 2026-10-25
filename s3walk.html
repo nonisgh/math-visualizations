@@ -289,13 +289,14 @@
             <section class="sb-sec" data-sec="goto">
                 <h3 class="sb-h"><i data-lucide="crosshair" class="w-3.5 h-3.5"></i>座標へ向かう<button type="button" class="sec-fold" title="この欄をたたむ／ひらく">▾</button></h3>
                 <div class="sec-body">
-                <p class="note">S³ の点は x² + y² + z² + w² = 1。x → y → z の順に決めると、あとの軸が動ける幅（スライダーの明るい帯）が狭まる。w は残りで決まるので、＋か−を選ぶだけ。数は 1→1、5→0.5、34→0.34、-5→−0.5 のように打てる（小数点なしは桁の数だけ 10 で割る。小数点を打ってもよい）。動ける幅をこえた数は端に丸める。白い点が目的地。</p>
+                <p class="note">S³ の点は x² + y² + z² + w² = 1。x・y・z・w のどれからでも、入れた順に ①②③ と固定され、あとに入れる軸ほど動ける幅（スライダーの明るい帯）が狭まる（例：w を 0.5 にすると、残りは 1 − 0.25 ＝ 0.75 を分け合う）。まだ入れていない軸は残りを等しく分け合う。3 つ入れたら残りの 1 つは自動で決まり、＋か−だけ選べる。数は 1→1、5→0.5、34→0.34、-5→−0.5（小数点なしは桁の数だけ 10 で割る。小数点を打ってもよい）。動ける幅をこえた数は端に丸める。白い点が目的地。</p>
                 <div class="gtrow"><b style="color:#ff5d6c">x</b><input type="range" class="gtr" data-a="x" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="x" inputmode="decimal"><span class="gtl" data-a="x"></span></div>
                 <div class="gtrow"><b style="color:#3ddc84">y</b><input type="range" class="gtr" data-a="y" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="y" inputmode="decimal"><span class="gtl" data-a="y"></span></div>
                 <div class="gtrow"><b style="color:#56a8ff">z</b><input type="range" class="gtr" data-a="z" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="z" inputmode="decimal"><span class="gtl" data-a="z"></span></div>
-                <div class="gtrow"><b style="color:#b07cff">w</b><input type="range" class="gtr" data-a="w" min="-1" max="1" step="0.01" title="w は残り（1 − x² − y² − z²）で決まる。スライダーは＋か−を選ぶだけ"><button class="btn" id="b-gtsign" title="w の＋と−を入れかえる（北の側か南の側か）">±</button><span class="gtl" data-a="w"></span></div>
+                <div class="gtrow"><b style="color:#b07cff">w</b><input type="range" class="gtr" data-a="w" min="-1" max="1" step="0.01"><input type="text" class="gtn" data-a="w" inputmode="decimal"><span class="gtl" data-a="w"></span></div>
                 <div class="row">
-                    <button class="btn" id="b-gthere" title="今いる場所の座標を入れる">今いる所を入れる</button>
+                    <button class="btn" id="b-gtreset" title="①②③ の固定を全部外す（4 つの軸が残りを等しく分け合う、0.5 ずつ）">やり直す</button>
+                    <button class="btn" id="b-gthere" title="今いる場所の座標を入れる（x→y→z の順に固定、w は自動）">今いる所を入れる</button>
                     <button class="btn" id="b-gtgo" title="目的地（白い点）の方を向いて、いちばん短い道（大円）で向かう。キーで歩くと止まる">➜ 向かう</button>
                     <button class="btn" id="b-gtstop" title="向かうのをやめる">止める</button>
                 </div>
@@ -636,7 +637,7 @@ function slerp(A, B, t) { return nrm(add(scl(A, 1 - t), B, t)); }
 // 3. 状態・歩く人
 // ---------------------------------------------------------------------
 const S = { az: 30, el: 0, spd: 0.6, walk: false, roam: false, roamK: 1, spiral: false, turns: 5, grav: false, gStr: 1, planet: true, planetR: 0.35, gDamp: 0, tilt: 0.6, prec: 15, hopf: false, hopfPlain: false, hopfD: 0.5, hy: 0, hp: 0, spin: false, spinRate: 6, spinTilt: 23.4, spinAz: 0, dyson: false, outer: 1.0, solar: false, solarSpd: 1, para: false, paraD: 0.3, paraLead: 0.4, ring: false, ringView: false, ringAxis: 'z', ringStep: 10, foot: true, eq: true, circ: false, room: false, lite: true, self: true, wA: true, wB: true, wC: true, axes: true,
-    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', gt: { x: 0.5, y: 0.5, z: 0.5, ws: 1 }, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
+    mk: 'ball', bgMesh: false, passes: 4, wArrow: true, bendAhead: 0.4, heading: true, shFocus: false, shFocusR: 0.9, shLight: false, shOnly: true, autoQ: true, mapW: 0.4, fov: 70, lens: 'normal', shell: false, shellSolid: false, shellBare: false, rot4: false, rot4Plane: 'yw', rot4Spd: 20, rot4Others: true, grand: false, dustN: 2000, trail: true, trailW: 1, fillMode: 'half', poles: true, shCol: 'rainbow', shAxes: 'xyzw', turnStyle: 'smooth', ctOrder: 'NEATSWKG', gt: { v: { x: 0.5, y: 0.5, z: 0.5, w: 0.5 }, ord: '', sg: { x: 1, y: 1, z: 1, w: 1 } }, wAmode: 's2', m2: { view: 'self', range: 'all', xw: 0, yw: 90, zw: 0 }, gridSpin: false, gridSpinRate: 4, gridTilt: 0, gridAz: 0, shellN: 11, shellOp: 0.22, shellBack: 0.6, shellLum: 0.65, shellRange: 1.0, picLine: 0.3, maxd: 5.9, fog: 0.22, fade: 0.25, q: 0.7, follow: false, xw: 0, yw: 90, zw: 0, D: 2.5, cut: -1 };
 if (window.innerWidth < 760) S.wA = false;   // 狭い画面（スマホ）では、最初は S³ の地図と中の景色の 2 つだけ
 // スクリーンセーバー（s3walk.html?saver、?saver&sec=60 で 1 場面の秒数、&scene=2 でその場面だけ）：保存は読まず・書かず、同期もしない（ふだんの設定と別に動く）
 const SAVER = (() => { try { const q = new URLSearchParams(location.search); if (!q.has('saver')) return null; return { sec: Math.max(10, +q.get('sec') || 50), only: q.has('scene') ? +q.get('scene') : null }; } catch (e) { return null; } })();
@@ -985,17 +986,29 @@ function fqStep(ds) {
     }
     fillGo(add(scl(FQ.P, Math.cos(FQ.s)), FQ.b, Math.sin(FQ.s)), add(scl(FQ.P2, Math.cos(FQ.s)), FQ.b2, Math.sin(FQ.s)));
 }
-// ---- 座標へ向かう：x → y → z の順に決め、w は残りで決まる（＋か−）。目的地へは、まずその方を向き、いちばん短い大円で進む
+// ---- 座標へ向かう：x・y・z・w のどれからでも、入れた順に ①②③ と固定。あとに入れる軸ほど動ける幅（残りの半径）が狭まる。
+//   まだ入れていない軸は、残りを等しく分け合う。3 つ入れたら、残りの 1 つは自動で決まる（＋か−だけ選べる）。目的地へは、まずその方を向き、いちばん短い大円で
 const GOTO = { on: false };
-function gtFix() {   // 順に絞り込む：あとの軸を、動ける幅（残りの半径）に丸める
+const GT_AX = 'xyzw';
+function gtFix() {
     const g = S.gt, cl = (v, r) => Math.max(-r, Math.min(r, v));
-    g.x = cl(+g.x || 0, 1); const ry = Math.sqrt(Math.max(0, 1 - g.x * g.x));
-    g.y = cl(+g.y || 0, ry); const rz = Math.sqrt(Math.max(0, 1 - g.x * g.x - g.y * g.y));
-    g.z = cl(+g.z || 0, rz); const rw = Math.sqrt(Math.max(0, 1 - g.x * g.x - g.y * g.y - g.z * g.z));
-    g.ws = g.ws < 0 ? -1 : 1;
-    return { x: 1, y: ry, z: rz, w: rw };
+    if (!g.v) { const o = g; S.gt = { v: { x: +o.x || 0, y: +o.y || 0, z: +o.z || 0, w: 0 }, ord: 'xyz', sg: { x: 1, y: 1, z: 1, w: o.ws < 0 ? -1 : 1 } }; return gtFix(); }   // 前の保存（x・y・z と w の向き）を読みかえる
+    g.sg = g.sg || { x: 1, y: 1, z: 1, w: 1 };
+    const ord = [...(g.ord || '')].filter((c, k, a) => GT_AX.includes(c) && a.indexOf(c) === k).slice(0, 3); g.ord = ord.join('');
+    let rem = 1; const lim = {}, idx = {};
+    ord.forEach((a, k) => { const r = Math.sqrt(Math.max(0, rem)); lim[a] = r; idx[a] = k + 1; g.v[a] = cl(+g.v[a] || 0, r); rem -= g.v[a] * g.v[a]; });
+    const free = [...GT_AX].filter(a => !ord.includes(a)), rr = Math.sqrt(Math.max(0, rem));
+    free.forEach(a => { lim[a] = rr; g.v[a] = (g.sg[a] < 0 ? -1 : 1) * rr / Math.sqrt(free.length); });   // まだ入れていない軸は、残りを等しく分け合う
+    return { lim, idx, free, rr };
 }
-const gtTarget = () => { const r = gtFix(), g = S.gt; return nrm([g.x, g.y, g.z, g.ws * r.w + (r.w < 1e-9 && Math.hypot(g.x, g.y, g.z) < 1e-9 ? g.ws : 0)]); };
+const gtTarget = () => { gtFix(); const v = S.gt.v; return nrm([v.x, v.y, v.z, v.w]); };
+function gtSet(a, val) {   // 軸 a に val を入れる。まだ入れていない軸なら固定の番号を付ける。最後の 1 つは＋か−だけ
+    const g = S.gt, f = gtFix();
+    if (g.ord.includes(a)) g.v[a] = val;
+    else if (f.free.length === 1) g.sg[a] = val < 0 ? -1 : 1;
+    else { g.v[a] = val; g.sg[a] = val < 0 ? -1 : 1; g.ord += a; }
+    gtFix();
+}
 function gtParse(str, r) {   // 1→1、5→0.5、34→0.34、-5→−0.5（小数点なしは桁の数だけ 10 で割る）。小数点があればそのまま。動ける幅 r に丸める
     let t = String(str).trim().replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[．。]/g, '.').replace(/[−ー－]/g, '-').replace(/＋/g, '+');
     let v;
@@ -1005,18 +1018,19 @@ function gtParse(str, r) {   // 1→1、5→0.5、34→0.34、-5→−0.5（小�
     return Math.max(-r, Math.min(r, v));
 }
 function gtRender() {
-    const r = gtFix(), g = S.gt, wv = g.ws * r.w;
+    const f = gtFix(), v = S.gt.v, last = f.free.length === 1;
     document.querySelectorAll('.gtr').forEach(el => {
-        const a = el.dataset.a, lim = r[a], v = a === 'w' ? wv : g[a];
-        if (document.activeElement !== el) el.value = v;
-        const lo = (1 - lim) * 50, hi = (1 + lim) * 50;   // 明るい帯＝動ける幅
-        el.style.background = a === 'w' ? `linear-gradient(to right, #334155 ${lo - 1}%, #b07cff ${lo - 1}%, #b07cff ${lo + 1}%, #334155 ${lo + 1}%, #334155 ${hi - 1}%, #b07cff ${hi - 1}%, #b07cff ${hi + 1}%, #334155 ${hi + 1}%)`
-            : `linear-gradient(to right, #1e293b ${lo}%, #38bdf8 ${lo}%, #38bdf8 ${hi}%, #1e293b ${hi}%)`;
+        const a = el.dataset.a, lim = f.lim[a], auto = last && f.free[0] === a;
+        if (document.activeElement !== el) el.value = v[a];
+        const lo = (1 - lim) * 50, hi = (1 + lim) * 50;   // 明るい帯＝動ける幅（自動で決まる軸は、＋と−の 2 か所だけ）
+        el.style.background = auto ? `linear-gradient(to right, #1e293b ${lo - 1}%, #b07cff ${lo - 1}%, #b07cff ${lo + 1}%, #1e293b ${lo + 1}%, #1e293b ${hi - 1}%, #b07cff ${hi - 1}%, #b07cff ${hi + 1}%, #1e293b ${hi + 1}%)`
+            : `linear-gradient(to right, #1e293b ${lo}%, ${f.idx[a] ? '#38bdf8' : '#475569'} ${lo}%, ${f.idx[a] ? '#38bdf8' : '#475569'} ${hi}%, #1e293b ${hi}%)`;
     });
-    document.querySelectorAll('.gtn').forEach(el => { if (document.activeElement !== el) el.value = (+g[el.dataset.a]).toFixed(2); });
-    document.querySelectorAll('.gtl').forEach(el => { const a = el.dataset.a; el.textContent = a === 'w' ? `${wv >= 0 ? '+' : '−'}${r.w.toFixed(2)}` : `±${r[a].toFixed(2)} まで`; });
+    document.querySelectorAll('.gtn').forEach(el => { if (document.activeElement !== el) el.value = (+v[el.dataset.a]).toFixed(2); });
+    document.querySelectorAll('.gtl').forEach(el => { const a = el.dataset.a;
+        el.textContent = f.idx[a] ? `${CT_NUM[f.idx[a] - 1]} ±${f.lim[a].toFixed(2)}` : last ? `自動 ${v[a] >= 0 ? '+' : '−'}${f.rr.toFixed(2)}` : `分け合う`; });
     const T = gtTarget(), d = Math.acos(Math.max(-1, Math.min(1, dot(W.p, T)))), dn = Math.acos(Math.max(-1, Math.min(1, T[3])));
-    const info = $('gtInfo'); if (info) info.textContent = `目的地 (${T.map(v => v.toFixed(2)).join(', ')})　ここから ${d.toFixed(2)}　北極から ${dn.toFixed(2)}` + (GOTO.on ? '　向かっています' : '');
+    const info = $('gtInfo'); if (info) info.textContent = `目的地 (${T.map(x => x.toFixed(2)).join(', ')})　ここから ${d.toFixed(2)}　北極から ${dn.toFixed(2)}` + (GOTO.on ? '　向かっています' : '');
 }
 function gotoStep(sp, dt) {   // まず目的地の方を向き（1 秒に 180°）、向いたら大円に沿って進む
     const T = gtTarget(), c = Math.max(-1, Math.min(1, dot(W.p, T))), dist = Math.acos(c);
@@ -2387,11 +2401,11 @@ document.querySelectorAll('.btn.shax').forEach(b => b.addEventListener('click', 
 document.querySelectorAll('.btn.tsel').forEach(b => b.addEventListener('click', () => { S.turnStyle = b.dataset.ts; FILL.plan = null; FQ.plan = null; save(); refreshUI(); }));   // 次のターンから
 document.querySelectorAll('.btn.ctp').forEach(b => b.addEventListener('click', () => { const k = b.dataset.k, o = S.ctOrder || ''; S.ctOrder = o.includes(k) ? o.replace(k, '') : o + k; save(); refreshUI(); if (S.fill && S.fillMode === 'ctour') fillStart(); }));
 $('b-ctclear').addEventListener('click', () => { S.ctOrder = ''; save(); refreshUI(); if (S.fill && S.fillMode === 'ctour') { S.fill = false; refreshUI(); } });
-document.querySelectorAll('.gtr').forEach(el => el.addEventListener('input', () => { const a = el.dataset.a; if (a === 'w') S.gt.ws = +el.value < 0 ? -1 : 1; else S.gt[a] = +el.value; gtFix(); save(); gtRender(); req(3); }));
-document.querySelectorAll('.gtn').forEach(el => { const go = () => { const a = el.dataset.a, r = gtFix(), v = gtParse(el.value, r[a]); if (v !== null) S.gt[a] = v; gtFix(); save(); el.blur(); gtRender(); req(3); };
+document.querySelectorAll('.gtr').forEach(el => el.addEventListener('input', () => { gtSet(el.dataset.a, +el.value); save(); gtRender(); req(3); }));
+document.querySelectorAll('.gtn').forEach(el => { const go = () => { const a = el.dataset.a, f = gtFix(), v = gtParse(el.value, f.idx[a] ? f.lim[a] : f.free.length === 1 ? 1 : f.rr); if (v !== null) gtSet(a, v); save(); el.blur(); gtRender(); req(3); };
     el.addEventListener('change', go); el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); go(); } }); });
-$('b-gtsign').addEventListener('click', () => { S.gt.ws = -S.gt.ws; save(); gtRender(); req(3); });
-$('b-gthere').addEventListener('click', () => { Object.assign(S.gt, { x: W.p[0], y: W.p[1], z: W.p[2], ws: W.p[3] < 0 ? -1 : 1 }); save(); gtRender(); req(3); });
+$('b-gtreset').addEventListener('click', () => { S.gt.ord = ''; S.gt.sg = { x: 1, y: 1, z: 1, w: 1 }; gtFix(); save(); gtRender(); req(3); });
+$('b-gthere').addEventListener('click', () => { S.gt = { v: { x: W.p[0], y: W.p[1], z: W.p[2], w: W.p[3] }, ord: 'xyz', sg: { x: 1, y: 1, z: 1, w: W.p[3] < 0 ? -1 : 1 } }; gtFix(); save(); gtRender(); req(3); });
 $('b-gtgo').addEventListener('click', () => { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = S.fill = false; TOUR.i = -1; GOTO.on = true; say('目的地へ：まずその方を向いて、いちばん短い道で'); refreshUI(); gtRender(); req(3); });
 $('b-gtstop').addEventListener('click', () => { GOTO.on = false; refreshUI(); gtRender(); });
 const FILL_SAY = { full: 'ターン（全周 360°）：北極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）', half: 'ターン（半周 180°）：北極→南極→北極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ', q: 'ターン（90°）：90° 進むごとに、まだ通っていない方へターン。極には戻らない', tour: '極めぐり：北極→東→アナ→天→南極→西→カタ→地→北極。となりの極だけをたどる、いちばん短い 1 周（4π）', ctour: '選んで巡る：選んだ極を ①から順に巡って、①に戻る' };
