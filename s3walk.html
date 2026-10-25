@@ -250,6 +250,7 @@
                     <button class="btn fsel" data-fs="full" title="全周 360°：北極を出て、南極をまっすぐ通り抜け、大円を 1 周して北極に戻ったらターン。左の S² では 0° → 90° → 45° → 135° → … とすきまを半分ずつ埋める">全周 360°</button>
                     <button class="btn fsel" data-fs="half" title="半周 180°：北極→南極、南極→北極と経線（半円）を進むごとに、両方の極でターン。向きは全部（S² は 0〜360°）から、すきまが大きく前の経線に直角に近いものを選ぶ。南極では北極と東西逆に曲がる（S³ では曲がる回転の軸を前とそろえる）">半周 180°</button>
                     <button class="btn fsel" data-fs="q" title="90°：大円を 90°（4 分の 1 周）進むごとにターン。極には戻らず、ターンする点から、その先の 90° の道が今までの軌跡からいちばん離れている向き（まだ通っていない方）へ曲がって、さまよいながら広がる。S² と S³ はそれぞれ自分の軌跡で選ぶ">90°</button>
+                    <button class="btn fsel" data-fs="tour" title="極めぐり：北極から、となり合う極（90° はなれている）だけをたどって 8 つの極を全部回り、北極に戻る（北極→東→アナ→天→南極→西→カタ→地→北極）。90° × 8 本＝4π がいちばん短い 1 周。毎回 90° の双曲線ターンで、ずっとくり返す。S² の窓は 6 つの極を同じように回る">極めぐり</button>
                 </div>
                 <div class="row">
                     <button class="btn" id="b-ring" title="北極と南極を通る輪（経線）を歩く。1 周ごとに輪が軸のまわりに少しずつ回って、だんだん球面をおおう。地図は北極が上・南極が下の向きになる">🌐 回る輪</button>
@@ -822,7 +823,7 @@ function fillPlan(nx) {   // nx 本目へのターンを用意する
 }
 const expN = (x, sg = 1) => { const r = Math.hypot(...x); if (r < 1e-12) return x.length === 3 ? [0, 0, 0, sg] : [0, 0, sg]; const s = Math.sin(r) / r; return [...x.map(v => v * s), sg * Math.cos(r)]; };   // sg＝−1 なら南極のまわり
 function fillStart() {
-    if (S.fillMode === 'q') { fqStart(); return; }
+    if (S.fillMode === 'q' || S.fillMode === 'tour') { fqStart(); return; }
     FILL.half = S.fillMode === 'half';
     if (!FILL.dirs.length) fillBuild(300);
     if (FILL.half && !FILL.dirsH.length) fillBuildHalf(300);
@@ -870,10 +871,20 @@ function fqChoose(Q, a, hist, dim) {   // まだ通っていない方：候補�
     }
     return Object.assign(best, { E, nov: bv / 6 });
 }
+// 極めぐり（S.fillMode === 'tour'）：北極から、となり合う極（90° はなれている）だけをたどって 8 つ全部を回り、北極に戻る。
+//   どの極へも 90° より近くは行けないので、90° × 8 本 ＝ 4π がいちばん短い 1 周。毎回 90° の双曲線ターン。S² は 6 つの極を同じように回る
+const FQ_R3 = [[0, 0, 0, 1], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0]];   // 北・東・アナ・天・南・西・カタ・地
+const FQ_R2 = [[0, 0, 1], [1, 0, 0], [0, 1, 0], [0, 0, -1], [-1, 0, 0], [0, -1, 0]];   // 北・東・アナ・南・西・カタ
+function fqToward(Q, a, T) {   // 極 Q から、となりの極 T へ（Q と T は直交なので、出る向きは T そのもの）
+    const E = fqBasis(Q, a), u = E.map(e => dot(T, e)), th = Math.acos(Math.max(-1, Math.min(1, u[0]))) / d2r;
+    return { u, c: T.slice(), th, E, nov: 0 };
+}
+const fqPoleName = p => { const m = FIXED.find(f => (p.length === 4 ? f.p : f.p2) && dot(p.length === 4 ? f.p : f.p2, p) > 0.999); return m ? poleName(m) : '?'; };
 function fqPlan() {   // 今の 90° の道の終わりでのターンを決める（道をほとんど通った所で。今の道も軌跡に入っているように）
     const Q = add(scl(FQ.P, Math.cos(FQ_LEN)), FQ.b, Math.sin(FQ_LEN)), a = nrm(add(scl(FQ.P, -Math.sin(FQ_LEN)), FQ.b, Math.cos(FQ_LEN)));
     const Q2 = add(scl(FQ.P2, Math.cos(FQ_LEN)), FQ.b2, Math.sin(FQ_LEN)), a2 = nrm(add(scl(FQ.P2, -Math.sin(FQ_LEN)), FQ.b2, Math.cos(FQ_LEN)));
-    const c3 = fqChoose(Q, a, W.trail, 3), c2 = fqChoose(Q2, a2, W2.trail, 2);
+    const c3 = S.fillMode === 'tour' ? fqToward(Q, a, FQ_R3[(FQ.leg + 2) % FQ_R3.length]) : fqChoose(Q, a, W.trail, 3);
+    const c2 = S.fillMode === 'tour' ? fqToward(Q2, a2, FQ_R2[(FQ.leg + 2) % FQ_R2.length]) : fqChoose(Q2, a2, W2.trail, 2);
     const f3 = [1, 0, 0], f2 = [1, 0], L = Math.min(0.75, Math.max(hypL(f3, c3.u), hypL(f2, c2.u)));
     FQ.plan = { Q, Q2, c3, c2, L, h3: hypTable(f3, c3.u, L, 240), h2: hypTable(f2, c2.u, L, 240) };
 }
@@ -894,13 +905,14 @@ function fqStep(ds) {
         FQ.s = FQ_LEN - FQ.plan.L;
         fillGo(add(scl(FQ.P, Math.cos(FQ.s)), FQ.b, Math.sin(FQ.s)), add(scl(FQ.P2, Math.cos(FQ.s)), FQ.b2, Math.sin(FQ.s)));
         FQ.turn = Object.assign({ f: 0 }, FQ.plan);
-        say(`${FQ.leg + 2} 本目へ：${FQ.plan.c3.th.toFixed(0)}° ターン（S² では ${FQ.plan.c2.th.toFixed(0)}°）。まだ通っていない方へ（その先の道と今までの軌跡の間 平均 ${(FQ.plan.c3.nov / d2r).toFixed(0)}°）`);
+        if (S.fillMode === 'tour') say(`${fqPoleName(FQ.plan.Q)}で ${FQ.plan.c3.th.toFixed(0)}° ターン → ${fqPoleName(FQ.plan.c3.c)}へ（S² では ${fqPoleName(FQ.plan.Q2)} → ${fqPoleName(FQ.plan.c2.c)}）`);
+        else say(`${FQ.leg + 2} 本目へ：${FQ.plan.c3.th.toFixed(0)}° ターン（S² では ${FQ.plan.c2.th.toFixed(0)}°）。まだ通っていない方へ（その先の道と今までの軌跡の間 平均 ${(FQ.plan.c3.nov / d2r).toFixed(0)}°）`);
         return;
     }
     fillGo(add(scl(FQ.P, Math.cos(FQ.s)), FQ.b, Math.sin(FQ.s)), add(scl(FQ.P2, Math.cos(FQ.s)), FQ.b2, Math.sin(FQ.s)));
 }
 function fillStep(ds) {
-    if (S.fillMode === 'q') { fqStep(ds); return; }
+    if (S.fillMode === 'q' || S.fillMode === 'tour') { fqStep(ds); return; }
     if (FILL.turn) {   // ターン中：双曲線の上を進む（S³ の長さで進み具合を決め、S² も同じ割合）
         const tu = FILL.turn; tu.f = Math.min(1, tu.f + ds / Math.max(1e-6, tu.h3.len));
         fillGo(expN(hypAt(tu.h3, tu.f), tu.psg), expN(hypAt(tu.h2, tu.f), tu.psg));
@@ -1350,22 +1362,42 @@ function poleLabels() {
         box.appendChild(e); POLE_EL.push(e);
     });
     if (!(polePts() && S.wC)) { POLE_EL.forEach(e => { e.style.display = 'none'; }); return; }
-    const F = viewFrame(), w = box.clientWidth, h = box.clientHeight;
+    const F = viewFrame(), w = box.clientWidth, h = box.clientHeight, list = [];
     POLES.forEach((m, i) => {
         const e = POLE_EL[i], c = Math.max(-1, Math.min(1, dot(W.p, m.p))), t = Math.acos(c);
         if (S.solar && m.label === 'N') { e.style.display = 'none'; return; }   // 太陽系の時、北極は太陽
         const dv = add(m.p, W.p, -c), l = Math.hypot(...dv);
         const sp = l > 1e-6 && t <= S.maxd ? poleScreen(dot(dv, F.R) / l, dot(dv, F.U) / l, dot(dv, F.L) / l, w, h) : null;
         if (!sp || Math.abs(sp[0]) > 1.02 || Math.abs(sp[1]) > 1.02) { e.style.display = 'none'; return; }
-        const x = (0.5 + 0.5 * sp[0]) * w, b = e.lastChild, right = x > w - 80;   // 右のはしでは、名前を点の左に
-        e.style.display = 'block'; e.style.left = x.toFixed(1) + 'px'; e.style.top = ((0.5 - 0.5 * sp[1]) * h).toFixed(1) + 'px';
-        b.style.left = right ? 'auto' : '10px'; b.style.right = right ? '10px' : 'auto';
-        b.textContent = poleName(m) + ' ' + t.toFixed(2);
+        const x = (0.5 + 0.5 * sp[0]) * w, y = (0.5 - 0.5 * sp[1]) * h;
+        e.style.display = 'block'; e.style.left = x.toFixed(1) + 'px'; e.style.top = y.toFixed(1) + 'px';
+        e.lastChild.textContent = poleName(m) + ' ' + t.toFixed(2);
+        list.push({ e, x, y, d: t, n: m.label === 'N' });
     });
+    placeDots(list, w, h);
 }
 // ---- 8 つの極（地図）：地図の玉の代わりに、画面の上の平らな点と名前（遠近で大きさが変わったりゆがんだりしない）。球の奥の側にある極は薄く
 //   key＝どの窓の点か（'B'＝S³ の地図、'A'＝左上の S²、'A2'＝左上の 2 枚目の地図）。その窓を描いたカメラで、玉の場所を画面に写す
 const MAPDOT = {}, _mdv = new THREE.Vector3(), _mdc = new THREE.Vector3();
+// 点と名前の重なりをさばく：list の各 { e（点＋名前の箱）, x, y（画面の位置）, d（奥行き。小さいほど手前）, n（北極か） }。
+//   点が重なる時は手前の点だけ。名前は北極を先に、あとは手前から順に、点の右・左・上・下で空いている所へ（どこも空いていなければ隠す）
+function placeDots(list, w, h) {
+    list.sort((a, b) => a.d - b.d);
+    const dots = [], labs = [];
+    list.forEach((it, k) => { it.e.style.zIndex = String(100 - k); const hit = dots.some(q => Math.hypot(q.x - it.x, q.y - it.y) < 9); it.e.firstChild.style.display = hit ? 'none' : ''; if (!hit) dots.push(it); });
+    list.slice().sort((a, b) => (b.n ? 1 : 0) - (a.n ? 1 : 0) || a.d - b.d).forEach(it => {
+        const b = it.e.lastChild; b.style.display = ''; b.style.right = 'auto';
+        const bw = b.offsetWidth || 40, bh = 14;
+        for (const [dx, dy] of [[8, -8], [-8 - bw, -8], [-bw / 2, -23], [-bw / 2, 8]]) {
+            const r = { x: it.x + dx, y: it.y + dy, w: bw, h: bh };
+            if (r.x < 0 || r.x + bw > w || r.y < 0 || r.y + bh > h) continue;
+            if (labs.some(q => !(r.x + r.w < q.x || q.x + q.w < r.x || r.y + r.h < q.y || q.y + q.h < r.y))) continue;
+            if (dots.some(q => q !== it && q.x > r.x - 4 && q.x < r.x + r.w + 4 && q.y > r.y - 4 && q.y < r.y + r.h + 4)) continue;
+            b.style.left = dx.toFixed(1) + 'px'; b.style.top = dy.toFixed(1) + 'px'; labs.push(r); return;
+        }
+        b.style.display = 'none';
+    });
+}
 function mapDots(key, host, cam, root, objs) {
     let D = MAPDOT[key];
     if (!D) { const box = document.createElement('div'); box.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden'; host.appendChild(box); D = MAPDOT[key] = { box, els: [] }; }
@@ -1378,7 +1410,7 @@ function mapDots(key, host, cam, root, objs) {
     const on = polePts(), w = host.clientWidth, h = host.clientHeight;
     D.box.style.display = on ? '' : 'none'; if (!on) return;
     cam.updateMatrixWorld(); root.updateMatrixWorld();
-    const c0 = root.getWorldPosition(_mdc).applyMatrix4(cam.matrixWorldInverse).z;   // 球の真ん中の奥行き
+    const c0 = root.getWorldPosition(_mdc).applyMatrix4(cam.matrixWorldInverse).z, list = [];   // c0＝球の真ん中の奥行き
     objs.forEach((o, i) => {
         const e = D.els[i], m = o.m || o.b.userData.m;
         if (!o.okPt || (S.solar && m.label === 'N')) { e.style.display = 'none'; return; }
@@ -1387,8 +1419,9 @@ function mapDots(key, host, cam, root, objs) {
         _mdv.project(cam); const x = (_mdv.x * 0.5 + 0.5) * w, y = (-_mdv.y * 0.5 + 0.5) * h;
         if (x < -10 || x > w + 10 || y < -10 || y > h + 10) { e.style.display = 'none'; return; }
         e.style.display = 'block'; e.style.left = x.toFixed(1) + 'px'; e.style.top = y.toFixed(1) + 'px'; e.style.opacity = z < c0 ? '0.45' : '1';   // 奥の側は薄く
-        const b = e.lastChild, right = x > w - 60; b.style.left = right ? 'auto' : '8px'; b.style.right = right ? '8px' : 'auto';
+        list.push({ e, x, y, d: -z, n: m.label === 'N' });
     });
+    placeDots(list, w, h);
 }
 // ---- 2 枚目の地図（左上の窓）：1 枚目（VB）と同じ中身を、2 枚目の設定（見方・範囲・4次元の向き）に入れかえてもう 1 回描き、左上の窓の画面へ写す ----
 //   中身（殻・目印・太陽系…）を二重に持たないので、1 枚目にあるものは全部 2 枚目にも出る。カメラ（ドラッグで回す）は 2 枚目だけのもの
@@ -2099,7 +2132,7 @@ $('b-para').addEventListener('click', () => { if (S.para) { S.roam = S.spiral = 
 $('s-parad').addEventListener('change', () => { if (S.para) paraStart(); });
 $('b-hopf').addEventListener('click', () => { if (S.hopf) { S.walk = S.roam = S.spiral = S.grav = S.fill = false; hopfStart(); say(S.hopfPlain ? '仲間と並んで出発（ふつうの平行）' : '仲間と並んでまっすぐ出発（ホップの円）'); } refreshUI(); });
 $('b-hopfplain').addEventListener('click', () => { if (S.hopf) hopfStart(); });
-const FILL_SAY = { full: 'ターン（全周 360°）：北極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）', half: 'ターン（半周 180°）：北極→南極→北極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ', q: 'ターン（90°）：90° 進むごとに、まだ通っていない方へターン。極には戻らない' };
+const FILL_SAY = { full: 'ターン（全周 360°）：北極から大円で 1 周。戻ったら、いちばん大きいすきまの向きへ（S² では 90°、45°、135° …）', half: 'ターン（半周 180°）：北極→南極→北極と経線ずつ。両方の極を双曲線でよけて、すきまの大きい向きへ', q: 'ターン（90°）：90° 進むごとに、まだ通っていない方へターン。極には戻らない', tour: '極めぐり：北極→東→アナ→天→南極→西→カタ→地→北極。となりの極だけをたどる、いちばん短い 1 周（4π）' };
 document.querySelectorAll('.btn.fsel').forEach(b => b.addEventListener('click', () => { S.fillMode = b.dataset.fs; save(); if (S.fill) { fillStart(); say(FILL_SAY[S.fillMode]); } refreshUI(); }));
 $('b-fill').addEventListener('click', () => { if (S.fill) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.ring = S.para = false; TOUR.i = -1; fillStart(); say(FILL_SAY[S.fillMode] || FILL_SAY.half); } refreshUI(); });
 $('b-ring').addEventListener('click', () => { if (S.ring) { S.walk = S.roam = S.spiral = S.grav = S.hopf = S.fill = false; ringStart(); say(S.ringAxis === 'w' ? '🐱 と 🐶 を通る輪を歩く（赤道の球面の上）。1 周ごとに輪が少しずつ回る' : '北極と南極を通る輪を歩く。1 周ごとに輪が少しずつ回る'); } else S.ringView = false; refreshUI(); });
@@ -2215,7 +2248,8 @@ function updateHUD() {
         $('hudC').innerHTML += `<br><span style="color:#7dd3fc">平行な仲間：進んだ <b>${sP.toFixed(2)}</b>　🐧 の道までの間 <b>${dR.toFixed(3)}</b>（平らなら ${PARA.d0.toFixed(3)} のまま）　🐧〜🐬 の道の間 <b>${dB.toFixed(3)}</b></span>` + paraGraph(); }
     if (S.rot4) $('hudC').innerHTML += `<br><span style="color:${ROT4.near ? '#fde047' : '#9be7ff'}">🔄 4次元の回転 ${S.rot4Plane.toUpperCase().replace('W', '-W')} ${Math.round(S[S.rot4Plane])}°：地図の上で N と S の間 <b>${(ROT4.dist / RS).toFixed(2)}</b>（4次元では いつも π）${ROT4.near ? '　← 重なっている！' : ''}</span>`;
     if (S.spin) $('hudC').innerHTML += `<br><span style="color:#f9a8d4">🌀 自転 <b>${S.spinRate.toFixed(1)}</b> 回/分　いま ${Math.round(SPIN.ang / d2r)}°　地軸の傾き ${S.spinTilt.toFixed(1)}°・向き ${Math.round(S.spinAz)}°</span>`;
-    if (S.fill && S.fillMode === 'q') $('hudC').innerHTML += `<br>🧶 ターン（90°） ${FQ.leg + 1} 本目　この道の ${(FQ.s / d2r).toFixed(0)}° / 90°`;
+    if (S.fill && S.fillMode === 'tour') $('hudC').innerHTML += `<br>🧶 極めぐり ${FQ.leg % 8 + 1} / 8 本目　${fqPoleName(FQ.P)} → ${fqPoleName(add(scl(FQ.P, 0), FQ.b, 1))}　${(FQ.s / d2r).toFixed(0)}° / 90°`;
+    else if (S.fill && S.fillMode === 'q') $('hudC').innerHTML += `<br>🧶 ターン（90°） ${FQ.leg + 1} 本目　この道の ${(FQ.s / d2r).toFixed(0)}° / 90°`;
     else if (S.fill) { const L = Math.floor(FILL.T / fillPer()); $('hudC').innerHTML += `<br>🧶 ターン（${FILL.half ? '半周 180°' : '全周 360°'}） ${L + 1} 本目　すきま ${fillGap(L).toFixed(1)}°（S² の向き ${fillPhDeg(L).toFixed(1)}°）`; }
     if (S.ring) $('hudC').innerHTML += `<br>🌐 ${Math.floor(RING.T / TAU) + 1} 周目　輪の向き ${Math.round(((S.ringStep * RING.T / TAU) % 360))}°（軸 ${S.ringAxis === 'all' ? '全部' : S.ringAxis}）`;
     if (S.hopf) { const h = hopfInfo(); $('hudC').innerHTML += `<br>🔗 ${(HOPF.t / TAU).toFixed(2)} 周　🐧 までの距離 <b>${h.dist.toFixed(3)}</b>　🐧 のまわりの角 <b>${Math.round(h.ang)}°</b>`; }
