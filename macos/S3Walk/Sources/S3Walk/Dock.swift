@@ -573,8 +573,16 @@ struct PanelContent: View {
                 note(r.edrHead > 1.01 ? String(format: "この画面の明るさの余白：%.1f 倍", r.edrHead) : "この画面は EDR なし（にじみだけ）。HDR の画面や MacBook Pro の画面なら明るく光る")
             case .map:
                 Picker("置き方", selection: Binding(get: { model.mapMode }, set: { model.setMap($0) })) {
-                    Text("隠す").tag(MapMode.hidden); Text("並べる").tag(MapMode.docked); Text("浮かせる").tag(MapMode.floating)
+                    Text("隠す").tag(MapMode.hidden); Text("並べる").tag(MapMode.docked)
+                    #if os(macOS)
+                    Text("浮かせる").tag(MapMode.floating)
+                    #endif
+                    Text("すみに").tag(MapMode.corner)
                 }.pickerStyle(.segmented)
+                if model.mapMode == .corner {
+                    Picker("すみ", selection: model.b(\.mapCorner)) { Text("左上").tag(0); Text("右上").tag(1); Text("左下").tag(3); Text("右下").tag(2) }.pickerStyle(.segmented)
+                    row("すみの地図の大きさ", \.mapMini, 0.18, 0.6)
+                }
                 if model.mapMode == .docked {
                     Picker("並べる側", selection: model.b(\.mapLeft)) { Text("景色の左").tag(true); Text("景色の右").tag(false) }.pickerStyle(.segmented)
                 }

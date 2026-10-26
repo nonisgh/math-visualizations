@@ -928,6 +928,28 @@ enum Verify {
         }
     }
 
+    /// あなたの設定・今いる所から、今の進む向きへまっすぐ歩きながら、何枚か描く（走り続けた時の見え方を確かめる）
+    static func walkPNG(_ dir: String) {
+        guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev), let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) else { return }
+        var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); r.set = us
+        func v4(_ k: String) -> V4? { (d[k] as? [Double]).flatMap { $0.count == 4 ? V4($0[0], $0[1], $0[2], $0[3]) : nil } }
+        if let p = v4("p"), let rr = v4("r"), let u = v4("u"), let f = v4("f") { r.cam.w = Walker(p: p, r: rr, u: u, f: f); orthoFrame(&r.cam.w) }
+        r.cam.az = d["az"] as? Double ?? 30; r.cam.el = d["el"] as? Double ?? 0
+        let w = 800, h = 500, step = 0.35
+        for k in 0..<9 {
+            let px = r.renderOffscreen(width: w, height: h)
+            var b = [UInt8](repeating: 255, count: w * h * 4)
+            for i in 0..<(w * h) { for c in 0..<3 { b[i * 4 + c] = UInt8(max(0, min(255, px[i * 4 + c] * 255 + 0.5))) } }
+            let ctx = CGContext(data: &b, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+            let url = URL(fileURLWithPath: dir).appendingPathComponent("walk\(k).png")
+            let dd = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
+            CGImageDestinationAddImage(dd, ctx.makeImage()!, nil); CGImageDestinationFinalize(dd)
+            let p = r.cam.w.p
+            print(String(format: "%@　歩いた %.2f　アナ極から %.2f　p = (%.2f, %.2f, %.2f, %.2f)", url.path, Double(k) * step, acos(max(-1, min(1, p.w))), p.x, p.y, p.z, p.w))
+            r.cam.walk([0, 0, 1], step)
+        }
+    }
+
     // ---- 計測：画面の外に描いて GPU の時間 ----
     static func bench(only4K: Bool = false) {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }

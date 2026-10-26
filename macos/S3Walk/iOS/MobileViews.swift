@@ -19,11 +19,15 @@ struct MobileRoot: View {
                     }
                     ZStack(alignment: .topTrailing) {
                         SceneBox(model: model)
-                        if model.mapMode == .floating || (!wide && model.mapMode == .docked) {
-                            let side = min(geo.size.width * (wide ? 0.26 : 0.46), 320)
-                            MapBox(model: model, slot: 0).frame(width: side, height: side)
-                                .clipShape(RoundedRectangle(cornerRadius: 14)).overlay(RoundedRectangle(cornerRadius: 14).stroke(Space.line))
-                                .padding(.top, 8).padding(.trailing, 8)
+                        // すみの小さな地図（細長い画面で「並べる」の時も、すみに）
+                        if model.mapMode == .corner || (!wide && model.mapMode == .docked) {
+                            CornerMap(corner: model.b(\.mapCorner), size: model.b(\.mapMini), home: { model.mapRenderer.home() }, dock: { model.setMap(.docked) }) {
+                                MapViewIOS(model: model, slot: 0)
+                            }
+                        }
+                        if model.showPad {
+                            VirtualPad(game: model.r.game) { model.showPad = false }.spaceControls()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     }
                     if wide && model.showPanel {
@@ -65,7 +69,7 @@ struct PanelColumn: View {
                         Button("Mac の見え方に") { model.loadMacLook() }.fixedSize()
                         Spacer()
                         Picker("地図", selection: Binding(get: { model.mapMode }, set: { model.setMap($0) })) {
-                            Text("地図なし").tag(MapMode.hidden); Text("並べる").tag(MapMode.docked); Text("浮かせる").tag(MapMode.floating)
+                            Text("地図なし").tag(MapMode.hidden); Text("並べる").tag(MapMode.docked); Text("すみに").tag(MapMode.corner)
                         }.pickerStyle(.segmented).fixedSize()
                     }
                     .padding(.horizontal, 8).padding(.top, 6)
@@ -131,10 +135,6 @@ struct SceneBox: View {
                 }
             }
             .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 18)
-            if model.showPad {
-                VirtualPad(game: model.r.game) { model.showPad = false }.spaceControls()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
         }
     }
 }

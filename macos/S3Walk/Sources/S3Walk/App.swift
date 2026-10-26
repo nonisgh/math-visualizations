@@ -23,6 +23,7 @@ struct Main {
         if args.contains("--webprobe") { if let d = MTLCreateSystemDefaultDevice(), let r = Renderer(device: d) { Verify.webprobe(r) }; exit(0) }
         if args.contains("--webcmp") { if let d = MTLCreateSystemDefaultDevice(), let r = Renderer(device: d) { exit(Verify.webcmp(r) ? 0 : 1) }; exit(1) }
         if let i = args.firstIndex(of: "--png"), i + 1 < args.count { Verify.png(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--walkpng"), i + 1 < args.count { Verify.walkPNG(args[i + 1]); exit(0) }
         if args.contains("--picstats") { Verify.picStats(); exit(0) }
         if args.contains("--mapstats") { Verify.mapStats(); exit(0) }
         if args.contains("--mapbench") { Verify.mapBench(); exit(0) }
@@ -232,6 +233,7 @@ struct S3WalkApp: App {
                 Button("景色だけ") { model.setMap(.hidden) }.keyboardShortcut("1", modifiers: .command)
                 Button("地図を並べる") { model.setMap(.docked) }.keyboardShortcut("2", modifiers: .command)
                 Button("地図を浮かせる") { model.setMap(.floating) }.keyboardShortcut("3", modifiers: .command)
+                Button("地図を景色のすみに") { model.setMap(.corner) }.keyboardShortcut("5", modifiers: .command)
                 Toggle("地図を景色の左に", isOn: model.b(\.mapLeft)).keyboardShortcut("4", modifiers: .command)
                 Divider()
                 Toggle("自分を真ん中に", isOn: model.b(\.mapFollow))
@@ -253,7 +255,7 @@ struct S3WalkApp: App {
 
 
 /// 地図の置き方：隠す・景色の横に並べる・浮いた窓（Photoshop のパレットのように、いつも前に）
-enum MapMode: String, CaseIterable { case hidden, docked, floating }
+enum MapMode: String, CaseIterable { case hidden, docked, floating, corner }   // corner：景色のすみに小さく
 
 struct ContentView: View {
     @State private var sceneDrop = false
@@ -271,6 +273,11 @@ struct ContentView: View {
             ZStack(alignment: .topLeading) {
                 MetalView(model: model)
                 HUDView(model: model)
+                if model.mapMode == .corner {
+                    CornerMap(corner: model.b(\.mapCorner), size: model.b(\.mapMini), home: { model.mapRenderer.home() }, dock: { model.setMap(.docked) }) {
+                        MapPane(model: model, slot: 0)
+                    }
+                }
                 if model.showPad {
                     VirtualPad(game: model.r.game) { model.showPad = false }.spaceControls()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -570,6 +577,7 @@ struct MainToolbar: ToolbarContent {
                 Label("景色だけ", systemImage: "rectangle").tag(MapMode.hidden)
                 Label("地図を並べる", systemImage: "rectangle.split.2x1").tag(MapMode.docked)
                 Label("地図を浮かせる", systemImage: "macwindow.on.rectangle").tag(MapMode.floating)
+                Label("地図を景色のすみに", systemImage: "rectangle.inset.topright.filled").tag(MapMode.corner)
             }
             .pickerStyle(.segmented).help("S³ の地図：隠す・景色の横に並べる・浮いた窓に")
         }

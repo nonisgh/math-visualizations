@@ -15,8 +15,8 @@ struct S3WalkiOSApp: App {
 /// Mac 版のパネル（Dock.swift の PanelContent など）は AppModel を使う。iPad・iPhone ではこのアプリの中身がその役
 typealias AppModel = MobileModel
 
-/// 地図の置き方：隠す・景色の横に並べる・景色の上に小さく浮かせる（Mac 版の「浮いた窓」の代わり）
-enum MapMode: String, CaseIterable { case hidden, docked, floating }
+/// 地図の置き方：隠す・景色の横に並べる・景色のすみに小さく（Mac 版と同じ。すみと大きさは設定の mapCorner・mapMini）
+enum MapMode: String, CaseIterable { case hidden, docked, corner }
 
 /// アプリの中身：景色の Renderer と地図、パネル、保存、知らせ
 final class MobileModel: ObservableObject {
@@ -47,8 +47,8 @@ final class MobileModel: ObservableObject {
         Store.restore(r)
         r.set.gamepad = true                                   // 指のスティックもコントローラーと同じ入れ方で
         r.set.scale = 0.7                                      // 描く細かさは粗めから（足りていれば自動で細かくなる）
-        if let s = UserDefaults.standard.string(forKey: "s3walk.mapMode"), let m = MapMode(rawValue: s) { mapMode = m }
-        else if UIDevice.current.userInterfaceIdiom == .phone { mapMode = .floating }
+        if let s = UserDefaults.standard.string(forKey: "s3walk.mapMode"), let m = MapMode(rawValue: s == "floating" ? "corner" : s) { mapMode = m }
+        else if UIDevice.current.userInterfaceIdiom == .phone { mapMode = .corner }
         r.say = { [weak self] m in DispatchQueue.main.async { self?.say(m) } }
         r.onPad = { [weak self] k in self?.pad(k) }
         r.onStats = { [weak self] r in

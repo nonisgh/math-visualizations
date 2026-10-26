@@ -118,6 +118,8 @@ struct Settings {
     // 地図（S³ → 3 次元）：x-w・y-w・z-w の回転（度）、遠近 D（k ＝ D／(D − w)）、自分を真ん中に、軸、軌跡
     var mapXW = 0.0, mapYW = 90.0, mapZW = 0.0, mapD = 2.5
     var mapFollow = false, mapAxes = true, mapTrail = true
+    var mapCorner = 1           // すみの小さな地図の場所：0 左上・1 右上・2 右下・3 左下
+    var mapMini = 0.3           // すみの小さな地図の大きさ（景色の短い辺に対する割合）
     var cursor3D = true         // 地図の自分の矢印（三角錐）：自分中心の時も、ふつうの時と同じ立体の形と大きさで（iPad で見えた形）。false で自分中心の時は平たい三角形
     var mapBright = 1.0         // 地図の殻の線の明るさ（宇宙・深海の暗さに合わせた上に、さらにかける）
     var mapExpand = 0.1         // 宇宙の大きさ 10 倍ごとに、地図をこれだけ広げる（×1000 で 1.3 倍。0 で広げない）

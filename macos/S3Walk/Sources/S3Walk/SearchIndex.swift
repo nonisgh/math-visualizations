@@ -91,6 +91,8 @@ let searchIndex: [(PanelID, String, String)] = [
     (.lines, "set", "にじみ"),
     (.lines, "set", "EDR の画面では線を明るく光らせる"),
     (.map, "set", "置き方"),
+    (.map, "set", "すみ"),
+    (.map, "set", "すみの地図の大きさ"),
     (.map, "set", "並べる側"),
     (.map, "set", "2 枚目の地図"),
     (.map, "set", "S² の仲間（同じ操作を、ふつうの球面で）"),

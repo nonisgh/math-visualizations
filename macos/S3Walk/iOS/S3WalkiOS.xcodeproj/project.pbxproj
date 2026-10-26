@@ -20,6 +20,7 @@
 		89134B90001E326D081F2031 = {isa = PBXBuildFile; fileRef = E3A501824499672D8A0E17FC; };
 		4DE60D6572705CE8AD081998 = {isa = PBXBuildFile; fileRef = 36858ECCA3066922969590F4; };
 		F16275C5A0FFAD839CB22EDD = {isa = PBXBuildFile; fileRef = A2376A0F7506F7D6B33716EB; };
+		EA35C7F261300EB73EF3C639 = {isa = PBXBuildFile; fileRef = A85C6B0AA83C7A191D03060C; };
 		5155E2EE55FDFE25DFAC19A1 = {isa = PBXBuildFile; fileRef = 1FAC72C051C286EA92978499; };
 		0959BF28527B48A0B42E0852 = {isa = PBXBuildFile; fileRef = C80F26271FCA629F2CA125D3; };
 		ECC1C8F72EAC73CA94D7592E = {isa = PBXBuildFile; fileRef = 4FB2A1B2E2341710F59ACF10; };
@@ -40,6 +41,7 @@
 		E3A501824499672D8A0E17FC = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Dock.swift"; sourceTree = "<group>"; name = "Dock.swift"; };
 		36858ECCA3066922969590F4 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/SearchIndex.swift"; sourceTree = "<group>"; name = "SearchIndex.swift"; };
 		A2376A0F7506F7D6B33716EB = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/VirtualPad.swift"; sourceTree = "<group>"; name = "VirtualPad.swift"; };
+		A85C6B0AA83C7A191D03060C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/CornerMap.swift"; sourceTree = "<group>"; name = "CornerMap.swift"; };
 		1FAC72C051C286EA92978499 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MobileViews.swift"; sourceTree = "<group>"; name = "MobileViews.swift"; };
 		C80F26271FCA629F2CA125D3 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "S3WalkiOSApp.swift"; sourceTree = "<group>"; name = "S3WalkiOSApp.swift"; };
 		4FB2A1B2E2341710F59ACF10 = {isa = PBXFileReference; lastKnownFileType = file; path = "../Fonts/KaTeX_Math-Italic.ttf"; sourceTree = "<group>"; name = "KaTeX_Math-Italic.ttf"; };
@@ -64,6 +66,7 @@
 				E3A501824499672D8A0E17FC,
 				36858ECCA3066922969590F4,
 				A2376A0F7506F7D6B33716EB,
+				A85C6B0AA83C7A191D03060C,
 				1FAC72C051C286EA92978499,
 				C80F26271FCA629F2CA125D3,
 				4FB2A1B2E2341710F59ACF10,
@@ -105,6 +108,7 @@
 				89134B90001E326D081F2031,
 				4DE60D6572705CE8AD081998,
 				F16275C5A0FFAD839CB22EDD,
+				EA35C7F261300EB73EF3C639,
 				5155E2EE55FDFE25DFAC19A1,
 				0959BF28527B48A0B42E0852,
 			); runOnlyForDeploymentPostprocessing = 0; };

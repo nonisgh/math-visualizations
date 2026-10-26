@@ -141,7 +141,7 @@ final class Keymap: ObservableObject {
         var lines = ["W/S 前・後　A/D 右・左　Q/E 上・下（Shift で 3 倍）　←→ 方位　↑↓ 仰角　ドラッグ・2 本指 見回し（Shift＋ドラッグ 進む向き）"]
         let items = KeyAction.allCases.compactMap { a -> String? in let s = label(a); return s.isEmpty ? nil : "\(s) \(a.title)" }
         stride(from: 0, to: items.count, by: 8).forEach { lines.append(items[$0..<min(items.count, $0 + 8)].joined(separator: "　")) }
-        lines.append("⌘1・⌘2・⌘3 地図を隠す・並べる・浮かせる　⌃F（⌃⌘F）全画面　キーは設定の「ショートカットキー」で変えられる")
+        lines.append("⌘1・⌘2・⌘3・⌘5 地図を隠す・並べる・浮かせる・景色のすみに　⌃F（⌃⌘F）全画面　キーは設定の「ショートカットキー」で変えられる")
         return lines.joined(separator: "\n")
     }
 }
