@@ -4,9 +4,18 @@ import Combine
 import AppKit
 import MetalKit
 
+/// 軸の名前の書体（KaTeX の数式用の斜体）を使えるようにする。アプリの中（Resources）か、作っている時はソースの横の Fonts から
+func registerFonts() {
+    let src = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fonts/KaTeX_Math-Italic.ttf")
+    for u in [Bundle.main.url(forResource: "KaTeX_Math-Italic", withExtension: "ttf"), src].compactMap({ $0 }) where FileManager.default.fileExists(atPath: u.path) {
+        CTFontManagerRegisterFontsForURL(u as CFURL, .process, nil); return
+    }
+}
+
 @main
 struct Main {
     static func main() {
+        registerFonts()
         let args = CommandLine.arguments
         if args.contains("--verify") { exit(Verify.run() ? 0 : 1) }
         if args.contains("--bench4k") { Verify.bench(only4K: true); exit(0) }
@@ -385,7 +394,7 @@ struct PosReadout: View {
                 Text("位置").foregroundStyle(Space.slate)
                 ForEach(0..<4, id: \.self) { i in
                     HStack(spacing: 2) {
-                        Text(["x", "y", "z", "w"][i]).font(.custom("STIXTwoText-Italic", size: 15)).foregroundStyle(Color(red: Double(AXIS_RGB[i].x), green: Double(AXIS_RGB[i].y), blue: Double(AXIS_RGB[i].z)))
+                        Text(["x", "y", "z", "w"][i]).font(.custom(MapLabel.axisFontName, size: 15)).foregroundStyle(Color(red: Double(AXIS_RGB[i].x), green: Double(AXIS_RGB[i].y), blue: Double(AXIS_RGB[i].z)))
                         Text(String(format: "%+.3f", p[i])).monospacedDigit().foregroundStyle(.white.opacity(0.9))
                     }
                 }
@@ -409,7 +418,7 @@ struct AxisLengths: View {
             HStack(spacing: 8) {
                 ForEach(0..<4, id: \.self) { i in
                     HStack(spacing: 3) {
-                        Text(["x", "y", "z", "w"][i]).font(.custom("STIXTwoText-Italic", size: 15)).foregroundStyle(Color(red: Double(AXIS_RGB[i].x), green: Double(AXIS_RGB[i].y), blue: Double(AXIS_RGB[i].z)))
+                        Text(["x", "y", "z", "w"][i]).font(.custom(MapLabel.axisFontName, size: 15)).foregroundStyle(Color(red: Double(AXIS_RGB[i].x), green: Double(AXIS_RGB[i].y), blue: Double(AXIS_RGB[i].z)))
                         if editing == i {
                             TextField("", text: $text).textFieldStyle(.roundedBorder).frame(width: 46).focused($focused)
                                 .onSubmit { commit(i) }

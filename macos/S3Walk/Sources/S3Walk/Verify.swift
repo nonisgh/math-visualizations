@@ -87,6 +87,14 @@ enum Verify {
             check(k == web.count && worst < 1e-9, String(format: "%@（%@）：ウェブ版と同じ道（20 進む間、S³・S² の点と体の前のずれ最大 %.1e）", mode == "half" ? "半周 180° のターン" : "極めぐり", st == "sharp" ? "直角" : "スムーズ", worst))
         }
         r.set = .plain; r.resetNorth()
+        // 網目の傾き・自転：ウェブ版の gridM（傾き 40°・向き 30°・自転 0.5）と同じ行列
+        do {
+            r.set.gridTilt = 40; r.set.gridAz = 30; r.gridSpinAng = 0.5
+            let web: [[Double]] = [[0.3424877429258024, -0.7568488703636205, 0.5566703992264194], [0.7513283181113952, 0.5763781576467558, 0.32139380484326957], [-0.564099197260102, 0.3081687959820773, 0.766044443118978]]
+            let M = r.gridM(), dev = (0..<3).flatMap { i in (0..<3).map { j in abs(M[i][j] - web[i][j]) } }.max()!
+            r.set = .plain; r.gridSpinAng = 0
+            check(dev < 1e-12, String(format: "網目の傾き・自転：ウェブ版の gridM と同じ（ずれ %.1e）", dev))
+        }
         // 地図の軸の長さを % で決める：x 50% → X-W 60°、w 30% → 3 つの傾きを同じ割合で
         let m = MapRenderer(world: r)
         r.set.mapXW = 0; r.set.mapYW = 0; r.set.mapZW = 0
@@ -674,6 +682,15 @@ enum Verify {
             ("地図・深海（もやの明るさ 0.3：殻を暗く）", { r in r.set = .plain; r.set.hazeK = 0.3; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 2 { r.step(1.0 / 60) }; r.walking = false }),
             ("地図・深海・自分中心（もやの明るさ 0.3、層 10・宇宙 ×6.5）", { r in r.set = .plain; r.set.hazeK = 0.3; r.set.mapFollow = true; r.set.shellN = 10; r.set.uniL = 0.81; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 0.4 { r.step(1.0 / 60) }; r.walking = false }),
             ("地図・深海・軸色（もやの明るさ 0.3）", { r in r.set = .plain; r.set.hazeK = 0.3; r.set.shAxis = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
+            ("地図・あなたの設定と今いる所", { r in
+                if let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) {
+                    var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); r.set = us
+                    func v4(_ k: String) -> V4? { (d[k] as? [Double]).flatMap { $0.count == 4 ? V4($0[0], $0[1], $0[2], $0[3]) : nil } }
+                    if let p = v4("p"), let rr = v4("r"), let u = v4("u"), let f = v4("f") { r.cam.w = Walker(p: p, r: rr, u: u, f: f); orthoFrame(&r.cam.w) }
+                    r.cam.az = d["az"] as? Double ?? 0; r.cam.el = d["el"] as? Double ?? 0
+                    print("  p", r.cam.w.p, "uniL", r.set.uniL, "follow", r.set.mapFollow, "shAxis", r.set.shAxis, "shellN", r.set.shellN, "mapD", r.set.mapD, "expand", r.set.mapExpand, "trail", r.journey.trail.count)
+                }
+            }),
             ("地図・自分を真ん中に", { r in r.set = .plain; r.set.mapFollow = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
         ]
         let w = 1200, h = 900
@@ -748,6 +765,22 @@ enum Verify {
             ("あなたの設定・軸色（今いる所から）", { s, c in
                 if let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) {
                     var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); s = us; s.shAxis = true
+                    func v4(_ k: String) -> V4? { (d[k] as? [Double]).flatMap { $0.count == 4 ? V4($0[0], $0[1], $0[2], $0[3]) : nil } }
+                    if let p = v4("p"), let r = v4("r"), let u = v4("u"), let f = v4("f") { c.w = Walker(p: p, r: r, u: u, f: f); orthoFrame(&c.w) }
+                    c.az = d["az"] as? Double ?? 30; c.el = d["el"] as? Double ?? 0
+                }
+            }),
+            ("あなたの設定・網目を 90° 倒す（今いる所から）", { s, c in
+                if let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) {
+                    var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); s = us; s.gridTilt = 90
+                    func v4(_ k: String) -> V4? { (d[k] as? [Double]).flatMap { $0.count == 4 ? V4($0[0], $0[1], $0[2], $0[3]) : nil } }
+                    if let p = v4("p"), let r = v4("r"), let u = v4("u"), let f = v4("f") { c.w = Walker(p: p, r: r, u: u, f: f); orthoFrame(&c.w) }
+                    c.az = d["az"] as? Double ?? 30; c.el = d["el"] as? Double ?? 0
+                }
+            }),
+            ("あなたの設定（網目そのまま、比べる）", { s, c in
+                if let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) {
+                    var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); s = us
                     func v4(_ k: String) -> V4? { (d[k] as? [Double]).flatMap { $0.count == 4 ? V4($0[0], $0[1], $0[2], $0[3]) : nil } }
                     if let p = v4("p"), let r = v4("r"), let u = v4("u"), let f = v4("f") { c.w = Walker(p: p, r: r, u: u, f: f); orthoFrame(&c.w) }
                     c.az = d["az"] as? Double ?? 30; c.el = d["el"] as? Double ?? 0

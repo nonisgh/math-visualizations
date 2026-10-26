@@ -80,8 +80,9 @@ struct MapPane: NSViewRepresentable {
 }
 
 extension MapLabel {
-    /// 軸の名前の書体（ウェブ版の TeX の数式の斜体に近いもの）
-    static func axisFont(_ size: CGFloat) -> NSFont { NSFont(name: "STIXTwoText-Italic", size: size) ?? NSFont(name: "Georgia-Italic", size: size) ?? NSFont.systemFont(ofSize: size) }
+    /// 軸の名前の書体：KaTeX の数式用の斜体（TeX と同じ字形。次元おりがみ・ウェブ版と同じ）。無ければ STIX の斜体、Georgia の斜体
+    static let axisFontName = NSFont(name: "KaTeX_Math-Italic", size: 12) != nil ? "KaTeX_Math-Italic" : NSFont(name: "STIXTwoText-Italic", size: 12) != nil ? "STIXTwoText-Italic" : "Georgia-Italic"
+    static func axisFont(_ size: CGFloat) -> NSFont { NSFont(name: axisFontName, size: size) ?? NSFont.systemFont(ofSize: size) }
 }
 /// 名前の札：Core Animation の文字の層を、毎コマ動かす（マウスは下の地図へ通す）
 final class LabelLayerView: NSView {

@@ -22,6 +22,7 @@ struct Uni {
     var tube: Float = 0.02, pixAng: Float = 0.002, lineW: Float = 0, solidWire: Float = 0.35
     var hazeK: Float = 1, xpad0: Float = 0, xpad1: Float = 0, xpad2: Float = 0
     var BR = SIMD4<Float>(), BU = SIMD4<Float>(), BF = SIMD4<Float>()   // 体の向き（進む向きの枠。自分の模型の向き）
+    var G0 = SIMD4<Float>(1, 0, 0, 0), G1 = SIMD4<Float>(0, 1, 0, 0), G2 = SIMD4<Float>(0, 0, 1, 0)   // 世界の xyz → 球層の網目の枠（行ごと。ウェブ版の uGridM）
 }
 /// 星の見え方の値（シェーダーの StarU と同じ並び、112 バイト）
 struct StarU {
@@ -117,6 +118,8 @@ struct Settings {
     var mapFollow = false, mapAxes = true, mapTrail = true
     var mapBright = 1.0         // 地図の殻の線の明るさ（宇宙・深海の暗さに合わせた上に、さらにかける）
     var mapExpand = 0.1         // 宇宙の大きさ 10 倍ごとに、地図をこれだけ広げる（×1000 で 1.3 倍。0 で広げない）
+    var gridTilt = 0.0, gridAz = 0.0          // 球層の網目の極（ふだんは z）を、向き gridAz の方へ gridTilt° 倒す（ウェブ版と同じ）
+    var gridSpin = false, gridSpinRate = 4.0  // 網目の自転（網目の極のまわりに、1 分に gridSpinRate 回）
     var mapPan = false          // 地図の窓の中で地図を動かす（Shift・右ドラッグ）。初めはオフ（回す・近づくだけ）
     var mapRange = 0            // 殻の出し方：0 全体・1 今いる所（自分の殻ははっきり、となりはうっすら）・2 写る所（中の景色に写っている所だけ）
     // 2 枚目の地図（ウェブ版の左上の「地図 2」）：見方・範囲・4 次元の向きは 1 枚目と別。既定は自己中心
@@ -174,6 +177,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     var path = PathWalk()
     var turn = TurnWalk()              // ターンの道（半周 180°・極めぐり）
     var expSaved: Settings? = nil      // 体験の前の見え方（元に戻す用）
+    var gridSpinAng = 0.0              // 網目の自転の今の角（ウェブ版の GRID.spin）
     var pathSpeed = 1.0                // 決まった道の速さの倍率（コントローラーの十字の上下で）
     let game = GameInput()
     var onPad: ((String) -> Void)?           // コントローラーのボタン（A・B・X・Y・十字・メニュー）
@@ -214,7 +218,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         do { library = try device.makeLibrary(source: src, options: opts); libs["00"] = library } catch {
             fputs("シェーダーの組み立てに失敗：\(error)\n", stderr); return nil
         }
-        precondition(MemoryLayout<Uni>.stride == 320, "Uni の並びがシェーダーと合わない")
+        precondition(MemoryLayout<Uni>.stride == 368, "Uni の並びがシェーダーと合わない")
         super.init()
         game.onButton = { [weak self] k in DispatchQueue.main.async { self?.onPad?(k) } }
     }
@@ -255,7 +259,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// 目印の玉の大きさの倍率（絵 1.5・色の点 1.9）
     var markBig: Double { self.set.mk == 1 ? 1.5 : self.set.mk == 2 ? 1.9 : self.set.mk == 4 ? 2.2 * self.set.modelSize : 1.0 }
     /// いちばん内側の殻の、極からの距離（極の目印の玉より外に。ウェブ版の shellMinTheta）
-    var shellMinTheta: Double { max(0.13 * markBig + 0.06, set.polePlanet && set.poles && set.mk != 1 ? set.planetSize + 0.05 : 0) }   // 惑星の時は惑星より外に
+    //   模型の時は玉と同じ（模型を大きくしても殻を外へ押しやらない。前は模型の大きさで殻が外へ寄って、スタートでも網目が変わって見えた）
+    var shellMinTheta: Double { max(0.13 * (set.mk == 4 ? 1.0 : markBig) + 0.06, set.polePlanet && set.poles && set.mk != 1 ? set.planetSize + 0.05 : 0) }   // 惑星の時は惑星より外に
     lazy var atlas: MTLTexture? = Atlas.make(device)
     static let roomPlanes: [SIMD4<Float>] = Cell120.shared.planes.map { SIMD4<Float>($0) }
     func markers() -> [MkGPU] {
@@ -304,6 +309,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         u.P = SIMD4<Float>(cam.w.p); u.R = SIMD4<Float>(F.R); u.U = SIMD4<Float>(F.U); u.F = SIMD4<Float>(F.L)
         u.L0 = SIMD4<Float>(nrm(F.R * -0.45 + F.U * 0.75 - F.L * 0.5))
         let B = cam.lookFrame(); u.BR = SIMD4<Float>(B.R); u.BU = SIMD4<Float>(B.U); u.BF = SIMD4<Float>(B.L)
+        let GM = gridM()                                           // 網目の枠 → 世界。シェーダーへは逆（転置）＝世界 → 網目の枠を行ごとに
+        u.G0 = SIMD4<Float>(Float(GM[0][0]), Float(GM[1][0]), Float(GM[2][0]), 0); u.G1 = SIMD4<Float>(Float(GM[0][1]), Float(GM[1][1]), Float(GM[2][1]), 0); u.G2 = SIMD4<Float>(Float(GM[0][2]), Float(GM[1][2]), Float(GM[2][2]), 0)
         u.res = SIMD2(Float(width), Float(height))
         u.tanF = Float(tan(min(150, set.fov) * d2r / 2)); u.maxD = Float(set.maxD)
         // もや・透けは決まった距離でかかる（宇宙の大きさ R 倍）
@@ -535,6 +542,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // ---- 歩く（ウェブ版の loop の一部）----
     func step(_ dt: Double) {
+        if set.gridSpin && set.gridSpinRate != 0 { gridSpinAng = (gridSpinAng + dt * 2 * Double.pi * set.gridSpinRate / 60).truncatingRemainder(dividingBy: 2 * Double.pi) }   // 球層の網目の自転
         var sp = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR   // 宇宙が大きいほど、同じ速さで進む角度は小さい
         var mv = SIMD3<Double>(0, 0, 0)
         if roaming { journey.roam(&cam, dt, set.roamK) }
@@ -739,6 +747,15 @@ final class Renderer: NSObject, MTKViewDelegate {
         cam = Camera(); journey = Journey(); journey.marks = marks; journey.marks2 = marks2
         walking = false; roaming = false; pathMode = .none
     }
+    /// 球層の網目の枠 → 世界の xyz の 3×3（行ごと）。M ＝ Rz(向き)·Ry(傾き)·Rz(自転)（ウェブ版の gridM と同じ）
+    func gridM() -> [[Double]] {
+        let t = set.gridTilt * d2r, a = set.gridAz * d2r, sp = gridSpinAng
+        func Rz(_ c: Double, _ s: Double) -> [[Double]] { [[c, -s, 0], [s, c, 0], [0, 0, 1]] }
+        let Ry = [[cos(t), 0, sin(t)], [0, 1, 0], [-sin(t), 0, cos(t)]]
+        func mul(_ A: [[Double]], _ B: [[Double]]) -> [[Double]] { A.map { r in (0..<3).map { j in r[0] * B[0][j] + r[1] * B[1][j] + r[2] * B[2][j] } } }
+        return mul(mul(Rz(cos(a), sin(a)), Ry), Rz(cos(sp), sin(sp)))
+    }
+    var gridKey: String { String(format: "%g/%g/%.3f", set.gridTilt, set.gridAz, gridSpinAng) }
     /// 体験：遠回りの光で見える像を、見やすい見え方にして見る。前の見え方は覚えておき、「元の見え方に戻す」で戻す
     ///   self：自分の後ろ姿（光が S³ を 1 周して、2π 先から自分の背中が見える。振り返ると自分の顔）。
     ///   flip：ここに目印を置いて 1.2 進む → 前を見ると、目印を反対側から回ってきた光で、上下・左右が逆（180° 回った像）の向こう側の面が見える

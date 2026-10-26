@@ -7,6 +7,8 @@ APP=S3Walk.app
 rm -rf $APP
 mkdir -p $APP/Contents/MacOS $APP/Contents/Resources
 cp .build/release/S3Walk $APP/Contents/MacOS/S3Walk
+# 軸の名前の書体（KaTeX の数式用の斜体＝TeX と同じ字形。次元おりがみ・ウェブ版と同じ。MIT、Fonts/KaTeX-LICENSE.txt）
+cp Fonts/KaTeX_Math-Italic.ttf Fonts/KaTeX-LICENSE.txt $APP/Contents/Resources/
 # アイコン：アプリ自身の地図から作る（--icon）。なければ作り、大きさごとの絵を iconutil でまとめる
 if [ ! -f Icon/AppIcon-1024.png ]; then mkdir -p Icon; .build/release/S3Walk --icon Icon/AppIcon-1024.png >/dev/null; fi
 ICS=$(mktemp -d)/AppIcon.iconset; mkdir -p $ICS

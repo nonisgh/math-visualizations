@@ -383,6 +383,16 @@ struct PanelContent: View {
                 Toggle("立体の殻" + km.hint(.solid), isOn: model.b(\.shellSolid))
                 if r.set.shellSolid { row("立体の網目の明るさ", \.solidWire, 0, 1.5) }
                 Toggle("網目なし" + km.hint(.bare), isOn: model.b(\.shellBare))
+                if !r.set.shellBare {
+                    row("網目の傾き", \.gridTilt, 0, 180, "%.0f°", step: 1)
+                    row("網目の傾きの向き", \.gridAz, -180, 180, "%.0f°", step: 1)
+                    HStack {
+                        Toggle("網目を自転", isOn: model.b(\.gridSpin))
+                        Button("網目の向きを戻す") { r.set.gridTilt = 0; r.set.gridAz = 0; r.gridSpinAng = 0; model.changed() }
+                    }
+                    if r.set.gridSpin { row("網目の自転の速さ（回／分）", \.gridSpinRate, -30, 30, "%.1f") }
+                    note("網目（緯線・経線）の極を z から倒す・回す（殻そのものは同じ w ＝ 一定の球面。景色と地図の両方）。経線が集まる所（ふだんは天極・地極のそば）を動かせる")
+                }
                 Toggle("壮大" + km.hint(.grand), isOn: model.b(\.grand))
                 irow("層数", \.shellN, 3, 21)
                 row("透明度", \.shellOp, 0.05, 0.75)

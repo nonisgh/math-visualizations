@@ -39,6 +39,7 @@ struct Uni {
     float tube, pixAng, lineW, solidWire;    // （下に続く）
     float hazeK, xpad0, xpad1, xpad2;        // hazeK：深海の時のもやの色の明るさ（1 でウェブ版と同じ。小さいほど殻の間が暗く、殻の境目が浮かぶ）
     float4 BR, BU, BF;                       // 体の向き（進む向きの枠）：自分の模型はこの向きで立つ（前を見ると光が 1 周して自分の背中、振り返ると顔）
+    float4 G0, G1, G2;                       // 世界の xyz → 球層の網目の枠（行ごと。網目の傾き・自転。ウェブ版の uGridM）
     //   tube：管の太さ（角度）、pixAng：1 画素の角度、lineW：網目の線の太さ（画素。0 でウェブ版と同じ角度の太さ）、solidWire：立体の殻の網目の濃さ（ウェブ版は 0.35）
 };
 struct Mk { float4 c; float4 col; float4 info; };   // c：中心（S³ の点）、col.xyz：色、col.w：半径（角度）、info.x：絵の表のます目（−1 で絵なし）
@@ -557,7 +558,7 @@ void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float w
     float cv = sg * vw * iS;
     float3 c = c0;
     float rimK = clamp(1.0 - abs(cv), 0.0, 1.0);
-    float3 sp = q.xyz * iS;
+    float3 sp0 = q.xyz * iS, sp = float3(dot(u.G0.xyz, sp0), dot(u.G1.xyz, sp0), dot(u.G2.xyz, sp0));   // 網目の枠へ（傾き・自転）
     float2 gg = u.shellBare == 1 ? float2(0.0) : gridLine15(asin(clamp(sp.z, -1.0, 1.0)), atan2(sp.y, sp.x), length(sp.xy), pixFoot(t, cv, 1.0 / iS, u), u);   // 網目（cos 緯度 ＝ xy の長さ）
     float g = gg.x;
     float3 core = c0 * u.edr;                                       // 線の芯の色（EDR の画面では 1 より明るく）

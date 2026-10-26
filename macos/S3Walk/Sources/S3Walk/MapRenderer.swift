@@ -283,8 +283,10 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         return Cell120.shared.edges.flatMap { (A, B) in (0..<3).map { (slerp(A, B, Double($0) / 3), slerp(A, B, Double($0 + 1) / 3)) } }
     }()
     /// 球の網目を w ＝ wc・半径 sn の殻へ
-    static func shellPairs(_ wc: Double, _ sn: Double) -> [(V4, V4)] {
-        eqPairs.map { (A, B) in (V4(A.x * sn, A.y * sn, A.z * sn, wc), V4(B.x * sn, B.y * sn, B.z * sn, wc)) }
+    /// GM：網目の枠 → 世界（網目の傾き・自転。球層の殻だけ。nil ならそのまま）
+    static func shellPairs(_ wc: Double, _ sn: Double, _ GM: [[Double]]? = nil) -> [(V4, V4)] {
+        func g(_ A: SIMD3<Double>) -> SIMD3<Double> { guard let M = GM else { return A }; return SIMD3(M[0][0] * A.x + M[0][1] * A.y + M[0][2] * A.z, M[1][0] * A.x + M[1][1] * A.y + M[1][2] * A.z, M[2][0] * A.x + M[2][1] * A.y + M[2][2] * A.z) }
+        return eqPairs.map { (A0, B0) in let A = g(A0), B = g(B0); return (V4(A.x * sn, A.y * sn, A.z * sn, wc), V4(B.x * sn, B.y * sn, B.z * sn, wc)) }
     }
 
     /// 景色で、もやの向こうに消えるまでの角度（光が e^−3 ≈ 5% になる所）。宇宙の大きさ R 倍でもやも R 倍なので、角度では 1/R に
@@ -338,9 +340,9 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     static let levelStride = [1, 1, 1, 1], levelWidth: [Float] = [1, 0.75, 0.55, 0.42], levelBright = [1.0, 0.9, 0.8, 0.72]
     func shellSet(_ n: Int) -> [(V4, V4, SIMD3<Float>, Double, Int)] {
         let lv = MapRenderer.uniLevel(world.set), kst = MapRenderer.levelStride[lv]
-        let fams = shellFams, axis = world.set.shAxis, key = "\(n)|\(world.shellMinTheta)|\(axis)|\(fams)|\(kst)"
+        let fams = shellFams, axis = world.set.shAxis, key = "\(n)|\(world.shellMinTheta)|\(axis)|\(fams)|\(kst)|\(world.gridKey)"
         if shellCache.0 == key { return shellCache.1 }
-        let m0 = world.shellMinTheta
+        let m0 = world.shellMinTheta, GM = world.gridM()
         var out: [(V4, V4, SIMD3<Float>, Double, Int)] = []
         for ax in fams {
             for i in 0..<(2 * n - 1) {
@@ -348,7 +350,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                 if (n - 1 - j) % kst != 0 { continue }                    // 宇宙が大きい段では殻を間引く（赤道の殻はいつも残す）
                 let th = m0 + t * (Double.pi / 2 - m0), wc = (i < n ? 1 : -1) * cos(th)
                 let col = axis ? MapRenderer.axisShellRGB(ax, i, n) : hslF((i < n ? t * 0.5 : 0.8 - t * 0.3) * 360, 0.95, 0.52)
-                for (A, B) in MapRenderer.shellPairs(wc, sin(th)) { out.append((MapRenderer.axSwap(A, ax), MapRenderer.axSwap(B, ax), col, i < n ? th : Double.pi - th, ax)) }
+                for (A, B) in MapRenderer.shellPairs(wc, sin(th), GM) { out.append((MapRenderer.axSwap(A, ax), MapRenderer.axSwap(B, ax), col, i < n ? th : Double.pi - th, ax)) }
             }
         }
         shellCache = (key, out); return out
@@ -388,7 +390,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             staticKey = ""
             return out
         }
-        let key = R.map { "\($0)" }.joined() + "|\(s.mapD)|\(s.shell)|\(n)|\(s.eq)|\(s.lite)|\(s.mk)|\(s.circ)|\(s.room)|\(s.shAxis)|\(shellFams)|\(MapRenderer.uniLevel(s))"
+        let key = R.map { "\($0)" }.joined() + "|\(world.gridKey)|\(s.mapD)|\(s.shell)|\(n)|\(s.eq)|\(s.lite)|\(s.mk)|\(s.circ)|\(s.room)|\(s.shAxis)|\(shellFams)|\(MapRenderer.uniLevel(s))"
         if key == staticKey { return staticAdd }
         staticKey = key
         let only = s.shell                                       // 球層の時は、地図は球殻だけ（ウェブ版の shOnly）
