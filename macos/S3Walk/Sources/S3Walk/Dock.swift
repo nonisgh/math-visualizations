@@ -161,7 +161,7 @@ struct ScrubRow: View {
         HStack(spacing: 6) {
             Text(name)
                 .frame(width: 104, alignment: .leading)
-                .foregroundStyle(hover ? Color.accentColor : Color.primary)
+                .foregroundStyle(hover ? Space.sky : Color.white.opacity(0.85))
                 .contentShape(Rectangle())
                 .onHover { h in hover = h; if h { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
                 .gesture(DragGesture(minimumDistance: 1).onChanged { g in
@@ -179,7 +179,7 @@ struct ScrubRow: View {
                     .onChange(of: focused) { _, f in if !f { commit() } }
                     .onExitCommand { editing = false }
             } else {
-                Text(String(format: fmt, value)).monospacedDigit().foregroundStyle(.secondary)
+                Text(String(format: fmt, value)).monospacedDigit().foregroundStyle(Space.sky.opacity(0.9))
                     .frame(width: 52, alignment: .trailing)
                     .contentShape(Rectangle())
                     .onTapGesture { select(); text = String(format: "%g", value); editing = true; DispatchQueue.main.async { focused = true } }
@@ -216,6 +216,9 @@ struct DockColumn: View {
             }
             .padding(8)
         }
+        .scrollContentBackground(.hidden)
+        .background(SpaceBackground())
+        .spaceControls()
         .controlSize(.small)
     }
 }
@@ -243,8 +246,8 @@ struct PanelCard: View {
         VStack(alignment: .leading, spacing: 0) {
             Rectangle().fill(targeted ? Color.accentColor : Color.clear).frame(height: 3).padding(.bottom, 2)   // ここに落とすと、このパネルの前へ
             HStack(spacing: 6) {
-                Image(systemName: id.icon).frame(width: 16).foregroundStyle(.secondary)
-                Text(id.title).font(.system(size: 12, weight: .semibold))
+                Image(systemName: id.icon).frame(width: 16).foregroundStyle(Space.sky)
+                Text(id.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Space.lilac)
                 Spacer()
                 Button { dock.floatPanel(id) } label: { Image(systemName: "macwindow.on.rectangle").font(.system(size: 10)) }
                     .buttonStyle(.borderless).foregroundStyle(.secondary).help("このパネルを浮かせる（浮いた窓のタブの所へドラッグすると、タブでまとまる）")
@@ -269,8 +272,7 @@ struct PanelCard: View {
                 PanelContent(model: model, id: id).padding(10)
             }
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.06)))
+        .spaceCard(lit: targeted)
         .dropDestination(for: String.self) { items, _ in
             if let s = items.first, let from = PanelID(rawValue: s) { withAnimation(.easeOut(duration: 0.15)) { dock.dockPanel(from, before: id) } }
             return true
@@ -290,7 +292,7 @@ struct PanelContent: View {
         return ScrubRow(name: name, value: Binding(get: { Double(b.wrappedValue) }, set: { b.wrappedValue = Int($0.rounded()) }),
                         range: Double(lo)...Double(hi), fmt: "%.0f", def: Double(Settings()[keyPath: kp]), step: 1)
     }
-    func note(_ s: String) -> some View { Text(s).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+    func note(_ s: String) -> some View { Text(s).font(.caption).foregroundStyle(Space.slate).fixedSize(horizontal: false, vertical: true) }
 
     var body: some View {
         let r = model.r
@@ -430,6 +432,10 @@ struct PanelContent: View {
                 Toggle("ゲームのような操作（少し倒すとゆっくり・速めに回る・慣性つき）", isOn: model.b(\.padGame))
                 Toggle("右スティックの左右を反転", isOn: model.b(\.padInvX))
                 Toggle("右スティックの上下を反転", isOn: model.b(\.padInvY))
+                row("自走のアクセル", \.autoAccel, 0.2, 4)
+                row("自走の最高速（倍）", \.autoMax, 1, 30, "%.1f")
+                Toggle("自走で手前へ倒し続けると巻き戻し", isOn: model.b(\.autoRewind))
+                note("歩き続ける（B）の時：左スティックを前へ倒し続けるとだんだん速く（離すとその速さのまま）、手前へ倒すとブレーキ、止まってもまだ倒していると通ってきた軌跡を逆にたどる（倒し続けるほど速く）")
                 if !r.game.names.isEmpty {
                     TimelineView(.periodic(from: .now, by: 0.1)) { _ in
                         note("押しているボタン：" + r.game.pressedNames() + (r.padLookOnly ? "（見回しだけ）" : ""))
@@ -463,14 +469,16 @@ struct FloatGroupView: View {
                         .buttonStyle(.borderless).help("この窓のパネルをドックへ戻す")
                 }
                 .padding(.horizontal, 6).padding(.vertical, 4)
-                .background(barTargeted ? Color.accentColor.opacity(0.25) : Color.black.opacity(0.15))
+                .background(barTargeted ? Space.violet.opacity(0.3) : Space.panel.opacity(0.9))
                 .dropDestination(for: String.self) { items, _ in
                     if let s = items.first, let p = PanelID(rawValue: s) { dock.addTab(p, to: gid) }
                     return true
                 } isTargeted: { barTargeted = $0 }
                 Divider()
-                ScrollView { PanelContent(model: model, id: g.selected).padding(10) }
+                ScrollView { PanelContent(model: model, id: g.selected).padding(10).spaceCard().padding(8) }.scrollContentBackground(.hidden)
             }
+            .background(SpaceBackground())
+            .spaceControls()
             .controlSize(.small)
         } else {
             Color.clear
@@ -487,7 +495,8 @@ struct FloatTab: View {
             Text(p.title).font(.system(size: 11, weight: selected ? .semibold : .regular)).lineLimit(1)
         }
         .padding(.horizontal, 8).padding(.vertical, 4)
-        .background(selected ? Color.white.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 5))
+        .foregroundStyle(selected ? Space.lilac : Color.white.opacity(0.7))
+        .background(selected ? Space.violet.opacity(0.22) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
         .overlay(alignment: .leading) { if targeted { Rectangle().fill(Color.accentColor).frame(width: 2) } }
         .contentShape(Rectangle())
         .onTapGesture { dock.select(p, in: gid) }

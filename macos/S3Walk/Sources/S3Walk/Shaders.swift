@@ -517,6 +517,7 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
         if ((fam & 1) != 0 && !shNext(i1, sh, u, t1_, k1, d1, w1)) t1_ = 1e9;
         if ((fam & 2) != 0 && !shNext(i2, sh, u, t2_, k2, d2, w2)) t2_ = 1e9;
         if ((fam & 4) != 0 && !shNext(i3, sh, u, t3_, k3, d3, w3)) t3_ = 1e9;
+        int hits = 0;                                                   // 重ねた殻の枚数。4 組だと枚数が多く重いので、手前から 36 枚で打ち切る（奥はもう十分に隠れている）
         for (int guard = 0; guard < 400 && !done; guard++) {
             // いちばん手前の組（同じ道のりなら w・x・y・z の順）
             int f = 0; float t = t0_;
@@ -555,6 +556,7 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
             float3 cc, em; float al; shadeShell(t, fadeR, i, n, q, vt, wc, -sn * amp, hz, u, c0, axPerm(u.L0, ax), cc, al, em);
             col += T * (al * cc + em); T *= (1.0 - al);
             if (T < 0.01) { done = true; break; }
+            if (++hits >= 36) break;
         }
     }
 #else

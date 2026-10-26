@@ -304,14 +304,19 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     static func axSwap(_ p: V4, _ ax: Int) -> V4 { guard ax != 3 else { return p }; var q = p; q[ax] = p[3]; q[3] = p[ax]; return q }
     /// 球層の殻の線分（4 次元）と色・θ・どの軸の殻か（ウェブ版の shellSet）
     private var shellCache: (String, [(V4, V4, SIMD3<Float>, Double, Int)]) = ("", [])
+    /// 宇宙の大きさの段（×1・×10・×100・×1000 → 0〜3）。地図を拡大したりゆがめたりせず、段ごとに殻を間引いて線を細くし、景色の広さとつながって見えるように
+    static func uniLevel(_ s: Settings) -> Int { min(3, max(0, Int(floor(s.uniL + 1e-6)))) }
+    static let levelStride = [1, 2, 3, 5], levelWidth: [Float] = [1, 0.75, 0.55, 0.42], levelBright = [1.0, 0.9, 0.8, 0.72]
     func shellSet(_ n: Int) -> [(V4, V4, SIMD3<Float>, Double, Int)] {
-        let fams = shellFams, axis = world.set.shAxis, key = "\(n)|\(world.shellMinTheta)|\(axis)|\(fams)"
+        let lv = MapRenderer.uniLevel(world.set), kst = MapRenderer.levelStride[lv]
+        let fams = shellFams, axis = world.set.shAxis, key = "\(n)|\(world.shellMinTheta)|\(axis)|\(fams)|\(kst)"
         if shellCache.0 == key { return shellCache.1 }
         let m0 = world.shellMinTheta
         var out: [(V4, V4, SIMD3<Float>, Double, Int)] = []
         for ax in fams {
             for i in 0..<(2 * n - 1) {
                 let j = i < n ? i : 2 * n - 2 - i, t = Double(j) / Double(max(1, n - 1))
+                if (n - 1 - j) % kst != 0 { continue }                    // 宇宙が大きい段では殻を間引く（赤道の殻はいつも残す）
                 let th = m0 + t * (Double.pi / 2 - m0), wc = (i < n ? 1 : -1) * cos(th)
                 let col = axis ? MapRenderer.axisShellRGB(ax, i, n) : hslF((i < n ? t * 0.5 : 0.8 - t * 0.3) * 360, 0.95, 0.52)
                 for (A, B) in MapRenderer.shellPairs(wc, sin(th)) { out.append((MapRenderer.axSwap(A, ax), MapRenderer.axSwap(B, ax), col, i < n ? th : Double.pi - th, ax)) }
@@ -331,7 +336,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             if c.range == 1 {
                 // 自分がいる層は殻の軸ごと（その軸の成分の角度）
                 //   照らす範囲は、景色でもやの向こうに消えるまでの距離（宇宙が大きいほど角度では小さい。サーチライトのように）
-                let m0 = world.shellMinTheta, gap = (Double.pi / 2 - m0) / Double(max(1, n - 1)), Rf = min(0.9, MapRenderer.visAngle(s)), cR = cos(Rf)
+                let m0 = world.shellMinTheta, gap = (Double.pi / 2 - m0) / Double(max(1, n - 1)) * Double(MapRenderer.levelStride[MapRenderer.uniLevel(s)]), Rf = min(0.9, MapRenderer.visAngle(s)), cR = cos(Rf)
                 let thAx = (0..<4).map { acos(max(-1, min(1, W[$0]))) }, cW = cos(min(Double.pi, Rf + 0.2))
                 let cand = shells.filter { abs($0.3 - thAx[$0.4]) < 2.2 * gap && (dot4($0.0, W) > cW || dot4($0.1, W) > cW) }
                 let sub = MapRenderer.fine(cand, Rf).filter { dot4($0.0, W) > cR || dot4($0.1, W) > cR }
@@ -354,12 +359,12 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             staticKey = ""
             return out
         }
-        let key = R.map { "\($0)" }.joined() + "|\(s.mapD)|\(s.shell)|\(n)|\(s.eq)|\(s.lite)|\(s.mk)|\(s.circ)|\(s.room)|\(s.shAxis)|\(shellFams)"
+        let key = R.map { "\($0)" }.joined() + "|\(s.mapD)|\(s.shell)|\(n)|\(s.eq)|\(s.lite)|\(s.mk)|\(s.circ)|\(s.room)|\(s.shAxis)|\(shellFams)|\(MapRenderer.uniLevel(s))"
         if key == staticKey { return staticAdd }
         staticKey = key
         let only = s.shell                                       // 球層の時は、地図は球殻だけ（ウェブ版の shOnly）
         if s.shell {
-            let sh = shellSet(n), fk = shellFk
+            let sh = shellSet(n), fk = shellFk * MapRenderer.levelBright[MapRenderer.uniLevel(s)]
             addPairs(&out, sh.map { ($0.0, $0.1) }, R) { d, i, _ in sh[i].2 * Float(fk * (0.35 + 0.65 * pow((d + 1) / 2, 1.2))) }
         }
         if s.eq && !only { addPairs(&out, MapRenderer.shellPairs(0, 1), R) { d, _, _ in depthColor(d, 0.8) } }
@@ -593,7 +598,8 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         if let buf = staticBuf {
             // EDR で光らせるのは、照らす所だけの時（サーチライト）。全体の時はウェブ版と同じ明るさ（ギラギラしないように）
             let boost = config.range != 0 ? Float(world.edrBoost) : 1
-            linesBuf(buf, staticCount, 1.0, additive: true, depth: depthRead, cmul: boost, amul: 1)
+            let mood: Float = s.space && !s.shAxis ? 0.6 : 1                  // 宇宙の時は、レインボーの殻を少し暗く（雰囲気。軸色はそのまま）
+            linesBuf(buf, staticCount, MapRenderer.levelWidth[MapRenderer.uniLevel(s)], additive: true, depth: depthRead, cmul: boost * mood, amul: 1)   // 宇宙が大きい段ほど細い線
         }
 
         // 3. 軌跡（虹色、古いほど暗く）・進む向き・見ている向き・軸

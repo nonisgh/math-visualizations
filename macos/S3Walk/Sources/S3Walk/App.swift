@@ -239,21 +239,41 @@ Space 設定のパネル　Tab パネルと地図を全部隠す／戻す　I �
 enum MapMode: String, CaseIterable { case hidden, docked, floating }
 
 struct ContentView: View {
+    @State private var sceneDrop = false
     @ObservedObject var model: AppModel
     var body: some View {
-        // 地図は景色の右か左に（地図 1 の右上のボタン・インスペクター・メニューで入れかえ）
-        HSplitView {
-            if model.mapMode == .docked && model.r.set.mapLeft {
-                MapsArea(model: model).frame(minWidth: 260, idealWidth: 520)
+        // 地図は景色の右か左に（地図 1 の右上のボタン・インスペクター・メニューで入れかえ）。境目のつまみをドラッグした幅は覚えておく
+        let showMaps = model.mapMode == .docked
+        GeometryReader { geo in
+        let w = CGFloat(max(220, min(model.r.set.mapWidth, Double(geo.size.width) - 360)))
+        HStack(spacing: 0) {
+            if showMaps && model.r.set.mapLeft {
+                MapsArea(model: model).frame(width: w)
+                SplitHandle(vertical: false) { d in model.r.set.mapWidth = max(220, Double(w) + Double(d)); model.changed() } onEnd: { model.changed() }
             }
             ZStack(alignment: .topLeading) {
                 MetalView(model: model)
                 HUDView(model: model)
+                if sceneDrop {                                           // パネルの見出しを景色の上へドラッグしている間：ここに落とすと浮かぶ
+                    RoundedRectangle(cornerRadius: 14).stroke(Space.violet.opacity(0.8), style: StrokeStyle(lineWidth: 2, dash: [8, 6])).padding(10)
+                        .overlay(Text("ここに落とすと、パネルが浮いた窓になる").font(.system(size: 13, weight: .semibold)).foregroundStyle(Space.lilac)
+                            .padding(.horizontal, 14).padding(.vertical, 7).background(Space.panel.opacity(0.9), in: Capsule()))
+                        .allowsHitTesting(false)
+                }
             }
-            .frame(minWidth: 360)
-            if model.mapMode == .docked && !model.r.set.mapLeft {
-                MapsArea(model: model).frame(minWidth: 260, idealWidth: 520)
+            .frame(minWidth: 360, maxWidth: .infinity)
+            // パネルの見出し（ドックでも浮いた窓のタブでも）を景色の上へドラッグして落とすと、その場所に浮いた窓として出す
+            .dropDestination(for: String.self) { items, _ in
+                guard let str = items.first, let p = PanelID(rawValue: str) else { return false }
+                let m = NSEvent.mouseLocation
+                withAnimation(.easeOut(duration: 0.15)) { model.dock.floatPanel(p, frame: CGRect(x: m.x - 60, y: m.y - 420, width: 330, height: 440)) }
+                return true
+            } isTargeted: { sceneDrop = $0 }
+            if showMaps && !model.r.set.mapLeft {
+                SplitHandle(vertical: false) { d in model.r.set.mapWidth = max(220, Double(w) - Double(d)); model.changed() } onEnd: { model.changed() }
+                MapsArea(model: model).frame(width: w)
             }
+        }
         }
         .inspector(isPresented: $model.showPanel) {
             DockColumn(model: model, dock: model.dock).inspectorColumnWidth(min: 280, ideal: 330, max: 480)
@@ -284,12 +304,15 @@ struct HUDInner: View {
                     if model.help { Text(HELP).foregroundStyle(.secondary) } else { Text("? で操作の説明").foregroundStyle(.secondary) }
                 }
                 .font(.system(size: 11, design: .monospaced)).foregroundStyle(.white)
-                .padding(8).background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 6))
+                .padding(.horizontal, 10).padding(.vertical, 7)
+                .background(Space.panel.opacity(0.85), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Space.line))   // ウェブ版の .hud
             }
             if !hud.notice.isEmpty {
                 Text(hud.notice).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(.black.opacity(0.55), in: Capsule())
+                    .padding(.horizontal, 14).padding(.vertical, 7)
+                    .background(Space.panel.opacity(0.88), in: Capsule())
+                    .overlay(Capsule().stroke(Space.violet.opacity(0.45)))
             }
         }
         .padding(10).allowsHitTesting(false)
@@ -301,15 +324,69 @@ struct MapsArea: View {
     @ObservedObject var model: AppModel
     var topInset: CGFloat = 0
     var body: some View {
-        VSplitView {
-            if model.r.set.s2On { OneMap(model: model, slot: 2, topInset: topInset) }
-            OneMap(model: model, slot: 0, topInset: model.r.set.s2On ? 0 : topInset)
-            if model.r.set.map2On { OneMap(model: model, slot: 1, topInset: 0) }
+        // 地図を上下に（S² の仲間・S³ の地図・地図 2）。境目のつまみをドラッグした割合は覚えておく
+        let slots = (model.r.set.s2On ? [2] : []) + [0] + (model.r.set.map2On ? [1] : [])
+        GeometryReader { geo in
+            let H = max(1, Double(geo.size.height)), n = slots.count
+            let cuts: [Double] = n == 3 ? [model.r.set.mapSplit3a, model.r.set.mapSplit3b] : n == 2 ? [model.r.set.mapSplit2] : []
+            VStack(spacing: 0) {
+                ForEach(Array(slots.enumerated()), id: \.element) { k, slot in
+                    let lo = k == 0 ? 0 : cuts[k - 1], hi = k == n - 1 ? 1 : cuts[k]
+                    OneMap(model: model, slot: slot, topInset: k == 0 ? topInset : 0).frame(height: max(60, CGFloat((hi - lo) * H) - (k < n - 1 ? 5 : 0)))
+                    if k < n - 1 {
+                        SplitHandle(vertical: true) { d in
+                            let f = min(hi - 0.08, max(lo + 0.08, cuts[k] + Double(d) / H))
+                            if n == 2 { model.r.set.mapSplit2 = f } else if k == 0 { model.r.set.mapSplit3a = f } else { model.r.set.mapSplit3b = f }
+                            model.changed()
+                        } onEnd: { model.changed() }
+                    }
+                }
+            }
         }
+    }
+}
+/// 境目のつまみ（細い線。ドラッグで動かす）。vertical：上下に並んだ境目（横長のつまみ）
+struct SplitHandle: View {
+    let vertical: Bool
+    let change: (CGFloat) -> Void
+    let onEnd: () -> Void
+    @State private var hover = false
+    @State private var last: CGFloat = 0
+    var body: some View {
+        Rectangle().fill(hover ? Space.violet.opacity(0.7) : Space.line.opacity(0.7))
+            .frame(width: vertical ? nil : 5, height: vertical ? 5 : nil)
+            .contentShape(Rectangle())
+            .onHover { h in hover = h; if h { (vertical ? NSCursor.resizeUpDown : NSCursor.resizeLeftRight).push() } else { NSCursor.pop() } }
+            .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global).onChanged { g in
+                let t = vertical ? g.translation.height : g.translation.width
+                change(t - last); last = t
+            }.onEnded { _ in last = 0; onEnd() })
     }
 }
 /// 地図 1 枚：隅に、見方（ふつう・自分中心）・範囲（全体・今いる所・写る所）・元の向き・浮かせる（ウェブ版の窓の右下の切り替え）
 /// 地図の右上：軸 x・y・z・w が地図に写る長さの割合（ウェブ版の axlen と同じ）。自分中心では歩くと変わる
+/// 地図の右上：今いる所の座標（x・y・z・w、それぞれ −1〜1。S³ の点なので 2 乗の和は 1）
+struct PosReadout: View {
+    let r: Renderer
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+            let p = r.cam.w.p
+            HStack(spacing: 7) {
+                Text("位置").foregroundStyle(Space.slate)
+                ForEach(0..<4, id: \.self) { i in
+                    HStack(spacing: 2) {
+                        Text(["x", "y", "z", "w"][i]).italic().foregroundStyle(Color(red: Double(AXIS_RGB[i].x), green: Double(AXIS_RGB[i].y), blue: Double(AXIS_RGB[i].z)))
+                        Text(String(format: "%+.3f", p[i])).monospacedDigit().foregroundStyle(.white.opacity(0.9))
+                    }
+                }
+            }
+            .font(.caption).padding(.horizontal, 9).padding(.vertical, 3)
+            .background(Space.panel.opacity(0.85), in: Capsule()).overlay(Capsule().stroke(Space.line))
+            .help("今いる所の座標（S³ の点：x² ＋ y² ＋ z² ＋ w² ＝ 1）。アナ極は (0, 0, 0, +1)、カタ極は (0, 0, 0, −1)")
+        }
+    }
+}
+
 struct AxisLengths: View {
     let map: MapRenderer
     var body: some View {
@@ -340,10 +417,17 @@ struct OneMap: View {
             MapPane(model: model, slot: slot)
             VStack {
                 HStack {
-                    Text(slot == 0 ? "S³ の地図" : slot == 1 ? "地図 2" : "S² の仲間（同じ操作を球面で）").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
-                        .padding(.horizontal, 8).padding(.vertical, 3).background(.black.opacity(0.35), in: Capsule())
+                    // ウェブ版の地図の札：S³ の地図はすみれ色、S² の仲間は水色
+                    let bc = slot == 2 ? Color(red: 103 / 255, green: 232 / 255, blue: 249 / 255) : Color(red: 216 / 255, green: 180 / 255, blue: 254 / 255)
+                    let uR = model.r.set.uniR, uTxt = uR > 1.05 && slot != 2 ? "・半径 ×" + (uR < 10 ? String(format: "%.1f", uR) : String(format: "%.0f", uR)) : ""
+                    Text((slot == 0 ? "S³ の地図" : slot == 1 ? "地図 2" : "S² の仲間（同じ操作を球面で）") + uTxt).font(.caption.weight(.bold)).foregroundStyle(bc)
+                        .padding(.horizontal, 10).padding(.vertical, 4).background(Space.panel.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(bc.opacity(0.3)))
                     Spacer()
-                    if slot != 2 && model.r.set.mapAxes { AxisLengths(map: model.renderer(slot)) }
+                    VStack(alignment: .trailing, spacing: 4) {
+                        if slot != 2 && model.r.set.mapAxes { AxisLengths(map: model.renderer(slot)) }
+                        if slot == 0 { PosReadout(r: model.r) }
+                    }
                     HStack(spacing: 6) {
                         Button { model.renderer(slot).home() } label: { Image(systemName: "scope") }.help("地図を元の向きに（ダブルクリックでも）")
                         if slot == 0 {
@@ -559,7 +643,7 @@ final class WalkView: MTKView {
         applyScale()
         if logFPS { print(String(format: "fps %.1f / %d  最長 %.1f ms  GPU %.2f ms  %d×%d  細かさ %.2f", r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale)); fflush(stdout) }
         let p = r.cam.w.p, fromN = acos(max(-1, min(1, p.w)))
-        let mode = [r.pathMode == .spiral ? "螺旋" : r.pathMode == .ring ? "回る輪" : r.roaming ? "縦横無尽" : r.walking ? "歩き続ける" : "", r.set.shell ? (r.set.shellSolid ? "球層（立体）" : "球層") : "", r.set.lite ? "軽い線" : ""].filter { !$0.isEmpty }.joined(separator: "・")
+        let mode = [r.pathMode == .spiral ? "螺旋" : r.pathMode == .ring ? "回る輪" : r.roaming ? "縦横無尽" : r.rewinding ? String(format: "巻き戻し ×%.1f", max(0.3, r.rewindSpeed)) : r.walking ? (abs(r.autoSpeed - 1) > 0.01 ? String(format: "歩き続ける ×%.1f", r.autoSpeed) : "歩き続ける") : "", r.set.shell ? (r.set.shellSolid ? "球層（立体）" : "球層") : "", r.set.lite ? "軽い線" : ""].filter { !$0.isEmpty }.joined(separator: "・")
         let UR = r.set.uniR, big = UR >= 10, opp = big ? String(format: "πR ≈ %.0f", Double.pi * UR) : String(format: "π ≈ %.2f", Double.pi * UR)
         let s = String(format: "%.0f fps（目標 %d、いちばん長い間 %.0f ms）　GPU %.1f ms/コマ　%d×%d（細かさ %.0f%%%@）\nアナ極から %@（%@ で反対側）　進んだ距離 %@（%.2f 周）\n方位 %.0f°　仰角 %.0f°　見回し %.0f° / %.0f°　%@",
                        r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale * 100, r.set.autoQ ? "・自動" : "",

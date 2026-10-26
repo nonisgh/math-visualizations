@@ -82,6 +82,11 @@ struct Settings {
     var stars = 1.0             // 宇宙の時の星の明るさ（0 で星なし）
     var band = 1.0              // 宇宙の時の天の川・星雲の明るさ
     var polePlanet = true       // 8 つの極を「惑星」に：極の色の、少し透けてつやのある大きな玉（角度 0.16、宇宙の大きさでは小さくしない＝広い宇宙ほど本当は大きい）。絵のモードの時は絵のまま
+    var autoAccel = 1.2         // 自走（歩き続ける）の時、左スティックを前へ倒し続けた時の速くなり方（1 秒あたり）
+    var autoMax = 8.0           // 自走の最高の速さ（ふつうの何倍か）
+    var autoRewind = true       // 自走の時、手前へ倒し続けると止まったあと軌跡を逆にたどる（巻き戻し）
+    var mapWidth = 520.0        // 地図の幅（景色との境目のつまみで。覚えておく）
+    var mapSplit2 = 0.5, mapSplit3a = 0.34, mapSplit3b = 0.67   // 地図を上下に並べた時の境目（2 枚・3 枚）
     var free360 = true          // 上下（仰角・見回し）も 360° 回す（宙返り）。false でウェブ版と同じく ±89° で止める
     var wireFloor = 0.35        // 目印の線の濃さ：宇宙を大きくすると出てくる、殻の色の細い線（CG ソフトの補助線のよう。もやで消さない。0 で出さない＝ウェブ版と同じ）
     var shAxis = false          // 球層の色：false レインボー（w の殻）／true 軸の色（選んだ軸の極を囲む殻を、その軸の色で。ウェブ版の軸色）
@@ -140,6 +145,9 @@ final class Renderer: NSObject, MTKViewDelegate {
         leveling = false; headGoing = true; say?("この向きへ進む（Enter と同じ）")
     }
     private var padHold = 0.0, padPushWas = false
+    /// 自走（歩き続ける）の速さの倍率・巻き戻し中か・巻き戻しの速さ（左スティックの前後で。アクセル・ブレーキ・巻き戻し）
+    private(set) var autoSpeed = 1.0, rewinding = false, rewindSpeed = 0.0
+    private var walkingWas = false, padThrottle = 0.0
     /// ZL を押している（見回しだけ）。パネルの表示用
     private(set) var padLookOnly = false
     /// ZL を押している間に、右スティックか Y を使ったか（使わずに離したら「前を見る」）
@@ -488,7 +496,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // ---- 歩く（ウェブ版の loop の一部）----
     func step(_ dt: Double) {
-        let sp = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR   // 宇宙が大きいほど、同じ速さで進む角度は小さい
+        var sp = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR   // 宇宙が大きいほど、同じ速さで進む角度は小さい
         var mv = SIMD3<Double>(0, 0, 0)
         if roaming { journey.roam(&cam, dt, set.roamK) }
         if pathMode != .none {                                   // 決まった道：自動で進む（キー・スティックで歩いたらやめる）
@@ -514,7 +522,10 @@ final class Renderer: NSObject, MTKViewDelegate {
             } else {
                 cam.az += cx * turnX * dt; cam.el += cy * turnY * dt
             }
-            let target = g.move
+            var target = g.move
+            // 自走（歩き続ける）の時は、左スティックの前後はアクセル・ブレーキ・巻き戻し（前後には歩かない。左右は横歩きのまま）
+            padThrottle = walking ? target.z : 0
+            if walking { target.z = 0 }
             if game {
                 padVel += (target - padVel) * min(1, dt * 6)
                 if simd_length(padVel) < 0.02 && target == .zero { padVel = .zero }
@@ -534,10 +545,28 @@ final class Renderer: NSObject, MTKViewDelegate {
             padLookOnly = g.lookOnly
             padMove = padVel
         } else { padMove = .zero; padVel = .zero; padRun = 1 }
+        // 自走の速さ：前へ倒し続けるとだんだん速く（離すとその速さのまま）、手前へ倒すとブレーキ、止まってもまだ倒していると軌跡を巻き戻す
+        if walking && !walkingWas { autoSpeed = 1; rewinding = false; rewindSpeed = 0 }
+        walkingWas = walking
+        if walking && set.gamepad {
+            let th = padThrottle
+            if th > 0.2 {
+                if rewinding { rewinding = false; rewindSpeed = 0; autoSpeed = 0 }
+                autoSpeed = min(set.autoMax, autoSpeed + set.autoAccel * th * dt * max(1, autoSpeed * 0.6))
+            } else if th < -0.2 {
+                if autoSpeed > 0.02 { autoSpeed = max(0, autoSpeed - 2.5 * -th * dt * max(1, autoSpeed)) }
+                else if set.autoRewind {
+                    if !rewinding { say?("巻き戻し：通ってきた軌跡を逆にたどる") }
+                    autoSpeed = 0; rewinding = true; rewindSpeed = min(6, rewindSpeed + 1.5 * -th * dt)
+                }
+            } else if rewinding { rewinding = false; rewindSpeed = 0 }
+            sp *= autoSpeed
+        } else { rewinding = false }
+        if rewinding { rewindStep(0.9 * set.spd * dt * max(0.3, rewindSpeed) / set.uniR) }
         // W（または歩き続ける・縦横無尽）。自動で進んでいる時に左スティックを倒すと、自動の前進はスティックに入れかわる
         //   （手前に倒すと後ろへ。足し合わせると前後が打ち消し合い、残った少しの横の傾きが全速の横歩きになってしまっていた）
         let keyWalk = keys.contains(where: { [13, 1, 0, 2, 12, 14].contains($0) })
-        if keys.contains(13) { mv.z += 1 } else if walking || roaming { mv.z += max(0, 1 - min(1, simd_length(padMove))) }
+        if keys.contains(13) { mv.z += 1 } else if (walking || roaming) && !rewinding { mv.z += max(0, 1 - min(1, simd_length(padMove))) }
         if keys.contains(1) { mv.z -= 1 }                     // S
         if keys.contains(0) { mv.x -= 1 }                     // A
         if keys.contains(2) { mv.x += 1 }                     // D
@@ -577,6 +606,25 @@ final class Renderer: NSObject, MTKViewDelegate {
                 if lastBand >= 0 && band != lastBand { Haptic.tick() }
                 lastBand = band
             }
+        }
+    }
+    /// 巻き戻し：通ってきた軌跡の点を、新しい方から順に ds だけ逆にたどる（体の向きはそのまま＝後ろ向きに戻る）。S² の仲間も同じ割合で
+    func rewindStep(_ ds: Double) {
+        var left = ds, n = 0
+        while left > 1e-9 && n < 64 {
+            n += 1
+            guard let tgt = journey.trail.last else { rewinding = false; rewindSpeed = 0; say?("軌跡のはじまりまで戻った"); return }
+            let p = cam.w.p, c = max(-1, min(1, dot4(p, tgt))), a = acos(c)
+            if a < 1e-7 { journey.trail.removeLast(); if !journey.trail2.isEmpty { journey.trail2.removeLast() }; continue }
+            let st = min(left, a), d = nrm(tgt - p * c)
+            moveAlong(&cam.w, d, st)
+            if let t2 = journey.trail2.last {
+                let p2 = journey.w2.p, c2 = max(-1, min(1, simd_dot(p2, t2))), a2 = acos(c2)
+                if a2 > 1e-7 { moveAlong2(&journey.w2, simd_normalize(t2 - p2 * c2), a2 * st / a) }
+            }
+            journey.dist = max(0, journey.dist - st); journey.lastTrail = journey.dist
+            left -= st
+            if st >= a - 1e-9 { journey.trail.removeLast(); if !journey.trail2.isEmpty { journey.trail2.removeLast() } }
         }
     }
     /// 体の枠を進む向きの枠に合わせ直す。S² の仲間は方位 az で進むので、その分だけ S² の枠も回して向きを保つ

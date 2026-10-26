@@ -194,6 +194,20 @@ enum Verify {
             check(a > 0.05 && b < -0.05, String(format: "宙返り（上へ約 200°）のあと右へ倒すと右へ回る（%.2f）、左右反転なら左へ（%.2f）", a, b))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
+        // 自走（歩き続ける）：左スティックを前へ倒し続けると速く、離すとそのまま、手前でブレーキ、止まっても倒していると軌跡を巻き戻す
+        do {
+            r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.walking = true
+            func run(_ n: Int, _ z: Double) { for _ in 0..<n { r.game.fake = ([0, 0, z], .zero, false, false, false); r.step(1.0 / 120) } }
+            run(120, 0); let d1 = r.journey.dist
+            run(240, 1); let fast = r.autoSpeed
+            run(120, 0); let cruise = r.autoSpeed, nTr = r.journey.trail.count, far = r.journey.dist
+            run(600, -1); let back = r.journey.dist, nTr2 = r.journey.trail.count, rew = r.rewinding
+            run(10, 0)
+            r.walking = false; r.game.fake = (.zero, .zero, false, false, false); r.set.gamepad = false; r.step(1.0 / 120); r.game.fake = nil
+            check(d1 > 0 && fast > 2 && abs(cruise - fast) < 1e-9 && rew && back < far - 0.3 && nTr2 < nTr && !r.rewinding,
+                  String(format: "自走：前へ倒し続けて ×%.1f（離してもそのまま）、手前でブレーキ→巻き戻し（道のり %.2f → %.2f、軌跡 %d → %d 点）", fast, far, back, nTr, nTr2))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey()
+        }
         // 宇宙の大きさ R：同じ速さで歩くと、進む角度は 1/R（1 秒で 0.9／R）。目印の見かけも 1/R
         do {
             r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.set.uniL = 2; r.walking = true
@@ -302,9 +316,9 @@ enum Verify {
         let cleared = nTrail > 10 && r.journey.trail.count <= 1 && r.journey.foot.isEmpty && r.journey.trail2.count <= 1
         check(backDot < -0.1 && abs(vHalf / base - 0.6) < 0.02 && abs(vFull / base - 2.5) < 0.05 && abs(vBack / base - 2.5) < 0.05 && cleared,
               String(format: "コントローラー：手前に倒すと後ろへ（前との内積 %.2f）。速さ 6 割倒し ×%.2f・倒しきり ×%.2f・後ろへ倒しきり ×%.2f。L3 で軌跡を消す（%d 点 → %d 点）", backDot, vHalf / base, vFull / base, vBack / base, nTrail, r.journey.trail.count))
-        // 歩き続けている時に手前へ倒す（少し横に傾いていても）：横へ流れず、後ろへ
+        // 歩き続けている時に手前へ倒す（少し横に傾いていても）：ブレーキのあと、横へ流れず後ろへ（軌跡の巻き戻し）
         r.cam = Camera(); r.journey = Journey(); r.walking = true
-        for i in 0..<360 { r.game.fake = (i < 120 ? .zero : [0.04, 0, -1], .zero, false, false, false); r.step(1.0 / 120) }
+        for i in 0..<210 { r.game.fake = (i < 120 ? .zero : [0.04, 0, -1], .zero, false, false, false); r.step(1.0 / 120) }   // 0.4 秒ほどでブレーキが効いて止まり、そのあと巻き戻し
         let p1 = r.cam.w.p, F1 = r.cam.lookFrame()
         for _ in 0..<12 { r.step(1.0 / 120) }
         let dv = r.cam.w.p - p1, side = abs(dot4(dv, F1.R)) / max(1e-12, simd_length(dv))
@@ -540,6 +554,8 @@ enum Verify {
             ("地図・今いる所（宇宙の大きさ ×1）", { r in r.set = .plain; r.set.mapRange = 1; r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
             ("地図・今いる所（宇宙の大きさ ×30：照らす範囲が小さい）", { r in r.set = .plain; r.set.mapRange = 1; r.set.uniL = log10(30); r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
             ("地図・写る所（宇宙の大きさ ×30）", { r in r.set = .plain; r.set.mapRange = 2; r.set.uniL = log10(30); r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
+            ("地図・宇宙の大きさ ×10（殻を 1 枚おきに・細い線）", { r in r.set = .plain; r.set.uniL = 1; r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
+            ("地図・宇宙の大きさ ×1000（殻を 5 枚に 1 枚・いちばん細い線）", { r in r.set = .plain; r.set.uniL = 3; r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
             ("地図・自分を真ん中に", { r in r.set = .plain; r.set.mapFollow = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
         ]
         let w = 1200, h = 900
@@ -629,7 +645,7 @@ enum Verify {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
         print("GPU：\(dev.name)　1 コマの GPU の時間（ミリ秒）")
         let sizes = only4K ? [(3840, 2160), (4096, 2304)] : [(1280, 800), (1920, 1080), (2560, 1600), (3456, 2234), (4096, 2304)]
-        let sizes2 = ProcessInfo.processInfo.environment["S3_BENCH_NAT"] != nil ? [(1728, 1117), (3456, 2234)] : sizes
+        let sizes2 = ProcessInfo.processInfo.environment["S3_BENCH_NAT"] != nil ? [(1728, 1117), (3456, 2234)] : ProcessInfo.processInfo.environment["S3_BENCH_AX"] != nil ? [(1728, 1117)] : sizes
         var cases: [(String, (inout Settings) -> Void)] = [
             ("球層（殻の見える距離 3、球層の海）", { _ in }),
             ("球層（殻の見える距離 1、ウェブ版の既定）", { $0.shellRange = 1 }),
@@ -637,6 +653,10 @@ enum Verify {
             ("球層なし（玉・赤道の膜・もや）", { $0.shell = false }),
         ]
         if only4K { cases.append(("経線・赤道の輪（管）", { $0.shell = false; $0.circ = true })); cases.append(("120 胞体の部屋の辺（管）", { $0.shell = false; $0.room = true })); cases.insert(("球層 6 枚", { $0.shellN = 6 }), at: 1); cases.insert(("球層・網目なし", { $0.shellBare = true }), at: 1); cases.insert(("球層・軽い線あり", { $0.lite = true }), at: 1); cases.append(("軽い線だけ（ウェブ版の既定の見え方）", { $0.shell = false; $0.lite = true })); cases.append(("宇宙：球層＋星・天の川", { $0.space = true })); cases.append(("宇宙：星だけ", { $0.space = true; $0.shell = false })); cases.append(("宇宙＋星雲＋映画の光（星雲を見る）", { $0.space = true; $0.shell = false; $0.nebula = true; $0.cine = true; $0.glow = 0.4 })); cases.append(("宇宙＋球層＋星雲＋映画の光", { $0.space = true; $0.nebula = true; $0.cine = true; $0.glow = 0.4 })); cases.append(("深海＋映画の光", { $0.cine = true; $0.glow = 0.4 })) }
+        if ProcessInfo.processInfo.environment["S3_BENCH_AX"] != nil {     // 軸色の球層だけ
+            cases = [("ふつうに起動（レインボー）", { $0 = Settings() }), ("軸色（x・y・z・w）", { $0 = Settings(); $0.shAxis = true }),
+                     ("軸色（x・y・z・w）・殻の見える距離 11", { $0 = Settings(); $0.shAxis = true; $0.shellRange = 11 }), ("宇宙・軸色（x・y・z・w）", { $0 = Settings(); $0.shAxis = true; $0.space = true; $0.nebula = false })]
+        }
         if ProcessInfo.processInfo.environment["S3_BENCH_NAT"] != nil {    // ふつうに起動した時（アプリの既定の設定）と、前の見え方
             cases = [("前の見え方（映画の光・惑星なし）", { _ in }),
                      ("ふつうに起動（深海・球層・映画の光・惑星・光る線）", { $0 = Settings() }),
