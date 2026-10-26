@@ -641,6 +641,10 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                 if let a = ball(p, 0.085, Journey.markColor(i), pic: PIC.mark(i)), !picMode { labels.append(MapLabel(pos: a + SIMD3(0, 0, 0.18), text: "\(i + 1)", col: [1, 1, 1], size: 11)) }
             }
         }
+        // デモの模型：地図に「○○はここ」。自分から前へ進む光の道（大円）が、反対側を回って模型の背中に届くのも描く
+        if let d = world.demo, let a = ball(d.c, 0.12, [1, 0.62, 0.3], cap: 1.6) {
+            labels.append(MapLabel(pos: a + SIMD3(0, 0, 0.22), text: d.name + "はここ", col: [1, 0.85, 0.45], size: 13))
+        }
         let meA = ball(cam.w.p, 0.1, [1, 1, 1], cap: 1.4, pic: PIC.selfPic)
         balls(bs, depth: depthOn)
 
@@ -678,6 +682,23 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             }
         }
         lines(tr, 3.4, additive: false, depth: depthRead)
+        if let d = world.demo {
+            // 光の道：自分の前（進む向き）から出た光は、大円を 2π − 距離 だけ進んで、模型の背中に後ろから届く（前に見えるのはその像）
+            let p0 = cam.w.p, f0 = cam.lookFrame().L, dist = acos(max(-1, min(1, dot4(p0, d.c)))), Ltot = 2 * Double.pi - dist
+            var segs: [Seg] = [], prev: SIMD3<Float>? = nil
+            let N = 160
+            for k in 0...N {
+                let sk = Ltot * Double(k) / Double(N), q = nrm(p0 * cos(sk) + f0 * sin(sk))
+                let cur = map(q, R)?.0
+                if let a = prev, let b = cur, simd_length(a - b) <= 1.5 {
+                    let tt = Float(k) / Float(N), c = SIMD3<Float>(0.55 + 0.45 * tt, 0.85, 1.0 - 0.5 * tt) * 0.9
+                    segs.append(Seg(a: SIMD4(a, 0), ca: SIMD4(c, 0.9), b: SIMD4(b, 0), cb: SIMD4(c, 0.9)))
+                }
+                prev = cur
+                if k == N / 2, let m = cur { labels.append(MapLabel(pos: m + SIMD3(0, 0, 0.16), text: "光の道（前へ出て、反対側を回って背中へ）", col: [0.7, 0.9, 1], size: 11)) }
+            }
+            lines(segs, 2.2, additive: true, depth: depthRead)
+        }
         if let a = meA {
             // 自分の玉から出る円すい（ウェブ版と同じ大きさ・位置。遠近で大きくなるのは 1.4 倍まで）
             let k = Float(min(1.4, kOf(cam.w.p, R)))

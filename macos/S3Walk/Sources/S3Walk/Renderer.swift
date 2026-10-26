@@ -20,9 +20,10 @@ struct Uni {
     var fovY: Float = 0, picLine: Float = 0.3, nebK: Float = 1, wireFloor: Float = 0
     var circ: Int32 = 0, room: Int32 = 0, space: Int32 = 0, shAx: Int32 = 0
     var tube: Float = 0.02, pixAng: Float = 0.002, lineW: Float = 0, solidWire: Float = 0.35
-    var hazeK: Float = 1, xpad0: Float = 0, xpad1: Float = 0, xpad2: Float = 0
+    var hazeK: Float = 1, lineViv: Float = 0, xpad1: Float = 0, xpad2: Float = 0
     var BR = SIMD4<Float>(), BU = SIMD4<Float>(), BF = SIMD4<Float>()   // 体の向き（進む向きの枠。自分の模型の向き）
     var G0 = SIMD4<Float>(1, 0, 0, 0), G1 = SIMD4<Float>(0, 1, 0, 0), G2 = SIMD4<Float>(0, 0, 1, 0)   // 世界の xyz → 球層の網目の枠（行ごと。ウェブ版の uGridM）
+    var DR = SIMD4<Float>(), DU = SIMD4<Float>(), DF = SIMD4<Float>()   // デモの模型の向き（置いた時の体の向き）
 }
 /// 星の見え方の値（シェーダーの StarU と同じ並び、112 バイト）
 struct StarU {
@@ -120,6 +121,7 @@ struct Settings {
     var mapExpand = 0.1         // 宇宙の大きさ 10 倍ごとに、地図をこれだけ広げる（×1000 で 1.3 倍。0 で広げない）
     var gridTilt = 0.0, gridAz = 0.0          // 球層の網目の極（ふだんは z）を、向き gridAz の方へ gridTilt° 倒す（ウェブ版と同じ）
     var gridSpin = false, gridSpinRate = 4.0  // 網目の自転（網目の極のまわりに、1 分に gridSpinRate 回）
+    var lineViv = 0.6           // 景色の殻の網目の線の鮮やかさ（地図の色味に近づける。0 でウェブ版と同じ）
     var mapPan = false          // 地図の窓の中で地図を動かす（Shift・右ドラッグ）。初めはオフ（回す・近づくだけ）
     var mapRange = 0            // 殻の出し方：0 全体・1 今いる所（自分の殻ははっきり、となりはうっすら）・2 写る所（中の景色に写っている所だけ）
     // 2 枚目の地図（ウェブ版の左上の「地図 2」）：見方・範囲・4 次元の向きは 1 枚目と別。既定は自己中心
@@ -177,6 +179,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     var path = PathWalk()
     var turn = TurnWalk()              // ターンの道（半周 180°・極めぐり）
     var expSaved: Settings? = nil      // 体験の前の見え方（元に戻す用）
+    var demo: (c: V4, R: V4, U: V4, F: V4, kind: Int, name: String)? = nil   // デモ「背中が迫ってくる」の模型（置いた時の体の向きのまま。kind は模型の種類の番号）
     var gridSpinAng = 0.0              // 網目の自転の今の角（ウェブ版の GRID.spin）
     var pathSpeed = 1.0                // 決まった道の速さの倍率（コントローラーの十字の上下で）
     let game = GameInput()
@@ -218,7 +221,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         do { library = try device.makeLibrary(source: src, options: opts); libs["00"] = library } catch {
             fputs("シェーダーの組み立てに失敗：\(error)\n", stderr); return nil
         }
-        precondition(MemoryLayout<Uni>.stride == 368, "Uni の並びがシェーダーと合わない")
+        precondition(MemoryLayout<Uni>.stride == 416, "Uni の並びがシェーダーと合わない")
         super.init()
         game.onButton = { [weak self] k in DispatchQueue.main.async { self?.onPad?(k) } }
     }
@@ -300,6 +303,10 @@ final class Renderer: NSObject, MTKViewDelegate {
             let L = cam.lookFrame().L, d = set.followD, kind = Float(set.modelKind < 3 ? set.modelKind : set.modelKind > 3 ? set.modelKind - 1 : 7)
             out.append(MkGPU(c: SIMD4<Float>(cam.w.p * cos(d) - L * sin(d)), col: SIMD4<Float>(1, 1, 1, Float(0.2 * set.modelSize / set.uniR)), info: SIMD4(-1, 0, kind, Float(2 + d))))
         }
+        // デモの模型：置いた時の体の向きで立つ（info.w ＝ 9。向きは Uni の DR・DU・DF）
+        if let d = demo, set.mk == 4, out.count < 64 {
+            out.append(MkGPU(c: SIMD4<Float>(d.c), col: SIMD4<Float>(1, 1, 1, Float(0.22 * set.modelSize / set.uniR)), info: SIMD4(-1, 0, Float(d.kind), 9)))
+        }
         if set.selfBall { put(cam.w.p, [1, 1, 1], (set.mk == 0 ? 0.09 : set.mk == 4 ? 0.2 * set.modelSize : 0.13) / set.uniR, PIC.selfPic, model: set.modelSelf, me: true) }
         return out
     }
@@ -309,6 +316,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         u.P = SIMD4<Float>(cam.w.p); u.R = SIMD4<Float>(F.R); u.U = SIMD4<Float>(F.U); u.F = SIMD4<Float>(F.L)
         u.L0 = SIMD4<Float>(nrm(F.R * -0.45 + F.U * 0.75 - F.L * 0.5))
         let B = cam.lookFrame(); u.BR = SIMD4<Float>(B.R); u.BU = SIMD4<Float>(B.U); u.BF = SIMD4<Float>(B.L)
+        if let d = demo { u.DR = SIMD4<Float>(d.R); u.DU = SIMD4<Float>(d.U); u.DF = SIMD4<Float>(d.F) }
         let GM = gridM()                                           // 網目の枠 → 世界。シェーダーへは逆（転置）＝世界 → 網目の枠を行ごとに
         u.G0 = SIMD4<Float>(Float(GM[0][0]), Float(GM[1][0]), Float(GM[2][0]), 0); u.G1 = SIMD4<Float>(Float(GM[0][1]), Float(GM[1][1]), Float(GM[2][1]), 0); u.G2 = SIMD4<Float>(Float(GM[0][2]), Float(GM[1][2]), Float(GM[2][2]), 0)
         u.res = SIMD2(Float(width), Float(height))
@@ -326,7 +334,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         u.lens = Int32(set.lens)
         let fov = set.lens == 0 ? min(150, set.fov) : set.lens == 1 ? set.fov : 180
         u.fovY = Float(fov * d2r); u.tanF = Float(tan(min(150, set.fov) * d2r / 2))
-        u.space = set.space ? 1 : 0; u.hazeK = Float(set.hazeK); u.band = Float(set.band); u.wireFloor = Float(set.wireFloor)
+        u.space = set.space ? 1 : 0; u.hazeK = Float(set.hazeK); u.lineViv = Float(set.lineViv); u.band = Float(set.band); u.wireFloor = Float(set.wireFloor)
         u.shAx = set.shAxis ? Int32((set.shAxX ? 1 : 0) | (set.shAxY ? 2 : 0) | (set.shAxZ ? 4 : 0) | (set.shAxW ? 8 : 0)) : 0
         if set.shAxis && u.shAx == 0 { u.shAx = 8 }                  // 軸を 1 つも選んでいない時は w だけ
         u.neb = set.space && set.nebula && set.nebK > 0 ? 1 : 0; u.nebK = Float(set.nebK); u.nebStep = 0.08
@@ -599,7 +607,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             padLookOnly = g.lookOnly
             padMove = padVel
         } else { padMove = .zero; padVel = .zero; padRun = 1 }
-        // 自走の速さ：前へ倒し続けるとだんだん速く（離すとその速さのまま）、手前へ倒すとブレーキ、止まってもまだ倒していると軌跡を巻き戻す
+        // 自走の速さ：十字の上下でだんだん速く・遅く（離すとその速さのまま）、左スティックを手前へ倒すとブレーキ、止まってもまだ倒していると軌跡を巻き戻す
         let aLo = max(0, min(set.autoMin, set.autoMax)), aHi = max(aLo, set.autoMax)
         if walking && !walkingWas { autoSpeed = max(aLo, min(aHi, 1)); rewinding = false; rewindSpeed = 0 }
         walkingWas = walking
@@ -607,10 +615,8 @@ final class Renderer: NSObject, MTKViewDelegate {
             let th = padThrottle
             // 十字の上・下を押し続けても、だんだん速く・遅く（決まった道と同じ。1 秒で 2 倍・半分）
             let dy = game.dpadY(); if dy != 0 && !rewinding { autoSpeed = max(max(aLo, 0.1), min(aHi, autoSpeed * exp(dy * 0.69 * dt))) }
-            if th > 0.2 {
-                if rewinding { rewinding = false; rewindSpeed = 0; autoSpeed = aLo }
-                autoSpeed = min(aHi, autoSpeed + set.autoAccel * th * dt * max(1, autoSpeed * 0.6))
-            } else if th < -0.2 {
+            // 左スティックの前は何もしない（速さは十字の上下で。ユーザーの希望）。左右は横歩き、手前はブレーキ → 止まったら巻き戻し
+            if th < -0.2 {
                 if autoSpeed > aLo + 1e-6 { autoSpeed = max(aLo, autoSpeed - 2.5 * -th * dt * max(1, autoSpeed)) }
                 else if set.autoRewind && aLo < 0.02 {
                     if !rewinding { say?("巻き戻し：通ってきた軌跡を逆にたどる") }
@@ -773,7 +779,21 @@ final class Renderer: NSObject, MTKViewDelegate {
             say?("前に見えるのは、いま置いた目印を反対側から回ってきた光の像（距離 2π − 1.2）：上下も左右も逆で、向こう側の面。振り返ると、ふつうの向きの目印")
         }
     }
+    /// デモ「背中が迫ってくる」：ここに模型（怪獣 0・竜 1・たこ 7・いか 8）を自分と同じ向きで置いて、前へ歩き続ける。
+    ///   前を見ると、反対側を回ってきた光で、模型の背中が上下・左右逆に見え、離れるほど（光の道のり 2π − 距離が短くなるので）大きく迫ってくる。振り返ると顔が遠ざかる
+    func backDemo(_ kind: Int, _ name: String) {
+        if expSaved == nil { expSaved = set }
+        // 極は出したまま（地図で場所が分かるように）。球層・赤道の膜・自分の玉・ついてくる仲間は隠す
+        set.mk = 4; set.uniL = 0; set.fog = 0.03; set.fade = 0; set.maxD = 6.2; set.shell = false; set.eq = false; set.selfBall = false; set.follower = false; set.modelPoles = false
+        // アナ極から始める（模型はアナ極に、体と同じ向き＝前は x の方・東極へ。地図で場所が分かりやすいように）
+        let s = set; resetNorth(); set = s
+        let L = cam.lookFrame()
+        demo = (cam.w.p, L.R, L.U, L.L, kind, name)
+        cam.walk([0, 0, 1], 0.35); walking = true
+        say?("デモ：\(name)をここに同じ向きで置いて、前へ歩く。前に見えるのは、反対側を回ってきた光で見える\(name)の背中（上下・左右が逆）。はじめは小さくなり、π/2 を過ぎると大きく迫ってきて、π で空いっぱいに。振り返ると\(name)の顔が遠ざかる（十字の上下で速さ）")
+    }
     func endExperience() {
+        demo = nil
         guard let s = expSaved else { return }
         let marks = set.marksOn; set = s; set.marksOn = marks; expSaved = nil
         say?("元の見え方に戻した")

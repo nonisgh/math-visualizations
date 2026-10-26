@@ -249,13 +249,14 @@ enum Verify {
             r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.walking = true
             func run(_ n: Int, _ z: Double) { for _ in 0..<n { r.game.fake = ([0, 0, z], .zero, false, false, false); r.step(1.0 / 120) } }
             run(120, 0); let d1 = r.journey.dist
-            run(240, 1); let fast = r.autoSpeed
+            run(120, 1); let fwd = r.autoSpeed                                 // 左スティックの前は何もしない
+            r.game.fakeDpad = 1; run(240, 0); r.game.fakeDpad = nil; let fast = r.autoSpeed   // 十字の上で速く
             run(120, 0); let cruise = r.autoSpeed, nTr = r.journey.trail.count, far = r.journey.dist
-            run(600, -1); let back = r.journey.dist, nTr2 = r.journey.trail.count, rew = r.rewinding
+            run(450, -1); let back = r.journey.dist, nTr2 = r.journey.trail.count, rew = r.rewinding
             run(10, 0)
             r.walking = false; r.game.fake = (.zero, .zero, false, false, false); r.set.gamepad = false; r.step(1.0 / 120); r.game.fake = nil
-            check(d1 > 0 && fast > 2 && abs(cruise - fast) < 1e-9 && rew && back < far - 0.3 && nTr2 < nTr && !r.rewinding,
-                  String(format: "自走：前へ倒し続けて ×%.1f（離してもそのまま）、手前でブレーキ→巻き戻し（道のり %.2f → %.2f、軌跡 %d → %d 点）", fast, far, back, nTr, nTr2))
+            check(d1 > 0 && abs(fwd - 1) < 1e-9 && fast > 2 && abs(cruise - fast) < 1e-9 && rew && back < far - 0.3 && nTr2 < nTr && !r.rewinding,
+                  String(format: "自走：左スティックの前は何もしない、十字の上で ×%.1f（離してもそのまま）、手前でブレーキ→巻き戻し（道のり %.2f → %.2f、軌跡 %d → %d 点）", fast, far, back, nTr, nTr2))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
         // 決まった道の速さ：十字の上を 1 秒押すと 2 倍、下を 2 秒で 1/2（極めぐりの道のままで）
@@ -281,10 +282,10 @@ enum Verify {
         do {
             r.set = .plain; r.set.gamepad = true; r.set.autoMax = 3; r.set.autoMin = 0.5; r.cam = Camera(); r.journey = Journey(); r.walking = true
             func run(_ n: Int, _ z: Double) { for _ in 0..<n { r.game.fake = ([0, 0, z], .zero, false, false, false); r.step(1.0 / 120) } }
-            run(10, 0); run(1200, 1); let hi = r.autoSpeed
+            run(10, 0); r.game.fakeDpad = 1; run(1200, 0); r.game.fakeDpad = nil; let hi = r.autoSpeed
             run(1200, -1); let lo = r.autoSpeed, rew = r.rewinding
             r.walking = false; r.game.fake = (.zero, .zero, false, false, false); r.set.gamepad = false; r.step(1.0 / 120); r.game.fake = nil
-            check(abs(hi - 3) < 1e-9 && abs(lo - 0.5) < 1e-9 && !rew, String(format: "自走の最高・最低：倒し続けて ×%.1f（最高 3）、手前で ×%.1f（最低 0.5、巻き戻さない）", hi, lo))
+            check(abs(hi - 3) < 1e-9 && abs(lo - 0.5) < 1e-9 && !rew, String(format: "自走の最高・最低：十字の上を押し続けて ×%.1f（最高 3）、手前で ×%.1f（最低 0.5、巻き戻さない）", hi, lo))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
         // 宇宙の大きさ R：同じ速さで歩くと、進む角度は 1/R（1 秒で 0.9／R）。目印の見かけも 1/R
@@ -691,6 +692,8 @@ enum Verify {
                     print("  p", r.cam.w.p, "uniL", r.set.uniL, "follow", r.set.mapFollow, "shAxis", r.set.shAxis, "shellN", r.set.shellN, "mapD", r.set.mapD, "expand", r.set.mapExpand, "trail", r.journey.trail.count)
                 }
             }),
+            ("地図・デモ：怪獣の背中（アナ極から 1.0 進んだ所）", { r in r.set = .plain; r.backDemo(0, "怪獣"); r.walking = false; r.cam.walk([0, 0, 1], 0.65) }),
+            ("地図・デモ：怪獣の背中（2.6 進んだ所）", { r in r.set = .plain; r.backDemo(0, "怪獣"); r.walking = false; r.cam.walk([0, 0, 1], 2.25) }),
             ("地図・自分を真ん中に", { r in r.set = .plain; r.set.mapFollow = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
         ]
         let w = 1200, h = 900
@@ -752,6 +755,14 @@ enum Verify {
             ("体験：ついてくる仲間の顔（振り返る）", { s, c in s.modelKind = 8; c.az = 25; c.el = 10; c.walk([0, 0, 1], 0.7) }),
             ("体験：上下反転の像（前を見る）", { s, c in s.modelKind = 9; c.az = 25; c.el = 10; c.walk([0, 0, 1], 0.7) }),
             ("体験：上下反転の像（振り返る＝ふつうの向き）", { s, c in s.modelKind = 9; c.az = 25; c.el = 10; c.walk([0, 0, 1], 0.7) }),
+            ("デモ：怪獣の背中が迫ってくる・0・0.8", { s, c in s = Settings(); c.az = 20 }),
+            ("デモ：怪獣の背中が迫ってくる・0・1.8", { s, c in s = Settings(); c.az = 20 }),
+            ("デモ：怪獣の背中が迫ってくる・0・2.7", { s, c in s = Settings(); c.az = 20 }),
+            ("デモ：怪獣の背中が迫ってくる・0・1.8・振り返る", { s, c in s = Settings(); c.az = 20 }),
+            ("デモ：たこの背中が迫ってくる・7・0.8", { s, c in s = Settings(); c.az = 20 }),
+            ("デモ：たこの背中が迫ってくる・7・1.8", { s, c in s = Settings(); c.az = 20 }),
+            ("デモ：たこの背中が迫ってくる・7・2.7", { s, c in s = Settings(); c.az = 20 }),
+            ("デモ：たこの背中が迫ってくる・7・1.8・振り返る", { s, c in s = Settings(); c.az = 20 }),
             ("模型・竜を斜め前から", { s, c in s.mk = 4; s.modelKind = 1; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
             ("模型・いろいろ（球層の海・映画の光、東極を 0.5 手前から）", { s, c in s = Settings(); s.mk = 4; s.modelKind = 3; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.07) }),
             ("軸色の球層（x・y・z・w）", { s, c in s.shAxis = true; c.walk([0, 0, 1], 0.5) }),
@@ -786,6 +797,10 @@ enum Verify {
                     c.az = d["az"] as? Double ?? 30; c.el = d["el"] as? Double ?? 0
                 }
             }),
+            ("網目の鮮やかさ 0（前）・宇宙・球層（立体）", { s, c in s = Settings(); s.space = true; s.shellSolid = true; s.solidWire = 0.46; s.lineViv = 0; c.az = 20; c.el = 8; c.walk([0, 0, 1], 0.25) }),
+            ("網目の鮮やかさ 0（前）・深海・球層", { s, c in s = Settings(); s.lineViv = 0; c.az = 20; c.el = 8; c.walk([0, 0, 1], 0.25) }),
+            ("網目の鮮やかさ 0.6（新しい既定）・宇宙・球層（立体）", { s, c in s = Settings(); s.space = true; s.shellSolid = true; s.solidWire = 0.46; s.lineViv = 0.6; c.az = 20; c.el = 8; c.walk([0, 0, 1], 0.25) }),
+            ("網目の鮮やかさ 0.6（新しい既定）・深海・球層", { s, c in s = Settings(); s.lineViv = 0.6; c.az = 20; c.el = 8; c.walk([0, 0, 1], 0.25) }),
             ("極の惑星：東極を見る（宇宙・映画の光）", { s, c in s = Settings(); s.space = true; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.1) }),
             ("極の惑星：軸色・球層（東極へ向かう）", { s, c in s = Settings(); s.shAxis = true; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.2) }),
             ("極の惑星：すぐそば（近いほど透ける）", { s, c in s = Settings(); s.space = true; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.57 - 0.3) }),
@@ -815,6 +830,12 @@ enum Verify {
         for (k, (name, f)) in (refScenes() + extra).enumerated() {
             if let only, !name.contains(only) { continue }
             r.set = .plain; r.cam = Camera(); r.journey = Journey(); f(&r.set, &r.cam)
+            if name.hasPrefix("デモ：") {
+                let parts = name.components(separatedBy: "・"), k = Int(parts[1])!, d = Double(parts[2])!
+                r.backDemo(k, "模型"); r.walking = false
+                r.cam.walk([0, 0, 1], d - 0.35)
+                if name.contains("振り返る") { r.cam.hy = 180 }
+            }
             if name.hasPrefix("体験：") {
                 r.experience(name.contains("仲間") ? "self" : "flip")
                 if name.contains("振り返る") { r.cam.hy = 180 }

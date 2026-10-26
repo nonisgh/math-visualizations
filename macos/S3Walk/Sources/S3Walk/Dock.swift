@@ -368,6 +368,11 @@ struct PanelContent: View {
                     Button("上下反転の像") { r.experience("flip"); model.changed() }.help("ここに目印を置いて 1.2 進む。前に、反対側から回ってきた目印の像（上下・左右が逆、向こう側の面）が見える")
                     if r.expSaved != nil { Button("元の見え方に戻す") { r.endExperience(); model.changed() } }
                 }
+                HStack(spacing: 6) {
+                    Text("背中が迫ってくる").font(.caption).foregroundStyle(.secondary)
+                    ForEach([(0, "怪獣"), (1, "竜"), (7, "たこ"), (8, "いか")], id: \.0) { k, n in Button(n) { r.backDemo(k, n); model.changed() } }
+                }.controlSize(.small)
+                note("ここに模型を同じ向きで置いて、前へ歩き続ける。前を見ると、反対側を回ってきた光で背中が上下・左右逆に見える。はじめは小さくなり、π/2 を過ぎると大きく迫ってきて、π で空いっぱいに。振り返ると顔が遠ざかる。止めるのは B、元に戻すのは「元の見え方に戻す」")
             case .shell:
                 Toggle("球層" + km.hint(.shell), isOn: model.b(\.shell))
                 Picker("色", selection: model.b(\.shAxis)) { Text("レインボー").tag(false); Text("軸の色").tag(true) }.pickerStyle(.segmented)
@@ -382,6 +387,7 @@ struct PanelContent: View {
                 }
                 Toggle("立体の殻" + km.hint(.solid), isOn: model.b(\.shellSolid))
                 if r.set.shellSolid { row("立体の網目の明るさ", \.solidWire, 0, 1.5) }
+                row("網目の色の鮮やかさ", \.lineViv, 0, 1.5)
                 Toggle("網目なし" + km.hint(.bare), isOn: model.b(\.shellBare))
                 if !r.set.shellBare {
                     row("網目の傾き", \.gridTilt, 0, 180, "%.0f°", step: 1)
@@ -481,12 +487,11 @@ struct PanelContent: View {
                 Toggle("ゲームのような操作（少し倒すとゆっくり・速めに回る・慣性つき）", isOn: model.b(\.padGame))
                 Toggle("右スティックの左右を反転", isOn: model.b(\.padInvX))
                 Toggle("右スティックの上下を反転", isOn: model.b(\.padInvY))
-                row("自走のアクセル", \.autoAccel, 0.2, 4)
                 row("自走の最高速（倍）", \.autoMax, 1, 50, "%.1f")
                 row("自走の最低速（倍）", \.autoMin, 0, 10, "%.1f")
                 note("ブレーキで落とすのは最低速まで。0 なら止まって、まだ手前へ倒していると巻き戻し（最低速が 0 より大きい時は巻き戻さない）")
                 Toggle("自走で手前へ倒し続けると巻き戻し", isOn: model.b(\.autoRewind))
-                note("歩き続ける（コントローラーの B）の時：左スティックを前へ倒し続けるとだんだん速く（離すとその速さのまま）、手前へ倒すとブレーキ、止まってもまだ倒していると通ってきた軌跡を逆にたどる（倒し続けるほど速く）")
+                note("歩き続ける（コントローラーの B）の時：十字の上・下を押し続けるとだんだん速く・遅く（1 秒で 2 倍・半分、離すとその速さのまま）。左スティックの前は何もしない、左右は横歩き、手前へ倒すとブレーキ、止まってもまだ倒していると通ってきた軌跡を逆にたどる（倒し続けるほど速く）")
                 if !r.game.names.isEmpty {
                     TimelineView(.periodic(from: .now, by: 0.1)) { _ in
                         note("押しているボタン：" + r.game.pressedNames() + (r.padLookOnly ? "（見回しだけ）" : ""))

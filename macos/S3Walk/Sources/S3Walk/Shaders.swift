@@ -37,9 +37,10 @@ struct Uni {
     float fovY, picLine, nebK, wireFloor;    // fovY：縦の視野（ラジアン）、picLine：絵・色の点の時の線の濃さ、nebK：星雲の濃さ、wireFloor：もやで消える時も網目の線を残す濃さ
     int circ, room, space, shAx;             // 管：circ＝経線（x・y・z と w の大円）と赤道の輪、room＝120 胞体の部屋の辺。space：背景 0 深海（もや）・1 宇宙。shAx：球層の色 0 レインボー、それ以外は軸色で、囲む軸（1 x・2 y・4 z・8 w）
     float tube, pixAng, lineW, solidWire;    // （下に続く）
-    float hazeK, xpad0, xpad1, xpad2;        // hazeK：深海の時のもやの色の明るさ（1 でウェブ版と同じ。小さいほど殻の間が暗く、殻の境目が浮かぶ）
+    float hazeK, lineViv, xpad1, xpad2;      // hazeK：深海の時のもやの色の明るさ（1 でウェブ版と同じ。小さいほど殻の間が暗く、殻の境目が浮かぶ）、lineViv：網目の線の鮮やかさ（地図の色味へ。0 でウェブ版と同じ）
     float4 BR, BU, BF;                       // 体の向き（進む向きの枠）：自分の模型はこの向きで立つ（前を見ると光が 1 周して自分の背中、振り返ると顔）
     float4 G0, G1, G2;                       // 世界の xyz → 球層の網目の枠（行ごと。網目の傾き・自転。ウェブ版の uGridM）
+    float4 DR, DU, DF;                       // デモの模型の向き（置いた時の体の向き）
     //   tube：管の太さ（角度）、pixAng：1 画素の角度、lineW：網目の線の太さ（画素。0 でウェブ版と同じ角度の太さ）、solidWire：立体の殻の網目の濃さ（ウェブ版は 0.35）
 };
 struct Mk { float4 c; float4 col; float4 info; };   // c：中心（S³ の点）、col.xyz：色、col.w：半径（角度）、info.x：絵の表のます目（−1 で絵なし）
@@ -419,7 +420,8 @@ inline void modelFrame(float4 c, thread float4& R, thread float4& U, thread floa
 bool modelHit(float4 p0, float4 v, float tIn, float tOut, float4 c, float r, int id, float3 body, float me, constant Uni& u, thread float3& lc, thread float& la, thread float& tHit) {
     float4 R, U, F; modelFrame(c, R, U, F);
     if (me > 0.5) { R = u.BR; U = u.BU; F = u.BF; }                 // 自分の模型は体の向きで
-    if (me > 1.5) { float d = me - 2.0; F = u.BF * cos(d) + u.P * sin(d); }   // ついてくる仲間：自分の後ろ d、同じ向き（前の向きを運んだもの）
+    if (me > 1.5 && me < 8.5) { float d = me - 2.0; F = u.BF * cos(d) + u.P * sin(d); }
+    if (me > 8.5) { R = u.DR; U = u.DU; F = u.DF; }                    // デモの模型：置いた時の体の向き   // ついてくる仲間：自分の後ろ d、同じ向き（前の向きを運んだもの）
     float t = tIn, best = 1e9, tb = tIn; float3 xb = float3(0.0); bool hit = false;
     for (int s = 0; s < 72; s++) {
         float4 q = cos(t) * p0 + sin(t) * v;
@@ -561,7 +563,10 @@ void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float w
     float3 sp0 = q.xyz * iS, sp = float3(dot(u.G0.xyz, sp0), dot(u.G1.xyz, sp0), dot(u.G2.xyz, sp0));   // 網目の枠へ（傾き・自転）
     float2 gg = u.shellBare == 1 ? float2(0.0) : gridLine15(asin(clamp(sp.z, -1.0, 1.0)), atan2(sp.y, sp.x), length(sp.xy), pixFoot(t, cv, 1.0 / iS, u), u);   // 網目（cos 緯度 ＝ xy の長さ）
     float g = gg.x;
-    float3 core = c0 * u.edr;                                       // 線の芯の色（EDR の画面では 1 より明るく）
+    // 線の芯の色（EDR の画面では 1 より明るく）。鮮やかさ lineViv：暗い色の持ち上げで白っぽくなった色を、地図の色味（純色に近い）へ戻して少し明るく
+    float lum0 = dot(c0, float3(0.299, 0.587, 0.114));
+    float3 cLine = clamp(lum0 + (c0 - lum0) * (1.0 + 1.3 * u.lineViv), 0.0, 1.0) * (1.0 + 0.3 * u.lineViv);
+    float3 core = cLine * u.edr;
     if (u.shellSolid == 1) {   // 立体版：面に光（左上・手前から）、つや、ふちは暗い輪郭
         float4 nP = sg * (float4(0.0, 0.0, 0.0, 1.0) - q * wc) * iS;
         float4 nn = cv < 0.0 ? -nP : nP;
@@ -571,7 +576,7 @@ void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float w
         c = c * dif + float3(spec);
         if (cv < 0.0) c *= 1.0 - u.shellBack * 0.5;
         float edge = ss(0.80, 0.97, rimK) * ss(0.08, 0.45, t);
-        g *= u.solidWire;                                           // 網目の濃さ（ウェブ版は 0.35＝ごく薄く。強めると線も少し明るく）
+        g *= u.solidWire * (1.0 + 0.6 * u.lineViv);                 // 網目の濃さ（ウェブ版は 0.35＝ごく薄く。強めると線も少し明るく。鮮やかさでも少し濃く）
         cc = mix(mix(c, core * (1.3 + 0.8 * max(0.0, u.solidWire - 0.35)), g), c * 0.2, edge);
         al = min(0.9, (u.shellOp * 1.8 * faceK * spF + 0.25 * g) * (0.12 + 0.88 * abs(cv)) + 0.3 * edge * faceK);
     } else {
@@ -584,7 +589,7 @@ void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float w
     if (u.lineW > 0.0) al *= mix(0.25 + 0.75 * g, 1.0, ss(0.02, 0.3, t));   // くっきりの時：すぐそばの殻は面を薄く（線は残す）。画面いっぱいに殻の色がかからないように
     al = min(0.95, al * fadeR * dm);
     if (u.space == 1) al *= fg; else cc = mix(cc, hz, 1.0 - fg);         // 宇宙の時は、遠い殻は暗いもやの色にせず透けて消える（奥の星を黒い格子で隠さない）
-    em = c0 * (gg.y * u.glow * 0.07 * fadeR * dm * fg * (0.25 + 0.75 * abs(cv)) * u.edr);   // 線のまわりの光（遠いほど・もやの中ほど弱く）
+    em = cLine * (gg.y * u.glow * 0.07 * fadeR * dm * fg * (0.25 + 0.75 * abs(cv)) * u.edr);   // 線のまわりの光（遠いほど・もやの中ほど弱く）
     // 目印の線（CG ソフトの補助線のような細い線）：宇宙を大きくすると出てくる（×1 では出ず、×10 で全部）。画面で 1 画素ほどの細さ、殻の色、もやで消さない。
     //   遠くて網目の間が数画素より細かくなる所は、線が面のようにつぶれるので薄くする
     float gK = u.wireFloor * clamp(log10(max(u.uni, 1.0)), 0.0, 1.0);
@@ -592,9 +597,10 @@ void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float w
         float st = u.gridSt, fp = pixFoot(t, cv, 1.0 / iS, u);
         float da = abs(fract(asin(clamp(sp.z, -1.0, 1.0)) / st + 0.5) - 0.5) * st, db = abs(fract(atan2(sp.y, sp.x) / st + 0.5) - 0.5) * st * length(sp.xy);
         float gl = clamp(1.0 - min(da, db) / max(0.8 * fp, 1e-6), 0.0, 1.0) * (1.0 - ss(0.04, 0.16, fp / st));
-        float aG = gK * gl * fadeR;
+        // もやで消える所だけに出す（近くのもやの手前の殻には重ねない。前は近くの殻にも重なって、少し動くと殻ごとの線が七色の帯に見えた）
+        float aG = gK * gl * fadeR * (1.0 - fg);
         float na = al + aG * (1.0 - al);
-        cc = (cc * al + mix(c0, float3(1.0), 0.15) * aG * (1.0 - al)) / max(na, 1e-4); al = na;
+        cc = (cc * al + mix(cLine, float3(1.0), 0.15 * (1.0 - min(1.0, u.lineViv))) * aG * (1.0 - al)) / max(na, 1e-4); al = na;
     }
 }
 
