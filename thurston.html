@@ -272,7 +272,9 @@ function cellPentagon() {
 function cellDodeca() {
     const V = []; for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) V.push([x, y, z]);
     const a = 1 / PHI, b = PHI;
-    for (const s of [-1, 1]) for (const t of [-1, 1]) { V.push([0, s * a, t * b]); V.push([s * a, t * b, 0]); V.push([s * b, 0, t * a]); }
+    // 黄金比の頂点は (0, ±φ, ±1/φ) の並び（面の向き N (0, ±1, ±φ)… の正十二面体の頂点）。2026-10-26 に直した：
+    // 前は (0, ±1/φ, ±φ)… で面と組み合わせがずれ、どの面にも頂点が 1 つしか乗らず、辺が 3600 本・頂点 2153 個になっていた（正しくは 1200・600）。面の向きは変わらない
+    for (const s of [-1, 1]) for (const t of [-1, 1]) { V.push([0, s * b, t * a]); V.push([s * b, t * a, 0]); V.push([s * a, 0, t * b]); }
     const N = []; for (const s of [-1, 1]) for (const t of [-1, 1]) { N.push([0, s, t * PHI]); N.push([s, t * PHI, 0]); N.push([s * PHI, 0, t]); }
     N.forEach(n => { const l = Math.hypot(...n); for (let i = 0; i < 3; i++) n[i] /= l; });
     const d0 = Math.max(...V.map(v => v[0] * N[0][0] + v[1] * N[0][1] + v[2] * N[0][2]));
