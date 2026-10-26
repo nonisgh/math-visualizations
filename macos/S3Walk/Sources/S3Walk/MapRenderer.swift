@@ -60,11 +60,12 @@ vertex LOut lineV(uint vid [[vertex_id]], uint iid [[instance_id]], constant Seg
     float2 n = float2(-d.y, d.x);
     int corner = vid == 0 ? 0 : vid == 1 ? 1 : vid == 2 ? 2 : vid == 3 ? 2 : vid == 4 ? 1 : 3;
     bool atB = corner >= 2; float side = (corner == 1 || corner == 3) ? 1.0 : -1.0;
-    float hw = u.width * 0.5 + u.feather;                     // ふちをやわらかくする分だけ広く
+    float wm = atB ? s.b.w : s.a.w; wm = wm > 0.0 ? wm : 1.0;   // 線分の両はしの w：太さの倍率（光の軌跡で、新しい所ほど太く。0 なら 1 倍）
+    float hw = u.width * wm * 0.5 + u.feather;                // ふちをやわらかくする分だけ広く
     float4 p = atB ? pb : pa;
     float2 off = (n * side * hw + d * (atB ? 1.0 : -1.0) * u.feather * 0.5) / ha;
     p.xy += off * p.w;
-    o.pos = p; o.col = atB ? s.cb : s.ca; o.side = side * hw; o.halfW = u.width * 0.5;
+    o.pos = p; o.col = atB ? s.cb : s.ca; o.side = side * hw; o.halfW = u.width * wm * 0.5;
     return o;
 }
 fragment float4 lineF(LOut in [[stage_in]], constant MapUni& u [[buffer(1)]]) {
@@ -336,7 +337,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     /// 球層の殻の組（ウェブ版の shFams）：レインボーは w だけ、軸の色は選んだ軸（x・y・z・w の順）
     var shellFams: [Int] {
         let s = world.set
-        guard s.shAxis else { return [3] }
+        guard s.shAxis else { return s.rainbow4 ? [3, 0, 1, 2] : [3] }   // 4 方向レインボー：4 組（色はレインボー）
         let f = [(0, s.shAxX), (1, s.shAxY), (2, s.shAxZ), (3, s.shAxW)].filter { $0.1 }.map { $0.0 }
         return f.isEmpty ? [3] : f
     }
@@ -371,7 +372,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         shellCache = (key, out); return out
     }
     /// 軸色で殻の組が多い時は、足し合わせで白くならないよう 1 本ずつ暗く（ウェブ版の fk）
-    var shellFk: Double { world.set.shAxis ? 0.75 / Double(shellFams.count) : 1 }
+    var shellFk: Double { shellFams.count > 1 ? 0.75 / Double(shellFams.count) : 1 }
     /// 加え合わせで描く線：球層の殻・赤道の網目・軽い線。全体の時は写し方が変わった時だけ作り直す
     private func staticLines(_ R: [V4]) -> [Seg] {
         let s = world.set, c = config
@@ -539,8 +540,10 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                 let flow = Float(i) * 0.02 - tm * 2.2                       // 光の粒（数十点ごとに明るい所が、自分の方へ流れる）
                 let pulse = pow(max(0, cos(flow * 2 * .pi / 1.6)), 24) * 1.2 * u
                 let c = (old + (new - old) * u) * (f + pulse)
-                glow.append(Seg(a: SIMD4(a, 0), ca: SIMD4(c * 0.22, 1), b: SIMD4(b, 0), cb: SIMD4(c * 0.22, 1)))
-                core.append(Seg(a: SIMD4(a, 0), ca: SIMD4(c * 1.15, 1), b: SIMD4(b, 0), cb: SIMD4(c * 1.15, 1)))
+                // 彗星のように、新しい所ほど太く（古い所も細くなりすぎないよう、芯は 0.6 倍・にじみは 0.5 倍まで）
+                let u0 = Float(i - 1) / Float(N), wc0 = 0.6 + 1.6 * pow(u0, 2.2), wc1 = 0.6 + 1.6 * pow(u, 2.2), wg0 = 0.5 + 1.1 * pow(u0, 2.2), wg1 = 0.5 + 1.1 * pow(u, 2.2)
+                glow.append(Seg(a: SIMD4(a, wg0), ca: SIMD4(c * 0.22, 1), b: SIMD4(b, wg1), cb: SIMD4(c * 0.22, 1)))
+                core.append(Seg(a: SIMD4(a, wc0), ca: SIMD4(c * 1.15, 1), b: SIMD4(b, wc1), cb: SIMD4(c * 1.15, 1)))
             }
             lines(glow, 9, additive: true, depth: depthRead)
             lines(core, 2.2, additive: true, depth: depthRead)

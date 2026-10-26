@@ -126,6 +126,7 @@ struct Settings {
     var idleReuse = true        // 動いていない時は前のコマを使い回す（止まったら 1 回だけ細かく描く）
     var turboHold = false       // ターボの押し方：false 押すたびに切りかえ・true 押している間だけ（Z か十字の右を押し続ける）
     var trailKeep = 0.0         // 残す軌跡の長さ（×π。0 で全部）。古い所から消えていく
+    var rainbow4 = false        // 4 方向レインボー：レインボーの球層を x・y・z・w の 4 方向に重ねる（重い。地図の上の ◎4 で切りかえ）
     var mapPan = false          // 地図の窓の中で地図を動かす（Shift・右ドラッグ）。初めはオフ（回す・近づくだけ）
     var mapRange = 0            // 殻の出し方：0 全体・1 今いる所（自分の殻ははっきり、となりはうっすら）・2 写る所（中の景色に写っている所だけ）
     // 2 枚目の地図（ウェブ版の左上の「地図 2」）：見方・範囲・4 次元の向きは 1 枚目と別。既定は自己中心
@@ -235,7 +236,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // ---- 景色のシェーダーの種類：星雲（NEB）・軸色の球層（AXIS）を使う時だけ、そのコードの入ったものを組み立てる ----
     private var shaderSrc = "", compileOpts = MTLCompileOptions(), libs: [String: MTLLibrary] = [:], pipesV: [String: MTLRenderPipelineState] = [:]
-    var variant: String { (set.space && set.nebula && set.nebK > 0 ? "1" : "0") + (set.shAxis && set.shell ? "1" : "0") }
+    var variant: String { (set.space && set.nebula && set.nebK > 0 ? "1" : "0") + ((set.shAxis || set.rainbow4) && set.shell ? "1" : "0") }
     /// ほかの種類（星雲・軸色）を裏で組み立てておく（切りかえた時に止まらないように）
     func prewarm() {
         for v in ["10", "01", "11"] where libs[v] == nil {
@@ -350,6 +351,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         u.space = set.space ? 1 : 0; u.hazeK = Float(set.hazeK); u.lineViv = Float(set.lineViv); u.band = Float(set.band); u.wireFloor = Float(set.wireFloor)
         u.shAx = set.shAxis ? Int32((set.shAxX ? 1 : 0) | (set.shAxY ? 2 : 0) | (set.shAxZ ? 4 : 0) | (set.shAxW ? 8 : 0)) : 0
         if set.shAxis && u.shAx == 0 { u.shAx = 8 }                  // 軸を 1 つも選んでいない時は w だけ
+        if !set.shAxis && set.rainbow4 { u.shAx = 15 | 16 }          // 4 方向レインボー：x・y・z・w の 4 組の殻を、レインボーの色で
         u.neb = set.space && set.nebula && set.nebK > 0 ? 1 : 0; u.nebK = Float(set.nebK); u.nebStep = 0.08
         if set.cine { u.edr = max(u.edr, 1.2) }                    // 映画のような光：線の芯は白より少し明るく（色の締めで丸め、あふれる光にもなる）
         u.circ = set.circ ? 1 : 0; u.room = set.room ? 1 : 0; u.lineW = set.lineCrisp ? Float(set.lineW) : 0; u.solidWire = Float(set.solidWire)

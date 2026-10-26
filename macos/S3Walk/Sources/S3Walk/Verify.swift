@@ -728,6 +728,7 @@ enum Verify {
             ("地図・ロケットと見ている向きの矢印", { r in r.set = .plain; r.set.shell = false; r.cam = Camera(); r.journey = Journey(); r.cam.walk([0, 0, 1], 0.6); r.cam.hy = 50; r.cam.hp = 20 }),
             ("地図・光の跡を何周も（螺旋で 12 歩、残す 2π）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.set.trailKeep = 2; r.startPath(.spiral); for _ in 0..<5000 { r.step(1.0 / 60) }; r.pathMode = .none }),
             ("地図・光の跡を何周も（螺旋で 12 歩、全部）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.startPath(.spiral); for _ in 0..<5000 { r.step(1.0 / 60) }; r.pathMode = .none }),
+            ("地図・4 方向レインボー", { r in r.set = .plain; r.set.rainbow4 = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
             ("地図・自分を真ん中に", { r in r.set = .plain; r.set.mapFollow = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
         ]
         let w = 1200, h = 900
@@ -803,6 +804,8 @@ enum Verify {
             ("星：真ん中の星にたこを置く・後ろへ下がって反対側の近く", { s, c in s = Settings(); s.mk = 4; s.modelKind = 8; s.shell = false; s.eq = false; c.az = 60; c.el = 10 }),
             ("模型・竜を斜め前から", { s, c in s.mk = 4; s.modelKind = 1; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
             ("模型・いろいろ（球層の海・映画の光、東極を 0.5 手前から）", { s, c in s = Settings(); s.mk = 4; s.modelKind = 3; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.07) }),
+            ("4 方向レインボー", { s, c in s.rainbow4 = true; c.walk([0, 0, 1], 0.5) }),
+            ("4 方向レインボー・立体・宇宙", { s, c in s = Settings(); s.rainbow4 = true; s.space = true; c.walk([0, 0, 1], 0.5) }),
             ("軸色の球層（x・y・z・w）", { s, c in s.shAxis = true; c.walk([0, 0, 1], 0.5) }),
             ("軸色の球層（w だけ）", { s, c in s.shAxis = true; s.shAxX = false; s.shAxY = false; s.shAxZ = false; c.walk([0, 0, 1], 0.5) }),
             ("軸色の球層・立体（x・y・z・w）", { s, c in s.shAxis = true; s.shellSolid = true; c.walk([0, 0, 1], 0.5) }),
@@ -911,7 +914,7 @@ enum Verify {
         if ProcessInfo.processInfo.environment["S3_BENCH_USER"] != nil,    // アプリに保存してある設定のままで、レインボーと軸色
            let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key)?["set"] as? [String: Any] ?? UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) {
             var us = Settings(); us.load(d); us.autoQ = false
-            cases = [("あなたの設定・レインボー", { $0 = us; $0.shAxis = false }), ("あなたの設定・軸色", { $0 = us; $0.shAxis = true }), ("あなたの設定・軸色 w だけ", { $0 = us; $0.shAxis = true; $0.shAxX = false; $0.shAxY = false; $0.shAxZ = false }), ("あなたの設定・軸色 x と w", { $0 = us; $0.shAxis = true; $0.shAxY = false; $0.shAxZ = false }), ("あなたの設定・軸色・立体でない", { $0 = us; $0.shAxis = true; $0.shellSolid = false })]
+            cases = [("あなたの設定・レインボー", { $0 = us; $0.shAxis = false; $0.rainbow4 = false }), ("あなたの設定・4 方向レインボー", { $0 = us; $0.shAxis = false; $0.rainbow4 = true }), ("あなたの設定・軸色", { $0 = us; $0.shAxis = true }), ("あなたの設定・軸色 w だけ", { $0 = us; $0.shAxis = true; $0.shAxX = false; $0.shAxY = false; $0.shAxZ = false }), ("あなたの設定・軸色 x と w", { $0 = us; $0.shAxis = true; $0.shAxY = false; $0.shAxZ = false }), ("あなたの設定・軸色・立体でない", { $0 = us; $0.shAxis = true; $0.shellSolid = false })]
         }
         if ProcessInfo.processInfo.environment["S3_BENCH_AX"] != nil {     // 軸色の球層だけ
             cases = [("ふつうに起動（レインボー）", { $0 = Settings() }), ("軸色（x・y・z・w）", { $0 = Settings(); $0.shAxis = true }),

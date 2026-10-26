@@ -778,7 +778,7 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
     if (u.shell == 1) {
         // 殻の組（レインボーは w の 1 組、軸色は選んだ軸の組）を、それぞれ道のりの順に出し、いちばん手前のものから重ねる
         int n = u.shellN;
-        int fam = u.shAx == 0 ? 8 : u.shAx;
+        int fam = u.shAx == 0 ? 8 : (u.shAx & 15);                     // 16 のビット：4 方向レインボー（組は 4 つ、色はレインボー）
         ShIt i0 = shInit(p0, v, 3), i1 = shInit(p0, v, 0), i2 = shInit(p0, v, 1), i3 = shInit(p0, v, 2);
         float t0_ = 1e9, t1_ = 1e9, t2_ = 1e9, t3_ = 1e9; int k0 = 0, k1 = 0, k2 = 0, k3 = 0; bool d0 = true, d1 = true, d2 = true, d3 = true; float w0 = 0.0, w1 = 0.0, w2 = 0.0, w3 = 0.0;
         if ((fam & 8) != 0 && !shNext(i0, sh, u, t0_, k0, d0, w0)) t0_ = 1e9;
@@ -821,8 +821,9 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
             if (T * fadeR < 0.003) continue;                                // 目に見えないほど薄い殻（1/255 未満）は、色を計算しない
             float cs = wc * ia, sn = sqrt(max(0.0, 1.0 - cs * cs)); if (!dec) sn = -sn;
             float4 q = cs * E1 + sn * E2, vt = -sn * E1 + cs * E2;
-            float3 c0 = u.shAx == 0 ? sh[i].yzw : axisShellCol(ax, i, n, u.shellLum);
+            float3 c0 = (u.shAx == 0 || (u.shAx & 16) != 0) ? sh[i].yzw : axisShellCol(ax, i, n, u.shellLum);
             float3 cc, em; float al; shadeShell(t, fadeR, i, n, q, vt, wc, -sn * amp, hz, u, c0, axPerm(u.L0, ax), cc, al, em);
+            if ((u.shAx & 16) != 0) { al *= 0.4; em *= 0.5; }              // 4 方向レインボー：殻が 4 倍重なるので 1 枚ずつ薄く（白っぽく埋まらないように）
             col += T * (al * cc + em); T *= (1.0 - al);
             if (T < 0.01) { done = true; break; }
             if (++hits >= max(8, u.passes >> 8)) break;

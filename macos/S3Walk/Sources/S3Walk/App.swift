@@ -396,7 +396,7 @@ struct PosReadout: View {
                 ForEach(0..<4, id: \.self) { i in
                     HStack(spacing: 2) {
                         Text(["x", "y", "z", "w"][i]).font(.custom(MapLabel.axisFontName, size: 15)).foregroundStyle(Color(red: Double(AXIS_RGB[i].x), green: Double(AXIS_RGB[i].y), blue: Double(AXIS_RGB[i].z)))
-                        Text(String(format: "%+.3f", p[i])).monospacedDigit().foregroundStyle(.white.opacity(0.9))
+                        Text(String(format: "%+.3f", p[i])).monospacedDigit().foregroundStyle(.white.opacity(0.9)).lineLimit(1).fixedSize()   // 地図が細い時も折り返さない
                     }
                 }
             }
@@ -484,6 +484,21 @@ struct OneMap: View {
                             } else {
                                 Button { model.setMap(.docked) } label: { Image(systemName: "rectangle.split.2x1") }.help("地図を景色の横に戻す")
                             }
+                            // 球層の色の切りかえ（二重丸）：レインボー → 4 方向レインボー → 軸の色 → レインボー …
+                            let st = model.r.set, mode = st.shAxis ? 2 : st.rainbow4 ? 1 : 0
+                            Button {
+                                let next = (mode + 1) % 3
+                                model.r.set.shAxis = next == 2; model.r.set.rainbow4 = next == 1
+                                model.say(["球層：レインボー（w の 1 方向）", "球層：4 方向レインボー（x・y・z・w に重ねる・重い）", "球層：軸の色（囲む軸の色・重い）"][next]); model.changed()
+                            } label: {
+                                ZStack {
+                                    Image(systemName: "circle.circle")
+                                    if mode == 1 { Text("4").font(.system(size: 7, weight: .heavy)).offset(x: 6, y: 6) }
+                                    if mode == 2 { Text("軸").font(.system(size: 6, weight: .heavy)).offset(x: 6, y: 6) }
+                                }
+                                .foregroundStyle(mode == 0 ? Color.primary : mode == 1 ? Space.sky : Space.violet)
+                            }
+                            .help("球層の色：" + ["レインボー", "4 方向レインボー", "軸の色"][mode] + "（押すたびに レインボー → 4 方向レインボー → 軸の色）")
                             Button { model.r.set.map2On.toggle(); model.changed() } label: { Image(systemName: model.r.set.map2On ? "rectangle.split.1x2.fill" : "rectangle.split.1x2") }.help("2 枚目の地図を出す・隠す")
                             Button { model.r.set.s2On.toggle(); model.changed() } label: { Image(systemName: model.r.set.s2On ? "circle.circle.fill" : "circle.circle") }.help("S² の仲間を出す・隠す")
                         }

@@ -456,6 +456,8 @@ struct PanelContent: View {
             case .shell:
                 Toggle("球層" + km.hint(.shell), isOn: model.b(\.shell))
                 Picker("色", selection: model.b(\.shAxis)) { Text("レインボー").tag(false); Text("軸の色").tag(true) }.pickerStyle(.segmented)
+                if !r.set.shAxis { Toggle("4 方向レインボー（x・y・z・w の 4 方向に殻を重ねる・重い）", isOn: model.b(\.rainbow4)) }
+                if !r.set.shAxis && r.set.rainbow4 { irow("重ねる殻の数", \.shCap, 8, 60) }
                 if r.set.shAxis {
                     HStack(spacing: 10) {
                         Text("囲む軸").font(.caption).foregroundStyle(.secondary)
