@@ -268,34 +268,56 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         let asp = Double(world.drawSize.width / max(1, world.drawSize.height)), tf = tan(min(150, world.set.fov) * Double.pi / 360)
         return f > 1e-6 && abs(r / f) <= tf * asp && abs(u / f) <= tf
     }
-    /// 球層の殻の線分（4 次元）と色・θ（ウェブ版の shellSet）
-    private var shellCache: (Int, Double, [(V4, V4, SIMD3<Float>, Double)]) = (0, 0, [])
-    func shellSet(_ n: Int) -> [(V4, V4, SIMD3<Float>, Double)] {
-        if shellCache.0 == n && shellCache.1 == world.shellMinTheta { return shellCache.2 }
-        let m0 = world.shellMinTheta
-        var out: [(V4, V4, SIMD3<Float>, Double)] = []
-        for i in 0..<(2 * n - 1) {
-            let j = i < n ? i : 2 * n - 2 - i, t = Double(j) / Double(max(1, n - 1))
-            let th = m0 + t * (Double.pi / 2 - m0), wc = (i < n ? 1 : -1) * cos(th)
-            let col = hslF((i < n ? t * 0.5 : 0.8 - t * 0.3) * 360, 0.95, 0.52)
-            for (A, B) in MapRenderer.shellPairs(wc, sin(th)) { out.append((A, B, col, i < n ? th : Double.pi - th)) }
-        }
-        shellCache = (n, world.shellMinTheta, out); return out
+    /// 球層の殻の組（ウェブ版の shFams）：レインボーは w だけ、軸の色は選んだ軸（x・y・z・w の順）
+    var shellFams: [Int] {
+        let s = world.set
+        guard s.shAxis else { return [3] }
+        let f = [(0, s.shAxX), (1, s.shAxY), (2, s.shAxZ), (3, s.shAxW)].filter { $0.1 }.map { $0.0 }
+        return f.isEmpty ? [3] : f
     }
+    /// 軸色の殻の色（ウェブ版の axisShellRGB）：＋の極のそばは明るく、−の極のそばは少し暗く、赤道へ行くほど落ち着いた色
+    static func axisShellRGB(_ ax: Int, _ i: Int, _ n: Int) -> SIMD3<Float> {
+        let ac = AXIS_RGB[ax], j = i < n ? i : 2 * n - 2 - i, t = Float(j) / Float(max(1, n - 1))
+        func mx(_ a: SIMD3<Float>, _ b: SIMD3<Float>, _ k: Float) -> SIMD3<Float> { a + (b - a) * k }
+        return i < n ? mx(mx(ac, [1, 1, 1], 0.35), ac, t) : mx(ac * 0.62, ac * 0.9, t)
+    }
+    /// アナ極・カタ極の殻の点を、軸 ax の極を囲む殻へ（成分を入れかえる。ウェブ版の axSwap）
+    static func axSwap(_ p: V4, _ ax: Int) -> V4 { guard ax != 3 else { return p }; var q = p; q[ax] = p[3]; q[3] = p[ax]; return q }
+    /// 球層の殻の線分（4 次元）と色・θ・どの軸の殻か（ウェブ版の shellSet）
+    private var shellCache: (String, [(V4, V4, SIMD3<Float>, Double, Int)]) = ("", [])
+    func shellSet(_ n: Int) -> [(V4, V4, SIMD3<Float>, Double, Int)] {
+        let fams = shellFams, axis = world.set.shAxis, key = "\(n)|\(world.shellMinTheta)|\(axis)|\(fams)"
+        if shellCache.0 == key { return shellCache.1 }
+        let m0 = world.shellMinTheta
+        var out: [(V4, V4, SIMD3<Float>, Double, Int)] = []
+        for ax in fams {
+            for i in 0..<(2 * n - 1) {
+                let j = i < n ? i : 2 * n - 2 - i, t = Double(j) / Double(max(1, n - 1))
+                let th = m0 + t * (Double.pi / 2 - m0), wc = (i < n ? 1 : -1) * cos(th)
+                let col = axis ? MapRenderer.axisShellRGB(ax, i, n) : hslF((i < n ? t * 0.5 : 0.8 - t * 0.3) * 360, 0.95, 0.52)
+                for (A, B) in MapRenderer.shellPairs(wc, sin(th)) { out.append((MapRenderer.axSwap(A, ax), MapRenderer.axSwap(B, ax), col, i < n ? th : Double.pi - th, ax)) }
+            }
+        }
+        shellCache = (key, out); return out
+    }
+    /// 軸色で殻の組が多い時は、足し合わせで白くならないよう 1 本ずつ暗く（ウェブ版の fk）
+    var shellFk: Double { world.set.shAxis ? 0.75 / Double(shellFams.count) : 1 }
     /// 加え合わせで描く線：球層の殻・赤道の網目・軽い線。全体の時は写し方が変わった時だけ作り直す
     private func staticLines(_ R: [V4]) -> [Seg] {
         let s = world.set, c = config
         let n = max(2, min(21, s.shellN))
         var out: [Seg] = []
         if s.shell && c.range != 0 {                              // 今いる所・写る所：歩くたびに作り直す
-            let W = world.cam.w.p, shells = shellSet(n)
+            let W = world.cam.w.p, shells = shellSet(n), sfk = shellFk.squareRoot()
             if c.range == 1 {
-                let m0 = world.shellMinTheta, gap = (Double.pi / 2 - m0) / Double(max(1, n - 1)), thW = acos(max(-1, min(1, W.w))), Rf = 0.9, cR = cos(Rf)
-                let sub = shells.filter { abs($0.3 - thW) < 2.2 * gap && (dot4($0.0, W) > cR || dot4($0.1, W) > cR) }
+                // 自分がいる層は殻の軸ごと（その軸の成分の角度）
+                let m0 = world.shellMinTheta, gap = (Double.pi / 2 - m0) / Double(max(1, n - 1)), Rf = 0.9, cR = cos(Rf)
+                let thAx = (0..<4).map { acos(max(-1, min(1, W[$0]))) }
+                let sub = shells.filter { abs($0.3 - thAx[$0.4]) < 2.2 * gap && (dot4($0.0, W) > cR || dot4($0.1, W) > cR) }
                 addPairs(&out, sub.map { ($0.0, $0.1) }, R) { d, i, e in
-                    let P = sub[i], lay = max(0, 1 - abs(P.3 - thW) / (2.2 * gap)), q = e == 0 ? P.0 : P.1
+                    let P = sub[i], lay = max(0, 1 - abs(P.3 - thAx[P.4]) / (2.2 * gap)), q = e == 0 ? P.0 : P.1
                     let dg = acos(max(-1, min(1, dot4(q, W)))), near = 1 - min(1, max(0, (dg - 0.6 * Rf) / (0.4 * Rf)))
-                    return MapRenderer.vivid(P.2, (0.35 + 0.65 * lay * lay) * near * (0.75 + 0.25 * (d + 1) / 2) * 1.3)
+                    return MapRenderer.vivid(P.2, (0.35 + 0.65 * lay * lay) * near * (0.75 + 0.25 * (d + 1) / 2) * 1.3 * sfk)
                 }
             } else {
                 let F = world.cam.viewFrame(), Rl = min(s.shellRange, s.maxD, Double.pi), cl = cos(Rl)
@@ -304,19 +326,19 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                 addPairs(&out, lit.map { ($0.0, $0.1) }, R) { d, i, e in
                     let q = e == 0 ? lit[i].0 : lit[i].1, dg = acos(max(-1, min(1, dot4(q, W))))
                     let k = vis(q) ? (1 - min(1, max(0, (dg - 0.6 * Rl) / (0.4 * Rl)))) * (0.75 + 0.25 * (d + 1) / 2) * 1.3 : 0
-                    return MapRenderer.vivid(lit[i].2, k)
+                    return MapRenderer.vivid(lit[i].2, k * sfk)
                 }
             }
             staticKey = ""
             return out
         }
-        let key = R.map { "\($0)" }.joined() + "|\(s.mapD)|\(s.shell)|\(n)|\(s.eq)|\(s.lite)|\(s.mk)|\(s.circ)|\(s.room)"
+        let key = R.map { "\($0)" }.joined() + "|\(s.mapD)|\(s.shell)|\(n)|\(s.eq)|\(s.lite)|\(s.mk)|\(s.circ)|\(s.room)|\(s.shAxis)|\(shellFams)"
         if key == staticKey { return staticAdd }
         staticKey = key
         let only = s.shell                                       // 球層の時は、地図は球殻だけ（ウェブ版の shOnly）
         if s.shell {
-            let sh = shellSet(n)
-            addPairs(&out, sh.map { ($0.0, $0.1) }, R) { d, i, _ in sh[i].2 * Float(0.35 + 0.65 * pow((d + 1) / 2, 1.2)) }
+            let sh = shellSet(n), fk = shellFk
+            addPairs(&out, sh.map { ($0.0, $0.1) }, R) { d, i, _ in sh[i].2 * Float(fk * (0.35 + 0.65 * pow((d + 1) / 2, 1.2))) }
         }
         if s.eq && !only { addPairs(&out, MapRenderer.shellPairs(0, 1), R) { d, _, _ in depthColor(d, 0.8) } }
         if s.lite && !only {
@@ -466,7 +488,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                 if picMode, let pic { labels.append(MapLabel(pos: a, text: pic, col: [1, 1, 1], size: 18, bg: true)); return }
                 bs.append(Ball(c: SIMD4(a, Float(r)), col: SIMD4(col, 1)))
             }
-            if s.poles && !none {
+            if s.poles {   // 見せ方が「なし」でも、極の点と名前は出す（ウェブ版と同じ）
                 for (k, m) in FIXED.enumerated() {
                     guard let p2 = MapRenderer.s2Pole[k] else { continue }   // ±z（天・地）は S² には無い
                     // ウェブ版と同じ：玉ではなく、画面の上の平らな点と名前（絵のモードでは絵）
@@ -514,13 +536,14 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         // 1. 玉（奥行きを書く）：8 つの極・足あと・置いた目印・自分
         var bs: [Ball] = []
         let picMode = s.mk == 1, none = s.mk == 3
+        let mk = max(0.3, pow(s.uniR, -0.35))                    // 宇宙が大きい時、地図の玉は見えなくならないよう 1/R ではなく R^−0.35 で小さく（下限 0.3。ウェブ版の mapK）
         func ball(_ p: V4, _ r: Double, _ col: SIMD3<Float>, cap: Double = 2.5, pic: String? = nil) -> SIMD3<Float>? {
             guard let (a, _) = map(p, R) else { return nil }
             let k = min(cap, kOf(p, R))
             if picMode, let pic { labels.append(MapLabel(pos: a, text: pic, col: [1, 1, 1], size: CGFloat(18 * k), bg: true)); return a }   // 絵のモード：玉の代わりに絵文字（遠近で大きさも）
-            bs.append(Ball(c: SIMD4(a, Float(r * k)), col: SIMD4(col, 1))); return a
+            bs.append(Ball(c: SIMD4(a, Float(r * k * mk)), col: SIMD4(col, 1))); return a
         }
-        if s.poles && !none {
+        if s.poles {   // 見せ方が「なし」でも、極の点と名前は出す（ウェブ版と同じ）
             for (j, m) in FIXED.enumerated() {
                 if s.hidePair && m.pole && (0..<4).contains(where: { m.c[$0] < -0.5 }) { continue }
                 // ウェブ版と同じ：玉ではなく、画面の上の平らな点と名前（遠近で大きさが変わったりゆがんだりしない）。絵のモードでは絵

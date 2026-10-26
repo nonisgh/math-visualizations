@@ -304,6 +304,7 @@ struct PanelContent: View {
                 if r.set.mk == 1 || r.set.mk == 2 { row("線の濃さ", \.picLine, 0, 1) }
                 if r.set.mk == 1 { Toggle("遠回りの像を、絵の裏から見た形に", isOn: model.b(\.ghostBack)) }
                 Toggle("8 つの極の目印", isOn: model.b(\.poles))
+                if r.set.poles { Toggle("極を惑星に（透けて光る大きな玉。極の色・軸色の時は軸の色）", isOn: model.b(\.polePlanet)).padding(.leading, 14) }
                 Toggle("反対側の相棒を隠す", isOn: model.b(\.hidePair))
                 Toggle("足あと（F）", isOn: model.b(\.foot))
                 Toggle("置いた目印", isOn: model.b(\.marksOn))
@@ -358,6 +359,8 @@ struct PanelContent: View {
                     model.changed() })) { Text("ふつう").tag(0); Text("魚眼").tag(1); Text("360°").tag(2) }.pickerStyle(.segmented)
                 if r.set.lens != 2 { row("視野角", \.fov, 30, r.set.lens == 1 ? 360 : 150, "%.0f°") }
                 row("光の距離", \.maxD, 1, 6.4)
+                row("宇宙の大きさ（log₁₀ R）", \.uniL, 0, 3)
+                if r.set.uniL > 0.01 { note(String(format: "半径 ×%@・1 周 2πR ≈ %.0f。場所は角度のまま、同じ速さで進む角度は 1/R、目印は 1/R に小さく見え、もやは決まった距離でかかる。殻の網目の太さは変わらない（ウェブ版と同じ）", r.set.uniR < 10 ? String(format: "%.1f", r.set.uniR) : String(format: "%.0f", r.set.uniR), 2 * Double.pi * r.set.uniR)) }
                 row("もや", \.fog, 0, 0.6)
                 row("透け", \.fade, 0, 1)
                 row("線の遠近感", \.depth, 0, 1)

@@ -473,6 +473,7 @@ final class WalkView: MTKView {
         layer?.isOpaque = true                                           // 宇宙の時はアルファに「透けて残った割合」を書くので、窓は透かさない
         let po = PoleOverlay(frame: bounds); po.autoresizingMask = [.width, .height]; addSubview(po)
         renderer.onPoles = { [weak po] ls in po?.update(ls) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.renderer.prewarm() }
         preferredFramesPerSecond = 60
         framebufferOnly = true
         autoResizeDrawable = false
@@ -545,9 +546,10 @@ final class WalkView: MTKView {
         if logFPS { print(String(format: "fps %.1f / %d  最長 %.1f ms  GPU %.2f ms  %d×%d  細かさ %.2f", r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale)); fflush(stdout) }
         let p = r.cam.w.p, fromN = acos(max(-1, min(1, p.w)))
         let mode = [r.pathMode == .spiral ? "螺旋" : r.pathMode == .ring ? "回る輪" : r.roaming ? "縦横無尽" : r.walking ? "歩き続ける" : "", r.set.shell ? (r.set.shellSolid ? "球層（立体）" : "球層") : "", r.set.lite ? "軽い線" : ""].filter { !$0.isEmpty }.joined(separator: "・")
-        let s = String(format: "%.0f fps（目標 %d、いちばん長い間 %.0f ms）　GPU %.1f ms/コマ　%d×%d（細かさ %.0f%%%@）\nアナ極から %.2f（π ≈ 3.14 で反対側）　進んだ距離 %.2f（%.2f 周）\n方位 %.0f°　仰角 %.0f°　見回し %.0f° / %.0f°　%@",
+        let UR = r.set.uniR, big = UR >= 10, opp = big ? String(format: "πR ≈ %.0f", Double.pi * UR) : String(format: "π ≈ %.2f", Double.pi * UR)
+        let s = String(format: "%.0f fps（目標 %d、いちばん長い間 %.0f ms）　GPU %.1f ms/コマ　%d×%d（細かさ %.0f%%%@）\nアナ極から %@（%@ で反対側）　進んだ距離 %@（%.2f 周）\n方位 %.0f°　仰角 %.0f°　見回し %.0f° / %.0f°　%@",
                        r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale * 100, r.set.autoQ ? "・自動" : "",
-                       fromN, r.journey.dist, r.journey.dist / (2 * Double.pi),
+                       String(format: big ? "%.0f" : "%.2f", fromN * UR), opp, String(format: big ? "%.0f" : "%.2f", r.journey.dist * UR), r.journey.dist / (2 * Double.pi),
                        r.cam.az, r.cam.el, r.cam.hy, r.cam.hp, mode)
         DispatchQueue.main.async { if self.model?.hudState.text != s { self.model?.hudState.text = s }; self.model?.tick() }
     }

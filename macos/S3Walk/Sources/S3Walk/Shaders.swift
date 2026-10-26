@@ -6,6 +6,19 @@ let shaderSource = #"""
 using namespace metal;
 
 constant float PI = 3.14159265;
+// 組み立ての種類（Swift から NEB・AXIS を渡す）：使わない機能のコードを入れないので、いつもの見え方は軽いまま
+//   NEB：星雲を重ねる（宇宙の時）、AXIS：軸色の球層（殻の組を 4 つまで道のりの順に混ぜる）。0 ならレインボー（w の 1 組）の速い作り
+#ifndef NEB
+#define NEB 1
+#endif
+#ifndef AXIS
+#define AXIS 1
+#endif
+#if NEB
+#define NEBSEG(...) nebSeg(__VA_ARGS__)
+#else
+#define NEBSEG(...) ((void)0)
+#endif
 
 struct Uni {
     float4 P, R, U, F;                       // 位置と、画面の右・上・前（4 次元の正規直交の組）
@@ -204,6 +217,12 @@ inline float nextLayer(thread const Layers& L, float last, int lastId, thread in
     return best;
 }
 // 層の色 lc と不透明度 la（ウェブ版で配列に入れていた値と同じ）
+// 極の惑星は自分で光る目印なので、宇宙の大きさでもや・透けを濃くしない（遠くからでも向かう先が見える）
+inline float layerFogScale(int kind, int idx, thread const Layers& L, constant Mk* mk, constant Uni& u) {
+    if (kind != 1) return 1.0;
+    int i = idx == 0 ? L.mi0 : idx == 1 ? L.mi1 : idx == 2 ? L.mi2 : L.mi3;
+    return mk[i].info.y > 0.5 ? 1.0 / u.uni : 1.0;
+}
 void shadeLayer(int kind, int idx, float t, float4 p0, float4 v, thread const Layers& L, constant Mk* mk, constant Uni& u, thread float3& lc, thread float& la, thread float3& em, texture2d<float> atlas) {
     em = float3(0.0);
     if (kind == 4) { lc = L.tc; la = L.ta; return; }
@@ -217,6 +236,18 @@ void shadeLayer(int kind, int idx, float t, float4 p0, float4 v, thread const La
         lc = markerShade(mc.xyz, mk[i].info.x, c, q, vt, back, u, atlas);
         if (u.lineW > 0.0) la = clamp((mc.w - acos(min(amp, 1.0))) / max(abs(sin(t)) * u.pixAng, 1e-6), 0.0, 1.0);   // くっきり：ふちは 1 画素ぶんだけなめらかに（玉の中への深さ ÷ 1 画素の大きさ）
         else la = ss(0.0, 0.25, (amp - cr) / max(1.0 - cr, 1e-4));  // ふちはやわらかく（ウェブ版の前の見え方）
+        if (mk[i].info.y > 0.5) {
+            // 極の惑星：少し透けた、つやのある玉。光は左上・手前から（殻と同じ L0）、照り返し、ふちほど濃く光る（フレネル）。ふちの光はあふれる光にもなる
+            float4 n = normalize(q - c * dot(q, c));
+            float ndv = clamp(-dot(n, vt), 0.0, 1.0), fr = pow(1.0 - ndv, 3.0);
+            float4 Lg = normalize(u.L0 - q * dot(u.L0, q));
+            float dif = 0.35 + 0.65 * max(0.0, dot(n, Lg));
+            float4 hh = normalize(Lg - vt); float spec = pow(max(0.0, dot(n, hh)), 60.0);
+            float3 base = mc.xyz;
+            lc = base * dif * 0.9 + float3(1.0) * spec * 0.9 + mix(base, float3(1.0), 0.35) * fr * 0.9;
+            la *= clamp(0.38 + 0.55 * fr + 0.6 * spec, 0.0, 0.95);
+            em = base * fr * 0.35 * u.edr;
+        }
     } else if (kind == 2) {
         float lat = asin(clamp(q.z, -1.0, 1.0)), lon = atan2(q.y, q.x);
         float vtw = -sin(t) * p0.w + cos(t) * v.w;                      // 光の向きの w 成分＝赤道の膜（w ＝ 0）に当たる角の cos
@@ -284,7 +315,7 @@ void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float w
     float dm = min(1.0, depthMul(t, u)), fg = exp(-t * u.fog);
     if (u.lineW > 0.0) al *= mix(0.25 + 0.75 * g, 1.0, ss(0.02, 0.3, t));   // くっきりの時：すぐそばの殻は面を薄く（線は残す）。画面いっぱいに殻の色がかからないように
     al = min(0.95, al * fadeR * dm);
-    cc = mix(cc, hz, 1.0 - fg);
+    if (u.space == 1) al *= fg; else cc = mix(cc, hz, 1.0 - fg);         // 宇宙の時は、遠い殻は暗いもやの色にせず透けて消える（奥の星を黒い格子で隠さない）
     em = c0 * (gg.y * u.glow * 0.07 * fadeR * dm * fg * (0.25 + 0.75 * abs(cv)) * u.edr);   // 線のまわりの光（遠いほど・もやの中ほど弱く）
 }
 
@@ -337,40 +368,33 @@ inline bool shNext(thread ShIt& it, constant float4* sh, constant Uni& u, thread
 constant int NEBN = 8;
 // 光の道ごとに、近くを通るかたまりを 4 つまで選んでおく（ほかは調べない）。かたまり k と光の道の点 p(t) の内積は c·p(t) ＝ A cos t ＋ B sin t
 //   （A ＝ c·p0、B ＝ c·v）なので、刻みごとの計算は掛け算と exp だけ。lo 〜 hi：かたまりの近くを通る道のりの範囲（その外は調べない）
-struct NebRay { float4 A, B, is2; float3 c0, c1, c2, c3; int cnt; float lo, hi; };
+struct NebRay { float4 A0, B0, i0, A1, B1, i1; int cnt; float lo, hi; };
 inline NebRay nebPrep(float4 p0, float4 v, constant float4* nb) {
-    NebRay r; r.A = float4(0.0); r.B = float4(0.0); r.is2 = float4(0.0); r.c0 = r.c1 = r.c2 = r.c3 = float3(0.0); r.cnt = 0; r.lo = 1e9; r.hi = -1e9;
-    float best[4] = { 1e9, 1e9, 1e9, 1e9 }; int bk[4] = { -1, -1, -1, -1 };
+    NebRay r; r.A0 = r.B0 = r.i0 = r.A1 = r.B1 = r.i1 = float4(0.0); r.cnt = 0; r.lo = 1e9; r.hi = -1e9;
     for (int k = 0; k < NEBN; k++) {
         float4 c = nb[2 * k]; float sg = nb[2 * k + 1].w;
         float a = dot(c, p0), b = dot(c, v), cmax = sqrt(a * a + b * b), x = (1.0 - cmax) / (sg * sg);
-        if (x >= 5.0) continue;
+        if (x >= 5.0) continue;                                         // いちばん近づいても e^−5 より薄いかたまりは数えない
         float ts = atan2(b, a); if (ts < 0.0) ts += 2.0 * PI;
         float dl = acos(clamp((1.0 - 5.0 * sg * sg) / max(cmax, 1e-5), -1.0, 1.0));
         r.lo = min(r.lo, ts - dl); r.hi = max(r.hi, ts + dl);
         if (ts - dl < 0.0) r.hi = 1e9;                                    // 後ろ側にもはみ出す（反対回りの所も）
         if (ts + dl > 2.0 * PI) r.lo = 0.0;
-        for (int j = 0; j < 4; j++) { if (x < best[j]) { for (int m = 3; m > j; m--) { best[m] = best[m - 1]; bk[m] = bk[m - 1]; } best[j] = x; bk[j] = k; break; } }
+        if (k < 4) { r.A0[k] = a; r.B0[k] = b; r.i0[k] = 1.0 / (sg * sg); } else { r.A1[k - 4] = a; r.B1[k - 4] = b; r.i1[k - 4] = 1.0 / (sg * sg); }
+        r.cnt++;
     }
     r.lo = max(r.lo, 0.0);
-    for (int j = 0; j < 4; j++) {
-        if (bk[j] < 0) continue;
-        float4 c = nb[2 * bk[j]], cs = nb[2 * bk[j] + 1];
-        r.A[j] = dot(c, p0); r.B[j] = dot(c, v); r.is2[j] = 1.0 / (cs.w * cs.w);
-        if (j == 0) r.c0 = cs.rgb; else if (j == 1) r.c1 = cs.rgb; else if (j == 2) r.c2 = cs.rgb; else r.c3 = cs.rgb;
-        r.cnt = j + 1;
-    }
     return r;
 }
 struct Neb { float3 e; float a; };                                      // 光る色（道のりあたり）・吸う割合（道のりあたり）
-inline Neb nebAt(float4 q, float ct, float st, thread const NebRay& r, texture3d<float> nz) {
+inline Neb nebAt(float4 q, float ct, float st, thread const NebRay& r, constant float4* nb, texture3d<float> nz) {
     constexpr sampler sm(filter::linear, address::repeat);
-    float4 x = (1.0 - (r.A * ct + r.B * st)) * r.is2;                   // 4 つのかたまりまでの距離²／σ²（使わない所は is2 ＝ 0 → 下で消す）
-    float4 g = select(float4(0.0), exp(-x), r.is2 > 0.0);
-    float dens = g.x + g.y + g.z + g.w;
+    float4 x0 = (1.0 - (r.A0 * ct + r.B0 * st)) * r.i0, x1 = (1.0 - (r.A1 * ct + r.B1 * st)) * r.i1;   // 8 つのかたまりまでの距離²／σ²（数えないかたまりは i ＝ 0 → 下で消す）
+    float4 g0 = select(float4(0.0), exp(-x0), r.i0 > 0.0), g1 = select(float4(0.0), exp(-x1), r.i1 > 0.0);
+    float dens = g0.x + g0.y + g0.z + g0.w + g1.x + g1.y + g1.z + g1.w;
     Neb o; o.e = float3(0.0); o.a = 0.0;
     if (dens < 0.015) return o;
-    float3 e = r.c0 * g.x + r.c1 * g.y + r.c2 * g.z + r.c3 * g.w;
+    float3 e = nb[1].rgb * g0.x + nb[3].rgb * g0.y + nb[5].rgb * g0.z + nb[7].rgb * g0.w + nb[9].rgb * g1.x + nb[11].rgb * g1.y + nb[13].rgb * g1.z + nb[15].rgb * g1.w;
     float3 P = q.xyz * 1.7 + q.w * float3(1.31, -0.73, 0.97);
     float4 nn = nz.sample(sm, P * 0.3);                                 // 1 回で 3 つの模様（r：大きなふさ、g：細かいすじ、b：ちり）
     float n1 = nn.r, n2 = nn.g, n3 = nn.b;
@@ -385,7 +409,7 @@ inline Neb nebAt(float4 q, float ct, float st, thread const NebRay& r, texture3d
     return o;
 }
 // 道のり t0 〜 t1 の間の星雲を、手前から重ねる（col・T を更新）。jit：画素ごとのずらし（刻みの縞を目立たせない）
-inline void nebSeg(float t0, float t1, float4 p0, float4 v, thread const NebRay& nr, float jit, texture3d<float> nz, constant Uni& u, thread float3& col, thread float& T, thread float3& nacc, float w) {
+inline void nebSeg(float t0, float t1, float4 p0, float4 v, thread const NebRay& nr, float jit, constant float4* nb, texture3d<float> nz, constant Uni& u, thread float3& col, thread float& T, thread float3& nacc, float w) {
     t0 = max(t0, nr.lo); t1 = min(t1, nr.hi);                           // かたまりの近くを通る所だけ
     if (u.neb == 0 || nr.cnt == 0 || t1 <= t0 + 1e-5 || T < 0.003) return;
     int n = clamp(int(ceil((t1 - t0) / u.nebStep)), 1, 28);
@@ -393,9 +417,9 @@ inline void nebSeg(float t0, float t1, float4 p0, float4 v, thread const NebRay&
     for (int i = 0; i < n; i++) {
         float t = t0 + (float(i) + jit) * ds;
         float ct = cos(t), st = sin(t); float4 q = ct * p0 + st * v;
-        Neb m = nebAt(q, ct, st, nr, nz);
+        Neb m = nebAt(q, ct, st, nr, nb, nz);
         if (m.a <= 0.0) continue;
-        float fd = exp(-t * u.fade * 0.35);
+        float fd = exp(-t * u.fade / u.uni * 0.35);                    // 星雲は宇宙の大きさで薄くしない（遠くまで見える光）
         float3 add = T * m.e * (u.nebK * ds * fd * w); col += add; nacc += add;   // nacc：星雲の光だけ（映画の光の時は、あとでなめらかにしてから足す）
         T *= exp(-m.a * u.nebK * ds);
         if (T < 0.003) break;
@@ -458,9 +482,13 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
     //   殻を手前から 1 回だけたどり、その手前にある層を先に重ねる（ウェブ版と重なる順は同じ）。
     //   殻：w(t) = amp·cos(t − φ) なので、減る半周・増える半周ごとに殻を順にたどれば、t の順に並ぶ
     float3 col = float3(0.0); float T = 1.0; bool done = false; float3 hz = haze(dir, u.space);
-    float tN = 0.0, jit = ign(in.pos.xy); NebRay nr; nr.cnt = 0; nr.lo = 0.0; nr.hi = 0.0; if (u.neb == 1) nr = nebPrep(p0, v, nb);
+    float tN = 0.0, jit = ign(in.pos.xy); NebRay nr; nr.cnt = 0; nr.lo = 0.0; nr.hi = 0.0;
+#if NEB
+    if (u.neb == 1) nr = nebPrep(p0, v, nb);
+#endif
     float nebW = 1.0;   // 星雲：ここまで重ねた道のり・ずらし・近くを通るかたまり
     int kind, idx, lid; float nt = nextLayer(L, -1.0, -1, kind, idx, lid, u);
+#if AXIS
     if (u.shell == 1) {
         // 殻の組（レインボーは w の 1 組、軸色は選んだ軸の組）を、それぞれ道のりの順に出し、いちばん手前のものから重ねる
         int n = u.shellN;
@@ -490,15 +518,15 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
             else if (f == 2) { if (!shNext(i2, sh, u, t2_, k2, d2, w2)) t2_ = 1e9; }
             else { if (!shNext(i3, sh, u, t3_, k3, d3, w3)) t3_ = 1e9; }
             while (nt <= t) {                                               // この殻より手前の層を先に
-                nebSeg(tN, nt, p0, v, nr, jit, nz, u, col, T, nacc, nebW); tN = max(tN, nt);
+                NEBSEG(tN, nt, p0, v, nr, jit, nb, nz, u, col, T, nacc, nebW); tN = max(tN, nt);
                 float3 lc, le; float la; shadeLayer(kind, idx, nt, p0, v, L, mk, u, lc, la, le, atlas);
-                float aL = la * exp(-nt * u.fade), fgL = exp(-nt * u.fog);
-                col += T * (aL * mix(lc, hz, 1.0 - fgL) + le * fgL * exp(-nt * u.fade)); T *= (1.0 - aL);
+                float fs = layerFogScale(kind, idx, L, mk, u), fgL = exp(-nt * u.fog * fs), aL = la * exp(-nt * u.fade * fs) * (u.space == 1 ? fgL : 1.0);
+                col += T * (aL * mix(lc, hz, u.space == 1 ? 0.0 : 1.0 - fgL) + le * fgL * exp(-nt * u.fade * fs)); T *= (1.0 - aL);
                 nt = nextLayer(L, nt, lid, kind, idx, lid, u);
                 if (T < 0.003) { done = true; break; }
             }
             if (done) break;
-            nebSeg(tN, t, p0, v, nr, jit, nz, u, col, T, nacc, nebW); tN = max(tN, t);
+            NEBSEG(tN, t, p0, v, nr, jit, nb, nz, u, col, T, nacc, nebW); tN = max(tN, t);
             if (T < 0.003) { done = true; break; }
             float fadeR = clamp(1.0 - t / u.shellRange, 0.0, 1.0); fadeR *= fadeR * (3.0 - 2.0 * fadeR);   // 遠い殻ほど薄く、見える距離で 0
             fadeR *= ss(0.004, 0.04, t);                                    // ちょうど殻の上にいる時は消す
@@ -511,22 +539,65 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
             if (T < 0.01) { done = true; break; }
         }
     }
+#else
+    // レインボー（w の殻の 1 組）：半周ごとに殻を順にたどる速い作り
+    if (u.shell == 1) {
+        int n = u.shellN; int nTot = 2 * n - 1;
+        float s0 = gmod(-phiW, 2.0 * PI); if (s0 > 2.0 * PI - 1e-4) s0 -= 2.0 * PI;
+        int m0 = int(floor(s0 / PI));
+        bool end = amp < 1e-5;
+        for (int ph = 0; ph < 11 && !end && !done; ph++) {
+            int m = m0 + ph; bool dec = gmod(float(m), 2.0) < 0.5;
+            if (float(m) * PI - s0 > u.shellRange) break;
+            for (int k = 0; k < 41; k++) {
+                if (k >= nTot) break;
+                int i = dec ? k : nTot - 1 - k;
+                float wc = sh[i].x;
+                if (dec ? wc > amp : wc < -amp) continue;                   // この半周ではまだ届かない殻
+                if (abs(wc) > amp) break;                                   // ここから先の殻には届かない
+                float a = acos(clamp(wc * ia, -1.0, 1.0));
+                float t = (dec ? float(m) * PI + a : float(m + 1) * PI - a) - s0;   // 半周の中では k とともに増える
+                if (t < 0.002) continue;
+                if (t >= u.shellRange) { end = true; break; }
+                while (nt <= t) {                                           // この殻より手前の層を先に
+                    NEBSEG(tN, nt, p0, v, nr, jit, nb, nz, u, col, T, nacc, nebW); tN = max(tN, nt);
+                    float3 lc, le; float la; shadeLayer(kind, idx, nt, p0, v, L, mk, u, lc, la, le, atlas);
+                    float fs = layerFogScale(kind, idx, L, mk, u), fgL = exp(-nt * u.fog * fs), aL = la * exp(-nt * u.fade * fs) * (u.space == 1 ? fgL : 1.0);
+                    col += T * (aL * mix(lc, hz, u.space == 1 ? 0.0 : 1.0 - fgL) + le * fgL * exp(-nt * u.fade * fs)); T *= (1.0 - aL);
+                    nt = nextLayer(L, nt, lid, kind, idx, lid, u);
+                    if (T < 0.003) { done = true; break; }
+                }
+                if (done) break;
+                NEBSEG(tN, t, p0, v, nr, jit, nb, nz, u, col, T, nacc, nebW); tN = max(tN, t);
+                if (T < 0.003) { done = true; break; }
+                float fadeR = clamp(1.0 - t / u.shellRange, 0.0, 1.0); fadeR *= fadeR * (3.0 - 2.0 * fadeR);   // 遠い殻ほど薄く、見える距離で 0
+                fadeR *= ss(0.004, 0.04, t);                                // ちょうど殻の上にいる時は消す
+                if (T * fadeR < 0.003) continue;                            // 目に見えないほど薄い殻（1/255 未満）は、色を計算しない
+                float cs = wc * ia, sn = sqrt(max(0.0, 1.0 - cs * cs)); if (!dec) sn = -sn;
+                float4 q = cs * E1 + sn * E2, vt = -sn * E1 + cs * E2;
+                float3 cc, em; float al; shadeShell(t, fadeR, i, n, q, vt, wc, -sn * amp, hz, u, sh[i].yzw, u.L0, cc, al, em);
+                col += T * (al * cc + em); T *= (1.0 - al);
+                if (T < 0.01) { done = true; break; }
+            }
+        }
+    }
+#endif
     while (!done && nt < 1e8) {                                             // 残りの層
-        nebSeg(tN, min(nt, u.maxD), p0, v, nr, jit, nz, u, col, T, nacc, nebW); tN = max(tN, min(nt, u.maxD));
+        NEBSEG(tN, min(nt, u.maxD), p0, v, nr, jit, nb, nz, u, col, T, nacc, nebW); tN = max(tN, min(nt, u.maxD));
         float3 lc, le; float la; shadeLayer(kind, idx, nt, p0, v, L, mk, u, lc, la, le, atlas);
-        float aL = la * exp(-nt * u.fade), fgL = exp(-nt * u.fog);
-        col += T * (aL * mix(lc, hz, 1.0 - fgL) + le * fgL * exp(-nt * u.fade)); T *= (1.0 - aL);
+        float fs = layerFogScale(kind, idx, L, mk, u), fgL = exp(-nt * u.fog * fs), aL = la * exp(-nt * u.fade * fs) * (u.space == 1 ? fgL : 1.0);
+        col += T * (aL * mix(lc, hz, u.space == 1 ? 0.0 : 1.0 - fgL) + le * fgL * exp(-nt * u.fade * fs)); T *= (1.0 - aL);
         nt = nextLayer(L, nt, lid, kind, idx, lid, u);
         if (T < 0.003) break;
     }
-    if (!done) nebSeg(tN, u.maxD, p0, v, nr, jit, nz, u, col, T, nacc, nebW);    // 残りの星雲
+    if (!done) NEBSEG(tN, u.maxD, p0, v, nr, jit, nb, nz, u, col, T, nacc, nebW);    // 残りの星雲
     float3 bg = bgc(dir, u.space);
     if (u.space == 1 && u.band > 0.0) {                                     // 天の川（青白）と、淡い星雲（赤紫）
         float g1 = bandGlow(p0, v, float4(0.0, 1.0, 0.0, 0.0), float4(0.0, 0.0, 1.0, 0.0), 0.16);
         float g2 = bandGlow(p0, v, float4(0.7071, 0.7071, 0.0, 0.0), float4(0.0, 0.0, 0.7071, -0.7071), 0.3);
         bg += u.band * (g1 * float3(0.42, 0.46, 0.62) + g2 * float3(0.30, 0.08, 0.26));
     }
-    col += T * mix(bg, hz, 1.0 - exp(-u.maxD * u.fog * 0.6));
+    col += T * mix(bg, hz, 1.0 - exp(-u.maxD * u.fog * (u.space == 1 ? 1.0 / u.uni : 1.0) * 0.6));   // 宇宙の時の天の川は、宇宙の大きさでもやに沈めない
     // 宇宙の時は、透けて残った割合 T をアルファに書く（あとで星を、その割合だけ足す）
     float3 cOut = split ? col - nacc : col;
     return float4(pow(max(cOut, 0.0), float3(0.9)), u.space == 1 ? T : 1.0);

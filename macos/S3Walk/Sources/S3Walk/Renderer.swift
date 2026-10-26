@@ -81,8 +81,11 @@ struct Settings {
     var space = false           // 背景：false 深海（青灰色のもや。ウェブ版と同じ）／true 宇宙（暗闇・星・天の川）
     var stars = 1.0             // 宇宙の時の星の明るさ（0 で星なし）
     var band = 1.0              // 宇宙の時の天の川・星雲の明るさ
+    var polePlanet = true       // 8 つの極を「惑星」に：極の色の、少し透けてつやのある大きな玉（角度 0.16、宇宙の大きさでは小さくしない＝広い宇宙ほど本当は大きい）。絵のモードの時は絵のまま
     var shAxis = false          // 球層の色：false レインボー（w の殻）／true 軸の色（選んだ軸の極を囲む殻を、その軸の色で。ウェブ版の軸色）
     var shAxX = true, shAxY = true, shAxZ = true, shAxW = true   // 軸の色の時に、どの軸の殻を出すか
+    var uniL = 0.0              // 宇宙の大きさ：S³ の半径 R ＝ 10^uniL（1〜1000 倍。ウェブ版の uniL）。場所は角度のまま、歩く速さ・目印の見かけは 1/R、距離・もやは R 倍。殻の網目の太さは変わらない
+    var uniR: Double { pow(10, max(0, min(3, uniL))) }
     var nebula = true           // 宇宙の時、S³ に浮かぶ星雲（色のついたガス）
     var nebK = 1.0              // 星雲の濃さ
     var cine = true             // 映画のような光：明るさを切らずに描き（HDR）、あふれる光（ブルーム）を足し、色を締める（トーンマップ）。false でウェブ版と同じ絵
@@ -166,7 +169,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         self.device = device
         guard let q = device.makeCommandQueue() else { return nil }
         queue = q
-        let opts = MTLCompileOptions()
+        var opts = MTLCompileOptions()
         if ProcessInfo.processInfo.environment["S3_PRECISE"] != nil { opts.fastMathEnabled = false }   // 確かめ用：速い近似の数学関数を使わない
         var src = shaderSource
         switch ProcessInfo.processInfo.environment["S3_NEBTEST"] {      // 確かめ用：星雲のどこが重いか
@@ -175,7 +178,9 @@ final class Renderer: NSObject, MTKViewDelegate {
         case "noblob": src = src.replacingOccurrences(of: "if (dens < 0.015) return o;", with: "return o;")
         default: break
         }
-        do { library = try device.makeLibrary(source: src, options: opts) } catch {
+        shaderSrc = src; compileOpts = opts
+        opts.preprocessorMacros = ["NEB": NSNumber(value: 0), "AXIS": NSNumber(value: 0)]
+        do { library = try device.makeLibrary(source: src, options: opts); libs["00"] = library } catch {
             fputs("シェーダーの組み立てに失敗：\(error)\n", stderr); return nil
         }
         precondition(MemoryLayout<Uni>.stride == 256, "Uni の並びがシェーダーと合わない")
@@ -183,42 +188,66 @@ final class Renderer: NSObject, MTKViewDelegate {
         game.onButton = { [weak self] k in DispatchQueue.main.async { self?.onPad?(k) } }
     }
 
+    // ---- 景色のシェーダーの種類：星雲（NEB）・軸色の球層（AXIS）を使う時だけ、そのコードの入ったものを組み立てる ----
+    private var shaderSrc = "", compileOpts = MTLCompileOptions(), libs: [String: MTLLibrary] = [:], pipesV: [String: MTLRenderPipelineState] = [:]
+    var variant: String { (set.space && set.nebula && set.nebK > 0 ? "1" : "0") + (set.shAxis && set.shell ? "1" : "0") }
+    /// ほかの種類（星雲・軸色）を裏で組み立てておく（切りかえた時に止まらないように）
+    func prewarm() {
+        for v in ["10", "01", "11"] where libs[v] == nil {
+            let o = MTLCompileOptions(); o.fastMathEnabled = compileOpts.fastMathEnabled
+            o.preprocessorMacros = ["NEB": NSNumber(value: v.first == "1" ? 1 : 0), "AXIS": NSNumber(value: v.last == "1" ? 1 : 0)]
+            device.makeLibrary(source: shaderSrc, options: o) { [weak self] l, _ in
+                guard let l else { return }
+                DispatchQueue.main.async { if self?.libs[v] == nil { self?.libs[v] = l } }
+            }
+        }
+    }
+    func lib(_ v: String) -> MTLLibrary {
+        if let l = libs[v] { return l }
+        let o = MTLCompileOptions(); o.fastMathEnabled = compileOpts.fastMathEnabled
+        o.preprocessorMacros = ["NEB": NSNumber(value: v.first == "1" ? 1 : 0), "AXIS": NSNumber(value: v.last == "1" ? 1 : 0)]
+        let l = (try? device.makeLibrary(source: shaderSrc, options: o)) ?? library
+        libs[v] = l; return l
+    }
     func pipeline(_ fmt: MTLPixelFormat) -> MTLRenderPipelineState {
-        if let p = pipes[fmt] { return p }
+        let v = variant, key = "\(fmt.rawValue)-\(v)"
+        if let p = pipesV[key] { return p }
         let d = MTLRenderPipelineDescriptor()
-        d.vertexFunction = library.makeFunction(name: "vmain")
-        d.fragmentFunction = library.makeFunction(name: "fmain")
+        d.vertexFunction = lib(v).makeFunction(name: "vmain")
+        d.fragmentFunction = lib(v).makeFunction(name: "fmain")
         d.colorAttachments[0].pixelFormat = fmt
         let p = try! device.makeRenderPipelineState(descriptor: d)
-        pipes[fmt] = p; return p
+        pipesV[key] = p; return p
     }
 
     // ---- シェーダーへの値 ----
     /// 目印の玉の大きさの倍率（絵 1.5・色の点 1.9）
     var markBig: Double { self.set.mk == 1 ? 1.5 : self.set.mk == 2 ? 1.9 : 1.0 }
     /// いちばん内側の殻の、極からの距離（極の目印の玉より外に。ウェブ版の shellMinTheta）
-    var shellMinTheta: Double { 0.13 * markBig + 0.06 }
+    var shellMinTheta: Double { max(0.13 * markBig + 0.06, set.polePlanet && set.poles && set.mk != 1 ? Renderer.planetR + 0.05 : 0) }   // 惑星の時は惑星より外に
+    static let planetR = 0.16
     lazy var atlas: MTLTexture? = Atlas.make(device)
     static let roomPlanes: [SIMD4<Float>] = Cell120.shared.planes.map { SIMD4<Float>($0) }
     func markers() -> [MkGPU] {
         var out: [MkGPU] = []
-        let big = markBig * (set.grand ? 0.7 : 1.0)               // 絵・色の点の時は玉を大きめに。壮大モードは 7 割
-        func put(_ c: V4, _ col: SIMD3<Float>, _ r: Double, _ pic: String? = nil) {
+        let big = markBig * (set.grand ? 0.7 : 1.0) / set.uniR    // 絵・色の点の時は玉を大きめに。壮大モードは 7 割。宇宙が大きいほど、本当の大きさは同じなので角度では小さく
+        func put(_ c: V4, _ col: SIMD3<Float>, _ r: Double, _ pic: String? = nil, planet: Bool = false) {
             guard out.count < 64 else { return }
-            out.append(MkGPU(c: SIMD4<Float>(c), col: SIMD4<Float>(col.x, col.y, col.z, Float(r)), info: SIMD4(Float(pic.map { PIC.index($0) } ?? -1), 0, 0, 0)))
+            out.append(MkGPU(c: SIMD4<Float>(c), col: SIMD4<Float>(col.x, col.y, col.z, Float(r)), info: SIMD4(planet ? -1 : Float(pic.map { PIC.index($0) } ?? -1), planet ? 1 : 0, 0, 0)))
         }
         let none = set.mk == 3
-        if set.poles && !none {
+        let planets = set.poles && set.polePlanet && set.mk != 1          // 極の惑星（見せ方が「なし」でも出す）
+        if set.poles && (!none || planets) {
             for (k, m) in FIXED.enumerated() {
                 if set.hideLabels.contains(m.label) { continue }
                 if set.hidePair && m.pole && (0..<4).contains(where: { m.c[$0] < -0.5 }) { continue }
-                put(m.c, m.col, m.r * big, PIC.poles[k])
+                if planets { put(m.c, poleCol(k), Renderer.planetR, planet: true) } else { put(m.c, m.col, m.r * big, PIC.poles[k]) }
             }
         }
         if set.marksOn && !none { for (i, p) in journey.marks.enumerated() { put(p, Journey.markColor(i), 0.1 * big, PIC.mark(i)) } }
         if set.foot { for p in journey.foot { put(p, [0.8, 0.85, 1], 0.03 * big, PIC.foot) } }
         for m in set.extra where !set.hideLabels.contains(m.label) { put(m.c, m.col, m.r) }
-        if set.selfBall { put(cam.w.p, [1, 1, 1], set.mk == 0 ? 0.09 : 0.13, PIC.selfPic) }
+        if set.selfBall { put(cam.w.p, [1, 1, 1], (set.mk == 0 ? 0.09 : 0.13) / set.uniR, PIC.selfPic) }
         return out
     }
     func uniforms(width: Int, height: Int) -> Uni {
@@ -228,7 +257,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         u.L0 = SIMD4<Float>(nrm(F.R * -0.45 + F.U * 0.75 - F.L * 0.5))
         u.res = SIMD2(Float(width), Float(height))
         u.tanF = Float(tan(min(150, set.fov) * d2r / 2)); u.maxD = Float(set.maxD)
-        u.fog = Float(set.fog * (set.grand ? 1.6 : 1)); u.fade = Float(set.fade); u.uni = 1; u.depth = Float(set.depth)
+        // もや・透けは決まった距離でかかる（宇宙の大きさ R 倍）
+        u.fog = Float(set.fog * (set.grand ? 1.6 : 1) * set.uniR); u.fade = Float(set.fade * set.uniR); u.uni = Float(set.uniR); u.depth = Float(set.depth)
         u.shellOp = Float(set.shellOp); u.shellBack = Float(set.shellBack); u.shellRange = Float(set.shellRange)
         u.shMin = Float(shellMinTheta)                              // いちばん内側の殻（極の玉より外に。ウェブ版の shellMinTheta）
         u.shellLum = Float(set.shellLum); u.gridSt = Float(set.grand ? Double.pi / 36 : Double.pi / 12)
@@ -393,7 +423,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         enc.setFragmentTexture(noise3D, index: 1)
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         if set.space && set.stars > 0, let sb = starBuf {             // 星：景色の透けて残った所（アルファ）にだけ足す
-            var su = StarU(P: u.P, R: u.R, U: u.U, F: u.F, res: u.res, tanF: u.tanF, fovY: u.fovY, lens: u.lens, fog: u.fog,
+            var su = StarU(P: u.P, R: u.R, U: u.U, F: u.F, res: u.res, tanF: u.tanF, fovY: u.fovY, lens: u.lens, fog: Float(set.fog),   // 星は遠くの光：宇宙の大きさでもやを濃くしない
+                          
                            lum: Float(set.stars), maxD: u.maxD, edr: set.cine ? 8 : Float(max(1, min(edrHead, 4))), px: max(1, Float(h) / 1000))
             enc.setRenderPipelineState(starPipeline(fmt, split: split))
             enc.setVertexBuffer(sb, offset: 0, index: 0)
@@ -408,12 +439,13 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var starPipes: [MTLPixelFormat: MTLRenderPipelineState] = [:], starPipeMRT: MTLRenderPipelineState?, sceneMRT: MTLRenderPipelineState?
     /// 映画の光の時の景色：色（HDR の絵）と星雲の光（別の絵）を同時に書く
     func pipelineMRT() -> MTLRenderPipelineState {
-        if let p = sceneMRT { return p }
+        let v = variant, key = "mrt-\(v)"
+        if let p = pipesV[key] { return p }
         let d = MTLRenderPipelineDescriptor()
-        d.vertexFunction = library.makeFunction(name: "vmain"); d.fragmentFunction = library.makeFunction(name: "fmainMRT")
+        d.vertexFunction = lib(v).makeFunction(name: "vmain"); d.fragmentFunction = lib(v).makeFunction(name: "fmainMRT")
         d.colorAttachments[0].pixelFormat = .rgba16Float; d.colorAttachments[1].pixelFormat = .rgba16Float
         let p = try! device.makeRenderPipelineState(descriptor: d)
-        sceneMRT = p; return p
+        pipesV[key] = p; return p
     }
     lazy var starBuf: MTLBuffer? = { let s = Renderer.makeStars(Renderer.starN); return device.makeBuffer(bytes: s, length: MemoryLayout<StarGPU>.stride * s.count) }()
     func starPipeline(_ fmt: MTLPixelFormat, split: Bool = false) -> MTLRenderPipelineState {
@@ -454,13 +486,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // ---- 歩く（ウェブ版の loop の一部）----
     func step(_ dt: Double) {
-        let sp = 0.9 * set.spd * dt * (shiftFast ? 3 : 1)
+        let sp = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR   // 宇宙が大きいほど、同じ速さで進む角度は小さい
         var mv = SIMD3<Double>(0, 0, 0)
         if roaming { journey.roam(&cam, dt, set.roamK) }
         if pathMode != .none {                                   // 決まった道：自動で進む（キー・スティックで歩いたらやめる）
             let manual = keys.contains(where: { [13, 1, 0, 2, 12, 14].contains($0) }) || (set.gamepad && game.read().move != .zero)
             if manual { pathMode = .none; say?("決まった道をやめた（歩いた）") }
-            else { pathStep(0.9 * set.spd * dt * (shiftFast ? 3 : 1)); return }
+            else { pathStep(0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR); return }
         }
         // ゲームコントローラー：スティックの倒し具合で速さも変わる
         var padMul = 1.0

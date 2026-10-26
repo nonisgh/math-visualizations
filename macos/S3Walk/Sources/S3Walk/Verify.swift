@@ -171,6 +171,16 @@ enum Verify {
         let backR = acos(max(-1, min(1, r.cam.w.p.w)))
         check(backR < 0.01 && abs((r.journey.dist - d0) - 2 * Double.pi) < 0.02, String(format: "回る輪：大円を 1 周（道のり %.4f ≈ 2π）するとアナ極のそば（%.4f）に戻る", r.journey.dist - d0, backR))
         r.pathMode = .none
+        // 宇宙の大きさ R：同じ速さで歩くと、進む角度は 1/R（1 秒で 0.9／R）。目印の見かけも 1/R
+        do {
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.set.uniL = 2; r.walking = true
+            for _ in 0..<120 { r.step(1.0 / 120) }
+            r.walking = false
+            let ang = r.journey.dist, mk = r.markers().first.map { Double($0.col.w) } ?? 0
+            check(abs(ang - 0.9 * r.set.spd / 100) < 1e-6 && abs(mk - FIXED[0].r / 100) < 1e-6,
+                  String(format: "宇宙の大きさ R ＝ 100：1 秒で進む角度 %.4f（＝ 0.9×速さ／R、道のりは %.2f＝R が 1 の時と同じ）、アナ極の玉の角度 %.4f（＝ 0.13／R）", ang, ang * 100, mk))
+            r.set = .plain
+        }
         // 中の景色の極の札（ウェブ版の poleLabels）：アナ極から方位 30° を見ると、東極（+x、左前 30°）が 1.57 の所に。北極（+y、右前 60°）は横の視野の外
         do {
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
@@ -503,6 +513,7 @@ enum Verify {
         let scenes: [(String, (Renderer) -> Void)] = [
             ("地図・球層（既定、方位 30° へ 2 歩いた跡）", { r in r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 2 { r.step(1.0 / 60) }; r.walking = false }),
             ("地図・赤道の網目と軽い線（球層なし）", { r in r.set = .plain; r.set.shell = false; r.set.lite = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 4 { r.step(1.0 / 60) }; r.walking = false }),
+            ("地図・軸色の球層（x・y・z・w を重ねる）", { r in r.set = .plain; r.set.shAxis = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
             ("地図・自分を真ん中に", { r in r.set = .plain; r.set.mapFollow = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
         ]
         let w = 1200, h = 900
@@ -510,7 +521,7 @@ enum Verify {
         let all = scenes + [("S² の仲間（螺旋で 8 歩いた跡・目印 2 つ）", { (r: Renderer) in r.set = .plain; r.startPath(.spiral); for i in 0..<900 { r.step(1.0 / 60); if i == 300 || i == 600 { r.addMark() } }; r.pathMode = .none })]
         for (k, (name, f)) in all.enumerated() {
             f(r); m.home(); m2.home()
-            let m = k == 3 ? m2 : m
+            let m = k == all.count - 1 ? m2 : m
             var (px, labels) = m.renderOffscreen(width: w, height: h)
             for (p, _, ok) in labels where ok { let x = Int(p.x), y = Int(p.y); for dy in -2...2 { for dx in -2...2 { let xx = x + dx, yy = y + dy; if xx >= 0 && xx < w && yy >= 0 && yy < h { let i = (yy * w + xx) * 4; px[i] = 255; px[i + 1] = 255; px[i + 2] = 255 } } } }
             let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
@@ -543,6 +554,12 @@ enum Verify {
             ("軸色の球層（x・y・z・w）", { s, c in s.shAxis = true; c.walk([0, 0, 1], 0.5) }),
             ("軸色の球層（w だけ）", { s, c in s.shAxis = true; s.shAxX = false; s.shAxY = false; s.shAxZ = false; c.walk([0, 0, 1], 0.5) }),
             ("軸色の球層・立体（x・y・z・w）", { s, c in s.shAxis = true; s.shellSolid = true; c.walk([0, 0, 1], 0.5) }),
+            ("宇宙の大きさ ×10：深海・球層", { s, c in s = Settings(); s.uniL = 1; c.walk([0, 0, 1], 0.05) }),
+            ("宇宙の大きさ ×100：宇宙・球層・星雲", { s, c in s = Settings(); s.space = true; s.uniL = 2; aimNeb(&c, 0) }),
+            ("宇宙の大きさ ×1000：宇宙・星雲", { s, c in s = Settings(); s.space = true; s.uniL = 3; s.shell = false; aimNeb(&c, 0) }),
+            ("極の惑星：東極を見る（宇宙・映画の光）", { s, c in s = Settings(); s.space = true; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.1) }),
+            ("極の惑星：軸色・球層（東極へ向かう）", { s, c in s = Settings(); s.shAxis = true; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.2) }),
+            ("極の惑星：宇宙の大きさ ×100（東極のそば）", { s, c in s = Settings(); s.space = true; s.uniL = 2; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.25) }),
             ("映画の光：宇宙・星雲を見る", { s, c in s = Settings(); s.space = true; s.shell = false; s.eq = false; s.poles = false; s.hidePair = true; aimNeb(&c, 0) }),
             ("映画の光：星雲のそば（距離 0.35）", { s, c in s = Settings(); s.space = true; s.shell = false; s.eq = false; s.poles = false; s.hidePair = true; nearNeb(&c, 1, 0.35) }),
             ("映画の光：球層＋星雲", { s, c in s = Settings(); s.space = true; s.shellRange = 1.5; s.poles = false; s.hidePair = true; aimNeb(&c, 2) }),
@@ -582,6 +599,7 @@ enum Verify {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
         print("GPU：\(dev.name)　1 コマの GPU の時間（ミリ秒）")
         let sizes = only4K ? [(3840, 2160), (4096, 2304)] : [(1280, 800), (1920, 1080), (2560, 1600), (3456, 2234), (4096, 2304)]
+        let sizes2 = ProcessInfo.processInfo.environment["S3_BENCH_NAT"] != nil ? [(1728, 1117), (3456, 2234)] : sizes
         var cases: [(String, (inout Settings) -> Void)] = [
             ("球層（殻の見える距離 3、球層の海）", { _ in }),
             ("球層（殻の見える距離 1、ウェブ版の既定）", { $0.shellRange = 1 }),
@@ -589,6 +607,13 @@ enum Verify {
             ("球層なし（玉・赤道の膜・もや）", { $0.shell = false }),
         ]
         if only4K { cases.append(("経線・赤道の輪（管）", { $0.shell = false; $0.circ = true })); cases.append(("120 胞体の部屋の辺（管）", { $0.shell = false; $0.room = true })); cases.insert(("球層 6 枚", { $0.shellN = 6 }), at: 1); cases.insert(("球層・網目なし", { $0.shellBare = true }), at: 1); cases.insert(("球層・軽い線あり", { $0.lite = true }), at: 1); cases.append(("軽い線だけ（ウェブ版の既定の見え方）", { $0.shell = false; $0.lite = true })); cases.append(("宇宙：球層＋星・天の川", { $0.space = true })); cases.append(("宇宙：星だけ", { $0.space = true; $0.shell = false })); cases.append(("宇宙＋星雲＋映画の光（星雲を見る）", { $0.space = true; $0.shell = false; $0.nebula = true; $0.cine = true; $0.glow = 0.4 })); cases.append(("宇宙＋球層＋星雲＋映画の光", { $0.space = true; $0.nebula = true; $0.cine = true; $0.glow = 0.4 })); cases.append(("深海＋映画の光", { $0.cine = true; $0.glow = 0.4 })) }
+        if ProcessInfo.processInfo.environment["S3_BENCH_NAT"] != nil {    // ふつうに起動した時（アプリの既定の設定）と、前の見え方
+            cases = [("前の見え方（映画の光・惑星なし）", { _ in }),
+                     ("ふつうに起動（深海・球層・映画の光・惑星・光る線）", { $0 = Settings() }),
+                     ("宇宙（星・天の川・星雲・球層）", { $0 = Settings(); $0.space = true }),
+                     ("宇宙・球層なし（星・星雲）", { $0 = Settings(); $0.space = true; $0.shell = false }),
+                     ("軸色の球層（ふつうに起動＋軸の色）", { $0 = Settings(); $0.shAxis = true })]
+        }
         if ProcessInfo.processInfo.environment["S3_BENCH_CINE"] != nil {   // 映画の光・星雲だけ測る
             cases = [("球層（殻の見える距離 3、球層の海）", { _ in }), ("宇宙：星だけ", { $0.space = true; $0.shell = false }),
                      ("宇宙＋星雲（映画の光なし）", { $0.space = true; $0.shell = false; $0.nebula = true }),
@@ -596,10 +621,10 @@ enum Verify {
                      ("宇宙＋球層＋星雲＋映画の光", { $0.space = true; $0.nebula = true; $0.cine = true }),
                      ("深海＋映画の光（にじみなし）", { $0.cine = true })]
         }
-        print("場面".padding(toLength: 22, withPad: "　", startingAt: 0) + sizes.map { "\($0.0)×\($0.1)" }.joined(separator: "  "))
+        print("場面".padding(toLength: 22, withPad: "　", startingAt: 0) + sizes2.map { "\($0.0)×\($0.1)" }.joined(separator: "  "))
         for (name, f) in cases {
             var line = name.padding(toLength: 22, withPad: "　", startingAt: 0)
-            for (w, h) in sizes {
+            for (w, h) in sizes2 {
                 // 3 回測って、いちばん速い値（ほかの仕事や GPU の速さの切りかえでぶれるので）
                 let ms = (0..<3).map { _ -> Double in r.set = .plain; f(&r.set); r.cam = Camera(); r.cam.walk([0, 0, 1], 0.4); if r.set.nebula { aimNeb(&r.cam, 0) }; return r.benchmark(width: w, height: h) }.min()!
                 line += String(format: "%9.2f  ", ms)
