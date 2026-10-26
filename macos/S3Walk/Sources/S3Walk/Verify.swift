@@ -93,6 +93,9 @@ enum Verify {
         let okX = m.setAxisLength(0, 0.5), lx = m.axisLengths()[0], ax = r.set.mapXW
         r.set.mapYW = 20; r.set.mapZW = -10
         let okW = m.setAxisLength(3, 0.3), lw = m.axisLengths()[3]
+        r.set.mapXW = 90; r.set.mapYW = 90; r.set.mapZW = 90
+        let sw1 = m.swapTilt(), t1 = [r.set.mapXW, r.set.mapYW, r.set.mapZW], sw2 = m.swapTilt(), t2 = [r.set.mapXW, r.set.mapYW, r.set.mapZW]
+        check(sw1 && sw2 && t1 == [0, 90, 0] && t2 == [90, 90, 90], "地図の傾きの ⇄：もう一つの組（初めは 0°・90°・0°）と入れかえ、もう一度で戻る")
         r.set.mapFollow = true; let noF = !m.setAxisLength(0, 0.5); r.set = .plain
         check(okX && abs(lx - 0.5) < 2e-4 && abs(ax - 60) < 0.02 && okW && abs(lw - 0.3) < 2e-3 && noF,
               String(format: "地図の軸の長さを %% で：x 50%% → X-W %.2f°（長さ %.2f%%）、w 30%% → %.2f%%、自分中心では決めない", ax, lx * 100, lw * 100))
@@ -255,6 +258,15 @@ enum Verify {
             run(60, 0); let d1 = r.journey.dist, still = r.pathMode == .tour
             r.game.fake = nil; r.game.fakeDpad = nil; r.pathMode = .none; r.set.gamepad = false
             check(abs(up - 2) < 0.02 && abs(dn - 0.5) < 0.01 && still && d1 > d0, String(format: "決まった道の速さ：十字の上 1 秒で ×%.2f、下 2 秒で ×%.2f（極めぐりのまま）", up, dn))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey()
+        }
+        // 歩き続ける時の十字の上下：速さが変わり、殻の見える距離は変わらない（前は下で 0.3 まで縮んで、殻が見えなくなった）
+        do {
+            r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; r.game.fake = (.zero, .zero, false, false, false)
+            let sr = r.set.shellRange
+            r.game.fakeDpad = 0; r.step(1.0 / 120); r.game.fakeDpad = 1; for _ in 0..<120 { r.step(1.0 / 120) }; let up = r.autoSpeed
+            r.game.fakeDpad = nil; r.game.fake = nil; r.walking = false; r.set.gamepad = false; r.step(1.0 / 120)
+            check(abs(up - 2) < 0.03 && r.set.shellRange == sr, String(format: "歩き続ける時の十字の上：速さ ×%.2f（1 秒）、殻の見える距離はそのまま", up))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
         // 自走の最高・最低：前へ倒し続けても最高速まで、手前へ倒し続けても最低速まで（最低速が 0 より大きいと巻き戻さない）
@@ -718,6 +730,11 @@ enum Verify {
             ("模型・きつねを斜め前から", { s, c in s.mk = 4; s.modelKind = 7; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
             ("模型・たこを斜め前から", { s, c in s.mk = 4; s.modelKind = 8; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
             ("模型・いかを斜め前から", { s, c in s.mk = 4; s.modelKind = 9; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
+            ("模型・惑星の上のたこ（極の惑星と模型をいっしょに）", { s, c in s = Settings(); s.mk = 4; s.modelKind = 8; s.space = true; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.0) }),
+            ("体験：ついてくる仲間の後ろ姿（前を見る）", { s, c in s.modelKind = 8; c.az = 25; c.el = 10; c.walk([0, 0, 1], 0.7) }),
+            ("体験：ついてくる仲間の顔（振り返る）", { s, c in s.modelKind = 8; c.az = 25; c.el = 10; c.walk([0, 0, 1], 0.7) }),
+            ("体験：上下反転の像（前を見る）", { s, c in s.modelKind = 9; c.az = 25; c.el = 10; c.walk([0, 0, 1], 0.7) }),
+            ("体験：上下反転の像（振り返る＝ふつうの向き）", { s, c in s.modelKind = 9; c.az = 25; c.el = 10; c.walk([0, 0, 1], 0.7) }),
             ("模型・竜を斜め前から", { s, c in s.mk = 4; s.modelKind = 1; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
             ("模型・いろいろ（球層の海・映画の光、東極を 0.5 手前から）", { s, c in s = Settings(); s.mk = 4; s.modelKind = 3; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.07) }),
             ("軸色の球層（x・y・z・w）", { s, c in s.shAxis = true; c.walk([0, 0, 1], 0.5) }),
@@ -765,6 +782,10 @@ enum Verify {
         for (k, (name, f)) in (refScenes() + extra).enumerated() {
             if let only, !name.contains(only) { continue }
             r.set = .plain; r.cam = Camera(); r.journey = Journey(); f(&r.set, &r.cam)
+            if name.hasPrefix("体験：") {
+                r.experience(name.contains("仲間") ? "self" : "flip")
+                if name.contains("振り返る") { r.cam.hy = 180 }
+            }
             if k == 4 { var c = Camera(); for _ in 0..<5 { c.walk([0, 0, 1], 0.6); r.journey.foot.append(c.w.p) } }   // 足あとも少し
             let px = r.renderOffscreen(width: w, height: h)
             var b = [UInt8](repeating: 255, count: w * h * 4)

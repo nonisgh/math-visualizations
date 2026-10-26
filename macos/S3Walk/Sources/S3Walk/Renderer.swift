@@ -21,6 +21,7 @@ struct Uni {
     var circ: Int32 = 0, room: Int32 = 0, space: Int32 = 0, shAx: Int32 = 0
     var tube: Float = 0.02, pixAng: Float = 0.002, lineW: Float = 0, solidWire: Float = 0.35
     var hazeK: Float = 1, xpad0: Float = 0, xpad1: Float = 0, xpad2: Float = 0
+    var BR = SIMD4<Float>(), BU = SIMD4<Float>(), BF = SIMD4<Float>()   // 体の向き（進む向きの枠。自分の模型の向き）
 }
 /// 星の見え方の値（シェーダーの StarU と同じ並び、112 バイト）
 struct StarU {
@@ -74,6 +75,8 @@ struct Settings {
     var mk = 0                  // 目印の見せ方：0 玉・1 絵（絵文字）・2 色の点・3 なし（ウェブ版の P キー）・4 模型（3D、Mac 版だけ）
     var modelKind = 3           // 模型の種類：0 怪獣・1 タツノオトシゴの竜・2 うんこ・3 いろいろ（目印ごとに順に）・4 いぬ・5 ねこ・6 たぬき・7 きつね・8 たこ・9 いか
     var modelSize = 1.0         // 模型の大きさ（玉の何倍か）
+    var modelPoles = true, modelMarks = true, modelSelf = true   // 模型にするもの：極（惑星の時は惑星の上に乗る）・置いた目印・自分の玉
+    var follower = false, followD = 0.8   // ついてくる仲間：自分の後ろ followD を同じ向きで追いかけてくる模型（模型のモードの時）
     var picLine = 0.3           // 絵・色の点の時の線の濃さ（0 で消す）
     var ghostBack = false       // 遠回りの像を、絵の裏から見た形に（左右を鏡に）
     var lens = 0                // 0 ふつう・1 魚眼・2 360°
@@ -122,6 +125,8 @@ struct Settings {
     var mapLeft = false         // 地図を景色の左に並べる（OFF なら右）
     var map2Follow = true, map2Range = 0
     var map2XW = 0.0, map2YW = 90.0, map2ZW = 0.0
+    // 地図の傾きの「もう一つの組」（地図の上の ⇄ ボタンで今の傾きと入れかえる。初めは初めの傾き）
+    var mapAltXW = 0.0, mapAltYW = 90.0, mapAltZW = 0.0, map2AltXW = 0.0, map2AltYW = 90.0, map2AltZW = 0.0
 }
 
 final class Renderer: NSObject, MTKViewDelegate {
@@ -168,6 +173,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     var pathMode: PathMode = .none     // 決まった道（螺旋・回る輪）
     var path = PathWalk()
     var turn = TurnWalk()              // ターンの道（半周 180°・極めぐり）
+    var expSaved: Settings? = nil      // 体験の前の見え方（元に戻す用）
     var pathSpeed = 1.0                // 決まった道の速さの倍率（コントローラーの十字の上下で）
     let game = GameInput()
     var onPad: ((String) -> Void)?           // コントローラーのボタン（A・B・X・Y・十字・メニュー）
@@ -208,7 +214,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         do { library = try device.makeLibrary(source: src, options: opts); libs["00"] = library } catch {
             fputs("シェーダーの組み立てに失敗：\(error)\n", stderr); return nil
         }
-        precondition(MemoryLayout<Uni>.stride == 272, "Uni の並びがシェーダーと合わない")
+        precondition(MemoryLayout<Uni>.stride == 320, "Uni の並びがシェーダーと合わない")
         super.init()
         game.onButton = { [weak self] k in DispatchQueue.main.async { self?.onPad?(k) } }
     }
@@ -249,7 +255,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// 目印の玉の大きさの倍率（絵 1.5・色の点 1.9）
     var markBig: Double { self.set.mk == 1 ? 1.5 : self.set.mk == 2 ? 1.9 : self.set.mk == 4 ? 2.2 * self.set.modelSize : 1.0 }
     /// いちばん内側の殻の、極からの距離（極の目印の玉より外に。ウェブ版の shellMinTheta）
-    var shellMinTheta: Double { max(0.13 * markBig + 0.06, set.polePlanet && set.poles && set.mk != 1 && set.mk != 4 ? set.planetSize + 0.05 : 0) }   // 惑星の時は惑星より外に
+    var shellMinTheta: Double { max(0.13 * markBig + 0.06, set.polePlanet && set.poles && set.mk != 1 ? set.planetSize + 0.05 : 0) }   // 惑星の時は惑星より外に
     lazy var atlas: MTLTexture? = Atlas.make(device)
     static let roomPlanes: [SIMD4<Float>] = Cell120.shared.planes.map { SIMD4<Float>($0) }
     func markers() -> [MkGPU] {
@@ -257,26 +263,39 @@ final class Renderer: NSObject, MTKViewDelegate {
         let big = markBig * (set.grand ? 0.7 : 1.0) / set.uniR    // 絵・色の点の時は玉を大きめに。壮大モードは 7 割。宇宙が大きいほど、本当の大きさは同じなので角度では小さく
         // 模型のモード：極・置いた目印・自分の玉を 3D の模型に（info.z が模型の種類。足あとは玉のまま）
         var nModel = 0
-        func put(_ c: V4, _ col: SIMD3<Float>, _ r: Double, _ pic: String? = nil, planet: Bool = false, model: Bool = false) {
+        func put(_ c: V4, _ col: SIMD3<Float>, _ r: Double, _ pic: String? = nil, planet: Bool = false, model: Bool = false, me: Bool = false) {
             guard out.count < 64 else { return }
             var kind: Float = -1
             // 模型の番号（シェーダー）：0 怪獣・1 竜・2 うんこ・3 いぬ・4 ねこ・5 たぬき・6 きつね・7 たこ・8 いか
             if model && set.mk == 4 { kind = Float(set.modelKind < 3 ? set.modelKind : set.modelKind > 3 ? set.modelKind - 1 : nModel % 9); nModel += 1 }
-            out.append(MkGPU(c: SIMD4<Float>(c), col: SIMD4<Float>(col.x, col.y, col.z, Float(r)), info: SIMD4(planet || kind >= 0 ? -1 : Float(pic.map { PIC.index($0) } ?? -1), planet ? 1 : 0, kind, 0)))
+            out.append(MkGPU(c: SIMD4<Float>(c), col: SIMD4<Float>(col.x, col.y, col.z, Float(r)), info: SIMD4(planet || kind >= 0 ? -1 : Float(pic.map { PIC.index($0) } ?? -1), planet ? 1 : 0, kind, me ? 1 : 0)))
         }
         let none = set.mk == 3
-        let planets = set.poles && set.polePlanet && set.mk != 1 && set.mk != 4   // 極の惑星（見せ方が「なし」でも出す。絵・模型の時は絵・模型）
+        let planets = set.poles && set.polePlanet && set.mk != 1          // 極の惑星（見せ方が「なし」でも出す。絵の時は絵）
         if set.poles && (!none || planets) {
             for (k, m) in FIXED.enumerated() {
                 if set.hideLabels.contains(m.label) { continue }
                 if set.hidePair && m.pole && (0..<4).contains(where: { m.c[$0] < -0.5 }) { continue }
-                if planets { put(m.c, poleCol(k), set.planetSize, planet: true) } else { put(m.c, m.col, m.r * big, PIC.poles[k], model: true) }
+                let poleModel = set.mk == 4 && set.modelPoles
+                if planets {
+                    put(m.c, poleCol(k), set.planetSize, planet: true)
+                    // 模型のモード：模型が惑星の上に立つ（模型の上＝z の方へ、惑星の半径＋足までの長さだけずらす。シェーダーの modelFrame と同じ向き）
+                    if poleModel {
+                        let rm = m.r * big, up0 = abs(m.c.z) < 0.9 ? V4(0, 0, 1, 0) : V4(0, 1, 0, 0), U = nrm(up0 - m.c * dot4(up0, m.c)), a = set.planetSize + 0.72 * rm
+                        put(m.c * cos(a) + U * sin(a), m.col, rm, model: true)
+                    }
+                } else { put(m.c, m.col, m.r * big, PIC.poles[k], model: poleModel) }
             }
         }
-        if set.marksOn && !none { for (i, p) in journey.marks.enumerated() { put(p, Journey.markColor(i), 0.1 * big, PIC.mark(i), model: true) } }
+        if set.marksOn && !none { for (i, p) in journey.marks.enumerated() { put(p, Journey.markColor(i), 0.1 * big, PIC.mark(i), model: set.modelMarks) } }
         if set.foot { for p in journey.foot { put(p, [0.8, 0.85, 1], 0.03 * big, PIC.foot) } }
         for m in set.extra where !set.hideLabels.contains(m.label) { put(m.c, m.col, m.r) }
-        if set.selfBall { put(cam.w.p, [1, 1, 1], (set.mk == 0 ? 0.09 : set.mk == 4 ? 0.2 * set.modelSize : 0.13) / set.uniR, PIC.selfPic, model: true) }
+        // ついてくる仲間：自分の後ろ（進む向きの逆）followD の所、同じ向き。info.w ＝ 2 ＋ 距離（シェーダーで体の向きから仲間の向きを作る）
+        if set.follower && set.mk == 4 && out.count < 64 {
+            let L = cam.lookFrame().L, d = set.followD, kind = Float(set.modelKind < 3 ? set.modelKind : set.modelKind > 3 ? set.modelKind - 1 : 7)
+            out.append(MkGPU(c: SIMD4<Float>(cam.w.p * cos(d) - L * sin(d)), col: SIMD4<Float>(1, 1, 1, Float(0.2 * set.modelSize / set.uniR)), info: SIMD4(-1, 0, kind, Float(2 + d))))
+        }
+        if set.selfBall { put(cam.w.p, [1, 1, 1], (set.mk == 0 ? 0.09 : set.mk == 4 ? 0.2 * set.modelSize : 0.13) / set.uniR, PIC.selfPic, model: set.modelSelf, me: true) }
         return out
     }
     func uniforms(width: Int, height: Int) -> Uni {
@@ -284,6 +303,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         var u = Uni()
         u.P = SIMD4<Float>(cam.w.p); u.R = SIMD4<Float>(F.R); u.U = SIMD4<Float>(F.U); u.F = SIMD4<Float>(F.L)
         u.L0 = SIMD4<Float>(nrm(F.R * -0.45 + F.U * 0.75 - F.L * 0.5))
+        let B = cam.lookFrame(); u.BR = SIMD4<Float>(B.R); u.BU = SIMD4<Float>(B.U); u.BF = SIMD4<Float>(B.L)
         u.res = SIMD2(Float(width), Float(height))
         u.tanF = Float(tan(min(150, set.fov) * d2r / 2)); u.maxD = Float(set.maxD)
         // もや・透けは決まった距離でかかる（宇宙の大きさ R 倍）
@@ -577,6 +597,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         walkingWas = walking
         if walking && set.gamepad {
             let th = padThrottle
+            // 十字の上・下を押し続けても、だんだん速く・遅く（決まった道と同じ。1 秒で 2 倍・半分）
+            let dy = game.dpadY(); if dy != 0 && !rewinding { autoSpeed = max(max(aLo, 0.1), min(aHi, autoSpeed * exp(dy * 0.69 * dt))) }
             if th > 0.2 {
                 if rewinding { rewinding = false; rewindSpeed = 0; autoSpeed = aLo }
                 autoSpeed = min(aHi, autoSpeed + set.autoAccel * th * dt * max(1, autoSpeed * 0.6))
@@ -716,6 +738,28 @@ final class Renderer: NSObject, MTKViewDelegate {
         let marks = journey.marks, marks2 = journey.marks2
         cam = Camera(); journey = Journey(); journey.marks = marks; journey.marks2 = marks2
         walking = false; roaming = false; pathMode = .none
+    }
+    /// 体験：遠回りの光で見える像を、見やすい見え方にして見る。前の見え方は覚えておき、「元の見え方に戻す」で戻す
+    ///   self：自分の後ろ姿（光が S³ を 1 周して、2π 先から自分の背中が見える。振り返ると自分の顔）。
+    ///   flip：ここに目印を置いて 1.2 進む → 前を見ると、目印を反対側から回ってきた光で、上下・左右が逆（180° 回った像）の向こう側の面が見える
+    func experience(_ kind: String) {
+        if expSaved == nil { expSaved = set }
+        // 見やすいように：もやを薄く、光の距離を 2π の手前まで（自分の像は 2π で空いっぱいに広がるので、その手前で止める）、球層・赤道の膜・極は隠す
+        set.mk = 4; set.uniL = 0; set.fog = 0.03; set.fade = 0; set.maxD = 6.1; set.shell = false; set.eq = false; set.poles = false; set.selfBall = false
+        cam.hy = 0; cam.hp = 0; cam.az = 0; cam.el = 0; pathMode = .none; walking = false; roaming = false
+        if kind == "self" {
+            set.follower = true
+            say?("ついてくる仲間：振り返ると、後ろから追いかけてくる顔。前を見ると、光が反対側を回ってきて、仲間の後ろ姿が上下・左右逆に見える。歩くとついてくる")
+        } else {
+            set.marksOn = true; set.modelMarks = true
+            addMark(); cam.walk([0, 0, 1], 1.2)
+            say?("前に見えるのは、いま置いた目印を反対側から回ってきた光の像（距離 2π − 1.2）：上下も左右も逆で、向こう側の面。振り返ると、ふつうの向きの目印")
+        }
+    }
+    func endExperience() {
+        guard let s = expSaved else { return }
+        let marks = set.marksOn; set = s; set.marksOn = marks; expSaved = nil
+        say?("元の見え方に戻した")
     }
     /// ここに目印を置く（ウェブ版の addMark・M キー）
     func addMark() {

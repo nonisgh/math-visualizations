@@ -38,7 +38,7 @@ struct MV { var p: SIMD4<Float>; var col: SIMD4<Float> }
 struct MapConfig { var follow: Bool; var range: Int; var xw: Double; var yw: Double; var zw: Double }
 struct MapUni { var view = matrix_identity_float4x4; var proj = matrix_identity_float4x4; var res = SIMD2<Float>(1, 1); var width: Float = 1; var feather: Float = 1; var light = SIMD4<Float>(0, 0, 1, 0); var cmul: Float = 1; var amul: Float = 1; var pad0: Float = 0; var pad1: Float = 0 }
 /// 名前の札：3 次元の位置・文字・色
-struct MapLabel { var pos: SIMD3<Float>; var text: String; var col: SIMD3<Float>; var size: CGFloat; var bg = false; var dot = false; var dim = false }   // bg：白い丸の上の絵文字（絵のモード）、dot：極の点と名前（ウェブ版の mapDots）、dim：球の奥の側（薄く）
+struct MapLabel { var pos: SIMD3<Float>; var text: String; var col: SIMD3<Float>; var size: CGFloat; var bg = false; var dot = false; var dim = false; var axis = false }   // axis：軸の名前（数式の斜体で、窓の中に収める）   // bg：白い丸の上の絵文字（絵のモード）、dot：極の点と名前（ウェブ版の mapDots）、dim：球の奥の側（薄く）
 
 let mapShaderSource = #"""
 #include <metal_stdlib>
@@ -193,6 +193,14 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         }
         rot(0, 3, c.xw); rot(1, 3, c.yw); rot(2, 3, c.zw)
         return R
+    }
+    /// 今の傾き（X-W・Y-W・Z-W）と、覚えておいたもう一つの組を入れかえる（地図の上の ⇄ ボタン）。自分中心の時はしない
+    func swapTilt() -> Bool {
+        guard !config.follow else { return false }
+        let a: [WritableKeyPath<Settings, Double>] = slot == 0 ? [\.mapXW, \.mapYW, \.mapZW] : [\.map2XW, \.map2YW, \.map2ZW]
+        let b: [WritableKeyPath<Settings, Double>] = slot == 0 ? [\.mapAltXW, \.mapAltYW, \.mapAltZW] : [\.map2AltXW, \.map2AltYW, \.map2AltZW]
+        for k in 0..<3 { let t = world.set[keyPath: a[k]]; world.set[keyPath: a[k]] = world.set[keyPath: b[k]]; world.set[keyPath: b[k]] = t }
+        return true
     }
     /// 軸の長さの割合を直接決める（地図の右上の数字に打ち込んだ時）：x・y・z は X-W・Y-W・Z-W の角を、w は 3 つの角を同じ割合で大きく・小さくして、
     ///   その軸の長さが target（0〜1）にいちばん近くなる角を探す（角の向き＝符号は今のまま）。自分中心の時は決められない（false）
@@ -545,7 +553,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                 guard len > 0.08 else { continue }
                 let t = d / len
                 tri += cone(d, t, 0.055, 0.18, col)
-                if len > 0.15 { labels.append(MapLabel(pos: d + t * 0.22, text: ["x", "y", "z", "w"][i], col: AXIS_RGB[i], size: 14)) }
+                if len > 0.15 { labels.append(MapLabel(pos: d + t * 0.22, text: ["x", "y", "z", "w"][i], col: AXIS_RGB[i], size: 20, axis: true)) }
             }
             lines(ax, 2.2, additive: false, depth: depthRead)
             mesh(tri)

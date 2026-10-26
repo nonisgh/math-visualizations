@@ -38,6 +38,7 @@ struct Uni {
     int circ, room, space, shAx;             // 管：circ＝経線（x・y・z と w の大円）と赤道の輪、room＝120 胞体の部屋の辺。space：背景 0 深海（もや）・1 宇宙。shAx：球層の色 0 レインボー、それ以外は軸色で、囲む軸（1 x・2 y・4 z・8 w）
     float tube, pixAng, lineW, solidWire;    // （下に続く）
     float hazeK, xpad0, xpad1, xpad2;        // hazeK：深海の時のもやの色の明るさ（1 でウェブ版と同じ。小さいほど殻の間が暗く、殻の境目が浮かぶ）
+    float4 BR, BU, BF;                       // 体の向き（進む向きの枠）：自分の模型はこの向きで立つ（前を見ると光が 1 周して自分の背中、振り返ると顔）
     //   tube：管の太さ（角度）、pixAng：1 画素の角度、lineW：網目の線の太さ（画素。0 でウェブ版と同じ角度の太さ）、solidWire：立体の殻の網目の濃さ（ウェブ版は 0.35）
 };
 struct Mk { float4 c; float4 col; float4 info; };   // c：中心（S³ の点）、col.xyz：色、col.w：半径（角度）、info.x：絵の表のます目（−1 で絵なし）
@@ -414,8 +415,10 @@ inline void modelFrame(float4 c, thread float4& R, thread float4& U, thread floa
     R = normalize(cross4(U, F, c));
 }
 // 模型を光の道に沿ってたどる。当たれば色と不透明度（ふちは 1 画素ぶんなめらかに）。tIn：入れ物の玉に入る道のり、tOut：出る道のり
-bool modelHit(float4 p0, float4 v, float tIn, float tOut, float4 c, float r, int id, float3 body, constant Uni& u, thread float3& lc, thread float& la, thread float& tHit) {
+bool modelHit(float4 p0, float4 v, float tIn, float tOut, float4 c, float r, int id, float3 body, float me, constant Uni& u, thread float3& lc, thread float& la, thread float& tHit) {
     float4 R, U, F; modelFrame(c, R, U, F);
+    if (me > 0.5) { R = u.BR; U = u.BU; F = u.BF; }                 // 自分の模型は体の向きで
+    if (me > 1.5) { float d = me - 2.0; F = u.BF * cos(d) + u.P * sin(d); }   // ついてくる仲間：自分の後ろ d、同じ向き（前の向きを運んだもの）
     float t = tIn, best = 1e9, tb = tIn; float3 xb = float3(0.0); bool hit = false;
     for (int s = 0; s < 72; s++) {
         float4 q = cos(t) * p0 + sin(t) * v;
@@ -487,7 +490,7 @@ void shadeLayer(int kind, int idx, float t, float4 p0, float4 v, thread const La
         float back = (u.ghostBack == 1 && gmod(atan2(Bb, Aa), 2.0 * PI) > PI) ? 1.0 : 0.0;   // 目印の真ん中が π より先＝遠回りの像
         if (mk[i].info.z >= 0.0) {                                       // 3D の模型：入れ物の玉の中をたどる（当たらなければ透明）
             float dt = acos(clamp(cr / max(amp, 1e-6), -1.0, 1.0)), th;
-            if (!modelHit(p0, v, t, t + 2.0 * dt, c, mc.w, int(mk[i].info.z + 0.5), mc.xyz, u, lc, la, th)) { lc = float3(0.0); la = 0.0; }
+            if (!modelHit(p0, v, t, t + 2.0 * dt, c, mc.w, int(mk[i].info.z + 0.5), mc.xyz, mk[i].info.w, u, lc, la, th)) { lc = float3(0.0); la = 0.0; }
             return;
         }
         lc = markerShade(mc.xyz, mk[i].info.x, c, q, vt, back, u, atlas);

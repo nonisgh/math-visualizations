@@ -134,9 +134,9 @@ final class AppModel: ObservableObject {
         case "X": r.roaming.toggle(); r.walking = false; say(r.roaming ? "縦横無尽：どこへ進んでも、いつか戻ってくる" : "縦横無尽をやめた")
         case "Y": r.padY()
         case "R3": r.levelView()
-        // 十字の上下：殻の見える距離。決まった道の間は道の速さ（押し続けて速く・遅く。Renderer.step で）
-        case "up": if r.pathMode == .none { r.set.shellRange = min(25.15, r.set.shellRange + 0.5) }
-        case "down": if r.pathMode == .none { r.set.shellRange = max(0.3, r.set.shellRange - 0.5) }
+        // （歩き続ける・決まった道の間は、十字の上下は速さ。止まっている時だけ殻の見える距離。変えたら知らせる）
+        case "up": if r.pathMode == .none && !r.walking { r.set.shellRange = min(25.15, r.set.shellRange + 0.5); say(String(format: "殻の見える距離 %.1f", r.set.shellRange)) }
+        case "down": if r.pathMode == .none && !r.walking { r.set.shellRange = max(0.3, r.set.shellRange - 0.5); say(String(format: "殻の見える距離 %.1f", r.set.shellRange) + (r.set.shellRange < 1 ? "（短いと殻がほとんど見えない。十字の上で戻る）" : "")) }
         case "menu": showPanel.toggle()
         case "options": toggleMap()
         default: break
@@ -385,7 +385,7 @@ struct PosReadout: View {
                 Text("位置").foregroundStyle(Space.slate)
                 ForEach(0..<4, id: \.self) { i in
                     HStack(spacing: 2) {
-                        Text(["x", "y", "z", "w"][i]).italic().foregroundStyle(Color(red: Double(AXIS_RGB[i].x), green: Double(AXIS_RGB[i].y), blue: Double(AXIS_RGB[i].z)))
+                        Text(["x", "y", "z", "w"][i]).font(.custom("STIXTwoText-Italic", size: 15)).foregroundStyle(Color(red: Double(AXIS_RGB[i].x), green: Double(AXIS_RGB[i].y), blue: Double(AXIS_RGB[i].z)))
                         Text(String(format: "%+.3f", p[i])).monospacedDigit().foregroundStyle(.white.opacity(0.9))
                     }
                 }
@@ -409,7 +409,7 @@ struct AxisLengths: View {
             HStack(spacing: 8) {
                 ForEach(0..<4, id: \.self) { i in
                     HStack(spacing: 3) {
-                        Text(["x", "y", "z", "w"][i]).italic().foregroundStyle(Color(red: Double(AXIS_RGB[i].x), green: Double(AXIS_RGB[i].y), blue: Double(AXIS_RGB[i].z)))
+                        Text(["x", "y", "z", "w"][i]).font(.custom("STIXTwoText-Italic", size: 15)).foregroundStyle(Color(red: Double(AXIS_RGB[i].x), green: Double(AXIS_RGB[i].y), blue: Double(AXIS_RGB[i].z)))
                         if editing == i {
                             TextField("", text: $text).textFieldStyle(.roundedBorder).frame(width: 46).focused($focused)
                                 .onSubmit { commit(i) }
@@ -462,6 +462,11 @@ struct OneMap: View {
                     }
                     HStack(spacing: 6) {
                         Button { model.renderer(slot).home() } label: { Image(systemName: "scope") }.help("地図を元の向きに（ダブルクリックでも）")
+                        if slot != 2 {
+                            let s = model.r.set, alt = slot == 0 ? [s.mapAltXW, s.mapAltYW, s.mapAltZW] : [s.map2AltXW, s.map2AltYW, s.map2AltZW]
+                            Button { if model.renderer(slot).swapTilt() { model.changed() } else { model.say("自分中心の時は傾きを入れかえられない（ふつうの見方で）") } } label: { Image(systemName: "arrow.triangle.2.circlepath") }
+                                .help(String(format: "傾き（X-W・Y-W・Z-W）を、もう一つの組（%.0f°・%.0f°・%.0f°）と入れかえる。もう一度押すと戻る", alt[0], alt[1], alt[2]))
+                        }
                         if slot == 0 {
                             if model.mapMode == .docked {
                                 Button { model.r.set.mapLeft.toggle(); model.changed() } label: { Image(systemName: "arrow.left.arrow.right") }.help(model.r.set.mapLeft ? "地図を景色の右へ" : "地図を景色の左へ")

@@ -339,6 +339,13 @@ struct PanelContent: View {
                         Text("いぬ").tag(4); Text("ねこ").tag(5); Text("たぬき").tag(6); Text("きつね").tag(7); Text("たこ").tag(8); Text("いか").tag(9)
                     }.pickerStyle(.menu)
                     row("模型の大きさ", \.modelSize, 0.4, 3)
+                    HStack(spacing: 10) {
+                        Text("模型にする").font(.caption).foregroundStyle(.secondary)
+                        Toggle("極", isOn: model.b(\.modelPoles)); Toggle("置いた目印", isOn: model.b(\.modelMarks)); Toggle("自分", isOn: model.b(\.modelSelf))
+                    }.toggleStyle(.button).controlSize(.small)
+                    Toggle("ついてくる仲間（自分の後ろを追いかけてくる）", isOn: model.b(\.follower))
+                    if r.set.follower { row("仲間との距離", \.followD, 0.3, 2.5).padding(.leading, 14) }
+                    note("極を惑星にしている時は、模型が惑星の上に立つ。模型を消すには、見せ方を「玉」などに（P キー）か、ここで外す")
                     note("極・置いた目印・自分の玉を 3D の模型に（怪獣・竜・うんこ・いぬ・ねこ・たぬき・きつね・たこ・いか）。向きは目印ごとに決まっているので、まわりを歩くと横や後ろも見える。遠回りの像（反対側を回ってきた光）では、模型の向こう側の面が見える。体の色は目印の色に少し染まる")
                 }
                 if r.set.mk == 1 || r.set.mk == 2 { row("線の濃さ", \.picLine, 0, 1) }
@@ -354,6 +361,12 @@ struct PanelContent: View {
                 HStack {
                     Button("ここに目印を置く") { r.addMark(); model.changed() }
                     Button("目印を消す") { r.journey.marks = []; r.journey.marks2 = []; model.changed() }.disabled(r.journey.marks.isEmpty)
+                }
+                Text("体験（遠回りの光の像）").font(.caption.bold()).foregroundStyle(Space.lilac).padding(.top, 4)
+                HStack {
+                    Button("ついてくる仲間") { r.experience("self"); model.changed() }.help("模型が自分の後ろを追いかけてくる。振り返ると顔、前を見ると、反対側を回ってきた光で仲間の後ろ姿が上下・左右逆に見える。見やすいよう、もやを薄く・球層と極を隠す")
+                    Button("上下反転の像") { r.experience("flip"); model.changed() }.help("ここに目印を置いて 1.2 進む。前に、反対側から回ってきた目印の像（上下・左右が逆、向こう側の面）が見える")
+                    if r.expSaved != nil { Button("元の見え方に戻す") { r.endExperience(); model.changed() } }
                 }
             case .shell:
                 Toggle("球層" + km.hint(.shell), isOn: model.b(\.shell))
@@ -470,7 +483,7 @@ struct PanelContent: View {
                     }
                 }
                 note(r.game.names.isEmpty ? "コントローラー：つながっていない（Joy-Con などを Bluetooth でつなぐと使える）" : "コントローラー：" + r.game.names.joined(separator: "・"))
-                note("右スティック 進む向き・ZL＋右スティック 見回しだけ（地図は回らず水色の円すい。ZL を押して離すだけで前を見る）・左スティック 進む向きへ歩く・Y 前を見る（進む向きは変えない）・ZL＋Y この向きへ進む（Enter）・右スティック押し込み 前を見る（もう一度で水平）・左スティック押し込み（L3） 軌跡を消す・L/R 上下・ZR 速く・A 目印・B 歩き続ける・X 縦横無尽・十字の上下 殻の距離（決まった道の間は、押し続けて道の速さを速く・遅く）・＋ 設定・− 地図を出す・隠す")
+                note("右スティック 進む向き・ZL＋右スティック 見回しだけ（地図は回らず水色の円すい。ZL を押して離すだけで前を見る）・左スティック 進む向きへ歩く・Y 前を見る（進む向きは変えない）・ZL＋Y この向きへ進む（Enter）・右スティック押し込み 前を見る（もう一度で水平）・左スティック押し込み（L3） 軌跡を消す・L/R 上下・ZR 速く・A 目印・B 歩き続ける・X 縦横無尽・十字の上下 殻の見える距離（歩き続ける・決まった道の間は、押し続けて速く・遅く）・＋ 設定・− 地図を出す・隠す")
             case .screen:
                 Toggle("60 fps 前後（144Hz の画面では 72）" + km.hint(.fps), isOn: model.b(\.fps60))
                 Toggle("足りない時だけ細かさを下げる", isOn: model.b(\.autoQ))

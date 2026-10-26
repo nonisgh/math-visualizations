@@ -79,6 +79,10 @@ struct MapPane: NSViewRepresentable {
     func updateNSView(_ v: NSView, context: Context) {}
 }
 
+extension MapLabel {
+    /// 軸の名前の書体（ウェブ版の TeX の数式の斜体に近いもの）
+    static func axisFont(_ size: CGFloat) -> NSFont { NSFont(name: "STIXTwoText-Italic", size: size) ?? NSFont(name: "Georgia-Italic", size: size) ?? NSFont.systemFont(ofSize: size) }
+}
 /// 名前の札：Core Animation の文字の層を、毎コマ動かす（マウスは下の地図へ通す）
 final class LabelLayerView: NSView {
     private var pool: [CATextLayer] = []
@@ -120,6 +124,13 @@ final class LabelLayerView: NSView {
                 t.backgroundColor = NSColor(white: 1, alpha: 0.85).cgColor; t.cornerRadius = dd / 2; t.shadowOpacity = 0.4
                 t.frame = CGRect(x: p.x - dd / 2, y: p.y - dd / 2, width: dd, height: dd)
                 t.font = NSFont(name: "Apple Color Emoji", size: l.size); t.fontSize = l.size
+            } else if l.axis {
+                // 軸の名前：ウェブ版と同じ数式の斜体（TeX のような STIX の斜体。無ければ Georgia の斜体）。窓のふちで切れないよう、窓の中に寄せる
+                t.backgroundColor = nil; t.cornerRadius = 0; t.shadowOpacity = 0.9
+                t.font = MapLabel.axisFont(l.size); t.fontSize = l.size
+                let w: CGFloat = l.size * 1.4, h = l.size * 1.4, m: CGFloat = 4
+                let x = min(max(p.x - w / 2, m), max(m, bounds.width - w - m)), y = min(max(p.y - h / 2, m), max(m, bounds.height - h - m))
+                t.frame = CGRect(x: x, y: y, width: w, height: h)
             } else {
                 t.backgroundColor = nil; t.cornerRadius = 0; t.shadowOpacity = 0.9
                 t.font = NSFont.systemFont(ofSize: l.size, weight: .semibold); t.fontSize = l.size
