@@ -589,7 +589,8 @@ struct PanelContent: View {
                 Toggle("2 枚目の地図", isOn: model.b(\.map2On))
                 Toggle("S² の仲間（同じ操作を、ふつうの球面で）", isOn: model.b(\.s2On))
                 Toggle("自分を真ん中に（体の向きのまま写す）", isOn: model.b(\.mapFollow))
-                if r.set.mapFollow { Toggle("自分の矢印は立体の三角錐（オフで平たい三角形）", isOn: model.b(\.cursor3D)).padding(.leading, 14) }
+                Picker("自分の矢印の形", selection: model.b(\.cursorShape)) { Text("三角錐").tag(0); Text("五角錐").tag(1) }.pickerStyle(.segmented)
+                if r.set.mapFollow { Toggle("自分の矢印は立体（オフで平たい形）", isOn: model.b(\.cursor3D)).padding(.leading, 14) }
                 Group {
                     row("X-W", \.mapXW, -180, 180, "%.0f°", step: 1)
                     row("Y-W", \.mapYW, -180, 180, "%.0f°", step: 1)

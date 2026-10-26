@@ -828,6 +828,27 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                 }
                 return face(tip, b0, b1, col) + face(tip, b1, b2, col) + face(tip, b2, b0, col) + face(b0, b2, b1, col * SIMD4(0.75, 0.75, 0.75, 1))
             }
+            /// 五角錐：三角錐と同じ矢じりで、底を五角形に（底の 1 つの角が体の上の向き up、横に広く少し平たい）。面ごとに平らな陰影
+            func pyramid5(_ c: SIMD3<Float>, _ t: SIMD3<Float>, _ up: SIMD3<Float>?, _ r: Float, _ h: Float, _ col: SIMD4<Float>, flat: Bool) -> [MV] {
+                var u = (up ?? SIMD3<Float>(0, 0, 1)) - t * simd_dot(up ?? SIMD3<Float>(0, 0, 1), t)
+                if simd_length(u) < 1e-4 { u = basisUp(t) }
+                u = simd_normalize(u); let sd = simd_cross(t, u)
+                let tip = c + t * (h / 2), base = c - t * (h / 2)
+                let ay: Float = flat ? 0.2 : 0.75, ax: Float = 1.15
+                let ring: [SIMD3<Float>] = (0..<5).map { k in let a = Float(k) * 2 * .pi / 5; return base + u * (r * ay * cos(a)) + sd * (r * ax * sin(a)) }
+                func face(_ p: SIMD3<Float>, _ q: SIMD3<Float>, _ w: SIMD3<Float>, _ cc: SIMD4<Float>) -> [MV] {
+                    var n = simd_normalize(simd_cross(q - p, w - p)); if simd_dot(n, (p + q + w) / 3 - c) < 0 { n = -n }
+                    return [MV(p: SIMD4(p, 1), col: cc, n: SIMD4(n, 1)), MV(p: SIMD4(q, 1), col: cc, n: SIMD4(n, 1)), MV(p: SIMD4(w, 1), col: cc, n: SIMD4(n, 1))]
+                }
+                var tri: [MV] = []
+                for k in 0..<5 { tri += face(tip, ring[k], ring[(k + 1) % 5], col) }                              // 横の 5 面
+                for k in 1..<4 { tri += face(ring[0], ring[k + 1], ring[k], col * SIMD4(0.75, 0.75, 0.75, 1)) }    // 底（少し暗く）
+                return tri
+            }
+            /// 矢印の形（設定の cursorShape）：三角錐か五角錐
+            func cursorMesh(_ c: SIMD3<Float>, _ t: SIMD3<Float>, _ up: SIMD3<Float>?, _ r: Float, _ h: Float, _ col: SIMD4<Float>, flat: Bool) -> [MV] {
+                s.cursorShape == 1 ? pyramid5(c, t, up, r, h, col, flat: flat) : pyramid(c, t, up, r, h, col, flat: flat)
+            }
             func basisUp(_ t: SIMD3<Float>) -> SIMD3<Float> { var e = simd_cross(t, SIMD3<Float>(0, 0, 1)); if simd_length(e) < 1e-3 { e = simd_cross(t, SIMD3<Float>(1, 0, 0)) }; return simd_normalize(simd_cross(e, t)) }
             /// 体の上の向き U が、地図の上でどちらを向くか
             func mapUp(_ U: V4) -> SIMD3<Float>? {
@@ -842,8 +863,8 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             let flat = config.follow && !s.cursor3D
             let upB = flat ? eyeDir : mapUp(cam.lookFrame().U), upV = flat ? eyeDir : mapUp(cam.viewFrame().U)
             let pk: Float = flat ? 0.65 : 1                                  // 平たい三角形の時は小さめに
-            arrow(0, dv, (flat ? 0.24 : 0.3) * k) { c, t in pyramid(c, t, upB, 0.075 * k * pk, 0.32 * k * pk, SIMD4(hexRGB(0xfde047), 1), flat: flat) }   // 進む向き（黄色の三角錐。てっぺんの角が体の上）
-            if abs(cam.hy) > 0.5 || abs(cam.hp) > 0.5 { arrow(1, cam.viewFrame().L, (flat ? 0.22 : 0.27) * k) { c, t in pyramid(c, t, upV, 0.05 * k * pk, 0.28 * k * pk, SIMD4(hexRGB(0x7dd3fc), 1), flat: flat) } } else { arrowDir[1] = nil }   // 見ている向き（水色、細め）
+            arrow(0, dv, (flat ? 0.24 : 0.3) * k) { c, t in cursorMesh(c, t, upB, 0.075 * k * pk, 0.32 * k * pk, SIMD4(hexRGB(0xfde047), 1), flat: flat) }   // 進む向き（黄色の三角錐。てっぺんの角が体の上）
+            if abs(cam.hy) > 0.5 || abs(cam.hp) > 0.5 { arrow(1, cam.viewFrame().L, (flat ? 0.22 : 0.27) * k) { c, t in cursorMesh(c, t, upV, 0.05 * k * pk, 0.28 * k * pk, SIMD4(hexRGB(0x7dd3fc), 1), flat: flat) } } else { arrowDir[1] = nil }   // 見ている向き（水色、細め）
         }
         if s.mapAxes { axes((0..<4).map { i in SIMD3<Float>(Float(R[0][i]), Float(R[1][i]), Float(R[2][i])) * Float(AXL) }) }   // 軸 e_i を回した向き（遠近はかけない）
         // 4. 模型の球（半径 RS）を、うっすら青く（ウェブ版の不透明度 0.05）
