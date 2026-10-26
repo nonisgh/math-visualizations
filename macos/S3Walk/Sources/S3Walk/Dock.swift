@@ -360,6 +360,7 @@ struct PanelContent: View {
                 Toggle("向きの赤い点" + km.hint(.orient), isOn: model.b(\.orient))
                 HStack {
                     Button("ここに目印を置く") { r.addMark(); model.changed() }
+                    Button("真ん中の星に置く") { r.markAtStar(); model.changed() }.help("画面の真ん中にいちばん近く見える明るい星に目印（模型のモードなら模型）を置く。星と同じ点なので、星といっしょに動き、反対側に近づくといっしょに広がって見える")
                     Button("目印を消す") { r.journey.marks = []; r.journey.marks2 = []; model.changed() }.disabled(r.journey.marks.isEmpty)
                 }
                 Text("体験（遠回りの光の像）").font(.caption.bold()).foregroundStyle(Space.lilac).padding(.top, 4)

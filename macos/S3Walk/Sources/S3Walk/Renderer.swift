@@ -301,11 +301,11 @@ final class Renderer: NSObject, MTKViewDelegate {
         // ついてくる仲間：自分の後ろ（進む向きの逆）followD の所、同じ向き。info.w ＝ 2 ＋ 距離（シェーダーで体の向きから仲間の向きを作る）
         if set.follower && set.mk == 4 && out.count < 64 {
             let L = cam.lookFrame().L, d = set.followD, kind = Float(set.modelKind < 3 ? set.modelKind : set.modelKind > 3 ? set.modelKind - 1 : 7)
-            out.append(MkGPU(c: SIMD4<Float>(cam.w.p * cos(d) - L * sin(d)), col: SIMD4<Float>(1, 1, 1, Float(0.2 * set.modelSize / set.uniR)), info: SIMD4(-1, 0, kind, Float(2 + d))))
+            out.append(MkGPU(c: SIMD4<Float>(cam.w.p * cos(d) - L * sin(d)), col: SIMD4<Float>(1, 1, 1, Float(0.2 * set.modelSize)), info: SIMD4(-1, 0, kind, Float(2 + d))))   // 宇宙の大きさで小さくしない
         }
         // デモの模型：置いた時の体の向きで立つ（info.w ＝ 9。向きは Uni の DR・DU・DF）
         if let d = demo, set.mk == 4, out.count < 64 {
-            out.append(MkGPU(c: SIMD4<Float>(d.c), col: SIMD4<Float>(1, 1, 1, Float(0.22 * set.modelSize / set.uniR)), info: SIMD4(-1, 0, Float(d.kind), 9)))
+            out.append(MkGPU(c: SIMD4<Float>(d.c), col: SIMD4<Float>(1, 1, 1, Float(0.22 * set.modelSize)), info: SIMD4(-1, 0, Float(d.kind), 9)))   // 宇宙の大きさで小さくしない
         }
         if set.selfBall { put(cam.w.p, [1, 1, 1], (set.mk == 0 ? 0.09 : set.mk == 4 ? 0.2 * set.modelSize : 0.13) / set.uniR, PIC.selfPic, model: set.modelSelf, me: true) }
         return out
@@ -511,7 +511,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         let p = try! device.makeRenderPipelineState(descriptor: d)
         pipesV[key] = p; return p
     }
-    lazy var starBuf: MTLBuffer? = { let s = Renderer.makeStars(Renderer.starN); return device.makeBuffer(bytes: s, length: MemoryLayout<StarGPU>.stride * s.count) }()
+    static let starList = Renderer.makeStars(Renderer.starN)          // 星の並び（S³ の決まった点。目印を星に置く時にも使う）
+    lazy var starBuf: MTLBuffer? = { let s = Renderer.starList; return device.makeBuffer(bytes: s, length: MemoryLayout<StarGPU>.stride * s.count) }()
     func starPipeline(_ fmt: MTLPixelFormat, split: Bool = false) -> MTLRenderPipelineState {
         if !split, let p = starPipes[fmt] { return p }
         if split, let p = starPipeMRT { return p }
@@ -768,7 +769,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     func experience(_ kind: String) {
         if expSaved == nil { expSaved = set }
         // 見やすいように：もやを薄く、光の距離を 2π の手前まで（自分の像は 2π で空いっぱいに広がるので、その手前で止める）、球層・赤道の膜・極は隠す
-        set.mk = 4; set.uniL = 0; set.fog = 0.03; set.fade = 0; set.maxD = 6.1; set.shell = false; set.eq = false; set.poles = false; set.selfBall = false
+        //   ついてくる仲間は宇宙の大きさはそのまま（小さくならず、もやも濃くならない）。上下反転の像は置いた目印なので宇宙 ×1 に
+        set.mk = 4; if kind != "self" { set.uniL = 0 }; set.fog = min(set.fog, 0.03); set.fade = 0; set.maxD = 6.1; set.shell = false; set.eq = false; set.poles = false; set.selfBall = false
         cam.hy = 0; cam.hp = 0; cam.az = 0; cam.el = 0; pathMode = .none; walking = false; roaming = false
         if kind == "self" {
             set.follower = true
@@ -784,7 +786,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     func backDemo(_ kind: Int, _ name: String) {
         if expSaved == nil { expSaved = set }
         // 極は出したまま（地図で場所が分かるように）。球層・赤道の膜・自分の玉・ついてくる仲間は隠す
-        set.mk = 4; set.uniL = 0; set.fog = 0.03; set.fade = 0; set.maxD = 6.2; set.shell = false; set.eq = false; set.selfBall = false; set.follower = false; set.modelPoles = false
+        // 宇宙の大きさはそのまま（仲間・デモの模型は宇宙の大きさで小さくならず、もやも濃くならない）
+        set.mk = 4; set.fog = min(set.fog, 0.05); set.fade = 0; set.maxD = 6.2; set.shell = false; set.eq = false; set.selfBall = false; set.follower = false; set.modelPoles = false
         // アナ極から始める（模型はアナ極に、体と同じ向き＝前は x の方・東極へ。地図で場所が分かりやすいように）
         let s = set; resetNorth(); set = s
         let L = cam.lookFrame()
@@ -797,6 +800,21 @@ final class Renderer: NSObject, MTKViewDelegate {
         guard let s = expSaved else { return }
         let marks = set.marksOn; set = s; set.marksOn = marks; expSaved = nil
         say?("元の見え方に戻した")
+    }
+    /// 画面の真ん中にいちばん近く見える明るい星（距離 0.05〜2.5）に、目印を置く。模型のモードならそこに模型が立ち、
+    ///   星と同じ S³ の点なので、歩くと星といっしょに動き、反対側（距離 π）に近づくと星といっしょに大きく広がって（ゆがんで）見える
+    func markAtStar() {
+        let P = cam.w.p, V = cam.viewFrame().L
+        var best: (V4, Double, Double)? = nil
+        for s in Renderer.starList where s.c.w > 0.9 {
+            let q = V4(Double(s.p.x), Double(s.p.y), Double(s.p.z), Double(s.p.w)), c = dot4(q, P), d = acos(max(-1, min(1, c)))
+            guard d > 0.05 && d < 2.5 else { continue }
+            let t = nrm(q - P * c), ang = acos(max(-1, min(1, dot4(t, V))))
+            if best == nil || ang < best!.1 { best = (q, ang, d) }
+        }
+        guard let (q, ang, d) = best, ang < 0.6 else { say?("真ん中のあたりに明るい星が見つからない（宇宙の背景で、星の方を向いて）"); return }
+        journey.marks.append(q); journey.marks2.append(journey.w2.p)
+        say?(String(format: "目印 %d を、真ん中に見える星（距離 %.2f）に置いた。星といっしょに動き、反対側に近づくといっしょに広がって見える", journey.marks.count, d * set.uniR))
     }
     /// ここに目印を置く（ウェブ版の addMark・M キー）
     func addMark() {

@@ -763,6 +763,10 @@ enum Verify {
             ("デモ：たこの背中が迫ってくる・7・1.8", { s, c in s = Settings(); c.az = 20 }),
             ("デモ：たこの背中が迫ってくる・7・2.7", { s, c in s = Settings(); c.az = 20 }),
             ("デモ：たこの背中が迫ってくる・7・1.8・振り返る", { s, c in s = Settings(); c.az = 20 }),
+            ("デモ：怪獣の背中が迫ってくる・0・2.7・宇宙 ×13", { s, c in s = Settings(); s.uniL = 1.12; c.az = 20 }),
+            ("体験：ついてくる仲間の後ろ姿（前を見る）・宇宙 ×13", { s, c in s.modelKind = 8; s.uniL = 1.12; c.az = 25; c.el = 10; c.walk([0, 0, 1], 0.7) }),
+            ("星：真ん中の星にたこを置く・置いた所", { s, c in s = Settings(); s.mk = 4; s.modelKind = 8; s.shell = false; s.eq = false; c.az = 60; c.el = 10 }),
+            ("星：真ん中の星にたこを置く・後ろへ下がって反対側の近く", { s, c in s = Settings(); s.mk = 4; s.modelKind = 8; s.shell = false; s.eq = false; c.az = 60; c.el = 10 }),
             ("模型・竜を斜め前から", { s, c in s.mk = 4; s.modelKind = 1; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
             ("模型・いろいろ（球層の海・映画の光、東極を 0.5 手前から）", { s, c in s = Settings(); s.mk = 4; s.modelKind = 3; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.07) }),
             ("軸色の球層（x・y・z・w）", { s, c in s.shAxis = true; c.walk([0, 0, 1], 0.5) }),
@@ -829,7 +833,12 @@ enum Verify {
         let only = ProcessInfo.processInfo.environment["S3_PNG_ONLY"]   // 名前にこの文字を含む場面だけ
         for (k, (name, f)) in (refScenes() + extra).enumerated() {
             if let only, !name.contains(only) { continue }
-            r.set = .plain; r.cam = Camera(); r.journey = Journey(); f(&r.set, &r.cam)
+            r.demo = nil; r.set = .plain; r.cam = Camera(); r.journey = Journey(); f(&r.set, &r.cam)
+            if name.hasPrefix("星：") {
+                r.markAtStar()
+                if name.contains("後ろへ"), let q = r.journey.marks.last { let d = acos(max(-1, min(1, dot4(q, r.cam.w.p)))); r.cam.walk([0, 0, -1], Double.pi - d - 0.35) }
+                print("  星の目印", r.journey.marks.count, r.journey.marks.last.map { acos(max(-1, min(1, dot4($0, r.cam.w.p)))) } ?? -1)
+            }
             if name.hasPrefix("デモ：") {
                 let parts = name.components(separatedBy: "・"), k = Int(parts[1])!, d = Double(parts[2])!
                 r.backDemo(k, "模型"); r.walking = false

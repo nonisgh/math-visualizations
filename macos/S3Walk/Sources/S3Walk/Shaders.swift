@@ -479,7 +479,7 @@ inline float nextLayer(thread const Layers& L, float last, int lastId, thread in
 inline float layerFogScale(int kind, int idx, thread const Layers& L, constant Mk* mk, constant Uni& u) {
     if (kind != 1) return 1.0;
     int i = idx == 0 ? L.mi0 : idx == 1 ? L.mi1 : idx == 2 ? L.mi2 : L.mi3;
-    return mk[i].info.y > 0.5 ? 1.0 / u.uni : 1.0;
+    return mk[i].info.y > 0.5 || mk[i].info.w > 1.5 ? 1.0 / u.uni : 1.0;   // 惑星・ついてくる仲間・デモの模型は、宇宙の大きさでもやを濃くしない
 }
 void shadeLayer(int kind, int idx, float t, float4 p0, float4 v, thread const Layers& L, constant Mk* mk, constant Uni& u, thread float3& lc, thread float& la, thread float3& em, texture2d<float> atlas) {
     em = float3(0.0);
