@@ -57,6 +57,8 @@ final class AppModel: ObservableObject {
     private var dockSub: AnyCancellable?
     private var floatsHidden = false
     @Published var showHUD = true
+    /// 画面のゲームパッド（景色の真ん中に出す。出す時はコントローラーで歩くをオンに）
+    @Published var showPad = false { didSet { if showPad { r.set.gamepad = true } else { r.game.vClear() } } }
     @Published var showPanel = true
     @Published var isFull = false              // 全画面の間は、上のバー（ツールバー）を隠す
     @Published var help = false
@@ -269,6 +271,10 @@ struct ContentView: View {
             ZStack(alignment: .topLeading) {
                 MetalView(model: model)
                 HUDView(model: model)
+                if model.showPad {
+                    VirtualPad(game: model.r.game) { model.showPad = false }.spaceControls()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
                 if sceneDrop {                                           // パネルの見出しを景色の上へドラッグしている間：ここに落とすと浮かぶ
                     RoundedRectangle(cornerRadius: 14).stroke(Space.violet.opacity(0.8), style: StrokeStyle(lineWidth: 2, dash: [8, 6])).padding(10)
                         .overlay(Text("ここに落とすと、パネルが浮いた窓になる").font(.system(size: 13, weight: .semibold)).foregroundStyle(Space.lilac)
@@ -568,6 +574,9 @@ struct MainToolbar: ToolbarContent {
             .pickerStyle(.segmented).help("S³ の地図：隠す・景色の横に並べる・浮いた窓に")
         }
         ToolbarItem(placement: .primaryAction) {
+            Toggle(isOn: $model.showPad) { Label("ゲームパッド", systemImage: "gamecontroller") }.help("画面のゲームパッド（コントローラーと同じボタン）" + Keymap.shared.hint(.vpad))
+        }
+        ToolbarItem(placement: .primaryAction) {
             Button { model.showPanel.toggle() } label: { Label("設定", systemImage: "sidebar.right") }.help("設定のインスペクター" + Keymap.shared.hint(.panel))
         }
     }
@@ -800,6 +809,7 @@ final class WalkView: MTKView {
         case .turbo: r.turboPress(key: e.keyCode)
         case .hud: model?.showHUD.toggle()
         case .help: model?.help.toggle()
+        case .vpad: model?.showPad.toggle()
         }
         model?.changed()
     }

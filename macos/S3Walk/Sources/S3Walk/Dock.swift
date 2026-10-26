@@ -3,7 +3,9 @@
 //   スライダーは Photoshop 風のスクラブ式：名前の上を左右にドラッグで値を変える（⇧ で 10 倍・⌥ で 0.1 倍の刻み）、
 //   数字をクリックして直接入力、名前を ⌥クリックで初めの値に。案の全体は DOCKING_PLAN.md
 import SwiftUI
+#if os(macOS)
 import AppKit
+#endif
 
 /// パネルの種類（今のところ右のドックに積む）
 enum PanelID: String, CaseIterable, Codable {
@@ -22,6 +24,21 @@ enum PanelID: String, CaseIterable, Codable {
         case .screen: return "画面"
         case .keys: return "ショートカットキー"
         }
+    }
+    /// この機械で出すパネル（iPad・iPhone はキーボードのショートカットなし）
+    var shown: Bool {
+        #if os(macOS)
+        return true
+        #else
+        return self != .keys
+        #endif
+    }
+    static var dockHint: String {
+        #if os(macOS)
+        return "見出しをドラッグで並べかえ・クリックでたたむ・⧉ で浮かせる・Tab で全部隠す。浮いた窓のタブへドラッグするとタブでまとまり、ここへドラッグすると戻る"
+        #else
+        return "見出しを長押しでドラッグして並べかえ・タップでたたむ。スライダーは名前を左右になぞっても動く。数字をタップで直接入力"
+        #endif
     }
     var icon: String {
         switch self {
@@ -165,13 +182,15 @@ struct ScrubRow: View {
                 .frame(width: 104, alignment: .leading)
                 .foregroundStyle(hover ? Space.sky : Color.white.opacity(0.85))
                 .contentShape(Rectangle())
+                #if os(macOS)
                 .onHover { h in hover = h; if h { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
+                #endif
                 .gesture(DragGesture(minimumDistance: 1).onChanged { g in
                     if start == nil { start = value }
-                    let m = NSEvent.modifierFlags, k = m.contains(.shift) ? 10.0 : m.contains(.option) ? 0.1 : 1.0
+                    let k = ScrubRow.fineness()
                     value = clampRound(start! + Double(g.translation.width) * (range.upperBound - range.lowerBound) / 300 * k)
                 }.onEnded { _ in start = nil })
-                .onTapGesture { if NSEvent.modifierFlags.contains(.option), let def { value = def } else { select() } }
+                .onTapGesture { if ScrubRow.option(), let def { value = def } else { select() } }
                 .help("左右にドラッグで値を変える（⇧ 粗く・⌥ 細かく）。クリックで選ぶと ← → で動かせ、数字を打つと直接入力。⌥クリックで初めの値に")
             Slider(value: Binding(get: { value }, set: { value = clampRound($0) }), in: range, onEditingChanged: { if $0 { select() } })
             if editing {
@@ -179,7 +198,9 @@ struct ScrubRow: View {
                     .textFieldStyle(.roundedBorder).frame(width: 52).focused($focused)
                     .onSubmit { commit() }
                     .onChange(of: focused) { _, f in if !f { commit() } }
+                    #if os(macOS)
                     .onExitCommand { editing = false }
+                    #endif
             } else {
                 Text(String(format: fmt, value)).monospacedDigit().foregroundStyle(Space.sky.opacity(0.9))
                     .frame(width: 52, alignment: .trailing)
@@ -190,6 +211,21 @@ struct ScrubRow: View {
         }
         .padding(.horizontal, 3).padding(.vertical, 1)
         .background(RoundedRectangle(cornerRadius: 5).stroke(Color.accentColor.opacity(sel.key == key ? 0.9 : 0), lineWidth: 1.5))
+    }
+    /// ⇧ で 10 倍・⌥ で 0.1 倍の刻み（iPad・iPhone は 1 倍のまま）
+    static func fineness() -> Double {
+        #if os(macOS)
+        let m = NSEvent.modifierFlags; return m.contains(.shift) ? 10.0 : m.contains(.option) ? 0.1 : 1.0
+        #else
+        return 1
+        #endif
+    }
+    static func option() -> Bool {
+        #if os(macOS)
+        return NSEvent.modifierFlags.contains(.option)
+        #else
+        return false
+        #endif
     }
     func commit() {
         let s = text.filter { "0123456789.-".contains($0) }
@@ -217,6 +253,7 @@ final class SettingSearch: ObservableObject {
         for (p, k, t) in searchIndex where ok(t) || ok(p.title + " " + t) { out.append(Hit(panel: p, kind: k, text: t)) }
         for a in KeyAction.allCases where ok(a.title) || ok("キー " + a.title) { out.append(Hit(panel: .keys, kind: "set", text: a.title + "（キー " + (Keymap.shared.label(a).isEmpty ? "なし" : Keymap.shared.label(a)) + "）")) }
         // 項目を先に、説明は後に
+        out = out.filter { $0.panel.shown }
         return out.filter { $0.kind != "note" } + out.filter { $0.kind == "note" }
     }
 }
@@ -228,7 +265,9 @@ struct SearchBar: View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundStyle(Space.sky)
             TextField("設定を探す（⌘F）", text: $s.query).textFieldStyle(.plain).focused($focused)
+                #if os(macOS)
                 .onExitCommand { s.query = ""; focused = false }
+                #endif
             if !s.query.isEmpty { Button { s.query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.borderless).foregroundStyle(.secondary) }
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
@@ -280,7 +319,7 @@ struct DockColumn: View {
                     }
                     .padding(4).spaceCard()
                 }
-                ForEach(dock.docked, id: \.self) { id in PanelCard(model: model, dock: dock, id: id).id(id) }
+                ForEach(dock.docked.filter(\.shown), id: \.self) { id in PanelCard(model: model, dock: dock, id: id).id(id) }
                 // 最後の所へ落とす場所
                 DropTail(dock: dock)
                 HStack {
@@ -289,7 +328,7 @@ struct DockColumn: View {
                     Button("並びを元に") { dock.reset() }
                 }
                 .controlSize(.small).buttonStyle(.borderless).foregroundStyle(.secondary)
-                Text("見出しをドラッグで並べかえ・クリックでたたむ・⧉ で浮かせる・Tab で全部隠す。浮いた窓のタブへドラッグするとタブでまとまり、ここへドラッグすると戻る").font(.caption2).foregroundStyle(.tertiary).multilineTextAlignment(.center)
+                Text(PanelID.dockHint).font(.caption2).foregroundStyle(.tertiary).multilineTextAlignment(.center)
             }
             .padding(8)
         }
@@ -328,15 +367,19 @@ struct PanelCard: View {
                 Image(systemName: id.icon).frame(width: 16).foregroundStyle(Space.sky)
                 Text(id.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(Space.lilac)
                 Spacer()
+                #if os(macOS)
                 Button { dock.floatPanel(id) } label: { Image(systemName: "macwindow.on.rectangle").font(.system(size: 10)) }
                     .buttonStyle(.borderless).foregroundStyle(.secondary).help("このパネルを浮かせる（浮いた窓のタブの所へドラッグすると、タブでまとまる）")
+                #endif
                 Image(systemName: "chevron.right").rotationEffect(.degrees(open ? 90 : 0)).foregroundStyle(.secondary).font(.system(size: 10, weight: .bold))
             }
             .padding(.horizontal, 10).padding(.vertical, 7)
             .contentShape(Rectangle())
             .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { dock.toggle(id) } }
             .contextMenu {
+                #if os(macOS)
                 Button("このパネルを浮かせる") { dock.floatPanel(id) }
+                #endif
                 Button(dock.collapsed.contains(id) ? "ひらく" : "たたむ") { dock.toggle(id) }
                 Divider()
                 Button("すべてたたむ") { dock.collapsed = Set(PanelID.allCases) }
@@ -538,6 +581,7 @@ struct PanelContent: View {
                 Toggle("2 枚目の地図", isOn: model.b(\.map2On))
                 Toggle("S² の仲間（同じ操作を、ふつうの球面で）", isOn: model.b(\.s2On))
                 Toggle("自分を真ん中に（体の向きのまま写す）", isOn: model.b(\.mapFollow))
+                if r.set.mapFollow { Toggle("自分の矢印は立体の三角錐（オフで平たい三角形）", isOn: model.b(\.cursor3D)).padding(.leading, 14) }
                 Group {
                     row("X-W", \.mapXW, -180, 180, "%.0f°", step: 1)
                     row("Y-W", \.mapYW, -180, 180, "%.0f°", step: 1)
@@ -566,6 +610,7 @@ struct PanelContent: View {
                 }.disabled(r.set.map2Follow)
             case .mac:
                 Toggle("トラックパッドの触覚（赤道・極で「コツン」、殻ごとに「カチ」）", isOn: model.b(\.haptics))
+                Toggle("画面のゲームパッド（景色の真ん中に、コントローラーと同じボタン）", isOn: $model.showPad)
                 Toggle("ゲームコントローラーで歩く", isOn: model.b(\.gamepad))
                 Toggle("ゲームのような操作（少し倒すとゆっくり・速めに回る・慣性つき）", isOn: model.b(\.padGame))
                 Toggle("右スティックの左右を反転", isOn: model.b(\.padInvX))

@@ -126,10 +126,14 @@ enum TurnGeo {
 
 /// ターン 1 回ぶん（S³ と S² の表、直角の時の向きの回し）
 struct TurnRun {
-    var f = 0.0, L: Double, h3: TurnTable, h2: TurnTable, sharp: Bool
+    var f = 0.0
+    var L: Double, h3: TurnTable, h2: TurnTable, sharp: Bool
     var to3: (Vn) -> Vn, to2: (Vn) -> Vn
     var pv: Pivot? = nil, pvDone = false
-    struct Pivot { var t = 0.0, len: Double, F: Walker, G: Walker2, A3: V4, B3: V4, th3: Double, A2: V3, B2: V3, th2: Double }
+    struct Pivot {
+        var t = 0.0
+        var len: Double, F: Walker, G: Walker2, A3: V4, B3: V4, th3: Double, A2: V3, B2: V3, th2: Double
+    }
 }
 /// ターンの道の進み具合
 struct TurnWalk {

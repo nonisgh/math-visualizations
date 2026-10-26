@@ -6,7 +6,7 @@ enum KeyAction: String, CaseIterable, Identifiable {
     case walk, roam, headGo, lookReset, home, mark, turbo
     case shell, solid, bare, grand, rangeDown, rangeUp
     case space, lite, eq, crisp, orient, foot, markStyle, mapAxes
-    case panel, allPanels, hud, help, fps, scaleDown, scaleUp
+    case panel, allPanels, hud, help, fps, scaleDown, scaleUp, vpad
     var id: String { rawValue }
     /// 設定の一覧と説明で使う名前
     var title: String {
@@ -39,6 +39,7 @@ enum KeyAction: String, CaseIterable, Identifiable {
         case .fps: return "60fps 前後 ⇄ 画面の速さ"
         case .scaleDown: return "描く細かさ −"
         case .scaleUp: return "描く細かさ ＋"
+        case .vpad: return "画面のゲームパッド"
         }
     }
     var group: String {
@@ -46,7 +47,7 @@ enum KeyAction: String, CaseIterable, Identifiable {
         case .walk, .roam, .headGo, .lookReset, .home, .mark, .turbo: return "歩く"
         case .shell, .solid, .bare, .grand, .rangeDown, .rangeUp: return "球層"
         case .space, .lite, .eq, .crisp, .orient, .foot, .markStyle, .mapAxes: return "見え方"
-        case .panel, .allPanels, .hud, .help, .fps, .scaleDown, .scaleUp: return "画面"
+        case .panel, .allPanels, .hud, .help, .fps, .scaleDown, .scaleUp, .vpad: return "画面"
         }
     }
     /// 初めのキー（今までのキーのまま）。小文字で。" " は Space、"\t" は Tab、"\r" は Return
@@ -80,6 +81,7 @@ enum KeyAction: String, CaseIterable, Identifiable {
         case .fps: return ["v"]
         case .scaleDown: return ["["]
         case .scaleUp: return ["]"]
+        case .vpad: return ["."]
         }
     }
 }
@@ -126,7 +128,13 @@ final class Keymap: ObservableObject {
     /// a のキー（「L」、2 つなら「= / +」。なしなら空）
     func label(_ a: KeyAction) -> String { (keys[a] ?? []).map(Keymap.label).joined(separator: " / ") }
     /// 名前の後ろに付ける「（L）」。キーがなければ付けない
-    func hint(_ a: KeyAction) -> String { let s = label(a); return s.isEmpty ? "" : "（\(s)）" }
+    func hint(_ a: KeyAction) -> String {
+        #if os(macOS)
+        let s = label(a); return s.isEmpty ? "" : "（\(s)）"
+        #else
+        return ""                                      // iPad・iPhone はキーなし
+        #endif
+    }
 
     /// 操作の説明（? で出る）。決まったキーの後ろに、今のキーを並べる
     func helpText() -> String {

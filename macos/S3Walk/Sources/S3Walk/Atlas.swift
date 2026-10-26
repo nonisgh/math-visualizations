@@ -1,6 +1,6 @@
 // 絵の目印の表（ウェブ版の ATLAS）：8×8 のます目（1 ます 128 点）に絵文字を描き、右上に赤い点（上下・左右の向きが分かるように）
 import Foundation
-import AppKit
+import CoreText
 import Metal
 import MetalKit
 
@@ -18,16 +18,16 @@ enum Atlas {
     static let n = 8, cell = 128
     /// 絵文字を、色のついた所の外わくの真ん中が (cx, cy) に来るように描く（ウェブ版の fillCentered。字体ごとのずれをなくす）
     static func drawCentered(_ ctx: CGContext, _ ch: String, _ cx: CGFloat, _ cy: CGFloat) {
-        let font = NSFont(name: "Apple Color Emoji", size: 96) ?? NSFont.systemFont(ofSize: 96)
-        let s = NSAttributedString(string: ch, attributes: [.font: font])
+        // Core Text で描く（Mac と iPad・iPhone で同じ）
+        let font = CTFontCreateWithName("AppleColorEmoji" as CFString, 96, nil)
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: ch, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font]))
+        let lb = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
         // いったん別の紙に描いて外わくを数える
         let W = 192
         var buf = [UInt8](repeating: 0, count: W * W * 4)
         let g = CGContext(data: &buf, width: W, height: W, bitsPerComponent: 8, bytesPerRow: W * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-        let sz = s.size()
-        NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(cgContext: g, flipped: false)
-        s.draw(at: NSPoint(x: (CGFloat(W) - sz.width) / 2, y: (CGFloat(W) - sz.height) / 2))
-        NSGraphicsContext.restoreGraphicsState()
+        g.textPosition = CGPoint(x: (CGFloat(W) - lb.width) / 2 - lb.minX, y: (CGFloat(W) - lb.height) / 2 - lb.minY)
+        CTLineDraw(line, g)
         var x0 = W, y0 = W, x1 = -1, y1 = -1
         for y in 0..<W { for x in 0..<W where buf[(y * W + x) * 4 + 3] > 16 { x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y) } }
         guard x1 >= 0, let img = g.makeImage() else { return }

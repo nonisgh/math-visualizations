@@ -6,7 +6,12 @@
 //   十字 上下 殻の見える距離（決まった道の間は、押し続けると速く・遅く）、十字の右 ターボ（いきなり最高速、もう一度で戻る）、メニュー（＋） 設定、オプション（−） 地図を出す・隠す。Joy-Con を 1 本だけ横持ちした時は、十字（スティック）で歩き、A・X が使える
 import Foundation
 import GameController
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
+import QuartzCore
 
 final class GameInput {
     private var prev: [String: Bool] = [:]
@@ -20,18 +25,27 @@ final class GameInput {
         GCController.startWirelessControllerDiscovery {}
     }
 
+    /// 画面のゲームパッド（VirtualPad）：スティック（右・上が ＋、−1〜1）と押しているボタン。本物のコントローラーと足し合わせて読む
+    var vLeft = SIMD2<Double>(0, 0), vRight = SIMD2<Double>(0, 0), vHeld: Set<String> = []
+    /// 画面のゲームパッドのボタン k を押す・離す（押した時、A・B・X・Y・R3・十字・＋・− はコントローラーと同じく onButton へ）
+    func vPress(_ k: String, _ on: Bool) {
+        if on { vHeld.insert(k) } else { vHeld.remove(k) }
+        if on && ["A", "B", "X", "Y", "R3", "up", "down", "right", "menu", "options"].contains(k) { onButton?(k) }
+    }
+    func vClear() { vLeft = .zero; vRight = .zero; vHeld = [] }
+
     /// 十字の上下を押している（上 ＋1・下 −1・なし 0）。決まった道の速さに使う
     var fakeDpad: Double? = nil
     func dpadY() -> Double {
         if let fakeDpad { return fakeDpad }
-        var y = 0.0
+        var y = (vHeld.contains("up") ? 1.0 : 0) - (vHeld.contains("down") ? 1.0 : 0)
         for c in GCController.controllers() { if let g = c.extendedGamepad { if g.dpad.up.isPressed { y += 1 }; if g.dpad.down.isPressed { y -= 1 } } }
         return max(-1, min(1, y))
     }
     /// 十字の右を押している（ターボを押している間だけの時）
-    func dpadRight() -> Bool { GCController.controllers().contains { $0.extendedGamepad?.dpad.right.isPressed == true } }
+    func dpadRight() -> Bool { vHeld.contains("right") || GCController.controllers().contains { $0.extendedGamepad?.dpad.right.isPressed == true } }
     /// ターボのボタン（A か十字の右）を押している
-    func turboButtonHeld() -> Bool { GCController.controllers().contains { g in g.extendedGamepad.map { $0.dpad.right.isPressed || $0.buttonA.isPressed } ?? false } }
+    func turboButtonHeld() -> Bool { vHeld.contains("right") || vHeld.contains("A") || GCController.controllers().contains { g in g.extendedGamepad.map { $0.dpad.right.isPressed || $0.buttonA.isPressed } ?? false } }
     /// 毎コマ読む：歩く向き（右・上・前）、向きの変わり（方位・仰角、度／秒）、速く、左スティックを押し込んでいる（L3）、ZL（右スティックで見回しだけ）
     func read() -> (move: SIMD3<Double>, look: SIMD2<Double>, fast: Bool, push: Bool, lookOnly: Bool) {
         if let fake { return fake }
@@ -55,6 +69,13 @@ final class GameInput {
                 edge("A", m.buttonA.isPressed); edge("B", m.buttonX.isPressed)
             }
         }
+        // 画面のゲームパッド
+        mv.x += vLeft.x; mv.z += vLeft.y; lk += vRight
+        if vHeld.contains("R") { mv.y += 1 }
+        if vHeld.contains("L") { mv.y -= 1 }
+        if vHeld.contains("ZR") { fast = true }
+        if vHeld.contains("L3") { push = true }
+        if vHeld.contains("ZL") { lookOnly = true }
         return (mv, lk, fast, push, lookOnly)
     }
     /// 今押しているボタン・倒しているスティック（パネルに出して、どのボタンがどう読めているか確かめる）
@@ -82,10 +103,20 @@ final class GameInput {
 enum Haptic {
     private static var last = 0.0
     /// 赤道・極を通った時：「コツン」
-    static func milestone() { NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now) }
+    static func milestone() {
+        #if os(macOS)
+        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+        #else
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()   // iPhone は本体が震える
+        #endif
+    }
     /// 球層の殻を 1 枚通るごとに：かすかな「カチ」（つづけて鳴りすぎないよう 50 ミリ秒あける）
     static func tick() {
         let now = CACurrentMediaTime(); guard now - last > 0.05 else { return }; last = now
+        #if os(macOS)
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        #else
+        UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.4)
+        #endif
     }
 }

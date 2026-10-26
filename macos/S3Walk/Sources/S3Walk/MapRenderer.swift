@@ -4,7 +4,9 @@ import Foundation
 import Metal
 import MetalKit
 import QuartzCore
+#if os(macOS)
 import AppKit
+#endif
 import simd
 
 let RS = 1.8                     // 模型の半径（ウェブ版・次元おりがみと同じ）
@@ -36,7 +38,7 @@ struct Ball { var c: SIMD4<Float>; var col: SIMD4<Float> }
 struct MV { var p: SIMD4<Float>; var col: SIMD4<Float>; var n = SIMD4<Float>(0, 0, 0, 0) }   // n：陰影をつける時の面の向き（w ＝ 1）
 /// 地図ごとの写し方：自分を真ん中に・殻の出し方・4 次元の向き
 struct MapConfig { var follow: Bool; var range: Int; var xw: Double; var yw: Double; var zw: Double }
-struct MapUni { var view = matrix_identity_float4x4; var proj = matrix_identity_float4x4; var res = SIMD2<Float>(1, 1); var width: Float = 1; var feather: Float = 1; var light = SIMD4<Float>(0, 0, 1, 0); var cmul: Float = 1; var amul: Float = 1; var pad0: Float = 0; var pad1: Float = 0 }
+struct MapUni { var view = matrix_identity_float4x4; var proj = matrix_identity_float4x4; var res = SIMD2<Float>(1, 1); var width: Float = 1; var feather: Float = 1; var light = SIMD4<Float>(0, 0, 1, 0); var cmul: Float = 1; var amul: Float = 1; var round: Float = 0; var pad1: Float = 0 }
 /// 名前の札：3 次元の位置・文字・色
 struct MapLabel { var pos: SIMD3<Float>; var text: String; var col: SIMD3<Float>; var size: CGFloat; var bg = false; var dot = false; var dim = false; var axis = false }   // axis：軸の名前（数式の斜体で、窓の中に収める）   // bg：白い丸の上の絵文字（絵のモード）、dot：極の点と名前（ウェブ版の mapDots）、dim：球の奥の側（薄く）
 
@@ -45,30 +47,50 @@ let mapShaderSource = #"""
 using namespace metal;
 struct Seg { float4 a; float4 ca; float4 b; float4 cb; };
 struct Ball { float4 c; float4 col; };
-struct MapUni { float4x4 view; float4x4 proj; float2 res; float width; float feather; float4 light; float cmul; float amul; float pad0; float pad1; };   // cmul：線の色の倍率（EDR）、amul：線の不透明度の倍率（にじみ）
+struct MapUni { float4x4 view; float4x4 proj; float2 res; float width; float feather; float4 light; float cmul; float amul; float round; float pad1; };   // cmul：線の色の倍率（EDR）、amul：線の不透明度の倍率（にじみ）、round：1 で丸い管の線・2 で丸いにじみ（光の軌跡）
 
 // ---- 線：線分ごとに 6 つの頂点（板 2 枚）。両はしを画面へ写してから、画面の上で太さぶん横に広げる ----
-struct LOut { float4 pos [[position]]; float4 col; float side; float halfW; };
+//   round ＝ 1（光の軌跡）：両はしを太さの半分だけ延ばして丸く切り（カーブの所も、横から見た所も、つなぎ目が丸い）、
+//   断面は管のように真ん中が明るい。重なったつなぎ目が明るくならないよう、この線は大きい方の色を残す（max）ので色はアルファを掛けて出す
+struct LOut { float4 pos [[position]]; float4 col; float side; float halfW; float2 lp [[center_no_perspective]]; float len; float hwa; float hwb; };
 vertex LOut lineV(uint vid [[vertex_id]], uint iid [[instance_id]], constant Seg* segs [[buffer(0)]], constant MapUni& u [[buffer(1)]]) {
     Seg s = segs[iid];
     float4 pa = u.proj * (u.view * float4(s.a.xyz, 1.0)), pb = u.proj * (u.view * float4(s.b.xyz, 1.0));
     LOut o;
-    if (pa.w <= 0.001 || pb.w <= 0.001) { o.pos = float4(0.0, 0.0, -2.0, 1.0); o.col = 0.0; o.side = 0.0; o.halfW = 1.0; return o; }   // カメラの後ろは描かない
+    if (pa.w <= 0.001 || pb.w <= 0.001) { o.pos = float4(0.0, 0.0, -2.0, 1.0); o.col = 0.0; o.side = 0.0; o.halfW = 1.0; o.lp = 0.0; o.len = 0.0; o.hwa = 1.0; o.hwb = 1.0; return o; }   // カメラの後ろは描かない
     float2 ha = u.res * 0.5;
     float2 sa = pa.xy / pa.w * ha, sb = pb.xy / pb.w * ha;
     float2 d = sb - sa; float L = length(d); d = L > 1e-4 ? d / L : float2(1.0, 0.0);
     float2 n = float2(-d.y, d.x);
     int corner = vid == 0 ? 0 : vid == 1 ? 1 : vid == 2 ? 2 : vid == 3 ? 2 : vid == 4 ? 1 : 3;
     bool atB = corner >= 2; float side = (corner == 1 || corner == 3) ? 1.0 : -1.0;
-    float wm = atB ? s.b.w : s.a.w; wm = wm > 0.0 ? wm : 1.0;   // 線分の両はしの w：太さの倍率（光の軌跡で、新しい所ほど太く。0 なら 1 倍）
+    float wa = s.a.w > 0.0 ? s.a.w : 1.0, wb = s.b.w > 0.0 ? s.b.w : 1.0;   // 線分の両はしの w：太さの倍率（光の軌跡で、新しい所ほど太く。0 なら 1 倍）
+    float wm = atB ? wb : wa;
     float hw = u.width * wm * 0.5 + u.feather;                // ふちをやわらかくする分だけ広く
+    float hwMax = u.width * max(wa, wb) * 0.5 + u.feather;
+    float ext = u.round > 0.5 ? hwMax : u.feather * 0.5;      // 丸く切る時は、はしを半径ぶん延ばす
+    float sw = u.round > 0.5 ? hwMax : hw;
     float4 p = atB ? pb : pa;
-    float2 off = (n * side * hw + d * (atB ? 1.0 : -1.0) * u.feather * 0.5) / ha;
-    p.xy += off * p.w;
+    float2 offPx = n * side * sw + d * (atB ? 1.0 : -1.0) * ext;
+    p.xy += offPx / ha * p.w;
     o.pos = p; o.col = atB ? s.cb : s.ca; o.side = side * hw; o.halfW = u.width * wm * 0.5;
+    o.lp = float2((atB ? L : 0.0) + dot(offPx, d), dot(offPx, n));   // 線分の中の位置（画素。a から b へ、横）
+    o.len = L; o.hwa = u.width * wa * 0.5; o.hwb = u.width * wb * 0.5;
     return o;
 }
 fragment float4 lineF(LOut in [[stage_in]], constant MapUni& u [[buffer(1)]]) {
+    if (u.round > 0.5) {
+        float t = in.len > 1e-4 ? clamp(in.lp.x / in.len, 0.0, 1.0) : 0.0;
+        float hw = max(mix(in.hwa, in.hwb, t), 0.3);
+        float dist = length(float2(in.lp.x - clamp(in.lp.x, 0.0, in.len), in.lp.y));   // 線分（両はしは丸）までの距離
+        float a = clamp((hw + u.feather * 0.5 - dist) / u.feather, 0.0, 1.0);
+        if (a <= 0.0) discard_fragment();
+        float q = clamp(dist / hw, 0.0, 1.0);
+        float tube = u.round > 1.5 ? (1.0 - q) * (1.0 - q)       // にじみ（round ＝ 2）：真ん中からふちへやわらかく消える
+                                   : 0.55 + 0.45 * sqrt(1.0 - q * q);   // 管の断面：真ん中が明るく、ふちへ暗く
+        float k = a * u.amul;
+        return float4(in.col.rgb * u.cmul * tube * k, in.col.a * k);
+    }
     float a = clamp((in.halfW + u.feather * 0.5 - abs(in.side)) / u.feather, 0.0, 1.0);   // ふちは 1 点ぶんやわらかく
     return float4(in.col.rgb * u.cmul, in.col.a * a * u.amul);
 }
@@ -129,7 +151,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     let slot: Int                // 0：1 枚目の地図、1：2 枚目の地図（ウェブ版の左上）、2：S² の仲間（ウェブ版の左）
     let device: MTLDevice
     private let queue: MTLCommandQueue
-    private var lineAdd: MTLRenderPipelineState!, lineAlpha: MTLRenderPipelineState!, ballPipe: MTLRenderPipelineState!, ballSoft: MTLRenderPipelineState!, meshPipe: MTLRenderPipelineState!
+    private var lineAdd: MTLRenderPipelineState!, lineAlpha: MTLRenderPipelineState!, lineMax: MTLRenderPipelineState!, ballPipe: MTLRenderPipelineState!, ballSoft: MTLRenderPipelineState!, meshPipe: MTLRenderPipelineState!
     private var depthOn: MTLDepthStencilState!, depthRead: MTLDepthStencilState!, depthOff: MTLDepthStencilState!
     private var builtFmt: MTLPixelFormat = .invalid, builtSamples = 0
 
@@ -167,7 +189,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         guard fmt != builtFmt || samples != builtSamples else { return }
         builtFmt = fmt; builtSamples = samples
         let lib = try! device.makeLibrary(source: mapShaderSource, options: nil)
-        func pipe(_ v: String, _ f: String, additive: Bool) -> MTLRenderPipelineState {
+        func pipe(_ v: String, _ f: String, additive: Bool, maxBlend: Bool = false) -> MTLRenderPipelineState {
             let d = MTLRenderPipelineDescriptor()
             d.vertexFunction = lib.makeFunction(name: v); d.fragmentFunction = lib.makeFunction(name: f)
             d.colorAttachments[0].pixelFormat = fmt; d.depthAttachmentPixelFormat = .depth32Float; d.rasterSampleCount = samples
@@ -177,10 +199,12 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             c.sourceRGBBlendFactor = .sourceAlpha
             c.destinationRGBBlendFactor = additive ? .one : .oneMinusSourceAlpha
             c.sourceAlphaBlendFactor = .one; c.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+            if maxBlend { c.rgbBlendOperation = .max; c.alphaBlendOperation = .max }   // 大きい方の色を残す（重なっても明るくならない）
             return try! device.makeRenderPipelineState(descriptor: d)
         }
         lineAdd = pipe("lineV", "lineF", additive: true)
         lineAlpha = pipe("lineV", "lineF", additive: false)
+        lineMax = pipe("lineV", "lineF", additive: true, maxBlend: true)
         ballPipe = pipe("ballV", "ballF", additive: false)
         meshPipe = pipe("meshV", "meshF", additive: false)
         ballSoft = ballPipe
@@ -499,16 +523,18 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6, instanceCount: count)
             u.cmul = 1; u.amul = 1
         }
-        func lines(_ segs: [Seg], _ width: Float, additive: Bool, depth: MTLDepthStencilState) {
+        /// round：1 丸い管・2 丸いにじみ（どちらも重なりは大きい方を残す）
+        func lines(_ segs: [Seg], _ width: Float, additive: Bool, depth: MTLDepthStencilState, round: Float = 0) {
             guard !segs.isEmpty else { return }
-            u.width = width * px
-            enc.setRenderPipelineState(additive ? lineAdd : lineAlpha); enc.setDepthStencilState(depth)
+            u.width = width * px; u.round = round
+            enc.setRenderPipelineState(round > 0 ? lineMax : additive ? lineAdd : lineAlpha); enc.setDepthStencilState(depth)
             segs.withUnsafeBytes { b in
                 if b.count <= 4096 { enc.setVertexBytes(b.baseAddress!, length: b.count, index: 0) }
                 else if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { enc.setVertexBuffer(buf, offset: 0, index: 0) }
             }
             enc.setVertexBytes(&u, length: MemoryLayout<MapUni>.stride, index: 1); enc.setFragmentBytes(&u, length: MemoryLayout<MapUni>.stride, index: 1)
             enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6, instanceCount: segs.count)
+            u.round = 0
         }
         func balls(_ bs: [Ball], depth: MTLDepthStencilState) {
             guard !bs.isEmpty else { return }
@@ -542,11 +568,11 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                 let c = (old + (new - old) * u) * (f + pulse)
                 // 彗星のように、新しい所ほど太く（古い所も細くなりすぎないよう、芯は 0.6 倍・にじみは 0.5 倍まで）
                 let u0 = Float(i - 1) / Float(N), wc0 = 0.6 + 1.6 * pow(u0, 2.2), wc1 = 0.6 + 1.6 * pow(u, 2.2), wg0 = 0.5 + 1.1 * pow(u0, 2.2), wg1 = 0.5 + 1.1 * pow(u, 2.2)
-                glow.append(Seg(a: SIMD4(a, wg0), ca: SIMD4(c * 0.22, 1), b: SIMD4(b, wg1), cb: SIMD4(c * 0.22, 1)))
-                core.append(Seg(a: SIMD4(a, wc0), ca: SIMD4(c * 1.15, 1), b: SIMD4(b, wc1), cb: SIMD4(c * 1.15, 1)))
+                glow.append(Seg(a: SIMD4(a, wg0), ca: SIMD4(c * 0.5, 1), b: SIMD4(b, wg1), cb: SIMD4(c * 0.5, 1)))
+                core.append(Seg(a: SIMD4(a, wc0), ca: SIMD4(c * 1.35, 1), b: SIMD4(b, wc1), cb: SIMD4(c * 1.35, 1)))   // 芯（にじみと足さず大きい方を残すので、少し明るく）
             }
-            lines(glow, 9, additive: true, depth: depthRead)
-            lines(core, 2.2, additive: true, depth: depthRead)
+            lines(glow, 11, additive: true, depth: depthRead, round: 2)
+            lines(core, 2.2, additive: true, depth: depthRead, round: 1)
         }
         /// 円すい（ウェブ版の ConeGeometry と同じ：真ん中 c、先は向き t へ高さの半分、底は半分うしろ）。横は色そのまま、底は少し暗く
         /// 円すい（shade：陰影をつける。側面の向きは、まわりの向き × 高さ ＋ 軸 × 半径）
@@ -812,10 +838,12 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             let dv = world.lastDir.flatMap { CACurrentMediaTime() - world.lastDirT < 0.4 ? $0 : nil } ?? cam.lookFrame().L
             // 自分中心の時は、平たい面を見る人の方へ（三角形に見える）。ふつうの時は、てっぺんの角が体・視線の上
             let eyeDir = SIMD3<Float>(Float(cos(pitch) * cos(yaw)), Float(cos(pitch) * sin(yaw)), Float(sin(pitch)))
-            let upB = config.follow ? eyeDir : mapUp(cam.lookFrame().U), upV = config.follow ? eyeDir : mapUp(cam.viewFrame().U)
-            let pk: Float = config.follow ? 0.65 : 1                         // 自分中心の時は三角錐を小さめに
-            arrow(0, dv, (config.follow ? 0.24 : 0.3) * k) { c, t in pyramid(c, t, upB, 0.075 * k * pk, 0.32 * k * pk, SIMD4(hexRGB(0xfde047), 1), flat: config.follow) }   // 進む向き（黄色の三角錐。てっぺんの角が体の上）
-            if abs(cam.hy) > 0.5 || abs(cam.hp) > 0.5 { arrow(1, cam.viewFrame().L, (config.follow ? 0.22 : 0.27) * k) { c, t in pyramid(c, t, upV, 0.05 * k * pk, 0.28 * k * pk, SIMD4(hexRGB(0x7dd3fc), 1), flat: config.follow) } } else { arrowDir[1] = nil }   // 見ている向き（水色、細め）
+            //   立体の形（cursor3D）の時は、自分中心でもふつうの時と同じ形・大きさ
+            let flat = config.follow && !s.cursor3D
+            let upB = flat ? eyeDir : mapUp(cam.lookFrame().U), upV = flat ? eyeDir : mapUp(cam.viewFrame().U)
+            let pk: Float = flat ? 0.65 : 1                                  // 平たい三角形の時は小さめに
+            arrow(0, dv, (flat ? 0.24 : 0.3) * k) { c, t in pyramid(c, t, upB, 0.075 * k * pk, 0.32 * k * pk, SIMD4(hexRGB(0xfde047), 1), flat: flat) }   // 進む向き（黄色の三角錐。てっぺんの角が体の上）
+            if abs(cam.hy) > 0.5 || abs(cam.hp) > 0.5 { arrow(1, cam.viewFrame().L, (flat ? 0.22 : 0.27) * k) { c, t in pyramid(c, t, upV, 0.05 * k * pk, 0.28 * k * pk, SIMD4(hexRGB(0x7dd3fc), 1), flat: flat) } } else { arrowDir[1] = nil }   // 見ている向き（水色、細め）
         }
         if s.mapAxes { axes((0..<4).map { i in SIMD3<Float>(Float(R[0][i]), Float(R[1][i]), Float(R[2][i])) * Float(AXL) }) }   // 軸 e_i を回した向き（遠近はかけない）
         // 4. 模型の球（半径 RS）を、うっすら青く（ウェブ版の不透明度 0.05）
