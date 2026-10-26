@@ -171,6 +171,29 @@ enum Verify {
         let backR = acos(max(-1, min(1, r.cam.w.p.w)))
         check(backR < 0.01 && abs((r.journey.dist - d0) - 2 * Double.pi) < 0.02, String(format: "回る輪：大円を 1 周（道のり %.4f ≈ 2π）するとアナ極のそば（%.4f）に戻る", r.journey.dist - d0, backR))
         r.pathMode = .none
+        // 上下も 360° 回す（宙返り）：仰角 85° から 10° 上げると 95°（止まらない）。進む向きは真上を越えて、なめらかに後ろ向きへ
+        do {
+            var c = Camera(); c.el = 85; let L0 = c.lookFrame().L
+            c.el += 10; c.clampAngles(free: true); let L1 = c.lookFrame().L
+            var c2 = Camera(); c2.el = 95; c2.clampAngles(free: false)
+            c.el = 350; c.clampAngles(free: true)
+            check(abs(Camera().el) < 1e-9 && abs(acos(max(-1, min(1, dot4(L0, L1)))) - 10 * d2r) < 1e-9 && c2.el == 89 && abs(c.el + 10) < 1e-9,
+                  "上下も 360° 回す：85° → 95°（向きは 10° なめらかに）、350° は −10°。オフの時はウェブ版と同じく 89° で止まる")
+        }
+        // 宙返りしても左右（と反転）は画面どおり：右スティックの上で 200° 上へ回してから右へ倒すと、景色は画面の右へ回る。反転オンなら左へ
+        do {
+            func turnRight(_ inv: Bool) -> Double {
+                r.set = .plain; r.set.gamepad = true; r.set.padGame = false; r.set.free360 = true; r.set.padInvX = inv; r.cam = Camera(); r.journey = Journey()
+                for _ in 0..<400 { r.game.fake = (.zero, [0, 1], false, false, false); r.step(1.0 / 120) }   // 上へ 60°／秒 × 3.3 秒 ≈ 200°
+                let F = r.cam.lookFrame()
+                for _ in 0..<30 { r.game.fake = (.zero, [1, 0], false, false, false); r.step(1.0 / 120) }
+                r.game.fake = (.zero, .zero, false, false, false); r.set.gamepad = false; r.step(1.0 / 120); r.game.fake = nil
+                return dot4(r.cam.lookFrame().L, F.R)
+            }
+            let a = turnRight(false), b = turnRight(true)
+            check(a > 0.05 && b < -0.05, String(format: "宙返り（上へ約 200°）のあと右へ倒すと右へ回る（%.2f）、左右反転なら左へ（%.2f）", a, b))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey()
+        }
         // 宇宙の大きさ R：同じ速さで歩くと、進む角度は 1/R（1 秒で 0.9／R）。目印の見かけも 1/R
         do {
             r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.set.uniL = 2; r.walking = true
@@ -514,6 +537,9 @@ enum Verify {
             ("地図・球層（既定、方位 30° へ 2 歩いた跡）", { r in r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 2 { r.step(1.0 / 60) }; r.walking = false }),
             ("地図・赤道の網目と軽い線（球層なし）", { r in r.set = .plain; r.set.shell = false; r.set.lite = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 4 { r.step(1.0 / 60) }; r.walking = false }),
             ("地図・軸色の球層（x・y・z・w を重ねる）", { r in r.set = .plain; r.set.shAxis = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
+            ("地図・今いる所（宇宙の大きさ ×1）", { r in r.set = .plain; r.set.mapRange = 1; r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
+            ("地図・今いる所（宇宙の大きさ ×30：照らす範囲が小さい）", { r in r.set = .plain; r.set.mapRange = 1; r.set.uniL = log10(30); r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
+            ("地図・写る所（宇宙の大きさ ×30）", { r in r.set = .plain; r.set.mapRange = 2; r.set.uniL = log10(30); r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
             ("地図・自分を真ん中に", { r in r.set = .plain; r.set.mapFollow = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
         ]
         let w = 1200, h = 900
@@ -556,9 +582,13 @@ enum Verify {
             ("軸色の球層・立体（x・y・z・w）", { s, c in s.shAxis = true; s.shellSolid = true; c.walk([0, 0, 1], 0.5) }),
             ("宇宙の大きさ ×10：深海・球層", { s, c in s = Settings(); s.uniL = 1; c.walk([0, 0, 1], 0.05) }),
             ("宇宙の大きさ ×100：宇宙・球層・星雲", { s, c in s = Settings(); s.space = true; s.uniL = 2; aimNeb(&c, 0) }),
+            ("宇宙の大きさ ×100：深海・目印の線", { s, c in s = Settings(); s.uniL = 2; c.walk([0, 0, 1], 0.3) }),
+            ("宇宙の大きさ ×100：宇宙・目印の線", { s, c in s = Settings(); s.space = true; s.uniL = 2; s.nebula = false; c.walk([0, 0, 1], 0.3) }),
             ("宇宙の大きさ ×1000：宇宙・星雲", { s, c in s = Settings(); s.space = true; s.uniL = 3; s.shell = false; aimNeb(&c, 0) }),
             ("極の惑星：東極を見る（宇宙・映画の光）", { s, c in s = Settings(); s.space = true; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.1) }),
             ("極の惑星：軸色・球層（東極へ向かう）", { s, c in s = Settings(); s.shAxis = true; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.2) }),
+            ("極の惑星：すぐそば（近いほど透ける）", { s, c in s = Settings(); s.space = true; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.57 - 0.3) }),
+            ("極の惑星：画面のふち（ふちほど透ける）", { s, c in s = Settings(); s.space = true; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.0); c.az += 38 }),
             ("極の惑星：宇宙の大きさ ×100（東極のそば）", { s, c in s = Settings(); s.space = true; s.uniL = 2; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.25) }),
             ("映画の光：宇宙・星雲を見る", { s, c in s = Settings(); s.space = true; s.shell = false; s.eq = false; s.poles = false; s.hidePair = true; aimNeb(&c, 0) }),
             ("映画の光：星雲のそば（距離 0.35）", { s, c in s = Settings(); s.space = true; s.shell = false; s.eq = false; s.poles = false; s.hidePair = true; nearNeb(&c, 1, 0.35) }),

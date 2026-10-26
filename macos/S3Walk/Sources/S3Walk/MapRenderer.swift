@@ -258,6 +258,25 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         eqPairs.map { (A, B) in (V4(A.x * sn, A.y * sn, A.z * sn, wc), V4(B.x * sn, B.y * sn, B.z * sn, wc)) }
     }
 
+    /// 景色で、もやの向こうに消えるまでの角度（光が e^−3 ≈ 5% になる所）。宇宙の大きさ R 倍でもやも R 倍なので、角度では 1/R に
+    static func visAngle(_ s: Settings) -> Double {
+        let f = s.fog * (s.grand ? 1.6 : 1) * s.uniR
+        return f > 1e-6 ? 3 / f : 10
+    }
+    /// 照らす範囲が小さい時は、殻の線分（1 本 10° ほど）を範囲の 1/4 の長さに分ける（範囲の中の線が消えないように）
+    static func fine(_ ps: [(V4, V4, SIMD3<Float>, Double, Int)], _ rng: Double) -> [(V4, V4, SIMD3<Float>, Double, Int)] {
+        guard rng < 0.7 else { return ps }
+        var out: [(V4, V4, SIMD3<Float>, Double, Int)] = []
+        for P in ps {
+            let ang = acos(max(-1, min(1, dot4(P.0, P.1)))), k = max(1, min(96, Int(ceil(ang / (rng / 4)))))
+            if k == 1 || ang < 1e-9 { out.append(P); continue }
+            let sa = sin(ang)
+            func at(_ t: Double) -> V4 { (P.0 * sin((1 - t) * ang) + P.1 * sin(t * ang)) / sa }
+            var a = P.0
+            for j in 1...k { let b = at(Double(j) / Double(k)); out.append((a, b, P.2, P.3, P.4)); a = b }
+        }
+        return out
+    }
     /// 足し合わせの線で暗い色（紫など）が沈まないよう、いちばん強い成分を 1 にそろえてから明るさ k をかける（ウェブ版の vivid）
     static func vivid(_ c: SIMD3<Float>, _ k: Double) -> SIMD3<Float> {
         let m = max(c.x, c.y, c.z, 1e-3), q = Float(min(1, k)); return (c / m * 0.92 + SIMD3(repeating: 0.08)) * q
@@ -311,18 +330,21 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             let W = world.cam.w.p, shells = shellSet(n), sfk = shellFk.squareRoot()
             if c.range == 1 {
                 // 自分がいる層は殻の軸ごと（その軸の成分の角度）
-                let m0 = world.shellMinTheta, gap = (Double.pi / 2 - m0) / Double(max(1, n - 1)), Rf = 0.9, cR = cos(Rf)
-                let thAx = (0..<4).map { acos(max(-1, min(1, W[$0]))) }
-                let sub = shells.filter { abs($0.3 - thAx[$0.4]) < 2.2 * gap && (dot4($0.0, W) > cR || dot4($0.1, W) > cR) }
+                //   照らす範囲は、景色でもやの向こうに消えるまでの距離（宇宙が大きいほど角度では小さい。サーチライトのように）
+                let m0 = world.shellMinTheta, gap = (Double.pi / 2 - m0) / Double(max(1, n - 1)), Rf = min(0.9, MapRenderer.visAngle(s)), cR = cos(Rf)
+                let thAx = (0..<4).map { acos(max(-1, min(1, W[$0]))) }, cW = cos(min(Double.pi, Rf + 0.2))
+                let cand = shells.filter { abs($0.3 - thAx[$0.4]) < 2.2 * gap && (dot4($0.0, W) > cW || dot4($0.1, W) > cW) }
+                let sub = MapRenderer.fine(cand, Rf).filter { dot4($0.0, W) > cR || dot4($0.1, W) > cR }
                 addPairs(&out, sub.map { ($0.0, $0.1) }, R) { d, i, e in
                     let P = sub[i], lay = max(0, 1 - abs(P.3 - thAx[P.4]) / (2.2 * gap)), q = e == 0 ? P.0 : P.1
                     let dg = acos(max(-1, min(1, dot4(q, W)))), near = 1 - min(1, max(0, (dg - 0.6 * Rf) / (0.4 * Rf)))
                     return MapRenderer.vivid(P.2, (0.35 + 0.65 * lay * lay) * near * (0.75 + 0.25 * (d + 1) / 2) * 1.3 * sfk)
                 }
             } else {
-                let F = world.cam.viewFrame(), Rl = min(s.shellRange, s.maxD, Double.pi), cl = cos(Rl)
+                let F = world.cam.viewFrame(), Rl = min(s.shellRange, s.maxD, Double.pi, MapRenderer.visAngle(s)), cl = cos(Rl), cW = cos(min(Double.pi, Rl + 0.2))
                 func vis(_ q: V4) -> Bool { inView(q, F) && dot4(q, W) >= cl }
-                let lit = shells.filter { vis($0.0) || vis($0.1) }
+                let cand = shells.filter { dot4($0.0, W) > cW || dot4($0.1, W) > cW }
+                let lit = MapRenderer.fine(cand, Rl).filter { vis($0.0) || vis($0.1) }
                 addPairs(&out, lit.map { ($0.0, $0.1) }, R) { d, i, e in
                     let q = e == 0 ? lit[i].0 : lit[i].1, dg = acos(max(-1, min(1, dot4(q, W))))
                     let k = vis(q) ? (1 - min(1, max(0, (dg - 0.6 * Rl) / (0.4 * Rl)))) * (0.75 + 0.25 * (d + 1) / 2) * 1.3 : 0
@@ -569,7 +591,8 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             staticBuf = st.isEmpty ? nil : st.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
         }
         if let buf = staticBuf {
-            let boost = Float(world.edrBoost)
+            // EDR で光らせるのは、照らす所だけの時（サーチライト）。全体の時はウェブ版と同じ明るさ（ギラギラしないように）
+            let boost = config.range != 0 ? Float(world.edrBoost) : 1
             linesBuf(buf, staticCount, 1.0, additive: true, depth: depthRead, cmul: boost, amul: 1)
         }
 

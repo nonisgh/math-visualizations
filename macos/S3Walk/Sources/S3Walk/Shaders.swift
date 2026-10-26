@@ -31,7 +31,7 @@ struct Uni {
     int passes, orient, lite, webTies;      // webTies：確かめ用。ウェブ版と同じく、同じ道のりの層の片方を落とす
     float glow, edr, band, nebStep;         // band：宇宙の時の天の川の明るさ、nebStep：星雲を進む刻み（角度）。光る線：glow（0〜1）＝にじみの強さ、edr＝線の芯の明るさの倍率（EDR の画面で 1 より大きく）
     int pic, ghostBack, lens, neb;           // pic：目印 0 玉・1 絵・2 色の点、ghostBack：遠回りの像を絵の裏から、lens：0 ふつう・1 魚眼・2 360°、neb：星雲（宇宙の時）
-    float fovY, picLine, nebK, upad2;        // fovY：縦の視野（ラジアン）、picLine：絵・色の点の時の線の濃さ、nebK：星雲の濃さ
+    float fovY, picLine, nebK, wireFloor;    // fovY：縦の視野（ラジアン）、picLine：絵・色の点の時の線の濃さ、nebK：星雲の濃さ、wireFloor：もやで消える時も網目の線を残す濃さ
     int circ, room, space, shAx;             // 管：circ＝経線（x・y・z と w の大円）と赤道の輪、room＝120 胞体の部屋の辺。space：背景 0 深海（もや）・1 宇宙。shAx：球層の色 0 レインボー、それ以外は軸色で、囲む軸（1 x・2 y・4 z・8 w）
     float tube, pixAng, lineW, solidWire;    // tube：管の太さ（角度）、pixAng：1 画素の角度、lineW：網目の線の太さ（画素。0 でウェブ版と同じ角度の太さ）、solidWire：立体の殻の網目の濃さ（ウェブ版は 0.35）
 };
@@ -247,6 +247,13 @@ void shadeLayer(int kind, int idx, float t, float4 p0, float4 v, thread const La
             lc = base * dif * 0.9 + float3(1.0) * spec * 0.9 + mix(base, float3(1.0), 0.35) * fr * 0.9;
             la *= clamp(0.38 + 0.55 * fr + 0.6 * spec, 0.0, 0.95);
             em = base * fr * 0.35 * u.edr;
+            // 近いほど透明（中心までの距離が半径の 4 倍から 1.3 倍へ近づくにつれて。中に入るとほとんど透ける）、
+            //   画面のふちほど透明（後ろから追い越してくる時、外から入ってきてだんだん見えてくる）。面・照り返し・ふちの光ぜんぶに
+            float dC = acos(clamp(dot(c, p0), -1.0, 1.0));
+            float nearK = mix(0.1, 1.0, ss(1.3, 4.0, dC / max(mc.w, 1e-4)));
+            float edgeT = acos(clamp(dot(v, u.F), -1.0, 1.0)) / max(u.fovY * 0.5 * 1.6, 1e-3);
+            float edgeK = 1.0 - 0.85 * ss(0.5, 1.0, edgeT);
+            la *= nearK * edgeK; em *= nearK * edgeK;
         }
     } else if (kind == 2) {
         float lat = asin(clamp(q.z, -1.0, 1.0)), lon = atan2(q.y, q.x);
@@ -317,6 +324,17 @@ void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float w
     al = min(0.95, al * fadeR * dm);
     if (u.space == 1) al *= fg; else cc = mix(cc, hz, 1.0 - fg);         // 宇宙の時は、遠い殻は暗いもやの色にせず透けて消える（奥の星を黒い格子で隠さない）
     em = c0 * (gg.y * u.glow * 0.07 * fadeR * dm * fg * (0.25 + 0.75 * abs(cv)) * u.edr);   // 線のまわりの光（遠いほど・もやの中ほど弱く）
+    // 目印の線（CG ソフトの補助線のような細い線）：宇宙を大きくすると出てくる（×1 では出ず、×10 で全部）。画面で 1 画素ほどの細さ、殻の色、もやで消さない。
+    //   遠くて網目の間が数画素より細かくなる所は、線が面のようにつぶれるので薄くする
+    float gK = u.wireFloor * clamp(log10(max(u.uni, 1.0)), 0.0, 1.0);
+    if (gK > 0.0 && u.shellBare == 0) {
+        float st = u.gridSt, fp = pixFoot(t, cv, 1.0 / iS, u);
+        float da = abs(fract(asin(clamp(sp.z, -1.0, 1.0)) / st + 0.5) - 0.5) * st, db = abs(fract(atan2(sp.y, sp.x) / st + 0.5) - 0.5) * st * length(sp.xy);
+        float gl = clamp(1.0 - min(da, db) / max(0.8 * fp, 1e-6), 0.0, 1.0) * (1.0 - ss(0.04, 0.16, fp / st));
+        float aG = gK * gl * fadeR;
+        float na = al + aG * (1.0 - al);
+        cc = (cc * al + mix(c0, float3(1.0), 0.15) * aG * (1.0 - al)) / max(na, 1e-4); al = na;
+    }
 }
 
 // ---- 球層の組：囲む軸ごと（軸色の時は x・y・z・w の 4 組まで。ウェブ版の shFams）----

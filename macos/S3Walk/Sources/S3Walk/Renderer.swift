@@ -17,7 +17,7 @@ struct Uni {
     var passes: Int32 = 4, orient: Int32 = 0, lite: Int32 = 0, webTies: Int32 = 0
     var glow: Float = 0, edr: Float = 1, band: Float = 0, nebStep: Float = 0.1
     var pic: Int32 = 0, ghostBack: Int32 = 0, lens: Int32 = 0, neb: Int32 = 0
-    var fovY: Float = 0, picLine: Float = 0.3, nebK: Float = 1, upad2: Float = 0
+    var fovY: Float = 0, picLine: Float = 0.3, nebK: Float = 1, wireFloor: Float = 0
     var circ: Int32 = 0, room: Int32 = 0, space: Int32 = 0, shAx: Int32 = 0
     var tube: Float = 0.02, pixAng: Float = 0.002, lineW: Float = 0, solidWire: Float = 0.35
 }
@@ -82,6 +82,8 @@ struct Settings {
     var stars = 1.0             // 宇宙の時の星の明るさ（0 で星なし）
     var band = 1.0              // 宇宙の時の天の川・星雲の明るさ
     var polePlanet = true       // 8 つの極を「惑星」に：極の色の、少し透けてつやのある大きな玉（角度 0.16、宇宙の大きさでは小さくしない＝広い宇宙ほど本当は大きい）。絵のモードの時は絵のまま
+    var free360 = true          // 上下（仰角・見回し）も 360° 回す（宙返り）。false でウェブ版と同じく ±89° で止める
+    var wireFloor = 0.35        // 目印の線の濃さ：宇宙を大きくすると出てくる、殻の色の細い線（CG ソフトの補助線のよう。もやで消さない。0 で出さない＝ウェブ版と同じ）
     var shAxis = false          // 球層の色：false レインボー（w の殻）／true 軸の色（選んだ軸の極を囲む殻を、その軸の色で。ウェブ版の軸色）
     var shAxX = true, shAxY = true, shAxZ = true, shAxW = true   // 軸の色の時に、どの軸の殻を出すか
     var uniL = 0.0              // 宇宙の大きさ：S³ の半径 R ＝ 10^uniL（1〜1000 倍。ウェブ版の uniL）。場所は角度のまま、歩く速さ・目印の見かけは 1/R、距離・もやは R 倍。殻の網目の太さは変わらない
@@ -270,7 +272,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         u.lens = Int32(set.lens)
         let fov = set.lens == 0 ? min(150, set.fov) : set.lens == 1 ? set.fov : 180
         u.fovY = Float(fov * d2r); u.tanF = Float(tan(min(150, set.fov) * d2r / 2))
-        u.space = set.space ? 1 : 0; u.band = Float(set.band)
+        u.space = set.space ? 1 : 0; u.band = Float(set.band); u.wireFloor = Float(set.wireFloor)
         u.shAx = set.shAxis ? Int32((set.shAxX ? 1 : 0) | (set.shAxY ? 2 : 0) | (set.shAxZ ? 4 : 0) | (set.shAxW ? 8 : 0)) : 0
         if set.shAxis && u.shAx == 0 { u.shAx = 8 }                  // 軸を 1 つも選んでいない時は w だけ
         u.neb = set.space && set.nebula && set.nebK > 0 ? 1 : 0; u.nebK = Float(set.nebK); u.nebStep = 0.08
@@ -508,9 +510,9 @@ final class Renderer: NSObject, MTKViewDelegate {
             let turnX = game ? 140.0 : 90.0, turnY = game ? 100.0 : 60.0
             if cx != 0 || cy != 0 { leveling = false; headGoing = false }   // スティックを動かしたら、前を見る・この向きへ進むの途中はやめる
             if g.lookOnly {
-                cam.hy += cx * turnX * dt; cam.hp = max(-89, min(89, cam.hp + cy * turnY * dt))
+                cam.hy += cx * turnX * dt; cam.hp += cy * turnY * dt
             } else {
-                cam.az += cx * turnX * dt; cam.el = max(-89, min(89, cam.el + cy * turnY * dt))
+                cam.az += cx * turnX * dt; cam.el += cy * turnY * dt
             }
             let target = g.move
             if game {
@@ -554,7 +556,8 @@ final class Renderer: NSObject, MTKViewDelegate {
             if (!levelEl || abs(cam.el) < 0.05) && abs(cam.hy) < 0.05 && abs(cam.hp) < 0.05 { if levelEl { cam.el = 0 }; cam.hy = 0; cam.hp = 0; leveling = false }
         }
         if headGoing && alignHeading(dt) { headGoing = false }
-        cam.clampAngles()
+        cam.clampAngles(free: set.free360)
+        if set.free360 && abs(cam.el) > 60 { rebaseBody() }               // 真上・真下へ近づいたら体の上下を整え直す（宙返りしても左右が逆にならない）
         if mv != .zero {
             // S³ と、S² の仲間を同じだけ進める（ウェブ版の walkStep：上下の成分は S² に無いので、斜めに上下する時は少しだけ進む）
             var s2 = sp * (padMove != .zero ? padScale : 1)
@@ -575,6 +578,12 @@ final class Renderer: NSObject, MTKViewDelegate {
                 lastBand = band
             }
         }
+    }
+    /// 体の枠を進む向きの枠に合わせ直す。S² の仲間は方位 az で進むので、その分だけ S² の枠も回して向きを保つ
+    func rebaseBody() {
+        let a = cam.az * d2r, w2 = journey.w2
+        journey.w2.f = w2.f * cos(a) + w2.r * sin(a); journey.w2.r = w2.f * -sin(a) + w2.r * cos(a)
+        cam.rebase()
     }
     /// 進む向きを、見ている向きへ少し回す（1 秒に 200° まで）。見ている向きは動かさない（見回しの角を新しい枠で出し直す）。そろったら true
     @discardableResult func alignHeading(_ dt: Double) -> Bool {

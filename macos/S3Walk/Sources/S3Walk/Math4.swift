@@ -75,11 +75,14 @@ struct Camera {
         el = asin(max(-1, min(1, dot4(v, w.u)))) / d2r
         hy = 0; hp = 0
     }
-    mutating func clampAngles() {
-        az = (az + 180).truncatingRemainder(dividingBy: 360); if az < 0 { az += 360 }; az -= 180
-        el = max(-89, min(89, el))
-        hy = (hy + 180).truncatingRemainder(dividingBy: 360); if hy < 0 { hy += 360 }; hy -= 180
-        hp = max(-89, min(89, hp))
+    /// 体の枠を、今の進む向きの枠（前＝進む向き、上＝画面の上）に合わせ直す（方位・仰角は 0 に。景色も進む向きも変わらない）。
+    ///   上下を 360° 回す時、真上・真下を越えても左右の回り方が画面どおりのままになるように
+    mutating func rebase() { let F = lookFrame(); w.f = F.L; w.r = F.R; w.u = F.U; az = 0; el = 0 }
+    /// free：上下も止めずに 360° 回す（宙返りのように。体の上下もいっしょに回る）。false ならウェブ版と同じく ±89° で止める
+    mutating func clampAngles(free: Bool = false) {
+        func wrap(_ a: Double) -> Double { var x = (a + 180).truncatingRemainder(dividingBy: 360); if x < 0 { x += 360 }; return x - 180 }
+        az = wrap(az); hy = wrap(hy)
+        if free { el = wrap(el); hp = wrap(hp) } else { el = max(-89, min(89, el)); hp = max(-89, min(89, hp)) }
     }
 }
 

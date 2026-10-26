@@ -483,6 +483,20 @@ final class WalkView: MTKView {
             guard let self, self.window?.isKeyWindow == true else { return e }
             if e.type == .flagsChanged { self.flags(e); return e }
             if self.window?.firstResponder is NSText { return e }   // 数字を入力している間は、キーを入力欄へ（景色の操作にしない）
+            // 選んだスライダー：← → ↑ ↓ で動かす（⇧ 10 倍・⌥ 0.1 倍）、数字か Return で直接入力、Esc で外す
+            let sf = SliderFocus.shared
+            if sf.key != nil, e.type == .keyDown, !e.modifierFlags.contains(.command), !e.modifierFlags.contains(.control) {
+                let k = e.modifierFlags.contains(.shift) ? 10.0 : e.modifierFlags.contains(.option) ? 0.1 : 1.0
+                switch e.keyCode {
+                case 123, 125: sf.nudge?(-k); self.model?.changed(); return nil
+                case 124, 126: sf.nudge?(k); self.model?.changed(); return nil
+                case 36, 76: sf.edit?(nil); return nil
+                case 53: sf.clear(); return nil
+                default:
+                    if let c = e.charactersIgnoringModifiers, c.count == 1, "0123456789.-".contains(c) { sf.edit?(c); return nil }
+                }
+            }
+            if e.type == .keyUp, sf.key != nil, [123, 124, 125, 126].contains(e.keyCode) { return nil }
             if e.modifierFlags.contains(.command) || e.modifierFlags.contains(.control) { self.renderer.keys.removeAll(); return e }
             if e.type == .keyDown { self.key(e) } else { self.renderer.keys.remove(e.keyCode) }
             return nil
@@ -599,7 +613,7 @@ final class WalkView: MTKView {
     }
 
     // ---- マウス：ドラッグで見回し（Shift＋ドラッグで進む向き）。0.3°/点（ウェブ版と同じ）。2 本指のスクロールでも見回し ----
-    override func mouseDown(with e: NSEvent) { dragLast = e.locationInWindow; window?.makeFirstResponder(self) }
+    override func mouseDown(with e: NSEvent) { dragLast = e.locationInWindow; window?.makeFirstResponder(self); SliderFocus.shared.clear() }
     override func mouseUp(with e: NSEvent) { dragLast = nil }
     override func mouseDragged(with e: NSEvent) {
         guard let last = dragLast else { return }
@@ -613,6 +627,7 @@ final class WalkView: MTKView {
     func look(_ dx: Double, _ dy: Double, steer: Bool) {
         let r = renderer
         if steer { r.cam.az += dx; r.cam.el += dy } else { r.cam.hy += dx; r.cam.hp += dy }
-        r.cam.clampAngles()
+        r.cam.clampAngles(free: r.set.free360)
+        if r.set.free360 && abs(r.cam.el) > 60 { r.rebaseBody() }
     }
 }

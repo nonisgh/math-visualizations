@@ -120,6 +120,16 @@ final class DockState: ObservableObject {
 }
 
 /// Photoshop 風のスライダー：名前の上を左右にドラッグ（スクラブ）・スライダー・数字（クリックで直接入力）
+/// キーボードで動かすスライダー：名前かつまみをクリックすると選ばれる（青い枠）。← → ↑ ↓ で動かす（⇧ 10 倍・⌥ 0.1 倍）、
+///   数字を打つか Return で直接入力、Esc か景色をクリックで外れる
+final class SliderFocus: ObservableObject {
+    static let shared = SliderFocus()
+    @Published var key: String? = nil
+    var nudge: ((Double) -> Void)?
+    var edit: ((String?) -> Void)?
+    func clear() { key = nil; nudge = nil; edit = nil }
+}
+
 struct ScrubRow: View {
     let name: String
     @Binding var value: Double
@@ -132,6 +142,15 @@ struct ScrubRow: View {
     @State private var text = ""
     @State private var hover = false
     @FocusState private var focused: Bool
+    @ObservedObject private var sel = SliderFocus.shared
+    private var key: String { name + "|\(range.lowerBound)|\(range.upperBound)" }
+    /// このスライダーを、キーボードで動かすものに選ぶ
+    func select() {
+        let span = range.upperBound - range.lowerBound, st = step ?? span / 100
+        sel.key = key
+        sel.nudge = { k in value = clampRound(value + k * st) }
+        sel.edit = { s in text = s ?? String(format: "%g", value); editing = true; DispatchQueue.main.async { focused = true } }
+    }
 
     func clampRound(_ v: Double) -> Double {
         var x = min(range.upperBound, max(range.lowerBound, v))
@@ -150,9 +169,9 @@ struct ScrubRow: View {
                     let m = NSEvent.modifierFlags, k = m.contains(.shift) ? 10.0 : m.contains(.option) ? 0.1 : 1.0
                     value = clampRound(start! + Double(g.translation.width) * (range.upperBound - range.lowerBound) / 300 * k)
                 }.onEnded { _ in start = nil })
-                .onTapGesture { if NSEvent.modifierFlags.contains(.option), let def { value = def } }
-                .help("左右にドラッグで値を変える（⇧ 粗く・⌥ 細かく）。⌥クリックで初めの値に")
-            Slider(value: Binding(get: { value }, set: { value = clampRound($0) }), in: range)
+                .onTapGesture { if NSEvent.modifierFlags.contains(.option), let def { value = def } else { select() } }
+                .help("左右にドラッグで値を変える（⇧ 粗く・⌥ 細かく）。クリックで選ぶと ← → で動かせ、数字を打つと直接入力。⌥クリックで初めの値に")
+            Slider(value: Binding(get: { value }, set: { value = clampRound($0) }), in: range, onEditingChanged: { if $0 { select() } })
             if editing {
                 TextField("", text: $text)
                     .textFieldStyle(.roundedBorder).frame(width: 52).focused($focused)
@@ -163,10 +182,12 @@ struct ScrubRow: View {
                 Text(String(format: fmt, value)).monospacedDigit().foregroundStyle(.secondary)
                     .frame(width: 52, alignment: .trailing)
                     .contentShape(Rectangle())
-                    .onTapGesture { text = String(format: "%g", value); editing = true; DispatchQueue.main.async { focused = true } }
+                    .onTapGesture { select(); text = String(format: "%g", value); editing = true; DispatchQueue.main.async { focused = true } }
                     .help("クリックして数字を入力")
             }
         }
+        .padding(.horizontal, 3).padding(.vertical, 1)
+        .background(RoundedRectangle(cornerRadius: 5).stroke(Color.accentColor.opacity(sel.key == key ? 0.9 : 0), lineWidth: 1.5))
     }
     func commit() {
         let s = text.filter { "0123456789.-".contains($0) }
@@ -278,6 +299,7 @@ struct PanelContent: View {
             case .walk:
                 Toggle("歩き続ける（K）", isOn: model.rb(\.walking))
                 Toggle("縦横無尽（U）", isOn: model.rb(\.roaming))
+                Toggle("上下も 360° 回す（宙返り）", isOn: model.b(\.free360)).help("オフにすると、ウェブ版と同じく上下は ±89° で止まる")
                 row("速さ", \.spd, 0.1, 2)
                 row("曲がり", \.roamK, 0.2, 2)
                 HStack {
@@ -333,6 +355,8 @@ struct PanelContent: View {
                 row("裏側", \.shellBack, 0, 1)
                 row("暗い色の持ち上げ", \.shellLum, 0, 0.75)
                 row("殻の見える距離", \.shellRange, 0.3, 25.15)
+                row("目印の線", \.wireFloor, 0, 1)
+                note("宇宙を大きくすると出てくる、殻の色の細い線（CG ソフトの補助線のよう）。もやの向こうの殻も形がわかる。×1 では出ず、×10 で全部。0 で出さない")
             case .view:
                 Picker("背景（N）", selection: model.b(\.space)) { Text("深海（もや）").tag(false); Text("宇宙（星）").tag(true) }.pickerStyle(.segmented)
                 Toggle("映画のような光（HDR・あふれる光・色の締め）", isOn: model.b(\.cine))
