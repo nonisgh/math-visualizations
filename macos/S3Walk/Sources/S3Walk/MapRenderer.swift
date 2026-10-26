@@ -471,7 +471,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                     guard let p2 = MapRenderer.s2Pole[k] else { continue }   // ±z（天・地）は S² には無い
                     // ウェブ版と同じ：玉ではなく、画面の上の平らな点と名前（絵のモードでは絵）
                     if picMode { ball(p2, m.r * 1.1, m.col, pic: PIC.poles[k]) }
-                    else { labels.append(MapLabel(pos: SIMD3<Float>(p2) * R2, text: MapRenderer.poleName(m), col: MapRenderer.poleDotCol(k), size: 10, dot: true)) }
+                    else { labels.append(MapLabel(pos: SIMD3<Float>(p2) * R2, text: MapRenderer.poleName(m), col: world.poleCol(k), size: 10, dot: true)) }
                 }
             }
             if s.foot { for p in j.foot2 { ball(p, 0.035, [0.8, 0.85, 1], pic: PIC.foot) } }
@@ -525,7 +525,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                 if s.hidePair && m.pole && (0..<4).contains(where: { m.c[$0] < -0.5 }) { continue }
                 // ウェブ版と同じ：玉ではなく、画面の上の平らな点と名前（遠近で大きさが変わったりゆがんだりしない）。絵のモードでは絵
                 if picMode { _ = ball(m.c, m.r, m.col, pic: PIC.poles[j]) }
-                else if let (a, _) = map(m.c, R) { labels.append(MapLabel(pos: a, text: MapRenderer.poleName(m), col: MapRenderer.poleDotCol(j), size: 10, dot: true)) }
+                else if let (a, _) = map(m.c, R) { labels.append(MapLabel(pos: a, text: MapRenderer.poleName(m), col: world.poleCol(j), size: 10, dot: true)) }
             }
         }
         if s.foot { for p in j.foot { _ = ball(p, 0.04, [0.8, 0.85, 1], pic: PIC.foot) } }

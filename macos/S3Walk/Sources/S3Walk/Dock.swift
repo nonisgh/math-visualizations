@@ -315,6 +315,14 @@ struct PanelContent: View {
                 }
             case .shell:
                 Toggle("球層（L）", isOn: model.b(\.shell))
+                Picker("色", selection: model.b(\.shAxis)) { Text("レインボー").tag(false); Text("軸の色").tag(true) }.pickerStyle(.segmented)
+                if r.set.shAxis {
+                    HStack(spacing: 10) {
+                        Text("囲む軸").font(.caption).foregroundStyle(.secondary)
+                        Toggle("x", isOn: model.b(\.shAxX)); Toggle("y", isOn: model.b(\.shAxY)); Toggle("z", isOn: model.b(\.shAxZ)); Toggle("w", isOn: model.b(\.shAxW))
+                    }.toggleStyle(.button).controlSize(.small)
+                    note("選んだ軸の極を囲む殻（その軸の成分＝一定の球面）を、その軸の色で。＋の極のそばは明るく、−の極のそばは少し暗い。極の点も軸の色に（ウェブ版の軸色と同じ）")
+                }
                 Toggle("立体の殻（T）", isOn: model.b(\.shellSolid))
                 if r.set.shellSolid { row("立体の網目の明るさ", \.solidWire, 0, 1.5) }
                 Toggle("網目なし（B）", isOn: model.b(\.shellBare))
@@ -326,9 +334,17 @@ struct PanelContent: View {
                 row("殻の見える距離", \.shellRange, 0.3, 25.15)
             case .view:
                 Picker("背景（N）", selection: model.b(\.space)) { Text("深海（もや）").tag(false); Text("宇宙（星）").tag(true) }.pickerStyle(.segmented)
+                Toggle("映画のような光（HDR・あふれる光・色の締め）", isOn: model.b(\.cine))
+                if r.set.cine {
+                    row("あふれる光", \.bloom, 0, 2)
+                    row("露出", \.expo, 0.3, 3)
+                    row("フィルムの粒", \.grain, 0, 1)
+                }
                 if r.set.space {
                     row("星の明るさ", \.stars, 0, 3)
                     row("天の川", \.band, 0, 3)
+                    Toggle("星雲（S³ に浮かぶ色のついたガス）", isOn: model.b(\.nebula))
+                    if r.set.nebula { row("星雲の濃さ", \.nebK, 0, 3) }
                     note("星は S³ の決まった点。近い星ほど歩くと速く動き、ちょうど反対側（距離 π）の星は光がまた集まって明るい。どの星も、反対向きにもう 1 つ（遠回りの像）見える")
                 }
                 Toggle("軽い線：緯度経度の殻（J）", isOn: model.b(\.lite))

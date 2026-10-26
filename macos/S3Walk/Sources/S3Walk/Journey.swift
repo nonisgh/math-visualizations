@@ -69,15 +69,15 @@ struct Journey {
 // ---- 保存：設定・いる場所と向き・置いた目印を UserDefaults に（次に開いた時に続きから）----
 extension Settings {
     /// 確かめ用：光る線なし（ウェブ版と同じ絵）
-    static var plain: Settings { var s = Settings(); s.glow = 0; s.lineCrisp = false; s.solidWire = 0.35; return s }
+    static var plain: Settings { var s = Settings(); s.glow = 0; s.lineCrisp = false; s.solidWire = 0.35; s.cine = false; s.nebula = false; return s }
     static let dKeys: [(String, WritableKeyPath<Settings, Double>)] = [
         ("fov", \.fov), ("maxD", \.maxD), ("fog", \.fog), ("fade", \.fade), ("depth", \.depth),
         ("shellOp", \.shellOp), ("shellBack", \.shellBack), ("shellLum", \.shellLum), ("shellRange", \.shellRange),
-        ("spd", \.spd), ("roamK", \.roamK), ("scale", \.scale), ("mapXW", \.mapXW), ("mapYW", \.mapYW), ("mapZW", \.mapZW), ("mapD", \.mapD), ("glow", \.glow), ("stars", \.stars), ("band", \.band), ("lineW", \.lineW), ("solidWire", \.solidWire), ("picLine", \.picLine), ("turns", \.turns), ("tilt", \.tilt), ("prec", \.prec), ("ringStep", \.ringStep), ("map2XW", \.map2XW), ("map2YW", \.map2YW), ("map2ZW", \.map2ZW)]
+        ("spd", \.spd), ("roamK", \.roamK), ("scale", \.scale), ("mapXW", \.mapXW), ("mapYW", \.mapYW), ("mapZW", \.mapZW), ("mapD", \.mapD), ("glow", \.glow), ("stars", \.stars), ("band", \.band), ("nebK", \.nebK), ("bloom", \.bloom), ("expo", \.expo), ("grain", \.grain), ("lineW", \.lineW), ("solidWire", \.solidWire), ("picLine", \.picLine), ("turns", \.turns), ("tilt", \.tilt), ("prec", \.prec), ("ringStep", \.ringStep), ("map2XW", \.map2XW), ("map2YW", \.map2YW), ("map2ZW", \.map2ZW)]
     static let bKeys: [(String, WritableKeyPath<Settings, Bool>)] = [
         ("shell", \.shell), ("shellSolid", \.shellSolid), ("shellBare", \.shellBare), ("eq", \.eq), ("lite", \.lite), ("grand", \.grand),
         ("poles", \.poles), ("hidePair", \.hidePair), ("orient", \.orient), ("selfBall", \.selfBall), ("foot", \.foot), ("marksOn", \.marksOn),
-        ("fps60", \.fps60), ("autoQ", \.autoQ), ("mapFollow", \.mapFollow), ("mapAxes", \.mapAxes), ("mapTrail", \.mapTrail), ("edrOn", \.edrOn), ("space", \.space), ("map2On", \.map2On), ("s2On", \.s2On), ("lineCrisp", \.lineCrisp), ("mapLeft", \.mapLeft), ("map2Follow", \.map2Follow), ("haptics", \.haptics), ("gamepad", \.gamepad), ("padGame", \.padGame), ("padInvX", \.padInvX), ("padInvY", \.padInvY), ("ghostBack", \.ghostBack), ("circ", \.circ), ("room", \.room)]
+        ("fps60", \.fps60), ("autoQ", \.autoQ), ("mapFollow", \.mapFollow), ("mapAxes", \.mapAxes), ("mapTrail", \.mapTrail), ("edrOn", \.edrOn), ("space", \.space), ("shAxis", \.shAxis), ("shAxX", \.shAxX), ("shAxY", \.shAxY), ("shAxZ", \.shAxZ), ("shAxW", \.shAxW), ("nebula", \.nebula), ("cine", \.cine), ("map2On", \.map2On), ("s2On", \.s2On), ("lineCrisp", \.lineCrisp), ("mapLeft", \.mapLeft), ("map2Follow", \.map2Follow), ("haptics", \.haptics), ("gamepad", \.gamepad), ("padGame", \.padGame), ("padInvX", \.padInvX), ("padInvY", \.padInvY), ("ghostBack", \.ghostBack), ("circ", \.circ), ("room", \.room)]
     static let iKeys: [(String, WritableKeyPath<Settings, Int>)] = [("shellN", \.shellN), ("passes", \.passes), ("mapRange", \.mapRange), ("map2Range", \.map2Range), ("mk", \.mk), ("lens", \.lens), ("ringAxis", \.ringAxis)]
     func dict() -> [String: Any] {
         var d: [String: Any] = [:]

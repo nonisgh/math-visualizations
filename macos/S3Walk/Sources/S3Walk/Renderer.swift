@@ -15,10 +15,10 @@ struct Uni {
     var shellLum: Float = 0, gridSt: Float = 0; var shellN: Int32 = 11; var shell: Int32 = 1
     var shellSolid: Int32 = 0, shellBare: Int32 = 0, eq: Int32 = 1, nm: Int32 = 0
     var passes: Int32 = 4, orient: Int32 = 0, lite: Int32 = 0, webTies: Int32 = 0
-    var glow: Float = 0, edr: Float = 1, band: Float = 0, gpad1: Float = 0
-    var pic: Int32 = 0, ghostBack: Int32 = 0, lens: Int32 = 0, upad0: Int32 = 0
-    var fovY: Float = 0, picLine: Float = 0.3, upad1: Float = 0, upad2: Float = 0
-    var circ: Int32 = 0, room: Int32 = 0, space: Int32 = 0, tpad1: Int32 = 0
+    var glow: Float = 0, edr: Float = 1, band: Float = 0, nebStep: Float = 0.1
+    var pic: Int32 = 0, ghostBack: Int32 = 0, lens: Int32 = 0, neb: Int32 = 0
+    var fovY: Float = 0, picLine: Float = 0.3, nebK: Float = 1, upad2: Float = 0
+    var circ: Int32 = 0, room: Int32 = 0, space: Int32 = 0, shAx: Int32 = 0
     var tube: Float = 0.02, pixAng: Float = 0.002, lineW: Float = 0, solidWire: Float = 0.35
 }
 /// 星の見え方の値（シェーダーの StarU と同じ並び、112 バイト）
@@ -29,6 +29,13 @@ struct StarU {
     var edr: Float = 1, px: Float = 1, spad0: Float = 0, spad1: Float = 0
 }
 struct StarGPU { var p: SIMD4<Float>; var c: SIMD4<Float> }
+/// 光の仕上げの値（シェーダーの PostU と同じ並び）
+struct PostU {
+    var src = SIMD2<Float>(1, 1), dst = SIMD2<Float>(1, 1)
+    var thr: Float = 0.9, knee: Float = 0.5, inten: Float = 0.6, expo: Float = 1
+    var head: Float = 1, grain: Float = 0, vign: Float = 0, time: Float = 0
+    var first: Int32 = 0, ppad0: Int32 = 0, ppad1: Int32 = 0, ppad2: Int32 = 0
+}
 struct MkGPU { var c: SIMD4<Float>; var col: SIMD4<Float>; var info = SIMD4<Float>(-1, 0, 0, 0) }
 
 /// 見え方の設定（ウェブ版の S のうち、球層の型に要るもの。既定はウェブ版の既定＋「球層の海」の場面）
@@ -74,6 +81,14 @@ struct Settings {
     var space = false           // 背景：false 深海（青灰色のもや。ウェブ版と同じ）／true 宇宙（暗闇・星・天の川）
     var stars = 1.0             // 宇宙の時の星の明るさ（0 で星なし）
     var band = 1.0              // 宇宙の時の天の川・星雲の明るさ
+    var shAxis = false          // 球層の色：false レインボー（w の殻）／true 軸の色（選んだ軸の極を囲む殻を、その軸の色で。ウェブ版の軸色）
+    var shAxX = true, shAxY = true, shAxZ = true, shAxW = true   // 軸の色の時に、どの軸の殻を出すか
+    var nebula = true           // 宇宙の時、S³ に浮かぶ星雲（色のついたガス）
+    var nebK = 1.0              // 星雲の濃さ
+    var cine = true             // 映画のような光：明るさを切らずに描き（HDR）、あふれる光（ブルーム）を足し、色を締める（トーンマップ）。false でウェブ版と同じ絵
+    var bloom = 0.5             // あふれる光の強さ
+    var expo = 1.0              // 露出（明るさ）
+    var grain = 0.4             // フィルムの粒
     var edrOn = true            // EDR の画面では、線の芯を画面の白より明るく光らせる
     // 地図（S³ → 3 次元）：x-w・y-w・z-w の回転（度）、遠近 D（k ＝ D／(D − w)）、自分を真ん中に、軸、軌跡
     var mapXW = 0.0, mapYW = 90.0, mapZW = 0.0, mapD = 2.5
@@ -153,7 +168,14 @@ final class Renderer: NSObject, MTKViewDelegate {
         queue = q
         let opts = MTLCompileOptions()
         if ProcessInfo.processInfo.environment["S3_PRECISE"] != nil { opts.fastMathEnabled = false }   // 確かめ用：速い近似の数学関数を使わない
-        do { library = try device.makeLibrary(source: shaderSource, options: opts) } catch {
+        var src = shaderSource
+        switch ProcessInfo.processInfo.environment["S3_NEBTEST"] {      // 確かめ用：星雲のどこが重いか
+        case "notex": src = src.replacingOccurrences(of: "float4 nn = nz.sample(sm, P * 0.3);", with: "float4 nn = float4(0.6, 0.5, 0.4, 0.0);")
+        case "one": src = src.replacingOccurrences(of: "int n = clamp(int(ceil((t1 - t0) / u.nebStep)), 1, 28);", with: "int n = 1;")
+        case "noblob": src = src.replacingOccurrences(of: "if (dens < 0.015) return o;", with: "return o;")
+        default: break
+        }
+        do { library = try device.makeLibrary(source: src, options: opts) } catch {
             fputs("シェーダーの組み立てに失敗：\(error)\n", stderr); return nil
         }
         precondition(MemoryLayout<Uni>.stride == 256, "Uni の並びがシェーダーと合わない")
@@ -219,6 +241,10 @@ final class Renderer: NSObject, MTKViewDelegate {
         let fov = set.lens == 0 ? min(150, set.fov) : set.lens == 1 ? set.fov : 180
         u.fovY = Float(fov * d2r); u.tanF = Float(tan(min(150, set.fov) * d2r / 2))
         u.space = set.space ? 1 : 0; u.band = Float(set.band)
+        u.shAx = set.shAxis ? Int32((set.shAxX ? 1 : 0) | (set.shAxY ? 2 : 0) | (set.shAxZ ? 4 : 0) | (set.shAxW ? 8 : 0)) : 0
+        if set.shAxis && u.shAx == 0 { u.shAx = 8 }                  // 軸を 1 つも選んでいない時は w だけ
+        u.neb = set.space && set.nebula && set.nebK > 0 ? 1 : 0; u.nebK = Float(set.nebK); u.nebStep = 0.08
+        if set.cine { u.edr = max(u.edr, 1.2) }                    // 映画のような光：線の芯は白より少し明るく（色の締めで丸め、あふれる光にもなる）
         u.circ = set.circ ? 1 : 0; u.room = set.room ? 1 : 0; u.lineW = set.lineCrisp ? Float(set.lineW) : 0; u.solidWire = Float(set.solidWire)
         u.pixAng = Float((set.lens == 2 ? Double.pi : fov * d2r) / Double(max(1, height)))
         return u
@@ -242,22 +268,134 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
     }
     func encode(_ cb: MTLCommandBuffer, _ rpd: MTLRenderPassDescriptor, _ fmt: MTLPixelFormat, _ w: Int, _ h: Int) {
+        guard set.cine else { encodeScene(cb, rpd, fmt, w, h); return }
+        // 映画のような光：景色 → HDR の絵 → 明るい所を半分ずつ小さく集める → 大きくしながら足し戻す → 色を締めて画面へ
+        let tx = postTextures(w, h)
+        let srpd = MTLRenderPassDescriptor()
+        srpd.colorAttachments[0].texture = tx.hdr; srpd.colorAttachments[0].loadAction = .dontCare; srpd.colorAttachments[0].storeAction = .store
+        srpd.colorAttachments[1].texture = tx.neb; srpd.colorAttachments[1].loadAction = .clear; srpd.colorAttachments[1].clearColor = MTLClearColorMake(0, 0, 0, 0); srpd.colorAttachments[1].storeAction = .store
+        encodeScene(cb, srpd, .rgba16Float, w, h, split: true)
+        var pu = PostU(); pu.thr = 1.0; pu.knee = 0.35
+        func pass(_ dst: MTLTexture, _ pipe: MTLRenderPipelineState, _ load: MTLLoadAction, _ srcs: [MTLTexture], _ p: PostU, _ r: MTLRenderPassDescriptor? = nil) {
+            let d = r ?? { let d = MTLRenderPassDescriptor(); d.colorAttachments[0].texture = dst; d.colorAttachments[0].loadAction = load; d.colorAttachments[0].storeAction = .store; return d }()
+            guard let e = cb.makeRenderCommandEncoder(descriptor: d) else { return }
+            var q = p
+            e.setRenderPipelineState(pipe)
+            for (i, t) in srcs.enumerated() { e.setFragmentTexture(t, index: i) }
+            e.setFragmentBytes(&q, length: MemoryLayout<PostU>.stride, index: 0)
+            e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            e.endEncoding()
+        }
+        var src = tx.hdr
+        for (k, m) in tx.mips.enumerated() {
+            pu.src = SIMD2(Float(src.width), Float(src.height)); pu.dst = SIMD2(Float(m.width), Float(m.height)); pu.first = k == 0 ? 1 : 0
+            pass(m, postPipe("fdown", .rgba16Float, add: false), .dontCare, [src], pu); src = m
+        }
+        for k in stride(from: tx.mips.count - 1, to: 0, by: -1) {
+            let a = tx.mips[k], b = tx.mips[k - 1]
+            pu.src = SIMD2(Float(a.width), Float(a.height)); pu.dst = SIMD2(Float(b.width), Float(b.height)); pu.first = 0
+            pass(b, postPipe("fup", .rgba16Float, add: true), .load, [a], pu)
+        }
+        pu.dst = SIMD2(Float(w), Float(h)); pu.inten = Float(set.bloom) / Float(tx.mips.count) * 2.2; pu.expo = Float(set.expo)
+        pu.head = set.edrOn ? Float(max(1, min(edrHead, 4))) : 1; pu.grain = Float(set.grain); pu.vign = 0.22
+        pu.time = Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 100))
+        pass(tx.hdr, postPipe("fcomp", fmt, add: false), .dontCare, [tx.hdr, tx.mips.first ?? tx.hdr, tx.neb], pu, rpd)
+    }
+    // ---- 光の仕上げの道具 ----
+    private var postPipes: [String: MTLRenderPipelineState] = [:]
+    private var postTex: (w: Int, h: Int, hdr: MTLTexture, neb: MTLTexture, mips: [MTLTexture])?
+    func postPipe(_ f: String, _ fmt: MTLPixelFormat, add: Bool) -> MTLRenderPipelineState {
+        let key = "\(f)-\(fmt.rawValue)-\(add)"
+        if let p = postPipes[key] { return p }
+        let d = MTLRenderPipelineDescriptor()
+        d.vertexFunction = library.makeFunction(name: "vmain"); d.fragmentFunction = library.makeFunction(name: f)
+        let c = d.colorAttachments[0]!; c.pixelFormat = fmt
+        if add { c.isBlendingEnabled = true; c.sourceRGBBlendFactor = .one; c.destinationRGBBlendFactor = .one; c.sourceAlphaBlendFactor = .one; c.destinationAlphaBlendFactor = .one }
+        let p = try! device.makeRenderPipelineState(descriptor: d)
+        postPipes[key] = p; return p
+    }
+    /// HDR の絵（画面と同じ大きさ）、星雲の光だけの絵、ブルームの段（半分ずつ、6 段まで）
+    func postTextures(_ w: Int, _ h: Int) -> (hdr: MTLTexture, neb: MTLTexture, mips: [MTLTexture]) {
+        if let t = postTex, t.w == w, t.h == h { return (t.hdr, t.neb, t.mips) }
+        func tex(_ a: Int, _ b: Int) -> MTLTexture {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: max(1, a), height: max(1, b), mipmapped: false)
+            d.usage = [.renderTarget, .shaderRead]; d.storageMode = .private
+            return device.makeTexture(descriptor: d)!
+        }
+        let hdr = tex(w, h), neb = tex(w, h); var mips: [MTLTexture] = []; var a = w, b = h
+        while mips.count < 6 && min(a, b) >= 16 { a /= 2; b /= 2; mips.append(tex(a, b)) }
+        postTex = (w, h, hdr, neb, mips); return (hdr, neb, mips)
+    }
+    // ---- 星雲のかたまり（中心・色・広がり）と、模様のノイズの箱 ----
+    /// 8 つ。アナ極（出発点）からは 0.8〜2.6 離して置く（出発してすぐガスの中、にならないように）。いつも同じ並び
+    static let nebBlobs: [SIMD4<Float>] = {
+        var x: UInt64 = 0x5DEECE66D
+        func rnd() -> Double { x = x &* 6364136223846793005 &+ 1442695040888963407; return Double(x >> 11) / Double(1 << 53) }
+        func gauss() -> Double { sqrt(-2 * log(max(1e-12, rnd()))) * cos(2 * Double.pi * rnd()) }
+        let cols: [SIMD3<Float>] = [[1.0, 0.30, 0.62], [0.22, 0.72, 0.85], [1.0, 0.52, 0.22], [0.55, 0.32, 1.0], [1.0, 0.34, 0.36], [0.30, 0.52, 1.0], [0.32, 0.92, 0.62], [1.0, 0.80, 0.42]]
+        var out: [SIMD4<Float>] = []
+        var k = 0
+        while k < 8 {
+            let p = nrm(V4(gauss(), gauss(), gauss(), gauss())); let d = acos(max(-1, min(1, p.w)))
+            if d < 0.8 || d > 2.6 { continue }
+            out.append(SIMD4<Float>(p)); out.append(SIMD4(cols[k], Float(0.22 + 0.3 * rnd()))); k += 1
+        }
+        return out
+    }()
+    /// 64³ のくり返すノイズ（なめらかな値のノイズを 3 段重ね）を 3 つ、色の r・g・b に（r：大きなふさ、g：2 倍細かいすじ、b：ちり）。0〜1
+    lazy var noise3D: MTLTexture? = {
+        let N = 64
+        var x: UInt64 = 0x2545F4914F6CDD1D
+        func rnd() -> Float { x ^= x << 13; x ^= x >> 7; x ^= x << 17; return Float(x % 1_000_000) / 1_000_000 }
+        func fbm(_ octs: [(Int, Float)]) -> [Float] {
+            var vol = [Float](repeating: 0, count: N * N * N)
+            for (per, amp) in octs {
+                let lat = (0..<(per * per * per)).map { _ in rnd() }
+                func L(_ i: Int, _ j: Int, _ k: Int) -> Float { lat[((k % per) * per + (j % per)) * per + (i % per)] }
+                let sc = Float(per) / Float(N)
+                func sm(_ t: Float) -> Float { t * t * (3 - 2 * t) }
+                func lerp(_ a: Float, _ b: Float, _ t: Float) -> Float { a + (b - a) * t }
+                for k in 0..<N { for j in 0..<N { for i in 0..<N {
+                    let fx = Float(i) * sc, fy = Float(j) * sc, fz = Float(k) * sc
+                    let ix = Int(fx), iy = Int(fy), iz = Int(fz)
+                    let tx = sm(fx - Float(ix)), ty = sm(fy - Float(iy)), tz = sm(fz - Float(iz))
+                    let c00 = lerp(L(ix, iy, iz), L(ix + 1, iy, iz), tx), c10 = lerp(L(ix, iy + 1, iz), L(ix + 1, iy + 1, iz), tx)
+                    let c01 = lerp(L(ix, iy, iz + 1), L(ix + 1, iy, iz + 1), tx), c11 = lerp(L(ix, iy + 1, iz + 1), L(ix + 1, iy + 1, iz + 1), tx)
+                    vol[(k * N + j) * N + i] += amp * lerp(lerp(c00, c10, ty), lerp(c01, c11, ty), tz)
+                } } }
+            }
+            return vol
+        }
+        let r = fbm([(8, 0.5), (16, 0.3), (32, 0.2)]), g = fbm([(16, 0.5), (32, 0.3), (64, 0.2)]), b = fbm([(16, 0.55), (32, 0.3), (64, 0.15)])
+        var bytes = [UInt8](repeating: 255, count: N * N * N * 4)
+        for i in 0..<(N * N * N) {
+            bytes[4 * i] = UInt8(max(0, min(255, r[i] * 255))); bytes[4 * i + 1] = UInt8(max(0, min(255, g[i] * 255))); bytes[4 * i + 2] = UInt8(max(0, min(255, b[i] * 255)))
+        }
+        let d = MTLTextureDescriptor(); d.textureType = .type3D; d.pixelFormat = .rgba8Unorm; d.width = N; d.height = N; d.depth = N; d.usage = .shaderRead
+        guard let t = device.makeTexture(descriptor: d) else { return nil }
+        bytes.withUnsafeBytes { t.replace(region: MTLRegionMake3D(0, 0, 0, N, N, N), mipmapLevel: 0, slice: 0, withBytes: $0.baseAddress!, bytesPerRow: N * 4, bytesPerImage: N * N * 4) }
+        return t
+    }()
+    /// 景色（と星）を rpd に描く
+    func encodeScene(_ cb: MTLCommandBuffer, _ rpd: MTLRenderPassDescriptor, _ fmt: MTLPixelFormat, _ w: Int, _ h: Int, split: Bool = false) {
         var u = uniforms(width: w, height: h)
         var mk = markers(); u.nm = Int32(mk.count)
         if mk.isEmpty { mk.append(MkGPU(c: .zero, col: .zero)) }
         guard let enc = cb.makeRenderCommandEncoder(descriptor: rpd) else { return }
-        enc.setRenderPipelineState(pipeline(fmt))
+        enc.setRenderPipelineState(split ? pipelineMRT() : pipeline(fmt))
         enc.setFragmentBytes(&u, length: MemoryLayout<Uni>.stride, index: 0)
         enc.setFragmentBytes(mk, length: MemoryLayout<MkGPU>.stride * mk.count, index: 1)
         let sh = shellTable()
         enc.setFragmentBytes(sh, length: MemoryLayout<SIMD4<Float>>.stride * sh.count, index: 2)
         enc.setFragmentTexture(atlas, index: 0)
         enc.setFragmentBytes(Renderer.roomPlanes, length: MemoryLayout<SIMD4<Float>>.stride * 12, index: 3)
+        enc.setFragmentBytes(Renderer.nebBlobs, length: MemoryLayout<SIMD4<Float>>.stride * Renderer.nebBlobs.count, index: 4)
+        enc.setFragmentTexture(noise3D, index: 1)
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         if set.space && set.stars > 0, let sb = starBuf {             // 星：景色の透けて残った所（アルファ）にだけ足す
             var su = StarU(P: u.P, R: u.R, U: u.U, F: u.F, res: u.res, tanF: u.tanF, fovY: u.fovY, lens: u.lens, fog: u.fog,
-                           lum: Float(set.stars), maxD: u.maxD, edr: Float(max(1, min(edrHead, 4))), px: max(1, Float(h) / 1000))
-            enc.setRenderPipelineState(starPipeline(fmt))
+                           lum: Float(set.stars), maxD: u.maxD, edr: set.cine ? 8 : Float(max(1, min(edrHead, 4))), px: max(1, Float(h) / 1000))
+            enc.setRenderPipelineState(starPipeline(fmt, split: split))
             enc.setVertexBuffer(sb, offset: 0, index: 0)
             enc.setVertexBytes(&su, length: MemoryLayout<StarU>.stride, index: 1)
             enc.setFragmentBytes(&su, length: MemoryLayout<StarU>.stride, index: 0)
@@ -267,17 +405,29 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     // ---- 星（宇宙の時）----
     static let starN = 12000
-    private var starPipes: [MTLPixelFormat: MTLRenderPipelineState] = [:]
+    private var starPipes: [MTLPixelFormat: MTLRenderPipelineState] = [:], starPipeMRT: MTLRenderPipelineState?, sceneMRT: MTLRenderPipelineState?
+    /// 映画の光の時の景色：色（HDR の絵）と星雲の光（別の絵）を同時に書く
+    func pipelineMRT() -> MTLRenderPipelineState {
+        if let p = sceneMRT { return p }
+        let d = MTLRenderPipelineDescriptor()
+        d.vertexFunction = library.makeFunction(name: "vmain"); d.fragmentFunction = library.makeFunction(name: "fmainMRT")
+        d.colorAttachments[0].pixelFormat = .rgba16Float; d.colorAttachments[1].pixelFormat = .rgba16Float
+        let p = try! device.makeRenderPipelineState(descriptor: d)
+        sceneMRT = p; return p
+    }
     lazy var starBuf: MTLBuffer? = { let s = Renderer.makeStars(Renderer.starN); return device.makeBuffer(bytes: s, length: MemoryLayout<StarGPU>.stride * s.count) }()
-    func starPipeline(_ fmt: MTLPixelFormat) -> MTLRenderPipelineState {
-        if let p = starPipes[fmt] { return p }
+    func starPipeline(_ fmt: MTLPixelFormat, split: Bool = false) -> MTLRenderPipelineState {
+        if !split, let p = starPipes[fmt] { return p }
+        if split, let p = starPipeMRT { return p }
         let d = MTLRenderPipelineDescriptor()
         d.vertexFunction = library.makeFunction(name: "vstar"); d.fragmentFunction = library.makeFunction(name: "fstar")
         let c = d.colorAttachments[0]!; c.pixelFormat = fmt; c.isBlendingEnabled = true
         c.rgbBlendOperation = .add; c.sourceRGBBlendFactor = .destinationAlpha; c.destinationRGBBlendFactor = .one   // 色 += 星 × 透けて残った割合
         c.alphaBlendOperation = .add; c.sourceAlphaBlendFactor = .zero; c.destinationAlphaBlendFactor = .one
+        if split { d.colorAttachments[1].pixelFormat = .rgba16Float; d.colorAttachments[1].writeMask = [] }   // 星雲の光の絵には書かない
         let p = try! device.makeRenderPipelineState(descriptor: d)
-        starPipes[fmt] = p; return p
+        if split { starPipeMRT = p } else { starPipes[fmt] = p }
+        return p
     }
     /// 星を S³ にまく（いつも同じ並び）：半分ほどは天の川（大円 y・z のまわり）、1 割は星雲（もう 1 つの大円のまわり）、残りは一様。
     ///   色は青白・白・黄・橙、明るさはほとんど暗く、ごく一部が明るい。8 つの極のすぐそばには置かない
@@ -407,6 +557,38 @@ final class Renderer: NSObject, MTKViewDelegate {
         cam.hp = asin(max(-1, min(1, dot4(v, F.U)))) / d2r; cam.hy = atan2(dot4(v, F.R), dot4(v, F.L)) / d2r
         return false
     }
+    // ---- 中の景色の上の 8 つの極（ウェブ版の poleLabels）：色の点と「名前 距離」。遠い極ほど点が小さい ----
+    struct PoleLab { var x: Double; var y: Double; var name: String; var col: SIMD3<Float>; var d: Double; var isN: Bool }
+    var onPoles: (([PoleLab]) -> Void)?
+    /// 極の点の色（ウェブ版の dotCss）：軸の色の球層の時はその軸の色、ふだんは地図と同じ色
+    func poleCol(_ k: Int) -> SIMD3<Float> {
+        if set.shAxis { let i = FIXED[k].c.indices.first { abs(FIXED[k].c[$0]) > 0.5 } ?? 3; return AXIS_RGB[i] }
+        return MapRenderer.poleDotCol(k)
+    }
+    /// 自分の枠での向き（右・上・前）→ 画面の位置（−1〜1、ウェブ版の poleScreen）。写らなければ nil
+    func screenPos(_ dr: Double, _ du: Double, _ dl: Double, aspect: Double) -> (Double, Double)? {
+        if set.lens == 1 {
+            let ang = acos(max(-1, min(1, dl))), r = ang / (set.fov * d2r / 2), l = max(1e-9, (dr * dr + du * du).squareRoot())
+            return ang < Double.pi - 1e-3 ? (r * dr / l / aspect, r * du / l) : nil
+        }
+        if set.lens == 2 { return (atan2(dr, dl) / Double.pi, asin(max(-1, min(1, du))) / (Double.pi / 2)) }
+        guard dl > 1e-3 else { return nil }
+        let tf = tan(set.fov * d2r / 2)
+        return (dr / dl / (tf * aspect), du / dl / tf)
+    }
+    func poleLabels(aspect: Double) -> [PoleLab] {
+        guard set.poles && set.mk != 1 else { return [] }                 // 絵のモードでは、極はいつもの絵のまま（ウェブ版と同じ）
+        let F = cam.viewFrame(), p = cam.w.p
+        var out: [PoleLab] = []
+        for (k, m) in FIXED.enumerated() {
+            let c = max(-1, min(1, dot4(p, m.c))), t = acos(c)
+            let dv = m.c - p * c, l = simd_length(dv)
+            guard l > 1e-6, t <= set.maxD, let sp = screenPos(dot4(dv, F.R) / l, dot4(dv, F.U) / l, dot4(dv, F.L) / l, aspect: aspect),
+                  abs(sp.0) <= 1.02, abs(sp.1) <= 1.02 else { continue }
+            out.append(PoleLab(x: sp.0, y: sp.1, name: MapRenderer.poleName(m) + " " + String(format: "%.2f", t), col: poleCol(k), d: t, isN: m.label == "N"))
+        }
+        return out
+    }
     /// 軌跡（道すじと足あと）を消す。場所はそのまま（ウェブ版の「道すじを消す」）
     func clearTrail() {
         journey.trail = []; journey.trail2 = []; journey.foot = []; journey.foot2 = []
@@ -430,6 +612,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     func draw(in view: MTKView) {
         let now = CACurrentMediaTime(); gapRun = max(gapRun, (now - lastT) * 1000); let dt = min(0.05, now - lastT); lastT = now
         step(dt)
+        onPoles?(poleLabels(aspect: view.drawableSize.width / max(1, view.drawableSize.height)))
         guard let rpd = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
               let cb = queue.makeCommandBuffer() else { return }
         let w = Int(view.drawableSize.width), h = Int(view.drawableSize.height)

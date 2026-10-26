@@ -16,10 +16,10 @@ struct Uni {
     float shellLum, gridSt; int shellN; int shell;
     int shellSolid, shellBare, eq, nm;
     int passes, orient, lite, webTies;      // webTies：確かめ用。ウェブ版と同じく、同じ道のりの層の片方を落とす
-    float glow, edr, band, gpad1;           // band：宇宙の時の天の川の明るさ。光る線：glow（0〜1）＝にじみの強さ、edr＝線の芯の明るさの倍率（EDR の画面で 1 より大きく）
-    int pic, ghostBack, lens, upad0;         // pic：目印 0 玉・1 絵・2 色の点、ghostBack：遠回りの像を絵の裏から、lens：0 ふつう・1 魚眼・2 360°
-    float fovY, picLine, upad1, upad2;       // fovY：縦の視野（ラジアン）、picLine：絵・色の点の時の線の濃さ
-    int circ, room, space, tpad1;            // 管：circ＝経線（x・y・z と w の大円）と赤道の輪、room＝120 胞体の部屋の辺。space：背景 0 深海（もや）・1 宇宙
+    float glow, edr, band, nebStep;         // band：宇宙の時の天の川の明るさ、nebStep：星雲を進む刻み（角度）。光る線：glow（0〜1）＝にじみの強さ、edr＝線の芯の明るさの倍率（EDR の画面で 1 より大きく）
+    int pic, ghostBack, lens, neb;           // pic：目印 0 玉・1 絵・2 色の点、ghostBack：遠回りの像を絵の裏から、lens：0 ふつう・1 魚眼・2 360°、neb：星雲（宇宙の時）
+    float fovY, picLine, nebK, upad2;        // fovY：縦の視野（ラジアン）、picLine：絵・色の点の時の線の濃さ、nebK：星雲の濃さ
+    int circ, room, space, shAx;             // 管：circ＝経線（x・y・z と w の大円）と赤道の輪、room＝120 胞体の部屋の辺。space：背景 0 深海（もや）・1 宇宙。shAx：球層の色 0 レインボー、それ以外は軸色で、囲む軸（1 x・2 y・4 z・8 w）
     float tube, pixAng, lineW, solidWire;    // tube：管の太さ（角度）、pixAng：1 画素の角度、lineW：網目の線の太さ（画素。0 でウェブ版と同じ角度の太さ）、solidWire：立体の殻の網目の濃さ（ウェブ版は 0.35）
 };
 struct Mk { float4 c; float4 col; float4 info; };   // c：中心（S³ の点）、col.xyz：色、col.w：半径（角度）、info.x：絵の表のます目（−1 で絵なし）
@@ -250,13 +250,14 @@ inline float2 gridLine15(float lat, float lon, float coslat, float fp, constant 
 //   wc：この殻の w（q.w ＝ wc）、vw：光の向きの w 成分（vt.w）、hz：もやの色
 //   殻の面に直交する向き nP ＝ ±(e_w − q·wc)／√(1 − wc²) なので、cv ＝ vt·nP ＝ ±vt.w／√(1 − wc²)、q の xyz の長さも √(1 − wc²)（正規化が要らない）
 //   em：光る線のにじみ（後ろを隠さずに足す光）
-void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float wc, float vw, float3 hz, constant Uni& u, constant float4* sh, thread float3& cc, thread float& al, thread float3& em) {
+//   q・vt は「囲む軸が w に来るように並べかえた」座標（軸色の時。レインボーは w の組だけで、そのまま）。c0：殻の色、L0：光の向き（同じ並べかえ）
+void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float wc, float vw, float3 hz, constant Uni& u, float3 c0, float4 L0, thread float3& cc, thread float& al, thread float3& em) {
     float faceK = min(1.0, 1.5 / u.shellRange);
     float spF = u.space == 1 ? 0.3 : 1.0;                            // 宇宙の時は殻の面を薄く（網目の線は残す）。奥の星が透けて見えるように
     float sg = i < n ? 1.0 : -1.0;                                  // この殻が囲む極（アナ ＋、カタ −）
     float iS = rsqrt(max(1.0 - wc * wc, 1e-8));
     float cv = sg * vw * iS;
-    float3 c0 = sh[i].yzw, c = c0;
+    float3 c = c0;
     float rimK = clamp(1.0 - abs(cv), 0.0, 1.0);
     float3 sp = q.xyz * iS;
     float2 gg = u.shellBare == 1 ? float2(0.0) : gridLine15(asin(clamp(sp.z, -1.0, 1.0)), atan2(sp.y, sp.x), length(sp.xy), pixFoot(t, cv, 1.0 / iS, u), u);   // 網目（cos 緯度 ＝ xy の長さ）
@@ -265,7 +266,7 @@ void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float w
     if (u.shellSolid == 1) {   // 立体版：面に光（左上・手前から）、つや、ふちは暗い輪郭
         float4 nP = sg * (float4(0.0, 0.0, 0.0, 1.0) - q * wc) * iS;
         float4 nn = cv < 0.0 ? -nP : nP;
-        float4 Lg = normalize(u.L0 - q * dot(u.L0, q));               // 光の向き（左上・手前から。L0 は Swift で 1 コマに 1 回）
+        float4 Lg = normalize(L0 - q * dot(L0, q));                   // 光の向き（左上・手前から。L0 は Swift で 1 コマに 1 回）
         float dif = 0.4 + 0.6 * max(0.0, dot(nn, Lg));
         float4 h = normalize(Lg - vt); float spec = pow(max(0.0, dot(nn, h)), 28.0) * 0.55;
         c = c * dif + float3(spec);
@@ -287,7 +288,124 @@ void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float w
     em = c0 * (gg.y * u.glow * 0.07 * fadeR * dm * fg * (0.25 + 0.75 * abs(cv)) * u.edr);   // 線のまわりの光（遠いほど・もやの中ほど弱く）
 }
 
-fragment float4 fmain(VOut in [[stage_in]], constant Uni& u [[buffer(0)]], constant Mk* mk [[buffer(1)]], constant float4* sh [[buffer(2)]], constant float4* uN [[buffer(3)]], texture2d<float> atlas [[texture(0)]]) {
+// ---- 球層の組：囲む軸ごと（軸色の時は x・y・z・w の 4 組まで。ウェブ版の shFams）----
+//   殻は「その軸の成分＝一定」の球面。軸が w に来るように座標を並べかえれば、w の殻と同じ式でたどれる（網目はのこりの 3 成分で。ウェブ版の qo と同じ並び）
+inline float4 axPerm(float4 a, int ax) { return ax == 3 ? a : ax == 0 ? float4(a.y, a.z, a.w, a.x) : ax == 1 ? float4(a.x, a.z, a.w, a.y) : float4(a.x, a.y, a.w, a.z); }
+// 軸色の殻の色（ウェブ版の axisShellCol）：＋の極のそばは明るく、−の極のそばは少し暗く、赤道へ行くほど落ち着いた色
+inline float3 axisShellCol(int ax, int i, int n, float lumT) {
+    float3 ac = ax == 0 ? float3(1.0, 0.365, 0.424) : ax == 1 ? float3(0.239, 0.863, 0.518) : ax == 2 ? float3(0.337, 0.659, 1.0) : float3(0.690, 0.486, 1.0);
+    int j = i < n ? i : 2 * n - 2 - i; float t = float(j) / max(float(n - 1), 1.0);
+    float3 c = i < n ? mix(mix(ac, float3(1.0), 0.35), ac, t) : mix(ac * 0.62, ac * 0.9, t);
+    float lum = dot(c, float3(0.299, 0.587, 0.114));
+    return mix(c, float3(1.0), clamp((lumT - lum) / (1.0 - lum), 0.0, 0.2));
+}
+// 1 つの組の殻を、道のりの順に 1 枚ずつ出す（半周ごとに、w(t) ＝ amp·cos(t − φ) が減る半周・増える半周で殻を順に）
+struct ShIt { float4 E1, E2; float amp, ia, s0; int m0, ph, k, ax; bool end; };
+inline ShIt shInit(float4 p0, float4 v, int ax) {
+    ShIt it; float4 P = axPerm(p0, ax), V = axPerm(v, ax);
+    float A = P.w, B = V.w; it.amp = sqrt(A * A + B * B); it.ia = 1.0 / max(it.amp, 1e-5);
+    it.E1 = (A * P + B * V) * it.ia; it.E2 = (-B * P + A * V) * it.ia;
+    it.s0 = gmod(-atan2(B, A), 2.0 * PI); if (it.s0 > 2.0 * PI - 1e-4) it.s0 -= 2.0 * PI;
+    it.m0 = int(floor(it.s0 / PI)); it.ph = 0; it.k = 0; it.ax = ax; it.end = it.amp < 1e-5;
+    return it;
+}
+inline bool shNext(thread ShIt& it, constant float4* sh, constant Uni& u, thread float& t, thread int& i, thread bool& dec, thread float& wc) {
+    int n = u.shellN, nTot = 2 * n - 1;
+    while (!it.end && it.ph < 11) {
+        int m = it.m0 + it.ph; bool d = gmod(float(m), 2.0) < 0.5;
+        if (float(m) * PI - it.s0 > u.shellRange) { it.end = true; return false; }
+        while (it.k < nTot && it.k < 41) {
+            int kk = it.k; it.k++;
+            int ii = d ? kk : nTot - 1 - kk;
+            float w = sh[ii].x;
+            if (d ? w > it.amp : w < -it.amp) continue;                     // この半周ではまだ届かない殻
+            if (abs(w) > it.amp) { it.k = nTot; break; }                    // ここから先の殻には届かない
+            float a = acos(clamp(w * it.ia, -1.0, 1.0));
+            float tt = (d ? float(m) * PI + a : float(m + 1) * PI - a) - it.s0;   // 半周の中では k とともに増える
+            if (tt < 0.002) continue;
+            if (tt >= u.shellRange) { it.end = true; return false; }
+            t = tt; i = ii; dec = d; wc = w; return true;
+        }
+        it.ph++; it.k = 0;
+    }
+    it.end = true; return false;
+}
+
+// ---- 星雲（宇宙の時）：S³ に浮かぶ色のついたガス ----
+//   かたまり 8 つ（中心 c、色、広がり σ）。濃さ ≈ exp(−(1 − q·c)／σ²)（1 − cos θ ≈ θ²／2 なので、距離 θ のガウス）。
+//   すじ・ふさ・ちりの模様は、3 次元のノイズの箱（くり返し）を S³ の点のなめらかな式で引く（どこでもつながっている）
+constant int NEBN = 8;
+// 光の道ごとに、近くを通るかたまりを 4 つまで選んでおく（ほかは調べない）。かたまり k と光の道の点 p(t) の内積は c·p(t) ＝ A cos t ＋ B sin t
+//   （A ＝ c·p0、B ＝ c·v）なので、刻みごとの計算は掛け算と exp だけ。lo 〜 hi：かたまりの近くを通る道のりの範囲（その外は調べない）
+struct NebRay { float4 A, B, is2; float3 c0, c1, c2, c3; int cnt; float lo, hi; };
+inline NebRay nebPrep(float4 p0, float4 v, constant float4* nb) {
+    NebRay r; r.A = float4(0.0); r.B = float4(0.0); r.is2 = float4(0.0); r.c0 = r.c1 = r.c2 = r.c3 = float3(0.0); r.cnt = 0; r.lo = 1e9; r.hi = -1e9;
+    float best[4] = { 1e9, 1e9, 1e9, 1e9 }; int bk[4] = { -1, -1, -1, -1 };
+    for (int k = 0; k < NEBN; k++) {
+        float4 c = nb[2 * k]; float sg = nb[2 * k + 1].w;
+        float a = dot(c, p0), b = dot(c, v), cmax = sqrt(a * a + b * b), x = (1.0 - cmax) / (sg * sg);
+        if (x >= 5.0) continue;
+        float ts = atan2(b, a); if (ts < 0.0) ts += 2.0 * PI;
+        float dl = acos(clamp((1.0 - 5.0 * sg * sg) / max(cmax, 1e-5), -1.0, 1.0));
+        r.lo = min(r.lo, ts - dl); r.hi = max(r.hi, ts + dl);
+        if (ts - dl < 0.0) r.hi = 1e9;                                    // 後ろ側にもはみ出す（反対回りの所も）
+        if (ts + dl > 2.0 * PI) r.lo = 0.0;
+        for (int j = 0; j < 4; j++) { if (x < best[j]) { for (int m = 3; m > j; m--) { best[m] = best[m - 1]; bk[m] = bk[m - 1]; } best[j] = x; bk[j] = k; break; } }
+    }
+    r.lo = max(r.lo, 0.0);
+    for (int j = 0; j < 4; j++) {
+        if (bk[j] < 0) continue;
+        float4 c = nb[2 * bk[j]], cs = nb[2 * bk[j] + 1];
+        r.A[j] = dot(c, p0); r.B[j] = dot(c, v); r.is2[j] = 1.0 / (cs.w * cs.w);
+        if (j == 0) r.c0 = cs.rgb; else if (j == 1) r.c1 = cs.rgb; else if (j == 2) r.c2 = cs.rgb; else r.c3 = cs.rgb;
+        r.cnt = j + 1;
+    }
+    return r;
+}
+struct Neb { float3 e; float a; };                                      // 光る色（道のりあたり）・吸う割合（道のりあたり）
+inline Neb nebAt(float4 q, float ct, float st, thread const NebRay& r, texture3d<float> nz) {
+    constexpr sampler sm(filter::linear, address::repeat);
+    float4 x = (1.0 - (r.A * ct + r.B * st)) * r.is2;                   // 4 つのかたまりまでの距離²／σ²（使わない所は is2 ＝ 0 → 下で消す）
+    float4 g = select(float4(0.0), exp(-x), r.is2 > 0.0);
+    float dens = g.x + g.y + g.z + g.w;
+    Neb o; o.e = float3(0.0); o.a = 0.0;
+    if (dens < 0.015) return o;
+    float3 e = r.c0 * g.x + r.c1 * g.y + r.c2 * g.z + r.c3 * g.w;
+    float3 P = q.xyz * 1.7 + q.w * float3(1.31, -0.73, 0.97);
+    float4 nn = nz.sample(sm, P * 0.3);                                 // 1 回で 3 つの模様（r：大きなふさ、g：細かいすじ、b：ちり）
+    float n1 = nn.r, n2 = nn.g, n3 = nn.b;
+    float n = n1 * 0.6 + n2 * 0.4;
+    float wisp = ss(0.40, 0.86, n); wisp *= wisp;                       // すじ・ふさ（はっきりと）
+    float dust = ss(0.50, 0.72, n3);                                    // ちり（暗いすじ）
+    float dd = dens * wisp;
+    float3 c = e / dens;
+    float3 hot = mix(c, float3(1.0, 0.95, 0.92), ss(0.45, 1.3, dd * (0.6 + 0.8 * n2)));   // 濃い所ほど白く熱く
+    o.e = hot * pow(dd, 1.2) * (2.2 + 4.0 * n2 * n2);
+    o.a = dd * 0.3 + dens * dust * (1.0 - wisp * 0.6) * 1.8;
+    return o;
+}
+// 道のり t0 〜 t1 の間の星雲を、手前から重ねる（col・T を更新）。jit：画素ごとのずらし（刻みの縞を目立たせない）
+inline void nebSeg(float t0, float t1, float4 p0, float4 v, thread const NebRay& nr, float jit, texture3d<float> nz, constant Uni& u, thread float3& col, thread float& T, thread float3& nacc, float w) {
+    t0 = max(t0, nr.lo); t1 = min(t1, nr.hi);                           // かたまりの近くを通る所だけ
+    if (u.neb == 0 || nr.cnt == 0 || t1 <= t0 + 1e-5 || T < 0.003) return;
+    int n = clamp(int(ceil((t1 - t0) / u.nebStep)), 1, 28);
+    float ds = (t1 - t0) / float(n);
+    for (int i = 0; i < n; i++) {
+        float t = t0 + (float(i) + jit) * ds;
+        float ct = cos(t), st = sin(t); float4 q = ct * p0 + st * v;
+        Neb m = nebAt(q, ct, st, nr, nz);
+        if (m.a <= 0.0) continue;
+        float fd = exp(-t * u.fade * 0.35);
+        float3 add = T * m.e * (u.nebK * ds * fd * w); col += add; nacc += add;   // nacc：星雲の光だけ（映画の光の時は、あとでなめらかにしてから足す）
+        T *= exp(-m.a * u.nebK * ds);
+        if (T < 0.003) break;
+    }
+}
+// 画素ごとの小さなずらし（でたらめ。規則のあるずらしだと斜めの縞が見える）
+inline float ign(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
+
+// 景色の 1 画素。split：星雲の光を nacc に分けて、景色の色からは除く（映画の光の時。星雲だけあとでなめらかにする）
+inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant float4* sh, constant float4* uN, constant float4* nb, texture2d<float> atlas, texture3d<float> nz, thread float3& nacc, bool split) {
     float2 uv = in.pos.xy / u.res * 2.0 - 1.0; uv.y = -uv.y;          // Metal の画素は上から下へ
     float asp = u.res.x / u.res.y;
     float3 dir;
@@ -340,51 +458,68 @@ fragment float4 fmain(VOut in [[stage_in]], constant Uni& u [[buffer(0)]], const
     //   殻を手前から 1 回だけたどり、その手前にある層を先に重ねる（ウェブ版と重なる順は同じ）。
     //   殻：w(t) = amp·cos(t − φ) なので、減る半周・増える半周ごとに殻を順にたどれば、t の順に並ぶ
     float3 col = float3(0.0); float T = 1.0; bool done = false; float3 hz = haze(dir, u.space);
+    float tN = 0.0, jit = ign(in.pos.xy); NebRay nr; nr.cnt = 0; nr.lo = 0.0; nr.hi = 0.0; if (u.neb == 1) nr = nebPrep(p0, v, nb);
+    float nebW = 1.0;   // 星雲：ここまで重ねた道のり・ずらし・近くを通るかたまり
     int kind, idx, lid; float nt = nextLayer(L, -1.0, -1, kind, idx, lid, u);
     if (u.shell == 1) {
-        int n = u.shellN; int nTot = 2 * n - 1;
-        float s0 = gmod(-phiW, 2.0 * PI); if (s0 > 2.0 * PI - 1e-4) s0 -= 2.0 * PI;
-        int m0 = int(floor(s0 / PI));
-        bool end = amp < 1e-5;
-        for (int ph = 0; ph < 11 && !end && !done; ph++) {
-            int m = m0 + ph; bool dec = gmod(float(m), 2.0) < 0.5;
-            if (float(m) * PI - s0 > u.shellRange) break;
-            for (int k = 0; k < 41; k++) {
-                if (k >= nTot) break;
-                int i = dec ? k : nTot - 1 - k;
-                float wc = sh[i].x;
-                if (dec ? wc > amp : wc < -amp) continue;                   // この半周ではまだ届かない殻
-                if (abs(wc) > amp) break;                                   // ここから先の殻には届かない
-                float a = acos(clamp(wc * ia, -1.0, 1.0));
-                float t = (dec ? float(m) * PI + a : float(m + 1) * PI - a) - s0;   // 半周の中では k とともに増える
-                if (t < 0.002) continue;
-                if (t >= u.shellRange) { end = true; break; }
-                while (nt <= t) {                                           // この殻より手前の層を先に
-                    float3 lc, le; float la; shadeLayer(kind, idx, nt, p0, v, L, mk, u, lc, la, le, atlas);
-                    float aL = la * exp(-nt * u.fade), fgL = exp(-nt * u.fog);
-                    col += T * (aL * mix(lc, hz, 1.0 - fgL) + le * fgL * exp(-nt * u.fade)); T *= (1.0 - aL);
-                    nt = nextLayer(L, nt, lid, kind, idx, lid, u);
-                    if (T < 0.003) { done = true; break; }
-                }
-                if (done) break;
-                float fadeR = clamp(1.0 - t / u.shellRange, 0.0, 1.0); fadeR *= fadeR * (3.0 - 2.0 * fadeR);   // 遠い殻ほど薄く、見える距離で 0
-                fadeR *= ss(0.004, 0.04, t);                                // ちょうど殻の上にいる時は消す
-                if (T * fadeR < 0.003) continue;                            // 目に見えないほど薄い殻（1/255 未満）は、色を計算しない
-                float cs = wc * ia, sn = sqrt(max(0.0, 1.0 - cs * cs)); if (!dec) sn = -sn;
-                float4 q = cs * E1 + sn * E2, vt = -sn * E1 + cs * E2;
-                float3 cc, em; float al; shadeShell(t, fadeR, i, n, q, vt, wc, -sn * amp, hz, u, sh, cc, al, em);
-                col += T * (al * cc + em); T *= (1.0 - al);
-                if (T < 0.01) { done = true; break; }
+        // 殻の組（レインボーは w の 1 組、軸色は選んだ軸の組）を、それぞれ道のりの順に出し、いちばん手前のものから重ねる
+        int n = u.shellN;
+        int fam = u.shAx == 0 ? 8 : u.shAx;
+        ShIt i0 = shInit(p0, v, 3), i1 = shInit(p0, v, 0), i2 = shInit(p0, v, 1), i3 = shInit(p0, v, 2);
+        float t0_ = 1e9, t1_ = 1e9, t2_ = 1e9, t3_ = 1e9; int k0 = 0, k1 = 0, k2 = 0, k3 = 0; bool d0 = true, d1 = true, d2 = true, d3 = true; float w0 = 0.0, w1 = 0.0, w2 = 0.0, w3 = 0.0;
+        if ((fam & 8) != 0 && !shNext(i0, sh, u, t0_, k0, d0, w0)) t0_ = 1e9;
+        if ((fam & 1) != 0 && !shNext(i1, sh, u, t1_, k1, d1, w1)) t1_ = 1e9;
+        if ((fam & 2) != 0 && !shNext(i2, sh, u, t2_, k2, d2, w2)) t2_ = 1e9;
+        if ((fam & 4) != 0 && !shNext(i3, sh, u, t3_, k3, d3, w3)) t3_ = 1e9;
+        for (int guard = 0; guard < 400 && !done; guard++) {
+            // いちばん手前の組（同じ道のりなら w・x・y・z の順）
+            int f = 0; float t = t0_;
+            if (t1_ < t) { f = 1; t = t1_; }
+            if (t2_ < t) { f = 2; t = t2_; }
+            if (t3_ < t) { f = 3; t = t3_; }
+            if (t >= 1e8) break;
+            int i = f == 0 ? k0 : f == 1 ? k1 : f == 2 ? k2 : k3;
+            bool dec = f == 0 ? d0 : f == 1 ? d1 : f == 2 ? d2 : d3;
+            float wc = f == 0 ? w0 : f == 1 ? w1 : f == 2 ? w2 : w3;
+            float4 E1 = f == 0 ? i0.E1 : f == 1 ? i1.E1 : f == 2 ? i2.E1 : i3.E1, E2 = f == 0 ? i0.E2 : f == 1 ? i1.E2 : f == 2 ? i2.E2 : i3.E2;
+            float amp = f == 0 ? i0.amp : f == 1 ? i1.amp : f == 2 ? i2.amp : i3.amp, ia = f == 0 ? i0.ia : f == 1 ? i1.ia : f == 2 ? i2.ia : i3.ia;
+            int ax = f == 0 ? 3 : f - 1;
+            // この組の次の殻を用意しておく
+            if (f == 0) { if (!shNext(i0, sh, u, t0_, k0, d0, w0)) t0_ = 1e9; }
+            else if (f == 1) { if (!shNext(i1, sh, u, t1_, k1, d1, w1)) t1_ = 1e9; }
+            else if (f == 2) { if (!shNext(i2, sh, u, t2_, k2, d2, w2)) t2_ = 1e9; }
+            else { if (!shNext(i3, sh, u, t3_, k3, d3, w3)) t3_ = 1e9; }
+            while (nt <= t) {                                               // この殻より手前の層を先に
+                nebSeg(tN, nt, p0, v, nr, jit, nz, u, col, T, nacc, nebW); tN = max(tN, nt);
+                float3 lc, le; float la; shadeLayer(kind, idx, nt, p0, v, L, mk, u, lc, la, le, atlas);
+                float aL = la * exp(-nt * u.fade), fgL = exp(-nt * u.fog);
+                col += T * (aL * mix(lc, hz, 1.0 - fgL) + le * fgL * exp(-nt * u.fade)); T *= (1.0 - aL);
+                nt = nextLayer(L, nt, lid, kind, idx, lid, u);
+                if (T < 0.003) { done = true; break; }
             }
+            if (done) break;
+            nebSeg(tN, t, p0, v, nr, jit, nz, u, col, T, nacc, nebW); tN = max(tN, t);
+            if (T < 0.003) { done = true; break; }
+            float fadeR = clamp(1.0 - t / u.shellRange, 0.0, 1.0); fadeR *= fadeR * (3.0 - 2.0 * fadeR);   // 遠い殻ほど薄く、見える距離で 0
+            fadeR *= ss(0.004, 0.04, t);                                    // ちょうど殻の上にいる時は消す
+            if (T * fadeR < 0.003) continue;                                // 目に見えないほど薄い殻（1/255 未満）は、色を計算しない
+            float cs = wc * ia, sn = sqrt(max(0.0, 1.0 - cs * cs)); if (!dec) sn = -sn;
+            float4 q = cs * E1 + sn * E2, vt = -sn * E1 + cs * E2;
+            float3 c0 = u.shAx == 0 ? sh[i].yzw : axisShellCol(ax, i, n, u.shellLum);
+            float3 cc, em; float al; shadeShell(t, fadeR, i, n, q, vt, wc, -sn * amp, hz, u, c0, axPerm(u.L0, ax), cc, al, em);
+            col += T * (al * cc + em); T *= (1.0 - al);
+            if (T < 0.01) { done = true; break; }
         }
     }
     while (!done && nt < 1e8) {                                             // 残りの層
+        nebSeg(tN, min(nt, u.maxD), p0, v, nr, jit, nz, u, col, T, nacc, nebW); tN = max(tN, min(nt, u.maxD));
         float3 lc, le; float la; shadeLayer(kind, idx, nt, p0, v, L, mk, u, lc, la, le, atlas);
         float aL = la * exp(-nt * u.fade), fgL = exp(-nt * u.fog);
         col += T * (aL * mix(lc, hz, 1.0 - fgL) + le * fgL * exp(-nt * u.fade)); T *= (1.0 - aL);
         nt = nextLayer(L, nt, lid, kind, idx, lid, u);
         if (T < 0.003) break;
     }
+    if (!done) nebSeg(tN, u.maxD, p0, v, nr, jit, nz, u, col, T, nacc, nebW);    // 残りの星雲
     float3 bg = bgc(dir, u.space);
     if (u.space == 1 && u.band > 0.0) {                                     // 天の川（青白）と、淡い星雲（赤紫）
         float g1 = bandGlow(p0, v, float4(0.0, 1.0, 0.0, 0.0), float4(0.0, 0.0, 1.0, 0.0), 0.16);
@@ -393,7 +528,15 @@ fragment float4 fmain(VOut in [[stage_in]], constant Uni& u [[buffer(0)]], const
     }
     col += T * mix(bg, hz, 1.0 - exp(-u.maxD * u.fog * 0.6));
     // 宇宙の時は、透けて残った割合 T をアルファに書く（あとで星を、その割合だけ足す）
-    return float4(pow(max(col, 0.0), float3(0.9)), u.space == 1 ? T : 1.0);
+    float3 cOut = split ? col - nacc : col;
+    return float4(pow(max(cOut, 0.0), float3(0.9)), u.space == 1 ? T : 1.0);
+}
+fragment float4 fmain(VOut in [[stage_in]], constant Uni& u [[buffer(0)]], constant Mk* mk [[buffer(1)]], constant float4* sh [[buffer(2)]], constant float4* uN [[buffer(3)]], constant float4* nb [[buffer(4)]], texture2d<float> atlas [[texture(0)]], texture3d<float> nz [[texture(1)]]) {
+    float3 na = float3(0.0); return sceneMain(in, u, mk, sh, uN, nb, atlas, nz, na, false);
+}
+struct SceneMRT { float4 c [[color(0)]]; float4 n [[color(1)]]; };
+fragment SceneMRT fmainMRT(VOut in [[stage_in]], constant Uni& u [[buffer(0)]], constant Mk* mk [[buffer(1)]], constant float4* sh [[buffer(2)]], constant float4* uN [[buffer(3)]], constant float4* nb [[buffer(4)]], texture2d<float> atlas [[texture(0)]], texture3d<float> nz [[texture(1)]]) {
+    float3 na = float3(0.0); SceneMRT o; o.c = sceneMain(in, u, mk, sh, uN, nb, atlas, nz, na, true); o.n = float4(max(na, 0.0), 1.0); return o;
 }
 
 // ---- 星（宇宙の時）：S³ の決まった点。自分から見える向きは 2 つ（近回り d と、反対向きの遠回り 2π − d）----
@@ -427,5 +570,56 @@ fragment float4 fstar(SOut in [[stage_in]], float2 pc [[point_coord]], constant 
     float r2 = dot(pc - 0.5, pc - 0.5) * 4.0;                           // 0 真ん中 〜 1 ふち
     float3 c = in.col * (exp(-r2 * 10.0) + 0.18 * exp(-r2 * 3.0)) * (1.0 - ss(0.7, 1.0, r2));
     return float4(min(c, float3(u.edr)), 0.0);                          // 明るい星は EDR の画面で 1 より明るく
+}
+
+// ---- 光の仕上げ（映画のような光）：景色を明るさを切らずに持ち（HDR）、あふれる光（ブルーム）を足し、色を締める（トーンマップ）----
+//   ブルーム：半分ずつ小さくしながら明るい所を集め（13 点、Jimenez 2014）、大きくしながら足し戻す（3×3 のテント）
+struct PostU { float2 src; float2 dst; float thr, knee, inten, expo; float head, grain, vign, time; int first, ppad0, ppad1, ppad2; };
+inline float3 toLin(float3 c) { return pow(max(c, 0.0), float3(2.2)); }   // 景色の色（画面の色）→ 光の量
+inline float3 dtap(texture2d<float> src, float2 uv, float2 d, float x, float y, int first) {
+    constexpr sampler sm(filter::linear, address::clamp_to_edge);
+    float3 c = src.sample(sm, uv + float2(x, y) * d).rgb;
+    return first == 1 ? min(toLin(c), float3(64.0)) : c;
+}
+fragment float4 fdown(VOut in [[stage_in]], texture2d<float> src [[texture(0)]], constant PostU& p [[buffer(0)]]) {
+    float2 uv = in.pos.xy / p.dst, d = 1.0 / p.src; int f1 = p.first;
+    float3 a = dtap(src, uv, d, -2, -2, f1), b = dtap(src, uv, d, 0, -2, f1), c = dtap(src, uv, d, 2, -2, f1);
+    float3 e = dtap(src, uv, d, -1, -1, f1), f = dtap(src, uv, d, 1, -1, f1);
+    float3 g = dtap(src, uv, d, -2, 0, f1), h = dtap(src, uv, d, 0, 0, f1), i = dtap(src, uv, d, 2, 0, f1);
+    float3 j = dtap(src, uv, d, -1, 1, f1), k = dtap(src, uv, d, 1, 1, f1);
+    float3 l = dtap(src, uv, d, -2, 2, f1), m = dtap(src, uv, d, 0, 2, f1), n = dtap(src, uv, d, 2, 2, f1);
+    float3 o = (e + f + j + k) * 0.125 + (a + b + g + h) * 0.03125 + (b + c + h + i) * 0.03125 + (g + h + l + m) * 0.03125 + (h + i + m + n) * 0.03125;
+    if (p.first == 1) {                                                 // 明るい所だけ（やわらかいしきい）
+        float br = max(o.r, max(o.g, o.b)), sk = clamp(br - p.thr + p.knee, 0.0, 2.0 * p.knee);
+        sk = sk * sk / (4.0 * p.knee + 1e-4);
+        o *= max(sk, br - p.thr) / max(br, 1e-4);
+    }
+    return float4(o, 1.0);
+}
+fragment float4 fup(VOut in [[stage_in]], texture2d<float> src [[texture(0)]], constant PostU& p [[buffer(0)]]) {
+    float2 uv = in.pos.xy / p.dst, d = 1.0 / p.src;
+    float3 o = dtap(src, uv, d, -1, -1, 0) + dtap(src, uv, d, 1, -1, 0) + dtap(src, uv, d, -1, 1, 0) + dtap(src, uv, d, 1, 1, 0)
+             + 2.0 * (dtap(src, uv, d, 0, -1, 0) + dtap(src, uv, d, -1, 0, 0) + dtap(src, uv, d, 1, 0, 0) + dtap(src, uv, d, 0, 1, 0)) + 4.0 * dtap(src, uv, d, 0, 0, 0);
+    return float4(o / 16.0, 1.0);
+}
+// 色の締め：ふつうの明るさ（肩 k まで）はそのまま、白より明るい所だけやわらかく丸めて上限 top へ（色ごとに丸めるので、明るい色ほど白く熱く）。
+//   景色の色はもともと画面の色で作ってあるので、ACES のように中間まで変えると平らに白っぽくなる
+inline float3 shoulder(float3 x, float k, float top) { float3 e = max(x - k, 0.0); return min(x, float3(k)) + (top - k) * (1.0 - exp(-e / (top - k))); }
+fragment float4 fcomp(VOut in [[stage_in]], texture2d<float> scene [[texture(0)]], texture2d<float> bloom [[texture(1)]], texture2d<float> neb [[texture(2)]], constant PostU& p [[buffer(0)]]) {
+    constexpr sampler sm(filter::linear, address::clamp_to_edge);
+    float2 uv = in.pos.xy / p.dst, px = 1.0 / p.dst;
+    // 星雲の光：刻みのざらつきを、まわり 13 点（半径 2.5 画素ほど）でならす
+    const float2 ofs[12] = { float2(1, 0), float2(-1, 0), float2(0, 1), float2(0, -1), float2(0.7, 0.7), float2(-0.7, 0.7), float2(0.7, -0.7), float2(-0.7, -0.7), float2(2, 0.5), float2(-2, -0.5), float2(0.5, -2), float2(-0.5, 2) };
+    float3 nc = neb.sample(sm, uv).rgb;
+    for (int i = 0; i < 12; i++) nc += neb.sample(sm, uv + ofs[i] * px * 1.4).rgb;
+    nc /= 13.0;
+    float3 sc = scene.read(uint2(in.pos.xy)).rgb;
+    float3 x = (toLin(sc + nc) + bloom.sample(sm, uv).rgb * p.inten) * p.expo;   // 星雲は景色と同じ画面の色で足してから、光の量へ
+    float3 y = shoulder(x, 0.8, max(1.0, p.head));                     // EDR の画面では、白より明るい所を余白の分だけさらに光らせる
+    float2 c = uv - 0.5; y *= 1.0 - p.vign * dot(c, c) * 1.6;           // まわりを少し暗く
+    float3 g = pow(max(y, 0.0), float3(1.0 / 2.2));
+    float r = fract(sin(dot(in.pos.xy + p.time * 61.7, float2(12.9898, 78.233))) * 43758.5453);
+    g += (r - 0.5) * p.grain * 0.035;                                   // フィルムの粒
+    return float4(g, 1.0);
 }
 """#
