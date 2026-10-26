@@ -572,7 +572,7 @@ struct PanelContent: View {
                 Toggle("右スティックの上下を反転", isOn: model.b(\.padInvY))
                 row("自走のアクセル", \.autoAccelK, 0.2, 2)
                 row("自走の最高速（倍）", \.autoMax, 1, 50, "%.1f")
-                Picker("ターボ（Z・十字の右）", selection: model.b(\.turboHold)) { Text("押すたびに切りかえ").tag(false); Text("押している間だけ").tag(true) }.pickerStyle(.segmented)
+                Picker("ターボ（Z・A・十字の右）", selection: model.b(\.turboHold)) { Text("押すたびに切りかえ").tag(false); Text("押している間だけ").tag(true) }.pickerStyle(.segmented)
                 row("自走の最低速（倍）", \.autoMin, 0, 10, "%.1f")
                 note("ブレーキで落とすのは最低速まで。0 なら止まって、まだ手前へ倒していると巻き戻し（最低速が 0 より大きい時は巻き戻さない）")
                 Toggle("自走で手前へ倒し続けると巻き戻し", isOn: model.b(\.autoRewind))
@@ -583,7 +583,7 @@ struct PanelContent: View {
                     }
                 }
                 note(r.game.names.isEmpty ? "コントローラー：つながっていない（Joy-Con などを Bluetooth でつなぐと使える）" : "コントローラー：" + r.game.names.joined(separator: "・"))
-                note("右スティック 進む向き・ZL＋右スティック 見回しだけ（地図は回らず水色の円すい。ZL を押して離すだけで前を見る）・左スティック 進む向きへ歩く・Y 前を見る（進む向きは変えない）・ZL＋Y この向きへ進む（Enter）・右スティック押し込み 前を見る（もう一度で水平）・左スティック押し込み（L3） 軌跡を消す・L/R 上下・ZR 速く・A 目印・B 歩き続ける・X 縦横無尽・十字の上下 殻の見える距離（歩き続ける・決まった道の間は、押し続けて速く・遅く）・十字の右 ターボ（いきなり最高速、もう一度で戻る）・＋ 設定・− 地図を出す・隠す")
+                note("右スティック 進む向き・ZL＋右スティック 見回しだけ（地図は回らず水色の円すい。ZL を押して離すだけで前を見る）・左スティック 進む向きへ歩く・Y 前を見る（進む向きは変えない）・ZL＋Y この向きへ進む（Enter）・右スティック押し込み 前を見る（もう一度で水平）・左スティック押し込み（L3） 軌跡を消す・L/R 上下・ZR 速く・A ターボ・B 歩き続ける・X 縦横無尽・十字の上下 殻の見える距離（歩き続ける・決まった道の間は、押し続けて速く・遅く）・十字の右 ターボ（いきなり最高速、もう一度で戻る）・＋ 設定・− 地図を出す・隠す")
             case .screen:
                 Toggle("60 fps 前後（144Hz の画面では 72）" + km.hint(.fps), isOn: model.b(\.fps60))
                 Toggle("足りない時だけ細かさを下げる", isOn: model.b(\.autoQ))

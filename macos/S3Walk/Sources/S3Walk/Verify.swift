@@ -629,12 +629,16 @@ enum Verify {
     static func mapBench() {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
         r.set = Settings(); r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 20 { r.step(1.0 / 60) }; r.walking = false
+        for r4 in [false, true] {
+        r.set.rainbow4 = r4; r.set.mapFollow = false; r.set.map2Follow = true
+        print(r4 ? "4 方向レインボー" : "レインボー")
         for (name, slot) in [("地図 1（ふつう・全体）", 0), ("地図 2（自分中心・全体）", 1)] {
             let m = MapRenderer(world: r, slot: slot); m.backingScale = 2
             _ = m.renderOffscreen(width: 1600, height: 1300)
             var cpu = 0.0, gpu = 0.0
             for _ in 0..<30 { r.cam.walk([0, 0, 1], 0.01); _ = m.renderOffscreen(width: 1600, height: 1300); cpu += m.lastCPU; gpu += m.lastGPU }
             print(String(format: "%@：CPU %.2f ms・GPU %.2f ms/コマ（1600×1300）", name, cpu / 30, gpu / 30))
+        }
         }
     }
 
@@ -838,6 +842,30 @@ enum Verify {
                     c.az = d["az"] as? Double ?? 30; c.el = d["el"] as? Double ?? 0
                 }
             }),
+            ("比べ4：4 方向・殻 24", { s, c in
+                if let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) {
+                    var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); s = us; s.shAxis = false; s.rainbow4 = true; s.shCap = 24; s.cine = false
+                    func v4(_ k: String) -> V4? { (d[k] as? [Double]).flatMap { $0.count == 4 ? V4($0[0], $0[1], $0[2], $0[3]) : nil } }
+                    if let p = v4("p"), let r = v4("r"), let u = v4("u"), let f = v4("f") { c.w = Walker(p: p, r: r, u: u, f: f); orthoFrame(&c.w) }
+                    c.az = d["az"] as? Double ?? 30; c.el = d["el"] as? Double ?? 0
+                }
+            }),
+            ("比べ4：4 方向・殻 16", { s, c in
+                if let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) {
+                    var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); s = us; s.shAxis = false; s.rainbow4 = true; s.shCap = 16; s.cine = false
+                    func v4(_ k: String) -> V4? { (d[k] as? [Double]).flatMap { $0.count == 4 ? V4($0[0], $0[1], $0[2], $0[3]) : nil } }
+                    if let p = v4("p"), let r = v4("r"), let u = v4("u"), let f = v4("f") { c.w = Walker(p: p, r: r, u: u, f: f); orthoFrame(&c.w) }
+                    c.az = d["az"] as? Double ?? 30; c.el = d["el"] as? Double ?? 0
+                }
+            }),
+            ("比べ4：4 方向・殻 12", { s, c in
+                if let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) {
+                    var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); s = us; s.shAxis = false; s.rainbow4 = true; s.shCap = 12; s.cine = false
+                    func v4(_ k: String) -> V4? { (d[k] as? [Double]).flatMap { $0.count == 4 ? V4($0[0], $0[1], $0[2], $0[3]) : nil } }
+                    if let p = v4("p"), let r = v4("r"), let u = v4("u"), let f = v4("f") { c.w = Walker(p: p, r: r, u: u, f: f); orthoFrame(&c.w) }
+                    c.az = d["az"] as? Double ?? 30; c.el = d["el"] as? Double ?? 0
+                }
+            }),
             ("網目の鮮やかさ 0（前）・宇宙・球層（立体）", { s, c in s = Settings(); s.space = true; s.shellSolid = true; s.solidWire = 0.46; s.lineViv = 0; c.az = 20; c.el = 8; c.walk([0, 0, 1], 0.25) }),
             ("網目の鮮やかさ 0（前）・深海・球層", { s, c in s = Settings(); s.lineViv = 0; c.az = 20; c.el = 8; c.walk([0, 0, 1], 0.25) }),
             ("網目の鮮やかさ 0.6（新しい既定）・宇宙・球層（立体）", { s, c in s = Settings(); s.space = true; s.shellSolid = true; s.solidWire = 0.46; s.lineViv = 0.6; c.az = 20; c.el = 8; c.walk([0, 0, 1], 0.25) }),
@@ -914,7 +942,7 @@ enum Verify {
         if ProcessInfo.processInfo.environment["S3_BENCH_USER"] != nil,    // アプリに保存してある設定のままで、レインボーと軸色
            let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key)?["set"] as? [String: Any] ?? UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) {
             var us = Settings(); us.load(d); us.autoQ = false
-            cases = [("あなたの設定・レインボー", { $0 = us; $0.shAxis = false; $0.rainbow4 = false }), ("あなたの設定・4 方向レインボー", { $0 = us; $0.shAxis = false; $0.rainbow4 = true }), ("あなたの設定・軸色", { $0 = us; $0.shAxis = true }), ("あなたの設定・軸色 w だけ", { $0 = us; $0.shAxis = true; $0.shAxX = false; $0.shAxY = false; $0.shAxZ = false }), ("あなたの設定・軸色 x と w", { $0 = us; $0.shAxis = true; $0.shAxY = false; $0.shAxZ = false }), ("あなたの設定・軸色・立体でない", { $0 = us; $0.shAxis = true; $0.shellSolid = false })]
+            cases = [("あなたの設定・レインボー", { $0 = us; $0.shAxis = false; $0.rainbow4 = false }), ("あなたの設定・4 方向レインボー", { $0 = us; $0.shAxis = false; $0.rainbow4 = true }), ("4 方向・重ねる殻 12", { $0 = us; $0.shAxis = false; $0.rainbow4 = true; $0.shCap = 12 }), ("4 方向・目印の線なし", { $0 = us; $0.shAxis = false; $0.rainbow4 = true; $0.wireFloor = 0 }), ("4 方向・殻の見える距離 4", { $0 = us; $0.shAxis = false; $0.rainbow4 = true; $0.shellRange = 4 }), ("あなたの設定・軸色", { $0 = us; $0.shAxis = true }), ("あなたの設定・軸色 w だけ", { $0 = us; $0.shAxis = true; $0.shAxX = false; $0.shAxY = false; $0.shAxZ = false }), ("あなたの設定・軸色 x と w", { $0 = us; $0.shAxis = true; $0.shAxY = false; $0.shAxZ = false }), ("あなたの設定・軸色・立体でない", { $0 = us; $0.shAxis = true; $0.shellSolid = false })]
         }
         if ProcessInfo.processInfo.environment["S3_BENCH_AX"] != nil {     // 軸色の球層だけ
             cases = [("ふつうに起動（レインボー）", { $0 = Settings() }), ("軸色（x・y・z・w）", { $0 = Settings(); $0.shAxis = true }),

@@ -2,7 +2,7 @@
 //   見回し（頭だけ）と進む向きは別（ウェブ版と同じ）。右スティック 進む向きを変える（矢印キー・Shift＋ドラッグ）、
 //   ZL を押しながら右スティック 見回しだけ（ZL を押して離すだけで前を見る。マウスのドラッグ。地図は回らず、水色の円すいが見ている向き）、左スティック 進む向きへ歩く（W・S・A・D。手前に倒すと後ろへ）、
 //   倒しきったままだと加速、左スティックを押し込む（L3） 軌跡（道すじ・足あと）を消す、Y・右スティックを押し込む 前を見る（進む向きは変えない。もう一度で水平にも）、ZL を押しながら Y この向きへ進む（Enter）、
-//   L・R 上・下、ZR 速く、A 目印を置く、B 歩き続ける、X 縦横無尽、
+//   L・R 上・下、ZR 速く、A ターボ（十字の右と同じ）、B 歩き続ける、X 縦横無尽、
 //   十字 上下 殻の見える距離（決まった道の間は、押し続けると速く・遅く）、十字の右 ターボ（いきなり最高速、もう一度で戻る）、メニュー（＋） 設定、オプション（−） 地図を出す・隠す。Joy-Con を 1 本だけ横持ちした時は、十字（スティック）で歩き、A・X が使える
 import Foundation
 import GameController
@@ -30,6 +30,8 @@ final class GameInput {
     }
     /// 十字の右を押している（ターボを押している間だけの時）
     func dpadRight() -> Bool { GCController.controllers().contains { $0.extendedGamepad?.dpad.right.isPressed == true } }
+    /// ターボのボタン（A か十字の右）を押している
+    func turboButtonHeld() -> Bool { GCController.controllers().contains { g in g.extendedGamepad.map { $0.dpad.right.isPressed || $0.buttonA.isPressed } ?? false } }
     /// 毎コマ読む：歩く向き（右・上・前）、向きの変わり（方位・仰角、度／秒）、速く、左スティックを押し込んでいる（L3）、ZL（右スティックで見回しだけ）
     func read() -> (move: SIMD3<Double>, look: SIMD2<Double>, fast: Bool, push: Bool, lookOnly: Bool) {
         if let fake { return fake }

@@ -138,7 +138,7 @@ final class AppModel: ObservableObject {
     /// コントローラーのボタン
     func pad(_ k: String) {
         switch k {
-        case "A": r.addMark()
+        case "A": r.turboPress(pad: true)                           // A：ターボ（十字の右と同じ。目印は M キーかパネルで）
         case "B": r.walking.toggle(); r.roaming = false
         case "X": r.roaming.toggle(); r.walking = false; say(r.roaming ? "縦横無尽：どこへ進んでも、いつか戻ってくる" : "縦横無尽をやめた")
         case "Y": r.padY()
@@ -407,6 +407,32 @@ struct PosReadout: View {
     }
 }
 
+/// 向きの表示（地図の右上、位置の下）：方位・仰角（進む向き）と、見回し（頭だけ、横 / 縦）。リアルタイムに
+struct AngleReadout: View {
+    let r: Renderer
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+            let c = r.cam
+            HStack(spacing: 8) {
+                item("方位", c.az); item("仰角", c.el)
+                HStack(spacing: 3) {
+                    Text("見回し").foregroundStyle(Space.slate)
+                    Text(String(format: "%+.0f° / %+.0f°", c.hy, c.hp)).monospacedDigit().foregroundStyle(abs(c.hy) > 0.5 || abs(c.hp) > 0.5 ? Space.sky : .white.opacity(0.9)).lineLimit(1).fixedSize()
+                }
+            }
+            .font(.caption).padding(.horizontal, 9).padding(.vertical, 3)
+            .background(Space.panel.opacity(0.85), in: Capsule()).overlay(Capsule().stroke(Space.line))
+            .help("方位・仰角：進む向き（体の前からの左右・上下）。見回し：頭だけ回した角度（横 / 縦。進む向きは変えない）")
+        }
+    }
+    func item(_ name: String, _ v: Double) -> some View {
+        HStack(spacing: 3) {
+            Text(name).foregroundStyle(Space.slate)
+            Text(String(format: "%+.0f°", v)).monospacedDigit().foregroundStyle(.white.opacity(0.9)).lineLimit(1).fixedSize()
+        }
+    }
+}
+
 struct AxisLengths: View {
     let map: MapRenderer
     var model: AppModel? = nil
@@ -466,10 +492,6 @@ struct OneMap: View {
                         .padding(.horizontal, 10).padding(.vertical, 4).background(Space.panel.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
                         .overlay(RoundedRectangle(cornerRadius: 10).stroke(bc.opacity(0.3)))
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        if slot != 2 && model.r.set.mapAxes { AxisLengths(map: model.renderer(slot), model: model) }
-                        if slot == 0 { PosReadout(r: model.r) }
-                    }
                     HStack(spacing: 6) {
                         Button { model.renderer(slot).home() } label: { Image(systemName: "scope") }.help("地図を元の向きに（ダブルクリックでも）")
                         if slot != 2 {
@@ -504,6 +526,14 @@ struct OneMap: View {
                         }
                     }
                     .buttonStyle(.borderless).padding(5).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 7))
+                }
+                // 軸の長さ・位置・向き：見出しの下の右に、1 つずつの行で（地図が細くても縮めない）
+                HStack {
+                    Spacer(minLength: 0)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        if slot != 2 && model.r.set.mapAxes { AxisLengths(map: model.renderer(slot), model: model).fixedSize() }
+                        if slot == 0 { PosReadout(r: model.r).fixedSize(); AngleReadout(r: model.r).fixedSize() }
+                    }
                 }
                 Spacer()
                 if slot != 2 { HStack {

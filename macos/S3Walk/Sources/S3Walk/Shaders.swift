@@ -561,7 +561,9 @@ void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float w
     float3 c = c0;
     float rimK = clamp(1.0 - abs(cv), 0.0, 1.0);
     float3 sp0 = q.xyz * iS, sp = float3(dot(u.G0.xyz, sp0), dot(u.G1.xyz, sp0), dot(u.G2.xyz, sp0));   // 網目の枠へ（傾き・自転）
-    float2 gg = u.shellBare == 1 ? float2(0.0) : gridLine15(asin(clamp(sp.z, -1.0, 1.0)), atan2(sp.y, sp.x), length(sp.xy), pixFoot(t, cv, 1.0 / iS, u), u);   // 網目（cos 緯度 ＝ xy の長さ）
+    // 緯度・経度・1 画素の大きさは 1 回だけ計算（網目と目印の線の両方で使う）
+    float latS = asin(clamp(sp.z, -1.0, 1.0)), lonS = atan2(sp.y, sp.x), cosS = length(sp.xy), fpS = pixFoot(t, cv, 1.0 / iS, u);
+    float2 gg = u.shellBare == 1 ? float2(0.0) : gridLine15(latS, lonS, cosS, fpS, u);   // 網目（cos 緯度 ＝ xy の長さ）
     float g = gg.x;
     // 線の芯の色（EDR の画面では 1 より明るく）。鮮やかさ lineViv：暗い色の持ち上げで白っぽくなった色を、地図の色味（純色に近い）へ戻して少し明るく
     float lum0 = dot(c0, float3(0.299, 0.587, 0.114));
@@ -594,8 +596,8 @@ void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float w
     //   遠くて網目の間が数画素より細かくなる所は、線が面のようにつぶれるので薄くする
     float gK = u.wireFloor * clamp(log10(max(u.uni, 1.0)), 0.0, 1.0);
     if (gK > 0.0 && u.shellBare == 0) {
-        float st = u.gridSt, fp = pixFoot(t, cv, 1.0 / iS, u);
-        float da = abs(fract(asin(clamp(sp.z, -1.0, 1.0)) / st + 0.5) - 0.5) * st, db = abs(fract(atan2(sp.y, sp.x) / st + 0.5) - 0.5) * st * length(sp.xy);
+        float st = u.gridSt, fp = fpS;
+        float da = abs(fract(latS / st + 0.5) - 0.5) * st, db = abs(fract(lonS / st + 0.5) - 0.5) * st * cosS;
         float gl = clamp(1.0 - min(da, db) / max(0.8 * fp, 1e-6), 0.0, 1.0) * (1.0 - ss(0.04, 0.16, fp / st));
         // もやで消える所だけに出す（近くのもやの手前の殻には重ねない。前は近くの殻にも重なって、少し動くと殻ごとの線が七色の帯に見えた）
         float aG = gK * gl * fadeR * (1.0 - fg);
@@ -818,7 +820,9 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
             if (T < 0.003) { done = true; break; }
             float fadeR = clamp(1.0 - t / u.shellRange, 0.0, 1.0); fadeR *= fadeR * (3.0 - 2.0 * fadeR);   // 遠い殻ほど薄く、見える距離で 0
             fadeR *= ss(0.004, 0.04, t);                                    // ちょうど殻の上にいる時は消す
-            if (T * fadeR < 0.003) continue;                                // 目に見えないほど薄い殻（1/255 未満）は、色を計算しない
+            if (T * fadeR < 0.003) { if (t > 0.05) break; continue; }      // 目に見えないほど薄い殻は計算しない。遠いほど薄くなるだけなので、この先も全部見えない（打ち切る）
+            // もやで見えなくなった殻：目印の線（もやで消さない線）が無ければ、この先の殻も全部見えない（打ち切る）。宇宙の時は透けて消え、深海の時はもやの色と同じになる
+            if (u.wireFloor * clamp(log10(max(u.uni, 1.0)), 0.0, 1.0) <= 0.0 && T * fadeR * exp(-t * u.fog) < 0.004) break;
             float cs = wc * ia, sn = sqrt(max(0.0, 1.0 - cs * cs)); if (!dec) sn = -sn;
             float4 q = cs * E1 + sn * E2, vt = -sn * E1 + cs * E2;
             float3 c0 = (u.shAx == 0 || (u.shAx & 16) != 0) ? sh[i].yzw : axisShellCol(ax, i, n, u.shellLum);
@@ -826,7 +830,8 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
             if ((u.shAx & 16) != 0) { al *= 0.4; em *= 0.5; }              // 4 方向レインボー：殻が 4 倍重なるので 1 枚ずつ薄く（白っぽく埋まらないように）
             col += T * (al * cc + em); T *= (1.0 - al);
             if (T < 0.01) { done = true; break; }
-            if (++hits >= max(8, u.passes >> 8)) break;
+            // 4 方向レインボーは 1 枚ずつ薄いので、手前 16 枚までで十分（奥は見た目がほとんど変わらない。重さは枚数にほぼ比例）
+            if (++hits >= ((u.shAx & 16) != 0 ? min(16, max(8, u.passes >> 8)) : max(8, u.passes >> 8))) break;
         }
     }
 #else

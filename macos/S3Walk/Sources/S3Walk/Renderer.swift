@@ -822,7 +822,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// 押している間だけの時：キーもボタンも離したら元の速さに
     func turboRelease() {
         guard turboHolding else { return }
-        let held = (turboKey.map { keys.contains($0) } ?? false) || (turboPadHeld && set.gamepad && game.dpadRight())
+        let held = (turboKey.map { keys.contains($0) } ?? false) || (turboPadHeld && set.gamepad && game.turboButtonHeld())
         if !held { turboHolding = false; turboKey = nil; turboPadHeld = false; turbo() }
     }
     func turbo() {
