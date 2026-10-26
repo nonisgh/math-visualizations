@@ -3,6 +3,8 @@
 //     カタ極ではアナ極と東西逆に曲がる（S³ では曲がる回転の軸を前とそろえる）。地図の軌跡が、だんだん球を埋めていく
 //   極めぐり：アナ極から、となり合う極（90° はなれている）だけをたどって 8 つの極を全部回り、アナ極に戻る（アナ→東→北→天→カタ→西→南→地→アナ）。
 //     90° × 8 本＝4π がいちばん短い 1 周。毎回 90° のターンで、ずっとくり返す。S² の仲間は 6 つの極を同じように回る
+//   超立方体・二十四胞体：4 次元の正多胞体の頂点（S³ の上）を、辺（60° の大円の弧）に沿って、全部の辺を 1 回ずつ通る一筆書き（オイラー回路）でたどる。
+//     どの頂点でもなるべくまっすぐ進む辺を選ぶ。S² の仲間は、極めぐりと同じ 6 つの極を、辺の長さの比（90° ÷ 60°）だけ速く回る
 //   曲がり方：スムーズ＝来た道と次の道を漸近線にした双曲線で、極を少しよけながら少しずつ曲がる。直角＝極までまっすぐ進み、その場で向きを変えて、まっすぐ出る
 import Foundation
 import simd
@@ -122,6 +124,38 @@ enum TurnGeo {
     static let R3: [Vn] = [[0, 0, 0, 1], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0]]
     static let R2: [Vn] = [[0, 0, 1], [1, 0, 0], [0, 1, 0], [0, 0, -1], [-1, 0, 0], [0, -1, 0]]
     static let R3name = ["アナ極", "東極", "北極", "天極", "カタ極", "西極", "南極", "地極"], R2name = ["アナ極", "東極", "北極", "カタ極", "西極", "南極"]
+
+    /// 超立方体（正八胞体）の 16 頂点：(±1, ±1, ±1, ±1)／2。はじめは (+, +, +, +)／2（アナ極にいちばん近い 1 つ）
+    static let cubeVerts: [Vn] = (0..<16).map { b in (0..<4).map { i in (b >> (3 - i)) & 1 == 0 ? 0.5 : -0.5 } }
+    /// 二十四胞体の 24 頂点：(±1, ±1, 0, 0)／√2 を並べかえたもの。はじめは (1, 0, 0, 1)／√2（東極とアナ極のまん中）
+    static let cell24Verts: [Vn] = {
+        let h = 0.5.squareRoot(); var out: [Vn] = []
+        for i in 0..<4 { for j in (i + 1)..<4 { for si in [1.0, -1.0] { for sj in [1.0, -1.0] { var v = Vn(repeating: 0, count: 4); v[i] = si * h; v[j] = sj * h; out.append(v) } } } }
+        let k = out.firstIndex { abs($0[0] - h) < 1e-9 && abs($0[3] - h) < 1e-9 }!
+        out.swapAt(0, k); return out
+    }()
+    /// 辺（となり＝内積 1/2、60°）を全部 1 回ずつ通る一筆書き（オイラー回路、ヒールホルツァー）。分かれ道では、着いた向きにいちばんまっすぐ出る辺を選ぶ。
+    ///   戻り値は通る頂点の並び（最後の頂点の次は最初へ戻る）
+    static func edgeTour(_ V: [Vn]) -> [Vn] {
+        let n = V.count
+        let adj = (0..<n).map { i in (0..<n).filter { j in j != i && abs(vdot(V[i], V[j]) - 0.5) < 1e-6 } }
+        func key(_ a: Int, _ b: Int) -> Int { min(a, b) * n + max(a, b) }
+        func tangent(_ from: Vn, _ to: Vn) -> Vn { vnrm(vadd(to, from, -vdot(to, from))) }
+        var used = Set<Int>(), stack = [0], circuit: [Int] = []
+        while let v = stack.last {
+            let cands = adj[v].filter { !used.contains(key(v, $0)) }
+            if cands.isEmpty { circuit.append(stack.removeLast()); continue }
+            var best = cands[0]
+            if stack.count >= 2 {
+                let a = vscl(tangent(V[v], V[stack[stack.count - 2]]), -1)        // 着いた向き（来た頂点から遠ざかる向き）
+                best = cands.max { vdot(a, tangent(V[v], V[$0])) < vdot(a, tangent(V[v], V[$1])) }!
+            }
+            used.insert(key(v, best)); stack.append(best)
+        }
+        let seq = circuit.reversed().map { V[$0] }
+        return Array(seq.dropLast())                                           // 最後は最初と同じ頂点
+    }
+    static let cubeTour = edgeTour(cubeVerts), cell24Tour = edgeTour(cell24Verts)
 }
 
 /// ターン 1 回ぶん（S³ と S² の表、直角の時の向きの回し）
@@ -141,6 +175,10 @@ struct TurnWalk {
     var T = 0.002, nx = 1, half: (lap: Int, run: TurnRun)? = nil, turning = false
     // 極めぐり
     var leg = 0, P: Vn = [0, 0, 0, 1], b: Vn = [1, 0, 0, 0], P2: Vn = [0, 0, 1], b2: Vn = [1, 0, 0], s = 0.002, plan: (TurnRun, Int)? = nil, tourTurn = false
+    /// めぐる頂点の並び（極めぐりは 8 つの極、超立方体・二十四胞体は一筆書きの順）と、辺の長さ（角度）
+    var tv: [Vn] = TurnGeo.R3, alpha = Double.pi / 2
+    /// S² の仲間の速さの倍率（S² は 90° の辺を、S³ の 1 本の間に回る）
+    var k2: Double { Double.pi / 2 / alpha }
 }
 
 extension Renderer {
@@ -160,13 +198,17 @@ extension Renderer {
     }
     // ---- 極めぐり ----
     private func tourPlan() -> TurnRun {
-        let LEN = Double.pi / 2, t = turn
+        let t = turn, LEN = t.alpha, LEN2 = Double.pi / 2, k2 = t.k2
         let Q = vadd(vscl(t.P, cos(LEN)), t.b, sin(LEN)), a = vnrm(vadd(vscl(t.P, -sin(LEN)), t.b, cos(LEN)))
-        let Q2 = vadd(vscl(t.P2, cos(LEN)), t.b2, sin(LEN)), a2 = vnrm(vadd(vscl(t.P2, -sin(LEN)), t.b2, cos(LEN)))
-        let T3 = TurnGeo.R3[(t.leg + 2) % 8], T2 = TurnGeo.R2[(t.leg + 2) % 6]
-        let E3 = TurnGeo.basis(Q, a), E2 = TurnGeo.basis(Q2, a2), u3 = E3.map { vdot(T3, $0) }, u2 = E2.map { vdot(T2, $0) }
-        let f3: Vn = [1, 0, 0], f2: Vn = [1, 0], L = min(0.75, max(TurnGeo.hypL(f3, u3), TurnGeo.hypL(f2, u2)))
-        let run = TurnRun(L: L, h3: TurnGeo.turn(f3, u3, L, 240, sharp: set.turnSharp), h2: TurnGeo.turn(f2, u2, L, 240, sharp: set.turnSharp), sharp: set.turnSharp,
+        let Q2 = vadd(vscl(t.P2, cos(LEN2)), t.b2, sin(LEN2)), a2 = vnrm(vadd(vscl(t.P2, -sin(LEN2)), t.b2, cos(LEN2)))
+        let T3 = t.tv[(t.leg + 2) % t.tv.count], T2 = TurnGeo.R2[(t.leg + 2) % 6]
+        let tt = vnrm(vadd(T3, Q, -vdot(T3, Q)))                           // Q で、次の頂点へ向かう向き（極めぐりでは T3 そのもの）
+        let E3 = TurnGeo.basis(Q, a), E2 = TurnGeo.basis(Q2, a2), u3 = E3.map { vdot(tt, $0) }, u2 = E2.map { vdot(T2, $0) }
+        // 入る距離：辺の半分より短く（次のターンと重ならないように）。60° の辺（超立方体・二十四胞体）は辺の 2 割ほど手前から曲がり、頂点のそばで曲がる
+        //   （長く曲がると辺がほとんどカーブになって、骨組みがぼやける）。S² の表は S² の長さで（k2 倍）
+        let cap = LEN < Double.pi / 2 - 1e-6 ? LEN * 0.22 : min(0.75, LEN / 2 - 0.02)
+        let f3: Vn = [1, 0, 0], f2: Vn = [1, 0], L = min(cap, max(TurnGeo.hypL(f3, u3), TurnGeo.hypL(f2, u2) / k2))
+        let run = TurnRun(L: L, h3: TurnGeo.turn(f3, u3, L, 240, sharp: set.turnSharp), h2: TurnGeo.turn(f2, u2, L * k2, 240, sharp: set.turnSharp), sharp: set.turnSharp,
                           to3: { TurnGeo.fromFlat(Q, E3, $0) }, to2: { TurnGeo.fromFlat(Q2, E2, $0) })
         return run
     }
@@ -179,9 +221,18 @@ extension Renderer {
             let (p, p2) = hPoint(turn.T); cam.w.p = p; journey.w2.p = p2; orthoFrame(&cam.w); orthoW2()
             say?("半周 180°：アナ極→カタ極→アナ極と経線を進み、両方の極でターン（" + (set.turnSharp ? "直角" : "スムーズ") + "）")
         } else {
-            let s = turn.s
-            cam.w.p = v4(vadd(vscl(turn.P, cos(s)), turn.b, sin(s))); journey.w2.p = v3(vadd(vscl(turn.P2, cos(s)), turn.b2, sin(s))); orthoFrame(&cam.w); orthoW2()
-            say?("極めぐり：となりの極だけをたどって 8 つの極を回る（" + (set.turnSharp ? "直角" : "スムーズ") + "）")
+            if m == .cube || m == .cell24 {
+                turn.tv = m == .cube ? TurnGeo.cubeTour : TurnGeo.cell24Tour; turn.alpha = Double.pi / 3
+                turn.P = turn.tv[0]; turn.b = vnrm(vadd(turn.tv[1], turn.P, -vdot(turn.tv[1], turn.P)))
+            }
+            let s = turn.s, k2 = turn.k2
+            cam.w.p = v4(vadd(vscl(turn.P, cos(s)), turn.b, sin(s))); journey.w2.p = v3(vadd(vscl(turn.P2, cos(s * k2)), turn.b2, sin(s * k2))); orthoFrame(&cam.w); orthoW2()
+            let sh = set.turnSharp ? "直角" : "スムーズ"
+            switch m {
+            case .cube: say?("超立方体の辺めぐり：16 の頂点を 60° の辺でつなぐ 32 本を、一筆書きで全部通る（\(sh)）")
+            case .cell24: say?("二十四胞体の辺めぐり：24 の頂点を 60° の辺でつなぐ 96 本を、一筆書きで全部通る（\(sh)）")
+            default: say?("極めぐり：となりの極だけをたどって 8 つの極を回る（\(sh)）")
+            }
         }
     }
 
@@ -261,14 +312,14 @@ extension Renderer {
                 return
             }
             let (q, q2) = hPoint(turn.T); turnGo(q, q2)
-        } else if pathMode == .tour {
-            let LEN = Double.pi / 2
+        } else if pathMode.isPolytope {
+            let LEN = turn.alpha, k2 = turn.k2, n = turn.tv.count
             if turn.tourTurn, var tu = turn.plan?.0 {
                 let done = turnStepRun(&tu, ds); turn.plan?.0 = tu
                 if done {
                     let k = turn.leg + 2
                     turn.tourTurn = false; turn.leg += 1
-                    turn.P = tu.to3(vscl([1, 0, 0], 0)); turn.b = TurnGeo.R3[k % 8]
+                    turn.P = tu.to3(vscl([1, 0, 0], 0)); let T = turn.tv[k % n]; turn.b = vnrm(vadd(T, turn.P, -vdot(T, turn.P)))   // 次の頂点へ向かう向き
                     turn.P2 = tu.to2(vscl([1, 0], 0)); turn.b2 = TurnGeo.R2[k % 6]
                     turn.s = tu.L; turn.plan = nil
                 }
@@ -278,13 +329,21 @@ extension Renderer {
             if turn.plan == nil && turn.s >= LEN - 0.75 { turn.plan = (tourPlan(), turn.leg) }
             if let pl = turn.plan, LEN - turn.s <= pl.0.L {   // ターンに入る
                 turn.s = LEN - pl.0.L
-                turnGo(v4(vadd(vscl(turn.P, cos(turn.s)), turn.b, sin(turn.s))), v3(vadd(vscl(turn.P2, cos(turn.s)), turn.b2, sin(turn.s))))
+                turnGo(v4(vadd(vscl(turn.P, cos(turn.s)), turn.b, sin(turn.s))), v3(vadd(vscl(turn.P2, cos(turn.s * k2)), turn.b2, sin(turn.s * k2))))
                 turn.tourTurn = true; turn.plan!.0.f = 0
-                let i = (turn.leg + 1) % 8, j = (turn.leg + 2) % 8, i2 = (turn.leg + 1) % 6, j2 = (turn.leg + 2) % 6
-                say?("\(TurnGeo.R3name[i])で 90° ターン → \(TurnGeo.R3name[j])へ（S² では \(TurnGeo.R2name[i2]) → \(TurnGeo.R2name[j2])）")
+                let i = (turn.leg + 1) % 6, j = (turn.leg + 2) % 6
+                if pathMode == .tour {
+                    let i3 = (turn.leg + 1) % 8, j3 = (turn.leg + 2) % 8
+                    say?("\(TurnGeo.R3name[i3])で 90° ターン → \(TurnGeo.R3name[j3])へ（S² では \(TurnGeo.R2name[i]) → \(TurnGeo.R2name[j])）")
+                } else {
+                    // 曲がる角：着いた向きと、次の辺へ出る向きの間
+                    let Q = turn.tv[(turn.leg + 1) % n], T = turn.tv[(turn.leg + 2) % n], A = vnrm(vadd(vscl(turn.P, -sin(LEN)), turn.b, cos(LEN))), out = vnrm(vadd(T, Q, -vdot(T, Q)))
+                    let deg = acos(cl1(vdot(A, out))) / d2r, edge = (turn.leg + 1) % n + 1
+                    if edge == 1 || edge % 8 == 0 || deg > 100 { say?(String(format: "%d 本目の辺へ（全部で %d 本）：%.0f° ターン", edge + 1 > n ? 1 : edge + 1, n, deg)) }
+                }
                 return
             }
-            turnGo(v4(vadd(vscl(turn.P, cos(turn.s)), turn.b, sin(turn.s))), v3(vadd(vscl(turn.P2, cos(turn.s)), turn.b2, sin(turn.s))))
+            turnGo(v4(vadd(vscl(turn.P, cos(turn.s)), turn.b, sin(turn.s))), v3(vadd(vscl(turn.P2, cos(turn.s * k2)), turn.b2, sin(turn.s * k2))))
         }
     }
 }

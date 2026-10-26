@@ -4,8 +4,14 @@
 import Foundation
 import simd
 
-/// 決まった道：螺旋・回る輪（この下）、半周 180° のターン・極めぐり（Turns.swift）
-enum PathMode: Int { case none = 0, spiral = 1, ring = 2, half = 3, tour = 4 }
+/// 決まった道：螺旋・回る輪（この下）、半周 180° のターン・極めぐり・超立方体と二十四胞体の辺めぐり（Turns.swift）
+enum PathMode: Int {
+    case none = 0, spiral = 1, ring = 2, half = 3, tour = 4, cube = 5, cell24 = 6
+    /// ターンの道（Turns.swift の turnStep で進む）
+    var isTurn: Bool { self == .half || self == .tour || self == .cube || self == .cell24 }
+    /// 正多胞体の辺をたどる道（極めぐり＝正十六胞体・超立方体・二十四胞体）
+    var isPolytope: Bool { self == .tour || self == .cube || self == .cell24 }
+}
 
 struct PathWalk {
     var th = 0.002, lap = 0            // 螺旋
@@ -39,7 +45,7 @@ extension Renderer {
     /// 決まった道を歩き始める（アナ極から）
     func startPath(_ m: PathMode) {
         pathSpeed = 1
-        if m == .half || m == .tour { startTurn(m); return }
+        if m.isTurn { startTurn(m); return }
         resetNorth(); pathMode = m; path = PathWalk()
         if m == .ring {
             if set.ringAxis == 3 { cam.w = Walker(p: [0, 0, 1, 0], r: [0, -1, 0, 0], u: [0, 0, 0, 1], f: [1, 0, 0, 0]) }   // +z から出発。体の上＝アナ極の向き

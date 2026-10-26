@@ -438,8 +438,13 @@ struct PanelContent: View {
                     if v == 0 { r.pathMode = .none } else { r.startPath(PathMode(rawValue: v)!) }; model.changed() })) {
                     Text("なし").tag(0); Text("螺旋").tag(1); Text("回る輪").tag(2); Text("半周 180°").tag(3); Text("極めぐり").tag(4)
                 }.pickerStyle(.segmented)
-                if r.pathMode == .none || r.pathMode == .half || r.pathMode == .tour {
+                Picker("辺めぐり", selection: Binding(get: { r.pathMode.rawValue >= 5 ? r.pathMode.rawValue : 0 }, set: { v in
+                    if v == 0 { if r.pathMode.rawValue >= 5 { r.pathMode = .none } } else { r.startPath(PathMode(rawValue: v)!) }; model.changed() })) {
+                    Text("−").tag(0); Text("超立方体（16 頂点・32 辺）").tag(5); Text("二十四胞体（24 頂点・96 辺）").tag(6)
+                }.pickerStyle(.segmented)
+                if r.pathMode == .none || r.pathMode == .half || r.pathMode.isPolytope {
                     Picker("曲がり方", selection: model.b(\.turnSharp)) { Text("スムーズ").tag(false); Text("直角").tag(true) }.pickerStyle(.segmented)
+                    note("超立方体・二十四胞体：4 次元の正多胞体の頂点（S³ の上の点）を、辺（60° の大円の弧）に沿って一筆書きで、全部の辺を 1 回ずつ通る（超立方体 32 本・二十四胞体 96 本）。地図に骨組みがまるごと描かれる。全部を残すには「残す軌跡」を 0 に（地図のパネル）。光の線の跡は古い所ほど暗く消えるので、骨組みを全部見るには光の線をオフに")
                     note("半周 180°：アナ極→カタ極→アナ極と経線を進み、両方の極でターン（すきまの大きい向きへ。地図の軌跡がだんだん球を埋める）。極めぐり：となりの極だけをたどって 8 つの極を回る（アナ→東→北→天→カタ→西→南→地）。スムーズは双曲線で極を少しよけ、直角は極でその場で向きを変える（次の曲がり角から）")
                 }
                 if r.pathMode == .none || r.pathMode == .spiral {

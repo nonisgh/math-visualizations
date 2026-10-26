@@ -72,6 +72,25 @@ enum Verify {
 
     // ---- ターンの道：ウェブ版の fillStep・fqStep を node で動かした点（refs/turn_*.json、refs/turn_ref.js で作る。4000 コマ・ds 0.005・40 コマおき）と比べる ----
     static func turnChecks(_ r: Renderer) {
+        // 超立方体・二十四胞体の辺めぐり：となりどうし（60°）だけを進み、全部の辺を 1 回ずつ通って、最初の頂点へ戻る
+        for (name, V, T, E) in [("超立方体", TurnGeo.cubeVerts, TurnGeo.cubeTour, 32), ("二十四胞体", TurnGeo.cell24Verts, TurnGeo.cell24Tour, 96)] {
+            var edges = Set<String>(), adjOK = true
+            for i in 0..<T.count {
+                let a = T[i], b = T[(i + 1) % T.count], d = zip(a, b).map(*).reduce(0, +)
+                if abs(d - 0.5) > 1e-9 { adjOK = false }
+                let ia = V.firstIndex(of: a)!, ib = V.firstIndex(of: b)!; edges.insert("\(min(ia, ib))-\(max(ia, ib))")
+            }
+            check(adjOK && T.count == E && edges.count == E && V.count == (E == 32 ? 16 : 24), "\(name)の辺めぐり：\(V.count) 頂点・\(T.count) 本の辺を、となりどうし（60°）だけで、どれも 1 回ずつ（ちがう辺 \(edges.count) 本）")
+            // 歩いて 1 周したら、全部の頂点のそば（0.15 以内）を通る
+            r.set = .plain; r.startPath(E == 32 ? .cube : .cell24)
+            var near = Array(repeating: false, count: V.count)
+            for _ in 0..<Int(Double(E) * Double.pi / 3 / 0.01 * 1.05) {
+                r.turnStep(0.01); let p = r.cam.w.p
+                for (k, v) in V.enumerated() where !near[k] { let d: Double = dot4(p, V4(v[0], v[1], v[2], v[3])); if acos(max(-1, min(1, d))) < 0.15 { near[k] = true } }
+            }
+            r.pathMode = .none
+            check(near.allSatisfy { $0 }, "\(name)の辺めぐりを 1 周歩くと、全部の頂点のそば（0.15 以内）を通る（\(near.filter { $0 }.count)／\(V.count)）")
+        }
         for (mode, st) in [("tour", "smooth"), ("tour", "sharp"), ("half", "smooth"), ("half", "sharp")] {
             guard let d = try? Data(contentsOf: refsDir().appendingPathComponent("turn_\(mode)_\(st).json")), let web = try? JSONSerialization.jsonObject(with: d) as? [[Double]] else { print("  ？ turn_\(mode)_\(st).json が無い"); continue }
             r.set = .plain; r.set.turnSharp = st == "sharp"; r.startPath(mode == "half" ? .half : .tour)
@@ -732,6 +751,8 @@ enum Verify {
             ("地図・ロケットと見ている向きの矢印", { r in r.set = .plain; r.set.shell = false; r.cam = Camera(); r.journey = Journey(); r.cam.walk([0, 0, 1], 0.6); r.cam.hy = 50; r.cam.hp = 20 }),
             ("地図・光の跡を何周も（螺旋で 12 歩、残す 2π）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.set.trailKeep = 2; r.startPath(.spiral); for _ in 0..<5000 { r.step(1.0 / 60) }; r.pathMode = .none }),
             ("地図・光の跡を何周も（螺旋で 12 歩、全部）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.startPath(.spiral); for _ in 0..<5000 { r.step(1.0 / 60) }; r.pathMode = .none }),
+            ("地図・超立方体の辺めぐり（32 本を全部）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = false; r.set.trailKeep = 0; r.startPath(.cube); for _ in 0..<1900 { r.turnStep(0.02) }; r.pathMode = .none }),
+            ("地図・二十四胞体の辺めぐり（96 本を全部）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.set.trailKeep = 0; r.startPath(.cell24); for _ in 0..<5600 { r.turnStep(0.02) }; r.pathMode = .none }),
             ("地図・光の跡を近くで横から（カーブが丸い管に見えるか）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.startPath(.spiral); for _ in 0..<2500 { r.step(1.0 / 60) }; r.pathMode = .none }),
             ("地図・4 方向レインボー", { r in r.set = .plain; r.set.rainbow4 = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
             ("地図・自分を真ん中に", { r in r.set = .plain; r.set.mapFollow = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),

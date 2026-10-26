@@ -609,7 +609,7 @@ final class Renderer: NSObject, MTKViewDelegate {
                 if set.gamepad { let dy = game.dpadY(); if dy != 0 { pathSpeed = max(0.1, min(set.autoMax, pathSpeed * exp(dy * 0.69 * dt))) } }
                 var ds = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR * pathSpeed
                 // 速い時も道からはずれないよう、0.02 ずつに分けて進む
-                while ds > 1e-12 { let h = min(ds, 0.02); if pathMode == .half || pathMode == .tour { turnStep(h) } else { pathStep(h) }; ds -= h }
+                while ds > 1e-12 { let h = min(ds, 0.02); if pathMode.isTurn { turnStep(h) } else { pathStep(h) }; ds -= h }
                 return
             }
         }
