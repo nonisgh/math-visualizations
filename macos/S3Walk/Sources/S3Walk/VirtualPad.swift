@@ -1,5 +1,6 @@
 // 画面のゲームパッド：コントローラー（Switch の Pro コントローラーの並び）と同じスティックとボタンを、景色の真ん中に出す。押すとコントローラーと同じ働き。
 //   本体（すき間）をドラッグで動かせる。L・R・ZL・ZR・L3 は 2 回続けて押すと押したまま（黄色の枠。もう一度押すと離す）：マウスでも「ZL を押しながら右スティック」ができる。
+//   大きさは見出しの虫めがね（−・＋）か、ピンチ（2 本指でつまむ・トラックパッドでも）で 0.5〜2 倍。大きさは覚えておく。
 //   Mac 版と iPad・iPhone 版の両方で使う（GameInput の vLeft・vRight・vPress へ入れる）
 import SwiftUI
 import QuartzCore
@@ -12,6 +13,8 @@ struct VirtualPad: View {
     @State private var held: Set<String> = []            // 指・マウスで押している（見た目）
     @State private var locked: Set<String> = []          // 2 回押しで押したまま
     @State private var lastPress: [String: Double] = [:]
+    @AppStorage("s3walk.vpad.scale") private var scale = 1.0   // 大きさ（覚えておく）
+    @State private var pinchStart: Double? = nil
     @State private var lk = CGSize.zero
     @State private var rk = CGSize.zero
     static let latchable: Set<String> = ["L", "R", "ZL", "ZR", "L3"]
@@ -19,12 +22,21 @@ struct VirtualPad: View {
 
     var body: some View {
         VStack(spacing: 10) {
+            // 見出し：大きさ（−・＋）・名前（ここをドラッグで動かす）・閉じる。ボタンは本体の中に置く（外にはみ出すと押せない）
+            HStack(spacing: 6) {
+                smallButton("minus.magnifyingglass", "ゲームパッドを小さく") { zoom(1 / 1.15) }
+                smallButton("plus.magnifyingglass", "ゲームパッドを大きく") { zoom(1.15) }
+                Text(String(format: "画面のゲームパッド　%.0f%%", scale * 100)).font(.system(size: 10, weight: .semibold)).foregroundStyle(Space.lilac)
+                    .frame(maxWidth: .infinity).frame(height: 24).contentShape(Rectangle()).gesture(moveGesture)
+                    .help("ここか、本体のすき間をドラッグで動かす")
+                smallButton("xmark.circle.fill", "画面のゲームパッドを隠す") { close() }
+            }
             HStack(spacing: 8) {
                 key("ZL", "ZL", "見回しだけ", w: 54, h: 26)
                 key("L", "L", "下へ", w: 54, h: 26)
                 Spacer(minLength: 12)
                 key("options", "−", "地図", w: 30, h: 26)
-                Image(systemName: "line.3.horizontal").foregroundStyle(Space.slate).frame(width: 34, height: 26).help("ここをドラッグで動かす")
+                Color.clear.frame(width: 24, height: 26)
                 key("menu", "＋", "設定", w: 30, h: 26)
                 Spacer(minLength: 12)
                 key("R", "R", "上へ", w: 54, h: 26)
@@ -47,23 +59,41 @@ struct VirtualPad: View {
             }
             Text("L・R・ZL・ZR・L3 は 2 回押すと押したまま（黄色の枠、もう一度で離す）").font(.system(size: 9)).foregroundStyle(Space.slate)
         }
-        .padding(12)
+        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
         .frame(width: 520)
-        .background(RoundedRectangle(cornerRadius: 28).fill(Space.panel.opacity(0.62)))
-        .background(RoundedRectangle(cornerRadius: 28).fill(.ultraThinMaterial).opacity(0.6))
-        .overlay(RoundedRectangle(cornerRadius: 28).stroke(Space.line))
-        .overlay(alignment: .topTrailing) {
-            Button { close() } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 18)).foregroundStyle(Space.slate) }
-                .buttonStyle(.plain).offset(x: 6, y: -6).help("画面のゲームパッドを隠す")
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 28))
-        .gesture(DragGesture(minimumDistance: 2).onChanged { g in     // 本体のすき間をドラッグで動かす
-            if dragStart == nil { dragStart = offset }
-            offset = CGSize(width: dragStart!.width + g.translation.width, height: dragStart!.height + g.translation.height)
-        }.onEnded { _ in dragStart = nil })
+        // 本体のすき間（後ろの板）：ドラッグで動かす・ピンチで大きさ。ボタンやスティックの上では、そちらが先
+        .background(
+            RoundedRectangle(cornerRadius: 28).fill(Space.panel.opacity(0.62))
+                .background(RoundedRectangle(cornerRadius: 28).fill(.ultraThinMaterial).opacity(0.6))
+                .contentShape(RoundedRectangle(cornerRadius: 28))
+                .gesture(moveGesture)
+                .simultaneousGesture(MagnificationGesture().onChanged { v in
+                    if pinchStart == nil { pinchStart = scale }
+                    scale = min(2, max(0.5, pinchStart! * Double(v)))
+                }.onEnded { _ in pinchStart = nil })
+        )
+        .overlay(RoundedRectangle(cornerRadius: 28).stroke(Space.line).allowsHitTesting(false))
+        .scaleEffect(scale)
         .offset(offset)
         .onDisappear { game.vClear() }
     }
+    /// 動かす：動く本体の上で測ると、ずれが行ったり来たりしてカクつくので、画面全体の座標で測る
+    var moveGesture: some Gesture {
+        DragGesture(minimumDistance: 2, coordinateSpace: .global).onChanged { g in
+            if dragStart == nil { dragStart = offset }
+            offset = CGSize(width: dragStart!.width + g.translation.width, height: dragStart!.height + g.translation.height)
+        }.onEnded { _ in dragStart = nil }
+    }
+    func smallButton(_ icon: String, _ tip: String, _ act: @escaping () -> Void) -> some View {
+        Button(action: act) {
+            Image(systemName: icon).font(.system(size: 15)).foregroundStyle(Space.slate)
+                .frame(width: 30, height: 24).background(Space.chip.opacity(0.9), in: Capsule()).overlay(Capsule().stroke(Space.line))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain).help(tip)
+    }
+
+    func zoom(_ k: Double) { withAnimation(.easeOut(duration: 0.12)) { scale = min(2, max(0.5, scale * k)) } }
 
     // ---- 十字（上下：殻の見える距離・速さ、右：ターボ）----
     var dpad: some View {
