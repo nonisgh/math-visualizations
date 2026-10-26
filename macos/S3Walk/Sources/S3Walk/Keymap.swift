@@ -3,7 +3,7 @@
 import SwiftUI
 
 enum KeyAction: String, CaseIterable, Identifiable {
-    case walk, roam, headGo, lookReset, home, mark
+    case walk, roam, headGo, lookReset, home, mark, turbo
     case shell, solid, bare, grand, rangeDown, rangeUp
     case space, lite, eq, crisp, orient, foot, markStyle, mapAxes
     case panel, allPanels, hud, help, fps, scaleDown, scaleUp
@@ -17,6 +17,7 @@ enum KeyAction: String, CaseIterable, Identifiable {
         case .lookReset: return "見回しを戻す"
         case .home: return "アナ極へ戻る"
         case .mark: return "ここに目印を置く"
+        case .turbo: return "ターボ（いきなり最高速）"
         case .shell: return "球層"
         case .solid: return "立体の殻"
         case .bare: return "網目なし"
@@ -42,7 +43,7 @@ enum KeyAction: String, CaseIterable, Identifiable {
     }
     var group: String {
         switch self {
-        case .walk, .roam, .headGo, .lookReset, .home, .mark: return "歩く"
+        case .walk, .roam, .headGo, .lookReset, .home, .mark, .turbo: return "歩く"
         case .shell, .solid, .bare, .grand, .rangeDown, .rangeUp: return "球層"
         case .space, .lite, .eq, .crisp, .orient, .foot, .markStyle, .mapAxes: return "見え方"
         case .panel, .allPanels, .hud, .help, .fps, .scaleDown, .scaleUp: return "画面"
@@ -57,6 +58,7 @@ enum KeyAction: String, CaseIterable, Identifiable {
         case .lookReset: return ["h"]
         case .home: return ["r"]
         case .mark: return ["m"]
+        case .turbo: return ["z"]
         case .shell: return ["l"]
         case .solid: return ["t"]
         case .bare: return ["b"]
@@ -131,7 +133,7 @@ final class Keymap: ObservableObject {
         var lines = ["W/S 前・後　A/D 右・左　Q/E 上・下（Shift で 3 倍）　←→ 方位　↑↓ 仰角　ドラッグ・2 本指 見回し（Shift＋ドラッグ 進む向き）"]
         let items = KeyAction.allCases.compactMap { a -> String? in let s = label(a); return s.isEmpty ? nil : "\(s) \(a.title)" }
         stride(from: 0, to: items.count, by: 8).forEach { lines.append(items[$0..<min(items.count, $0 + 8)].joined(separator: "　")) }
-        lines.append("⌘1・⌘2・⌘3 地図を隠す・並べる・浮かせる　⌃⌘F 全画面　キーは設定の「ショートカットキー」で変えられる")
+        lines.append("⌘1・⌘2・⌘3 地図を隠す・並べる・浮かせる　⌃F（⌃⌘F）全画面　キーは設定の「ショートカットキー」で変えられる")
         return lines.joined(separator: "\n")
     }
 }

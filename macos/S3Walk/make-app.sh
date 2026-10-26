@@ -2,6 +2,8 @@
 # swift build（release）して、S3Walk.app に包む（Xcode が無くても作れるように）。できた .app はこのフォルダに
 set -e
 cd "${0:A:h}"
+# 設定の検索の索引（Dock.swift の項目から）
+python3 -I tools/gen_search_index.py
 swift build -c release
 APP=S3Walk.app
 rm -rf $APP

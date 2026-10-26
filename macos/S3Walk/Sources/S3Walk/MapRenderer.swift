@@ -33,7 +33,7 @@ func depthColor(_ d: Double, _ k: Double) -> SIMD3<Float> {
 struct Seg { var a: SIMD4<Float>; var ca: SIMD4<Float>; var b: SIMD4<Float>; var cb: SIMD4<Float> }
 /// 玉 1 つ：中心・半径・色・不透明度
 struct Ball { var c: SIMD4<Float>; var col: SIMD4<Float> }
-struct MV { var p: SIMD4<Float>; var col: SIMD4<Float> }
+struct MV { var p: SIMD4<Float>; var col: SIMD4<Float>; var n = SIMD4<Float>(0, 0, 0, 0) }   // n：陰影をつける時の面の向き（w ＝ 1）
 /// 地図ごとの写し方：自分を真ん中に・殻の出し方・4 次元の向き
 struct MapConfig { var follow: Bool; var range: Int; var xw: Double; var yw: Double; var zw: Double }
 struct MapUni { var view = matrix_identity_float4x4; var proj = matrix_identity_float4x4; var res = SIMD2<Float>(1, 1); var width: Float = 1; var feather: Float = 1; var light = SIMD4<Float>(0, 0, 1, 0); var cmul: Float = 1; var amul: Float = 1; var pad0: Float = 0; var pad1: Float = 0 }
@@ -73,12 +73,25 @@ fragment float4 lineF(LOut in [[stage_in]], constant MapUni& u [[buffer(1)]]) {
 }
 
 // ---- 色だけの三角形（軸の矢印の円すい。ウェブ版も光を当てない色）----
-struct MV { float4 p; float4 col; };
-struct MOut { float4 pos [[position]]; float4 col; };
+//   n.w ＝ 1 の三角形（自分の進む向き・見ている向きの円すい）だけ、玉と同じ光で陰影をつける
+struct MV { float4 p; float4 col; float4 n; };
+struct MOut { float4 pos [[position]]; float4 col; float3 nv; float sh; };
 vertex MOut meshV(uint vid [[vertex_id]], constant MV* vs [[buffer(0)]], constant MapUni& u [[buffer(1)]]) {
-    MOut o; o.pos = u.proj * (u.view * float4(vs[vid].p.xyz, 1.0)); o.col = vs[vid].col; return o;
+    MOut o; o.pos = u.proj * (u.view * float4(vs[vid].p.xyz, 1.0)); o.col = vs[vid].col;
+    o.nv = (u.view * float4(vs[vid].n.xyz, 0.0)).xyz; o.sh = vs[vid].n.w; return o;
 }
-fragment float4 meshF(MOut in [[stage_in]]) { return in.col; }
+fragment float4 meshF(MOut in [[stage_in]], constant MapUni& u [[buffer(1)]]) {
+    if (in.sh < 0.5) return in.col;
+    // 地図になじむ陰影：やわらかい光（半分ランバート）で暗い面も沈みすぎず、照り返しは控えめ、ふちは地図の網目のような青い光。
+    //   全体に地図の線と同じ暗さ（u.cmul：深海・宇宙の雰囲気）をかけ、色も少しだけ落ち着かせる
+    float3 n = normalize(in.nv), L = normalize(u.light.xyz);
+    float d = 0.5 + 0.5 * dot(n, L);
+    float3 h = normalize(L + float3(0.0, 0.0, 1.0)); float sp = pow(max(0.0, dot(n, h)), 30.0) * 0.18;
+    float rim = pow(1.0 - clamp(abs(n.z), 0.0, 1.0), 2.0);
+    float3 base = mix(float3(dot(in.col.rgb, float3(0.299, 0.587, 0.114))), in.col.rgb, 0.85);
+    float3 c = base * (0.5 + 0.55 * d * d) + float3(sp) + float3(0.35, 0.5, 1.0) * rim * 0.22;
+    return float4(c * u.cmul, in.col.a);
+}
 
 // ---- 玉：画面に向いた板に、球の陰影（ウェブ版の Phong：まわりの光 0.6・向きのある光 0.75・自分の光 0.35・つや 80）----
 struct BOut { float4 pos [[position]]; float2 uv; float4 col; float3 cv; float r; };
@@ -121,6 +134,8 @@ final class MapRenderer: NSObject, MTKViewDelegate {
 
     // 回して見るカメラ（ウェブ版の OrbitControls：上は +z、視野 36°）
     var yaw = 0.0, pitch = 0.0, dist = 9.6
+    private var cursorMood: Float = 1
+    private var arrowDir: [Int: SIMD3<Float>] = [:], arrowT = CACurrentMediaTime(), arrowDt: Float = 1.0 / 60   // 円すいの向き（なめらかに回す）
     var target = SIMD3<Double>(0, 0, 0)
     var onLabels: (([(CGPoint, MapLabel, Bool)]) -> Void)?
     var backingScale: CGFloat = 2
@@ -436,6 +451,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     // ---- MTKViewDelegate ----
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
     func draw(in view: MTKView) {
+        let tNow = CACurrentMediaTime(); arrowDt = Float(max(0, min(0.1, tNow - arrowT))); arrowT = tNow
         guard let rpd = view.currentRenderPassDescriptor, let drawable = view.currentDrawable, let cb = queue.makeCommandBuffer() else { return }
         let placed = encode(cb, rpd, view.colorPixelFormat, view.sampleCount, Double(view.drawableSize.width), Double(view.drawableSize.height))
         cb.present(drawable); cb.commit()
@@ -509,14 +525,17 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         /// 光の線の軌跡：新しい所ほど白っぽい水色に明るく、古い所ほどすみれ色に暗く消える（ほうき星の尾）。
         ///   太く淡いにじみ＋細く明るい芯の 2 本を足し合わせ、光の粒が自分の方へ流れていく
         func lightTrail(_ pts: [SIMD3<Float>?]) {
+            // 最初の光の軌跡（ユーザーの希望で戻した）：太く薄いにじみ＋芯、古い所は紫・新しいほど水色から白へ、明るい粒が自分の方へ流れる（強弱）。
+            //   残す長さを決めている時だけ、いちばん古い所で消える
             let N = pts.count; guard N > 1 else { return }
             let tm = Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 1000))
             var glow: [Seg] = [], core: [Seg] = []
             glow.reserveCapacity(N); core.reserveCapacity(N)
             let old = SIMD3<Float>(0.45, 0.25, 0.95), new = SIMD3<Float>(0.7, 0.95, 1.0)
+            let keep = world.set.trailKeep > 0
             for i in 1..<N {
                 guard let a = pts[i - 1], let b = pts[i], simd_length(a - b) <= 1.5 else { continue }
-                let u = Float(i) / Float(N), f = pow(u, 1.6)
+                let u = Float(i) / Float(N), f = pow(u, keep ? 1.2 : 1.6)
                 let flow = Float(i) * 0.02 - tm * 2.2                       // 光の粒（数十点ごとに明るい所が、自分の方へ流れる）
                 let pulse = pow(max(0, cos(flow * 2 * .pi / 1.6)), 24) * 1.2 * u
                 let c = (old + (new - old) * u) * (f + pulse)
@@ -527,15 +546,20 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             lines(core, 2.2, additive: true, depth: depthRead)
         }
         /// 円すい（ウェブ版の ConeGeometry と同じ：真ん中 c、先は向き t へ高さの半分、底は半分うしろ）。横は色そのまま、底は少し暗く
-        func cone(_ c: SIMD3<Float>, _ t: SIMD3<Float>, _ r: Float, _ h: Float, _ col: SIMD4<Float>, _ N: Int = 16) -> [MV] {
+        /// 円すい（shade：陰影をつける。側面の向きは、まわりの向き × 高さ ＋ 軸 × 半径）
+        func cone(_ c: SIMD3<Float>, _ t: SIMD3<Float>, _ r: Float, _ h: Float, _ col: SIMD4<Float>, _ N: Int = 16, shade: Bool = false) -> [MV] {
             var e1 = simd_cross(t, SIMD3<Float>(0, 0, 1)); if simd_length(e1) < 1e-3 { e1 = simd_cross(t, SIMD3<Float>(1, 0, 0)) }; e1 = simd_normalize(e1)
-            let e2 = simd_cross(t, e1), tip = c + t * (h / 2), base = c - t * (h / 2), dark = col * SIMD4(0.6, 0.6, 0.6, 1)
+            let e2 = simd_cross(t, e1), tip = c + t * (h / 2), base = c - t * (h / 2), dark = shade ? col : col * SIMD4(0.6, 0.6, 0.6, 1)
+            let w: Float = shade ? 1 : 0
+            func sideN(_ a: Float) -> SIMD4<Float> { SIMD4(simd_normalize((e1 * cos(a) + e2 * sin(a)) * h + t * r), w) }
+            let bn = SIMD4(-t, w)
             var tri: [MV] = []
-            for k in 0..<N {
-                let a0 = Float(k) / Float(N) * 2 * .pi, a1 = Float(k + 1) / Float(N) * 2 * .pi
+            for k in 0..<(shade ? max(N, 28) : N) {
+                let n = Float(shade ? max(N, 28) : N)
+                let a0 = Float(k) / n * 2 * .pi, a1 = Float(k + 1) / n * 2 * .pi
                 let p0 = base + (e1 * cos(a0) + e2 * sin(a0)) * r, p1 = base + (e1 * cos(a1) + e2 * sin(a1)) * r
-                tri += [MV(p: SIMD4(tip, 1), col: col), MV(p: SIMD4(p0, 1), col: col), MV(p: SIMD4(p1, 1), col: col),
-                        MV(p: SIMD4(base, 1), col: dark), MV(p: SIMD4(p1, 1), col: dark), MV(p: SIMD4(p0, 1), col: dark)]
+                tri += [MV(p: SIMD4(tip, 1), col: col, n: sideN((a0 + a1) / 2)), MV(p: SIMD4(p0, 1), col: col, n: sideN(a0)), MV(p: SIMD4(p1, 1), col: col, n: sideN(a1)),
+                        MV(p: SIMD4(base, 1), col: dark, n: bn), MV(p: SIMD4(p1, 1), col: dark, n: bn), MV(p: SIMD4(p0, 1), col: dark, n: bn)]
             }
             return tri
         }
@@ -543,8 +567,10 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             guard !tri.isEmpty else { return }
             enc.setRenderPipelineState(meshPipe); enc.setDepthStencilState(depthOn)
             tri.withUnsafeBytes { b in if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { enc.setVertexBuffer(buf, offset: 0, index: 0) } }
-            enc.setVertexBytes(&u, length: MemoryLayout<MapUni>.stride, index: 1)
+            u.cmul = cursorMood
+            enc.setVertexBytes(&u, length: MemoryLayout<MapUni>.stride, index: 1); enc.setFragmentBytes(&u, length: MemoryLayout<MapUni>.stride, index: 1)
             enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tri.count)
+            u.cmul = 1
         }
         /// 軸の矢印（ウェブ版の makeAxes）：原点から線、先に円すい（半径 0.055・高さ 0.18）、名前は先の少し外（0.22）
         func axes(_ dirs: [SIMD3<Float>]) {
@@ -645,7 +671,11 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         if let d = world.demo, let a = ball(d.c, 0.12, [1, 0.62, 0.3], cap: 1.6) {
             labels.append(MapLabel(pos: a + SIMD3(0, 0, 0.22), text: d.name + "はここ", col: [1, 0.85, 0.45], size: 13))
         }
-        let meA = ball(cam.w.p, 0.1, [1, 1, 1], cap: 1.4, pic: PIC.selfPic)
+        // カーソル（自分の玉・三角錐）の明るさ：地図の線の暗さ（深海・宇宙の雰囲気・殻の線の明るさ）に半分だけ合わせる（浮かずに、でも見失わない）
+        let lineMood: Float = s.space ? 0.6 : Float(0.3 + 0.7 * s.hazeK)
+        cursorMood = min(1, 0.68 + 0.32 * lineMood * Float(s.mapBright))
+        // 自分の玉：少し大きく（自分中心の時はもう少し）。地図の暗さに合わせて少し落ち着いた白
+        let meA = ball(cam.w.p, config.follow ? 0.13 : 0.115, SIMD3<Float>(0.9, 0.92, 0.97) * cursorMood, cap: 1.4, pic: PIC.selfPic)
         balls(bs, depth: depthOn)
 
         // 2. 動かない線（加え合わせ）：球層の殻・赤道の網目・軽い線
@@ -674,7 +704,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             for i in 1..<j.trail.count {
                 let cur = map(j.trail[i], R)
                 if let (a, _) = prev, let (b, _) = cur, simd_length(a - b) <= 1.5 {
-                    let f = Float(0.45 + 0.55 * Double(i) / N)
+                    let f = Float(s.trailKeep > 0 ? Double(i) / N : 0.45 + 0.55 * Double(i) / N)   // 残す長さを決めている時は、古い所で消える
                     let c = hslF(200 + 160 * Double(i) / N, 0.95, 0.62) * f
                     tr.append(Seg(a: SIMD4(a, 0), ca: SIMD4(c, 1), b: SIMD4(b, 0), cb: SIMD4(c, 1)))
                 }
@@ -699,20 +729,90 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             }
             lines(segs, 2.2, additive: true, depth: depthRead)
         }
+        // 自分中心の時：自分が球の真ん中にいると分かるように、真下（球の底）へ点線と、底に光のたまり（影）、自分のまわりに水平の輪
+        if config.follow, let a = meA {
+            var segs: [Seg] = []
+            let floorZ = Float(-RS) * 0.985, col = SIMD3<Float>(0.45, 0.6, 1.0)
+            let n = 24
+            for i in 0..<n where i % 2 == 0 {                               // 点線
+                let t0 = Float(i) / Float(n), t1 = Float(i + 1) / Float(n)
+                let p0 = a + SIMD3(0, 0, (floorZ - a.z) * t0), p1 = a + SIMD3(0, 0, (floorZ - a.z) * t1), c = col * (0.9 - 0.4 * t0)
+                segs.append(Seg(a: SIMD4(p0, 0), ca: SIMD4(c, 1), b: SIMD4(p1, 0), cb: SIMD4(c, 1)))
+            }
+            func ring(_ c: SIMD3<Float>, _ r: Float, _ cc: SIMD3<Float>) {
+                let m = 48
+                for k in 0..<m {
+                    let a0 = Float(k) / Float(m) * 2 * .pi, a1 = Float(k + 1) / Float(m) * 2 * .pi
+                    segs.append(Seg(a: SIMD4(c + SIMD3(cos(a0), sin(a0), 0) * r, 0), ca: SIMD4(cc, 1), b: SIMD4(c + SIMD3(cos(a1), sin(a1), 0) * r, 0), cb: SIMD4(cc, 1)))
+                }
+            }
+            let fc = SIMD3(a.x, a.y, floorZ)
+            for (k, r) in [Float(0.04), 0.08, 0.13, 0.19, 0.26].enumerated() { ring(fc, r, col * (1.0 - 0.17 * Float(k))) }   // 底の光のたまり（外ほど淡い）
+            ring(a, 0.28, col * 0.9)                                       // 自分のまわりの水平の輪
+            lines(segs, 2.0, additive: true, depth: depthOff)
+        }
         if let a = meA {
             // 自分の玉から出る円すい（ウェブ版と同じ大きさ・位置。遠近で大きくなるのは 1.4 倍まで）
             let k = Float(min(1.4, kOf(cam.w.p, R)))
-            func arrow(_ dir: V4, _ r: Float, _ h: Float, _ off: Float, _ col: SIMD3<Float>) {
-                let q = nrm(cam.w.p * cos(0.12) + dir * sin(0.12))
-                guard let (b, _) = map(q, R) else { return }
-                let t = b - a; guard simd_length(t) > 1e-6 else { return }
-                let tn = simd_normalize(t)
-                mesh(cone(a + tn * off, tn, r * k, h * k, SIMD4(col, 1)))
+            // 円すいの向きは、なめらかに回す：地図の端（写し方の折り返し）で向きが急に反対になる所も、くるっと回って見えるように
+            // 向きは、なめらかに少しずつ曲げる：少し先（0.12）と、もっと先（0.45）の地図の上の向きを混ぜて、早めに曲がり始める。
+            //   地図の端（写し方の折り返し）で向きが反対になる所も、急に裏返らずに、だんだん曲がっていく（1 秒に 1 回転まで、時定数 0.2 秒）
+            func arrow(_ key: Int, _ dir: V4, _ off: Float, _ draw: (SIMD3<Float>, SIMD3<Float>) -> [MV]) {
+                func mapDir(_ ang: Double) -> SIMD3<Float>? {
+                    let q = nrm(cam.w.p * cos(ang) + dir * sin(ang))
+                    guard let (b, _) = map(q, R), simd_length(b - a) > 1e-6 else { return nil }
+                    return simd_normalize(b - a)
+                }
+                var tn = arrowDir[key] ?? SIMD3<Float>(1, 0, 0)
+                let near = mapDir(0.12), far = mapDir(0.45)
+                let mix = (near ?? .zero) * 0.35 + (far ?? .zero) * 0.65
+                if simd_length(mix) > 1e-5 {
+                    let target = simd_normalize(mix)
+                    if arrowDir[key] == nil { tn = target } else {
+                        let c = max(-1, min(1, simd_dot(tn, target))), ang = acos(c)
+                        if ang > 1e-4 {
+                            var axis = simd_cross(tn, target)
+                            if simd_length(axis) < 1e-4 {                     // ちょうど反対：画面に平行な向きのまわりに回す
+                                let viewDir = SIMD3<Float>(Float(cos(pitch) * cos(yaw)), Float(cos(pitch) * sin(yaw)), Float(sin(pitch)))
+                                axis = simd_cross(tn, viewDir); if simd_length(axis) < 1e-4 { axis = simd_cross(tn, SIMD3(0, 0, 1)) }
+                            }
+                            let step = min(ang * (1 - exp(-arrowDt / 0.2)) + min(ang, 0.002), Float(2 * Double.pi) * arrowDt)
+                            tn = simd_normalize(simd_quatf(angle: min(ang, step), axis: simd_normalize(axis)).act(tn))
+                        }
+                    }
+                }
+                arrowDir[key] = tn
+                mesh(draw(a + tn * off, tn))
+            }
+            /// 三角錐（面ごとに平らな陰影）：断面は横に広く、てっぺんの角が体の上の向き（up）を指す、少し平たい矢じり。真上を向いていても向きと上下が分かる
+            //   flat：自分中心の時。平たい三角の面を見る人の方へ向ける（上から見た三角形に見える）
+            func pyramid(_ c: SIMD3<Float>, _ t: SIMD3<Float>, _ up: SIMD3<Float>?, _ r: Float, _ h: Float, _ col: SIMD4<Float>, flat: Bool = false) -> [MV] {
+                var u = (up ?? SIMD3<Float>(0, 0, 1)) - t * simd_dot(up ?? SIMD3<Float>(0, 0, 1), t)
+                if simd_length(u) < 1e-4 { u = basisUp(t) }
+                u = simd_normalize(u); let sd = simd_cross(t, u)
+                let tip = c + t * (h / 2), base = c - t * (h / 2)
+                let ku: Float = flat ? 0.22 : 0.75, kd: Float = flat ? 0.12 : 0.45
+                let b0 = base + u * (r * ku), b1 = base - u * (r * kd) + sd * (r * 1.15), b2 = base - u * (r * kd) - sd * (r * 1.15)
+                func face(_ p: SIMD3<Float>, _ q: SIMD3<Float>, _ w: SIMD3<Float>, _ cc: SIMD4<Float>) -> [MV] {
+                    var n = simd_normalize(simd_cross(q - p, w - p)); if simd_dot(n, (p + q + w) / 3 - c) < 0 { n = -n }
+                    return [MV(p: SIMD4(p, 1), col: cc, n: SIMD4(n, 1)), MV(p: SIMD4(q, 1), col: cc, n: SIMD4(n, 1)), MV(p: SIMD4(w, 1), col: cc, n: SIMD4(n, 1))]
+                }
+                return face(tip, b0, b1, col) + face(tip, b1, b2, col) + face(tip, b2, b0, col) + face(b0, b2, b1, col * SIMD4(0.75, 0.75, 0.75, 1))
+            }
+            func basisUp(_ t: SIMD3<Float>) -> SIMD3<Float> { var e = simd_cross(t, SIMD3<Float>(0, 0, 1)); if simd_length(e) < 1e-3 { e = simd_cross(t, SIMD3<Float>(1, 0, 0)) }; return simd_normalize(simd_cross(e, t)) }
+            /// 体の上の向き U が、地図の上でどちらを向くか
+            func mapUp(_ U: V4) -> SIMD3<Float>? {
+                guard let a0 = map(cam.w.p, R)?.0, let (b, _) = map(nrm(cam.w.p * cos(0.12) + U * sin(0.12)), R), simd_length(b - a0) > 1e-6 else { return nil }
+                return simd_normalize(b - a0)
             }
             // 進む向き（黄）：歩いている間は実際に歩いている向き、止まっている時は進む向き
             let dv = world.lastDir.flatMap { CACurrentMediaTime() - world.lastDirT < 0.4 ? $0 : nil } ?? cam.lookFrame().L
-            arrow(dv, 0.06, 0.3, 0.28, hexRGB(0xfde047))
-            if abs(cam.hy) > 0.5 || abs(cam.hp) > 0.5 { arrow(cam.viewFrame().L, 0.04, 0.26, 0.26, hexRGB(0x7dd3fc)) }   // 見ている向き（水色、細め）
+            // 自分中心の時は、平たい面を見る人の方へ（三角形に見える）。ふつうの時は、てっぺんの角が体・視線の上
+            let eyeDir = SIMD3<Float>(Float(cos(pitch) * cos(yaw)), Float(cos(pitch) * sin(yaw)), Float(sin(pitch)))
+            let upB = config.follow ? eyeDir : mapUp(cam.lookFrame().U), upV = config.follow ? eyeDir : mapUp(cam.viewFrame().U)
+            let pk: Float = config.follow ? 0.65 : 1                         // 自分中心の時は三角錐を小さめに
+            arrow(0, dv, (config.follow ? 0.24 : 0.3) * k) { c, t in pyramid(c, t, upB, 0.075 * k * pk, 0.32 * k * pk, SIMD4(hexRGB(0xfde047), 1), flat: config.follow) }   // 進む向き（黄色の三角錐。てっぺんの角が体の上）
+            if abs(cam.hy) > 0.5 || abs(cam.hp) > 0.5 { arrow(1, cam.viewFrame().L, (config.follow ? 0.22 : 0.27) * k) { c, t in pyramid(c, t, upV, 0.05 * k * pk, 0.28 * k * pk, SIMD4(hexRGB(0x7dd3fc), 1), flat: config.follow) } } else { arrowDir[1] = nil }   // 見ている向き（水色、細め）
         }
         if s.mapAxes { axes((0..<4).map { i in SIMD3<Float>(Float(R[0][i]), Float(R[1][i]), Float(R[2][i])) * Float(AXL) }) }   // 軸 e_i を回した向き（遠近はかけない）
         // 4. 模型の球（半径 RS）を、うっすら青く（ウェブ版の不透明度 0.05）

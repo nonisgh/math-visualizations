@@ -37,7 +37,7 @@ struct Uni {
     float fovY, picLine, nebK, wireFloor;    // fovY：縦の視野（ラジアン）、picLine：絵・色の点の時の線の濃さ、nebK：星雲の濃さ、wireFloor：もやで消える時も網目の線を残す濃さ
     int circ, room, space, shAx;             // 管：circ＝経線（x・y・z と w の大円）と赤道の輪、room＝120 胞体の部屋の辺。space：背景 0 深海（もや）・1 宇宙。shAx：球層の色 0 レインボー、それ以外は軸色で、囲む軸（1 x・2 y・4 z・8 w）
     float tube, pixAng, lineW, solidWire;    // （下に続く）
-    float hazeK, lineViv, xpad1, xpad2;      // hazeK：深海の時のもやの色の明るさ（1 でウェブ版と同じ。小さいほど殻の間が暗く、殻の境目が浮かぶ）、lineViv：網目の線の鮮やかさ（地図の色味へ。0 でウェブ版と同じ）
+    float hazeK, lineViv, shCut, xpad2;      // hazeK：深海の時のもやの色の明るさ（1 でウェブ版と同じ。小さいほど殻の間が暗く、殻の境目が浮かぶ）、lineViv：網目の線の鮮やかさ（地図の色味へ。0 でウェブ版と同じ）、shCut：殻を調べる道のりの打ち切り（もやで見えなくなる所まで）
     float4 BR, BU, BF;                       // 体の向き（進む向きの枠）：自分の模型はこの向きで立つ（前を見ると光が 1 周して自分の背中、振り返ると顔）
     float4 G0, G1, G2;                       // 世界の xyz → 球層の網目の枠（行ごと。網目の傾き・自転。ウェブ版の uGridM）
     float4 DR, DU, DF;                       // デモの模型の向き（置いた時の体の向き）
@@ -629,7 +629,7 @@ inline bool shNext(thread ShIt& it, constant float4* sh, constant Uni& u, thread
     int n = u.shellN, nTot = 2 * n - 1;
     while (!it.end && it.ph < 11) {
         int m = it.m0 + it.ph; bool d = gmod(float(m), 2.0) < 0.5;
-        if (float(m) * PI - it.s0 > u.shellRange) { it.end = true; return false; }
+        if (float(m) * PI - it.s0 > u.shCut) { it.end = true; return false; }
         while (it.k < nTot && it.k < 41) {
             int kk = it.k; it.k++;
             int ii = d ? kk : nTot - 1 - kk;
@@ -640,7 +640,7 @@ inline bool shNext(thread ShIt& it, constant float4* sh, constant Uni& u, thread
             float a = acos(clamp(w / max(it.amp, 1e-5), -1.0, 1.0));
             float tt = (d ? float(m) * PI + a : float(m + 1) * PI - a) - it.s0;   // 半周の中では k とともに増える
             if (tt < 0.002) continue;
-            if (tt >= u.shellRange) { it.end = true; return false; }
+            if (tt >= u.shCut) { it.end = true; return false; }
             t = tt; i = ii; dec = d; wc = w; return true;
         }
         it.ph++; it.k = 0;
@@ -837,7 +837,7 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
         bool end = amp < 1e-5;
         for (int ph = 0; ph < 11 && !end && !done; ph++) {
             int m = m0 + ph; bool dec = gmod(float(m), 2.0) < 0.5;
-            if (float(m) * PI - s0 > u.shellRange) break;
+            if (float(m) * PI - s0 > u.shCut) break;
             for (int k = 0; k < 41; k++) {
                 if (k >= nTot) break;
                 int i = dec ? k : nTot - 1 - k;
@@ -847,7 +847,7 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
                 float a = acos(clamp(wc * ia, -1.0, 1.0));
                 float t = (dec ? float(m) * PI + a : float(m + 1) * PI - a) - s0;   // 半周の中では k とともに増える
                 if (t < 0.002) continue;
-                if (t >= u.shellRange) { end = true; break; }
+                if (t >= u.shCut) { end = true; break; }
                 while (nt <= t) {                                           // この殻より手前の層を先に
                     NEBSEG(tN, nt, p0, v, nr, jit, nb, nz, u, col, T, nacc, nebW); tN = max(tN, nt);
                     float3 lc, le; float la; shadeLayer(kind, idx, nt, p0, v, L, mk, u, lc, la, le, atlas);
@@ -973,13 +973,13 @@ fragment float4 fcomp(VOut in [[stage_in]], texture2d<float> scene [[texture(0)]
     float3 nc = neb.sample(sm, uv).rgb;
     for (int i = 0; i < 12; i++) nc += neb.sample(sm, uv + ofs[i] * px * 1.4).rgb;
     nc /= 13.0;
-    float3 sc = scene.read(uint2(in.pos.xy)).rgb;
+    float4 s4 = scene.sample(sm, uv); float3 sc = s4.rgb;                // 景色は粗い大きさで描いてあることがある（なめらかに広げる）
     float3 x = (toLin(sc + nc) + bloom.sample(sm, uv).rgb * p.inten) * p.expo;   // 星雲は景色と同じ画面の色で足してから、光の量へ
     float3 y = shoulder(x, 0.8, max(1.0, p.head));                     // EDR の画面では、白より明るい所を余白の分だけさらに光らせる
     float2 c = uv - 0.5; y *= 1.0 - p.vign * dot(c, c) * 1.6;           // まわりを少し暗く
     float3 g = pow(max(y, 0.0), float3(1.0 / 2.2));
     float r = fract(sin(dot(in.pos.xy + p.time * 61.7, float2(12.9898, 78.233))) * 43758.5453);
     g += (r - 0.5) * p.grain * 0.035;                                   // フィルムの粒
-    return float4(g, 1.0);
+    return float4(g, s4.a);                                            // アルファ：透けて残った割合（あとで星を足す所）
 }
 """#

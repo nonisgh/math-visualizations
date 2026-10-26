@@ -199,13 +199,88 @@ struct ScrubRow: View {
 }
 
 /// ドックの列：パネルを縦に積む
+/// 設定の検索：⌘F か上の欄に打つと、項目の名前・説明から探して、押すとそのパネルへ飛んで光らせる
+final class SettingSearch: ObservableObject {
+    static let shared = SettingSearch()
+    @Published var query = ""
+    @Published var focusTick = 0                      // ⌘F で欄にカーソルを置く
+    @Published var flash: PanelID? = nil              // 飛んだ先のパネルを少しの間光らせる
+    struct Hit: Identifiable { let id = UUID(); let panel: PanelID; let kind: String; let text: String }
+    /// 探す：パネルの名前・項目の名前・説明・ショートカットキーの操作。空白で区切ると、全部を含むもの
+    func hits() -> [Hit] {
+        func norm(_ s: String) -> String { (s.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? s).lowercased() }
+        let words = norm(query).split(whereSeparator: { $0 == " " || $0 == "　" }).map(String.init)
+        guard !words.isEmpty else { return [] }
+        func ok(_ s: String) -> Bool { let l = norm(s); return words.allSatisfy { l.contains($0) } }
+        var out: [Hit] = []
+        for p in PanelID.allCases where ok(p.title) { out.append(Hit(panel: p, kind: "panel", text: p.title)) }
+        for (p, k, t) in searchIndex where ok(t) || ok(p.title + " " + t) { out.append(Hit(panel: p, kind: k, text: t)) }
+        for a in KeyAction.allCases where ok(a.title) || ok("キー " + a.title) { out.append(Hit(panel: .keys, kind: "set", text: a.title + "（キー " + (Keymap.shared.label(a).isEmpty ? "なし" : Keymap.shared.label(a)) + "）")) }
+        // 項目を先に、説明は後に
+        return out.filter { $0.kind != "note" } + out.filter { $0.kind == "note" }
+    }
+}
+
+struct SearchBar: View {
+    @ObservedObject var s = SettingSearch.shared
+    @FocusState private var focused: Bool
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Space.sky)
+            TextField("設定を探す（⌘F）", text: $s.query).textFieldStyle(.plain).focused($focused)
+                .onExitCommand { s.query = ""; focused = false }
+            if !s.query.isEmpty { Button { s.query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.borderless).foregroundStyle(.secondary) }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .spaceCard(lit: focused)
+        .onChange(of: s.focusTick) { _, _ in focused = true }
+    }
+}
+
 struct DockColumn: View {
     @ObservedObject var model: AppModel
     @ObservedObject var dock: DockState
+    @ObservedObject var search = SettingSearch.shared
+    /// 見つけたパネルへ：浮いた窓にあればそのタブを選ぶ、ドックにあればひらいてそこまで動かす。少しの間光らせる
+    func reveal(_ p: PanelID, _ proxy: ScrollViewProxy) {
+        if let g = dock.group(of: p) { dock.select(p, in: g.id) }
+        else {
+            dock.collapsed.remove(p)
+            DispatchQueue.main.async { withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(p, anchor: .top) } }
+        }
+        search.flash = p
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { if search.flash == p { search.flash = nil } }
+    }
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(spacing: 8) {
-                ForEach(dock.docked, id: \.self) { id in PanelCard(model: model, dock: dock, id: id) }
+                SearchBar()
+                if !search.query.isEmpty {
+                    let hits = search.hits()
+                    VStack(alignment: .leading, spacing: 2) {
+                        if hits.isEmpty { Text("見つからない").font(.caption).foregroundStyle(Space.slate).padding(6) }
+                        ForEach(hits.prefix(40)) { h in
+                            Button { reveal(h.panel, proxy) } label: {
+                                HStack(alignment: .top, spacing: 6) {
+                                    Image(systemName: h.panel.icon).frame(width: 14).foregroundStyle(Space.sky)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(h.kind == "note" ? "説明：" + String(h.text.prefix(60)) + (h.text.count > 60 ? "…" : "") : h.text)
+                                            .foregroundStyle(h.kind == "note" ? Space.slate : .white).font(h.kind == "note" ? .caption : .callout)
+                                            .fixedSize(horizontal: false, vertical: true).multilineTextAlignment(.leading)
+                                        Text(h.panel.title + (dock.group(of: h.panel) != nil ? "（浮いた窓）" : "")).font(.caption2).foregroundStyle(Space.lilac)
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.horizontal, 6).padding(.vertical, 4).contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        if hits.count > 40 { Text("ほか \(hits.count - 40) 件（言葉を足して絞る）").font(.caption2).foregroundStyle(Space.slate).padding(4) }
+                    }
+                    .padding(4).spaceCard()
+                }
+                ForEach(dock.docked, id: \.self) { id in PanelCard(model: model, dock: dock, id: id).id(id) }
                 // 最後の所へ落とす場所
                 DropTail(dock: dock)
                 HStack {
@@ -217,6 +292,7 @@ struct DockColumn: View {
                 Text("見出しをドラッグで並べかえ・クリックでたたむ・⧉ で浮かせる・Tab で全部隠す。浮いた窓のタブへドラッグするとタブでまとまり、ここへドラッグすると戻る").font(.caption2).foregroundStyle(.tertiary).multilineTextAlignment(.center)
             }
             .padding(8)
+        }
         }
         .scrollContentBackground(.hidden)
         .background(SpaceBackground())
@@ -243,6 +319,7 @@ struct PanelCard: View {
     @ObservedObject var dock: DockState
     let id: PanelID
     @State private var targeted = false
+    @ObservedObject private var search = SettingSearch.shared
     var body: some View {
         let open = !dock.collapsed.contains(id)
         VStack(alignment: .leading, spacing: 0) {
@@ -274,7 +351,9 @@ struct PanelCard: View {
                 PanelContent(model: model, id: id).padding(10)
             }
         }
-        .spaceCard(lit: targeted)
+        .spaceCard(lit: targeted || search.flash == id)
+        .shadow(color: search.flash == id ? Space.violet.opacity(0.8) : .clear, radius: 10)
+        .animation(.easeOut(duration: 0.3), value: search.flash)
         .dropDestination(for: String.self) { items, _ in
             if let s = items.first, let from = PanelID(rawValue: s) { withAnimation(.easeOut(duration: 0.15)) { dock.dockPanel(from, before: id) } }
             return true
@@ -471,6 +550,7 @@ struct PanelContent: View {
                 Toggle("軸（矢印）" + km.hint(.mapAxes), isOn: model.b(\.mapAxes))
                 Toggle("歩いた跡", isOn: model.b(\.mapTrail))
                 if r.set.mapTrail { Toggle("跡を光の線に（ほうき星の尾・流れる光）", isOn: model.b(\.trailLight)).padding(.leading, 14) }
+                if r.set.mapTrail { row("残す軌跡（×π）", \.trailKeep, 0, 20, "%.2f").padding(.leading, 14); note("歩いた跡を、新しい方から x·π の長さだけ残し、古い所から消えていく（0 で全部残す。小数も可）") }
                 HStack {
                     Button("地図を元の向きに") { model.mapRenderer.home(); model.mapRenderer2.home(); model.s2Renderer.home() }
                     Button("跡を消す（L3）") { r.clearTrail(); model.changed() }
@@ -488,21 +568,25 @@ struct PanelContent: View {
                 Toggle("ゲームのような操作（少し倒すとゆっくり・速めに回る・慣性つき）", isOn: model.b(\.padGame))
                 Toggle("右スティックの左右を反転", isOn: model.b(\.padInvX))
                 Toggle("右スティックの上下を反転", isOn: model.b(\.padInvY))
+                row("自走のアクセル", \.autoAccelK, 0.2, 2)
                 row("自走の最高速（倍）", \.autoMax, 1, 50, "%.1f")
+                Picker("ターボ（Z・十字の右）", selection: model.b(\.turboHold)) { Text("押すたびに切りかえ").tag(false); Text("押している間だけ").tag(true) }.pickerStyle(.segmented)
                 row("自走の最低速（倍）", \.autoMin, 0, 10, "%.1f")
                 note("ブレーキで落とすのは最低速まで。0 なら止まって、まだ手前へ倒していると巻き戻し（最低速が 0 より大きい時は巻き戻さない）")
                 Toggle("自走で手前へ倒し続けると巻き戻し", isOn: model.b(\.autoRewind))
-                note("歩き続ける（コントローラーの B）の時：十字の上・下を押し続けるとだんだん速く・遅く（1 秒で 2 倍・半分、離すとその速さのまま）。左スティックの前は何もしない、左右は横歩き、手前へ倒すとブレーキ、止まってもまだ倒していると通ってきた軌跡を逆にたどる（倒し続けるほど速く）")
+                note("歩き続ける（コントローラーの B）の時：十字の上・下を押し続けるとだんだん速く・遅く（1 秒で 2 倍・半分、離すとその速さのまま）。左スティックの前もアクセル（ブレーキの 0.8 倍くらいの強さ、倒し始めはゆっくり）、左右は横歩き、手前へ倒すとブレーキ、止まってもまだ倒していると通ってきた軌跡を逆にたどる（倒し続けるほど速く）")
                 if !r.game.names.isEmpty {
                     TimelineView(.periodic(from: .now, by: 0.1)) { _ in
                         note("押しているボタン：" + r.game.pressedNames() + (r.padLookOnly ? "（見回しだけ）" : ""))
                     }
                 }
                 note(r.game.names.isEmpty ? "コントローラー：つながっていない（Joy-Con などを Bluetooth でつなぐと使える）" : "コントローラー：" + r.game.names.joined(separator: "・"))
-                note("右スティック 進む向き・ZL＋右スティック 見回しだけ（地図は回らず水色の円すい。ZL を押して離すだけで前を見る）・左スティック 進む向きへ歩く・Y 前を見る（進む向きは変えない）・ZL＋Y この向きへ進む（Enter）・右スティック押し込み 前を見る（もう一度で水平）・左スティック押し込み（L3） 軌跡を消す・L/R 上下・ZR 速く・A 目印・B 歩き続ける・X 縦横無尽・十字の上下 殻の見える距離（歩き続ける・決まった道の間は、押し続けて速く・遅く）・＋ 設定・− 地図を出す・隠す")
+                note("右スティック 進む向き・ZL＋右スティック 見回しだけ（地図は回らず水色の円すい。ZL を押して離すだけで前を見る）・左スティック 進む向きへ歩く・Y 前を見る（進む向きは変えない）・ZL＋Y この向きへ進む（Enter）・右スティック押し込み 前を見る（もう一度で水平）・左スティック押し込み（L3） 軌跡を消す・L/R 上下・ZR 速く・A 目印・B 歩き続ける・X 縦横無尽・十字の上下 殻の見える距離（歩き続ける・決まった道の間は、押し続けて速く・遅く）・十字の右 ターボ（いきなり最高速、もう一度で戻る）・＋ 設定・− 地図を出す・隠す")
             case .screen:
                 Toggle("60 fps 前後（144Hz の画面では 72）" + km.hint(.fps), isOn: model.b(\.fps60))
                 Toggle("足りない時だけ細かさを下げる", isOn: model.b(\.autoQ))
+                Toggle("動いていない時は描き直さない（止まったら 1 回だけ細かく描く）", isOn: model.b(\.idleReuse))
+                note("映画のような光の時は、殻の景色だけ「描く細かさ」で描き、星と仕上げは画面の細かさで描く")
                 row("描く細かさ", \.scale, 0.3, 1, "%.2f")
                 Button("初めの見え方に戻す") { let s = r.set.scale; r.set = Settings(); r.set.scale = s; model.changed() }
             case .keys:

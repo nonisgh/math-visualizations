@@ -249,14 +249,14 @@ enum Verify {
             r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.walking = true
             func run(_ n: Int, _ z: Double) { for _ in 0..<n { r.game.fake = ([0, 0, z], .zero, false, false, false); r.step(1.0 / 120) } }
             run(120, 0); let d1 = r.journey.dist
-            run(120, 1); let fwd = r.autoSpeed                                 // 左スティックの前は何もしない
+            run(60, 1); let fwd = r.autoSpeed                                  // 左スティックの前：ゆっくりアクセル（0.5 秒で 1.5 倍より小さい）
             r.game.fakeDpad = 1; run(240, 0); r.game.fakeDpad = nil; let fast = r.autoSpeed   // 十字の上で速く
             run(120, 0); let cruise = r.autoSpeed, nTr = r.journey.trail.count, far = r.journey.dist
             run(450, -1); let back = r.journey.dist, nTr2 = r.journey.trail.count, rew = r.rewinding
             run(10, 0)
             r.walking = false; r.game.fake = (.zero, .zero, false, false, false); r.set.gamepad = false; r.step(1.0 / 120); r.game.fake = nil
-            check(d1 > 0 && abs(fwd - 1) < 1e-9 && fast > 2 && abs(cruise - fast) < 1e-9 && rew && back < far - 0.3 && nTr2 < nTr && !r.rewinding,
-                  String(format: "自走：左スティックの前は何もしない、十字の上で ×%.1f（離してもそのまま）、手前でブレーキ→巻き戻し（道のり %.2f → %.2f、軌跡 %d → %d 点）", fast, far, back, nTr, nTr2))
+            check(d1 > 0 && fwd > 1.02 && fwd < 1.5 && fast > 2 && abs(cruise - fast) < 1e-9 && rew && back < far - 0.3 && nTr2 < nTr && !r.rewinding,
+                  String(format: "自走：左スティックの前でゆっくり加速、十字の上で ×%.1f（離してもそのまま）、手前でブレーキ→巻き戻し（道のり %.2f → %.2f、軌跡 %d → %d 点）", fast, far, back, nTr, nTr2))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
         // 決まった道の速さ：十字の上を 1 秒押すと 2 倍、下を 2 秒で 1/2（極めぐりの道のままで）
@@ -277,6 +277,37 @@ enum Verify {
             r.game.fakeDpad = nil; r.game.fake = nil; r.walking = false; r.set.gamepad = false; r.step(1.0 / 120)
             check(abs(up - 2) < 0.03 && r.set.shellRange == sr, String(format: "歩き続ける時の十字の上：速さ ×%.2f（1 秒）、殻の見える距離はそのまま", up))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
+        }
+        // ターボ：止まっていたら最高速で歩き始め、もう一度で元の速さに。決まった道では道の速さを最高速に
+        do {
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = false
+            r.turbo(); r.step(1.0 / 120); let a1 = r.autoSpeed, w1 = r.walking
+            r.turbo(); r.step(1.0 / 120); let a2 = r.autoSpeed
+            r.walking = false; r.step(1.0 / 120); r.startPath(.tour); r.turbo(); let p1 = r.pathSpeed; r.turbo(); let p2 = r.pathSpeed; r.pathMode = .none
+            check(w1 && abs(a1 - r.set.autoMax) < 1e-9 && abs(a2 - 1) < 1e-9 && abs(p1 - r.set.autoMax) < 1e-9 && abs(p2 - 1) < 1e-9,
+                  String(format: "ターボ：歩き始めて ×%.0f → もう一度で ×%.0f、決まった道 ×%.0f → ×%.0f", a1, a2, p1, p2))
+            // 押している間だけ：Z を押している間は最高速、離すと元の速さ
+            r.set = .plain; r.set.turboHold = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; r.step(1.0 / 120)
+            r.keys.insert(6); r.turboPress(key: 6); r.step(1.0 / 120); r.step(1.0 / 120); let h1 = r.autoSpeed
+            r.keys.remove(6); r.step(1.0 / 120); let h2 = r.autoSpeed; r.walking = false
+            check(abs(h1 - r.set.autoMax) < 1e-9 && abs(h2 - 1) < 1e-9, String(format: "ターボ（押している間だけ）：押している間 ×%.0f、離すと ×%.0f", h1, h2))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey()
+        }
+        // 残す軌跡：1.5π にすると、それより古い跡は消える
+        do {
+            r.set = .plain; r.set.trailKeep = 1.5; r.cam = Camera(); r.journey = Journey(); r.walking = true
+            for _ in 0..<1200 { r.step(1.0 / 60) }
+            r.walking = false; r.step(1.0 / 60)
+            let n = r.journey.trail.count, lim = Int(1.5 * Double.pi / 0.02)
+            check(n <= lim && n >= lim - 2 && r.journey.trail2.count == n && r.journey.dist > 1.5 * Double.pi, "残す軌跡 1.5π：跡の点 \(n)（上限 \(lim)）、S² の仲間も同じ数")
+            r.set = .plain; r.cam = Camera(); r.journey = Journey()
+        }
+        // 設定の検索：「もや」「fps」「目印 線」で項目が見つかり、押すとそのパネルへ
+        do {
+            let ss = SettingSearch.shared, keep = ss.query
+            ss.query = "もや"; let h1 = ss.hits(); ss.query = "fps"; let h2 = ss.hits(); ss.query = "目印 線"; let h3 = ss.hits(); ss.query = "ターボ"; let h4 = ss.hits(); ss.query = "ｆｐｓ"; let h5 = ss.hits(); ss.query = keep
+            check(h1.contains { $0.panel == .view && $0.text.contains("もや") } && h2.contains { $0.panel == .screen } && h3.contains { $0.panel == .shell && $0.text == "目印の線" } && h4.contains { $0.panel == .keys } && !h5.isEmpty,
+                  "設定の検索：もや \(h1.count) 件・fps \(h2.count) 件・「目印 線」\(h3.count) 件・ターボ \(h4.count) 件（索引 \(searchIndex.count) 項目）")
         }
         // 自走の最高・最低：前へ倒し続けても最高速まで、手前へ倒し続けても最低速まで（最低速が 0 より大きいと巻き戻さない）
         do {
@@ -694,13 +725,16 @@ enum Verify {
             }),
             ("地図・デモ：怪獣の背中（アナ極から 1.0 進んだ所）", { r in r.set = .plain; r.backDemo(0, "怪獣"); r.walking = false; r.cam.walk([0, 0, 1], 0.65) }),
             ("地図・デモ：怪獣の背中（2.6 進んだ所）", { r in r.set = .plain; r.backDemo(0, "怪獣"); r.walking = false; r.cam.walk([0, 0, 1], 2.25) }),
+            ("地図・ロケットと見ている向きの矢印", { r in r.set = .plain; r.set.shell = false; r.cam = Camera(); r.journey = Journey(); r.cam.walk([0, 0, 1], 0.6); r.cam.hy = 50; r.cam.hp = 20 }),
+            ("地図・光の跡を何周も（螺旋で 12 歩、残す 2π）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.set.trailKeep = 2; r.startPath(.spiral); for _ in 0..<5000 { r.step(1.0 / 60) }; r.pathMode = .none }),
+            ("地図・光の跡を何周も（螺旋で 12 歩、全部）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.startPath(.spiral); for _ in 0..<5000 { r.step(1.0 / 60) }; r.pathMode = .none }),
             ("地図・自分を真ん中に", { r in r.set = .plain; r.set.mapFollow = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
         ]
         let w = 1200, h = 900
         let m2 = MapRenderer(world: r, slot: 2); m2.backingScale = 1
         let all = scenes + [("S² の仲間（螺旋で 8 歩いた跡・目印 2 つ）", { (r: Renderer) in r.set = .plain; r.startPath(.spiral); for i in 0..<900 { r.step(1.0 / 60); if i == 300 || i == 600 { r.addMark() } }; r.pathMode = .none })]
         for (k, (name, f)) in all.enumerated() {
-            f(r); m.home(); m2.home()
+            r.demo = nil; f(r); m.home(); m2.home()
             let m = k == all.count - 1 ? m2 : m
             var (px, labels) = m.renderOffscreen(width: w, height: h)
             for (p, _, ok) in labels where ok { let x = Int(p.x), y = Int(p.y); for dy in -2...2 { for dx in -2...2 { let xx = x + dx, yy = y + dy; if xx >= 0 && xx < w && yy >= 0 && yy < h { let i = (yy * w + xx) * 4; px[i] = 255; px[i + 1] = 255; px[i + 2] = 255 } } } }

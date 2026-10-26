@@ -20,7 +20,7 @@ struct Uni {
     var fovY: Float = 0, picLine: Float = 0.3, nebK: Float = 1, wireFloor: Float = 0
     var circ: Int32 = 0, room: Int32 = 0, space: Int32 = 0, shAx: Int32 = 0
     var tube: Float = 0.02, pixAng: Float = 0.002, lineW: Float = 0, solidWire: Float = 0.35
-    var hazeK: Float = 1, lineViv: Float = 0, xpad1: Float = 0, xpad2: Float = 0
+    var hazeK: Float = 1, lineViv: Float = 0, shCut: Float = 0, xpad2: Float = 0
     var BR = SIMD4<Float>(), BU = SIMD4<Float>(), BF = SIMD4<Float>()   // 体の向き（進む向きの枠。自分の模型の向き）
     var G0 = SIMD4<Float>(1, 0, 0, 0), G1 = SIMD4<Float>(0, 1, 0, 0), G2 = SIMD4<Float>(0, 0, 1, 0)   // 世界の xyz → 球層の網目の枠（行ごと。ウェブ版の uGridM）
     var DR = SIMD4<Float>(), DU = SIMD4<Float>(), DF = SIMD4<Float>()   // デモの模型の向き（置いた時の体の向き）
@@ -92,7 +92,8 @@ struct Settings {
     var band = 1.0              // 宇宙の時の天の川・星雲の明るさ
     var polePlanet = true       // 8 つの極を「惑星」に：極の色の、少し透けてつやのある大きな玉（角度 planetSize、宇宙の大きさでは小さくしない＝広い宇宙ほど本当は大きい）。絵のモードの時は絵のまま
     var planetSize = 0.12       // 極の惑星の大きさ（半径の角度。前は 0.16 で決まっていた）
-    var autoAccel = 1.2         // 自走（歩き続ける）の時、左スティックを前へ倒し続けた時の速くなり方（1 秒あたり）
+    var autoAccel = 1.2         // （前の設定。使っていない）
+    var autoAccelK = 0.8        // 自走の時、左スティックを前へ倒し続けた時の速くなり方（0.8 で 2 倍になるのに約 1.5 秒。大きいほど速く）
     var autoMax = 8.0           // 自走の最高の速さ（ふつうの何倍か）
     var autoMin = 0.0           // 自走の最低の速さ（ブレーキでここまで落とす。0 なら止まって、まだ倒していると巻き戻し）
     var autoRewind = true       // 自走の時、手前へ倒し続けると止まったあと軌跡を逆にたどる（巻き戻し）
@@ -122,6 +123,9 @@ struct Settings {
     var gridTilt = 0.0, gridAz = 0.0          // 球層の網目の極（ふだんは z）を、向き gridAz の方へ gridTilt° 倒す（ウェブ版と同じ）
     var gridSpin = false, gridSpinRate = 4.0  // 網目の自転（網目の極のまわりに、1 分に gridSpinRate 回）
     var lineViv = 0.6           // 景色の殻の網目の線の鮮やかさ（地図の色味に近づける。0 でウェブ版と同じ）
+    var idleReuse = true        // 動いていない時は前のコマを使い回す（止まったら 1 回だけ細かく描く）
+    var turboHold = false       // ターボの押し方：false 押すたびに切りかえ・true 押している間だけ（Z か十字の右を押し続ける）
+    var trailKeep = 0.0         // 残す軌跡の長さ（×π。0 で全部）。古い所から消えていく
     var mapPan = false          // 地図の窓の中で地図を動かす（Shift・右ドラッグ）。初めはオフ（回す・近づくだけ）
     var mapRange = 0            // 殻の出し方：0 全体・1 今いる所（自分の殻ははっきり、となりはうっすら）・2 写る所（中の景色に写っている所だけ）
     // 2 枚目の地図（ウェブ版の左上の「地図 2」）：見方・範囲・4 次元の向きは 1 枚目と別。既定は自己中心
@@ -168,8 +172,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     private var padHold = 0.0, padPushWas = false
     /// 自走（歩き続ける）の速さの倍率・巻き戻し中か・巻き戻しの速さ（左スティックの前後で。アクセル・ブレーキ・巻き戻し）
-    private(set) var autoSpeed = 1.0, rewinding = false, rewindSpeed = 0.0
-    private var walkingWas = false, padThrottle = 0.0
+    var autoSpeed = 1.0; private(set) var rewinding = false, rewindSpeed = 0.0
+    private var walkingWas = false, padThrottle = 0.0, padThrSmooth = 0.0
     /// ZL を押している（見回しだけ）。パネルの表示用
     private(set) var padLookOnly = false
     /// ZL を押している間に、右スティックか Y を使ったか（使わずに離したら「前を見る」）
@@ -181,6 +185,9 @@ final class Renderer: NSObject, MTKViewDelegate {
     var expSaved: Settings? = nil      // 体験の前の見え方（元に戻す用）
     var demo: (c: V4, R: V4, U: V4, F: V4, kind: Int, name: String)? = nil   // デモ「背中が迫ってくる」の模型（置いた時の体の向きのまま。kind は模型の種類の番号）
     var gridSpinAng = 0.0              // 網目の自転の今の角（ウェブ版の GRID.spin）
+    var sceneScale = 1.0              // 景色を描く細かさ（映画のような光の時。画面は画面の細かさのまま）
+    private var lastSig: FrameSig? = nil, stillSince = 0.0, refined = false, refining = false
+    private(set) var idle = false      // 動いていないので描き直していない
     var pathSpeed = 1.0                // 決まった道の速さの倍率（コントローラーの十字の上下で）
     let game = GameInput()
     var onPad: ((String) -> Void)?           // コントローラーのボタン（A・B・X・Y・十字・メニュー）
@@ -324,6 +331,12 @@ final class Renderer: NSObject, MTKViewDelegate {
         // もや・透けは決まった距離でかかる（宇宙の大きさ R 倍）
         u.fog = Float(set.fog * (set.grand ? 1.6 : 1) * set.uniR); u.fade = Float(set.fade * set.uniR); u.uni = Float(set.uniR); u.depth = Float(set.depth)
         u.shellOp = Float(set.shellOp); u.shellBack = Float(set.shellBack); u.shellRange = Float(set.shellRange)
+        // 殻を調べる道のりの打ち切り：もやで光が 0.4% より弱くなる所から先は見えないので調べない（重さの大半はここ。殻の見える距離が長いと球を何周もする）。
+        //   目印の線（もやで消さない線）がある時は 1 周（2π）まで。見え方は殻の見える距離のまま（薄くなり方も同じ）
+        let fogR = set.fog * (set.grand ? 1.6 : 1) * set.uniR, fogCut = fogR > 1e-6 ? 5.5 / fogR : 1e9
+        let gK = set.wireFloor * max(0, min(1, log10(max(set.uniR, 1))))
+        u.shCut = Float(min(set.shellRange, gK > 0 ? max(fogCut, 2 * Double.pi) : fogCut))
+        if Renderer.noCut { u.shCut = Float(set.shellRange) }     // 計測用（打ち切りなしと比べる。S3_NOCUT=1）
         u.shMin = Float(shellMinTheta)                              // いちばん内側の殻（極の玉より外に。ウェブ版の shellMinTheta）
         u.shellLum = Float(set.shellLum); u.gridSt = Float(set.grand ? Double.pi / 36 : Double.pi / 12)
         u.shellN = Int32(max(2, min(21, set.shellN))); u.shell = set.shell ? 1 : 0
@@ -364,11 +377,13 @@ final class Renderer: NSObject, MTKViewDelegate {
     func encode(_ cb: MTLCommandBuffer, _ rpd: MTLRenderPassDescriptor, _ fmt: MTLPixelFormat, _ w: Int, _ h: Int) {
         guard set.cine else { encodeScene(cb, rpd, fmt, w, h); return }
         // 映画のような光：景色 → HDR の絵 → 明るい所を半分ずつ小さく集める → 大きくしながら足し戻す → 色を締めて画面へ
-        let tx = postTextures(w, h)
+        // 景色（殻・線）は「描く細かさ」の大きさで描き、仕上げ（ぼかし・色の締め）は画面の大きさへ広げる。星は仕上げのあと画面の細かさで足す
+        let sw = max(1, Int((Double(w) * sceneScale).rounded())), sh = max(1, Int((Double(h) * sceneScale).rounded()))
+        let tx = postTextures(sw, sh)
         let srpd = MTLRenderPassDescriptor()
         srpd.colorAttachments[0].texture = tx.hdr; srpd.colorAttachments[0].loadAction = .dontCare; srpd.colorAttachments[0].storeAction = .store
         srpd.colorAttachments[1].texture = tx.neb; srpd.colorAttachments[1].loadAction = .clear; srpd.colorAttachments[1].clearColor = MTLClearColorMake(0, 0, 0, 0); srpd.colorAttachments[1].storeAction = .store
-        encodeScene(cb, srpd, .rgba16Float, w, h, split: true)
+        encodeScene(cb, srpd, .rgba16Float, sw, sh, split: true, stars: false)
         var pu = PostU(); pu.thr = 1.0; pu.knee = 0.35
         func pass(_ dst: MTLTexture, _ pipe: MTLRenderPipelineState, _ load: MTLLoadAction, _ srcs: [MTLTexture], _ p: PostU, _ r: MTLRenderPassDescriptor? = nil) {
             let d = r ?? { let d = MTLRenderPassDescriptor(); d.colorAttachments[0].texture = dst; d.colorAttachments[0].loadAction = load; d.colorAttachments[0].storeAction = .store; return d }()
@@ -394,10 +409,26 @@ final class Renderer: NSObject, MTKViewDelegate {
         pu.head = set.edrOn ? Float(max(1, min(edrHead, 4))) : 1; pu.grain = Float(set.grain); pu.vign = 0.22
         pu.time = Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 100))
         pass(tx.hdr, postPipe("fcomp", fmt, add: false), .dontCare, [tx.hdr, tx.mips.first ?? tx.hdr, tx.neb], pu, rpd)
+        // 星：画面の細かさで、景色の透けて残った所（仕上げの絵のアルファ）にだけ足す
+        if set.space && set.stars > 0, let sb = starBuf {
+            let r2 = MTLRenderPassDescriptor()
+            r2.colorAttachments[0].texture = rpd.colorAttachments[0].texture; r2.colorAttachments[0].loadAction = .load; r2.colorAttachments[0].storeAction = .store
+            if let e = cb.makeRenderCommandEncoder(descriptor: r2) {
+                let u = uniforms(width: w, height: h)
+                var su = StarU(P: u.P, R: u.R, U: u.U, F: u.F, res: u.res, tanF: u.tanF, fovY: u.fovY, lens: u.lens, fog: Float(set.fog),
+                               lum: Float(set.stars) * 1.6, maxD: u.maxD, edr: Float(max(1.5, min(edrHead, 4))), px: max(1, Float(h) / 1000))
+                e.setRenderPipelineState(starPipeline(fmt))
+                e.setVertexBuffer(sb, offset: 0, index: 0)
+                e.setVertexBytes(&su, length: MemoryLayout<StarU>.stride, index: 1)
+                e.setFragmentBytes(&su, length: MemoryLayout<StarU>.stride, index: 0)
+                e.drawPrimitives(type: .point, vertexStart: 0, vertexCount: Renderer.starN * 2)
+                e.endEncoding()
+            }
+        }
     }
     // ---- 光の仕上げの道具 ----
     private var postPipes: [String: MTLRenderPipelineState] = [:]
-    private var postTex: (w: Int, h: Int, hdr: MTLTexture, neb: MTLTexture, mips: [MTLTexture])?
+    private var postTexs: [(w: Int, h: Int, hdr: MTLTexture, neb: MTLTexture, mips: [MTLTexture])] = []   // 大きさごと（動いている時の粗い絵と、止まった時の細かい絵）
     func postPipe(_ f: String, _ fmt: MTLPixelFormat, add: Bool) -> MTLRenderPipelineState {
         let key = "\(f)-\(fmt.rawValue)-\(add)"
         if let p = postPipes[key] { return p }
@@ -410,7 +441,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     /// HDR の絵（画面と同じ大きさ）、星雲の光だけの絵、ブルームの段（半分ずつ、6 段まで）
     func postTextures(_ w: Int, _ h: Int) -> (hdr: MTLTexture, neb: MTLTexture, mips: [MTLTexture]) {
-        if let t = postTex, t.w == w, t.h == h { return (t.hdr, t.neb, t.mips) }
+        if let t = postTexs.first(where: { $0.w == w && $0.h == h }) { return (t.hdr, t.neb, t.mips) }
         func tex(_ a: Int, _ b: Int) -> MTLTexture {
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: max(1, a), height: max(1, b), mipmapped: false)
             d.usage = [.renderTarget, .shaderRead]; d.storageMode = .private
@@ -418,7 +449,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         }
         let hdr = tex(w, h), neb = tex(w, h); var mips: [MTLTexture] = []; var a = w, b = h
         while mips.count < 6 && min(a, b) >= 16 { a /= 2; b /= 2; mips.append(tex(a, b)) }
-        postTex = (w, h, hdr, neb, mips); return (hdr, neb, mips)
+        postTexs.append((w, h, hdr, neb, mips)); if postTexs.count > 2 { postTexs.removeFirst() }
+        return (hdr, neb, mips)
     }
     // ---- 星雲のかたまり（中心・色・広がり）と、模様のノイズの箱 ----
     /// 8 つ。アナ極（出発点）からは 0.8〜2.6 離して置く（出発してすぐガスの中、にならないように）。いつも同じ並び
@@ -471,7 +503,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         return t
     }()
     /// 景色（と星）を rpd に描く
-    func encodeScene(_ cb: MTLCommandBuffer, _ rpd: MTLRenderPassDescriptor, _ fmt: MTLPixelFormat, _ w: Int, _ h: Int, split: Bool = false) {
+    func encodeScene(_ cb: MTLCommandBuffer, _ rpd: MTLRenderPassDescriptor, _ fmt: MTLPixelFormat, _ w: Int, _ h: Int, split: Bool = false, stars: Bool = true) {
         var u = uniforms(width: w, height: h)
         var mk = markers(); u.nm = Int32(mk.count)
         if mk.isEmpty { mk.append(MkGPU(c: .zero, col: .zero)) }
@@ -486,7 +518,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         enc.setFragmentBytes(Renderer.nebBlobs, length: MemoryLayout<SIMD4<Float>>.stride * Renderer.nebBlobs.count, index: 4)
         enc.setFragmentTexture(noise3D, index: 1)
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
-        if set.space && set.stars > 0, let sb = starBuf {             // 星：景色の透けて残った所（アルファ）にだけ足す
+        if stars && set.space && set.stars > 0, let sb = starBuf {    // 星：景色の透けて残った所（アルファ）にだけ足す
             var su = StarU(P: u.P, R: u.R, U: u.U, F: u.F, res: u.res, tanF: u.tanF, fovY: u.fovY, lens: u.lens, fog: Float(set.fog),   // 星は遠くの光：宇宙の大きさでもやを濃くしない
                           
                            lum: Float(set.stars), maxD: u.maxD, edr: set.cine ? 8 : Float(max(1, min(edrHead, 4))), px: max(1, Float(h) / 1000))
@@ -500,6 +532,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     // ---- 星（宇宙の時）----
     static let starN = 12000
+    static let noCut = ProcessInfo.processInfo.environment["S3_NOCUT"] != nil
     private var starPipes: [MTLPixelFormat: MTLRenderPipelineState] = [:], starPipeMRT: MTLRenderPipelineState?, sceneMRT: MTLRenderPipelineState?
     /// 映画の光の時の景色：色（HDR の絵）と星雲の光（別の絵）を同時に書く
     func pipelineMRT() -> MTLRenderPipelineState {
@@ -551,6 +584,13 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // ---- 歩く（ウェブ版の loop の一部）----
     func step(_ dt: Double) {
+        // 残す軌跡：x·π より古い所は消す（点は 0.02 おき）。S² の仲間の軌跡も同じ数だけ
+        if set.trailKeep > 0 {
+            let maxN = max(2, Int(set.trailKeep * Double.pi / 0.02))
+            if journey.trail.count > maxN { journey.trail.removeFirst(journey.trail.count - maxN) }
+            if journey.trail2.count > maxN { journey.trail2.removeFirst(journey.trail2.count - maxN) }
+        }
+        if set.turboHold { turboRelease() }
         if set.gridSpin && set.gridSpinRate != 0 { gridSpinAng = (gridSpinAng + dt * 2 * Double.pi * set.gridSpinRate / 60).truncatingRemainder(dividingBy: 2 * Double.pi) }   // 球層の網目の自転
         var sp = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR   // 宇宙が大きいほど、同じ速さで進む角度は小さい
         var mv = SIMD3<Double>(0, 0, 0)
@@ -610,14 +650,19 @@ final class Renderer: NSObject, MTKViewDelegate {
         } else { padMove = .zero; padVel = .zero; padRun = 1 }
         // 自走の速さ：十字の上下でだんだん速く・遅く（離すとその速さのまま）、左スティックを手前へ倒すとブレーキ、止まってもまだ倒していると軌跡を巻き戻す
         let aLo = max(0, min(set.autoMin, set.autoMax)), aHi = max(aLo, set.autoMax)
-        if walking && !walkingWas { autoSpeed = max(aLo, min(aHi, 1)); rewinding = false; rewindSpeed = 0 }
+        if walking && !walkingWas { if turboStart { turboStart = false } else { autoSpeed = max(aLo, min(aHi, 1)) }; rewinding = false; rewindSpeed = 0 }
         walkingWas = walking
         if walking && set.gamepad {
             let th = padThrottle
             // 十字の上・下を押し続けても、だんだん速く・遅く（決まった道と同じ。1 秒で 2 倍・半分）
             let dy = game.dpadY(); if dy != 0 && !rewinding { autoSpeed = max(max(aLo, 0.1), min(aHi, autoSpeed * exp(dy * 0.69 * dt))) }
-            // 左スティックの前は何もしない（速さは十字の上下で。ユーザーの希望）。左右は横歩き、手前はブレーキ → 止まったら巻き戻し
-            if th < -0.2 {
+            // 左スティックの前：ゆるやかなアクセル（倒しきって 1 秒に約 1.6 倍＝2 倍になるのに約 1.5 秒。autoAccelK で強さ）。倒し始めはゆっくり効かせて、急に速くならない。
+            //   左右は横歩き、手前はブレーキ → 止まったら巻き戻し
+            padThrSmooth += (max(0, th) - padThrSmooth) * min(1, dt / 0.6)
+            if th > 0.2 {
+                if rewinding { rewinding = false; rewindSpeed = 0; autoSpeed = max(aLo, 0.3) }
+                autoSpeed = min(aHi, max(autoSpeed, 0.3) * exp(0.6 * set.autoAccelK * padThrSmooth * dt))
+            } else if th < -0.2 {
                 if autoSpeed > aLo + 1e-6 { autoSpeed = max(aLo, autoSpeed - 2.5 * -th * dt * max(1, autoSpeed)) }
                 else if set.autoRewind && aLo < 0.02 {
                     if !rewinding { say?("巻き戻し：通ってきた軌跡を逆にたどる") }
@@ -763,6 +808,32 @@ final class Renderer: NSObject, MTKViewDelegate {
         return mul(mul(Rz(cos(a), sin(a)), Ry), Rz(cos(sp), sin(sp)))
     }
     var gridKey: String { String(format: "%g/%g/%.3f", set.gridTilt, set.gridAz, gridSpinAng) }
+    /// ターボ：いきなり最高速（自走の最高速）。決まった道の間は道の速さ、歩き続けている時は自走の速さ。もう一度で元の速さに戻る。
+    ///   止まっている時は、最高速で歩き続け始める
+    private var turboPrev: Double? = nil, turboStart = false, turboKey: UInt16? = nil, turboPadHeld = false, turboHolding = false
+    /// ターボのキー・ボタンを押した：切りかえの時は切りかえ、押している間だけの時は押し始め（離したら step で元へ）
+    func turboPress(key: UInt16? = nil, pad: Bool = false) {
+        guard set.turboHold else { turbo(); return }
+        if key != nil { turboKey = key }; if pad { turboPadHeld = true }
+        if !turboHolding { turboHolding = true; turboPrev = nil; turbo() }
+    }
+    /// 押している間だけの時：キーもボタンも離したら元の速さに
+    func turboRelease() {
+        guard turboHolding else { return }
+        let held = (turboKey.map { keys.contains($0) } ?? false) || (turboPadHeld && set.gamepad && game.dpadRight())
+        if !held { turboHolding = false; turboKey = nil; turboPadHeld = false; turbo() }
+    }
+    func turbo() {
+        let mx = max(1, set.autoMax)
+        if pathMode != .none {
+            if let p = turboPrev, pathSpeed >= mx - 1e-6 { pathSpeed = p; turboPrev = nil; say?(String(format: "ターボをやめた（×%.1f）", p)) }
+            else { turboPrev = pathSpeed; pathSpeed = mx; say?(String(format: "ターボ！ 決まった道を最高速 ×%.0f で", mx)) }
+            return
+        }
+        if !walking { walking = true; roaming = false; turboPrev = 1; autoSpeed = mx; turboStart = true; say?(String(format: "ターボ！ 最高速 ×%.0f で歩き始めた", mx)); return }
+        if let p = turboPrev, autoSpeed >= mx - 1e-6 { autoSpeed = p; turboPrev = nil; say?(String(format: "ターボをやめた（×%.1f）", p)) }
+        else { turboPrev = autoSpeed; autoSpeed = mx; say?(String(format: "ターボ！ 最高速 ×%.0f", mx)) }
+    }
     /// 体験：遠回りの光で見える像を、見やすい見え方にして見る。前の見え方は覚えておき、「元の見え方に戻す」で戻す
     ///   self：自分の後ろ姿（光が S³ を 1 周して、2π 先から自分の背中が見える。振り返ると自分の顔）。
     ///   flip：ここに目印を置いて 1.2 進む → 前を見ると、目印を反対側から回ってきた光で、上下・左右が逆（180° 回った像）の向こう側の面が見える
@@ -828,11 +899,21 @@ final class Renderer: NSObject, MTKViewDelegate {
     func draw(in view: MTKView) {
         let now = CACurrentMediaTime(); gapRun = max(gapRun, (now - lastT) * 1000); let dt = min(0.05, now - lastT); lastT = now
         step(dt)
+        let w = Int(view.drawableSize.width), h = Int(view.drawableSize.height)
+        // 動いていない時は描き直さない（前のコマのまま）。止まって 0.3 秒たったら 1 回だけ細かく（描く細かさ 1）描いてから休む
+        let sig = FrameSig(set: set, cam: cam, marks: journey.marks.count, foot: journey.foot.count, w2: journey.w2.p, demo: demo?.c, grid: gridSpinAng, w: w, h: h, edr: edrHead, sceneScale: sceneScale)
+        if sig != lastSig { lastSig = sig; stillSince = now; refined = false; idle = false }
+        else if set.idleReuse {
+            if refined { idle = true; if now - fpsT0 >= 0.5 { fpsT0 = now; fpsN = 0; onStats?(self) }; return }
+            if now - stillSince < 0.3 { idle = false } else { refining = true }
+        }
         onPoles?(poleLabels(aspect: view.drawableSize.width / max(1, view.drawableSize.height)))
         guard let rpd = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
-              let cb = queue.makeCommandBuffer() else { return }
-        let w = Int(view.drawableSize.width), h = Int(view.drawableSize.height)
+              let cb = queue.makeCommandBuffer() else { refining = false; return }
+        let keepScale = sceneScale
+        if refining { sceneScale = 1 }                                   // 止まった時の 1 枚：細かく
         encode(cb, rpd, view.colorPixelFormat, w, h)
+        if refining { sceneScale = keepScale; refining = false; refined = true }
         cb.addCompletedHandler { [weak self] cb in
             guard let self else { return }
             let g = (cb.gpuEndTime - cb.gpuStartTime) * 1000
@@ -882,4 +963,10 @@ final class Renderer: NSObject, MTKViewDelegate {
         _ = run(20)                                           // 暖める
         return run(n)
     }
+}
+
+// ---- 動いていない時は前のコマを使い回す：景色を決めるものが前のコマと同じかを比べる ----
+extension Settings: Equatable {}
+struct FrameSig: Equatable {
+    var set: Settings, cam: Camera, marks: Int, foot: Int, w2: V3, demo: V4?, grid: Double, w: Int, h: Int, edr: Double, sceneScale: Double
 }

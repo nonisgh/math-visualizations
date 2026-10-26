@@ -129,3 +129,9 @@ func moveAlong2(_ X: inout Walker2, _ d: V3, _ s: Double) {
     r = simd_normalize(r - X.p * simd_dot(r, X.p)); f = f - X.p * simd_dot(f, X.p); f = simd_normalize(f - r * simd_dot(f, r))
     X.r = r; X.f = f
 }
+
+// 前のコマと同じかを比べる（動いていない時は描き直さない。Renderer の FrameSig）
+extension Camera: Equatable {}
+extension Walker: Equatable {}
+extension Walker2: Equatable {}
+extension Marker: Equatable {}

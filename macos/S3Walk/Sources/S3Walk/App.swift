@@ -146,6 +146,7 @@ final class AppModel: ObservableObject {
         // （歩き続ける・決まった道の間は、十字の上下は速さ。止まっている時だけ殻の見える距離。変えたら知らせる）
         case "up": if r.pathMode == .none && !r.walking { r.set.shellRange = min(25.15, r.set.shellRange + 0.5); say(String(format: "殻の見える距離 %.1f", r.set.shellRange)) }
         case "down": if r.pathMode == .none && !r.walking { r.set.shellRange = max(0.3, r.set.shellRange - 0.5); say(String(format: "殻の見える距離 %.1f", r.set.shellRange) + (r.set.shellRange < 1 ? "（短いと殻がほとんど見えない。十字の上で戻る）" : "")) }
+        case "right": r.turboPress(pad: true)
         case "menu": showPanel.toggle()
         case "options": toggleMap()
         default: break
@@ -632,6 +633,14 @@ final class WalkView: MTKView {
                 }
             }
             if e.type == .keyUp, sf.key != nil, [123, 124, 125, 126].contains(e.keyCode) { return nil }
+            // ⌘F：設定を探す（パネルを出して、検索の欄へ）
+            if e.type == .keyDown, e.modifierFlags.contains(.command), !e.modifierFlags.contains(.control), e.charactersIgnoringModifiers?.lowercased() == "f" {
+                self.model?.showPanel = true; DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { SettingSearch.shared.focusTick += 1 }; return nil
+            }
+            // ⌃F：全画面の切りかえ（⌘ は付けない。⌃⌘F もそのまま使える）
+            if e.type == .keyDown, e.modifierFlags.contains(.control), !e.modifierFlags.contains(.command), e.charactersIgnoringModifiers?.lowercased() == "f" {
+                if !e.isARepeat { self.window?.toggleFullScreen(nil) }; return nil
+            }
             if e.modifierFlags.contains(.command) || e.modifierFlags.contains(.control) { self.renderer.keys.removeAll(); return e }
             if e.type == .keyDown { self.key(e) } else { self.renderer.keys.remove(e.keyCode) }
             return nil
@@ -659,8 +668,10 @@ final class WalkView: MTKView {
     /// 描く細かさ：窓の画素 × 倍率（1 で画面の画素そのまま。LG の全画面なら 4096×2304）。コマの速さも合わせる
     func applyScale() {
         guard model != nil else { return }
-        let bs = window?.backingScaleFactor ?? 2, sc = renderer.set.scale
-        let sz = CGSize(width: max(1, (bounds.width * bs * sc).rounded()), height: max(1, (bounds.height * bs * sc).rounded()))
+        // 映画のような光の時は、画面は画面の細かさのまま、景色だけ「描く細かさ」で描く（星と仕上げは細かく）。それ以外は画面ごと細かさを下げる
+        let bs = window?.backingScaleFactor ?? 2, sc = renderer.set.scale, whole = renderer.set.cine ? 1.0 : sc
+        renderer.sceneScale = renderer.set.cine ? sc : 1
+        let sz = CGSize(width: max(1, (bounds.width * bs * whole).rounded()), height: max(1, (bounds.height * bs * whole).rounded()))
         if sz != drawableSize { drawableSize = sz }
         // 60 fps の時は、画面の速さを割り切れる速さのうち 60 以上でいちばん遅いもの（144Hz → 72、120Hz → 60、60Hz → 60）。
         //   60 のままだと 144Hz の画面では 3 コマに 1 回（48 fps）になる
@@ -674,7 +685,7 @@ final class WalkView: MTKView {
     private var okStreak = 0, badStreak = 0, cap = 1.0, capT = CACurrentMediaTime()
     let logFPS = CommandLine.arguments.contains("--log")
     func autoScale(_ r: Renderer) {
-        guard r.set.autoQ, r.fps > 0 else { return }
+        guard r.set.autoQ, r.fps > 0, !r.idle else { return }   // 止まって描き直していない時は、細かさを変えない
         let target = Double(preferredFramesPerSecond), now = CACurrentMediaTime(), budget = 1000 / target
         if now - capT > 30 { cap = 1.0 }                        // 上限は 30 秒で忘れる（場面が軽くなったら、また細かく）
         var sc = r.set.scale
@@ -701,7 +712,7 @@ final class WalkView: MTKView {
         let mode = [r.pathMode != .none ? (r.pathMode == .spiral ? "螺旋" : r.pathMode == .ring ? "回る輪" : r.pathMode == .half ? "半周 180° のターン" : "極めぐり") + (abs(r.pathSpeed - 1) > 0.01 ? String(format: " ×%.1f", r.pathSpeed) : "") : r.roaming ? "縦横無尽" : r.rewinding ? String(format: "巻き戻し ×%.1f", max(0.3, r.rewindSpeed)) : r.walking ? (abs(r.autoSpeed - 1) > 0.01 ? String(format: "歩き続ける ×%.1f", r.autoSpeed) : "歩き続ける") : "", r.set.shell ? (r.set.shellSolid ? "球層（立体）" : "球層") : "", r.set.lite ? "軽い線" : ""].filter { !$0.isEmpty }.joined(separator: "・")
         let UR = r.set.uniR, big = UR >= 10, opp = big ? String(format: "πR ≈ %.0f", Double.pi * UR) : String(format: "π ≈ %.2f", Double.pi * UR)
         let s = String(format: "%.0f fps（目標 %d、いちばん長い間 %.0f ms）　GPU %.1f ms/コマ　%d×%d（細かさ %.0f%%%@）\nアナ極から %@（%@ で反対側）　進んだ距離 %@（%.2f 周）\n方位 %.0f°　仰角 %.0f°　見回し %.0f° / %.0f°　%@",
-                       r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale * 100, r.set.autoQ ? "・自動" : "",
+                       r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale * 100, (r.set.autoQ ? "・自動" : "") + (r.idle ? "・止まっているので描き直さない" : ""),
                        String(format: big ? "%.0f" : "%.2f", fromN * UR), opp, String(format: big ? "%.0f" : "%.2f", r.journey.dist * UR), r.journey.dist / (2 * Double.pi),
                        r.cam.az, r.cam.el, r.cam.hy, r.cam.hp, mode)
         DispatchQueue.main.async { if self.model?.hudState.text != s { self.model?.hudState.text = s }; self.model?.tick() }
@@ -741,6 +752,7 @@ final class WalkView: MTKView {
         case .rangeUp: r.set.shellRange = min(25.15, r.set.shellRange + 0.5)
         case .scaleDown: r.set.autoQ = false; r.set.scale = max(0.3, r.set.scale - 0.1); applyScale()
         case .scaleUp: r.set.autoQ = false; r.set.scale = min(1.0, r.set.scale + 0.1); applyScale()
+        case .turbo: r.turboPress(key: e.keyCode)
         case .hud: model?.showHUD.toggle()
         case .help: model?.help.toggle()
         }
