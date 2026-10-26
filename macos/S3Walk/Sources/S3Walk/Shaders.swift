@@ -14,6 +14,9 @@ constant float PI = 3.14159265;
 #ifndef AXIS
 #define AXIS 1
 #endif
+#ifndef SHSTRIDE
+#define SHSTRIDE 1
+#endif
 #if NEB
 #define NEBSEG(...) nebSeg(__VA_ARGS__)
 #else
@@ -33,7 +36,9 @@ struct Uni {
     int pic, ghostBack, lens, neb;           // pic：目印 0 玉・1 絵・2 色の点、ghostBack：遠回りの像を絵の裏から、lens：0 ふつう・1 魚眼・2 360°、neb：星雲（宇宙の時）
     float fovY, picLine, nebK, wireFloor;    // fovY：縦の視野（ラジアン）、picLine：絵・色の点の時の線の濃さ、nebK：星雲の濃さ、wireFloor：もやで消える時も網目の線を残す濃さ
     int circ, room, space, shAx;             // 管：circ＝経線（x・y・z と w の大円）と赤道の輪、room＝120 胞体の部屋の辺。space：背景 0 深海（もや）・1 宇宙。shAx：球層の色 0 レインボー、それ以外は軸色で、囲む軸（1 x・2 y・4 z・8 w）
-    float tube, pixAng, lineW, solidWire;    // tube：管の太さ（角度）、pixAng：1 画素の角度、lineW：網目の線の太さ（画素。0 でウェブ版と同じ角度の太さ）、solidWire：立体の殻の網目の濃さ（ウェブ版は 0.35）
+    float tube, pixAng, lineW, solidWire;    // （下に続く）
+    float hazeK, xpad0, xpad1, xpad2;        // hazeK：深海の時のもやの色の明るさ（1 でウェブ版と同じ。小さいほど殻の間が暗く、殻の境目が浮かぶ）
+    //   tube：管の太さ（角度）、pixAng：1 画素の角度、lineW：網目の線の太さ（画素。0 でウェブ版と同じ角度の太さ）、solidWire：立体の殻の網目の濃さ（ウェブ版は 0.35）
 };
 struct Mk { float4 c; float4 col; float4 info; };   // c：中心（S³ の点）、col.xyz：色、col.w：半径（角度）、info.x：絵の表のます目（−1 で絵なし）
 
@@ -140,7 +145,7 @@ inline void ins4(float t, int i, thread Layers& L) {
 // 目印の玉：光の道 cos t·p₀ + sin t·v と、玉（中心 c・半径 r：c との内積 ≥ cos r）の交わりを式で。1 周先（t + 2π）も見る
 void markersTop(float4 p0, float4 v, thread Layers& L, constant Mk* mk, constant Uni& u) {
     L.mt0 = L.mt1 = L.mt2 = L.mt3 = 1e9; L.mi0 = L.mi1 = L.mi2 = L.mi3 = 0;
-    int np = clamp(u.passes, 1, 4);
+    int np = clamp(u.passes & 255, 1, 4);                            // passes の下 8 ビット（上は軸色で重ねる殻の数）
     for (int i = 0; i < u.nm; i++) {
         float4 c = mk[i].c; float cr = cos(mk[i].col.w);
         float Aa = dot(p0, c), Bb = dot(v, c); float amp = sqrt(Aa * Aa + Bb * Bb);
@@ -196,6 +201,253 @@ void tubes(float4 p0, float4 v, thread Layers& L, constant Uni& u, constant floa
     }
 }
 
+// ---- 3D の模型の目印（mk.info.z ≥ 0：0 怪獣・1 タツノオトシゴの竜・2 うんこ）----
+//   目印の玉（半径 r）を入れ物にして、その中を光の道（大円）に沿って形の距離（SDF）でたどる。形は目印のまわりの平らな地図（指数写像）の上で、
+//   半径 1 の球に収まる大きさで決める。向きは目印ごとに決まっている（上は z の方、前はアナ極の方）ので、まわりを歩くと横や後ろも見え、
+//   遠回りの像（反対側を回ってきた光）では、模型の向こう側の面が見える
+inline float sdSph(float3 p, float3 c, float r) { return length(p - c) - r; }
+inline float sdEll(float3 p, float3 c, float3 r) { float3 q = (p - c) / r; float k0 = length(q), k1 = length(q / r); return k0 * (k0 - 1.0) / max(k1, 1e-6); }
+inline float sdCap(float3 p, float3 a, float3 b, float ra, float rb) {
+    float3 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h) - mix(ra, rb, h);
+}
+inline float sdTor(float3 p, float3 c, float R, float r) { float3 q = p - c; return length(float2(length(q.xz) - R, q.y)) - r; }
+inline float smin(float a, float b, float k) { float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
+// 材質：0 目の白・1 ひとみ・2 茶・3 体（目印の色）・4 おなか・5 背びれ・6 口
+inline void un(thread float& d, thread float& m, float d2, float m2) { if (d2 < d) { d = d2; m = m2; } }
+inline float2 modelSDF(float3 p, int id) {
+    float d = 1e9, m = 3.0;
+    if (id == 0) {                                                  // 怪獣：大きな頭・小さな手・太いしっぽ・背中の板（デフォルメ）
+        p /= 0.86;
+        float b = sdEll(p, float3(0.0, -0.22, -0.02), float3(0.33, 0.38, 0.32));
+        b = smin(b, sdSph(p, float3(0.0, 0.27, 0.07), 0.27), 0.1);
+        b = smin(b, sdEll(p, float3(0.0, 0.2, 0.29), float3(0.19, 0.13, 0.17)), 0.06);
+        b = smin(b, sdCap(p, float3(0.0, -0.42, -0.22), float3(0.0, -0.62, -0.55), 0.17, 0.1), 0.08);
+        b = smin(b, sdCap(p, float3(0.0, -0.62, -0.55), float3(0.13, -0.68, -0.76), 0.1, 0.05), 0.04);
+        for (int s = -1; s <= 1; s += 2) {
+            float sx = float(s);
+            b = smin(b, sdCap(p, float3(0.25 * sx, -0.1, 0.12), float3(0.31 * sx, -0.2, 0.27), 0.075, 0.06), 0.04);
+            b = smin(b, sdCap(p, float3(0.17 * sx, -0.48, 0.02), float3(0.19 * sx, -0.66, 0.08), 0.13, 0.11), 0.05);
+            b = smin(b, sdEll(p, float3(0.19 * sx, -0.73, 0.13), float3(0.13, 0.07, 0.17)), 0.04);
+        }
+        d = b; m = 3.0;
+        un(d, m, sdEll(p, float3(0.0, -0.24, 0.16), float3(0.24, 0.3, 0.19)), 4.0);
+        un(d, m, sdEll(p, float3(0.0, 0.14, 0.33), float3(0.13, 0.04, 0.1)), 6.0);   // 口
+        float pl = 1e9;
+        pl = min(pl, sdEll(p, float3(0.0, 0.42, -0.14), float3(0.03, 0.11, 0.08)));
+        pl = min(pl, sdEll(p, float3(0.0, 0.18, -0.27), float3(0.035, 0.13, 0.1)));
+        pl = min(pl, sdEll(p, float3(0.0, -0.08, -0.34), float3(0.035, 0.14, 0.1)));
+        pl = min(pl, sdEll(p, float3(0.0, -0.36, -0.4), float3(0.03, 0.12, 0.09)));
+        pl = min(pl, sdEll(p, float3(0.0, -0.56, -0.6), float3(0.025, 0.09, 0.07)));
+        un(d, m, pl, 5.0);
+        for (int s = -1; s <= 1; s += 2) {
+            float sx = float(s);
+            un(d, m, sdSph(p, float3(0.11 * sx, 0.35, 0.27), 0.065), 0.0);
+            un(d, m, sdSph(p, float3(0.11 * sx, 0.355, 0.325), 0.033), 1.0);
+        }
+        d *= 0.86;
+    } else if (id == 1) {                                           // タツノオトシゴの竜：つき出た口・丸まったしっぽ・たてがみのひれ
+        p = float3(-p.z, p.y, p.x) / 0.9;                            // 横顔がいちばんらしいので、横を前（アナ極の方）に向ける
+        float b = sdEll(p, float3(0.0, 0.45, 0.04), float3(0.17, 0.19, 0.2));
+        b = smin(b, sdCap(p, float3(0.0, 0.44, 0.14), float3(0.0, 0.39, 0.46), 0.075, 0.06), 0.05);
+        b = smin(b, sdSph(p, float3(0.0, 0.39, 0.48), 0.075), 0.03);
+        float3 ch[9] = { float3(0.0, 0.28, -0.02), float3(0.0, 0.06, 0.04), float3(0.0, -0.16, 0.0), float3(0.0, -0.35, -0.08), float3(0.0, -0.5, -0.02),
+                         float3(0.0, -0.58, 0.12), float3(0.0, -0.52, 0.25), float3(0.0, -0.4, 0.26), float3(0.0, -0.33, 0.17) };
+        float cr[9] = { 0.16, 0.21, 0.2, 0.15, 0.115, 0.09, 0.07, 0.055, 0.045 };
+        b = smin(b, sdCap(p, float3(0.0, 0.45, 0.04), ch[0], 0.15, cr[0]), 0.06);
+        for (int k = 0; k < 8; k++) b = smin(b, sdCap(p, ch[k], ch[k + 1], cr[k], cr[k + 1]), 0.05);
+        d = b; m = 3.0;
+        un(d, m, sdEll(p, float3(0.0, -0.04, 0.15), float3(0.14, 0.27, 0.1)), 4.0);
+        float fn = 1e9;
+        fn = min(fn, sdEll(p, float3(0.0, 0.62, -0.1), float3(0.02, 0.13, 0.12)));
+        fn = min(fn, sdEll(p, float3(0.0, 0.42, -0.2), float3(0.02, 0.12, 0.12)));
+        fn = min(fn, sdEll(p, float3(0.0, 0.12, -0.22), float3(0.025, 0.2, 0.12)));
+        fn = min(fn, sdEll(p, float3(0.0, -0.2, -0.22), float3(0.022, 0.14, 0.1)));
+        for (int s = -1; s <= 1; s += 2) fn = min(fn, sdEll(p, float3(0.18 * float(s), 0.24, -0.04), float3(0.03, 0.09, 0.13)));
+        un(d, m, fn, 5.0);
+        for (int s = -1; s <= 1; s += 2) {
+            float sx = float(s);
+            un(d, m, sdSph(p, float3(0.12 * sx, 0.5, 0.1), 0.06), 0.0);
+            un(d, m, sdSph(p, float3(0.14 * sx, 0.505, 0.14), 0.03), 1.0);
+        }
+        d *= 0.9;
+    } else if (id == 2) {                                           // うんこ：3 段の巻き・とんがり・目と口
+        float b = sdTor(p, float3(0.0, -0.5, 0.0), 0.42, 0.21);
+        b = smin(b, sdTor(p, float3(0.03, -0.17, 0.0), 0.31, 0.185), 0.1);
+        b = smin(b, sdTor(p, float3(-0.02, 0.1, 0.01), 0.19, 0.15), 0.1);
+        b = smin(b, sdCap(p, float3(0.0, 0.2, 0.0), float3(0.07, 0.45, -0.02), 0.14, 0.035), 0.1);
+        d = b; m = 2.0;
+        for (int s = -1; s <= 1; s += 2) {
+            float sx = float(s);
+            un(d, m, sdEll(p, float3(0.13 * sx, -0.12, 0.42), float3(0.08, 0.1, 0.06)), 0.0);
+            un(d, m, sdSph(p, float3(0.13 * sx, -0.11, 0.475), 0.04), 1.0);
+        }
+        un(d, m, sdCap(p, float3(-0.09, -0.36, 0.55), float3(0.09, -0.36, 0.55), 0.035, 0.035), 6.0);
+    } else if (id <= 6) {                                           // いぬ・ねこ・たぬき・きつね：おすわりした 2 頭身（大きな頭・小さな体・前足）
+        float b = sdSph(p, float3(0.0, 0.2, 0.04), 0.3);
+        b = smin(b, sdEll(p, float3(0.0, -0.33, -0.02), float3(0.27, 0.3, 0.25)), 0.1);
+        for (int s = -1; s <= 1; s += 2) {
+            float sx = float(s);
+            b = smin(b, sdCap(p, float3(0.11 * sx, -0.4, 0.12), float3(0.12 * sx, -0.62, 0.17), 0.075, 0.08), 0.04);
+            b = smin(b, sdEll(p, float3(0.2 * sx, -0.6, -0.02), float3(0.11, 0.08, 0.15)), 0.05);   // 後ろ足（おすわり）
+        }
+        d = b; m = 3.0;
+        un(d, m, sdEll(p, float3(0.0, -0.3, 0.13), float3(0.17, 0.22, 0.14)), 4.0);   // おなか
+        float acc = 1e9;                                            // 耳など（材質 5）
+        if (id == 3) {                                              // いぬ：たれ耳・口のまわり・しっぽ
+            for (int s = -1; s <= 1; s += 2) acc = min(acc, sdCap(p, float3(0.22 * float(s), 0.36, 0.0), float3(0.3 * float(s), 0.12, 0.02), 0.075, 0.06));
+            un(d, m, sdEll(p, float3(0.0, 0.1, 0.27), float3(0.14, 0.1, 0.11)), 4.0);
+            un(d, m, sdSph(p, float3(0.0, 0.15, 0.37), 0.05), 7.0);
+            un(d, m, sdEll(p, float3(0.0, 0.03, 0.34), float3(0.04, 0.035, 0.03)), 6.0);   // べろ
+            d = smin(d, sdCap(p, float3(0.0, -0.45, -0.22), float3(0.05, -0.22, -0.38), 0.06, 0.04), 0.04);
+        } else if (id == 4) {                                       // ねこ：とがった耳・ピンクの鼻・長いしっぽ
+            for (int s = -1; s <= 1; s += 2) {
+                float sx = float(s);
+                d = smin(d, sdCap(p, float3(0.14 * sx, 0.4, 0.03), float3(0.21 * sx, 0.58, 0.0), 0.1, 0.012), 0.03);
+                acc = min(acc, sdCap(p, float3(0.145 * sx, 0.42, 0.06), float3(0.2 * sx, 0.55, 0.04), 0.06, 0.008));
+            }
+            un(d, m, sdSph(p, float3(0.0, 0.16, 0.335), 0.03), 6.0);
+            un(d, m, sdEll(p, float3(0.0, 0.11, 0.3), float3(0.1, 0.055, 0.05)), 4.0);
+            float tl = sdCap(p, float3(0.0, -0.52, -0.22), float3(0.18, -0.42, -0.38), 0.05, 0.045);
+            tl = smin(tl, sdCap(p, float3(0.18, -0.42, -0.38), float3(0.22, -0.1, -0.4), 0.045, 0.04), 0.03);
+            tl = smin(tl, sdCap(p, float3(0.22, -0.1, -0.4), float3(0.14, 0.04, -0.33), 0.04, 0.035), 0.03);
+            d = smin(d, tl, 0.04);
+        } else if (id == 5) {                                       // たぬき：丸い耳・目のまわりの黒・太いしっぽ・頭に葉っぱ
+            for (int s = -1; s <= 1; s += 2) {
+                float sx = float(s);
+                acc = min(acc, sdSph(p, float3(0.19 * sx, 0.45, 0.0), 0.075));
+                acc = min(acc, sdEll(p, float3(0.12 * sx, 0.24, 0.24), float3(0.1, 0.075, 0.06)));
+            }
+            un(d, m, sdEll(p, float3(0.0, 0.12, 0.28), float3(0.11, 0.08, 0.08)), 4.0);
+            un(d, m, sdSph(p, float3(0.0, 0.15, 0.36), 0.04), 7.0);
+            un(d, m, sdEll(p, float3(0.0, -0.3, 0.12), float3(0.2, 0.25, 0.16)), 4.0);
+            d = smin(d, sdCap(p, float3(0.0, -0.52, -0.2), float3(0.1, -0.45, -0.5), 0.12, 0.1), 0.05);
+            un(d, m, sdEll(p, float3(0.12, -0.45, -0.42), float3(0.12, 0.13, 0.04)), 5.0);   // しっぽのしま
+            un(d, m, sdEll(p, float3(0.0, 0.5, 0.02), float3(0.13, 0.025, 0.08)), 8.0);      // 葉っぱ
+        } else {                                                    // きつね：大きなとがった耳（先が黒）・長い口・ふさふさのしっぽ（先が白）
+            for (int s = -1; s <= 1; s += 2) {
+                float sx = float(s);
+                d = smin(d, sdCap(p, float3(0.14 * sx, 0.38, 0.0), float3(0.22 * sx, 0.66, -0.02), 0.11, 0.015), 0.03);
+                acc = min(acc, sdCap(p, float3(0.205 * sx, 0.6, -0.015), float3(0.22 * sx, 0.67, -0.02), 0.04, 0.012));
+            }
+            d = smin(d, sdCap(p, float3(0.0, 0.14, 0.18), float3(0.0, 0.1, 0.46), 0.13, 0.04), 0.06);
+            un(d, m, sdCap(p, float3(0.0, 0.08, 0.2), float3(0.0, 0.07, 0.44), 0.1, 0.03), 4.0);
+            un(d, m, sdSph(p, float3(0.0, 0.11, 0.48), 0.035), 7.0);
+            d = smin(d, sdCap(p, float3(0.0, -0.5, -0.2), float3(0.22, -0.32, -0.52), 0.12, 0.13), 0.05);
+            un(d, m, sdSph(p, float3(0.25, -0.29, -0.6), 0.1), 4.0);
+            for (int s = -1; s <= 1; s += 2) acc = min(acc, sdCap(p, float3(0.11 * float(s), -0.5, 0.14), float3(0.12 * float(s), -0.66, 0.17), 0.078, 0.083));
+        }
+        un(d, m, acc, 5.0);
+        for (int s = -1; s <= 1; s += 2) {
+            float sx = float(s), ez = id == 5 ? 0.3 : 0.29;
+            un(d, m, sdSph(p, float3(0.11 * sx, 0.26, ez), 0.055), 0.0);
+            un(d, m, sdSph(p, float3(0.115 * sx, 0.265, ez + 0.04), 0.03), 1.0);
+        }
+    } else if (id == 7) {                                           // たこ：丸い頭・とがった口・8 本の足（くるんと巻く）・はちまき
+        float b = sdEll(p, float3(0.0, 0.28, -0.06), float3(0.32, 0.38, 0.32));
+        for (int k = 0; k < 8; k++) {
+            float a = float(k) * PI / 4.0 + PI / 8.0, ca = cos(a), sa = sin(a);
+            float3 p1 = float3(0.12 * ca, -0.1, 0.12 * sa - 0.04), p2 = float3(0.36 * ca, -0.42, 0.36 * sa - 0.04), p3 = float3(0.56 * ca, -0.5, 0.56 * sa - 0.04), p4 = float3(0.62 * ca, -0.38, 0.62 * sa - 0.04);
+            b = smin(b, sdCap(p, p1, p2, 0.1, 0.07), 0.08);
+            b = smin(b, sdCap(p, p2, p3, 0.07, 0.045), 0.04);
+            b = smin(b, sdCap(p, p3, p4, 0.045, 0.025), 0.02);
+        }
+        d = b; m = 3.0;
+        d = smin(d, sdCap(p, float3(0.0, 0.08, 0.2), float3(0.0, 0.06, 0.38), 0.07, 0.065), 0.05);
+        un(d, m, sdTor(p.xzy, float3(0.0, -0.02, 0.06), 0.065, 0.025), 6.0);              // 口のふち
+        un(d, m, sdTor(p, float3(0.0, 0.38, -0.06), 0.31, 0.035), 0.0);                  // はちまき
+        for (int s = -1; s <= 1; s += 2) {
+            float sx = float(s);
+            un(d, m, sdSph(p, float3(0.12 * sx, 0.22, 0.24), 0.07), 0.0);
+            un(d, m, sdSph(p, float3(0.12 * sx, 0.22, 0.305), 0.035), 1.0);
+        }
+    } else {                                                        // いか：とがった胴と三角のひれ・目・10 本の足（2 本は長い）
+        float b = sdEll(p, float3(0.0, 0.25, 0.0), float3(0.19, 0.42, 0.19));
+        b = smin(b, sdSph(p, float3(0.0, -0.2, 0.0), 0.17), 0.08);
+        for (int k = 0; k < 8; k++) {
+            float a = float(k) * PI / 4.0, ca = cos(a), sa = sin(a);
+            b = smin(b, sdCap(p, float3(0.09 * ca, -0.3, 0.09 * sa), float3(0.17 * ca, -0.66, 0.17 * sa), 0.045, 0.018), 0.03);
+        }
+        for (int s = -1; s <= 1; s += 2) {
+            float sx = float(s);
+            b = smin(b, sdCap(p, float3(0.06 * sx, -0.3, 0.08), float3(0.12 * sx, -0.84, 0.12), 0.03, 0.02), 0.02);
+            b = smin(b, sdEll(p, float3(0.12 * sx, -0.86, 0.12), float3(0.045, 0.07, 0.04)), 0.02);
+        }
+        d = b; m = 3.0;
+        for (int s = -1; s <= 1; s += 2) un(d, m, sdEll(p, float3(0.17 * float(s), 0.55, 0.0), float3(0.17, 0.1, 0.03)), 5.0);
+        for (int s = -1; s <= 1; s += 2) {
+            float sx = float(s);
+            un(d, m, sdSph(p, float3(0.1 * sx, -0.16, 0.12), 0.065), 0.0);
+            un(d, m, sdSph(p, float3(0.11 * sx, -0.16, 0.17), 0.035), 1.0);
+        }
+    }
+    return float2(d, m);
+}
+inline float3 modelCol(float m, float3 body, int id) {
+    // 材質：0 目の白・1 ひとみ・2 茶（うんこ）・3 体（目印の色に少し染まる）・4 おなか・5 耳や背びれ・6 口・7 鼻・8 葉っぱ
+    if (m < 0.5) return float3(0.97, 0.97, 0.97);
+    if (m < 1.5) return float3(0.04, 0.03, 0.05);
+    if (m < 2.5) return float3(0.48, 0.29, 0.12);
+    if (m < 3.5) {
+        float3 c = id == 0 ? float3(0.28, 0.6, 0.36) : id == 1 ? float3(0.22, 0.45, 0.98) : id == 3 ? float3(0.86, 0.66, 0.42) : id == 4 ? float3(0.98, 0.62, 0.25)
+                 : id == 5 ? float3(0.55, 0.42, 0.3) : id == 6 ? float3(0.97, 0.5, 0.16) : id == 7 ? float3(0.96, 0.33, 0.33) : float3(0.96, 0.88, 0.84);
+        return mix(c, body, id == 0 || id == 1 ? 0.28 : 0.15);
+    }
+    if (m < 4.5) return id == 0 ? float3(0.93, 0.86, 0.62) : id == 1 ? float3(1.0, 0.84, 0.35) : id == 5 ? float3(0.88, 0.78, 0.62) : float3(0.98, 0.95, 0.9);
+    if (m < 5.5) return id == 0 ? float3(0.82, 0.93, 1.0) : id == 1 ? float3(0.7, 0.9, 1.0) : id == 3 ? float3(0.5, 0.33, 0.2) : id == 4 ? float3(1.0, 0.65, 0.7)
+                      : id == 5 ? float3(0.2, 0.15, 0.12) : id == 6 ? float3(0.15, 0.1, 0.08) : id == 8 ? float3(1.0, 0.7, 0.7) : float3(0.97, 0.9, 0.85);
+    if (m < 6.5) return id == 4 ? float3(1.0, 0.55, 0.65) : float3(0.85, 0.25, 0.3);
+    if (m < 7.5) return float3(0.1, 0.08, 0.08);
+    return float3(0.35, 0.75, 0.3);
+}
+// 4 次元の外積（a・b・c のどれにも直交）。det(cross4(a,b,c), a, b, c) > 0
+inline float4 cross4(float4 a, float4 b, float4 c) {
+    return float4(dot(a.yzw, cross(b.yzw, c.yzw)), -dot(a.xzw, cross(b.xzw, c.xzw)), dot(a.xyw, cross(b.xyw, c.xyw)), -dot(a.xyz, cross(b.xyz, c.xyz)));
+}
+// 目印 c での模型の向き（右 R・上 U・前 F）：上は z の方（c が ±z のそばなら y の方）、前はアナ極の方（c が ±w のそばなら x の方）
+inline void modelFrame(float4 c, thread float4& R, thread float4& U, thread float4& F) {
+    float4 up = abs(c.z) < 0.9 ? float4(0, 0, 1, 0) : float4(0, 1, 0, 0);
+    U = normalize(up - c * dot(up, c));
+    float4 fw = float4(0, 0, 0, 1); fw = fw - c * dot(fw, c) - U * dot(fw, U);
+    if (length(fw) < 0.2) { fw = float4(1, 0, 0, 0); fw = fw - c * dot(fw, c) - U * dot(fw, U); }
+    F = normalize(fw);
+    R = normalize(cross4(U, F, c));
+}
+// 模型を光の道に沿ってたどる。当たれば色と不透明度（ふちは 1 画素ぶんなめらかに）。tIn：入れ物の玉に入る道のり、tOut：出る道のり
+bool modelHit(float4 p0, float4 v, float tIn, float tOut, float4 c, float r, int id, float3 body, constant Uni& u, thread float3& lc, thread float& la, thread float& tHit) {
+    float4 R, U, F; modelFrame(c, R, U, F);
+    float t = tIn, best = 1e9, tb = tIn; float3 xb = float3(0.0); bool hit = false;
+    for (int s = 0; s < 72; s++) {
+        float4 q = cos(t) * p0 + sin(t) * v;
+        float cq = clamp(dot(q, c), -1.0, 1.0), rho = acos(cq);
+        float4 tau = (q - c * cq) * (rho / max(sin(rho), 1e-6));
+        float3 x = float3(dot(tau, R), dot(tau, U), dot(tau, F)) / r;
+        float d = modelSDF(x, id).x;
+        float foot = abs(sin(t)) * u.pixAng / r;                       // 1 画素が模型の上で占める大きさ（半径 1 の単位で）
+        if (d < best) { best = d; tb = t; xb = x; }
+        if (d < 0.25 * foot || d < 1e-4) { hit = true; break; }
+        t += max(d * 0.92, 0.002) * r;
+        if (t > tOut) break;
+    }
+    float foot = abs(sin(tb)) * u.pixAng / r;
+    float cov = hit ? 1.0 : clamp(1.0 - best / max(foot, 1e-6), 0.0, 1.0);
+    if (cov <= 0.0) return false;
+    float2 dm = modelSDF(xb, id); float e = 0.004;
+    float3 n = normalize(float3(modelSDF(xb + float3(e, 0, 0), id).x - modelSDF(xb - float3(e, 0, 0), id).x,
+                                modelSDF(xb + float3(0, e, 0), id).x - modelSDF(xb - float3(0, e, 0), id).x,
+                                modelSDF(xb + float3(0, 0, e), id).x - modelSDF(xb - float3(0, 0, e), id).x));
+    float4 q = cos(tb) * p0 + sin(tb) * v, vt = -sin(tb) * p0 + cos(tb) * v;
+    float4 Lg = normalize(u.L0 - q * dot(u.L0, q));
+    float3 L = normalize(float3(dot(Lg, R), dot(Lg, U), dot(Lg, F))), V = -normalize(float3(dot(vt, R), dot(vt, U), dot(vt, F)));
+    float3 base = modelCol(dm.y, body, id);
+    float dif = max(0.0, dot(n, L)), amb = 0.32 + 0.18 * n.y;
+    float3 h = normalize(L + V); float sp = pow(max(0.0, dot(n, h)), dm.y < 1.5 ? 90.0 : 40.0) * (dm.y < 1.5 ? 0.9 : 0.45);
+    float rim = pow(1.0 - clamp(dot(n, V), 0.0, 1.0), 3.0) * 0.35;
+    lc = base * (amb + 0.85 * dif) + float3(1.0) * sp + mix(base, float3(1.0), 0.5) * rim;
+    la = cov; tHit = tb;
+    return true;
+}
+
 // (last, lastId) より奥で、いちばん手前の層（kind：1 目印・2 赤道の膜・3 軽い線、idx：その中の番号、id：通し番号 0〜15）。
 //   同じ道のりの層（赤道の膜と、赤道の軽い線は w ＝ 0 で同じ所）は、通し番号の順に両方重ねる
 //   （ウェブ版は「t が前より大きい」だけで選ぶので、t がちょうど同じだと片方が抜ける。抜けるかどうかは丸めしだい）
@@ -233,6 +485,11 @@ void shadeLayer(int kind, int idx, float t, float4 p0, float4 v, thread const La
         float Aa = dot(p0, c), Bb = dot(v, c); float amp = sqrt(Aa * Aa + Bb * Bb);
         float4 vt = -sin(t) * p0 + cos(t) * v;
         float back = (u.ghostBack == 1 && gmod(atan2(Bb, Aa), 2.0 * PI) > PI) ? 1.0 : 0.0;   // 目印の真ん中が π より先＝遠回りの像
+        if (mk[i].info.z >= 0.0) {                                       // 3D の模型：入れ物の玉の中をたどる（当たらなければ透明）
+            float dt = acos(clamp(cr / max(amp, 1e-6), -1.0, 1.0)), th;
+            if (!modelHit(p0, v, t, t + 2.0 * dt, c, mc.w, int(mk[i].info.z + 0.5), mc.xyz, u, lc, la, th)) { lc = float3(0.0); la = 0.0; }
+            return;
+        }
         lc = markerShade(mc.xyz, mk[i].info.x, c, q, vt, back, u, atlas);
         if (u.lineW > 0.0) la = clamp((mc.w - acos(min(amp, 1.0))) / max(abs(sin(t)) * u.pixAng, 1e-6), 0.0, 1.0);   // くっきり：ふちは 1 画素ぶんだけなめらかに（玉の中への深さ ÷ 1 画素の大きさ）
         else la = ss(0.0, 0.25, (amp - cr) / max(1.0 - cr, 1e-4));  // ふちはやわらかく（ウェブ版の前の見え方）
@@ -291,7 +548,7 @@ inline float2 gridLine15(float lat, float lon, float coslat, float fp, constant 
 //   q・vt は「囲む軸が w に来るように並べかえた」座標（軸色の時。レインボーは w の組だけで、そのまま）。c0：殻の色、L0：光の向き（同じ並べかえ）
 void shadeShell(float t, float fadeR, int i, int n, float4 q, float4 vt, float wc, float vw, float3 hz, constant Uni& u, float3 c0, float4 L0, thread float3& cc, thread float& al, thread float3& em) {
     float faceK = min(1.0, 1.5 / u.shellRange);
-    float spF = u.space == 1 ? 0.3 : 1.0;                            // 宇宙の時は殻の面を薄く（網目の線は残す）。奥の星が透けて見えるように
+    float spF = u.space == 1 ? 0.3 : 0.25 + 0.75 * u.hazeK;           // 宇宙の時は殻の面を薄く（網目の線は残す）。深海でも、もやを暗くした分だけ面を薄く（殻の間が暗く、境目が浮かぶ）
     float sg = i < n ? 1.0 : -1.0;                                  // この殻が囲む極（アナ ＋、カタ −）
     float iS = rsqrt(max(1.0 - wc * wc, 1e-8));
     float cv = sg * vw * iS;
@@ -349,13 +606,13 @@ inline float3 axisShellCol(int ax, int i, int n, float lumT) {
     return mix(c, float3(1.0), clamp((lumT - lum) / (1.0 - lum), 0.0, 0.2));
 }
 // 1 つの組の殻を、道のりの順に 1 枚ずつ出す（半周ごとに、w(t) ＝ amp·cos(t − φ) が減る半周・増える半周で殻を順に）
-struct ShIt { float4 E1, E2; float amp, ia, s0; int m0, ph, k, ax; bool end; };
+//   覚えておく値は少なく（4 組ぶんを持つので、多いとレジスタからあふれて遅くなる）：E1・E2 は当たった時に A・B から作る
+struct ShIt { float A, B, amp, s0; int m0, ph, k; bool end; };
 inline ShIt shInit(float4 p0, float4 v, int ax) {
-    ShIt it; float4 P = axPerm(p0, ax), V = axPerm(v, ax);
-    float A = P.w, B = V.w; it.amp = sqrt(A * A + B * B); it.ia = 1.0 / max(it.amp, 1e-5);
-    it.E1 = (A * P + B * V) * it.ia; it.E2 = (-B * P + A * V) * it.ia;
+    ShIt it; float A = axPerm(p0, ax).w, B = axPerm(v, ax).w;
+    it.A = A; it.B = B; it.amp = sqrt(A * A + B * B);
     it.s0 = gmod(-atan2(B, A), 2.0 * PI); if (it.s0 > 2.0 * PI - 1e-4) it.s0 -= 2.0 * PI;
-    it.m0 = int(floor(it.s0 / PI)); it.ph = 0; it.k = 0; it.ax = ax; it.end = it.amp < 1e-5;
+    it.m0 = int(floor(it.s0 / PI)); it.ph = 0; it.k = 0; it.end = it.amp < 1e-5;
     return it;
 }
 inline bool shNext(thread ShIt& it, constant float4* sh, constant Uni& u, thread float& t, thread int& i, thread bool& dec, thread float& wc) {
@@ -366,10 +623,11 @@ inline bool shNext(thread ShIt& it, constant float4* sh, constant Uni& u, thread
         while (it.k < nTot && it.k < 41) {
             int kk = it.k; it.k++;
             int ii = d ? kk : nTot - 1 - kk;
+            if (SHSTRIDE > 1 && ((n - 1 - (ii < n ? ii : 2 * n - 2 - ii)) % SHSTRIDE) != 0) continue;   // 軸色の時は殻を間引く（赤道の殻は残す）
             float w = sh[ii].x;
             if (d ? w > it.amp : w < -it.amp) continue;                     // この半周ではまだ届かない殻
             if (abs(w) > it.amp) { it.k = nTot; break; }                    // ここから先の殻には届かない
-            float a = acos(clamp(w * it.ia, -1.0, 1.0));
+            float a = acos(clamp(w / max(it.amp, 1e-5), -1.0, 1.0));
             float tt = (d ? float(m) * PI + a : float(m + 1) * PI - a) - it.s0;   // 半周の中では k とともに増える
             if (tt < 0.002) continue;
             if (tt >= u.shellRange) { it.end = true; return false; }
@@ -499,7 +757,7 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
     // ---- 手前から重ねる：遠いほど透け（fade）、遠いほどもやに溶ける（fog）----
     //   殻を手前から 1 回だけたどり、その手前にある層を先に重ねる（ウェブ版と重なる順は同じ）。
     //   殻：w(t) = amp·cos(t − φ) なので、減る半周・増える半周ごとに殻を順にたどれば、t の順に並ぶ
-    float3 col = float3(0.0); float T = 1.0; bool done = false; float3 hz = haze(dir, u.space);
+    float3 col = float3(0.0); float T = 1.0; bool done = false; float3 hz = haze(dir, u.space) * (u.space == 1 ? 1.0 : u.hazeK);
     float tN = 0.0, jit = ign(in.pos.xy); NebRay nr; nr.cnt = 0; nr.lo = 0.0; nr.hi = 0.0;
 #if NEB
     if (u.neb == 1) nr = nebPrep(p0, v, nb);
@@ -517,7 +775,7 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
         if ((fam & 1) != 0 && !shNext(i1, sh, u, t1_, k1, d1, w1)) t1_ = 1e9;
         if ((fam & 2) != 0 && !shNext(i2, sh, u, t2_, k2, d2, w2)) t2_ = 1e9;
         if ((fam & 4) != 0 && !shNext(i3, sh, u, t3_, k3, d3, w3)) t3_ = 1e9;
-        int hits = 0;                                                   // 重ねた殻の枚数。4 組だと枚数が多く重いので、手前から 36 枚で打ち切る（奥はもう十分に隠れている）
+        int hits = 0;                                                   // 重ねた殻の枚数。組が多いと重いので、手前から決まった枚数（設定の「軸色で重ねる殻の数」、passes の上のビット）で打ち切る
         for (int guard = 0; guard < 400 && !done; guard++) {
             // いちばん手前の組（同じ道のりなら w・x・y・z の順）
             int f = 0; float t = t0_;
@@ -528,9 +786,10 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
             int i = f == 0 ? k0 : f == 1 ? k1 : f == 2 ? k2 : k3;
             bool dec = f == 0 ? d0 : f == 1 ? d1 : f == 2 ? d2 : d3;
             float wc = f == 0 ? w0 : f == 1 ? w1 : f == 2 ? w2 : w3;
-            float4 E1 = f == 0 ? i0.E1 : f == 1 ? i1.E1 : f == 2 ? i2.E1 : i3.E1, E2 = f == 0 ? i0.E2 : f == 1 ? i1.E2 : f == 2 ? i2.E2 : i3.E2;
-            float amp = f == 0 ? i0.amp : f == 1 ? i1.amp : f == 2 ? i2.amp : i3.amp, ia = f == 0 ? i0.ia : f == 1 ? i1.ia : f == 2 ? i2.ia : i3.ia;
+            float A = f == 0 ? i0.A : f == 1 ? i1.A : f == 2 ? i2.A : i3.A, B = f == 0 ? i0.B : f == 1 ? i1.B : f == 2 ? i2.B : i3.B;
+            float amp = sqrt(A * A + B * B), ia = 1.0 / max(amp, 1e-5);
             int ax = f == 0 ? 3 : f - 1;
+            float4 P = axPerm(p0, ax), V = axPerm(v, ax), E1 = (A * P + B * V) * ia, E2 = (-B * P + A * V) * ia;
             // この組の次の殻を用意しておく
             if (f == 0) { if (!shNext(i0, sh, u, t0_, k0, d0, w0)) t0_ = 1e9; }
             else if (f == 1) { if (!shNext(i1, sh, u, t1_, k1, d1, w1)) t1_ = 1e9; }
@@ -556,7 +815,7 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
             float3 cc, em; float al; shadeShell(t, fadeR, i, n, q, vt, wc, -sn * amp, hz, u, c0, axPerm(u.L0, ax), cc, al, em);
             col += T * (al * cc + em); T *= (1.0 - al);
             if (T < 0.01) { done = true; break; }
-            if (++hits >= 36) break;
+            if (++hits >= max(8, u.passes >> 8)) break;
         }
     }
 #else

@@ -26,7 +26,7 @@ enum Verify {
         print("== パネルのドック（並べかえ・たたみ・保存）==")
         dockChecks()
         print("== 地図の写し方（ウェブ版の mapS3 と）==")
-        mapChecks(r)
+        turnChecks(r); mapChecks(r)
         print("== ウェブ版との比べ（refs/ の画素）==")
         webcmp(r)
         print(ok ? "\nすべて合格" : "\n合わないものがある")
@@ -68,6 +68,34 @@ enum Verify {
         }
         check(along < 1e-9, String(format: "1000 歩に分けて歩いた点は、大円の式どおり（ずれ最大 %.1e）", along))
         check(back < 1e-9, String(format: "大円を 2π 歩くと、点も右・上・前も元に戻る（ずれ最大 %.1e）", back))
+    }
+
+    // ---- ターンの道：ウェブ版の fillStep・fqStep を node で動かした点（refs/turn_*.json、refs/turn_ref.js で作る。4000 コマ・ds 0.005・40 コマおき）と比べる ----
+    static func turnChecks(_ r: Renderer) {
+        for (mode, st) in [("tour", "smooth"), ("tour", "sharp"), ("half", "smooth"), ("half", "sharp")] {
+            guard let d = try? Data(contentsOf: refsDir().appendingPathComponent("turn_\(mode)_\(st).json")), let web = try? JSONSerialization.jsonObject(with: d) as? [[Double]] else { print("  ？ turn_\(mode)_\(st).json が無い"); continue }
+            r.set = .plain; r.set.turnSharp = st == "sharp"; r.startPath(mode == "half" ? .half : .tour)
+            var worst = 0.0, k = 0
+            for i in 1...4000 {
+                r.turnStep(0.005)
+                if i % 40 == 0, k < web.count {
+                    let p = r.cam.w.p, q = r.journey.w2.p, f = r.cam.w.f, m = [p.x, p.y, p.z, p.w, q.x, q.y, q.z, f.x, f.y, f.z, f.w]
+                    worst = max(worst, zip(m, web[k]).map { abs($0 - $1) }.max()!); k += 1
+                }
+            }
+            r.pathMode = .none
+            check(k == web.count && worst < 1e-9, String(format: "%@（%@）：ウェブ版と同じ道（20 進む間、S³・S² の点と体の前のずれ最大 %.1e）", mode == "half" ? "半周 180° のターン" : "極めぐり", st == "sharp" ? "直角" : "スムーズ", worst))
+        }
+        r.set = .plain; r.resetNorth()
+        // 地図の軸の長さを % で決める：x 50% → X-W 60°、w 30% → 3 つの傾きを同じ割合で
+        let m = MapRenderer(world: r)
+        r.set.mapXW = 0; r.set.mapYW = 0; r.set.mapZW = 0
+        let okX = m.setAxisLength(0, 0.5), lx = m.axisLengths()[0], ax = r.set.mapXW
+        r.set.mapYW = 20; r.set.mapZW = -10
+        let okW = m.setAxisLength(3, 0.3), lw = m.axisLengths()[3]
+        r.set.mapFollow = true; let noF = !m.setAxisLength(0, 0.5); r.set = .plain
+        check(okX && abs(lx - 0.5) < 2e-4 && abs(ax - 60) < 0.02 && okW && abs(lw - 0.3) < 2e-3 && noF,
+              String(format: "地図の軸の長さを %% で：x 50%% → X-W %.2f°（長さ %.2f%%）、w 30%% → %.2f%%、自分中心では決めない", ax, lx * 100, lw * 100))
     }
 
     // ---- 地図：ウェブ版の mapS3 で写した点（refs/web_map.txt、3 つの写し方 × 8 点、x y z と奥行き w'）と比べる ----
@@ -194,6 +222,17 @@ enum Verify {
             check(a > 0.05 && b < -0.05, String(format: "宙返り（上へ約 200°）のあと右へ倒すと右へ回る（%.2f）、左右反転なら左へ（%.2f）", a, b))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
+        // ショートカットキー：初めは今までのキー、変えるとほかの操作からは外れる、初めに戻せる。説明も今のキーで
+        do {
+            let km = Keymap(persist: false)
+            let d0 = km.action(for: "l") == .shell && km.action(for: "+") == .rangeUp && km.action(for: "\r") == .headGo && km.action(for: "w") == nil
+            let lost = km.assign("l", to: .space)
+            let moved = km.action(for: "l") == .space && lost == .shell && km.label(.shell).isEmpty && km.action(for: "n") == nil && km.helpText().contains("L 背景")
+            km.reset()
+            let back = km.isDefault && km.action(for: "n") == .space && km.hint(.rangeUp) == "（= / +）"
+            let dup = Set(KeyAction.allCases.flatMap(\.defaults)).count == KeyAction.allCases.flatMap(\.defaults).count && !KeyAction.allCases.flatMap(\.defaults).contains(where: Keymap.fixed.contains)
+            check(d0 && moved && back && dup, "ショートカットキー：初めは今までのキー（重なりなし）、L を背景にすると球層から外れる、初めに戻せる")
+        }
         // 自走（歩き続ける）：左スティックを前へ倒し続けると速く、離すとそのまま、手前でブレーキ、止まっても倒していると軌跡を巻き戻す
         do {
             r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.walking = true
@@ -206,6 +245,26 @@ enum Verify {
             r.walking = false; r.game.fake = (.zero, .zero, false, false, false); r.set.gamepad = false; r.step(1.0 / 120); r.game.fake = nil
             check(d1 > 0 && fast > 2 && abs(cruise - fast) < 1e-9 && rew && back < far - 0.3 && nTr2 < nTr && !r.rewinding,
                   String(format: "自走：前へ倒し続けて ×%.1f（離してもそのまま）、手前でブレーキ→巻き戻し（道のり %.2f → %.2f、軌跡 %d → %d 点）", fast, far, back, nTr, nTr2))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey()
+        }
+        // 決まった道の速さ：十字の上を 1 秒押すと 2 倍、下を 2 秒で 1/2（極めぐりの道のままで）
+        do {
+            r.set = .plain; r.set.gamepad = true; r.startPath(.tour); r.game.fake = (.zero, .zero, false, false, false)
+            func run(_ n: Int, _ y: Double) { r.game.fakeDpad = y; for _ in 0..<n { r.step(1.0 / 120) } }
+            run(60, 0); let d0 = r.journey.dist; run(120, 1); let up = r.pathSpeed; run(240, -1); let dn = r.pathSpeed
+            run(60, 0); let d1 = r.journey.dist, still = r.pathMode == .tour
+            r.game.fake = nil; r.game.fakeDpad = nil; r.pathMode = .none; r.set.gamepad = false
+            check(abs(up - 2) < 0.02 && abs(dn - 0.5) < 0.01 && still && d1 > d0, String(format: "決まった道の速さ：十字の上 1 秒で ×%.2f、下 2 秒で ×%.2f（極めぐりのまま）", up, dn))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey()
+        }
+        // 自走の最高・最低：前へ倒し続けても最高速まで、手前へ倒し続けても最低速まで（最低速が 0 より大きいと巻き戻さない）
+        do {
+            r.set = .plain; r.set.gamepad = true; r.set.autoMax = 3; r.set.autoMin = 0.5; r.cam = Camera(); r.journey = Journey(); r.walking = true
+            func run(_ n: Int, _ z: Double) { for _ in 0..<n { r.game.fake = ([0, 0, z], .zero, false, false, false); r.step(1.0 / 120) } }
+            run(10, 0); run(1200, 1); let hi = r.autoSpeed
+            run(1200, -1); let lo = r.autoSpeed, rew = r.rewinding
+            r.walking = false; r.game.fake = (.zero, .zero, false, false, false); r.set.gamepad = false; r.step(1.0 / 120); r.game.fake = nil
+            check(abs(hi - 3) < 1e-9 && abs(lo - 0.5) < 1e-9 && !rew, String(format: "自走の最高・最低：倒し続けて ×%.1f（最高 3）、手前で ×%.1f（最低 0.5、巻き戻さない）", hi, lo))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
         // 宇宙の大きさ R：同じ速さで歩くと、進む角度は 1/R（1 秒で 0.9／R）。目印の見かけも 1/R
@@ -543,6 +602,49 @@ enum Verify {
         }
     }
 
+    /// アプリのアイコン（`--icon 保存先.png`、1024×1024）：アプリ自身の S³ の地図（軸色の殻を重ねたもの・光る軌跡）を、宇宙の背景の角丸の板に
+    static func icon(_ path: String) {
+        guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
+        let m = MapRenderer(world: r); m.backingScale = 1
+        r.set = .plain; r.set.shellN = 6; r.set.mapAxes = false; r.set.poles = false; r.set.trailLight = true; r.set.selfBall = true
+        r.startPath(.spiral); for _ in 0..<520 { r.step(1.0 / 60) }; r.pathMode = .none
+        m.home()
+        let S = 1024, mapS = 1200
+        let (px0, _) = m.renderOffscreen(width: mapS, height: mapS)
+        var px = px0
+        let cs = CGColorSpace(name: CGColorSpace.sRGB)!
+        let mapCtx = CGContext(data: &px, width: mapS, height: mapS, bitsPerComponent: 8, bytesPerRow: mapS * 4, space: cs, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        guard let mapImg = mapCtx.makeImage(), let ctx = CGContext(data: nil, width: S, height: S, bitsPerComponent: 8, bytesPerRow: S * 4, space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+        let inset = CGFloat(S) * 0.09, rect = CGRect(x: inset, y: inset, width: CGFloat(S) - 2 * inset, height: CGFloat(S) - 2 * inset)
+        let shape = CGPath(roundedRect: rect, cornerWidth: rect.width * 0.225, cornerHeight: rect.width * 0.225, transform: nil)
+        ctx.addPath(shape); ctx.clip()
+        let grad = CGGradient(colorsSpace: cs, colors: [CGColor(srgbRed: 0.12, green: 0.08, blue: 0.30, alpha: 1), CGColor(srgbRed: 0.01, green: 0.02, blue: 0.07, alpha: 1)] as CFArray, locations: [0, 1])!
+        ctx.drawRadialGradient(grad, startCenter: CGPoint(x: rect.midX, y: rect.midY + rect.height * 0.12), startRadius: 0, endCenter: CGPoint(x: rect.midX, y: rect.midY), endRadius: rect.width * 0.75, options: [.drawsAfterEndLocation])
+        var x: UInt64 = 0x9E3779B97F4A7C15
+        func rnd() -> CGFloat { x ^= x << 13; x ^= x >> 7; x ^= x << 17; return CGFloat(x % 100_000) / 100_000 }
+        for _ in 0..<260 { let p = CGPoint(x: rect.minX + rnd() * rect.width, y: rect.minY + rnd() * rect.height), b = rnd(), rr = b > 0.95 ? 3.0 : b > 0.8 ? 1.8 : 1.1
+            ctx.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.25 + 0.6 * b * b)); ctx.fillEllipse(in: CGRect(x: p.x - rr, y: p.y - rr, width: 2 * rr, height: 2 * rr)) }
+        ctx.setBlendMode(.screen)                                          // 地図の暗い背景は、宇宙の板に溶けこませる
+        let ms = rect.width * 1.12
+        ctx.draw(mapImg, in: CGRect(x: rect.midX - ms / 2, y: rect.midY - ms / 2, width: ms, height: ms))
+        ctx.draw(mapImg, in: CGRect(x: rect.midX - ms / 2, y: rect.midY - ms / 2, width: ms, height: ms))
+        ctx.setBlendMode(.normal)
+        ctx.resetClip(); ctx.addPath(shape); ctx.setStrokeColor(CGColor(srgbRed: 0.65, green: 0.55, blue: 0.98, alpha: 0.55)); ctx.setLineWidth(6); ctx.strokePath()
+        guard let img = ctx.makeImage(), let d = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, UTType.png.identifier as CFString, 1, nil) else { return }
+        CGImageDestinationAddImage(d, img, nil); CGImageDestinationFinalize(d)
+        print("アイコン：\(path)")
+    }
+    /// ターンの道の点を JSON で（`--turndump half|tour smooth|sharp コマ数 ds 何コマおき`）。ウェブ版の同じ道と比べる用（S³ の点・S² の点・体の前）
+    static func turnDump(_ mode: String, _ sharp: Bool, _ n: Int, _ ds: Double, _ every: Int) {
+        guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
+        r.set = .plain; r.set.turnSharp = sharp; r.startPath(mode == "half" ? .half : .tour)
+        var out: [[Double]] = []
+        for i in 1...n {
+            r.turnStep(ds)
+            if i % every == 0 { let p = r.cam.w.p, q = r.journey.w2.p, f = r.cam.w.f; out.append([p.x, p.y, p.z, p.w, q.x, q.y, q.z, f.x, f.y, f.z, f.w]) }
+        }
+        print("[" + out.map { "[" + $0.map { String($0) }.joined(separator: ",") + "]" }.joined(separator: ",") + "]")
+    }
     /// 地図を PNG に（`--mappng 保存先のフォルダ`）。名前の札は点で印
     static func mapPNG(_ dir: String) {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
@@ -554,8 +656,12 @@ enum Verify {
             ("地図・今いる所（宇宙の大きさ ×1）", { r in r.set = .plain; r.set.mapRange = 1; r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
             ("地図・今いる所（宇宙の大きさ ×30：照らす範囲が小さい）", { r in r.set = .plain; r.set.mapRange = 1; r.set.uniL = log10(30); r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
             ("地図・写る所（宇宙の大きさ ×30）", { r in r.set = .plain; r.set.mapRange = 2; r.set.uniL = log10(30); r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
-            ("地図・宇宙の大きさ ×10（殻を 1 枚おきに・細い線）", { r in r.set = .plain; r.set.uniL = 1; r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
-            ("地図・宇宙の大きさ ×1000（殻を 5 枚に 1 枚・いちばん細い線）", { r in r.set = .plain; r.set.uniL = 3; r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
+            ("地図・宇宙の大きさ ×10（少し広がる・細い線）", { r in r.set = .plain; r.set.uniL = 1; r.set.mapExpand = 0.1; r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
+            ("地図・宇宙の大きさ ×1000（1.3 倍に広がる・いちばん細い線）", { r in r.set = .plain; r.set.uniL = 3; r.set.mapExpand = 0.1; r.cam = Camera(); r.cam.walk([0, 0, 1], 1); r.journey = Journey() }),
+            ("地図・光の線の軌跡（螺旋で 6 歩）", { r in r.set = .plain; r.set.trailLight = true; r.startPath(.spiral); for _ in 0..<700 { r.step(1.0 / 60) }; r.pathMode = .none }),
+            ("地図・深海（もやの明るさ 0.3：殻を暗く）", { r in r.set = .plain; r.set.hazeK = 0.3; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 2 { r.step(1.0 / 60) }; r.walking = false }),
+            ("地図・深海・自分中心（もやの明るさ 0.3、層 10・宇宙 ×6.5）", { r in r.set = .plain; r.set.hazeK = 0.3; r.set.mapFollow = true; r.set.shellN = 10; r.set.uniL = 0.81; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 0.4 { r.step(1.0 / 60) }; r.walking = false }),
+            ("地図・深海・軸色（もやの明るさ 0.3）", { r in r.set = .plain; r.set.hazeK = 0.3; r.set.shAxis = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
             ("地図・自分を真ん中に", { r in r.set = .plain; r.set.mapFollow = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),
         ]
         let w = 1200, h = 900
@@ -574,6 +680,14 @@ enum Verify {
         }
     }
 
+    /// 東極から距離 d、(w ＋ y)／√2 の向きにずれた所で、東極の方を向いて立つ（上は z）
+    static func nearEast(_ d: Double) -> Walker {
+        let n = V4(0, 1, 0, 1) / 2.0.squareRoot(), p = V4(1, 0, 0, 0) * cos(d) + n * sin(d), f = nrm(V4(1, 0, 0, 0) * sin(d) - n * cos(d)), u = V4(0, 0, 1, 0)
+        var r = V4(0, 1, 0, -1) / 2.0.squareRoot(); r -= p * dot4(r, p); r -= f * dot4(r, f); r = nrm(r)
+        let m = simd_double4x4(rows: [r, u, f, p])
+        if m.determinant < 0 { r = -r }
+        return Walker(p: p, r: r, u: u, f: f)
+    }
     /// 星雲のかたまり k の方を向く
     static func aimNeb(_ c: inout Camera, _ k: Int) {
         let b = Renderer.nebBlobs[2 * k], X = V4(Double(b.x), Double(b.y), Double(b.z), Double(b.w))
@@ -593,6 +707,19 @@ enum Verify {
         let w = 1600, h = 1000
         let extra: [(String, (inout Settings, inout Camera) -> Void)] = [
             ("軽い線だけ（ウェブ版の既定の見え方）", { s, c in s.shell = false; s.lite = true; c.el = 10; c.walk([0, 0, 1], 1.0) }),
+            ("模型・怪獣（東極を 0.5 手前から）", { s, c in s.mk = 4; s.modelKind = 0; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.07) }),
+            ("模型・竜（東極を 0.5 手前から）", { s, c in s.mk = 4; s.modelKind = 1; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.07) }),
+            ("模型・うんこ（東極を 0.5 手前から）", { s, c in s.mk = 4; s.modelKind = 2; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.07) }),
+            ("模型・怪獣を斜め前から（東極から 0.5、w と y の間）", { s, c in s.mk = 4; s.modelKind = 0; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
+            ("模型・怪獣の遠回りの像（同じ所で後ろを向く＝向こう側の面が、180° 回って見える）", { s, c in s.mk = 4; s.modelKind = 0; s.shell = false; s.hidePair = true; s.maxD = 6.4; s.fog = 0.08; c.w = nearEast(0.5); c.az = 180 }),
+            ("模型・いぬを斜め前から", { s, c in s.mk = 4; s.modelKind = 4; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
+            ("模型・ねこを斜め前から", { s, c in s.mk = 4; s.modelKind = 5; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
+            ("模型・たぬきを斜め前から", { s, c in s.mk = 4; s.modelKind = 6; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
+            ("模型・きつねを斜め前から", { s, c in s.mk = 4; s.modelKind = 7; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
+            ("模型・たこを斜め前から", { s, c in s.mk = 4; s.modelKind = 8; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
+            ("模型・いかを斜め前から", { s, c in s.mk = 4; s.modelKind = 9; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
+            ("模型・竜を斜め前から", { s, c in s.mk = 4; s.modelKind = 1; s.shell = false; s.hidePair = true; c.w = nearEast(0.5); c.az = 0 }),
+            ("模型・いろいろ（球層の海・映画の光、東極を 0.5 手前から）", { s, c in s = Settings(); s.mk = 4; s.modelKind = 3; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.07) }),
             ("軸色の球層（x・y・z・w）", { s, c in s.shAxis = true; c.walk([0, 0, 1], 0.5) }),
             ("軸色の球層（w だけ）", { s, c in s.shAxis = true; s.shAxX = false; s.shAxY = false; s.shAxZ = false; c.walk([0, 0, 1], 0.5) }),
             ("軸色の球層・立体（x・y・z・w）", { s, c in s.shAxis = true; s.shellSolid = true; c.walk([0, 0, 1], 0.5) }),
@@ -601,6 +728,14 @@ enum Verify {
             ("宇宙の大きさ ×100：深海・目印の線", { s, c in s = Settings(); s.uniL = 2; c.walk([0, 0, 1], 0.3) }),
             ("宇宙の大きさ ×100：宇宙・目印の線", { s, c in s = Settings(); s.space = true; s.uniL = 2; s.nebula = false; c.walk([0, 0, 1], 0.3) }),
             ("宇宙の大きさ ×1000：宇宙・星雲", { s, c in s = Settings(); s.space = true; s.uniL = 3; s.shell = false; aimNeb(&c, 0) }),
+            ("あなたの設定・軸色（今いる所から）", { s, c in
+                if let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) {
+                    var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); s = us; s.shAxis = true
+                    func v4(_ k: String) -> V4? { (d[k] as? [Double]).flatMap { $0.count == 4 ? V4($0[0], $0[1], $0[2], $0[3]) : nil } }
+                    if let p = v4("p"), let r = v4("r"), let u = v4("u"), let f = v4("f") { c.w = Walker(p: p, r: r, u: u, f: f); orthoFrame(&c.w) }
+                    c.az = d["az"] as? Double ?? 30; c.el = d["el"] as? Double ?? 0
+                }
+            }),
             ("極の惑星：東極を見る（宇宙・映画の光）", { s, c in s = Settings(); s.space = true; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.1) }),
             ("極の惑星：軸色・球層（東極へ向かう）", { s, c in s = Settings(); s.shAxis = true; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.2) }),
             ("極の惑星：すぐそば（近いほど透ける）", { s, c in s = Settings(); s.space = true; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.57 - 0.3) }),
@@ -626,7 +761,9 @@ enum Verify {
             ("くっきり（線 1.8 画素）・軽い線と赤道の膜（球層なし）", { s, c in s.lineCrisp = true; s.lineW = 1.8; s.shell = false; s.lite = true; c.el = 10; c.walk([0, 0, 1], 1.0) }),
             ("くっきり・にじみ 0.4（新しい既定）・球層の海", { s, c in s.lineCrisp = true; s.lineW = 1.8; s.glow = 0.4; c.walk([0, 0, 1], 0.4) }),
         ]
+        let only = ProcessInfo.processInfo.environment["S3_PNG_ONLY"]   // 名前にこの文字を含む場面だけ
         for (k, (name, f)) in (refScenes() + extra).enumerated() {
+            if let only, !name.contains(only) { continue }
             r.set = .plain; r.cam = Camera(); r.journey = Journey(); f(&r.set, &r.cam)
             if k == 4 { var c = Camera(); for _ in 0..<5 { c.walk([0, 0, 1], 0.6); r.journey.foot.append(c.w.p) } }   // 足あとも少し
             let px = r.renderOffscreen(width: w, height: h)
@@ -645,7 +782,7 @@ enum Verify {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
         print("GPU：\(dev.name)　1 コマの GPU の時間（ミリ秒）")
         let sizes = only4K ? [(3840, 2160), (4096, 2304)] : [(1280, 800), (1920, 1080), (2560, 1600), (3456, 2234), (4096, 2304)]
-        let sizes2 = ProcessInfo.processInfo.environment["S3_BENCH_NAT"] != nil ? [(1728, 1117), (3456, 2234)] : ProcessInfo.processInfo.environment["S3_BENCH_AX"] != nil ? [(1728, 1117)] : sizes
+        let sizes2 = ProcessInfo.processInfo.environment["S3_BENCH_NAT"] != nil ? [(1728, 1117), (3456, 2234)] : ProcessInfo.processInfo.environment["S3_BENCH_AX"] != nil || ProcessInfo.processInfo.environment["S3_BENCH_USER"] != nil ? [(1728, 1117)] : sizes
         var cases: [(String, (inout Settings) -> Void)] = [
             ("球層（殻の見える距離 3、球層の海）", { _ in }),
             ("球層（殻の見える距離 1、ウェブ版の既定）", { $0.shellRange = 1 }),
@@ -653,6 +790,11 @@ enum Verify {
             ("球層なし（玉・赤道の膜・もや）", { $0.shell = false }),
         ]
         if only4K { cases.append(("経線・赤道の輪（管）", { $0.shell = false; $0.circ = true })); cases.append(("120 胞体の部屋の辺（管）", { $0.shell = false; $0.room = true })); cases.insert(("球層 6 枚", { $0.shellN = 6 }), at: 1); cases.insert(("球層・網目なし", { $0.shellBare = true }), at: 1); cases.insert(("球層・軽い線あり", { $0.lite = true }), at: 1); cases.append(("軽い線だけ（ウェブ版の既定の見え方）", { $0.shell = false; $0.lite = true })); cases.append(("宇宙：球層＋星・天の川", { $0.space = true })); cases.append(("宇宙：星だけ", { $0.space = true; $0.shell = false })); cases.append(("宇宙＋星雲＋映画の光（星雲を見る）", { $0.space = true; $0.shell = false; $0.nebula = true; $0.cine = true; $0.glow = 0.4 })); cases.append(("宇宙＋球層＋星雲＋映画の光", { $0.space = true; $0.nebula = true; $0.cine = true; $0.glow = 0.4 })); cases.append(("深海＋映画の光", { $0.cine = true; $0.glow = 0.4 })) }
+        if ProcessInfo.processInfo.environment["S3_BENCH_USER"] != nil,    // アプリに保存してある設定のままで、レインボーと軸色
+           let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key)?["set"] as? [String: Any] ?? UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) {
+            var us = Settings(); us.load(d); us.autoQ = false
+            cases = [("あなたの設定・レインボー", { $0 = us; $0.shAxis = false }), ("あなたの設定・軸色", { $0 = us; $0.shAxis = true }), ("あなたの設定・軸色 w だけ", { $0 = us; $0.shAxis = true; $0.shAxX = false; $0.shAxY = false; $0.shAxZ = false }), ("あなたの設定・軸色 x と w", { $0 = us; $0.shAxis = true; $0.shAxY = false; $0.shAxZ = false }), ("あなたの設定・軸色・立体でない", { $0 = us; $0.shAxis = true; $0.shellSolid = false })]
+        }
         if ProcessInfo.processInfo.environment["S3_BENCH_AX"] != nil {     // 軸色の球層だけ
             cases = [("ふつうに起動（レインボー）", { $0 = Settings() }), ("軸色（x・y・z・w）", { $0 = Settings(); $0.shAxis = true }),
                      ("軸色（x・y・z・w）・殻の見える距離 11", { $0 = Settings(); $0.shAxis = true; $0.shellRange = 11 }), ("宇宙・軸色（x・y・z・w）", { $0 = Settings(); $0.shAxis = true; $0.space = true; $0.nebula = false })]

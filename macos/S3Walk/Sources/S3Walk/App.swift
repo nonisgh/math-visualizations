@@ -18,6 +18,8 @@ struct Main {
         if args.contains("--mapstats") { Verify.mapStats(); exit(0) }
         if args.contains("--mapbench") { Verify.mapBench(); exit(0) }
         if let i = args.firstIndex(of: "--mappng"), i + 1 < args.count { Verify.mapPNG(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--turndump"), i + 5 < args.count { Verify.turnDump(args[i + 1], args[i + 2] == "sharp", Int(args[i + 3])!, Double(args[i + 4])!, Int(args[i + 5])!); exit(0) }
+        if let i = args.firstIndex(of: "--icon"), i + 1 < args.count { Verify.icon(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--ref"), i + 2 < args.count { Verify.ref(args[i + 1], args[i + 2]); exit(0) }
         S3WalkApp.main()
     }
@@ -47,6 +49,7 @@ final class AppModel: ObservableObject {
     private var floatsHidden = false
     @Published var showHUD = true
     @Published var showPanel = true
+    @Published var isFull = false              // 全画面の間は、上のバー（ツールバー）を隠す
     @Published var help = false
     @Published var mapMode: MapMode = .docked
     lazy var mapRenderer = MapRenderer(world: r, slot: 0)
@@ -67,6 +70,8 @@ final class AppModel: ObservableObject {
         dockSub = dock.$floating.sink { [weak self] _ in DispatchQueue.main.async { self?.syncFloating() } }
         // 起動した時やアプリに戻った時も、浮いた窓を出し直す（起動の途中で作った窓は、アプリが前に出る前に隠れてしまうので）
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in self?.syncFloating() }
+        NotificationCenter.default.addObserver(forName: NSWindow.willEnterFullScreenNotification, object: nil, queue: .main) { [weak self] _ in self?.isFull = true }
+        NotificationCenter.default.addObserver(forName: NSWindow.willExitFullScreenNotification, object: nil, queue: .main) { [weak self] _ in self?.isFull = false }
         NotificationCenter.default.addObserver(forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: .main) { [weak self] _ in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self?.syncFloating() }
         }
@@ -129,9 +134,11 @@ final class AppModel: ObservableObject {
         case "X": r.roaming.toggle(); r.walking = false; say(r.roaming ? "縦横無尽：どこへ進んでも、いつか戻ってくる" : "縦横無尽をやめた")
         case "Y": r.padY()
         case "R3": r.levelView()
-        case "up": r.set.shellRange = min(25.15, r.set.shellRange + 0.5)
-        case "down": r.set.shellRange = max(0.3, r.set.shellRange - 0.5)
+        // 十字の上下：殻の見える距離。決まった道の間は道の速さ（押し続けて速く・遅く。Renderer.step で）
+        case "up": if r.pathMode == .none { r.set.shellRange = min(25.15, r.set.shellRange + 0.5) }
+        case "down": if r.pathMode == .none { r.set.shellRange = max(0.3, r.set.shellRange - 0.5) }
         case "menu": showPanel.toggle()
+        case "options": toggleMap()
         default: break
         }
         changed()
@@ -159,6 +166,11 @@ final class AppModel: ObservableObject {
             }
             mapPanel = p; p.orderFront(nil)
         }
+    }
+    /// 地図を出す・隠す（コントローラーの −）。出す時は前に出していた置き方（並べる・浮かせる）で
+    private var lastShownMap: MapMode = .docked
+    func toggleMap() {
+        if mapMode == .hidden { setMap(lastShownMap); say("地図を出した") } else { lastShownMap = mapMode; setMap(.hidden); say("地図を隠した") }
     }
     func restoreMapMode() {
         if let s = UserDefaults.standard.string(forKey: "s3walk.mapMode"), let m = MapMode(rawValue: s), m != .docked { DispatchQueue.main.async { self.setMap(m) } }
@@ -227,13 +239,6 @@ struct S3WalkApp: App {
     }
 }
 
-let HELP = """
-W/S 前・後　A/D 右・左　Q/E 上・下（Shift で 3 倍）　K 歩き続ける　U 縦横無尽
-←→ 方位　↑↓ 仰角　ドラッグ・2 本指 見回し（Shift＋ドラッグ 進む向き）　Enter 見回した向きへ進む　H 見回しを戻す
-R アナ極へ戻る　M ここに目印を置く　F 足あと　L 球層　T 立体の殻　B 網目　G 壮大　J 軽い線　Y 赤道の膜
-O 向きの赤い点　P 目印の見せ方（玉→絵→色の点→なし）　X 地図の軸　C 線の見え方（くっきり⇄やわらか）　- / = 殻の見える距離　[ / ] 描く細かさ　V 60fps 前後 ⇄ 画面の速さ
-Space 設定のパネル　Tab パネルと地図を全部隠す／戻す　I 表示　? この説明　⌘1・⌘2・⌘3 地図を隠す・並べる・浮かせる　⌃⌘F 全画面
-"""
 
 /// 地図の置き方：隠す・景色の横に並べる・浮いた窓（Photoshop のパレットのように、いつも前に）
 enum MapMode: String, CaseIterable { case hidden, docked, floating }
@@ -301,7 +306,7 @@ struct HUDInner: View {
             if model.showHUD {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(hud.text)
-                    if model.help { Text(HELP).foregroundStyle(.secondary) } else { Text("? で操作の説明").foregroundStyle(.secondary) }
+                    if model.help { Text(Keymap.shared.helpText()).foregroundStyle(.secondary) } else { Text(Keymap.shared.label(.help).isEmpty ? "操作の説明は設定の「ショートカットキー」で" : "\(Keymap.shared.label(.help).components(separatedBy: " / ")[0]) で操作の説明").foregroundStyle(.secondary) }
                 }
                 .font(.system(size: 11, design: .monospaced)).foregroundStyle(.white)
                 .padding(.horizontal, 10).padding(.vertical, 7)
@@ -328,14 +333,19 @@ struct MapsArea: View {
         let slots = (model.r.set.s2On ? [2] : []) + [0] + (model.r.set.map2On ? [1] : [])
         GeometryReader { geo in
             let H = max(1, Double(geo.size.height)), n = slots.count
-            let cuts: [Double] = n == 3 ? [model.r.set.mapSplit3a, model.r.set.mapSplit3b] : n == 2 ? [model.r.set.mapSplit2] : []
+            // どの地図も 170 点より低くしない（低すぎると地図の中身がはみ出して、境目のつまみを隠してしまい、戻せなくなっていた）
+            let m = min(0.9 / Double(n), 170 / H)
+            let raw: [Double] = n == 3 ? [model.r.set.mapSplit3a, model.r.set.mapSplit3b] : n == 2 ? [model.r.set.mapSplit2] : []
+            let cuts: [Double] = raw.enumerated().reduce(into: []) { c, e in
+                c.append(min(1 - m * Double(raw.count - e.offset), max((c.last ?? 0) + m, e.element)))
+            }
             VStack(spacing: 0) {
                 ForEach(Array(slots.enumerated()), id: \.element) { k, slot in
                     let lo = k == 0 ? 0 : cuts[k - 1], hi = k == n - 1 ? 1 : cuts[k]
-                    OneMap(model: model, slot: slot, topInset: k == 0 ? topInset : 0).frame(height: max(60, CGFloat((hi - lo) * H) - (k < n - 1 ? 5 : 0)))
+                    OneMap(model: model, slot: slot, topInset: k == 0 ? topInset : 0).frame(height: max(1, CGFloat((hi - lo) * H) - (k < n - 1 ? 5 : 0))).clipped()
                     if k < n - 1 {
                         SplitHandle(vertical: true) { d in
-                            let f = min(hi - 0.08, max(lo + 0.08, cuts[k] + Double(d) / H))
+                            let f = min((k + 1 < cuts.count ? cuts[k + 1] : 1) - m, max(lo + m, cuts[k] + Double(d) / H))
                             if n == 2 { model.r.set.mapSplit2 = f } else if k == 0 { model.r.set.mapSplit3a = f } else { model.r.set.mapSplit3b = f }
                             model.changed()
                         } onEnd: { model.changed() }
@@ -389,20 +399,42 @@ struct PosReadout: View {
 
 struct AxisLengths: View {
     let map: MapRenderer
+    var model: AppModel? = nil
+    @State private var editing: Int? = nil
+    @State private var text = ""
+    @FocusState private var focused: Bool
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.15)) { _ in
-            let L = map.axisLengths()
+            let L = map.axisLengths(), canEdit = !map.config.follow
             HStack(spacing: 8) {
                 ForEach(0..<4, id: \.self) { i in
                     HStack(spacing: 3) {
                         Text(["x", "y", "z", "w"][i]).italic().foregroundStyle(Color(red: Double(AXIS_RGB[i].x), green: Double(AXIS_RGB[i].y), blue: Double(AXIS_RGB[i].z)))
-                        Text("\(Int((L[i] * 100).rounded()))%").monospacedDigit().foregroundStyle(.white.opacity(0.85))
+                        if editing == i {
+                            TextField("", text: $text).textFieldStyle(.roundedBorder).frame(width: 46).focused($focused)
+                                .onSubmit { commit(i) }
+                                .onChange(of: focused) { _, f in if !f { commit(i) } }
+                                .onExitCommand { editing = nil }
+                        } else {
+                            // 10% より短い時は小数 1 桁まで（X-W 1° なら w は sin 1° ＝ 1.7%。整数に丸めると 2% に見えてしまう）
+                            Text(L[i] < 0.1 && L[i] > 0.0005 ? String(format: "%.1f%%", L[i] * 100) : "\(Int((L[i] * 100).rounded()))%").monospacedDigit().foregroundStyle(.white.opacity(0.85))
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    guard canEdit else { model?.say("自分中心の時は、軸の長さは決められない（ふつうの見方で）"); return }
+                                    text = String(format: "%g", (L[i] * 1000).rounded() / 10); editing = i; DispatchQueue.main.async { focused = true }
+                                }
+                        }
                     }
                 }
             }
             .font(.caption).padding(.horizontal, 8).padding(.vertical, 3).background(.black.opacity(0.35), in: Capsule())
-            .help("軸が地図に写る長さ（4 次元の軸のうち、3 次元に見えている割合）。自分中心では、今いる所の向きの軸ほど自分の方（奥行き）を向いて短くなる")
+            .help("軸が地図に写る長さ（4 次元の軸のうち、3 次元に見えている割合）。数字をクリックして % を打ち込むと、その長さになるよう地図の傾きを決める（x・y・z は X-W・Y-W・Z-W、w は 3 つの傾きを同じ割合で）。自分中心では、今いる所の向きの軸ほど自分の方（奥行き）を向いて短くなる")
         }
+    }
+    func commit(_ i: Int) {
+        defer { editing = nil }
+        guard let v = Double(text.filter { "0123456789.".contains($0) }) else { return }
+        if map.setAxisLength(i, v / 100) { model?.changed() }
     }
 }
 
@@ -413,8 +445,8 @@ struct OneMap: View {
     var body: some View {
         let follow = slot == 1 ? model.b(\.map2Follow) : model.b(\.mapFollow)
         let range = slot == 1 ? model.b(\.map2Range) : model.b(\.mapRange)
-        ZStack {
-            MapPane(model: model, slot: slot)
+        // 札やボタンは地図の上に重ねるだけ（地図の大きさを決めない。地図を低くしても、地図の窓が境目のつまみの上にはみ出さない）
+        MapPane(model: model, slot: slot).overlay {
             VStack {
                 HStack {
                     // ウェブ版の地図の札：S³ の地図はすみれ色、S² の仲間は水色
@@ -425,7 +457,7 @@ struct OneMap: View {
                         .overlay(RoundedRectangle(cornerRadius: 10).stroke(bc.opacity(0.3)))
                     Spacer()
                     VStack(alignment: .trailing, spacing: 4) {
-                        if slot != 2 && model.r.set.mapAxes { AxisLengths(map: model.renderer(slot)) }
+                        if slot != 2 && model.r.set.mapAxes { AxisLengths(map: model.renderer(slot), model: model) }
                         if slot == 0 { PosReadout(r: model.r) }
                     }
                     HStack(spacing: 6) {
@@ -455,7 +487,6 @@ struct OneMap: View {
             }
             .padding(8).padding(.top, topInset)
         }
-        .frame(minHeight: 160)
     }
 }
 
@@ -463,10 +494,10 @@ struct MainToolbar: ToolbarContent {
     @ObservedObject var model: AppModel
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
-            Toggle(isOn: model.rb(\.walking)) { Label("歩き続ける", systemImage: "figure.walk") }.help("歩き続ける（K）")
-            Toggle(isOn: model.rb(\.roaming)) { Label("縦横無尽", systemImage: "wind") }.help("縦横無尽：向きがゆっくり変わりながら歩く（U）")
-            Button { model.r.addMark(); model.changed() } label: { Label("目印を置く", systemImage: "mappin.and.ellipse") }.help("ここに目印を置く（M）")
-            Button { model.r.resetNorth(); model.say("アナ極に戻った"); model.changed() } label: { Label("アナ極へ", systemImage: "house") }.help("アナ極へ戻る（R）")
+            Toggle(isOn: model.rb(\.walking)) { Label("歩き続ける", systemImage: "figure.walk") }.help("歩き続ける" + Keymap.shared.hint(.walk))
+            Toggle(isOn: model.rb(\.roaming)) { Label("縦横無尽", systemImage: "wind") }.help("縦横無尽：向きがゆっくり変わりながら歩く" + Keymap.shared.hint(.roam))
+            Button { model.r.addMark(); model.changed() } label: { Label("目印を置く", systemImage: "mappin.and.ellipse") }.help("ここに目印を置く" + Keymap.shared.hint(.mark))
+            Button { model.r.resetNorth(); model.say("アナ極に戻った"); model.changed() } label: { Label("アナ極へ", systemImage: "house") }.help("アナ極へ戻る" + Keymap.shared.hint(.home))
         }
         ToolbarItem(placement: .principal) {
             Picker("地図", selection: Binding(get: { model.mapMode }, set: { model.setMap($0) })) {
@@ -477,7 +508,7 @@ struct MainToolbar: ToolbarContent {
             .pickerStyle(.segmented).help("S³ の地図：隠す・景色の横に並べる・浮いた窓に")
         }
         ToolbarItem(placement: .primaryAction) {
-            Button { model.showPanel.toggle() } label: { Label("設定", systemImage: "sidebar.right") }.help("設定のインスペクター（Space）")
+            Button { model.showPanel.toggle() } label: { Label("設定", systemImage: "sidebar.right") }.help("設定のインスペクター" + Keymap.shared.hint(.panel))
         }
     }
 }
@@ -566,6 +597,12 @@ final class WalkView: MTKView {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { [weak self] e in
             guard let self, self.window?.isKeyWindow == true else { return e }
             if e.type == .flagsChanged { self.flags(e); return e }
+            // ショートカットキーの設定でキーを待っている時：次に押したキーをその操作のキーに（Esc でやめる、⌫ でキーなし）
+            let km = Keymap.shared
+            if let a = km.recording {
+                if e.type == .keyDown { self.record(e, a) }
+                return nil
+            }
             if self.window?.firstResponder is NSText { return e }   // 数字を入力している間は、キーを入力欄へ（景色の操作にしない）
             // 選んだスライダー：← → ↑ ↓ で動かす（⇧ 10 倍・⌥ 0.1 倍）、数字か Return で直接入力、Esc で外す
             let sf = SliderFocus.shared
@@ -595,6 +632,10 @@ final class WalkView: MTKView {
         if let w = window {
             NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: w, queue: .main) { [weak self] _ in self?.renderer.keys.removeAll() }
             NotificationCenter.default.addObserver(forName: NSWindow.didChangeScreenNotification, object: w, queue: .main) { [weak self] _ in self?.applyScale() }
+            // 全画面の間は上のバー（ツールバー）を隠す。全画面のまま起動した時も
+            NotificationCenter.default.addObserver(forName: NSWindow.didEnterFullScreenNotification, object: w, queue: .main) { _ in w.toolbar?.isVisible = false }
+            NotificationCenter.default.addObserver(forName: NSWindow.willExitFullScreenNotification, object: w, queue: .main) { _ in w.toolbar?.isVisible = true }
+            for t in [0.3, 1.5] { DispatchQueue.main.asyncAfter(deadline: .now() + t) { if w.styleMask.contains(.fullScreen) { w.toolbar?.isVisible = false } } }
         }
         applyScale()
     }
@@ -643,7 +684,7 @@ final class WalkView: MTKView {
         applyScale()
         if logFPS { print(String(format: "fps %.1f / %d  最長 %.1f ms  GPU %.2f ms  %d×%d  細かさ %.2f", r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale)); fflush(stdout) }
         let p = r.cam.w.p, fromN = acos(max(-1, min(1, p.w)))
-        let mode = [r.pathMode == .spiral ? "螺旋" : r.pathMode == .ring ? "回る輪" : r.roaming ? "縦横無尽" : r.rewinding ? String(format: "巻き戻し ×%.1f", max(0.3, r.rewindSpeed)) : r.walking ? (abs(r.autoSpeed - 1) > 0.01 ? String(format: "歩き続ける ×%.1f", r.autoSpeed) : "歩き続ける") : "", r.set.shell ? (r.set.shellSolid ? "球層（立体）" : "球層") : "", r.set.lite ? "軽い線" : ""].filter { !$0.isEmpty }.joined(separator: "・")
+        let mode = [r.pathMode != .none ? (r.pathMode == .spiral ? "螺旋" : r.pathMode == .ring ? "回る輪" : r.pathMode == .half ? "半周 180° のターン" : "極めぐり") + (abs(r.pathSpeed - 1) > 0.01 ? String(format: " ×%.1f", r.pathSpeed) : "") : r.roaming ? "縦横無尽" : r.rewinding ? String(format: "巻き戻し ×%.1f", max(0.3, r.rewindSpeed)) : r.walking ? (abs(r.autoSpeed - 1) > 0.01 ? String(format: "歩き続ける ×%.1f", r.autoSpeed) : "歩き続ける") : "", r.set.shell ? (r.set.shellSolid ? "球層（立体）" : "球層") : "", r.set.lite ? "軽い線" : ""].filter { !$0.isEmpty }.joined(separator: "・")
         let UR = r.set.uniR, big = UR >= 10, opp = big ? String(format: "πR ≈ %.0f", Double.pi * UR) : String(format: "π ≈ %.2f", Double.pi * UR)
         let s = String(format: "%.0f fps（目標 %d、いちばん長い間 %.0f ms）　GPU %.1f ms/コマ　%d×%d（細かさ %.0f%%%@）\nアナ極から %@（%@ で反対側）　進んだ距離 %@（%.2f 周）\n方位 %.0f°　仰角 %.0f°　見回し %.0f° / %.0f°　%@",
                        r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale * 100, r.set.autoQ ? "・自動" : "",
@@ -658,38 +699,55 @@ final class WalkView: MTKView {
         if e.isARepeat { return }
         renderer.keys.insert(e.keyCode)
         let r = renderer
-        var touched = true
-        switch e.charactersIgnoringModifiers?.lowercased() {
-        case " ": model?.showPanel.toggle()
-        case "\t": model?.toggleAllPanels()
-        case "k": r.walking.toggle(); r.roaming = false; r.pathMode = .none
-        case "u": r.roaming.toggle(); r.walking = false; r.pathMode = .none; model?.say(r.roaming ? "縦横無尽：どこへ進んでも、いつか戻ってくる" : "縦横無尽をやめた")
-        case "\r": r.cam.headGo()
-        case "h": r.cam.hy = 0; r.cam.hp = 0
-        case "r": r.resetNorth(); model?.say("アナ極に戻った")
-        case "m": r.addMark()
-        case "f": r.set.foot.toggle()
-        case "l": r.set.shell.toggle()
-        case "t": r.set.shellSolid.toggle()
-        case "b": r.set.shellBare.toggle()
-        case "g": r.set.grand.toggle()
-        case "j": r.set.lite.toggle()
-        case "y": r.set.eq.toggle()
-        case "o": r.set.orient.toggle()
-        case "n": r.set.space.toggle(); model?.say(r.set.space ? "背景：宇宙（暗闇・星・天の川）" : "背景：深海（青灰色のもや）")
-        case "c": r.set.lineCrisp.toggle(); model?.say(r.set.lineCrisp ? "線：くっきり" : "線：やわらか（標準）")
-        case "x": r.set.mapAxes.toggle()
-        case "p": r.set.mk = (r.set.mk + 1) % 4; model?.say(["目印：玉", "目印：絵（絵文字）", "目印：色の点", "目印：なし"][r.set.mk])
-        case "v": r.set.fps60.toggle(); applyScale()
-        case "-": r.set.shellRange = max(0.3, r.set.shellRange - 0.5)
-        case "=", "+": r.set.shellRange = min(25.15, r.set.shellRange + 0.5)
-        case "[": r.set.autoQ = false; r.set.scale = max(0.3, r.set.scale - 0.1); applyScale()
-        case "]": r.set.autoQ = false; r.set.scale = min(1.0, r.set.scale + 0.1); applyScale()
-        case "i": model?.showHUD.toggle()
-        case "?", "/": model?.help.toggle()
-        default: touched = false
+        // キーは設定の「ショートカットキー」で変えられる（Keymap）
+        guard let c = e.charactersIgnoringModifiers?.lowercased(), let act = Keymap.shared.action(for: c) else { return }
+        switch act {
+        case .panel: model?.showPanel.toggle()
+        case .allPanels: model?.toggleAllPanels()
+        case .walk: r.walking.toggle(); r.roaming = false; r.pathMode = .none
+        case .roam: r.roaming.toggle(); r.walking = false; r.pathMode = .none; model?.say(r.roaming ? "縦横無尽：どこへ進んでも、いつか戻ってくる" : "縦横無尽をやめた")
+        case .headGo: r.cam.headGo()
+        case .lookReset: r.cam.hy = 0; r.cam.hp = 0
+        case .home: r.resetNorth(); model?.say("アナ極に戻った")
+        case .mark: r.addMark()
+        case .foot: r.set.foot.toggle()
+        case .shell: r.set.shell.toggle()
+        case .solid: r.set.shellSolid.toggle()
+        case .bare: r.set.shellBare.toggle()
+        case .grand: r.set.grand.toggle()
+        case .lite: r.set.lite.toggle()
+        case .eq: r.set.eq.toggle()
+        case .orient: r.set.orient.toggle()
+        case .space: r.set.space.toggle(); model?.say(r.set.space ? "背景：宇宙（暗闇・星・天の川）" : "背景：深海（青灰色のもや）")
+        case .crisp: r.set.lineCrisp.toggle(); model?.say(r.set.lineCrisp ? "線：くっきり" : "線：やわらか（標準）")
+        case .mapAxes: r.set.mapAxes.toggle()
+        case .markStyle: r.set.mk = (r.set.mk + 1) % 5; model?.say(["目印：玉", "目印：絵（絵文字）", "目印：色の点", "目印：なし", "目印：模型（3D）"][r.set.mk])
+        case .fps: r.set.fps60.toggle(); applyScale()
+        case .rangeDown: r.set.shellRange = max(0.3, r.set.shellRange - 0.5)
+        case .rangeUp: r.set.shellRange = min(25.15, r.set.shellRange + 0.5)
+        case .scaleDown: r.set.autoQ = false; r.set.scale = max(0.3, r.set.scale - 0.1); applyScale()
+        case .scaleUp: r.set.autoQ = false; r.set.scale = min(1.0, r.set.scale + 0.1); applyScale()
+        case .hud: model?.showHUD.toggle()
+        case .help: model?.help.toggle()
         }
-        if touched { model?.changed() }
+        model?.changed()
+    }
+    /// ショートカットキーを決める（設定でキーの札を押した後の 1 つ）
+    func record(_ e: NSEvent, _ a: KeyAction) {
+        let km = Keymap.shared
+        if e.modifierFlags.contains(.command) || e.modifierFlags.contains(.control) { model?.say("⌘・⌃ の付いたキーはメニュー用（ほかのキーを押す）"); return }
+        switch e.keyCode {
+        case 53: km.recording = nil; return
+        case 51, 117: km.clear(a); km.recording = nil; model?.say("「\(a.title)」のキーをなしに"); return
+        case 123, 124, 125, 126: model?.say("矢印は向きのキー（変えられない）"); return
+        default: break
+        }
+        guard let c = e.charactersIgnoringModifiers?.lowercased(), c.count == 1 else { return }
+        if Keymap.fixed.contains(c) { model?.say("W A S D Q E は歩くキー（変えられない）"); return }
+        let lost = km.assign(c, to: a)
+        km.recording = nil
+        model?.say("「\(a.title)」を \(Keymap.label(c)) に" + (lost.map { "（「\($0.title)」からは外した）" } ?? ""))
+        model?.changed()
     }
     func flags(_ e: NSEvent) {
         renderer.shiftFast = e.modifierFlags.contains(.shift)
@@ -697,7 +755,7 @@ final class WalkView: MTKView {
     }
 
     // ---- マウス：ドラッグで見回し（Shift＋ドラッグで進む向き）。0.3°/点（ウェブ版と同じ）。2 本指のスクロールでも見回し ----
-    override func mouseDown(with e: NSEvent) { dragLast = e.locationInWindow; window?.makeFirstResponder(self); SliderFocus.shared.clear() }
+    override func mouseDown(with e: NSEvent) { dragLast = e.locationInWindow; window?.makeFirstResponder(self); SliderFocus.shared.clear(); Keymap.shared.recording = nil }
     override func mouseUp(with e: NSEvent) { dragLast = nil }
     override func mouseDragged(with e: NSEvent) {
         guard let last = dragLast else { return }

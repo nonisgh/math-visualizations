@@ -194,6 +194,27 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         rot(0, 3, c.xw); rot(1, 3, c.yw); rot(2, 3, c.zw)
         return R
     }
+    /// 軸の長さの割合を直接決める（地図の右上の数字に打ち込んだ時）：x・y・z は X-W・Y-W・Z-W の角を、w は 3 つの角を同じ割合で大きく・小さくして、
+    ///   その軸の長さが target（0〜1）にいちばん近くなる角を探す（角の向き＝符号は今のまま）。自分中心の時は決められない（false）
+    func setAxisLength(_ i: Int, _ target: Double) -> Bool {
+        guard !config.follow, (0..<4).contains(i) else { return false }
+        let kp: [WritableKeyPath<Settings, Double>] = slot == 0 ? [\.mapXW, \.mapYW, \.mapZW] : [\.map2XW, \.map2YW, \.map2ZW]
+        let t = max(0, min(1, target)), old = kp.map { world.set[keyPath: $0] }
+        func len(_ a: [Double]) -> Double { for k in 0..<3 { world.set[keyPath: kp[k]] = a[k] }; return axisLengths()[i] }
+        // i が x・y・z：その面の角だけ 0〜90°（今の符号で）。w：3 つの角を、今の割合のまま（全部 0 なら同じ角で）0 倍から大きく
+        let base: [Double] = i < 3 ? (0..<3).map { k in k == i ? (old[i] < 0 ? -1 : 1) : 0 } : (old.allSatisfy { abs($0) < 1e-9 } ? [1, 1, 1] : old.map { $0 / max(1e-9, old.map(abs).max()!) })
+        func angles(_ s: Double) -> [Double] { i < 3 ? (0..<3).map { k in k == i ? base[k] * s : old[k] } : base.map { $0 * s } }
+        var bestS = 0.0, bestE = Double.infinity, s = 0.0
+        while s <= 90.0001 { let e = abs(len(angles(s)) - t); if e < bestE { bestE = e; bestS = s }; s += 0.25 }
+        var lo = max(0, bestS - 0.25), hi = min(90, bestS + 0.25)
+        for _ in 0..<40 {                                         // 細かく：まわりの 3 点でいちばん近い方へ寄せる
+            let m1 = lo + (hi - lo) / 3, m2 = hi - (hi - lo) / 3
+            if abs(len(angles(m1)) - t) < abs(len(angles(m2)) - t) { hi = m2 } else { lo = m1 }
+        }
+        let a = angles((lo + hi) / 2).map { ($0 * 100).rounded() / 100 }
+        for k in 0..<3 { world.set[keyPath: kp[k]] = a[k] }
+        return true
+    }
     /// 軸 x・y・z・w が地図の 3 次元に写る長さの割合（ウェブ版の右上の「x 68%　y 91% …」）。
     ///   自分中心では、軸 e_i の長さ ＝ √(1 − p_i²)：今いる所の向きの軸ほど奥行き（自分の方）を向いて短くなる
     func axisLengths() -> [Double] {
@@ -304,9 +325,9 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     static func axSwap(_ p: V4, _ ax: Int) -> V4 { guard ax != 3 else { return p }; var q = p; q[ax] = p[3]; q[3] = p[ax]; return q }
     /// 球層の殻の線分（4 次元）と色・θ・どの軸の殻か（ウェブ版の shellSet）
     private var shellCache: (String, [(V4, V4, SIMD3<Float>, Double, Int)]) = ("", [])
-    /// 宇宙の大きさの段（×1・×10・×100・×1000 → 0〜3）。地図を拡大したりゆがめたりせず、段ごとに殻を間引いて線を細くし、景色の広さとつながって見えるように
+    /// 宇宙の大きさの段（×1・×10・×100・×1000 → 0〜3）。段ごとに線を細く・少し暗く（殻は間引かない＝ユーザー「端折らないほうが雰囲気が出る」）
     static func uniLevel(_ s: Settings) -> Int { min(3, max(0, Int(floor(s.uniL + 1e-6)))) }
-    static let levelStride = [1, 2, 3, 5], levelWidth: [Float] = [1, 0.75, 0.55, 0.42], levelBright = [1.0, 0.9, 0.8, 0.72]
+    static let levelStride = [1, 1, 1, 1], levelWidth: [Float] = [1, 0.75, 0.55, 0.42], levelBright = [1.0, 0.9, 0.8, 0.72]
     func shellSet(_ n: Int) -> [(V4, V4, SIMD3<Float>, Double, Int)] {
         let lv = MapRenderer.uniLevel(world.set), kst = MapRenderer.levelStride[lv]
         let fams = shellFams, axis = world.set.shAxis, key = "\(n)|\(world.shellMinTheta)|\(axis)|\(fams)|\(kst)"
@@ -389,8 +410,12 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         var r = simd_cross(f, up); if simd_length(r) < 1e-6 { r = [1, 0, 0] }; r = simd_normalize(r)
         let u = simd_cross(r, f)
         let m = simd_double4x4(rows: [SIMD4(r, -simd_dot(r, eye)), SIMD4(u, -simd_dot(u, eye)), SIMD4(-f, simd_dot(f, eye)), SIMD4(0, 0, 0, 1)])
-        return f4(m)
+        let e = expand
+        return f4(m * simd_double4x4(diagonal: SIMD4(e, e, e, 1)))
     }
+    /// 空間の膨張：宇宙が大きいほど、地図の全体（殻・軌跡・軸）を真ん中からそろって少しずつ広げる（どの殻の間も同じ割合で離れる。ゆがめない）。
+    ///   目印の玉と線の太さはそのまま。S² の仲間は広げない
+    var expand: Double { slot == 2 ? 1 : 1 + world.set.mapExpand * world.set.uniL }
     func projMatrix(_ w: Double, _ h: Double) -> simd_float4x4 {
         let asp = w / max(1, h)
         let fovY = asp >= 1 ? 36 * d2r : 2 * atan(tan(18 * d2r) / asp)
@@ -471,6 +496,26 @@ final class MapRenderer: NSObject, MTKViewDelegate {
 
         let s = world.set, j = world.journey, cam = world.cam
         var labels: [MapLabel] = []
+        /// 光の線の軌跡：新しい所ほど白っぽい水色に明るく、古い所ほどすみれ色に暗く消える（ほうき星の尾）。
+        ///   太く淡いにじみ＋細く明るい芯の 2 本を足し合わせ、光の粒が自分の方へ流れていく
+        func lightTrail(_ pts: [SIMD3<Float>?]) {
+            let N = pts.count; guard N > 1 else { return }
+            let tm = Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 1000))
+            var glow: [Seg] = [], core: [Seg] = []
+            glow.reserveCapacity(N); core.reserveCapacity(N)
+            let old = SIMD3<Float>(0.45, 0.25, 0.95), new = SIMD3<Float>(0.7, 0.95, 1.0)
+            for i in 1..<N {
+                guard let a = pts[i - 1], let b = pts[i], simd_length(a - b) <= 1.5 else { continue }
+                let u = Float(i) / Float(N), f = pow(u, 1.6)
+                let flow = Float(i) * 0.02 - tm * 2.2                       // 光の粒（数十点ごとに明るい所が、自分の方へ流れる）
+                let pulse = pow(max(0, cos(flow * 2 * .pi / 1.6)), 24) * 1.2 * u
+                let c = (old + (new - old) * u) * (f + pulse)
+                glow.append(Seg(a: SIMD4(a, 0), ca: SIMD4(c * 0.22, 1), b: SIMD4(b, 0), cb: SIMD4(c * 0.22, 1)))
+                core.append(Seg(a: SIMD4(a, 0), ca: SIMD4(c * 1.15, 1), b: SIMD4(b, 0), cb: SIMD4(c * 1.15, 1)))
+            }
+            lines(glow, 9, additive: true, depth: depthRead)
+            lines(core, 2.2, additive: true, depth: depthRead)
+        }
         /// 円すい（ウェブ版の ConeGeometry と同じ：真ん中 c、先は向き t へ高さの半分、底は半分うしろ）。横は色そのまま、底は少し暗く
         func cone(_ c: SIMD3<Float>, _ t: SIMD3<Float>, _ r: Float, _ h: Float, _ col: SIMD4<Float>, _ N: Int = 16) -> [MV] {
             var e1 = simd_cross(t, SIMD3<Float>(0, 0, 1)); if simd_length(e1) < 1e-3 { e1 = simd_cross(t, SIMD3<Float>(1, 0, 0)) }; e1 = simd_normalize(e1)
@@ -546,7 +591,9 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             }
             if let buf = s2Buf { linesBuf(buf, s2Count, 1.0, additive: true, depth: depthRead, cmul: Float(world.edrBoost), amul: 1) }
             // 歩いた跡（虹色、古いほど暗く）
-            if s.mapTrail && j.trail2.count > 1 {
+            if s.mapTrail && j.trail2.count > 1 && s.trailLight {
+                lightTrail(j.trail2.map { SIMD3<Float>($0) * R2 })
+            } else if s.mapTrail && j.trail2.count > 1 {
                 var tr: [Seg] = []; let N = Double(j.trail2.count)
                 for i in 1..<j.trail2.count {
                     let f = Float(0.3 + 0.7 * Double(i) / N), c = SIMD4(hslF(200 + 160 * Double(i) / N, 0.9, 0.6) * f, 1)
@@ -598,13 +645,16 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         if let buf = staticBuf {
             // EDR で光らせるのは、照らす所だけの時（サーチライト）。全体の時はウェブ版と同じ明るさ（ギラギラしないように）
             let boost = config.range != 0 ? Float(world.edrBoost) : 1
-            let mood: Float = s.space && !s.shAxis ? 0.6 : 1                  // 宇宙の時は、レインボーの殻を少し暗く（雰囲気。軸色はそのまま）
-            linesBuf(buf, staticCount, MapRenderer.levelWidth[MapRenderer.uniLevel(s)], additive: true, depth: depthRead, cmul: boost * mood, amul: 1)   // 宇宙が大きい段ほど細い線
+            // 宇宙の時は、レインボーの殻を少し暗く（雰囲気。軸色はそのまま）。深海の時は、もやの明るさに合わせて殻を暗く（景色の暗いもやと調和。もやの明るさ 1 ならウェブ版と同じ）
+            let mood: Float = s.space ? (s.shAxis ? 1 : 0.6) : Float(0.3 + 0.7 * s.hazeK)
+            linesBuf(buf, staticCount, MapRenderer.levelWidth[MapRenderer.uniLevel(s)], additive: true, depth: depthRead, cmul: boost * mood * Float(s.mapBright), amul: 1)   // 宇宙が大きい段ほど細い線
         }
 
         // 3. 軌跡（虹色、古いほど暗く）・進む向き・見ている向き・軸
         var tr: [Seg] = []
-        if s.mapTrail && j.trail.count > 1 {
+        if s.mapTrail && j.trail.count > 1 && s.trailLight {             // 光の線：ほうき星の尾のように光る（にじみ＋芯＋流れる光の粒）
+            lightTrail(j.trail.map { map($0, R)?.0 })
+        } else if s.mapTrail && j.trail.count > 1 {
             let N = Double(j.trail.count)
             var prev = map(j.trail[0], R)
             for i in 1..<j.trail.count {

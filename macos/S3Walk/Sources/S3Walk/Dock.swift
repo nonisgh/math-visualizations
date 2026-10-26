@@ -7,7 +7,7 @@ import AppKit
 
 /// パネルの種類（今のところ右のドックに積む）
 enum PanelID: String, CaseIterable, Codable {
-    case walk, path, marks, shell, view, lines, map, map2, mac, screen
+    case walk, path, marks, shell, view, lines, map, map2, mac, screen, keys
     var title: String {
         switch self {
         case .walk: return "歩く"
@@ -20,6 +20,7 @@ enum PanelID: String, CaseIterable, Codable {
         case .map2: return "地図 2"
         case .mac: return "コントローラーと触覚"
         case .screen: return "画面"
+        case .keys: return "ショートカットキー"
         }
     }
     var icon: String {
@@ -34,6 +35,7 @@ enum PanelID: String, CaseIterable, Codable {
         case .map2: return "map.fill"
         case .mac: return "gamecontroller"
         case .screen: return "display"
+        case .keys: return "keyboard"
         }
     }
 }
@@ -283,9 +285,10 @@ struct PanelCard: View {
 /// パネルの中身（前のインスペクターの欄ごと）
 struct PanelContent: View {
     @ObservedObject var model: AppModel
+    @ObservedObject private var km = Keymap.shared
     let id: PanelID
-    func row(_ name: String, _ kp: WritableKeyPath<Settings, Double>, _ lo: Double, _ hi: Double, _ fmt: String = "%.2f") -> some View {
-        ScrubRow(name: name, value: model.b(kp), range: lo...hi, fmt: fmt, def: Settings()[keyPath: kp])
+    func row(_ name: String, _ kp: WritableKeyPath<Settings, Double>, _ lo: Double, _ hi: Double, _ fmt: String = "%.2f", step: Double? = nil) -> some View {
+        ScrubRow(name: name, value: model.b(kp), range: lo...hi, fmt: fmt, def: Settings()[keyPath: kp], step: step)
     }
     func irow(_ name: String, _ kp: WritableKeyPath<Settings, Int>, _ lo: Int, _ hi: Int) -> some View {
         let b = model.b(kp)
@@ -299,8 +302,8 @@ struct PanelContent: View {
         VStack(alignment: .leading, spacing: 7) {
             switch id {
             case .walk:
-                Toggle("歩き続ける（K）", isOn: model.rb(\.walking))
-                Toggle("縦横無尽（U）", isOn: model.rb(\.roaming))
+                Toggle("歩き続ける" + km.hint(.walk), isOn: model.rb(\.walking))
+                Toggle("縦横無尽" + km.hint(.roam), isOn: model.rb(\.roaming))
                 Toggle("上下も 360° 回す（宙返り）", isOn: model.b(\.free360)).help("オフにすると、ウェブ版と同じく上下は ±89° で止まる")
                 row("速さ", \.spd, 0.1, 2)
                 row("曲がり", \.roamK, 0.2, 2)
@@ -311,47 +314,63 @@ struct PanelContent: View {
             case .path:
                 Picker("道", selection: Binding(get: { r.pathMode.rawValue }, set: { v in
                     if v == 0 { r.pathMode = .none } else { r.startPath(PathMode(rawValue: v)!) }; model.changed() })) {
-                    Text("なし").tag(0); Text("螺旋").tag(1); Text("回る輪").tag(2)
+                    Text("なし").tag(0); Text("螺旋").tag(1); Text("回る輪").tag(2); Text("半周 180°").tag(3); Text("極めぐり").tag(4)
                 }.pickerStyle(.segmented)
-                if r.pathMode != .ring {
+                if r.pathMode == .none || r.pathMode == .half || r.pathMode == .tour {
+                    Picker("曲がり方", selection: model.b(\.turnSharp)) { Text("スムーズ").tag(false); Text("直角").tag(true) }.pickerStyle(.segmented)
+                    note("半周 180°：アナ極→カタ極→アナ極と経線を進み、両方の極でターン（すきまの大きい向きへ。地図の軌跡がだんだん球を埋める）。極めぐり：となりの極だけをたどって 8 つの極を回る（アナ→東→北→天→カタ→西→南→地）。スムーズは双曲線で極を少しよけ、直角は極でその場で向きを変える（次の曲がり角から）")
+                }
+                if r.pathMode == .none || r.pathMode == .spiral {
                     row("巻き数", \.turns, 1, 12, "%.1f")
                     row("傾き", \.tilt, 0, 1)
                     row("歳差（度／周）", \.prec, 0, 45, "%.0f")
                 }
-                if r.pathMode != .spiral {
+                if r.pathMode == .none || r.pathMode == .ring {
                     Picker("輪の軸", selection: model.b(\.ringAxis)) { Text("x").tag(0); Text("y").tag(1); Text("z").tag(2); Text("w").tag(3); Text("全部").tag(4) }.pickerStyle(.segmented)
                     row("1 周で回す角", \.ringStep, 2, 45, "%.0f°")
                 }
-                note("キーかスティックで歩くと、決まった道はやめる")
+                note("キーかスティックで歩くと、決まった道はやめる。コントローラーの十字の上・下を押し続けると、道の速さがだんだん速く・遅く（1 秒で 2 倍・半分、最高は自走の最高速まで）")
             case .marks:
-                Picker("見せ方（P）", selection: model.b(\.mk)) { Text("玉").tag(0); Text("絵").tag(1); Text("色の点").tag(2); Text("なし").tag(3) }.pickerStyle(.segmented)
+                Picker("見せ方" + km.hint(.markStyle), selection: model.b(\.mk)) { Text("玉").tag(0); Text("絵").tag(1); Text("色の点").tag(2); Text("なし").tag(3); Text("模型").tag(4) }.pickerStyle(.segmented)
+                if r.set.mk == 4 {
+                    Picker("模型", selection: model.b(\.modelKind)) {
+                        Text("いろいろ（目印ごとに順に）").tag(3); Divider()
+                        Text("怪獣").tag(0); Text("タツノオトシゴの竜").tag(1); Text("うんこ").tag(2)
+                        Text("いぬ").tag(4); Text("ねこ").tag(5); Text("たぬき").tag(6); Text("きつね").tag(7); Text("たこ").tag(8); Text("いか").tag(9)
+                    }.pickerStyle(.menu)
+                    row("模型の大きさ", \.modelSize, 0.4, 3)
+                    note("極・置いた目印・自分の玉を 3D の模型に（怪獣・竜・うんこ・いぬ・ねこ・たぬき・きつね・たこ・いか）。向きは目印ごとに決まっているので、まわりを歩くと横や後ろも見える。遠回りの像（反対側を回ってきた光）では、模型の向こう側の面が見える。体の色は目印の色に少し染まる")
+                }
                 if r.set.mk == 1 || r.set.mk == 2 { row("線の濃さ", \.picLine, 0, 1) }
                 if r.set.mk == 1 { Toggle("遠回りの像を、絵の裏から見た形に", isOn: model.b(\.ghostBack)) }
                 Toggle("8 つの極の目印", isOn: model.b(\.poles))
                 if r.set.poles { Toggle("極を惑星に（透けて光る大きな玉。極の色・軸色の時は軸の色）", isOn: model.b(\.polePlanet)).padding(.leading, 14) }
+                if r.set.poles && r.set.polePlanet { row("惑星の大きさ", \.planetSize, 0.03, 0.4, "%.3f").padding(.leading, 14) }
                 Toggle("反対側の相棒を隠す", isOn: model.b(\.hidePair))
-                Toggle("足あと（F）", isOn: model.b(\.foot))
+                Toggle("足あと" + km.hint(.foot), isOn: model.b(\.foot))
                 Toggle("置いた目印", isOn: model.b(\.marksOn))
                 Toggle("自分の玉（2π 先に自分の背中）", isOn: model.b(\.selfBall))
-                Toggle("向きの赤い点（O）", isOn: model.b(\.orient))
+                Toggle("向きの赤い点" + km.hint(.orient), isOn: model.b(\.orient))
                 HStack {
                     Button("ここに目印を置く") { r.addMark(); model.changed() }
                     Button("目印を消す") { r.journey.marks = []; r.journey.marks2 = []; model.changed() }.disabled(r.journey.marks.isEmpty)
                 }
             case .shell:
-                Toggle("球層（L）", isOn: model.b(\.shell))
+                Toggle("球層" + km.hint(.shell), isOn: model.b(\.shell))
                 Picker("色", selection: model.b(\.shAxis)) { Text("レインボー").tag(false); Text("軸の色").tag(true) }.pickerStyle(.segmented)
                 if r.set.shAxis {
                     HStack(spacing: 10) {
                         Text("囲む軸").font(.caption).foregroundStyle(.secondary)
                         Toggle("x", isOn: model.b(\.shAxX)); Toggle("y", isOn: model.b(\.shAxY)); Toggle("z", isOn: model.b(\.shAxZ)); Toggle("w", isOn: model.b(\.shAxW))
                     }.toggleStyle(.button).controlSize(.small)
+                    irow("重ねる殻の数", \.shCap, 8, 60)
+                    note("軸色は組が多いぶん重いので、手前からこの枚数で打ち切る（多いほど奥まで見えるが重い。宇宙の時は殻がうすいので効きやすい）")
                     note("選んだ軸の極を囲む殻（その軸の成分＝一定の球面）を、その軸の色で。＋の極のそばは明るく、−の極のそばは少し暗い。極の点も軸の色に（ウェブ版の軸色と同じ）")
                 }
-                Toggle("立体の殻（T）", isOn: model.b(\.shellSolid))
+                Toggle("立体の殻" + km.hint(.solid), isOn: model.b(\.shellSolid))
                 if r.set.shellSolid { row("立体の網目の明るさ", \.solidWire, 0, 1.5) }
-                Toggle("網目なし（B）", isOn: model.b(\.shellBare))
-                Toggle("壮大（G）", isOn: model.b(\.grand))
+                Toggle("網目なし" + km.hint(.bare), isOn: model.b(\.shellBare))
+                Toggle("壮大" + km.hint(.grand), isOn: model.b(\.grand))
                 irow("層数", \.shellN, 3, 21)
                 row("透明度", \.shellOp, 0.05, 0.75)
                 row("裏側", \.shellBack, 0, 1)
@@ -360,7 +379,7 @@ struct PanelContent: View {
                 row("目印の線", \.wireFloor, 0, 1)
                 note("宇宙を大きくすると出てくる、殻の色の細い線（CG ソフトの補助線のよう）。もやの向こうの殻も形がわかる。×1 では出ず、×10 で全部。0 で出さない")
             case .view:
-                Picker("背景（N）", selection: model.b(\.space)) { Text("深海（もや）").tag(false); Text("宇宙（星）").tag(true) }.pickerStyle(.segmented)
+                Picker("背景" + km.hint(.space), selection: model.b(\.space)) { Text("深海（もや）").tag(false); Text("宇宙（星）").tag(true) }.pickerStyle(.segmented)
                 Toggle("映画のような光（HDR・あふれる光・色の締め）", isOn: model.b(\.cine))
                 if r.set.cine {
                     row("あふれる光", \.bloom, 0, 2)
@@ -374,8 +393,8 @@ struct PanelContent: View {
                     if r.set.nebula { row("星雲の濃さ", \.nebK, 0, 3) }
                     note("星は S³ の決まった点。近い星ほど歩くと速く動き、ちょうど反対側（距離 π）の星は光がまた集まって明るい。どの星も、反対向きにもう 1 つ（遠回りの像）見える")
                 }
-                Toggle("軽い線：緯度経度の殻（J）", isOn: model.b(\.lite))
-                Toggle("赤道の膜（Y）", isOn: model.b(\.eq))
+                Toggle("軽い線：緯度経度の殻" + km.hint(.lite), isOn: model.b(\.lite))
+                Toggle("赤道の膜" + km.hint(.eq), isOn: model.b(\.eq))
                 Toggle("経線・赤道の輪（管）", isOn: model.b(\.circ))
                 Toggle("120 胞体の部屋の辺（管・重い）", isOn: model.b(\.room))
                 Picker("レンズ", selection: Binding(get: { r.set.lens }, set: { v in
@@ -388,10 +407,11 @@ struct PanelContent: View {
                 row("宇宙の大きさ（log₁₀ R）", \.uniL, 0, 3)
                 if r.set.uniL > 0.01 { note(String(format: "半径 ×%@・1 周 2πR ≈ %.0f。場所は角度のまま、同じ速さで進む角度は 1/R、目印は 1/R に小さく見え、もやは決まった距離でかかる。殻の網目の太さは変わらない（ウェブ版と同じ）", r.set.uniR < 10 ? String(format: "%.1f", r.set.uniR) : String(format: "%.0f", r.set.uniR), 2 * Double.pi * r.set.uniR)) }
                 row("もや", \.fog, 0, 0.6)
+                if !r.set.space { row("もやの明るさ", \.hazeK, 0, 1) }
                 row("透け", \.fade, 0, 1)
                 row("線の遠近感", \.depth, 0, 1)
             case .lines:
-                Picker("線の見え方（C）", selection: model.b(\.lineCrisp)) { Text("やわらか（標準）").tag(false); Text("くっきり").tag(true) }.pickerStyle(.segmented)
+                Picker("線の見え方" + km.hint(.crisp), selection: model.b(\.lineCrisp)) { Text("やわらか（標準）").tag(false); Text("くっきり").tag(true) }.pickerStyle(.segmented)
                 note(r.set.lineCrisp ? "網目の線・玉のふちを画面で決まった太さに。すぐそばの殻の線もぼやけない" : "線は殻の上で決まった角度の太さ。近くの線ほど太くやわらかく、遠くの線ほど細く、遠近感がよく分かる")
                 if r.set.lineCrisp { row("線の太さ（画素）", \.lineW, 0.5, 4, "%.1f") }
                 row("にじみ", \.glow, 0, 1)
@@ -408,13 +428,19 @@ struct PanelContent: View {
                 Toggle("S² の仲間（同じ操作を、ふつうの球面で）", isOn: model.b(\.s2On))
                 Toggle("自分を真ん中に（体の向きのまま写す）", isOn: model.b(\.mapFollow))
                 Group {
-                    row("X-W", \.mapXW, -180, 180, "%.0f°")
-                    row("Y-W", \.mapYW, -180, 180, "%.0f°")
-                    row("Z-W", \.mapZW, -180, 180, "%.0f°")
+                    row("X-W", \.mapXW, -180, 180, "%.0f°", step: 1)
+                    row("Y-W", \.mapYW, -180, 180, "%.0f°", step: 1)
+                    row("Z-W", \.mapZW, -180, 180, "%.0f°", step: 1)
                 }.disabled(r.set.mapFollow)
                 row("遠近 D", \.mapD, 1.2, 6, "%.1f")
-                Toggle("軸（矢印）（X）", isOn: model.b(\.mapAxes))
+                row("殻の線の明るさ", \.mapBright, 0.2, 2)
+                note("深海の時は「もやの明るさ」に合わせて、宇宙の時はレインボーの殻を、景色の暗さに合わせて暗くしてある。その上にかける明るさ")
+                row("空間の膨張", \.mapExpand, 0, 0.3)
+                note("宇宙の大きさを 10 倍にするごとに、地図をこの割合で広げる（どの殻の間も同じ割合で離れる。×1000・0.1 で 1.3 倍）。目印の玉と線の太さはそのまま")
+                Toggle("地図を動かす（Shift・右ドラッグ）", isOn: model.b(\.mapPan)).help("オフの時は、ドラッグ・右ドラッグ・2 本指はどれも地図を回す")
+                Toggle("軸（矢印）" + km.hint(.mapAxes), isOn: model.b(\.mapAxes))
                 Toggle("歩いた跡", isOn: model.b(\.mapTrail))
+                if r.set.mapTrail { Toggle("跡を光の線に（ほうき星の尾・流れる光）", isOn: model.b(\.trailLight)).padding(.leading, 14) }
                 HStack {
                     Button("地図を元の向きに") { model.mapRenderer.home(); model.mapRenderer2.home(); model.s2Renderer.home() }
                     Button("跡を消す（L3）") { r.clearTrail(); model.changed() }
@@ -422,9 +448,9 @@ struct PanelContent: View {
             case .map2:
                 Toggle("自分を真ん中に", isOn: model.b(\.map2Follow))
                 Group {
-                    row("X-W", \.map2XW, -180, 180, "%.0f°")
-                    row("Y-W", \.map2YW, -180, 180, "%.0f°")
-                    row("Z-W", \.map2ZW, -180, 180, "%.0f°")
+                    row("X-W", \.map2XW, -180, 180, "%.0f°", step: 1)
+                    row("Y-W", \.map2YW, -180, 180, "%.0f°", step: 1)
+                    row("Z-W", \.map2ZW, -180, 180, "%.0f°", step: 1)
                 }.disabled(r.set.map2Follow)
             case .mac:
                 Toggle("トラックパッドの触覚（赤道・極で「コツン」、殻ごとに「カチ」）", isOn: model.b(\.haptics))
@@ -433,21 +459,25 @@ struct PanelContent: View {
                 Toggle("右スティックの左右を反転", isOn: model.b(\.padInvX))
                 Toggle("右スティックの上下を反転", isOn: model.b(\.padInvY))
                 row("自走のアクセル", \.autoAccel, 0.2, 4)
-                row("自走の最高速（倍）", \.autoMax, 1, 30, "%.1f")
+                row("自走の最高速（倍）", \.autoMax, 1, 50, "%.1f")
+                row("自走の最低速（倍）", \.autoMin, 0, 10, "%.1f")
+                note("ブレーキで落とすのは最低速まで。0 なら止まって、まだ手前へ倒していると巻き戻し（最低速が 0 より大きい時は巻き戻さない）")
                 Toggle("自走で手前へ倒し続けると巻き戻し", isOn: model.b(\.autoRewind))
-                note("歩き続ける（B）の時：左スティックを前へ倒し続けるとだんだん速く（離すとその速さのまま）、手前へ倒すとブレーキ、止まってもまだ倒していると通ってきた軌跡を逆にたどる（倒し続けるほど速く）")
+                note("歩き続ける（コントローラーの B）の時：左スティックを前へ倒し続けるとだんだん速く（離すとその速さのまま）、手前へ倒すとブレーキ、止まってもまだ倒していると通ってきた軌跡を逆にたどる（倒し続けるほど速く）")
                 if !r.game.names.isEmpty {
                     TimelineView(.periodic(from: .now, by: 0.1)) { _ in
                         note("押しているボタン：" + r.game.pressedNames() + (r.padLookOnly ? "（見回しだけ）" : ""))
                     }
                 }
                 note(r.game.names.isEmpty ? "コントローラー：つながっていない（Joy-Con などを Bluetooth でつなぐと使える）" : "コントローラー：" + r.game.names.joined(separator: "・"))
-                note("右スティック 進む向き・ZL＋右スティック 見回しだけ（地図は回らず水色の円すい。ZL を押して離すだけで前を見る）・左スティック 進む向きへ歩く・Y 前を見る（進む向きは変えない）・ZL＋Y この向きへ進む（Enter）・右スティック押し込み 前を見る（もう一度で水平）・左スティック押し込み（L3） 軌跡を消す・L/R 上下・ZR 速く・A 目印・B 歩き続ける・X 縦横無尽・十字 殻の距離")
+                note("右スティック 進む向き・ZL＋右スティック 見回しだけ（地図は回らず水色の円すい。ZL を押して離すだけで前を見る）・左スティック 進む向きへ歩く・Y 前を見る（進む向きは変えない）・ZL＋Y この向きへ進む（Enter）・右スティック押し込み 前を見る（もう一度で水平）・左スティック押し込み（L3） 軌跡を消す・L/R 上下・ZR 速く・A 目印・B 歩き続ける・X 縦横無尽・十字の上下 殻の距離（決まった道の間は、押し続けて道の速さを速く・遅く）・＋ 設定・− 地図を出す・隠す")
             case .screen:
-                Toggle("60 fps 前後（144Hz の画面では 72）（V）", isOn: model.b(\.fps60))
+                Toggle("60 fps 前後（144Hz の画面では 72）" + km.hint(.fps), isOn: model.b(\.fps60))
                 Toggle("足りない時だけ細かさを下げる", isOn: model.b(\.autoQ))
                 row("描く細かさ", \.scale, 0.3, 1, "%.2f")
                 Button("初めの見え方に戻す") { let s = r.set.scale; r.set = Settings(); r.set.scale = s; model.changed() }
+            case .keys:
+                KeymapPanel()
             }
         }
     }

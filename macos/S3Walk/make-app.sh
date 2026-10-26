@@ -7,6 +7,14 @@ APP=S3Walk.app
 rm -rf $APP
 mkdir -p $APP/Contents/MacOS $APP/Contents/Resources
 cp .build/release/S3Walk $APP/Contents/MacOS/S3Walk
+# アイコン：アプリ自身の地図から作る（--icon）。なければ作り、大きさごとの絵を iconutil でまとめる
+if [ ! -f Icon/AppIcon-1024.png ]; then mkdir -p Icon; .build/release/S3Walk --icon Icon/AppIcon-1024.png >/dev/null; fi
+ICS=$(mktemp -d)/AppIcon.iconset; mkdir -p $ICS
+for s in 16 32 128 256 512; do
+  sips -z $s $s Icon/AppIcon-1024.png --out $ICS/icon_${s}x${s}.png >/dev/null
+  sips -z $((s * 2)) $((s * 2)) Icon/AppIcon-1024.png --out $ICS/icon_${s}x${s}@2x.png >/dev/null
+done
+iconutil -c icns $ICS -o $APP/Contents/Resources/AppIcon.icns
 cat > $APP/Contents/Info.plist <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -15,6 +23,7 @@ cat > $APP/Contents/Info.plist <<'PLIST'
   <key>CFBundleDisplayName</key><string>球面さんぽ</string>
   <key>CFBundleIdentifier</key><string>io.github.nonisgh.s3walk</string>
   <key>CFBundleExecutable</key><string>S3Walk</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1</string>
   <key>CFBundleVersion</key><string>1</string>

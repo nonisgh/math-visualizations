@@ -1,4 +1,5 @@
-// 地図の窓：MTKView（MapRenderer）と、名前の札（文字の層）。ドラッグ・2 本指で回す、ピンチ・ホイールで近づく、Shift（か右）ドラッグで動かす、ダブルクリックで元の向き
+// 地図の窓：MTKView（MapRenderer）と、名前の札（文字の層）。ドラッグ・2 本指で回す、ピンチ・ホイールで近づく、ダブルクリックで元の向き。
+//   Shift（か右）ドラッグで地図を動かすのは、設定の「地図を動かす」をオンにした時だけ（初めはオフ。右ドラッグも回す）
 import SwiftUI
 import AppKit
 import MetalKit
@@ -11,9 +12,10 @@ final class MapMTKView: MTKView {
     override var mouseDownCanMoveWindow: Bool { false }
     override func mouseDown(with e: NSEvent) {
         if e.clickCount == 2 { map?.home(); return }
-        last = e.locationInWindow; panning = e.modifierFlags.contains(.shift)
+        last = e.locationInWindow; panning = canPan && e.modifierFlags.contains(.shift)
     }
-    override func rightMouseDown(with e: NSEvent) { last = e.locationInWindow; panning = true }
+    override func rightMouseDown(with e: NSEvent) { last = e.locationInWindow; panning = canPan }
+    private var canPan: Bool { map?.world.set.mapPan == true }
     override func mouseUp(with e: NSEvent) { last = nil }
     override func rightMouseUp(with e: NSEvent) { last = nil }
     override func mouseDragged(with e: NSEvent) { drag(e) }
@@ -37,7 +39,7 @@ final class MapMTKView: MTKView {
     }
     override func scrollWheel(with e: NSEvent) {
         if e.hasPreciseScrollingDeltas {                         // トラックパッドの 2 本指：回す（Shift で動かす）
-            if e.modifierFlags.contains(.shift) { pan(Double(e.scrollingDeltaX), -Double(e.scrollingDeltaY)) }
+            if canPan && e.modifierFlags.contains(.shift) { pan(Double(e.scrollingDeltaX), -Double(e.scrollingDeltaY)) }
             else { orbit(Double(e.scrollingDeltaX), -Double(e.scrollingDeltaY)) }
         } else { zoom(1 - Double(e.scrollingDeltaY) * 0.05) }   // マウスのホイール：近づく・離れる
     }

@@ -20,6 +20,7 @@ struct Uni {
     var fovY: Float = 0, picLine: Float = 0.3, nebK: Float = 1, wireFloor: Float = 0
     var circ: Int32 = 0, room: Int32 = 0, space: Int32 = 0, shAx: Int32 = 0
     var tube: Float = 0.02, pixAng: Float = 0.002, lineW: Float = 0, solidWire: Float = 0.35
+    var hazeK: Float = 1, xpad0: Float = 0, xpad1: Float = 0, xpad2: Float = 0
 }
 /// 星の見え方の値（シェーダーの StarU と同じ並び、112 バイト）
 struct StarU {
@@ -66,10 +67,13 @@ struct Settings {
     var haptics = true          // トラックパッドの触覚（赤道・極で「コツン」、殻を通るたびに「カチ」）
     var gamepad = true          // ゲームコントローラーで歩く
     var turns = 5.0, tilt = 0.6, prec = 15.0   // 螺旋：巻き数・傾き・歳差（度／周）
+    var turnSharp = false       // ターンの道（半周 180°・極めぐり）の曲がり方：false スムーズ（双曲線）・true 直角
     var ringAxis = 2, ringStep = 10.0          // 回る輪：軸（0 x・1 y・2 z・3 w・4 全部）・1 周で回す角（度）
     var padGame = true          // ゲームのような操作（少し倒すとゆっくり・速めに回る・慣性つき）。ZL＋右スティックの見回し・加速はオン・オフによらない
     var padInvX = false, padInvY = false   // 右スティックの反転（左右・上下）
-    var mk = 0                  // 目印の見せ方：0 玉・1 絵（絵文字）・2 色の点・3 なし（ウェブ版の P キー）
+    var mk = 0                  // 目印の見せ方：0 玉・1 絵（絵文字）・2 色の点・3 なし（ウェブ版の P キー）・4 模型（3D、Mac 版だけ）
+    var modelKind = 3           // 模型の種類：0 怪獣・1 タツノオトシゴの竜・2 うんこ・3 いろいろ（目印ごとに順に）・4 いぬ・5 ねこ・6 たぬき・7 きつね・8 たこ・9 いか
+    var modelSize = 1.0         // 模型の大きさ（玉の何倍か）
     var picLine = 0.3           // 絵・色の点の時の線の濃さ（0 で消す）
     var ghostBack = false       // 遠回りの像を、絵の裏から見た形に（左右を鏡に）
     var lens = 0                // 0 ふつう・1 魚眼・2 360°
@@ -81,12 +85,17 @@ struct Settings {
     var space = false           // 背景：false 深海（青灰色のもや。ウェブ版と同じ）／true 宇宙（暗闇・星・天の川）
     var stars = 1.0             // 宇宙の時の星の明るさ（0 で星なし）
     var band = 1.0              // 宇宙の時の天の川・星雲の明るさ
-    var polePlanet = true       // 8 つの極を「惑星」に：極の色の、少し透けてつやのある大きな玉（角度 0.16、宇宙の大きさでは小さくしない＝広い宇宙ほど本当は大きい）。絵のモードの時は絵のまま
+    var polePlanet = true       // 8 つの極を「惑星」に：極の色の、少し透けてつやのある大きな玉（角度 planetSize、宇宙の大きさでは小さくしない＝広い宇宙ほど本当は大きい）。絵のモードの時は絵のまま
+    var planetSize = 0.12       // 極の惑星の大きさ（半径の角度。前は 0.16 で決まっていた）
     var autoAccel = 1.2         // 自走（歩き続ける）の時、左スティックを前へ倒し続けた時の速くなり方（1 秒あたり）
     var autoMax = 8.0           // 自走の最高の速さ（ふつうの何倍か）
+    var autoMin = 0.0           // 自走の最低の速さ（ブレーキでここまで落とす。0 なら止まって、まだ倒していると巻き戻し）
     var autoRewind = true       // 自走の時、手前へ倒し続けると止まったあと軌跡を逆にたどる（巻き戻し）
     var mapWidth = 520.0        // 地図の幅（景色との境目のつまみで。覚えておく）
     var mapSplit2 = 0.5, mapSplit3a = 0.34, mapSplit3b = 0.67   // 地図を上下に並べた時の境目（2 枚・3 枚）
+    var shCap = 24              // 軸色の時に、手前から重ねる殻の枚数（多いほど奥まで見えるが重い）
+    var hazeK = 0.3             // 深海のもやの色の明るさ（1 でウェブ版と同じ青灰色。小さいほど殻の間が暗く、殻の境目が浮かぶ）
+    var trailLight = true       // 地図の軌跡を光の線に（ほうき星の尾・流れる光の粒）。false でウェブ版と同じ虹色の線
     var free360 = true          // 上下（仰角・見回し）も 360° 回す（宙返り）。false でウェブ版と同じく ±89° で止める
     var wireFloor = 0.35        // 目印の線の濃さ：宇宙を大きくすると出てくる、殻の色の細い線（CG ソフトの補助線のよう。もやで消さない。0 で出さない＝ウェブ版と同じ）
     var shAxis = false          // 球層の色：false レインボー（w の殻）／true 軸の色（選んだ軸の極を囲む殻を、その軸の色で。ウェブ版の軸色）
@@ -103,6 +112,9 @@ struct Settings {
     // 地図（S³ → 3 次元）：x-w・y-w・z-w の回転（度）、遠近 D（k ＝ D／(D − w)）、自分を真ん中に、軸、軌跡
     var mapXW = 0.0, mapYW = 90.0, mapZW = 0.0, mapD = 2.5
     var mapFollow = false, mapAxes = true, mapTrail = true
+    var mapBright = 1.0         // 地図の殻の線の明るさ（宇宙・深海の暗さに合わせた上に、さらにかける）
+    var mapExpand = 0.1         // 宇宙の大きさ 10 倍ごとに、地図をこれだけ広げる（×1000 で 1.3 倍。0 で広げない）
+    var mapPan = false          // 地図の窓の中で地図を動かす（Shift・右ドラッグ）。初めはオフ（回す・近づくだけ）
     var mapRange = 0            // 殻の出し方：0 全体・1 今いる所（自分の殻ははっきり、となりはうっすら）・2 写る所（中の景色に写っている所だけ）
     // 2 枚目の地図（ウェブ版の左上の「地図 2」）：見方・範囲・4 次元の向きは 1 枚目と別。既定は自己中心
     var map2On = true
@@ -155,6 +167,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     var journey = Journey()
     var pathMode: PathMode = .none     // 決まった道（螺旋・回る輪）
     var path = PathWalk()
+    var turn = TurnWalk()              // ターンの道（半周 180°・極めぐり）
+    var pathSpeed = 1.0                // 決まった道の速さの倍率（コントローラーの十字の上下で）
     let game = GameInput()
     var onPad: ((String) -> Void)?           // コントローラーのボタン（A・B・X・Y・十字・メニュー）
     private var lastBand = -1
@@ -186,6 +200,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         case "notex": src = src.replacingOccurrences(of: "float4 nn = nz.sample(sm, P * 0.3);", with: "float4 nn = float4(0.6, 0.5, 0.4, 0.0);")
         case "one": src = src.replacingOccurrences(of: "int n = clamp(int(ceil((t1 - t0) / u.nebStep)), 1, 28);", with: "int n = 1;")
         case "noblob": src = src.replacingOccurrences(of: "if (dens < 0.015) return o;", with: "return o;")
+        case "stride2": src = src.replacingOccurrences(of: "#define SHSTRIDE 1", with: "#define SHSTRIDE 2")
         default: break
         }
         shaderSrc = src; compileOpts = opts
@@ -193,7 +208,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         do { library = try device.makeLibrary(source: src, options: opts); libs["00"] = library } catch {
             fputs("シェーダーの組み立てに失敗：\(error)\n", stderr); return nil
         }
-        precondition(MemoryLayout<Uni>.stride == 256, "Uni の並びがシェーダーと合わない")
+        precondition(MemoryLayout<Uni>.stride == 272, "Uni の並びがシェーダーと合わない")
         super.init()
         game.onButton = { [weak self] k in DispatchQueue.main.async { self?.onPad?(k) } }
     }
@@ -232,32 +247,36 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // ---- シェーダーへの値 ----
     /// 目印の玉の大きさの倍率（絵 1.5・色の点 1.9）
-    var markBig: Double { self.set.mk == 1 ? 1.5 : self.set.mk == 2 ? 1.9 : 1.0 }
+    var markBig: Double { self.set.mk == 1 ? 1.5 : self.set.mk == 2 ? 1.9 : self.set.mk == 4 ? 2.2 * self.set.modelSize : 1.0 }
     /// いちばん内側の殻の、極からの距離（極の目印の玉より外に。ウェブ版の shellMinTheta）
-    var shellMinTheta: Double { max(0.13 * markBig + 0.06, set.polePlanet && set.poles && set.mk != 1 ? Renderer.planetR + 0.05 : 0) }   // 惑星の時は惑星より外に
-    static let planetR = 0.16
+    var shellMinTheta: Double { max(0.13 * markBig + 0.06, set.polePlanet && set.poles && set.mk != 1 && set.mk != 4 ? set.planetSize + 0.05 : 0) }   // 惑星の時は惑星より外に
     lazy var atlas: MTLTexture? = Atlas.make(device)
     static let roomPlanes: [SIMD4<Float>] = Cell120.shared.planes.map { SIMD4<Float>($0) }
     func markers() -> [MkGPU] {
         var out: [MkGPU] = []
         let big = markBig * (set.grand ? 0.7 : 1.0) / set.uniR    // 絵・色の点の時は玉を大きめに。壮大モードは 7 割。宇宙が大きいほど、本当の大きさは同じなので角度では小さく
-        func put(_ c: V4, _ col: SIMD3<Float>, _ r: Double, _ pic: String? = nil, planet: Bool = false) {
+        // 模型のモード：極・置いた目印・自分の玉を 3D の模型に（info.z が模型の種類。足あとは玉のまま）
+        var nModel = 0
+        func put(_ c: V4, _ col: SIMD3<Float>, _ r: Double, _ pic: String? = nil, planet: Bool = false, model: Bool = false) {
             guard out.count < 64 else { return }
-            out.append(MkGPU(c: SIMD4<Float>(c), col: SIMD4<Float>(col.x, col.y, col.z, Float(r)), info: SIMD4(planet ? -1 : Float(pic.map { PIC.index($0) } ?? -1), planet ? 1 : 0, 0, 0)))
+            var kind: Float = -1
+            // 模型の番号（シェーダー）：0 怪獣・1 竜・2 うんこ・3 いぬ・4 ねこ・5 たぬき・6 きつね・7 たこ・8 いか
+            if model && set.mk == 4 { kind = Float(set.modelKind < 3 ? set.modelKind : set.modelKind > 3 ? set.modelKind - 1 : nModel % 9); nModel += 1 }
+            out.append(MkGPU(c: SIMD4<Float>(c), col: SIMD4<Float>(col.x, col.y, col.z, Float(r)), info: SIMD4(planet || kind >= 0 ? -1 : Float(pic.map { PIC.index($0) } ?? -1), planet ? 1 : 0, kind, 0)))
         }
         let none = set.mk == 3
-        let planets = set.poles && set.polePlanet && set.mk != 1          // 極の惑星（見せ方が「なし」でも出す）
+        let planets = set.poles && set.polePlanet && set.mk != 1 && set.mk != 4   // 極の惑星（見せ方が「なし」でも出す。絵・模型の時は絵・模型）
         if set.poles && (!none || planets) {
             for (k, m) in FIXED.enumerated() {
                 if set.hideLabels.contains(m.label) { continue }
                 if set.hidePair && m.pole && (0..<4).contains(where: { m.c[$0] < -0.5 }) { continue }
-                if planets { put(m.c, poleCol(k), Renderer.planetR, planet: true) } else { put(m.c, m.col, m.r * big, PIC.poles[k]) }
+                if planets { put(m.c, poleCol(k), set.planetSize, planet: true) } else { put(m.c, m.col, m.r * big, PIC.poles[k], model: true) }
             }
         }
-        if set.marksOn && !none { for (i, p) in journey.marks.enumerated() { put(p, Journey.markColor(i), 0.1 * big, PIC.mark(i)) } }
+        if set.marksOn && !none { for (i, p) in journey.marks.enumerated() { put(p, Journey.markColor(i), 0.1 * big, PIC.mark(i), model: true) } }
         if set.foot { for p in journey.foot { put(p, [0.8, 0.85, 1], 0.03 * big, PIC.foot) } }
         for m in set.extra where !set.hideLabels.contains(m.label) { put(m.c, m.col, m.r) }
-        if set.selfBall { put(cam.w.p, [1, 1, 1], (set.mk == 0 ? 0.09 : 0.13) / set.uniR, PIC.selfPic) }
+        if set.selfBall { put(cam.w.p, [1, 1, 1], (set.mk == 0 ? 0.09 : set.mk == 4 ? 0.2 * set.modelSize : 0.13) / set.uniR, PIC.selfPic, model: true) }
         return out
     }
     func uniforms(width: Int, height: Int) -> Uni {
@@ -274,13 +293,13 @@ final class Renderer: NSObject, MTKViewDelegate {
         u.shellLum = Float(set.shellLum); u.gridSt = Float(set.grand ? Double.pi / 36 : Double.pi / 12)
         u.shellN = Int32(max(2, min(21, set.shellN))); u.shell = set.shell ? 1 : 0
         u.shellSolid = set.shellSolid ? 1 : 0; u.shellBare = set.shellBare ? 1 : 0; u.eq = set.eq ? 1 : 0
-        u.passes = Int32(set.passes); u.orient = set.orient ? 1 : 0; u.lite = set.lite ? 1 : 0; u.webTies = set.webTies ? 1 : 0
+        u.passes = Int32(set.passes) | Int32(max(8, min(60, set.shCap)) << 8); u.orient = set.orient ? 1 : 0; u.lite = set.lite ? 1 : 0; u.webTies = set.webTies ? 1 : 0
         u.glow = Float(set.glow); u.edr = Float(edrBoost)
         u.pic = Int32(set.mk == 1 ? 1 : set.mk == 2 ? 2 : 0); u.ghostBack = set.ghostBack ? 1 : 0; u.picLine = Float(set.picLine)
         u.lens = Int32(set.lens)
         let fov = set.lens == 0 ? min(150, set.fov) : set.lens == 1 ? set.fov : 180
         u.fovY = Float(fov * d2r); u.tanF = Float(tan(min(150, set.fov) * d2r / 2))
-        u.space = set.space ? 1 : 0; u.band = Float(set.band); u.wireFloor = Float(set.wireFloor)
+        u.space = set.space ? 1 : 0; u.hazeK = Float(set.hazeK); u.band = Float(set.band); u.wireFloor = Float(set.wireFloor)
         u.shAx = set.shAxis ? Int32((set.shAxX ? 1 : 0) | (set.shAxY ? 2 : 0) | (set.shAxZ ? 4 : 0) | (set.shAxW ? 8 : 0)) : 0
         if set.shAxis && u.shAx == 0 { u.shAx = 8 }                  // 軸を 1 つも選んでいない時は w だけ
         u.neb = set.space && set.nebula && set.nebK > 0 ? 1 : 0; u.nebK = Float(set.nebK); u.nebStep = 0.08
@@ -502,7 +521,14 @@ final class Renderer: NSObject, MTKViewDelegate {
         if pathMode != .none {                                   // 決まった道：自動で進む（キー・スティックで歩いたらやめる）
             let manual = keys.contains(where: { [13, 1, 0, 2, 12, 14].contains($0) }) || (set.gamepad && game.read().move != .zero)
             if manual { pathMode = .none; say?("決まった道をやめた（歩いた）") }
-            else { pathStep(0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR); return }
+            else {
+                // 十字の上・下を押し続けると、だんだん速く・遅く（1 秒で 2 倍・半分。最高は自走の最高速まで、いちばん遅くて 0.1 倍）
+                if set.gamepad { let dy = game.dpadY(); if dy != 0 { pathSpeed = max(0.1, min(set.autoMax, pathSpeed * exp(dy * 0.69 * dt))) } }
+                var ds = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR * pathSpeed
+                // 速い時も道からはずれないよう、0.02 ずつに分けて進む
+                while ds > 1e-12 { let h = min(ds, 0.02); if pathMode == .half || pathMode == .tour { turnStep(h) } else { pathStep(h) }; ds -= h }
+                return
+            }
         }
         // ゲームコントローラー：スティックの倒し具合で速さも変わる
         var padMul = 1.0
@@ -546,20 +572,22 @@ final class Renderer: NSObject, MTKViewDelegate {
             padMove = padVel
         } else { padMove = .zero; padVel = .zero; padRun = 1 }
         // 自走の速さ：前へ倒し続けるとだんだん速く（離すとその速さのまま）、手前へ倒すとブレーキ、止まってもまだ倒していると軌跡を巻き戻す
-        if walking && !walkingWas { autoSpeed = 1; rewinding = false; rewindSpeed = 0 }
+        let aLo = max(0, min(set.autoMin, set.autoMax)), aHi = max(aLo, set.autoMax)
+        if walking && !walkingWas { autoSpeed = max(aLo, min(aHi, 1)); rewinding = false; rewindSpeed = 0 }
         walkingWas = walking
         if walking && set.gamepad {
             let th = padThrottle
             if th > 0.2 {
-                if rewinding { rewinding = false; rewindSpeed = 0; autoSpeed = 0 }
-                autoSpeed = min(set.autoMax, autoSpeed + set.autoAccel * th * dt * max(1, autoSpeed * 0.6))
+                if rewinding { rewinding = false; rewindSpeed = 0; autoSpeed = aLo }
+                autoSpeed = min(aHi, autoSpeed + set.autoAccel * th * dt * max(1, autoSpeed * 0.6))
             } else if th < -0.2 {
-                if autoSpeed > 0.02 { autoSpeed = max(0, autoSpeed - 2.5 * -th * dt * max(1, autoSpeed)) }
-                else if set.autoRewind {
+                if autoSpeed > aLo + 1e-6 { autoSpeed = max(aLo, autoSpeed - 2.5 * -th * dt * max(1, autoSpeed)) }
+                else if set.autoRewind && aLo < 0.02 {
                     if !rewinding { say?("巻き戻し：通ってきた軌跡を逆にたどる") }
                     autoSpeed = 0; rewinding = true; rewindSpeed = min(6, rewindSpeed + 1.5 * -th * dt)
                 }
             } else if rewinding { rewinding = false; rewindSpeed = 0 }
+            autoSpeed = max(aLo, min(aHi, autoSpeed))   // 設定で最高・最低を変えた時も、すぐその間に
             sp *= autoSpeed
         } else { rewinding = false }
         if rewinding { rewindStep(0.9 * set.spd * dt * max(0.3, rewindSpeed) / set.uniR) }
