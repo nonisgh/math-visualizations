@@ -72,7 +72,8 @@ struct MapPane: NSViewRepresentable {
         m.onLabels = { [weak labels, weak v] ls in
             labels?.update(ls)
             if let s = v?.window?.backingScaleFactor { m.backingScale = s }
-            if let v, let w = v.window { v.preferredFramesPerSecond = { let hz = max(60, w.screen?.maximumFramesPerSecond ?? 60); return hz / max(1, hz / 60) }() }
+            // 地図の速さ：ふつうは 60 fps 前後、静かモードは 20 fps
+            if let v, let w = v.window { v.preferredFramesPerSecond = { let hz = max(60, w.screen?.maximumFramesPerSecond ?? 60), want = m.world.set.quiet ? 20 : 60; return hz / max(1, hz / want) }() }
         }
         return box
     }

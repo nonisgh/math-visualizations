@@ -27,6 +27,7 @@ struct Main {
         if args.contains("--picstats") { Verify.picStats(); exit(0) }
         if args.contains("--mapstats") { Verify.mapStats(); exit(0) }
         if args.contains("--mapbench") { Verify.mapBench(); exit(0) }
+        if args.contains("--quietbench") { Verify.quietBench(); exit(0) }
         if let i = args.firstIndex(of: "--mappng"), i + 1 < args.count { Verify.mapPNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--turndump"), i + 5 < args.count { Verify.turnDump(args[i + 1], args[i + 2] == "sharp", Int(args[i + 3])!, Double(args[i + 4])!, Int(args[i + 5])!); exit(0) }
         if let i = args.firstIndex(of: "--icon"), i + 1 < args.count { Verify.icon(args[i + 1]); exit(0) }
@@ -90,6 +91,32 @@ final class AppModel: ObservableObject {
         if CommandLine.arguments.contains("--demo-float") {      // 確かめ用：球層と見え方をタブでまとめて浮かせる
             dock.reset(); dock.floatPanel(.shell); if let g = dock.floating.first { dock.addTab(.view, to: g.id) }
         }
+        setupSync()
+    }
+    /// 同期（Supabase、NativeSync.swift）：共通の状態に、Mac の画面の構成（パネルの並び・浮いた窓・地図の置き方・パネル・表示・ゲームパッド）を足す
+    private func setupSync() {
+        let sy = NativeSync.shared
+        sy.core = { [weak self] in
+            guard let self else { return [:] }
+            var d = NativeSync.commonCore(self.r)
+            d["ui_mac"] = ["dock": self.dock.export(), "mapMode": self.mapMode.rawValue, "showPanel": self.showPanel, "showHUD": self.showHUD, "showPad": self.showPad] as [String: Any]
+            return d
+        }
+        sy.position = { [weak self] in self.map { NativeSync.position($0.r) } ?? [:] }
+        sy.apply = { [weak self] d, withPos in
+            guard let self else { return }
+            NativeSync.applyCommon(self.r, d, withPos)
+            if let u = d["ui_mac"] as? [String: Any] {
+                if let k = u["dock"] as? [String: Any] { self.dock.load(k) }
+                if let m = (u["mapMode"] as? String).flatMap(MapMode.init(rawValue:)) { self.setMap(m) }
+                if let v = u["showPanel"] as? Bool, v != self.showPanel { self.showPanel = v }
+                if let v = u["showHUD"] as? Bool, v != self.showHUD { self.showHUD = v }
+                if let v = u["showPad"] as? Bool, v != self.showPad { self.showPad = v }
+            }
+            Store.save(self.r); self.changed()
+        }
+        // 窓ができてから（浮いた窓・地図の窓を出し直せるように）、まず読み込む
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { sy.start() }
     }
     func say(_ m: String) { hudState.notice = m; noticeT = CACurrentMediaTime() }
     /// Tab：パネル（ドック・浮いた窓）と地図を全部隠す／元に戻す（Photoshop と同じ）
@@ -582,6 +609,9 @@ struct MainToolbar: ToolbarContent {
             .pickerStyle(.segmented).help("S³ の地図：隠す・景色の横に並べる・浮いた窓に")
         }
         ToolbarItem(placement: .primaryAction) {
+            Toggle(isOn: model.b(\.quiet)) { Label("静か", systemImage: "leaf") }.help("静かモード（ファンを回さない）：景色は 30 fps・描く細かさを下げる。画質は後回し")
+        }
+        ToolbarItem(placement: .primaryAction) {
             Toggle(isOn: $model.showPad) { Label("ゲームパッド", systemImage: "gamecontroller") }.help("画面のゲームパッド（コントローラーと同じボタン）" + Keymap.shared.hint(.vpad))
         }
         ToolbarItem(placement: .primaryAction) {
@@ -731,14 +761,16 @@ final class WalkView: MTKView {
     func applyScale() {
         guard model != nil else { return }
         // 映画のような光の時は、画面は画面の細かさのまま、景色だけ「描く細かさ」で描く（星と仕上げは細かく）。それ以外は画面ごと細かさを下げる
-        let bs = window?.backingScaleFactor ?? 2, sc = renderer.set.scale, whole = renderer.set.cine ? 1.0 : sc
+        //   静かモードの時は、細かさは静かモードの値に決め打ち・景色は 30 fps（ファンを回さない）
+        let quiet = renderer.set.quiet
+        let bs = window?.backingScaleFactor ?? 2, sc = quiet ? renderer.set.quietScale : renderer.set.scale, whole = renderer.set.cine ? 1.0 : sc
         renderer.sceneScale = renderer.set.cine ? sc : 1
         let sz = CGSize(width: max(1, (bounds.width * bs * whole).rounded()), height: max(1, (bounds.height * bs * whole).rounded()))
         if sz != drawableSize { drawableSize = sz }
         // 60 fps の時は、画面の速さを割り切れる速さのうち 60 以上でいちばん遅いもの（144Hz → 72、120Hz → 60、60Hz → 60）。
         //   60 のままだと 144Hz の画面では 3 コマに 1 回（48 fps）になる
         let hz = max(60, window?.screen?.maximumFramesPerSecond ?? 60)
-        let fps = renderer.set.fps60 ? hz / max(1, hz / 60) : hz
+        let fps = quiet ? hz / max(1, hz / 30) : renderer.set.fps60 ? hz / max(1, hz / 60) : hz
         if preferredFramesPerSecond != fps { preferredFramesPerSecond = fps }
     }
 
@@ -747,7 +779,7 @@ final class WalkView: MTKView {
     private var okStreak = 0, badStreak = 0, cap = 1.0, capT = CACurrentMediaTime()
     let logFPS = CommandLine.arguments.contains("--log")
     func autoScale(_ r: Renderer) {
-        guard r.set.autoQ, r.fps > 0, !r.idle else { return }   // 止まって描き直していない時は、細かさを変えない
+        guard r.set.autoQ, !r.set.quiet, r.fps > 0, !r.idle else { return }   // 止まって描き直していない時・静かモードの時は、細かさを変えない
         let target = Double(preferredFramesPerSecond), now = CACurrentMediaTime(), budget = 1000 / target
         if now - capT > 30 { cap = 1.0 }                        // 上限は 30 秒で忘れる（場面が軽くなったら、また細かく）
         var sc = r.set.scale

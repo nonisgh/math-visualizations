@@ -179,13 +179,30 @@ enum Verify {
                 r.pathMode = .none
                 check(seen.count >= 4 && off < 1e-3, "自分の道・素通り・天極 ⇄ 地極：1 本の大円をぐるっと（ずれ \(String(format: "%.1e", off))）")
             }
+            // 同期（Supabase）：書き出した状態を当て直すと元どおり・ほかの種類の端末の画面の構成は分けて残す・今いる所も戻る
+            do {
+                r.set = .plain; r.resetNorth(); r.cam.walk([0, 0, 1], 0.7); r.cam.az = 33
+                let core0 = NativeSync.json(NativeSync.commonCore(r)), pos0 = NativeSync.position(r)
+                var d = NativeSync.commonCore(r); d["pos"] = pos0
+                r.set.fov = 61; r.set.space.toggle(); r.set.shellN = 5; r.resetNorth()            // 変えてから
+                NativeSync.applyCommon(r, d, true)                                                 // 当て直す
+                let back = NativeSync.json(NativeSync.commonCore(r)) == core0
+                let posBack = simd_length(r.cam.w.p - V4((pos0["p"] as! [Double])[0], (pos0["p"] as! [Double])[1], (pos0["p"] as! [Double])[2], (pos0["p"] as! [Double])[3])) < 1e-9
+                let (own, fo) = NativeSync.split(["set": [:], "ui_mac": ["a": 1], "ui_ios": ["b": 2], "pos": [:]] as [String: Any])
+                let other = NativeSync.platform == "mac" ? "ui_ios" : "ui_mac"
+                let splitOK = own.keys.sorted() == ["set", "ui_" + NativeSync.platform].sorted() && fo.keys.sorted() == [other]
+                let noScale = (NativeSync.commonCore(r)["set"] as? [String: Any])?["scale"] == nil
+                check(back && posBack && splitOK && noScale, "同期：書き出した状態を当て直すと元どおり（設定・道・キー）・今いる所も戻る・ほかの種類の端末の画面の構成は分けて残す・描く細かさはそろえない")
+            }
             // 座標の入れ方（ウェブ版と同じ）
             var c = CoordInput(); c.fix(); c.set(3, 0.5)
             let share = c.v[0...2].allSatisfy { abs($0 - 0.5) < 1e-9 }
             c.set(0, 0.8); c.set(1, 0.8)                                                    // 0.8 と 0.8 は入りきらない：新しい y はそのまま、前の x が残りの幅に縮む
             let pri = abs(c.v[1] - 0.8) < 1e-9 && abs(c.v[0] - 0.6) < 1e-9 && abs(c.v.map { $0 * $0 }.reduce(0, +) - 1) < 1e-9
-            let parsed = ["1", "5", "34", "-5", "０．３", "0.25"].map { CoordInput.parse($0) ?? .nan }
-            check(share && pri && parsed == [1, 0.5, 0.34, -0.5, 0.3, 0.25], "座標の入れ方：w ＝ 0.5 なら残りを 0.5 ずつ分け合う・最後に入れた数を優先・1 → 1、5 → 0.5、34 → 0.34、-5 → −0.5、全角も（\(parsed)）")
+            let parsed = ["1", "5", "34", "-5", "０．３", "0.25", "2", "35", "-999", "-1", "１２３４"].map { CoordInput.parse($0) ?? .nan }
+            let literal = ["2", "35", "-999", "0.5"].map { CoordInput.parse($0, simple: false) ?? .nan }
+            check(share && pri && parsed == [1, 0.5, 0.34, -0.5, 0.3, 0.25, 0.2, 0.35, -0.999, -1, 0.1234] && literal == [2, 35, -999, 0.5] && CustomRoutePanel.num(-0.999) == "-0.999" && CustomRoutePanel.num(0.5) == "0.5",
+                  "座標の入れ方：w ＝ 0.5 なら残りを 0.5 ずつ分け合う・最後に入れた数を優先・簡易入力（n 桁 → 1/10ⁿ）2 → 0.2、35 → 0.35、-999 → −0.999、1・−1 はそのまま、全角も（\(parsed)）・簡易入力オフは書いたとおり（\(literal)）・欄の表示 −0.999")
         }
         // 超立方体・二十四胞体の辺めぐり：となりどうし（60°）だけを進み、全部の辺を 1 回ずつ通って、最初の頂点へ戻る
         for (name, V, T, E) in [("超立方体", TurnGeo.cubeVerts, TurnGeo.cubeTour, 32), ("二十四胞体", TurnGeo.cell24Verts, TurnGeo.cell24Tour, 96)] {
@@ -773,6 +790,41 @@ enum Verify {
             for _ in 0..<30 { r.cam.walk([0, 0, 1], 0.01); _ = m.renderOffscreen(width: 1600, height: 1300); cpu += m.lastCPU; gpu += m.lastGPU }
             print(String(format: "%@：CPU %.2f ms・GPU %.2f ms/コマ（1600×1300）", name, cpu / 30, gpu / 30))
         }
+        }
+    }
+
+    /// 静かモードの見積もり（`--quietbench`）：あなたの設定のまま、景色の 1 コマの GPU の時間と、1 秒あたりの GPU の使用の割合（時間 × fps）
+    static func quietBench() {
+        guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
+        var us = Settings()
+        if let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key)?["set"] as? [String: Any] { us.load(d) }
+        let (W, H) = (2800, 2000)                                 // 地図とパネルを並べた時の景色（Retina の画素）
+        print("GPU：\(dev.name)　景色 \(W)×\(H)・あなたの設定")
+        for (name, fps, sc, f) in [("今（60 fps・細かさ 0.9）", 60.0, 0.9, { (_: inout Settings) in }),
+                                   ("60 fps・細かさ 0.5", 60.0, 0.5, { (_: inout Settings) in }),
+                                   ("30 fps・細かさ 0.5", 30.0, 0.5, { (_: inout Settings) in }),
+                                   ("30 fps・細かさ 0.4", 30.0, 0.4, { (_: inout Settings) in }),
+                                   ("30 fps・細かさ 0.5・殻 12 まで", 30.0, 0.5, { (s: inout Settings) in s.shCap = min(s.shCap, 12) }),
+                                   ("24 fps・細かさ 0.45", 24.0, 0.45, { (_: inout Settings) in }),
+                                   ("4 方向レインボー・今（60 fps・0.9）", 60.0, 0.9, { (s: inout Settings) in s.shAxis = false; s.rainbow4 = true }),
+                                   ("4 方向レインボー・静か（30 fps・0.4）", 30.0, 0.4, { (s: inout Settings) in s.shAxis = false; s.rainbow4 = true }),
+                                   ("4 方向レインボー・静か・重ねる殻 12", 30.0, 0.4, { (s: inout Settings) in s.shAxis = false; s.rainbow4 = true; s.shCap = 12 }),
+                                   ("4 方向レインボー・静か（30 fps・0.3）", 30.0, 0.3, { (s: inout Settings) in s.shAxis = false; s.rainbow4 = true })] as [(String, Double, Double, (inout Settings) -> Void)] {
+            r.set = us; f(&r.set); r.set.autoQ = false; r.cam = Camera(); r.cam.walk([0, 0, 1], 0.4)
+            r.sceneScale = r.set.cine ? sc : 1
+            let w = r.set.cine ? W : Int(Double(W) * sc), h = r.set.cine ? H : Int(Double(H) * sc)
+            let ms = r.benchmark(width: w, height: h, frames: 60)
+            print(String(format: "  %@：%.2f ms/コマ → GPU %.0f%%（%.0f fps）", name, ms, ms * fps / 10, fps))
+        }
+        r.sceneScale = 1
+        r.set = us; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 8 { r.step(1.0 / 60) }; r.walking = false
+        for r4 in [false, true] {
+            r.set.shAxis = false; r.set.rainbow4 = r4
+            let m = MapRenderer(world: r, slot: 0); m.backingScale = 2
+            _ = m.renderOffscreen(width: 1000, height: 1300)
+            var gpu = 0.0, cpu = 0.0
+            for _ in 0..<20 { r.cam.walk([0, 0, 1], 0.01); _ = m.renderOffscreen(width: 1000, height: 1300); gpu += m.lastGPU; cpu += m.lastCPU }
+            print(String(format: "  地図 1 枚（1000×1300）%@：GPU %.2f ms・CPU %.2f ms/コマ → 60 fps で GPU %.0f%%・CPU %.0f%%、20 fps で GPU %.0f%%・CPU %.0f%%", r4 ? "・4 方向レインボー" : "・レインボー", gpu / 20, cpu / 20, gpu / 20 * 6, cpu / 20 * 6, gpu / 20 * 2, cpu / 20 * 2))
         }
     }
 

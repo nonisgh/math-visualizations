@@ -9,7 +9,7 @@ import AppKit
 
 /// パネルの種類（今のところ右のドックに積む）
 enum PanelID: String, CaseIterable, Codable {
-    case walk, path, marks, shell, view, lines, map, map2, mac, screen, keys
+    case walk, path, marks, shell, view, lines, map, map2, mac, screen, keys, sync
     var title: String {
         switch self {
         case .walk: return "歩く"
@@ -23,6 +23,7 @@ enum PanelID: String, CaseIterable, Codable {
         case .mac: return "コントローラーと触覚"
         case .screen: return "画面"
         case .keys: return "ショートカットキー"
+        case .sync: return "同期（Supabase）"
         }
     }
     /// この機械で出すパネル（iPad・iPhone はキーボードのショートカットなし）
@@ -53,6 +54,7 @@ enum PanelID: String, CaseIterable, Codable {
         case .mac: return "gamecontroller"
         case .screen: return "display"
         case .keys: return "keyboard"
+        case .sync: return "arrow.triangle.2.circlepath"
         }
     }
 }
@@ -136,6 +138,21 @@ final class DockState: ObservableObject {
     }
     func toggle(_ id: PanelID) { if collapsed.contains(id) { collapsed.remove(id) } else { collapsed.insert(id) } }
     func reset() { floating = []; order = PanelID.allCases; collapsed = [] }
+    /// 同期：並び・たたみ・浮いた窓（窓の場所も）を書き出す・当てる
+    func export() -> [String: Any] {
+        var d: [String: Any] = ["order": order.map(\.rawValue), "collapsed": collapsed.map(\.rawValue).sorted()]
+        if let f = try? JSONEncoder().encode(floating), let o = try? JSONSerialization.jsonObject(with: f) { d["floating"] = o }
+        d["frames"] = Dictionary(uniqueKeysWithValues: frames.filter { k, _ in floating.contains { $0.id == k } }.map { ($0.key.uuidString, [$0.value.minX, $0.value.minY, $0.value.width, $0.value.height]) })
+        return d
+    }
+    func load(_ d: [String: Any]) {
+        if let o = d["order"] as? [String] { var ids = o.compactMap(PanelID.init(rawValue:)); for p in PanelID.allCases where !ids.contains(p) { ids.append(p) }; if ids != order { order = ids } }
+        if let c = d["collapsed"] as? [String] { let s = Set(c.compactMap(PanelID.init(rawValue:))); if s != collapsed { collapsed = s } }
+        if let fr = d["frames"] as? [String: [Double]] { for (k, v) in fr where v.count == 4 { if let u = UUID(uuidString: k) { frames[u] = CGRect(x: v[0], y: v[1], width: v[2], height: v[3]) } } }
+        if let o = d["floating"], let data = try? JSONSerialization.data(withJSONObject: o), let g = try? JSONDecoder().decode([FloatGroup].self, from: data) {
+            let gg = g.filter { !$0.tabs.isEmpty }; if gg != floating { floating = gg }
+        }
+    }
 }
 
 /// Photoshop 風のスライダー：名前の上を左右にドラッグ（スクラブ）・スライダー・数字（クリックで直接入力）
@@ -645,6 +662,11 @@ struct PanelContent: View {
                 note(r.game.names.isEmpty ? "コントローラー：つながっていない（Joy-Con などを Bluetooth でつなぐと使える）" : "コントローラー：" + r.game.names.joined(separator: "・"))
                 note("右スティック 進む向き・ZL＋右スティック 見回しだけ（地図は回らず水色の円すい。ZL を押して離すだけで前を見る）・左スティック 進む向きへ歩く・Y 前を見る（進む向きは変えない）・ZL＋Y この向きへ進む（Enter）・右スティック押し込み 前を見る（もう一度で水平）・左スティック押し込み（L3） 軌跡を消す・L/R 上下・ZR 速く・A ターボ・B 歩き続ける・X 縦横無尽・十字の上下 殻の見える距離（歩き続ける・決まった道の間は、押し続けて速く・遅く）・十字の右 ターボ（いきなり最高速、もう一度で戻る）・＋ 設定・− 地図を出す・隠す")
             case .screen:
+                Toggle("静かモード（ファンを回さない：景色 30 fps・地図 20 fps・描く細かさを下げる。画質は後回し）", isOn: model.b(\.quiet))
+                if r.set.quiet {
+                    row("画質（小さいほど静か）", \.quietScale, 0.25, 0.7, "%.2f").padding(.leading, 14)
+                    note(String(format: "画質の数は描く細かさ：小さいほど粗くて軽く静か、大きいほどきれいで重い。M1 Max の見積もり：30 fps・画質 %.2f で GPU の使用は約 %.0f%%（0.4 で約 2 割、0.5 で約 3 割。ふつうの 60 fps・0.9 では足りずに全力）。止まっている時は描き直さない", r.set.quietScale, 19 * pow(r.set.quietScale / 0.4, 2))).padding(.leading, 14)
+                }
                 Toggle("60 fps 前後（144Hz の画面では 72）" + km.hint(.fps), isOn: model.b(\.fps60))
                 Toggle("足りない時だけ細かさを下げる", isOn: model.b(\.autoQ))
                 Toggle("動いていない時は描き直さない（止まったら 1 回だけ細かく描く）", isOn: model.b(\.idleReuse))
@@ -653,6 +675,8 @@ struct PanelContent: View {
                 Button("初めの見え方に戻す") { let s = r.set.scale; r.set = Settings(); r.set.scale = s; model.changed() }
             case .keys:
                 KeymapPanel()
+            case .sync:
+                NativeSyncPanel()
             }
         }
     }

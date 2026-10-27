@@ -129,7 +129,7 @@ struct SceneBox: View {
                         RoundButton(icon: "scope", on: false) { model.r.cam.hy = 0; model.r.cam.hp = 0; model.changed() }
                         RoundButton(icon: "house", on: false) { model.r.resetNorth(); model.say("アナ極に戻った"); model.changed() }
                         RoundButton(icon: "gamecontroller", on: model.showPad) { model.showPad.toggle() }
-                        RoundButton(icon: "map", on: model.mapMode != .hidden) { model.setMap(model.mapMode == .hidden ? .docked : .hidden) }
+                        RoundButton(icon: "map", on: model.mapMode != .hidden) { model.pad("options") }   // コントローラーの − と同じ（前の置き方で出す）
                         RoundButton(icon: "slider.horizontal.3", on: model.showPanel) { model.showPanel.toggle() }
                     }
                 }
@@ -202,12 +202,59 @@ struct SceneView: UIViewRepresentable {
         let p1 = UIPanGestureRecognizer(target: v, action: #selector(SceneMTK.pan1(_:))); p1.maximumNumberOfTouches = 1
         let p2 = UIPanGestureRecognizer(target: v, action: #selector(SceneMTK.pan2(_:))); p2.minimumNumberOfTouches = 2
         v.addGestureRecognizer(p1); v.addGestureRecognizer(p2)
+        // 景色の上の 8 つの極（色の点と「名前 距離」。Mac 版の PoleOverlay と同じ）
+        let po = PoleOverlayIOS(frame: v.bounds); po.autoresizingMask = [.flexibleWidth, .flexibleHeight]; po.isUserInteractionEnabled = false; v.addSubview(po)
+        model.r.onPoles = { [weak po] ls in po?.update(ls) }
         model.sceneView = v
         DispatchQueue.main.async { model.applyScale() }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { model.r.prewarm() }
         return v
     }
     func updateUIView(_ v: SceneMTK, context: Context) {}
+}
+
+/// 景色の上の 8 つの極（Mac 版の PoleOverlay と同じ）：直径 12 の色の点（暗いふち、遠いほど小さく 5 まで）と、右に「名前 距離」。
+///   点が重なる時は手前の点だけ。名前はアナ極を先に、あとは手前から順に、点の右・左・上・下で空いている所へ（どこも空いていなければ隠す）
+final class PoleOverlayIOS: UIView {
+    private var dots: [CALayer] = [], labs: [CATextLayer] = []
+    func update(_ ls: [Renderer.PoleLab]) {
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        let sc = window?.screen.scale ?? 2, font = UIFont.boldSystemFont(ofSize: 11)
+        while dots.count < 8 {
+            let d = CALayer(); d.borderWidth = 2; d.borderColor = UIColor(red: 8 / 255, green: 12 / 255, blue: 28 / 255, alpha: 0.85).cgColor
+            let t = CATextLayer(); t.contentsScale = sc; t.font = font; t.fontSize = 11; t.alignmentMode = .left
+            t.shadowColor = UIColor.black.cgColor; t.shadowOpacity = 1; t.shadowRadius = 2; t.shadowOffset = .zero
+            layer.addSublayer(d); layer.addSublayer(t); dots.append(d); labs.append(t)
+        }
+        let w = bounds.width, h = bounds.height
+        struct It { var k: Int; var x: CGFloat; var y: CGFloat; var lab: Renderer.PoleLab }
+        var items = ls.prefix(8).enumerated().map { It(k: $0.offset, x: CGFloat(0.5 + 0.5 * $0.element.x) * w, y: CGFloat(0.5 - 0.5 * $0.element.y) * h, lab: $0.element) }
+        items.sort { $0.lab.d < $1.lab.d }
+        for i in 0..<8 { dots[i].isHidden = true; labs[i].isHidden = true }
+        var shown: [It] = []
+        for (z, it) in items.enumerated() {
+            let d = dots[it.k], col = UIColor(red: CGFloat(it.lab.col.x), green: CGFloat(it.lab.col.y), blue: CGFloat(it.lab.col.z), alpha: 1).cgColor
+            d.zPosition = CGFloat(100 - z); labs[it.k].zPosition = CGFloat(200 - z)
+            if shown.contains(where: { hypot($0.x - it.x, $0.y - it.y) < 9 }) { continue }
+            let q = min(1, it.lab.d / (Double.pi / 2)), r = CGFloat(12 - 7 * q * q * (3 - 2 * q))   // 距離 0 で 12、90° で 5
+            d.isHidden = false; d.backgroundColor = col; d.cornerRadius = r / 2; d.frame = CGRect(x: it.x - r / 2, y: it.y - r / 2, width: r, height: r)
+            shown.append(it)
+        }
+        var rects: [CGRect] = []
+        for it in items.sorted(by: { ($0.lab.isN ? 0 : 1, $0.lab.d) < ($1.lab.isN ? 0 : 1, $1.lab.d) }) {
+            let t = labs[it.k], bw = ceil((it.lab.name as NSString).size(withAttributes: [.font: font]).width) + 2, bh: CGFloat = 14
+            for (dx, dy) in [(CGFloat(8), CGFloat(-8)), (-8 - bw, -8), (-bw / 2, -23), (-bw / 2, 8)] {
+                let r = CGRect(x: it.x + dx, y: it.y + dy, width: bw, height: bh)
+                if r.minX < 0 || r.maxX > w || r.minY < 0 || r.maxY > h { continue }
+                if rects.contains(where: { $0.intersects(r) }) { continue }
+                if shown.contains(where: { $0.k != it.k && $0.x > r.minX - 4 && $0.x < r.maxX + 4 && $0.y > r.minY - 4 && $0.y < r.maxY + 4 }) { continue }
+                t.isHidden = false; t.string = it.lab.name
+                t.foregroundColor = UIColor(red: CGFloat(it.lab.col.x), green: CGFloat(it.lab.col.y), blue: CGFloat(it.lab.col.z), alpha: 1).cgColor
+                t.frame = r.insetBy(dx: 0, dy: -1); rects.append(r); break
+            }
+        }
+        CATransaction.commit()
+    }
 }
 
 // ---- 地図の MTKView：ドラッグで回す、ピンチで近づく、2 回タップで元の向き ----
@@ -257,7 +304,11 @@ struct MapViewIOS: UIViewRepresentable {
             NSLayoutConstraint.activate([x.leadingAnchor.constraint(equalTo: box.leadingAnchor), x.trailingAnchor.constraint(equalTo: box.trailingAnchor),
                                          x.topAnchor.constraint(equalTo: box.topAnchor), x.bottomAnchor.constraint(equalTo: box.bottomAnchor)])
         }
-        m.onLabels = { [weak labels] ls in labels?.update(ls) }
+        m.onLabels = { [weak labels, weak v] ls in
+            labels?.update(ls)
+            let want = m.world.set.quiet ? 20 : 60                   // 静かモードの地図は 20 fps
+            if let v, v.preferredFramesPerSecond != want { v.preferredFramesPerSecond = want }
+        }
         v.addGestureRecognizer(UIPanGestureRecognizer(target: v, action: #selector(MapMTK.pan(_:))))
         v.addGestureRecognizer(UIPinchGestureRecognizer(target: v, action: #selector(MapMTK.pinch(_:))))
         let t2 = UITapGestureRecognizer(target: v, action: #selector(MapMTK.tap2)); t2.numberOfTapsRequired = 2; v.addGestureRecognizer(t2)

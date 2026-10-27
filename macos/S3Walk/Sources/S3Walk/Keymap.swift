@@ -112,6 +112,9 @@ final class Keymap: ObservableObject {
         keys[a] = [k]; save()
         return lost
     }
+    /// 同期：キーの割り当てをまとめて書き出す・当てる
+    func export() -> [String: [String]] { Dictionary(uniqueKeysWithValues: keys.map { ($0.key.rawValue, $0.value) }) }
+    func load(_ d: [String: [String]]) { for a in KeyAction.allCases { keys[a] = d[a.rawValue] ?? a.defaults }; save() }
     func clear(_ a: KeyAction) { keys[a] = []; save() }
     func reset() { for a in KeyAction.allCases { keys[a] = a.defaults }; save() }
     var isDefault: Bool { KeyAction.allCases.allSatisfy { keys[$0] == $0.defaults } }

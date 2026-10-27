@@ -37,6 +37,8 @@ final class MobileModel: ObservableObject {
         didSet { UserDefaults.standard.set(uiScale, forKey: "s3walk.ios.uiScale") }
     }
     weak var sceneView: MTKView?
+    /// − で地図を出す時の置き方（隠す前の置き方）
+    var lastShownMap: MapMode = UIDevice.current.userInterfaceIdiom == .phone ? .corner : .docked
     private var noticeT = 0.0, lastSaved = ""
     init() {
         // 軸の名前の書体（KaTeX の数式用の斜体）
@@ -56,6 +58,31 @@ final class MobileModel: ObservableObject {
             let s = String(format: "%.0f fps・細かさ %.0f%%　アナ極から %.2f　方位 %+.0f° 仰角 %+.0f° 見回し %+.0f°/%+.0f°", r.fps, r.set.scale * 100, acos(max(-1, min(1, p.w))) * r.set.uniR, c.az, c.el, c.hy, c.hp)
             DispatchQueue.main.async { self?.autoScale(r); if self?.hudText != s { self?.hudText = s }; self?.save() }
         }
+        setupSync()
+    }
+    /// 同期（Supabase、NativeSync.swift）：共通の状態に、iPad・iPhone の画面の構成（パネルの並び・地図の置き方・パネルの大きさ・ゲームパッド）を足す
+    func setupSync() {
+        let sy = NativeSync.shared
+        sy.core = { [weak self] in
+            guard let self else { return [:] }
+            var d = NativeSync.commonCore(self.r)
+            d["ui_ios"] = ["dock": self.dock.export(), "mapMode": self.mapMode.rawValue, "uiScale": self.uiScale, "showPad": self.showPad] as [String: Any]
+            return d
+        }
+        sy.position = { [weak self] in self.map { NativeSync.position($0.r) } ?? [:] }
+        sy.apply = { [weak self] d, withPos in
+            guard let self else { return }
+            NativeSync.applyCommon(self.r, d, withPos)
+            self.r.set.gamepad = true
+            if let u = d["ui_ios"] as? [String: Any] {
+                if let k = u["dock"] as? [String: Any] { var k2 = k; k2["floating"] = nil; self.dock.load(k2) }
+                if let m = (u["mapMode"] as? String).flatMap(MapMode.init(rawValue:)) { self.setMap(m) }
+                if let v = u["uiScale"] as? Double, v != self.uiScale { self.uiScale = v }
+                if let v = u["showPad"] as? Bool, v != self.showPad { self.showPad = v }
+            }
+            self.applyScale(); self.save(); self.changed()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { sy.start() }
     }
     /// Mac 版で見ている見え方（MacLook.plist：Mac の設定をそのまま書き出したもの）にそろえる
     static func macLook(_ r: Renderer) {
@@ -67,7 +94,7 @@ final class MobileModel: ObservableObject {
     func say(_ m: String) { notice = m; noticeT = CACurrentMediaTime(); let t = noticeT; DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in if self?.noticeT == t { self?.notice = "" } } }
     /// パネルの部品と設定をつなぐ（Mac 版の AppModel と同じ）
     func b<T>(_ kp: WritableKeyPath<Settings, T>) -> Binding<T> {
-        Binding(get: { self.r.set[keyPath: kp] }, set: { self.objectWillChange.send(); self.r.set[keyPath: kp] = $0; let k = kp as AnyKeyPath; if k == \Settings.scale || k == \Settings.cine || k == \Settings.fps60 { self.applyScale() } })
+        Binding(get: { self.r.set[keyPath: kp] }, set: { self.objectWillChange.send(); self.r.set[keyPath: kp] = $0; let k = kp as AnyKeyPath; if k == \Settings.scale || k == \Settings.cine || k == \Settings.fps60 || k == \Settings.quiet || k == \Settings.quietScale { self.applyScale() } })
     }
     func rb<T>(_ kp: ReferenceWritableKeyPath<Renderer, T>) -> Binding<T> {
         Binding(get: { self.r[keyPath: kp] }, set: { self.objectWillChange.send(); self.r[keyPath: kp] = $0 })
@@ -81,18 +108,18 @@ final class MobileModel: ObservableObject {
     /// 描く細かさ：映画のような光の時は景色だけ粗く（星と仕上げは画面の細かさ）、それ以外は画面ごと粗く（Mac 版の applyScale と同じ）
     func applyScale() {
         guard let v = sceneView else { return }
-        let sc = r.set.scale, screen = v.window?.screen.scale ?? UIScreen.main.scale
+        let sc = r.set.quiet ? r.set.quietScale : r.set.scale, screen = v.window?.screen.scale ?? UIScreen.main.scale
         r.sceneScale = r.set.cine ? sc : 1
         let cs = r.set.cine ? screen : screen * sc
         if abs(v.contentScaleFactor - cs) > 0.001 { v.contentScaleFactor = cs }
         let hz = max(60, v.window?.screen.maximumFramesPerSecond ?? 60)
-        let fps = r.set.fps60 ? 60 : hz
+        let fps = r.set.quiet ? 30 : r.set.fps60 ? 60 : hz
         if v.preferredFramesPerSecond != fps { v.preferredFramesPerSecond = fps }
     }
     /// 細かさの自動（Mac 版と同じ考え）：fps が目標に 2 回続けて届かなければ粗く、4 秒続けて届いていれば少しずつ細かく
     private var okStreak = 0, badStreak = 0, cap = 1.0, capT = CACurrentMediaTime()
     func autoScale(_ r: Renderer) {
-        guard r.set.autoQ, r.fps > 0, !r.idle, let v = sceneView else { return }
+        guard r.set.autoQ, !r.set.quiet, r.fps > 0, !r.idle, let v = sceneView else { return }
         let target = Double(v.preferredFramesPerSecond), now = CACurrentMediaTime(), budget = 1000 / target
         if now - capT > 30 { cap = 1.0 }
         var sc = r.set.scale
@@ -118,8 +145,10 @@ final class MobileModel: ObservableObject {
         // 十字の上下：止まっている時は殻の見える距離（歩き続ける・決まった道の間は速さ。Mac 版と同じ）
         case "up": if r.pathMode == .none && !r.walking { r.set.shellRange = min(25.15, r.set.shellRange + 0.5); say(String(format: "殻の見える距離 %.1f", r.set.shellRange)) }
         case "down": if r.pathMode == .none && !r.walking { r.set.shellRange = max(0.3, r.set.shellRange - 0.5); say(String(format: "殻の見える距離 %.1f", r.set.shellRange)) }
-        case "menu": showPanel.toggle()
-        case "options": setMap(mapMode == .hidden ? .docked : .hidden)
+        case "menu": showPanel.toggle(); say(showPanel ? "設定を開いた（＋）" : "設定を閉じた（＋）")
+        case "options":                                       // −：地図を隠す・前の置き方（すみ・並べる）で出す
+            if mapMode == .hidden { setMap(lastShownMap); say(lastShownMap == .corner ? "地図をすみに出した（−）" : "地図を並べた（−）") }
+            else { lastShownMap = mapMode; setMap(.hidden); say("地図を隠した（−）") }
         default: break
         }
         changed()

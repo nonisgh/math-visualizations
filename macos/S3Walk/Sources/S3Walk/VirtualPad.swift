@@ -35,9 +35,9 @@ struct VirtualPad: View {
                 key("ZL", "ZL", "見回しだけ", w: 54, h: 26)
                 key("L", "L", "下へ", w: 54, h: 26)
                 Spacer(minLength: 12)
-                key("options", "−", "地図", w: 30, h: 26)
+                key("options", "−", "地図", w: 40, h: 28)                // 指で押しやすいよう、ほかの肩のボタンに近い大きさ
                 Color.clear.frame(width: 24, height: 26)
-                key("menu", "＋", "設定", w: 30, h: 26)
+                key("menu", "＋", "設定", w: 40, h: 28)
                 Spacer(minLength: 12)
                 key("R", "R", "上へ", w: 54, h: 26)
                 key("ZR", "ZR", "速く", w: 54, h: 26)

@@ -118,6 +118,8 @@ struct Settings {
     // 地図（S³ → 3 次元）：x-w・y-w・z-w の回転（度）、遠近 D（k ＝ D／(D − w)）、自分を真ん中に、軸、軌跡
     var mapXW = 0.0, mapYW = 90.0, mapZW = 0.0, mapD = 2.5
     var mapFollow = false, mapAxes = true, mapTrail = true
+    var quiet = false           // 静かモード（ファンを回さない）：景色は 30 fps・描く細かさ quietScale に決め打ち（自動の細かさは止める）、地図は 20 fps。画質は後回し
+    var quietScale = 0.4        // 静かモードの描く細かさ（M1 Max で 30 fps・0.4 なら GPU の使用は 2 割ほど）
     var routeFlow = false       // 自分の道のつなぎ方「素通り」：全部の点を通る滑らかな曲線で、止まらず・角なしで巡回（routeSmart より先）
     var routeSmart = true       // 自分の道のつなぎ方：true おまかせ（なるべくまっすぐ・2 点はループ・反対側はまっすぐ）／false 最短（往復は引き返す）
     var cursorShape = 1         // 地図の自分の矢印の形：0 三角錐・1 五角錐（底が五角形。底の 1 つの角が体の上）

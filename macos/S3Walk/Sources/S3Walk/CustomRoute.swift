@@ -50,6 +50,16 @@ final class RouteStore: ObservableObject {
     private struct Saved: Codable { var routes: [CustomRoute]; var sel: UUID? }
     func save() { guard !loading, let d = try? JSONEncoder().encode(Saved(routes: routes, sel: sel)) else { return }; UserDefaults.standard.set(d, forKey: RouteStore.key) }
     var index: Int? { routes.firstIndex { $0.id == sel } }
+    /// 同期：道の一覧と選んでいる道を書き出す・当てる
+    func export() -> Any {
+        guard let d = try? JSONEncoder().encode(Saved(routes: routes, sel: sel)), let o = try? JSONSerialization.jsonObject(with: d) else { return [String: Any]() }
+        return o
+    }
+    func load(_ o: Any) {
+        guard let d = try? JSONSerialization.data(withJSONObject: o), let v = try? JSONDecoder().decode(Saved.self, from: d), !v.routes.isEmpty else { return }
+        if v.routes != routes { routes = v.routes }
+        if v.sel != sel { sel = v.sel ?? routes.first?.id }
+    }
     func add() {
         var k = routes.count + 1; while routes.contains(where: { $0.name == "道 \(k)" }) { k += 1 }
         let r = CustomRoute(name: "道 \(k)", pts: []); routes.append(r); sel = r.id
@@ -93,10 +103,11 @@ struct CoordInput {
     /// 今いる所（x → y → z の順に入れて、w は自動）
     mutating func setHere(_ p: V4) { reset(); sg[3] = p.w < 0 ? -1 : 1; set(0, p.x); set(1, p.y); set(2, p.z) }
     /// 1 → 1、5 → 0.5、34 → 0.34、-5 → −0.5（小数点なしは桁の数だけ 10 で割る。小数点があればそのまま）。全角も読む
-    static func parse(_ str: String) -> Double? {
+    ///   simple ＝ false（簡易入力オフ）：書いたとおりの数（1 より大きい数は 1 に丸める）
+    static func parse(_ str: String, simple: Bool = true) -> Double? {
         var t = str.trimmingCharacters(in: .whitespaces).applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? str
-        t = t.replacingOccurrences(of: "−", with: "-").replacingOccurrences(of: "ー", with: "-").replacingOccurrences(of: "。", with: ".")
-        if t.contains(".") { return Double(t) }
+        t = t.replacingOccurrences(of: "−", with: "-").replacingOccurrences(of: "ー", with: "-").replacingOccurrences(of: "。", with: ".").replacingOccurrences(of: "＋", with: "+")
+        if t.contains(".") || !simple { return Double(t) }
         let neg = t.hasPrefix("-"), digits = t.trimmingCharacters(in: CharacterSet(charactersIn: "+-"))
         guard !digits.isEmpty, digits.allSatisfy(\.isNumber), let n = Double(digits) else { return nil }
         let v = digits == "1" ? 1 : n / pow(10, Double(digits.count))
@@ -415,6 +426,7 @@ struct CustomRoutePanel: View {
     @State private var ci: CoordInput = { var c = CoordInput(); c.fix(); return c }()
     @State private var texts = ["", "", "", ""]
     @FocusState private var focus: Int?
+    @AppStorage("s3walk.coord.simple") private var simple = true   // 簡易入力：2 → 0.2、35 → 0.35、-999 → −0.999（ウェブ版と同じ）
     static let axisNames = ["x", "y", "z", "w"]
     /// 蛍光ペンの黄緑（今向かっている点）
     static let marker = Color(red: 0.84, green: 1.0, blue: 0.18)
@@ -482,8 +494,10 @@ struct CustomRoutePanel: View {
                 }
                 .controlSize(.small).buttonStyle(.bordered)                // iPad でもボタンとわかるように枠をつける
                 // 座標を入れる（ウェブ版と同じ：最後に入れた数ほど優先）
-                Text("座標を入れる（x² ＋ y² ＋ z² ＋ w² ＝ 1。最後に入れた数がいちばん優先、まだ入れていない軸は残りを分け合う。5 → 0.5、34 → 0.34、-5 → −0.5）")
+                Text("座標を入れる（x² ＋ y² ＋ z² ＋ w² ＝ 1。最後に入れた数がいちばん優先、まだ入れていない軸は残りを分け合う）")
                     .font(.caption).foregroundStyle(Space.slate).fixedSize(horizontal: false, vertical: true)
+                Toggle("簡易入力（小数点なしの n 桁は 1/10ⁿ に：2 → 0.2、35 → 0.35、-999 → −0.999。1 と −1 はそのまま）", isOn: $simple)
+                    .font(.caption).help("オフにすると書いたとおりの数（1 より大きい数は 1 に丸める）。小数点を打てば、オンでもそのまま")
                 ForEach(0..<4) { a in coordRow(a) }
                 HStack(spacing: 6) {
                     Button("今いる所") { ci.setHere(r.cam.w.p); syncTexts() }
@@ -503,15 +517,35 @@ struct CustomRoutePanel: View {
                 .font(.caption).foregroundStyle(Space.slate).fixedSize(horizontal: false, vertical: true)
         }
         .onAppear { ci.fix(); syncTexts() }
+        // ほかの欄へ移った時も、それまで打っていた数を入れる（Return を押さなくても）
+        .onChange(of: focus) { old, _ in if let a = old { commit(a); syncTexts() } }
     }
 
-    func syncTexts() { for a in 0..<4 where focus != a { texts[a] = String(format: "%.2f", ci.v[a]) } }
+    /// 欄 a の文字を数にして入れる（簡易入力の時は 35 → 0.35 など。読めない時は元に戻す）
+    func commit(_ a: Int) { if let v = CoordInput.parse(texts[a], simple: simple) { ci.set(a, max(-1, min(1, v))) } }
+    func syncTexts() { for a in 0..<4 where focus != a { texts[a] = CustomRoutePanel.num(ci.v[a]) } }
+    /// 欄に出す数：小数 4 桁まで、余分な 0 は消す（−0.999 が −1.00 に見えないように）
+    static func num(_ v: Double) -> String {
+        var t = String(format: "%.4f", v)
+        while t.hasSuffix("0") { t.removeLast() }; if t.hasSuffix(".") { t += "0" }
+        return t == "-0.0" ? "0.0" : t
+    }
     func coordRow(_ a: Int) -> some View {
         HStack(spacing: 6) {
             Text(CustomRoutePanel.axisNames[a]).font(.system(size: 13, weight: .bold, design: .serif)).italic().foregroundStyle(CustomRoutePanel.axisColors[a]).frame(width: 14)
             Slider(value: Binding(get: { ci.v[a] }, set: { ci.set(a, ($0 * 100).rounded() / 100); syncTexts() }), in: -1...1)
             TextField("", text: $texts[a]).textFieldStyle(.roundedBorder).frame(width: 52).focused($focus, equals: a)
-                .onSubmit { if let v = CoordInput.parse(texts[a]) { ci.set(a, max(-1, min(1, v))) }; focus = nil; syncTexts() }
+                #if os(iOS)
+                .keyboardType(.numbersAndPunctuation)
+                #endif
+                .onSubmit { commit(a); focus = nil; syncTexts() }
+                // 打っている間：変換した数を横に（簡易入力で 35 → 0.35 など）
+                .overlay(alignment: .bottomTrailing) {
+                    if focus == a, let v = CoordInput.parse(texts[a], simple: simple), String(format: "%g", v) != texts[a].trimmingCharacters(in: .whitespaces) {
+                        Text(String(format: "→ %g", max(-1, min(1, v)))).font(.system(size: 10, weight: .bold)).foregroundStyle(CustomRoutePanel.marker)
+                            .padding(.horizontal, 4).background(Space.panel.opacity(0.95), in: Capsule()).offset(y: 14).fixedSize().allowsHitTesting(false)
+                    }
+                }
             Text(ci.rank[a] > 0 ? RouteStore.nums[ci.rank[a] - 1] + (ci.rank[a] == 1 ? "最新" : "") + String(format: " ±%.2f", ci.lim[a])
                  : ci.free.count == 1 ? String(format: "自動 %@%.2f", ci.v[a] >= 0 ? "+" : "−", ci.rr) : "分け合う")
                 .font(.system(size: 10)).foregroundStyle(ci.rank[a] > 0 ? Space.sky : Space.slate).frame(width: 74, alignment: .leading)
