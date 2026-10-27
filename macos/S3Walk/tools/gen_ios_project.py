@@ -2,7 +2,7 @@
 #   Mac 版と同じ Sources/S3Walk の共通のファイル（景色・地図・計算）と、iOS/ の画面のファイルを 1 つのアプリにまとめる（iPhone と iPad の両方）
 import os, hashlib
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CORE = ['Cell120', 'Journey', 'Math4', 'Paths', 'Turns', 'Shaders', 'Renderer', 'MapRenderer', 'Atlas', 'GameInput', 'Theme', 'Keymap', 'Dock', 'SearchIndex', 'VirtualPad', 'CornerMap']
+CORE = ['Cell120', 'Journey', 'Math4', 'Paths', 'Turns', 'Shaders', 'Renderer', 'MapRenderer', 'Atlas', 'GameInput', 'Theme', 'Keymap', 'Dock', 'SearchIndex', 'VirtualPad', 'CornerMap', 'CustomRoute']
 srcs = ['../Sources/S3Walk/%s.swift' % n for n in CORE] + sorted('%s' % f for f in os.listdir(os.path.join(root, 'iOS')) if f.endswith('.swift'))
 res = ['../Fonts/KaTeX_Math-Italic.ttf', 'Assets.xcassets', 'MacLook.plist']   # MacLook.plist：Mac 版で見ている見え方（初めて開いた時と「Mac の見え方に」で読む）
 def oid(s): return hashlib.md5(s.encode()).hexdigest()[:24].upper()

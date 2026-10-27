@@ -72,6 +72,77 @@ enum Verify {
 
     // ---- ターンの道：ウェブ版の fillStep・fqStep を node で動かした点（refs/turn_*.json、refs/turn_ref.js で作る。4000 コマ・ds 0.005・40 コマおき）と比べる ----
     static func turnChecks(_ r: Renderer) {
+        // 自分の道：1 点は行って止まる、2 点は往復、3 点以上は巡回（どの点のそばも通る・ほかの極には寄らない）
+        do {
+            func route(_ ks: [Int]) -> CustomRoute { CustomRoute(name: "確かめ", pts: ks.map { RoutePoint(p: RouteStore.poles[$0].1, name: RouteStore.poles[$0].0) }) }
+            func near(_ p: V4, _ k: Int) -> Bool { let q = RouteStore.poles[k].1; return acos(max(-1, min(1, dot4(p, V4(q[0], q[1], q[2], q[3]))))) < 0.12 }
+            r.set = .plain; r.set.routeSmart = false; r.resetNorth(); r.startCustom(route([2]))                         // 東極へ
+            var steps = 0; while r.pathMode == .custom && steps < 2000 { r.crStep(0.01); steps += 1 }
+            check(r.pathMode == .none && near(r.cam.w.p, 2), "自分の道・1 点：アナ極から東極へ行って止まる（\(steps) 歩、π/2 ＝ 157 歩ほど）")
+            for (ks, label) in [([2, 4], "2 点（東極 ⇄ 北極の往復）"), ([0, 2, 6], "3 点（アナ極 → 東極 → 天極 → アナ極）"), ([2, 3, 6, 1], "4 点（東極 → 西極（反対側）→ 天極 → カタ極）")] {
+                r.set = .plain; r.set.routeSmart = false; r.resetNorth(); r.startCustom(route(ks))
+                var visits: [Int] = [], strayOK = true, maxStep = 0.0, prev = r.cam.w.p
+                for _ in 0..<6000 {
+                    r.crStep(0.01); let p = r.cam.w.p
+                    maxStep = max(maxStep, acos(max(-1, min(1, dot4(p, prev))))); prev = p
+                    if let k = ks.first(where: { near(p, $0) }), visits.last != k { visits.append(k) }
+                    if (0..<8).contains(where: { !ks.contains($0) && $0 != 0 && near(p, $0) }) { strayOK = false }
+                }
+                r.pathMode = .none
+                // 決まった順に巡っているか（はじめのアナ極は出発点なので数えない）
+                let seq = visits.filter { ks.contains($0) }, n = ks.count
+                let ordered = seq.count >= n * 2 && zip(seq, seq.dropFirst()).allSatisfy { a, b in ks.firstIndex(of: b) == (ks.firstIndex(of: a)! + 1) % n }
+                check(ordered && strayOK && maxStep < 0.05, "自分の道・\(label)：決まった順に何周も、ほかの極には寄らない、とびなし（通った順 \(seq.prefix(8).map { RouteStore.poles[$0].0 }.joined(separator: "→"))…）")
+            }
+            // おまかせ：天 ⇄ 地はまっすぐ 1 本の大円を回り続ける・東 ⇄ 北は引き返さずにループ（西・南も通る）・引き返す所も止まらずに電球の形で回る
+            do {
+                r.set = .plain; r.set.routeSmart = true; r.resetNorth(); r.startCustom(route([6, 7]))
+                var plane: (V4, V4)? = nil, off = 0.0, seen: [Int] = []
+                for _ in 0..<4000 {
+                    r.crStep(0.01); let p = r.cam.w.p
+                    if let k = [6, 7].first(where: { near(p, $0) }), seen.last != k { seen.append(k) }
+                    if plane == nil && seen.count >= 2 { plane = (p, r.cam.w.f) }   // 天に着いて地へ向かい始めた後
+                    if let (a, b) = plane { let q = a * dot4(p, a) + b * dot4(p, b); off = max(off, simd_length(p - q)) }
+                }
+                r.pathMode = .none
+                check(seen.count >= 5 && off < 1e-3, "自分の道・おまかせ・天極 ⇄ 地極：まっすぐ 1 本の大円をぐるっと回り続ける（大円からのずれ \(String(format: "%.1e", off))、通った順 \(seen.prefix(6).map { RouteStore.poles[$0].0 }.joined(separator: "→"))…）")
+            }
+            do {
+                r.set = .plain; r.set.routeSmart = true; r.resetNorth(); r.startCustom(route([2, 4]))
+                var seen: [Int] = [], still = 0, prev = r.cam.w.p
+                for _ in 0..<5000 {
+                    r.crStep(0.01); let p = r.cam.w.p
+                    if dot4(p, prev) > cos(1e-7) { still += 1 }; prev = p
+                    if let k = [2, 3, 4, 5].first(where: { near(p, $0) }), seen.last != k { seen.append(k) }
+                }
+                r.pathMode = .none
+                let loop = seen.drop(while: { $0 != 2 }).prefix(8).elementsEqual([2, 4, 3, 5, 2, 4, 3, 5])
+                check(loop && still == 0, "自分の道・おまかせ・東極 ⇄ 北極：引き返さずに、東→北→西→南とループ（止まる歩 \(still)、通った順 \(seen.prefix(8).map { RouteStore.poles[$0].0 }.joined(separator: "→"))…）")
+            }
+            do {
+                let back = nrm(V4(1, 0.3, 0, 0))
+                r.set = .plain; r.set.routeSmart = true; r.set.turnSharp = false; r.resetNorth()
+                r.startCustom(CustomRoute(name: "確かめ", pts: [RoutePoint(p: [1, 0, 0, 0], name: "東極"), RoutePoint(p: [0, 1, 0, 0], name: "北極"), RoutePoint(p: [back.x, back.y, back.z, back.w], name: "東の近く")]))
+                var still = 0, prev = r.cam.w.p, prevF = r.cam.w.f, maxTurn = 0.0, nearBack = 0, nearN = 0, prevNearN = false
+                for i in 0..<5000 {
+                    r.crStep(0.01); let p = r.cam.w.p, f = r.cam.w.f
+                    if dot4(p, prev) > cos(1e-7) { still += 1 }
+                    let ft = nrm(prevF - p * dot4(prevF, p)); if i > 0 { maxTurn = max(maxTurn, acos(max(-1, min(1, dot4(ft, f))))) }
+                    prev = p; prevF = f
+                    if acos(max(-1, min(1, dot4(p, back)))) < 0.01 { nearBack += 1 }
+                    let n = near(p, 4); if n && !prevNearN { nearN += 1 }; prevNearN = n
+                }
+                r.pathMode = .none
+                check(still == 0 && maxTurn < 0.12 && nearBack > 0 && nearN >= 2, String(format: "自分の道・おまかせ・スムーズ：北極で引き返す所を、止まらずにぐるっと電球の形で回る（止まる歩 %d、1 歩の向きの変わり 最大 %.3f）", still, maxTurn))
+            }
+            // 座標の入れ方（ウェブ版と同じ）
+            var c = CoordInput(); c.fix(); c.set(3, 0.5)
+            let share = c.v[0...2].allSatisfy { abs($0 - 0.5) < 1e-9 }
+            c.set(0, 0.8); c.set(1, 0.8)                                                    // 0.8 と 0.8 は入りきらない：新しい y はそのまま、前の x が残りの幅に縮む
+            let pri = abs(c.v[1] - 0.8) < 1e-9 && abs(c.v[0] - 0.6) < 1e-9 && abs(c.v.map { $0 * $0 }.reduce(0, +) - 1) < 1e-9
+            let parsed = ["1", "5", "34", "-5", "０．３", "0.25"].map { CoordInput.parse($0) ?? .nan }
+            check(share && pri && parsed == [1, 0.5, 0.34, -0.5, 0.3, 0.25], "座標の入れ方：w ＝ 0.5 なら残りを 0.5 ずつ分け合う・最後に入れた数を優先・1 → 1、5 → 0.5、34 → 0.34、-5 → −0.5、全角も（\(parsed)）")
+        }
         // 超立方体・二十四胞体の辺めぐり：となりどうし（60°）だけを進み、全部の辺を 1 回ずつ通って、最初の頂点へ戻る
         for (name, V, T, E) in [("超立方体", TurnGeo.cubeVerts, TurnGeo.cubeTour, 32), ("二十四胞体", TurnGeo.cell24Verts, TurnGeo.cell24Tour, 96)] {
             var edges = Set<String>(), adjOK = true
@@ -752,6 +823,13 @@ enum Verify {
             ("地図・光の跡を何周も（螺旋で 12 歩、残す 2π）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.set.trailKeep = 2; r.startPath(.spiral); for _ in 0..<5000 { r.step(1.0 / 60) }; r.pathMode = .none }),
             ("地図・光の跡を何周も（螺旋で 12 歩、全部）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.startPath(.spiral); for _ in 0..<5000 { r.step(1.0 / 60) }; r.pathMode = .none }),
             ("地図・超立方体の辺めぐり（32 本を全部）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = false; r.set.trailKeep = 0; r.startPath(.cube); for _ in 0..<1900 { r.turnStep(0.02) }; r.pathMode = .none }),
+            ("地図・超立方体の辺めぐり・直角・傾き 0（正面の箱の中の箱）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = false; r.set.trailKeep = 0; r.set.turnSharp = true; r.set.mapXW = 0; r.set.mapYW = 0; r.set.mapZW = 0; r.startPath(.cube); for _ in 0..<2600 { r.turnStep(0.02) }; r.pathMode = .none }),
+            ("地図・自分の道（アナ・東・天・(½,½,½,½)・西 を巡回、直角）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = false; r.set.trailKeep = 0; r.set.turnSharp = true; r.journey = Journey(); r.resetNorth()
+                let P = RouteStore.poles; r.startCustom(CustomRoute(name: "確かめ", pts: [RoutePoint(p: P[0].1, name: P[0].0), RoutePoint(p: P[2].1, name: P[2].0), RoutePoint(p: P[6].1, name: P[6].0), RoutePoint(p: [0.5, 0.5, 0.5, 0.5], name: "(½,½,½,½)"), RoutePoint(p: P[3].1, name: P[3].0)]))
+                for _ in 0..<1500 { r.crStep(0.01) }; r.pathMode = .none }),
+            ("地図・自分の道・おまかせ（東・北・東の近く：北でぐるっと電球の U ターン）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = false; r.set.trailKeep = 0; r.set.turnSharp = false; r.set.routeSmart = true; r.journey = Journey(); r.resetNorth()
+                let b = nrm(V4(1, 0.3, 0, 0)); r.startCustom(CustomRoute(name: "確かめ", pts: [RoutePoint(p: [1, 0, 0, 0], name: "東極"), RoutePoint(p: [0, 1, 0, 0], name: "北極"), RoutePoint(p: [b.x, b.y, b.z, b.w], name: "東の近く")]))
+                for _ in 0..<700 { r.crStep(0.01) }; r.pathMode = .none }),
             ("地図・二十四胞体の辺めぐり（96 本を全部）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.set.trailKeep = 0; r.startPath(.cell24); for _ in 0..<5600 { r.turnStep(0.02) }; r.pathMode = .none }),
             ("地図・光の跡を近くで横から（カーブが丸い管に見えるか）", { r in r.set = .plain; r.set.shell = false; r.set.trailLight = true; r.startPath(.spiral); for _ in 0..<2500 { r.step(1.0 / 60) }; r.pathMode = .none }),
             ("地図・4 方向レインボー", { r in r.set = .plain; r.set.rainbow4 = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 1 { r.step(1.0 / 60) }; r.walking = false }),

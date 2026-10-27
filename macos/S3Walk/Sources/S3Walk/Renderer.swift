@@ -118,6 +118,7 @@ struct Settings {
     // 地図（S³ → 3 次元）：x-w・y-w・z-w の回転（度）、遠近 D（k ＝ D／(D − w)）、自分を真ん中に、軸、軌跡
     var mapXW = 0.0, mapYW = 90.0, mapZW = 0.0, mapD = 2.5
     var mapFollow = false, mapAxes = true, mapTrail = true
+    var routeSmart = true       // 自分の道のつなぎ方：true おまかせ（なるべくまっすぐ・2 点はループ・反対側はまっすぐ）／false 最短（往復は引き返す）
     var cursorShape = 1         // 地図の自分の矢印の形：0 三角錐・1 五角錐（底が五角形。底の 1 つの角が体の上）
     var mapCorner = 1           // すみの小さな地図の場所：0 左上・1 右上・2 右下・3 左下
     var mapMini = 0.3           // すみの小さな地図の大きさ（景色の短い辺に対する割合）
@@ -187,6 +188,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     var pathMode: PathMode = .none     // 決まった道（螺旋・回る輪）
     var path = PathWalk()
     var turn = TurnWalk()              // ターンの道（半周 180°・極めぐり）
+    var cr = CRWalk()                  // 自分の道（選んだ点を行く・往復・巡回。CustomRoute.swift）
     var expSaved: Settings? = nil      // 体験の前の見え方（元に戻す用）
     var demo: (c: V4, R: V4, U: V4, F: V4, kind: Int, name: String)? = nil   // デモ「背中が迫ってくる」の模型（置いた時の体の向きのまま。kind は模型の種類の番号）
     var gridSpinAng = 0.0              // 網目の自転の今の角（ウェブ版の GRID.spin）
@@ -609,7 +611,7 @@ final class Renderer: NSObject, MTKViewDelegate {
                 if set.gamepad { let dy = game.dpadY(); if dy != 0 { pathSpeed = max(0.1, min(set.autoMax, pathSpeed * exp(dy * 0.69 * dt))) } }
                 var ds = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR * pathSpeed
                 // 速い時も道からはずれないよう、0.02 ずつに分けて進む
-                while ds > 1e-12 { let h = min(ds, 0.02); if pathMode.isTurn { turnStep(h) } else { pathStep(h) }; ds -= h }
+                while ds > 1e-12 && pathMode != .none { let h = min(ds, 0.02); if pathMode == .custom { crStep(h) } else if pathMode.isTurn { turnStep(h) } else { pathStep(h) }; ds -= h }
                 return
             }
         }

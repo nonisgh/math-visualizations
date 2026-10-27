@@ -442,7 +442,7 @@ struct PanelContent: View {
                     if v == 0 { if r.pathMode.rawValue >= 5 { r.pathMode = .none } } else { r.startPath(PathMode(rawValue: v)!) }; model.changed() })) {
                     Text("−").tag(0); Text("超立方体（16 頂点・32 辺）").tag(5); Text("二十四胞体（24 頂点・96 辺）").tag(6)
                 }.pickerStyle(.segmented)
-                if r.pathMode == .none || r.pathMode == .half || r.pathMode.isPolytope {
+                if r.pathMode == .none || r.pathMode == .half || r.pathMode.isPolytope || r.pathMode == .custom {
                     Picker("曲がり方", selection: model.b(\.turnSharp)) { Text("スムーズ").tag(false); Text("直角").tag(true) }.pickerStyle(.segmented)
                     note("超立方体・二十四胞体：4 次元の正多胞体の頂点（S³ の上の点）を、辺（60° の大円の弧）に沿って一筆書きで、全部の辺を 1 回ずつ通る（超立方体 32 本・二十四胞体 96 本）。地図に骨組みがまるごと描かれる。全部を残すには「残す軌跡」を 0 に（地図のパネル）。光の線の跡は古い所ほど暗く消えるので、骨組みを全部見るには光の線をオフに")
                     note("半周 180°：アナ極→カタ極→アナ極と経線を進み、両方の極でターン（すきまの大きい向きへ。地図の軌跡がだんだん球を埋める）。極めぐり：となりの極だけをたどって 8 つの極を回る（アナ→東→北→天→カタ→西→南→地）。スムーズは双曲線で極を少しよけ、直角は極でその場で向きを変える（次の曲がり角から）")
@@ -456,6 +456,7 @@ struct PanelContent: View {
                     Picker("輪の軸", selection: model.b(\.ringAxis)) { Text("x").tag(0); Text("y").tag(1); Text("z").tag(2); Text("w").tag(3); Text("全部").tag(4) }.pickerStyle(.segmented)
                     row("1 周で回す角", \.ringStep, 2, 45, "%.0f°")
                 }
+                CustomRoutePanel(model: model)
                 note("キーかスティックで歩くと、決まった道はやめる。コントローラーの十字の上・下を押し続けると、道の速さがだんだん速く・遅く（1 秒で 2 倍・半分、最高は自走の最高速まで）")
             case .marks:
                 Picker("見せ方" + km.hint(.markStyle), selection: model.b(\.mk)) { Text("玉").tag(0); Text("絵").tag(1); Text("色の点").tag(2); Text("なし").tag(3); Text("模型").tag(4) }.pickerStyle(.segmented)

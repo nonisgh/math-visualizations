@@ -6,7 +6,7 @@ import simd
 
 /// 決まった道：螺旋・回る輪（この下）、半周 180° のターン・極めぐり・超立方体と二十四胞体の辺めぐり（Turns.swift）
 enum PathMode: Int {
-    case none = 0, spiral = 1, ring = 2, half = 3, tour = 4, cube = 5, cell24 = 6
+    case none = 0, spiral = 1, ring = 2, half = 3, tour = 4, cube = 5, cell24 = 6, custom = 7   // custom：自分の道（CustomRoute.swift）
     /// ターンの道（Turns.swift の turnStep で進む）
     var isTurn: Bool { self == .half || self == .tour || self == .cube || self == .cell24 }
     /// 正多胞体の辺をたどる道（極めぐり＝正十六胞体・超立方体・二十四胞体）
