@@ -5,6 +5,8 @@
 //     ちょうど反対側（天 → 地など、どの向きでも π）は、来た向きのまままっすぐ。2 点は引き返さずに、2 点を通る大円をぐるっと回る（ループ）。
 //   つなぎ方「最短」：いつも短い弧（2 点は往復で引き返す）。反対側へは、軸と軸のまん中の向き（ウェブ版と同じ、ほかの極を踏まない）。
 //   スムーズの時、150° より大きい引き返しは、点を過ぎてから電球の形にぐるっと回って、点を通って戻る（止まって向きを回さない）。直角の時は点で止まって回す
+//   つなぎ方「素通り」：全部の点をちょうど通る滑らかな曲線（球面の上のエルミート曲線。各点の向きは、来る向きと出る向きの平均）を、止まらずにぐるぐる回る。
+//     曲がりは道の全体にならして、きつい角も手前から少しずつ曲がって点を通る。2 点は 2 点を通る大円（ループ）。今いる所からの入りも、今の向きから滑らかに
 //   S² の仲間は、この道では動かない
 //   座標の入れ方はウェブ版の「座標へ向かう」と同じ：最後に入れた数ほど優先（そのまま）、前に入れた数は残りの幅に合わせて調整、まだ入れていない軸は残りを等しく分け合う
 import SwiftUI
@@ -107,9 +109,17 @@ struct CoordInput {
 /// 自分の道の進み具合
 struct CRWalk {
     var pts: [V4] = [], names: [String] = [], title = ""
+    var routeID: UUID? = nil               // 歩いている道（パネルで、今向かっている点を光らせる）
+    var src: [Int] = []                    // pts の点が、道の何番目の点か（続けて同じ点を 1 つにまとめた分ずれる）
+    /// 今向かっている点（pts の番号）。ターンの途中は、もう次の点へ向かっている
+    var heading: Int { run?.nt ?? to }
     var once = false                       // 1 点：着いたら止まる
     var to = 0                             // 今の道の行き先（pts の番号）
     var P = V4(0, 0, 0, 1), b = V4(1, 0, 0, 0), len = 0.0, s = 0.0
+    var flowIn: TurnTable? = nil           // 素通り：今いる所から ① への入り
+    var flow: TurnTable? = nil             // 素通り：全部の点を通って ① に戻る曲線（ぐるぐる回る）
+    var flowMarks: [Double] = []           // 素通り：曲線の上で、② ③ … ① を通る所（道のり）
+    var flowS = 0.0, flowPassed = -1
     var run: CRTurn? = nil, plan: CRTurn? = nil   // plan：次の点でのターン（道の終わりの手前で 1 回だけ作る）
 }
 /// 点でのターン 1 回
@@ -158,16 +168,18 @@ private func clamp1(_ x: Double) -> Double { max(-1, min(1, x)) }
 extension Renderer {
     /// 自分の道を歩き始める（今いる所から ① へ）
     func startCustom(_ route: CustomRoute) {
-        var pts: [V4] = [], names: [String] = []
-        for q in route.pts where q.p.count == 4 {
+        var pts: [V4] = [], names: [String] = [], src: [Int] = []
+        for (k, q) in route.pts.enumerated() where q.p.count == 4 {
             let p = nrm(V4(q.p[0], q.p[1], q.p[2], q.p[3]))
             if let last = pts.last, dot4(last, p) > cos(0.002) { continue }   // 続けて同じ点は 1 つに
-            pts.append(p); names.append(q.name)
+            pts.append(p); names.append(q.name); src.append(k)
         }
-        if pts.count > 1, dot4(pts[0], pts[pts.count - 1]) > cos(0.002) { pts.removeLast(); names.removeLast() }   // 最後が ① と同じなら、巡回で ① に戻る
+        if pts.count > 1, dot4(pts[0], pts[pts.count - 1]) > cos(0.002) { pts.removeLast(); names.removeLast(); src.removeLast() }   // 最後が ① と同じなら、巡回で ① に戻る
         guard !pts.isEmpty else { say?("点を 1 つ以上入れてください（極のボタンか、座標を入れて「この点を足す」）"); return }
         pathSpeed = 1; pathMode = .custom
         cr = CRWalk(pts: pts, names: names, title: route.name, once: pts.count == 1)
+        cr.routeID = route.id; cr.src = src
+        if set.routeFlow && pts.count >= 2 { startFlow(); return }
         let dist = acos(clamp1(dot4(cam.w.p, pts[0])))
         if dist < 0.003 {
             if cr.once { pathMode = .none; say?("もう \(names[0]) にいる"); return }
@@ -175,6 +187,104 @@ extension Renderer {
         } else { setLeg(from: cam.w.p, to: 0, arrival: cam.lookFrame().L) }
         let n = pts.count
         say?("自分の道「\(route.name)」：" + (n == 1 ? "\(names[0]) へ行って止まる" : n == 2 ? (set.routeSmart ? "\(names[0]) と \(names[1]) を通る大円をぐるっと回る（ループ）" : "\(names[0]) と \(names[1]) を往復") : "\(n) 点を ①→…→\(RouteStore.nums[n - 1])→① と巡回") + "（" + (set.turnSharp ? "直角" : "スムーズ") + "）")
+    }
+    // ---- 素通り ----
+    /// 点 P での、向き d（P に直交）を P に接する向きにそろえる
+    private func tang(_ P: V4, _ d: V4) -> V4 { let t = d - P * dot4(d, P); return simd_length(t) > 1e-9 ? nrm(t) : t }
+    /// P から Q へ向かう大円の向き（ちょうど反対側なら nil）
+    private func toward(_ P: V4, _ Q: V4) -> V4? { let t = Q - P * dot4(Q, P); return simd_length(t) > 1e-6 ? nrm(t) : nil }
+    /// 球面の上の大円の補間（slerp）：a から b へ割合 t
+    private func slerp(_ a: V4, _ b: V4, _ t: Double) -> V4 {
+        let w = acos(clamp1(dot4(a, b))); if w < 1e-7 { return a }
+        if Double.pi - w < 1e-6 { return nrm(a * (1 - t) + b * t + tang(a, V4(0.1, 0.2, 0.3, 0.4)) * 1e-3) }
+        return (a * sin((1 - t) * w) + b * sin(t * w)) / sin(w)
+    }
+    /// 球面の上のなめらかな曲線：P0（向き T0）から P1（向き T1）へ。球面の上のベジェ曲線（制御点を大円で動かし、大円の補間で組み立てる）。点の並び（P0 は入れない）
+    ///   向きの大きさ m：ふつうは区間の角 θ。点での向きが区間の向きと大きくずれる時（引き返す点・短い区間）は大きくして、手前から大きく回り込む（急に曲がらない）
+    private func hermite(_ P0: V4, _ T0: V4, _ P1: V4, _ T1: V4) -> [Vn] {
+        let th = acos(clamp1(dot4(P0, P1)))
+        let c0 = toward(P0, P1), c1 = toward(P1, P0).map { -$0 }
+        let dev0 = c0.map { acos(clamp1(dot4($0, T0))) } ?? 0, dev1 = c1.map { acos(clamp1(dot4($0, T1))) } ?? 0
+        // 制御点の離れ h は区間の 4 割まで（越えると制御点が行き先を通り越して、曲線にとがりができる）
+        let m = max(th, 0.05) + 0.45 * (dev0 + dev1), h = min(m / 3, 0.4 * th, 1.2)
+        let B0 = P0, B1 = nrm(P0 * cos(h) + T0 * sin(h)), B2 = nrm(P1 * cos(h) - T1 * sin(h)), B3 = P1
+        let k = max(24, Int((th + m) / 0.004))
+        return (1...k).map { i in
+            let t = Double(i) / Double(k)
+            let a = slerp(B0, B1, t), b = slerp(B1, B2, t), c = slerp(B2, B3, t)
+            let d = slerp(a, b, t), e = slerp(b, c, t)
+            return vn(slerp(d, e, t))
+        }
+    }
+    /// 素通りの曲線を作って歩き始める：各点の向き＝来る向きと出る向きの平均（ちょうど反対側の点は、もう一方の向きのまま）
+    private func startFlow() {
+        let P = cr.pts, n = P.count
+        var T: [V4] = []
+        if n == 2 {                                                    // 2 点：2 点を通る大円（ループ）
+            // 向き：② へ向かう大円（② がちょうど反対側なら、今の向きのまままっすぐ）
+            let a = tang(P[0], cam.lookFrame().L), t0 = toward(P[0], P[1]) ?? (simd_length(a) > 1e-6 ? a : tang(P[0], V4(1, 0, 0, 0) + V4(0, 1, 0, 0)))
+            // 大円 ① → ② → ① を 1 本の表に（② を通るのは距離 d、① に戻るのは 2π）
+            let d = acos(clamp1(dot4(P[0], P[1]))), k = Int(2 * Double.pi / 0.006)
+            var pts: [Vn] = [vn(P[0])]
+            for i in 1...k { let s = 2 * Double.pi * Double(i) / Double(k); pts.append(vn(P[0] * cos(s) + t0 * sin(s))) }
+            cr.flow = TurnGeo.table(pts); cr.flowMarks = [d, 2 * Double.pi]
+            T = [t0, nrm(P[0] * -sin(d) + t0 * cos(d))]
+        } else {
+            for i in 0..<n {
+                // 点の向き：来る向き b と出る向き o を、となりの区間の長さで重みをつけて平均（短い区間の向きを重く＝短い区間で急に曲がらない。長さで重みのキャットマル・ロム曲線と同じ考え）
+                let o = toward(P[i], P[(i + 1) % n]), b = toward(P[i], P[(i + n - 1) % n]).map { -$0 }
+                let Lo = acos(clamp1(dot4(P[i], P[(i + 1) % n]))), Li = acos(clamp1(dot4(P[i], P[(i + n - 1) % n])))
+                let oo = o ?? b ?? V4(0, 0, 0, 0), bb = b ?? o ?? V4(0, 0, 0, 0)
+                let turn = acos(clamp1(dot4(bb, oo)))
+                var t = bb * Lo + oo * Li
+                // 引き返すほどの角（120° より大きい）：重みなしの平均に、横へ逃げる向きを足して、ぐるっと回り込んで通る
+                //   （長さの重みをつけると、向きが行き先の反対を向いて曲線がとがる。来る・出る向きが一直線でもとがる）
+                if turn > 2 * Double.pi / 3 {
+                    t = bb + oo
+                    var side = tang(P[i], V4(0, 0, 1, 0)); side = side - oo * dot4(side, oo)
+                    if simd_length(side) < 1e-6 { side = tang(P[i], V4(0, 1, 0, 0)); side = side - oo * dot4(side, oo) }
+                    if simd_length(side) < 1e-6 { side = tang(P[i], V4(1, 0, 0, 0)); side = side - oo * dot4(side, oo) }
+                    t += nrm(side) * ((turn - 2 * Double.pi / 3) / (Double.pi / 3))
+                }
+                if simd_length(t) < 1e-9 { t = oo }
+                T.append(nrm(tang(P[i], t)))
+            }
+            var pts: [Vn] = [vn(P[0])], marks: [Double] = []
+            for i in 0..<n {
+                pts += hermite(P[i], T[i], P[(i + 1) % n], T[(i + 1) % n])
+                marks.append(TurnGeo.table(pts).len)
+            }
+            cr.flow = TurnGeo.table(pts); cr.flowMarks = marks
+        }
+        // 今いる所から ① へ：今の向きから ① の向きへ滑らかに（もう ① にいれば、すぐ曲線へ）
+        let here = cam.w.p
+        if acos(clamp1(dot4(here, P[0]))) > 0.003 {
+            var t0 = tang(here, cam.lookFrame().L); if simd_length(t0) < 1e-6 { t0 = toward(here, P[0]) ?? tang(here, V4(1, 0, 0, 0)) }
+            cr.flowIn = TurnGeo.table([vn(here)] + hermite(here, t0, P[0], T[0]))
+        } else { cr.flowIn = nil }
+        cr.flowS = 0; cr.flowPassed = -1; cr.to = 0
+        let nm = cr.names
+        say?("自分の道「\(cr.title)」：素通り（" + (n == 2 ? "\(nm[0]) と \(nm[1]) を通る大円をぐるっと" : "\(n) 点を全部通る滑らかな曲線で、止まらずに巡回") + "）")
+    }
+    /// 素通りの曲線に沿って ds 進む
+    private func flowStep(_ ds: Double) {
+        guard let loop = cr.flow, loop.len > 1e-9 else { pathMode = .none; return }
+        cr.flowS += ds
+        if let fin = cr.flowIn {
+            if cr.flowS < fin.len { crGo(nrm(v4(TurnGeo.at(fin, cr.flowS / fin.len)))); cr.to = 0; return }
+            cr.flowS -= fin.len; cr.flowIn = nil; passed(0)
+        }
+        if cr.flowS >= loop.len { cr.flowS -= loop.len }
+        crGo(nrm(v4(TurnGeo.at(loop, cr.flowS / loop.len))))
+        let n = cr.pts.count, k = cr.flowMarks.firstIndex { $0 > cr.flowS } ?? (n - 1)   // 次に通る点：曲線の k 本目の終わり＝点 k + 1
+        let next = (k + 1) % n
+        if next != cr.to { passed(cr.to); cr.to = next }
+    }
+    private func passed(_ i: Int) {
+        guard i != cr.flowPassed else { return }
+        cr.flowPassed = i
+        let n = cr.pts.count, j = (i + 1) % n
+        say?("\(RouteStore.nums[i % 16]) \(cr.names[i]) を素通り → \(RouteStore.nums[j % 16]) \(cr.names[j])へ")
     }
     /// A から B への道（向き b と長さ）。ちょうど反対側（距離 π）へは、どの向きでも着くので、ウェブ版と同じく選ぶ：
     ///   軸と軸のまん中の向き（途中で極を踏まない）のうち、その次の点 T2 と直交するもの（反対側で 90° に曲がれる）で、来た向き a にいちばん近いもの
@@ -254,6 +364,7 @@ extension Renderer {
     /// 自分の道に沿って ds 進む
     func crStep(_ ds: Double) {
         guard !cr.pts.isEmpty else { pathMode = .none; return }
+        if cr.flow != nil { flowStep(ds); return }
         if var tu = cr.run {
             if var pv = tu.pv {                                        // 直角・引き返し：点で止まって向きを回す
                 pv.t = min(1, pv.t + ds / pv.len); let e = pv.t * pv.t * (3 - 2 * pv.t)
@@ -305,13 +416,22 @@ struct CustomRoutePanel: View {
     @State private var texts = ["", "", "", ""]
     @FocusState private var focus: Int?
     static let axisNames = ["x", "y", "z", "w"]
+    /// 蛍光ペンの黄緑（今向かっている点）
+    static let marker = Color(red: 0.84, green: 1.0, blue: 0.18)
     static let axisColors: [Color] = AXIS_RGB.map { Color(red: Double($0.x), green: Double($0.y), blue: Double($0.z)) }
 
     var body: some View {
         let r = model.r
         VStack(alignment: .leading, spacing: 6) {
             Text("自分の道").font(.caption.bold()).foregroundStyle(Space.lilac).padding(.top, 4)
-            Picker("つなぎ方", selection: model.b(\.routeSmart)) { Text("おまかせ（なるべくまっすぐ・ループ）").tag(true); Text("最短（往復は引き返す）").tag(false) }.pickerStyle(.segmented)
+            Picker("つなぎ方", selection: Binding(get: { r.set.routeFlow ? 2 : r.set.routeSmart ? 0 : 1 }, set: { v in
+                r.set.routeFlow = v == 2; if v != 2 { r.set.routeSmart = v == 0 }; model.changed() })) {
+                Text("おまかせ").tag(0); Text("最短").tag(1); Text("素通り").tag(2)
+            }.pickerStyle(.segmented)
+            Text(r.set.routeFlow ? "素通り：全部の点をちょうど通る滑らかな曲線で、止まらずに巡回（きつい角も手前から少しずつ曲がる。曲がり方の設定は使わない）"
+                 : r.set.routeSmart ? "おまかせ：なるべくまっすぐ（引き返すくらいなら、まっすぐ回る長い方）・2 点はループ・天 → 地のような反対側はまっすぐ"
+                 : "最短：いつも短い弧（2 点は往復で引き返す）")
+                .font(.caption).foregroundStyle(Space.slate).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 6) {
                 Picker("道", selection: Binding(get: { store.sel ?? UUID() }, set: { store.sel = $0 })) {
                     ForEach(store.routes) { Text($0.name + "（\($0.pts.count) 点）").tag($0.id) }
@@ -323,16 +443,29 @@ struct CustomRoutePanel: View {
                 TextField("道の名前", text: Binding(get: { store.routes[i].name }, set: { store.routes[i].name = $0 })).textFieldStyle(.roundedBorder)
                 let pts = store.routes[i].pts
                 if pts.isEmpty { Text("まだ点がない（下の極のボタンか、座標を入れて「この点を足す」）").font(.caption).foregroundStyle(Space.slate) }
-                ForEach(Array(pts.enumerated()), id: \.element.id) { k, q in
-                    HStack(spacing: 6) {
-                        Text(RouteStore.nums[k]).foregroundStyle(Space.sky)
-                        Text(q.name).lineLimit(1)
-                        Text(String(format: "(%.2f, %.2f, %.2f, %.2f)", q.p[0], q.p[1], q.p[2], q.p[3])).font(.system(size: 10, design: .monospaced)).foregroundStyle(Space.slate).lineLimit(1)
-                        Spacer(minLength: 2)
-                        Button { store.routes[i].pts.swapAt(k, k - 1) } label: { Image(systemName: "arrow.up") }.disabled(k == 0).help("1 つ前へ")
-                        Button { store.routes[i].pts.remove(at: k) } label: { Image(systemName: "xmark") }.help("この点を外す")
+                // 今向かっている点は、蛍光ペンの黄緑で光らせる（歩いている間、0.2 秒ごとに見直す）
+                TimelineView(.periodic(from: .now, by: 0.2)) { _ in
+                    let walking = r.pathMode == .custom && r.cr.routeID == store.routes[i].id
+                    let target = walking && r.cr.heading < r.cr.src.count ? r.cr.src[r.cr.heading] : -1
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(pts.enumerated()), id: \.element.id) { k, q in
+                            let on = k == target
+                            HStack(spacing: 6) {
+                                Text(RouteStore.nums[k]).foregroundStyle(on ? CustomRoutePanel.marker : Space.sky)
+                                Text(q.name).lineLimit(1).foregroundStyle(on ? CustomRoutePanel.marker : Color.primary).fontWeight(on ? .bold : .regular)
+                                Text(String(format: "(%.2f, %.2f, %.2f, %.2f)", q.p[0], q.p[1], q.p[2], q.p[3])).font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(on ? CustomRoutePanel.marker.opacity(0.85) : Space.slate).lineLimit(1)
+                                if on { Text("← 今ここへ").font(.caption2.bold()).foregroundStyle(CustomRoutePanel.marker).fixedSize() }
+                                Spacer(minLength: 2)
+                                Button { store.routes[i].pts.swapAt(k, k - 1) } label: { Image(systemName: "arrow.up") }.disabled(k == 0).help("1 つ前へ")
+                                Button { store.routes[i].pts.remove(at: k) } label: { Image(systemName: "xmark") }.help("この点を外す")
+                            }
+                            .buttonStyle(.borderless).font(.callout)
+                            .padding(.horizontal, 4).padding(.vertical, 1)
+                            .background(RoundedRectangle(cornerRadius: 4).fill(on ? CustomRoutePanel.marker.opacity(0.16) : .clear))
+                            .shadow(color: on ? CustomRoutePanel.marker.opacity(0.7) : .clear, radius: 4)
+                        }
                     }
-                    .buttonStyle(.borderless).font(.callout)
                 }
                 Text("\(pts.count) ／ \(RouteStore.maxPts) 点").font(.caption2).foregroundStyle(Space.slate)
                 // 極のボタン（押すと最後に足す）

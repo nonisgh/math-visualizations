@@ -17,6 +17,14 @@ for line in body.split('\n'):
             t = re.sub(r'\\\(.*?\)', '', t).replace('\\"', '"').strip()
             if len(t) < 2: continue
             items.append((panel, kind, t))
+# 自分の道のパネル（CustomRoute.swift の CustomRoutePanel）も「決まった道」のパネルとして。選ぶ札（Text(...).tag）の文字も入れる（「おまかせ」で探せるように）
+src2 = open(os.path.join(root, 'Sources/S3Walk/CustomRoute.swift'), encoding='utf-8').read()
+body2 = src2[src2.index('struct CustomRoutePanel: View {'):]
+for line in body2.split('\n'):
+    for kind, pat in [('set', r'(?:Toggle|Picker)\(\s*' + lit), ('set', r'Text\(\s*' + lit + r'\)\.tag'), ('btn', r'Button\(\s*' + lit), ('note', r'Text\(\s*' + lit + r'\)\s*$'), ('note', r'Text\(\s*' + lit + r'\)\.font\(\.caption\)'), ('set', r'Text\(\s*' + lit + r'\)\.font\(\.caption\.bold')]:
+        for mm in re.finditer(pat, line):
+            t = re.sub(r'\\\(.*?\)', '', mm.group(1)).replace('\\"', '"').strip()
+            if len(t) >= 2: items.append(('path', kind, t))
 seen = set(); out = []
 for p, k, t in items:
     if (p, t) in seen: continue
