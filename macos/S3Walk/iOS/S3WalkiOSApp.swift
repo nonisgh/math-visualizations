@@ -61,7 +61,7 @@ final class MobileModel: ObservableObject {
         r.onStats = { [weak self] r in
             let c = r.cam, p = c.w.p
             let s0 = String(format: "%.0f fps・細かさ %.0f%%　アナ極から %.2f　方位 %+.0f° 仰角 %+.0f° 見回し %+.0f°/%+.0f°", r.fps, r.set.scale * 100, acos(max(-1, min(1, p.w))) * r.set.uniR, c.az, c.el, c.hy, c.hp)
-            let s = r.journey.marks.count >= 2 ? s0 + "　\(r.journey.lap) 周目" : s0   // 周回（目印が 2 つ以上の時）
+            let j = r.journey, s = j.marks.count >= 2 || !j.polesHit.isEmpty || j.lap > 1 ? s0 + "　\(j.lap) 周目" : s0   // 周回（目印 2 つ以上、なければ 8 つの極で数える）
             DispatchQueue.main.async { self?.autoScale(r); if self?.hudText != s { self?.hudText = s }; self?.save(); if self?.boostSeen != HyperLabState.boostWalk || self?.shutSeen != HyperLabState.walkShut { self?.boostSeen = HyperLabState.boostWalk; self?.shutSeen = HyperLabState.walkShut; self?.applyScale() } }
         }
         setupSync()

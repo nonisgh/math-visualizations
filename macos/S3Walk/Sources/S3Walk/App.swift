@@ -875,7 +875,7 @@ final class WalkView: MTKView {
                        r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale * 100, (r.set.autoQ ? "・自動" : "") + (r.idle ? "・止まっているので描き直さない" : ""),
                        String(format: big ? "%.0f" : "%.2f", fromN * UR), opp, String(format: big ? "%.0f" : "%.2f", r.journey.dist * UR), r.journey.dist / (2 * Double.pi),
                        r.cam.az, r.cam.el, r.cam.hy, r.cam.hp, mode)
-        let s2 = r.journey.marks.count >= 2 ? s + "　\(r.journey.lap) 周目" : s   // 周回（目印が 2 つ以上の時）
+        let j = r.journey, s2 = j.marks.count >= 2 || !j.polesHit.isEmpty || j.lap > 1 ? s + "　\(j.lap) 周目" : s   // 周回（目印 2 つ以上、なければ 8 つの極で数える）
         DispatchQueue.main.async { if self.model?.hudState.text != s2 { self.model?.hudState.text = s2 }; self.model?.tick() }
     }
 

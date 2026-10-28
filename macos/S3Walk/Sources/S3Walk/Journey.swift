@@ -14,7 +14,7 @@ struct Journey {
     /// チェックポイント：歩いて通った目印（その目印の位置。並びは通った順）。目印のそば（0.12 以内）に外から入った時に記録する
     var marksHit: [V4] = []
     var polesHit: [Int] = []             // 通った極（FIXED の番号。通った順）
-    /// 周回：目印（2 つ以上）を全部通ったら 1 周。目印のチェックをリセットして次の周へ（1 ＝ 1 周目）
+    /// 周回：目印（2 つ以上）を全部通ったら 1 周。目印が 2 つより少ない時は 8 つの極を全部通ったら 1 周。チェックをリセットして次の周へ（1 ＝ 1 周目）
     var lap = 1
     /// 1 周したら歩いた跡（道すじ・足あと）も消す（4D 球アナロジーの「1 周で跡を消す」で入り切り）
     static var lapClearsTrail = true
@@ -69,6 +69,12 @@ struct Journey {
         for (k, m) in FIXED.enumerated() where simd_dot(p, m.c) > cR && (lastP.map { simd_dot($0, m.c) <= cR } ?? false) && !polesHit.contains(k) {
             polesHit.append(k)
             if k >= 2 { say("チェック！ \(MapRenderer.poleName(m))を通過（極 \(polesHit.count)/8）") }
+        }
+        // 目印が 2 つより少ない時は、8 つの極が周回のチェックポイント
+        if marks.count < 2 && polesHit.count >= FIXED.count {
+            lap += 1; polesHit = []
+            if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }
+            say("8 つの極を全部通った！ \(lap - 1) 周。チェックポイントをリセットして \(lap) 周目へ")
         }
         lastP = p
         prevS = dS; prevN = dN; wasW = w
