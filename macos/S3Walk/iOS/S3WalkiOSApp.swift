@@ -66,6 +66,13 @@ final class MobileModel: ObservableObject {
         }
         setupSync()
         // 4D 球アナロジーの「球層の数をさんぽと連動」：読む・書く（書いたらパネルも描き直す。保存・同期はいつもの流れで）
+        // 4D 球アナロジーの「さんぽの設定」：さんぽのパネル（歩く・決まった道（記録した自分の道も）・目印…）を、超球の窓にそのまま出す
+        HyperLabState.walkPanelTitles = PanelID.allCases.filter { $0.shown }.map { $0.title }
+        HyperLabState.walkPanel = { [weak self] i in
+            let ids = PanelID.allCases.filter { $0.shown }
+            guard let self, i >= 0, i < ids.count else { return AnyView(EmptyView()) }
+            return AnyView(PanelContent(model: self, id: ids[i]).spaceControls())
+        }
         HyperLabState.walkRendererGet = { [weak r = self.r] in r }   // 4D 球アナロジーの「さんぽの景色」の画面が、同じ Renderer で描く
         HyperLabState.walkShells = (get: { [unowned self] in self.r.set.shellN }, set: { [weak self] n in self?.r.set.shellN = n; self?.changed() })
     }

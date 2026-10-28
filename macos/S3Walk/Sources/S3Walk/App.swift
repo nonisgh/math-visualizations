@@ -102,6 +102,13 @@ final class AppModel: ObservableObject {
         }
         setupSync()
         // 4D 球アナロジーの「球層の数をさんぽと連動」：読む・書く（書いたらパネルも描き直す。保存・同期はいつもの流れで）
+        // 4D 球アナロジーの「さんぽの設定」：さんぽのパネル（歩く・決まった道（記録した自分の道も）・目印…）を、超球の窓にそのまま出す
+        HyperLabState.walkPanelTitles = PanelID.allCases.filter { $0.shown }.map { $0.title }
+        HyperLabState.walkPanel = { [weak self] i in
+            let ids = PanelID.allCases.filter { $0.shown }
+            guard let self, i >= 0, i < ids.count else { return AnyView(EmptyView()) }
+            return AnyView(PanelContent(model: self, id: ids[i]).spaceControls())
+        }
         HyperLabState.walkRendererGet = { [weak r = self.r] in r }   // 4D 球アナロジーの「さんぽの景色」の画面が、同じ Renderer で描く
         HyperLabState.walkShells = (get: { [unowned self] in self.r.set.shellN }, set: { [weak self] n in self?.r.set.shellN = n; self?.changed() })
     }
@@ -753,11 +760,6 @@ final class WalkView: MTKView {
         NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main) { [weak self] n in
             guard let self, let w = self.window, (n.object as? NSWindow) === w else { return }
             self.renderer.skipEncode = !w.occlusionState.contains(.visible)
-        }
-        // 4D 球アナロジーで「さんぽの窓は止める」の間：さんぽの窓を選んでも、超球の窓へ自動で切りかえる（真っ黒の窓に用はない）
-        NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] n in
-            guard let self, let w = self.window, (n.object as? NSWindow) === w, HyperLabState.walkShut, !HyperLabState.shutAuto, let h = HyperLabWindow.window, h.isVisible else { return }   // 前の窓だけ描く（自動）の時は、さんぽの窓へそのまま切りかえる
-            DispatchQueue.main.async { h.makeKeyAndOrderFront(nil) }
         }
         colorPixelFormat = .rgba16Float
         colorspace = CGColorSpace(name: CGColorSpace.extendedSRGB)   // 0〜1 はブラウザと同じ色、1 より上は EDR の明るさ

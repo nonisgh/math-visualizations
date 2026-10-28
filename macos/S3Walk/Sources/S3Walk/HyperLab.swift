@@ -96,6 +96,9 @@ final class HyperLabState: ObservableObject {
     @Published var splitY = 0.5                                       // 画面の仕切り：左の列の上の画面の高さ
     @Published var axesDive = true                                    // ズーム（ダイブ）の間も座標軸を出す
     @Published var wipeLow = true                                     // さんぽの景色の画面（ワイプ）を低負荷で：画素は半分（1 秒 60 コマ）
+    @Published var walkPanelOn = false                                // さんぽの設定（さんぽのパネルを全部）を、この窓に浮かべる
+    @Published var walkPanelSel = 1                                   // 開いているさんぽのパネル（ふだん「決まった道」）
+    @Published var walkMenu = true                                    // さんぽメニュー（この窓に浮かぶ、さんぽの操作の小窓）を出す
     @Published var shutAuto = false                                   // 前の窓だけ描く（自動）：超球の窓が前ならさんぽの窓（景色・地図）を止め、さんぽの窓が前ならさんぽを描いて超球は控えめに。瞬時に切りかえ
     @Published var shutWalk = false                                   // さんぽの窓は描かない：さんぽの窓（景色・地図）を止め、描くのはこの窓だけ（景色の画面・ダイブは描く。歩く計算・跡はそのまま）
     @Published var cursor = 1                                         // 今いる所の印：0 さんぽ（黄色の玉）・1 彗星（光で描く。コマと、ぼけた尾）・2 線の彗星（前の形）
@@ -115,6 +118,8 @@ final class HyperLabState: ObservableObject {
     var diveT = 0.0, diveManual = false
     /// 彗星（今いる所）が見ている人からどれだけ近いか（0 奥〜1 手前）。右の画面が描く時に決める。引きの絵の音の大きさに
     var cometNear = 0.5
+    /// 彗星の速さ（0〜1、ならしたもの）。速いほど彗星を派手に
+    var cometSpd = 0.0
     /// 彗星の場所（見る人から見て：x 右・y 上・z 手前。長さ 1）。空間オーディオの向きに
     var cometDir = SIMD3<Double>(0, 0, -1)
     /// ズーム中に回した分（ドラッグで足す。手を離すと所定の角度へゆっくり戻る）
@@ -223,6 +228,9 @@ final class HyperLabState: ObservableObject {
     struct Walk { var trail: [SIMD4<Double>]; var pos: SIMD4<Double>; var marks: [SIMD4<Double>] = []; var hit: [Bool] = []; var poles: [Int] = []; var lap = 1; var head: SIMD4<Double>? = nil; var space = false; var fwd = SIMD4<Double>(0, 0, 1, 0)
         var vR = SIMD4<Double>(0, 0, 0, 0), vU = SIMD4<Double>(0, 0, 0, 0), vL = SIMD4<Double>(0, 0, 0, 0), fov = 70.0 }   // fwd：進む向き。vR・vU・vL：景色を写す向き（右・上・見ている向き）、fov：景色の縦の視野（度）   // poles：通った極（FIXED の番号）
     static var walkSource: (() -> Walk)?
+    /// さんぽのパネル（さんぽの窓と同じ中身）：番号で 1 枚ずつ。さんぽのアプリが入れる
+    static var walkPanel: ((Int) -> AnyView)?
+    static var walkPanelTitles: [String] = []
     /// 1 コマに 1 度だけ読む（跡は 1 万点を超えることもあるので、何度も写さない）＋なめらかに：さんぽの窓と超球の窓はコマの速さがちがう（72 と 144 など）ので、
     ///   さんぽが進めた 1 歩を、次の 1 歩までの間に少しずつ動かして見せる（1 歩ぶん遅れて、そのかわりカクつかない）
     private var wfT = -1.0, wfCache: Walk?, wPrev: Walk?, wCur: Walk?, wPrevT = 0.0, wCurT = 0.0
@@ -263,7 +271,7 @@ final class HyperLabState: ObservableObject {
          "axes": axes, "axPlus": axPlus, "axThin": axThin, "walk": walk, "marksOn": marksOn, "polesMode": polesMode,
          "spaceMode": spaceMode, "starsPct": starsPct, "layersLink": layersLink, "walkView": walkView, "order": order,
          "followOn": followOn, "followSlack": followSlack, "followSpeed": followSpeed, "followHeading": followHeading, "followDrift": followDrift,
-         "diveBlend": diveBlend, "quality": quality, "adaptive": adaptive, "wireW": wireW, "walkOpen": walkOpen, "cursor": cursor, "shutWalk": shutWalk, "shutAuto": shutAuto, "axesDive": axesDive, "wipeLow": wipeLow, "shellMode": shellMode, "splitX": splitX, "splitY": splitY, "diveThird": diveThird, "chaseDist": chaseDist, "chasePitch": chasePitch, "chaseYaw": chaseYaw, "autoCam": autoCam, "diveOverview": diveOverview, "ovCursor": ovCursor, "depth4": depth4, "depth4K": depth4K, "depth4On": depth4On, "symGlow": symGlow, "trailW": trailW, "trailCol": trailCol, "poleEN": poleEN, "panelHidden": panelHidden, "padOn": padOn, "clearAhead": clearAhead, "show3D": show3D, "lapClear": lapClear, "uiScale": uiScale, "soundOn": soundOn, "soundVol": soundVol, "soundSpatial": soundSpatial, "starDepth": starDepth]
+         "diveBlend": diveBlend, "quality": quality, "adaptive": adaptive, "wireW": wireW, "walkOpen": walkOpen, "cursor": cursor, "shutWalk": shutWalk, "shutAuto": shutAuto, "walkMenu": walkMenu, "walkPanelOn": walkPanelOn, "walkPanelSel": walkPanelSel, "axesDive": axesDive, "wipeLow": wipeLow, "shellMode": shellMode, "splitX": splitX, "splitY": splitY, "diveThird": diveThird, "chaseDist": chaseDist, "chasePitch": chasePitch, "chaseYaw": chaseYaw, "autoCam": autoCam, "diveOverview": diveOverview, "ovCursor": ovCursor, "depth4": depth4, "depth4K": depth4K, "depth4On": depth4On, "symGlow": symGlow, "trailW": trailW, "trailCol": trailCol, "poleEN": poleEN, "panelHidden": panelHidden, "padOn": padOn, "clearAhead": clearAhead, "show3D": show3D, "lapClear": lapClear, "uiScale": uiScale, "soundOn": soundOn, "soundVol": soundVol, "soundSpatial": soundSpatial, "starDepth": starDepth]
     }
     func load() {
         guard let d = UserDefaults.standard.dictionary(forKey: Self.saveKey) else { return }
@@ -277,7 +285,7 @@ final class HyperLabState: ObservableObject {
         int("spaceMode", &spaceMode); dbl("starsPct", &starsPct); bol("layersLink", &layersLink); bol("walkView", &walkView)
         if let o = d["order"] as? [Int], o.count == 3, Set(o) == [0, 1, 2] { order = o }
         bol("followOn", &followOn); dbl("followSlack", &followSlack); dbl("followSpeed", &followSpeed); bol("followHeading", &followHeading); dbl("followDrift", &followDrift)
-        bol("diveBlend", &diveBlend); int("quality", &quality); bol("adaptive", &adaptive); dbl("wireW", &wireW); bol("walkOpen", &walkOpen); int("cursor", &cursor); bol("shutWalk", &shutWalk); bol("shutAuto", &shutAuto); bol("axesDive", &axesDive); bol("wipeLow", &wipeLow); int("shellMode", &shellMode); dbl("splitX", &splitX); dbl("splitY", &splitY); bol("diveThird", &diveThird); dbl("chaseDist", &chaseDist); dbl("chasePitch", &chasePitch); dbl("chaseYaw", &chaseYaw); bol("autoCam", &autoCam); bol("diveOverview", &diveOverview); int("ovCursor", &ovCursor); int("depth4", &depth4); dbl("depth4K", &depth4K); bol("depth4On", &depth4On); bol("symGlow", &symGlow); dbl("trailW", &trailW); int("trailCol", &trailCol); bol("poleEN", &poleEN); bol("panelHidden", &panelHidden); bol("padOn", &padOn); bol("clearAhead", &clearAhead); bol("show3D", &show3D); bol("lapClear", &lapClear); bol("soundOn", &soundOn); dbl("soundVol", &soundVol); bol("soundSpatial", &soundSpatial); dbl("starDepth", &starDepth); dbl("uiScale", &uiScale); uiScale = min(2, max(0.75, uiScale))
+        bol("diveBlend", &diveBlend); int("quality", &quality); bol("adaptive", &adaptive); dbl("wireW", &wireW); bol("walkOpen", &walkOpen); int("cursor", &cursor); bol("shutWalk", &shutWalk); bol("shutAuto", &shutAuto); bol("walkMenu", &walkMenu); bol("walkPanelOn", &walkPanelOn); int("walkPanelSel", &walkPanelSel); bol("axesDive", &axesDive); bol("wipeLow", &wipeLow); int("shellMode", &shellMode); dbl("splitX", &splitX); dbl("splitY", &splitY); bol("diveThird", &diveThird); dbl("chaseDist", &chaseDist); dbl("chasePitch", &chasePitch); dbl("chaseYaw", &chaseYaw); bol("autoCam", &autoCam); bol("diveOverview", &diveOverview); int("ovCursor", &ovCursor); int("depth4", &depth4); dbl("depth4K", &depth4K); bol("depth4On", &depth4On); bol("symGlow", &symGlow); dbl("trailW", &trailW); int("trailCol", &trailCol); bol("poleEN", &poleEN); bol("panelHidden", &panelHidden); bol("padOn", &padOn); bol("clearAhead", &clearAhead); bol("show3D", &show3D); bol("lapClear", &lapClear); bol("soundOn", &soundOn); dbl("soundVol", &soundVol); bol("soundSpatial", &soundSpatial); dbl("starDepth", &starDepth); dbl("uiScale", &uiScale); uiScale = min(2, max(0.75, uiScale))
         if cutOn && cutKind == 0 && cutRef == 2 { polyArm &+= 1 }            // ポリゴンカットは開いた時の手前で作り直す
         lastSaved = "\(snapshot)"
     }
@@ -361,6 +369,88 @@ struct HLSlider: View {
         }
         .onAppear { text = shown }
         .onChange(of: value) { _, _ in if !editing { text = shown } }
+    }
+}
+/// さんぽメニュー：超球の窓に浮かぶ、さんぽの操作の小窓（さんぽの窓へ行かなくても歩ける）。半秒ごとに今の様子を読む
+struct HLWalkMenu: View {
+    let r: Renderer
+    var close: () -> Void
+    var openPanels: () -> Void = {}
+    var panelsOn = false
+    @State private var tick = 0
+    @State private var folded = false
+    private let timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
+    var body: some View {
+        let _ = tick
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "figure.walk").foregroundStyle(Color(red: 0.55, green: 0.8, blue: 1.0))
+                Text("さんぽ").font(.caption.weight(.semibold))
+                Text(r.walking || r.pathMode != .none || r.roaming ? "歩いている" : "止まっている").font(.caption2).foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                Button { openPanels() } label: { Image(systemName: panelsOn ? "slider.horizontal.3" : "slider.horizontal.below.rectangle") }.buttonStyle(.plain)
+                    .foregroundStyle(panelsOn ? Color(red: 0.55, green: 0.8, blue: 1.0) : .secondary).help("さんぽの設定（さんぽの窓のパネル全部。記録した道も）を出す・隠す")
+                Button { folded.toggle() } label: { Image(systemName: folded ? "chevron.down" : "chevron.up") }.buttonStyle(.plain).help(folded ? "ひらく" : "たたむ")
+                Button { close() } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(.secondary).help("さんぽメニューを隠す（パネルの「さんぽメニュー」でまた出す）")
+            }
+            if !folded {
+                HStack(spacing: 6) {
+                    Button(r.walking ? "■ 止まる" : "▶︎ 歩く") { r.walking.toggle(); r.roaming = false; r.pathMode = .none; tick &+= 1 }
+                    Button("縦横無尽") { r.roaming.toggle(); r.walking = r.roaming; r.pathMode = .none; tick &+= 1 }.help("歩き続けながら、向きがゆっくり変わる")
+                }
+                HStack(spacing: 4) {
+                    Text("速さ").font(.caption2).foregroundStyle(.secondary)
+                    Slider(value: Binding(get: { r.set.cruise }, set: { r.set.cruise = $0; if r.walking { r.autoSpeed = $0 }; tick &+= 1 }), in: 0.2...8).frame(width: 120)
+                    Text(String(format: "×%.1f", r.set.cruise)).font(.caption2.monospacedDigit()).foregroundStyle(.secondary).frame(width: 34, alignment: .trailing)
+                }
+                HStack(spacing: 6) {
+                    Button("目印を置く") { r.addMark(); tick &+= 1 }
+                    Button("跡を消す") { r.clearTrail(); tick &+= 1 }
+                    Button("アナ極へ") { r.resetNorth(); tick &+= 1 }.help("出発点（アナ極）に戻る。目印は残す")
+                }
+                HStack(spacing: 4) {
+                    Text("決まった道").font(.caption2).foregroundStyle(.secondary)
+                    ForEach([(PathMode.spiral, "螺旋"), (.ring, "回る輪"), (.tour, "極めぐり")], id: \.0.rawValue) { m, name in
+                        Button(name) { if r.pathMode == m { r.pathMode = .none } else { r.startPath(m) }; tick &+= 1 }
+                            .tint(r.pathMode == m ? Color(red: 0.55, green: 0.8, blue: 1.0) : nil)
+                    }
+                }
+            }
+        }
+        .controlSize(.small).font(.caption)
+        .padding(10).frame(width: 250, alignment: .leading)
+        .background(Color(red: 0.05, green: 0.08, blue: 0.14).opacity(0.86), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(red: 0.2, green: 0.25, blue: 0.33)))
+        .onReceive(timer) { _ in tick &+= 1 }
+    }
+}
+/// さんぽの設定：さんぽの窓のパネル（歩く・決まった道（記録した自分の道も）・目印・球層・見え方…）を、そのまま浮かぶ窓に。上のタブで切りかえ
+struct HLWalkPanels: View {
+    @ObservedObject var st: HyperLabState
+    var body: some View {
+        let titles = HyperLabState.walkPanelTitles
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("さんぽの設定").font(.caption.weight(.semibold))
+                Spacer()
+                Button { st.walkPanelOn = false } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(.secondary).help("さんぽの設定を隠す")
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(titles.indices, id: \.self) { i in
+                        Button(titles[i]) { st.walkPanelSel = i }
+                            .buttonStyle(.plain).font(.caption2).padding(.horizontal, 7).padding(.vertical, 3)
+                            .background((st.walkPanelSel == i ? Color(red: 0.25, green: 0.4, blue: 0.65) : Color.white.opacity(0.06)), in: Capsule())
+                    }
+                }
+            }
+            ScrollView { (HyperLabState.walkPanel?(min(st.walkPanelSel, max(0, titles.count - 1))) ?? AnyView(EmptyView())).padding(.trailing, 6) }
+                .frame(maxHeight: 420)
+        }
+        .controlSize(.small).font(.caption)
+        .padding(10).frame(width: 330, alignment: .leading)
+        .background(Color(red: 0.05, green: 0.08, blue: 0.14).opacity(0.9), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(red: 0.2, green: 0.25, blue: 0.33)))
     }
 }
 /// パネルを s 倍の大きさで（幅は窓に合わせ、中身を 1/s の幅で並べてから s 倍に。高さは中身に合わせる。はみ出したら横にスクロール）
@@ -575,7 +665,8 @@ inline float tailWin(float s, float v) {
     return 1.0 - smoothstep(0.5, 1.0, length(float2(av, cap * av)));   // 真ん中（v ＝ 0）は頭までつながる。角だけ丸く
 }
 fragment float4 cmf(CMO in [[stage_in]], constant float4& tm [[buffer(2)]]) {
-    float t = tm.x; float3 col;
+    float sp = clamp(tm.y, 0.0, 1.0), t = tm.x * (1.0 + 2.5 * sp), glow = 1.0 + 0.7 * sp;   // 速いほど、すじが速く流れて明るく（派手に）
+    float3 col;
     if (in.q.z > 5.5) {
         // 当たった瞬間（kind 6、q.w が光の強さ 1 → 0）：星の色の混じった光が弾けて、輪が広がる・十字の長い光
         float2 p = in.q.xy; float r = length(p), fl = in.q.w;
@@ -608,20 +699,20 @@ fragment float4 cmf(CMO in [[stage_in]], constant float4& tm [[buffer(2)]]) {
         // 頭：白く飛んだ核・青白い内側の光・青緑のコマ（ぼんやり広がる）
         float r = length(in.q.xy), fade = 1.0 - smoothstep(0.55, 0.98, r);
         float core = exp(-r * r / 0.0035), inner = exp(-r * r / 0.03), coma = exp(-r / 0.22);
-        float tw = 0.93 + 0.07 * sin(t * 2.3) * sin(t * 1.7 + 1.0);                     // ほんの少しゆらめく
-        col = (float3(1.0) * core * 2.2 + float3(0.85, 0.95, 1.0) * inner * 0.9 + float3(0.45, 0.95, 0.85) * coma * 0.45) * fade * tw;
+        float tw = 0.93 + (0.07 + 0.12 * sp) * sin(t * 2.3) * sin(t * 1.7 + 1.0);      // ゆらめく（速いほど強く）
+        col = (float3(1.0) * core * 2.2 * glow + float3(0.85, 0.95, 1.0) * inner * 0.9 * glow + float3(0.45, 0.95, 0.85) * coma * (0.45 + 0.35 * sp)) * fade * tw;
     } else if (in.q.z > 2.5) {
         // イオンの尾（寄った時）：細めの青い光。まっすぐ長く、縦のすじ（磁力線に沿うガス）が入って、ゆっくり流れる
         float s = clamp(in.q.x, 0.0, 1.0), v = in.q.y;
         float g = exp(-v * v * 5.0), fil = 0.62 + 0.38 * (0.5 + 0.5 * sin(v * 23.0 + s * 4.0 - t * 0.6)) * (0.6 + 0.4 * sin(v * 9.0 - s * 7.0 + t * 0.4));
         float fall = pow(1.0 - s, 1.1) * smoothstep(0.0, 0.06, s);
-        col = mix(float3(0.55, 0.78, 1.0), float3(0.25, 0.45, 1.0), s) * g * fil * fall * 0.9 * tailWin(s, v);
+        col = mix(float3(0.55, 0.78, 1.0), float3(0.25, 0.45, 1.0), s) * g * fil * fall * 0.9 * glow * tailWin(s, v);
     } else if (in.q.z > 1.5) {
         // ちりの尾（寄った時）：頭の所は白く、先へ行くほど扇のように広がって淡く（形はハレ・ボップ彗星の写真のように）
         float s = clamp(in.q.x, 0.0, 1.0), v = in.q.y;
         float g = exp(-v * v * 2.2) + 0.25 * exp(-(v - 0.6) * (v - 0.6) * 10.0);        // 片方のふちが少し明るい
         float fall = pow(1.0 - s, 1.3) * (0.35 + 0.65 * exp(-s * 3.0)) + exp(-s * 9.0) * 0.9;
-        col = mix(float3(1.0, 0.97, 0.9), float3(0.55, 0.75, 1.0), smoothstep(0.0, 0.7, s)) * g * fall * tailWin(s, v);   // 色はふつうの尾と同じ（白 → 青白）
+        col = mix(float3(1.0, 0.97, 0.9), float3(0.55, 0.75, 1.0), smoothstep(0.0, 0.7, s)) * g * fall * glow * tailWin(s, v);   // 色はふつうの尾と同じ（白 → 青白）
     } else {
         // 尾：ふちはぼかし（ガウス）、真ん中に細い光のすじ（イオンの尾）、流れるすじ模様。先へ行くほど淡く・青く
         float s = clamp(in.q.x, 0.0, 1.0), v = in.q.y;
@@ -1110,6 +1201,16 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     private var sndPos: SIMD4<Double>?, sndSpeed = 0.0, sndFwd: SIMD4<Double>?, sndTurn = 0.0, sndPulseT = ProcessInfo.processInfo.systemUptime
     /// オートカメラ：ゆっくり周りを漂う（40 秒・27 秒の波）＋曲がる時は外側へ回り込む（曲がる道すじと尾が見えるように）。ズーム中だけ
     private var acFwd: SIMD4<Double>?, acTurn = 0.0
+    /// 彗星の速さ（S³ の上で 1 秒に進む角度をならして、0〜1 に）
+    private var csPos: SIMD4<Double>?
+    private func tickCometSpeed(_ dt: Double) {
+        guard let w = wsrc?() else { return }
+        var v = 0.0
+        if let p0 = csPos, dt > 0 { let d = simd_length(w.pos - p0); v = d > 0.5 ? 0 : d / dt }
+        csPos = w.pos
+        let target = min(1, (v / 1.4).squareRoot())
+        st.cometSpd += (target - st.cometSpd) * (1 - exp(-dt * 3))
+    }
     private func tickAutoCam(_ dt: Double) {
         var ty = 0.0, tp = 0.0
         if st.autoCam && st.diveT > 0.3 && !st.diveDragging {
@@ -1160,7 +1261,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         if let last = Journey.hitPulse.last?.t, last > sndPulseT { sndPulseT = last }
     }
     /// 毎コマの受け持ち（状態を進める・画質の自動・保存など）：ふだんは左の画面。3D の球を隠している時は右の画面
-    private var wasIdle = false
+    private var wasIdle = false, offShown = false
     private var owner: Bool { side == .left || overview || !st.show3D }   // 全体像を 3D の球の場所に出している時は、全体像が受け持つ
     func draw(in view: MTKView) {
         let t0 = CACurrentMediaTime()
@@ -1180,10 +1281,21 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             let idle = wk && !hk; if HyperLabState.hyperIdle != idle { HyperLabState.hyperIdle = idle }
         }
         #endif
-        if owner { st.tick(dt); st.pullLayers(); st.tickCut(dt); st.tickFollow(dt); st.tickDive(dt); updateLive(now); tickSound(dt); tickAutoCam(dt) }   // 自動の回転・さんぽの層数を読むのは受け持ちの画面（ふだん左。右は同じ状態を描く）
+        if owner { st.tick(dt); st.pullLayers(); st.tickCut(dt); st.tickFollow(dt); st.tickDive(dt); updateLive(now); tickSound(dt); tickAutoCam(dt); tickCometSpeed(dt) }   // 自動の回転・さんぽの層数を読むのは受け持ちの画面（ふだん左。右は同じ状態を描く）
         pace(view, dt)
         Self.fit(view)
         if owner { fpsN += 1; if now - fpsT >= 1 { st.saveIfChanged(); let f = Int((Double(fpsN) / (now - fpsT)).rounded()); fpsN = 0; fpsT = now; DispatchQueue.main.async { [st] in st.stats.text = String(format: "%d fps・GPU %.1f＋%.1f ms・画質 %.0f%%", f, st.gpuL, st.gpuR, HyperLabState.renderK * 100) } } }
+        // 前の窓だけ描く（自動）で、さんぽの窓が前の時：この窓の画面はオフ（真っ暗を 1 回だけ出して、あとは描かない）
+        if HyperLabState.hyperIdle {
+            if !offShown, let dr = view.currentDrawable, let cb = queue.makeCommandBuffer() {
+                let rp = MTLRenderPassDescriptor()
+                rp.colorAttachments[0].texture = dr.texture; rp.colorAttachments[0].loadAction = .clear; rp.colorAttachments[0].storeAction = .store
+                rp.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+                cb.makeRenderCommandEncoder(descriptor: rp)?.endEncoding(); cb.present(dr); cb.commit(); offShown = true
+            }
+            return
+        }
+        offShown = false
         if side == .left {
             guard let dr = view.currentDrawable, let cb = queue.makeCommandBuffer() else { return }
             renderLeft(cb, into: dr.texture); timeGPU(cb); cb.present(dr); cb.commit(); return
@@ -1242,7 +1354,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         if (s.walk || s.marksOn), let src = wsrc {
             let w = src(); sig += [Double(w.trail.count), w.pos.x, w.pos.y, w.pos.z, w.pos.w, Double(w.marks.count), Double(w.hit.filter { $0 }.count), Double(w.poles.count)]
         }
-        if flashing || (side == .right && s.diveT > 0.05) { sig.append(CACurrentMediaTime()) }   // 光っている間・寄っている間（星がまたたく）は、止まっていても描き続ける                 // 当たった瞬間の光の間は、止まっていても描き続ける
+        if flashing || (side == .right && s.diveT > 0.05) || (s.walk && s.cursor == 1) { sig.append(CACurrentMediaTime()) }   // 光の彗星を出している間も（すじが流れる）   // 光っている間・寄っている間（星がまたたく）は、止まっていても描き続ける                 // 当たった瞬間の光の間は、止まっていても描き続ける
         // ほんの少しの違い（計算の誤差）は「同じ」とみなす
         let moved = sig.count != lastSig.count || zip(sig, lastSig).contains { abs($0 - $1) > 1e-7 }
         // 動いている時のコマ数：ふだんは画面のいちばん速いコマ数。実際のコマ数が 2 秒続けて目標の 8 割に届かなければ（GPU があふれて
@@ -1256,7 +1368,8 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         //   画質を決めるのは左の画面だけ（同じ窓の両方が同じ値を使う）
         // 超球だけ（さんぽの窓は止める）の時は静かに：動かす時も画面の速さを割り切れる 60 以上のいちばん遅い速さまで（144Hz → 72、120Hz → 60）。ファンを回さない
         var top = (s.shutWalk || HyperLabState.walkShut) ? maxFPS / max(1, maxFPS / 60) : maxFPS
-        if HyperLabState.hyperIdle { top = maxFPS / max(1, maxFPS / 30) }   // 前の窓だけ描く：さんぽの窓が前の間は控えめに
+        if s.walk && s.cursor == 1 && s.cometSpd < 0.03 && s.diveT == 0 { top = min(top, maxFPS / max(1, maxFPS / 60)) }   // 彗星が止まっている時は 60 まで（なめらかなまま、少し静かに）
+        if HyperLabState.hyperIdle { top = maxFPS / max(1, maxFPS / 15) }   // 前の窓だけ描く：さんぽの窓が前の間は画面オフ（計算だけゆっくり続ける）
         if wasIdle && !HyperLabState.hyperIdle { moveFPS = top; if !lowFPS { view.preferredFramesPerSecond = moveFPS } }   // 超球の窓が前に戻ったら、すぐ元のなめらかさに
         wasIdle = HyperLabState.hyperIdle
         if moveFPS > top { moveFPS = top; if !lowFPS { view.preferredFramesPerSecond = moveFPS } }
@@ -1933,7 +2046,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         // 彗星の時：頭から道を戻った長さ。尾の届く所では跡を薄くして、尾が浮き出るように
         // 寄った割合（ダイブ）：ふつうは細くしぼむ尾、寄るほど写真のような 2 本の尾（広がるちりの尾・まっすぐな青いイオンの尾）へ
         let zm = cur == 1 && side == .right && dvT > 0 ? Float(smoothstep(0.25, 0.75, Self.diveEase(dvT).1)) : 0
-        let comet = cur >= 1, real = cur == 1, tailL = 1.05 * near(P[P.count - 1].0) * (side == .right ? 1 + 3.5 * dvThird * Self.diveEase(dvT).1 : 1)
+        let comet = cur >= 1, real = cur == 1, tailL = 1.05 * (1 + 0.6 * st.cometSpd) * near(P[P.count - 1].0) * (side == .right ? 1 + 3.5 * dvThird * Self.diveEase(dvT).1 : 1)
         var fromHead = [Double](repeating: .infinity, count: P.count)
         if comet {
             fromHead[P.count - 1] = 0
@@ -2126,7 +2239,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 if b.count <= 4096 { e.setVertexBytes(b.baseAddress!, length: b.count, index: 0) }
                 else if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { e.setVertexBuffer(buf, offset: 0, index: 0) }
             }
-            var tm = SIMD4<Float>(Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 1000)), 0, 0, 0)
+            var tm = SIMD4<Float>(Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 1000)), Float(st.cometSpd), 0, 0)   // y：彗星の速さ（派手さ）
             e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&tm, length: 16, index: 2)
             e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: ctri.count)
         }
@@ -2243,7 +2356,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
 /// さんぽの景色を描く：さんぽの窓と同じ Renderer の「描く」だけを呼ぶ（歩く計算はさんぽの窓が 1 回だけ）。
 ///   さんぽの窓が新しいコマを描いた時（frameCount が進んだ時）か、大きさが変わった時だけ描き直す（止まっている間は休む）
 final class WalkWipe: NSObject, MTKViewDelegate {
-    private var lastFrame = -1, lastSize = CGSize.zero, sizeT = 0.0
+    private var lastFrame = -1, lastSize = CGSize.zero, sizeT = 0.0, offShown = false
     let big: Bool                                                    // ダイブで右に重ねる大きな画面か（小さい方は、その間は休む）
     #if os(macOS)
     weak var overlay: PoleOverlay?                                    // 景色の上の極（色の点と名前。さんぽの窓と同じ）
@@ -2255,6 +2368,14 @@ final class WalkWipe: NSObject, MTKViewDelegate {
     func draw(in view: MTKView) {
         guard let r = HyperLabState.walkRendererGet?() else { return }
         if !big && HyperLabState.walkBigShown { return }               // 右の大きな画面へ受け渡し中
+        if HyperLabState.hyperIdle {                                     // 前の窓だけ描く：さんぽの窓が前の間はオフ（真っ暗を 1 回）
+            if !offShown, let rpd = view.currentRenderPassDescriptor, let d = view.currentDrawable, let cb = r.queue.makeCommandBuffer() {
+                rpd.colorAttachments[0].loadAction = .clear; rpd.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+                cb.makeRenderCommandEncoder(descriptor: rpd)?.endEncoding(); cb.present(d); cb.commit(); offShown = true
+            }
+            return
+        }
+        if offShown { offShown = false; lastFrame = -1 }                  // 戻った：すぐ描き直す
         let low = HyperLabState.wipeLow && !big                         // 低負荷：画素は半分・1 秒 60 コマ（右に重ねる大きな画面はそのまま）
         HyperLabRenderer.fit(view, extra: low ? 0.5 : 1)
         let fps = 60
@@ -2356,6 +2477,24 @@ struct HyperLabView: View {
                 if st.padOn, let r = HyperLabState.walkRendererGet?() {
                     VirtualPad(game: r.game) { st.padOn = false; r.game.vClear() }.spaceControls()
                         .padding(.bottom, 14).onAppear { r.set.gamepad = true }
+                }
+            }
+            // さんぽメニュー（右上の少し下に浮かぶ。✕ で隠す。パネルの「さんぽメニュー」でまた出す）
+            .overlay(alignment: .topTrailing) {
+                // 閉じている時は、右上に小さな「さんぽ」ボタンだけ（押すとまた出る）
+                if !st.walkMenu, HyperLabState.walkRendererGet?() != nil {
+                    Button { withAnimation(.easeInOut(duration: 0.15)) { st.walkMenu = true } } label: {
+                        Label("さんぽ", systemImage: "figure.walk").font(.caption).padding(.horizontal, 9).padding(.vertical, 5)
+                            .background(Color(red: 0.06, green: 0.09, blue: 0.16).opacity(0.8), in: Capsule())
+                            .overlay(Capsule().stroke(Color(red: 0.2, green: 0.25, blue: 0.33)))
+                    }.buttonStyle(.plain).foregroundStyle(Color(red: 0.55, green: 0.8, blue: 1.0)).padding(.top, 74).padding(.trailing, 12)
+                    .help("さんぽメニューを出す")
+                }
+                if st.walkMenu, let r = HyperLabState.walkRendererGet?() {
+                    VStack(alignment: .trailing, spacing: 8) {
+                        HLWalkMenu(r: r, close: { withAnimation(.easeInOut(duration: 0.15)) { st.walkMenu = false } }, openPanels: { st.walkPanelOn.toggle() }, panelsOn: st.walkPanelOn)
+                        if st.walkPanelOn, HyperLabState.walkPanel != nil { HLWalkPanels(st: st) }
+                    }.padding(.top, 74).padding(.trailing, 12)
                 }
             }
             // パネルを隠している時：右下に小さな「パネル」ボタンだけ
@@ -2567,10 +2706,7 @@ struct HyperLabView: View {
         .onChange(of: st.shutWalk) { _, v in
             guard !st.shutAuto else { return }
             HyperLabState.walkShut = v
-            #if os(macOS)
-            if v { HyperLabWindow.window?.makeKeyAndOrderFront(nil) }        // 止めたら超球の窓を前へ（キーやコントローラーで、このまま歩ける）
-            else { HyperLabWindow.walkWindow?.makeKeyAndOrderFront(nil) }   // 止めるのをやめたら、さんぽの窓を前へ（全画面なら、さんぽの画面へ移る）
-            #endif
+            // 窓を勝手に前へ出すことはしない（どちらの窓でも好きに使えるように）
         }
         .onAppear { HyperLabState.wipeLow = st.wipeLow; HyperLabState.poleENNow = st.poleEN; Journey.lapClearsTrail = st.lapClear }
         .onChange(of: st.lapClear) { _, v in Journey.lapClearsTrail = v }
@@ -2588,9 +2724,9 @@ struct HyperLabView: View {
                 }.buttonStyle(.plain).foregroundStyle(Color(red: 0.55, green: 0.8, blue: 1.0))
                     .help("球面さんぽとつなぐ機能（さんぽの景色・歩いた跡・目印・極・宇宙・自分を追う・ダイブ）。たたむと隠れる（働きはそのまま）")
                 Toggle("前の窓だけ描く（自動）", isOn: $st.shutAuto).toggleStyle(.switch).font(.caption).fixedSize()
-                    .help("今前にある窓の景色と地図だけを描く：超球の窓が前なら、さんぽの窓は止める（真っ黒）。さんぽの窓が前なら、さんぽの景色と地図を描いて、この窓は控えめ（1 秒 30 コマ）。窓を選ぶと瞬時に切りかわる")
+                    .help("今前にある窓の景色と地図だけを描く：超球の窓が前なら、さんぽの窓はオフ（真っ暗）。さんぽの窓が前なら、さんぽの景色と地図を描いて、この窓はオフ（真っ暗）。窓を選ぶと瞬時に切りかわる")
                 Toggle("さんぽの窓は止める（この窓だけで描く）", isOn: $st.shutWalk).toggleStyle(.switch).font(.caption).fixedSize().disabled(st.shutAuto)
-                    .help("重い時に。入れると、この窓が前に来て、さんぽの窓を選んでもこの窓へ自動で切りかわる（歩くキーはこの窓でそのまま効く）。さんぽの窓（景色・地図）は真っ黒にして描かず、GPU をこの窓（超球・さんぽの景色の画面・ダイブ）だけに使う。この窓も 1 秒 72 コマ（120Hz の画面は 60）までにして静かに。この窓を閉じると、さんぽはまた描く。歩く計算・跡・目印・自分を追うはそのまま（コントローラーで歩ける）")
+                    .help("重い時に。（歩くキーはこの窓でそのまま効く）。さんぽの窓（景色・地図）は真っ黒にして描かず、GPU をこの窓（超球・さんぽの景色の画面・ダイブ）だけに使う。この窓も 1 秒 72 コマ（120Hz の画面は 60）までにして静かに。この窓を閉じると、さんぽはまた描く。歩く計算・跡・目印・自分を追うはそのまま（コントローラーで歩ける）")
                 if !st.walkOpen {
                     Text(walkSummary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
@@ -2630,6 +2766,8 @@ struct HyperLabView: View {
                     slider("音量", Binding(get: { st.soundVol }, set: { st.soundVol = $0 }), 0, 1, fmt: "%.2f").frame(width: 80).disabled(!st.soundOn)
                     Toggle("空間オーディオ", isOn: $st.soundSpatial).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.soundOn)
                         .help("彗星のいる方向から音が聞こえる（ヘッドホンだと左右だけでなく上下・前後も。広い場所の残響を少し）。切ると左右だけのステレオ")
+                    Toggle("さんぽメニュー", isOn: $st.walkMenu).toggleStyle(.switch).font(.caption).fixedSize().disabled(HyperLabState.walkRendererGet?() == nil)
+                        .help("この窓に、さんぽの操作の小窓を浮かべる（歩く・止まる・速さ・目印・跡を消す・アナ極へ・決まった道）。✕ で隠す")
                     Toggle("ゲームパッド", isOn: Binding(get: { st.padOn }, set: { on in st.padOn = on; if !on { HyperLabState.walkRendererGet?()?.game.vClear() } }))
                         .toggleStyle(.switch).font(.caption).fixedSize().disabled(HyperLabState.walkRendererGet?() == nil)
                         .help("画面のゲームパッドを出す（さんぽの窓と同じ。押すとコントローラーと同じ働きで歩く）。パネルを隠していても出る")
@@ -2718,9 +2856,7 @@ enum HyperLabWindow {
         w.contentView = NSHostingView(rootView: HyperLabView())
         w.setFrameAutosaveName("S3WalkHyperLab"); if !w.setFrameUsingName("S3WalkHyperLab") { w.center() }
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { _ in
-            let shut = HyperLabState.walkShut
             window = nil; HyperLabState.walkShut = false
-            if shut { DispatchQueue.main.async { walkWindow?.makeKeyAndOrderFront(nil) } }   // 止めていた時に超球の窓を閉じたら、さんぽの窓を前へ
         }
         window = w; w.makeKeyAndOrderFront(nil)
     }
