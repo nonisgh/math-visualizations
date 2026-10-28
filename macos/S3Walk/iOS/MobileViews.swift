@@ -27,7 +27,7 @@ struct MobileRoot: View {
                         }
                         if model.showPad {
                             VirtualPad(game: model.r.game) { model.showPad = false }.spaceControls()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .padding(.bottom, 14).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)   // 景色の下の方に
                         }
                     }
                     if wide && model.showPanel {
@@ -38,6 +38,22 @@ struct MobileRoot: View {
             }
         }
         // 細長い画面（iPhone・iPad の縦向き）：パネルは下からのシート
+        // 試作：選んで全画面（右上の × で閉じる）
+        .confirmationDialog("試作", isPresented: $model.askProto) {
+            Button("超球アナロジー（Metal 版）") { model.proto = "hyper" }
+            Button("次元おりがみ（光で描く）") { model.proto = "tess" }
+            Button("次元おりがみ（ネイティブ版）") { model.proto = "origami" }
+        }
+        .fullScreenCover(isPresented: Binding(get: { model.proto != nil }, set: { if !$0 { model.proto = nil } })) {
+            ZStack(alignment: .topTrailing) {
+                if model.proto == "tess" { TessLabView() } else if model.proto == "origami" { OrigamiView() } else { HyperLabView() }
+                Button { model.proto = nil } label: { Image(systemName: "xmark.circle.fill").font(.title).foregroundStyle(.white.opacity(0.8)) }.padding(14)
+            }
+        }
+        // ウェブ版の数学アプリ：下からのシートに一覧。選ぶとその中で開く（半分の高さにすると、景色と一緒に見られる）
+        .sheet(isPresented: $model.showWeb) {
+            WebLabList().presentationDetents([.large, .medium]).presentationBackgroundInteraction(.enabled(upThrough: .medium))
+        }
         .sheet(isPresented: Binding(get: { model.showPanel && !MobileRoot.isWide() }, set: { if !$0 { model.showPanel = false } })) {
             PanelColumn(model: model).presentationDetents([.medium, .large]).presentationBackgroundInteraction(.enabled(upThrough: .medium))
         }
@@ -128,6 +144,8 @@ struct SceneBox: View {
                         RoundButton(icon: "bolt.fill", on: false) { model.r.turbo(); model.changed() }
                         RoundButton(icon: "scope", on: false) { model.r.cam.hy = 0; model.r.cam.hp = 0; model.changed() }
                         RoundButton(icon: "house", on: false) { model.r.resetNorth(); model.say("アナ極に戻った"); model.changed() }
+                        RoundButton(icon: "square.grid.2x2", on: model.showWeb) { model.showWeb = true }   // ウェブ版の数学アプリの一覧（シート）
+                        RoundButton(icon: "flask", on: model.proto != nil) { model.askProto = true }   // 試作（Metal で描き直しているもの）を選んで全画面で
                         RoundButton(icon: "gamecontroller", on: model.showPad) { model.showPad.toggle() }
                         RoundButton(icon: "map", on: model.mapMode != .hidden) { model.pad("options") }   // コントローラーの − と同じ（前の置き方で出す）
                         RoundButton(icon: "slider.horizontal.3", on: model.showPanel) { model.showPanel.toggle() }
@@ -280,6 +298,7 @@ struct MapBox: View {
             HStack(spacing: 6) {
                 Text(["S³ の地図", "地図 2", "S² の仲間"][slot]).font(.caption.weight(.bold)).foregroundStyle(Space.lilac)
                 Button { model.renderer(slot).home() } label: { Image(systemName: "scope").font(.caption) }.foregroundStyle(Space.sky)
+                if slot == 0 { MapBrightButton(model: model).font(.caption).foregroundStyle(Space.sky) }
             }
             .padding(.horizontal, 8).padding(.vertical, 3).background(Space.panel.opacity(0.85), in: Capsule()).padding(8)
         }
@@ -291,7 +310,7 @@ struct MapViewIOS: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         let box = UIView(); box.backgroundColor = UIColor(red: 0x03 / 255, green: 0x07 / 255, blue: 0x12 / 255, alpha: 1)
         let v = MapMTK(frame: .zero, device: model.r.device)
-        v.colorPixelFormat = .bgra8Unorm; v.depthStencilPixelFormat = .depth32Float; v.sampleCount = 4
+        v.colorPixelFormat = .bgra8Unorm; v.depthStencilPixelFormat = .invalid; v.sampleCount = 1   // 地図は自分で 2 倍に描いて縮める（MapRenderer.encodeSS）
         v.clearColor = MTLClearColor(red: 0x03 / 255.0, green: 0x07 / 255.0, blue: 0x12 / 255.0, alpha: 1)
         v.preferredFramesPerSecond = 60
         let m = model.renderer(slot); m.backingScale = UIScreen.main.scale
@@ -307,6 +326,7 @@ struct MapViewIOS: UIViewRepresentable {
         m.onLabels = { [weak labels, weak v] ls in
             labels?.update(ls)
             let want = m.world.set.quiet ? 20 : 60                   // 静かモードの地図は 20 fps
+            m.superSample = m.world.set.quiet ? 1 : 2                // 静かモードは縮めずにそのまま（軽く）
             if let v, v.preferredFramesPerSecond != want { v.preferredFramesPerSecond = want }
         }
         v.addGestureRecognizer(UIPanGestureRecognizer(target: v, action: #selector(MapMTK.pan(_:))))
@@ -336,6 +356,13 @@ final class LabelLayerIOS: UIView {
             let (p, l, _) = ls[i]
             let col = UIColor(red: CGFloat(l.col.x), green: CGFloat(l.col.y), blue: CGFloat(l.col.z), alpha: 1).cgColor
             t.isHidden = false; t.string = l.text; t.foregroundColor = col; t.opacity = l.dim ? 0.45 : 1
+            if let img = l.img {                                        // 模型の小さな絵：丸く切って、ふちは目印の色
+                t.isHidden = true; d.isHidden = false; d.contents = img; d.contentsGravity = .resizeAspectFill; d.masksToBounds = true
+                d.backgroundColor = UIColor.black.cgColor; d.borderColor = col; d.opacity = l.dim ? 0.5 : 1
+                d.cornerRadius = l.size / 2; d.frame = CGRect(x: p.x - l.size / 2 + l.dx, y: p.y - l.size / 2, width: l.size, height: l.size)
+                continue
+            }
+            d.contents = nil; d.masksToBounds = false; d.cornerRadius = 5; d.borderColor = UIColor(red: 8 / 255, green: 12 / 255, blue: 28 / 255, alpha: 0.85).cgColor
             if l.dot {
                 d.isHidden = false; d.backgroundColor = col; d.opacity = l.dim ? 0.45 : 1
                 d.frame = CGRect(x: p.x - 5, y: p.y - 5, width: 10, height: 10)

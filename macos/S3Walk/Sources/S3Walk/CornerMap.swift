@@ -60,3 +60,32 @@ struct CornerMap<Map: View>: View {
             .buttonStyle(.plain).help(tip)
     }
 }
+
+/// 地図の明るさのボタン（太陽）：押すと、殻の線の明るさのスライダーが出る（設定の「殻の線の明るさ」と同じ値）
+struct MapBrightButton: View {
+    @ObservedObject var model: AppModel
+    @State private var open = false
+    var body: some View {
+        Button { open.toggle() } label: { Image(systemName: "sun.max") }
+            .help("地図の明るさ（殻の線の明るさ）")
+            .popover(isPresented: $open, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("地図の明るさ").font(.caption.bold())
+                        Spacer()
+                        Text(String(format: "×%.2f", model.r.set.mapBright)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: 6) {
+                        Image(systemName: "sun.min").font(.caption).foregroundStyle(.secondary)
+                        Slider(value: model.b(\.mapBright), in: 0.2...2)
+                        Image(systemName: "sun.max.fill").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Button("元に戻す（×1）") { model.r.set.mapBright = 1; model.changed() }.controlSize(.small)
+                }
+                .padding(12).frame(width: 240)
+                #if os(iOS)
+                .presentationCompactAdaptation(.popover)
+                #endif
+            }
+    }
+}

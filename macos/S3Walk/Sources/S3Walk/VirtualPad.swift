@@ -1,4 +1,5 @@
-// 画面のゲームパッド：コントローラー（Switch の Pro コントローラーの並び）と同じスティックとボタンを、景色の真ん中に出す。押すとコントローラーと同じ働き。
+// 画面のゲームパッド：コントローラー（Switch の Pro コントローラーの並び）と同じスティックとボタンを、景色の下の方に出す。押すとコントローラーと同じ働き。
+//   見出しの ⌄ でたたむ（見出しだけになる。⌃ でひらく。たたんだかは覚えておく）。
 //   本体（すき間）をドラッグで動かせる。L・R・ZL・ZR・L3 は 2 回続けて押すと押したまま（黄色の枠。もう一度押すと離す）：マウスでも「ZL を押しながら右スティック」ができる。
 //   大きさは見出しの虫めがね（−・＋）か、ピンチ（2 本指でつまむ・トラックパッドでも）で 0.5〜2 倍。大きさは覚えておく。
 //   Mac 版と iPad・iPhone 版の両方で使う（GameInput の vLeft・vRight・vPress へ入れる）
@@ -14,6 +15,7 @@ struct VirtualPad: View {
     @State private var locked: Set<String> = []          // 2 回押しで押したまま
     @State private var lastPress: [String: Double] = [:]
     @AppStorage("s3walk.vpad.scale") private var scale = 1.0   // 大きさ（覚えておく）
+    @AppStorage("s3walk.vpad.folded") private var folded = false   // たたんでいる（見出しだけ。覚えておく）
     @State private var pinchStart: Double? = nil
     @State private var lk = CGSize.zero
     @State private var rk = CGSize.zero
@@ -26,11 +28,39 @@ struct VirtualPad: View {
             HStack(spacing: 6) {
                 smallButton("minus.magnifyingglass", "ゲームパッドを小さく") { zoom(1 / 1.15) }
                 smallButton("plus.magnifyingglass", "ゲームパッドを大きく") { zoom(1.15) }
-                Text(String(format: "画面のゲームパッド　%.0f%%", scale * 100)).font(.system(size: 10, weight: .semibold)).foregroundStyle(Space.lilac)
+                smallButton(folded ? "chevron.up" : "chevron.down", folded ? "ゲームパッドをひらく" : "ゲームパッドをたたむ（見出しだけに）") { fold(!folded) }
+                Text(folded ? "画面のゲームパッド（たたんでいる）" : String(format: "画面のゲームパッド　%.0f%%", scale * 100)).font(.system(size: 10, weight: .semibold)).foregroundStyle(Space.lilac)
                     .frame(maxWidth: .infinity).frame(height: 24).contentShape(Rectangle()).gesture(moveGesture)
                     .help("ここか、本体のすき間をドラッグで動かす")
                 smallButton("xmark.circle.fill", "画面のゲームパッドを隠す") { close() }
             }
+            if !folded { body2 }
+        }
+        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, folded ? 8 : 12)
+        .frame(width: folded ? 360 : 520)
+        // 本体のすき間（後ろの板）：ドラッグで動かす・ピンチで大きさ。ボタンやスティックの上では、そちらが先
+        .background(
+            RoundedRectangle(cornerRadius: folded ? 20 : 28).fill(Space.panel.opacity(0.62))
+                .background(RoundedRectangle(cornerRadius: folded ? 20 : 28).fill(.ultraThinMaterial).opacity(0.6))
+                .contentShape(RoundedRectangle(cornerRadius: folded ? 20 : 28))
+                .gesture(moveGesture)
+                .simultaneousGesture(MagnificationGesture().onChanged { v in
+                    if pinchStart == nil { pinchStart = scale }
+                    scale = min(2, max(0.5, pinchStart! * Double(v)))
+                }.onEnded { _ in pinchStart = nil })
+        )
+        .overlay(RoundedRectangle(cornerRadius: folded ? 20 : 28).stroke(Space.line).allowsHitTesting(false))
+        .scaleEffect(scale, anchor: .bottom)                    // 下の方に置くので、大きさは下のはしを基準に
+        .offset(offset)
+        .onDisappear { game.vClear() }
+    }
+    /// たたむ・ひらく（たたむ時は、押したままのボタンもスティックも離す）
+    func fold(_ f: Bool) {
+        if f { game.vClear(); held = []; locked = []; lk = .zero; rk = .zero }
+        withAnimation(.easeOut(duration: 0.18)) { folded = f }
+    }
+    /// ひらいている時の中身：肩のボタン・スティック・十字・A B X Y
+    @ViewBuilder var body2: some View {
             HStack(spacing: 8) {
                 key("ZL", "ZL", "見回しだけ", w: 54, h: 26)
                 key("L", "L", "下へ", w: 54, h: 26)
@@ -45,7 +75,7 @@ struct VirtualPad: View {
             HStack(alignment: .top, spacing: 18) {
                 VStack(spacing: 8) {
                     stick(left: true)
-                    HStack(spacing: 6) { key("L3", "L3", "跡を消す", w: 38, h: 24) }
+                    HStack(spacing: 6) { key("L3", "L3", game.swapSticks ? "前を見る" : "跡を消す", w: 38, h: 24) }
                 }
                 dpad.padding(.top, 70)
                 Spacer(minLength: 10)
@@ -54,28 +84,10 @@ struct VirtualPad: View {
                 }
                 VStack(spacing: 8) {
                     stick(left: false).padding(.top, 70)
-                    key("R3", "R3", "前を見る", w: 38, h: 24)
+                    key("R3", "R3", game.swapSticks ? "跡を消す" : "前を見る", w: 38, h: 24)
                 }
             }
             Text("L・R・ZL・ZR・L3 は 2 回押すと押したまま（黄色の枠、もう一度で離す）").font(.system(size: 9)).foregroundStyle(Space.slate)
-        }
-        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
-        .frame(width: 520)
-        // 本体のすき間（後ろの板）：ドラッグで動かす・ピンチで大きさ。ボタンやスティックの上では、そちらが先
-        .background(
-            RoundedRectangle(cornerRadius: 28).fill(Space.panel.opacity(0.62))
-                .background(RoundedRectangle(cornerRadius: 28).fill(.ultraThinMaterial).opacity(0.6))
-                .contentShape(RoundedRectangle(cornerRadius: 28))
-                .gesture(moveGesture)
-                .simultaneousGesture(MagnificationGesture().onChanged { v in
-                    if pinchStart == nil { pinchStart = scale }
-                    scale = min(2, max(0.5, pinchStart! * Double(v)))
-                }.onEnded { _ in pinchStart = nil })
-        )
-        .overlay(RoundedRectangle(cornerRadius: 28).stroke(Space.line).allowsHitTesting(false))
-        .scaleEffect(scale)
-        .offset(offset)
-        .onDisappear { game.vClear() }
     }
     /// 動かす：動く本体の上で測ると、ずれが行ったり来たりしてカクつくので、画面全体の座標で測る
     var moveGesture: some Gesture {
@@ -105,18 +117,18 @@ struct VirtualPad: View {
                 key("right", "▶", nil, w: 32, h: 30, round: false)
             }
             key("down", "▼", nil, w: 32, h: 30, round: false)
-            Text("↑↓ 殻の距離・速さ　→ ターボ").font(.system(size: 9)).foregroundStyle(Space.slate).fixedSize()
+            Text("↑ ターボ　↓ ターボ切　→ 切りかえ").font(.system(size: 9)).foregroundStyle(Space.slate).fixedSize()
         }
     }
     // ---- A・B・X・Y（任天堂の並び：上 X・左 Y・右 A・下 B）----
     var abxy: some View {
         VStack(spacing: 0) {
-            key("X", "X", "縦横無尽", w: 40, h: 40)
+            key("X", "X", "ターボ", w: 40, h: 40)
             HStack(spacing: 34) {
-                key("Y", "Y", "前を見る", w: 40, h: 40)
-                key("A", "A", "ターボ", w: 40, h: 40)
+                key("Y", "Y", "自動 入・切", w: 40, h: 40)
+                key("A", "A", "アクセル", w: 40, h: 40)
             }
-            key("B", "B", "歩き続ける", w: 40, h: 40)
+            key("B", "B", "ブレーキ・中止", w: 40, h: 40)
         }
     }
 
@@ -138,7 +150,7 @@ struct VirtualPad: View {
             }.onEnded { _ in
                 if left { lk = .zero; game.vLeft = .zero } else { rk = .zero; game.vRight = .zero }
             })
-            Text(left ? "左スティック 歩く" : "右スティック 向き").font(.system(size: 9)).foregroundStyle(Space.slate).fixedSize()
+            Text(left != game.swapSticks ? (left ? "左スティック 歩く" : "右スティック 歩く") : (left ? "左スティック 向き" : "右スティック 向き")).font(.system(size: 9)).foregroundStyle(Space.slate).fixedSize()
         }
     }
 

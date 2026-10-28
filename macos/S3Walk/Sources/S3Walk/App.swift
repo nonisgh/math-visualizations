@@ -24,9 +24,14 @@ struct Main {
         if args.contains("--webcmp") { if let d = MTLCreateSystemDefaultDevice(), let r = Renderer(device: d) { exit(Verify.webcmp(r) ? 0 : 1) }; exit(1) }
         if let i = args.firstIndex(of: "--png"), i + 1 < args.count { Verify.png(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--walkpng"), i + 1 < args.count { Verify.walkPNG(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--mapuser"), i + 1 < args.count { Verify.mapUserPNG(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--bigflip"), i + 1 < args.count { Verify.bigFlip(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--thumbs"), i + 1 < args.count { Verify.thumbs(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--hyperpng"), i + 1 < args.count { Verify.hyperPNG(args[i + 1]); exit(0) }
         if args.contains("--picstats") { Verify.picStats(); exit(0) }
         if args.contains("--mapstats") { Verify.mapStats(); exit(0) }
         if args.contains("--mapbench") { Verify.mapBench(); exit(0) }
+        if args.contains("--mapssbench") { Verify.mapSSBench(); exit(0) }
         if args.contains("--quietbench") { Verify.quietBench(); exit(0) }
         if let i = args.firstIndex(of: "--mappng"), i + 1 < args.count { Verify.mapPNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--turndump"), i + 5 < args.count { Verify.turnDump(args[i + 1], args[i + 2] == "sharp", Int(args[i + 3])!, Double(args[i + 4])!, Int(args[i + 5])!); exit(0) }
@@ -59,7 +64,7 @@ final class AppModel: ObservableObject {
     private var dockSub: AnyCancellable?
     private var floatsHidden = false
     @Published var showHUD = true
-    /// 画面のゲームパッド（景色の真ん中に出す。出す時はコントローラーで歩くをオンに）
+    /// 画面のゲームパッド（景色の下の方に出す。出す時はコントローラーで歩くをオンに）
     @Published var showPad = false { didSet { if showPad { r.set.gamepad = true } else { r.game.vClear() } } }
     @Published var showPanel = true
     @Published var isFull = false              // 全画面の間は、上のバー（ツールバー）を隠す
@@ -80,6 +85,7 @@ final class AppModel: ObservableObject {
         r.say = { [weak self] m in DispatchQueue.main.async { self?.say(m) } }
         r.onPad = { [weak self] k in self?.pad(k) }
         restoreMapMode()
+        NativeSync.applyMapViews(maps, UserDefaults.standard.array(forKey: NativeSync.mapViewsKey))   // 地図の向き（前に回したまま）
         dockSub = dock.$floating.sink { [weak self] _ in DispatchQueue.main.async { self?.syncFloating() } }
         // 起動した時やアプリに戻った時も、浮いた窓を出し直す（起動の途中で作った窓は、アプリが前に出る前に隠れてしまうので）
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in self?.syncFloating() }
@@ -93,30 +99,59 @@ final class AppModel: ObservableObject {
         }
         setupSync()
     }
-    /// 同期（Supabase、NativeSync.swift）：共通の状態に、Mac の画面の構成（パネルの並び・浮いた窓・地図の置き方・パネル・表示・ゲームパッド）を足す
+    /// 同期（Supabase、NativeSync.swift）：共通の状態（と地図の向き）に、Mac の画面の構成（パネルの並び・浮いた窓・地図の置き方・パネル・表示・ゲームパッド・
+    ///   窓の大きさと場所・浮いた地図の窓・静かモードとコントローラーで歩く）を足す。Mac が 2 台あれば、レイアウトもそろう（窓は、その画面に収まるように）
     private func setupSync() {
         let sy = NativeSync.shared
         sy.core = { [weak self] in
             guard let self else { return [:] }
             var d = NativeSync.commonCore(self.r)
-            d["ui_mac"] = ["dock": self.dock.export(), "mapMode": self.mapMode.rawValue, "showPanel": self.showPanel, "showHUD": self.showHUD, "showPad": self.showPad] as [String: Any]
+            d["maps"] = NativeSync.mapViews(self.maps)
+            var u: [String: Any] = ["dock": self.dock.export(), "mapMode": self.mapMode.rawValue, "showPanel": self.showPanel, "showHUD": self.showHUD, "showPad": self.showPad,
+                                    "set": NativeSync.kindSettings(self.r)]
+            if let w = self.mainWindow, !w.styleMask.contains(.fullScreen), !self.isFull { u["window"] = Self.rect(w.frame) }   // 全画面の間は書かない（全画面の大きさを、ふつうの窓に当てないように）
+            if let p = self.mapPanel { u["mapWindow"] = Self.rect(p.frame) }
+            d[NativeSync.uiKey] = u
             return d
         }
         sy.position = { [weak self] in self.map { NativeSync.position($0.r) } ?? [:] }
         sy.apply = { [weak self] d, withPos in
             guard let self else { return }
             NativeSync.applyCommon(self.r, d, withPos)
-            if let u = d["ui_mac"] as? [String: Any] {
-                if let k = u["dock"] as? [String: Any] { self.dock.load(k) }
+            NativeSync.applyMapViews(self.maps, d["maps"])
+            if let u = NativeSync.ui(d) {
+                NativeSync.applyKind(self.r, u)                   // 静かモードなど（描く細かさは changed で当て直す）
+                if let k = u["dock"] as? [String: Any] { self.dock.load(k); self.syncFloating() }
                 if let m = (u["mapMode"] as? String).flatMap(MapMode.init(rawValue:)) { self.setMap(m) }
+                if let f = Self.rect(u["mapWindow"]), let p = self.mapPanel { p.setFrame(Self.fit(f), display: true) }
+                if let f = Self.rect(u["window"]), let w = self.mainWindow, !w.styleMask.contains(.fullScreen), !self.isFull { w.setFrame(Self.fit(f), display: true, animate: false) }   // 全画面の窓は動かさない
                 if let v = u["showPanel"] as? Bool, v != self.showPanel { self.showPanel = v }
                 if let v = u["showHUD"] as? Bool, v != self.showHUD { self.showHUD = v }
                 if let v = u["showPad"] as? Bool, v != self.showPad { self.showPad = v }
             }
-            Store.save(self.r); self.changed()
+            Store.save(self.r); self.saveMapViews(); self.changed()
         }
         // 窓ができてから（浮いた窓・地図の窓を出し直せるように）、まず読み込む
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { sy.start() }
+    }
+    /// 地図 1・2・S² の仲間（地図の向きの同期・保存）
+    var maps: [MapRenderer] { [mapRenderer, mapRenderer2, s2Renderer] }
+    /// 地図の向きを手元に覚えておく（変わった時だけ。tick から）
+    private var lastMapViews = ""
+    func saveMapViews() {
+        let v = NativeSync.mapViews(maps), k = NativeSync.json(v)
+        if k != lastMapViews { lastMapViews = k; UserDefaults.standard.set(v, forKey: NativeSync.mapViewsKey) }
+    }
+    /// 景色の窓（浮いたパネル・地図の窓ではない方）
+    var mainWindow: NSWindow? { NSApp.windows.first { !($0 is NSPanel) && $0.isVisible && $0.contentView != nil && $0.frame.width >= 360 } }
+    static func rect(_ r: CGRect) -> [Double] { [r.minX, r.minY, r.width, r.height] }
+    static func rect(_ a: Any?) -> CGRect? { guard let v = a as? [Double], v.count == 4, v.allSatisfy(\.isFinite) else { return nil }; return CGRect(x: v[0], y: v[1], width: v[2], height: v[3]) }
+    /// 窓の場所を、この Mac の画面に収める（画面の大きさが違う Mac から来た時）
+    static func fit(_ f: CGRect) -> CGRect {
+        let scr = NSScreen.screens.first { $0.visibleFrame.intersects(f) } ?? NSScreen.main
+        guard let v = scr?.visibleFrame else { return f }
+        let w = min(f.width, v.width), h = min(f.height, v.height)
+        return CGRect(x: max(v.minX, min(f.minX, v.maxX - w)), y: max(v.minY, min(f.minY, v.maxY - h)), width: w, height: h)
     }
     func say(_ m: String) { hudState.notice = m; noticeT = CACurrentMediaTime() }
     /// Tab：パネル（ドック・浮いた窓）と地図を全部隠す／元に戻す（Photoshop と同じ）
@@ -167,16 +202,11 @@ final class AppModel: ObservableObject {
     }
     /// コントローラーのボタン
     func pad(_ k: String) {
+        if r.padDuringAuto(k) { changed(); return }                 // 自動走行の間：B 中止・Y 前を見る・十字の上下 ターボ入・切（Renderer）
+        if r.padWalk(k) { changed(); return }                       // A アクセル・B ブレーキ・十字の上 ターボ入・下 ターボ切・右 ターボの切りかえ（Renderer）
         switch k {
-        case "A": r.turboPress(pad: true)                           // A：ターボ（十字の右と同じ。目印は M キーかパネルで）
-        case "B": r.walking.toggle(); r.roaming = false
-        case "X": r.roaming.toggle(); r.walking = false; say(r.roaming ? "縦横無尽：どこへ進んでも、いつか戻ってくる" : "縦横無尽をやめた")
-        case "Y": r.padY()
         case "R3": r.levelView()
-        // （歩き続ける・決まった道の間は、十字の上下は速さ。止まっている時だけ殻の見える距離。変えたら知らせる）
-        case "up": if r.pathMode == .none && !r.walking { r.set.shellRange = min(25.15, r.set.shellRange + 0.5); say(String(format: "殻の見える距離 %.1f", r.set.shellRange)) }
-        case "down": if r.pathMode == .none && !r.walking { r.set.shellRange = max(0.3, r.set.shellRange - 0.5); say(String(format: "殻の見える距離 %.1f", r.set.shellRange) + (r.set.shellRange < 1 ? "（短いと殻がほとんど見えない。十字の上で戻る）" : "")) }
-        case "right": r.turboPress(pad: true)
+        case "ZR": break                                          // ZR はふだん「押している間だけ速く」（毎コマ読む）。自動走行の間だけ前を見る
         case "menu": showPanel.toggle()
         case "options": toggleMap()
         default: break
@@ -233,6 +263,7 @@ final class AppModel: ObservableObject {
         let snap = Store.snapshot(r)
         let key = (try? JSONSerialization.data(withJSONObject: snap, options: [.sortedKeys])).map { String(decoding: $0, as: UTF8.self) } ?? ""
         if key != lastSaved { lastSaved = key; UserDefaults.standard.set(snap, forKey: Store.key) }
+        saveMapViews()
     }
 }
 
@@ -266,6 +297,22 @@ struct S3WalkApp: App {
                 Toggle("自分を真ん中に", isOn: model.b(\.mapFollow))
                 Button("地図を元の向きに") { model.mapRenderer.home(); model.mapRenderer2.home(); model.s2Renderer.home() }
                 Toggle("2 枚目の地図", isOn: model.b(\.map2On))
+            }
+            // 試作（Metal で描き直しているもの）
+            CommandMenu("試作") {
+                Button("超球アナロジー（Metal 版）") { HyperLabWindow.open() }.keyboardShortcut("j", modifiers: [.command, .shift])
+                Button("次元おりがみ（光で描く）") { ProtoWindows.open("tess", "次元おりがみ（光で描く試作）", TessLabView()) }.keyboardShortcut("k", modifiers: [.command, .shift])
+                Button("次元おりがみ（ネイティブ版・移植の第 1 歩）") { ProtoWindows.open("origami", "次元おりがみ（ネイティブ版）", OrigamiView()) }.keyboardShortcut("o", modifiers: [.command, .shift])
+            }
+            CommandMenu("数学") {
+                Button("超球（2 次元とのアナロジー）") { WebLabWindows.shared.open("hypersphere_beta", title: WebLab.hypersphereTitle) }.keyboardShortcut("h", modifiers: [.command, .shift])
+                // ウェブ版の数学アプリ（サイトの一覧に載っているもの全部）：まとまりごとに、別の窓で開く
+                ForEach(WebLab.groups, id: \.self) { g in
+                    Divider()
+                    Section(g) {
+                        ForEach(WebLab.apps.filter { $0.group == g }) { a in Button(a.title) { WebLabWindows.shared.open(a.id, title: a.title) } }
+                    }
+                }
             }
             CommandGroup(after: .sidebar) {
                 Toggle("設定のパネル", isOn: Binding(get: { model.showPanel }, set: { model.showPanel = $0 })).keyboardShortcut("i", modifiers: [.command, .option])
@@ -307,7 +354,7 @@ struct ContentView: View {
                 }
                 if model.showPad {
                     VirtualPad(game: model.r.game) { model.showPad = false }.spaceControls()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.bottom, 14).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)   // 景色の下の方に
                 }
                 if sceneDrop {                                           // パネルの見出しを景色の上へドラッグしている間：ここに落とすと浮かぶ
                     RoundedRectangle(cornerRadius: 14).stroke(Space.violet.opacity(0.8), style: StrokeStyle(lineWidth: 2, dash: [8, 6])).padding(10)
@@ -429,7 +476,8 @@ struct SplitHandle: View {
 struct PosReadout: View {
     let r: Renderer
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+        // 書きかえは 0.1 秒ごと（静かモードは 0.5 秒ごと：書きかえるたびに窓全体の並べ直しが走って CPU を使うので）
+        TimelineView(.periodic(from: .now, by: r.set.quiet ? 0.5 : 0.1)) { _ in
             let p = r.cam.w.p
             HStack(spacing: 7) {
                 Text("位置").foregroundStyle(Space.slate)
@@ -451,7 +499,7 @@ struct PosReadout: View {
 struct AngleReadout: View {
     let r: Renderer
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+        TimelineView(.periodic(from: .now, by: r.set.quiet ? 0.5 : 0.1)) { _ in
             let c = r.cam
             HStack(spacing: 8) {
                 item("方位", c.az); item("仰角", c.el)
@@ -480,7 +528,7 @@ struct AxisLengths: View {
     @State private var text = ""
     @FocusState private var focused: Bool
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.15)) { _ in
+        TimelineView(.periodic(from: .now, by: map.world.set.quiet ? 0.5 : 0.15)) { _ in
             let L = map.axisLengths(), canEdit = !map.config.follow
             HStack(spacing: 8) {
                 ForEach(0..<4, id: \.self) { i in
@@ -534,6 +582,7 @@ struct OneMap: View {
                     Spacer()
                     HStack(spacing: 6) {
                         Button { model.renderer(slot).home() } label: { Image(systemName: "scope") }.help("地図を元の向きに（ダブルクリックでも）")
+                        if slot == 0 { MapBrightButton(model: model) }
                         if slot != 2 {
                             let s = model.r.set, alt = slot == 0 ? [s.mapAltXW, s.mapAltYW, s.mapAltZW] : [s.map2AltXW, s.map2AltYW, s.map2AltZW]
                             Button { if model.renderer(slot).swapTilt() { model.changed() } else { model.say("自分中心の時は傾きを入れかえられない（ふつうの見方で）") } } label: { Image(systemName: "arrow.triangle.2.circlepath") }
@@ -610,6 +659,10 @@ struct MainToolbar: ToolbarContent {
         }
         ToolbarItem(placement: .primaryAction) {
             Toggle(isOn: model.b(\.quiet)) { Label("静か", systemImage: "leaf") }.help("静かモード（ファンを回さない）：景色は 30 fps・描く細かさを下げる。画質は後回し")
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Button { WebLabWindows.shared.open("hypersphere_beta", title: WebLab.hypersphereTitle) } label: { Label("超球", systemImage: "circle.circle") }
+                .help("超球（3D リング球 ↔ 4D 超球、2 次元とのアナロジー）を別の窓で開く")
         }
         ToolbarItem(placement: .primaryAction) {
             Toggle(isOn: $model.showPad) { Label("ゲームパッド", systemImage: "gamecontroller") }.help("画面のゲームパッド（コントローラーと同じボタン）" + Keymap.shared.hint(.vpad))
@@ -763,7 +816,7 @@ final class WalkView: MTKView {
         // 映画のような光の時は、画面は画面の細かさのまま、景色だけ「描く細かさ」で描く（星と仕上げは細かく）。それ以外は画面ごと細かさを下げる
         //   静かモードの時は、細かさは静かモードの値に決め打ち・景色は 30 fps（ファンを回さない）
         let quiet = renderer.set.quiet
-        let bs = window?.backingScaleFactor ?? 2, sc = quiet ? renderer.set.quietScale : renderer.set.scale, whole = renderer.set.cine ? 1.0 : sc
+        let bs = window?.backingScaleFactor ?? 2, sc = quiet ? renderer.set.quietScaleEff : renderer.set.scale, whole = renderer.set.cine ? 1.0 : sc
         renderer.sceneScale = renderer.set.cine ? sc : 1
         let sz = CGSize(width: max(1, (bounds.width * bs * whole).rounded()), height: max(1, (bounds.height * bs * whole).rounded()))
         if sz != drawableSize { drawableSize = sz }

@@ -4,6 +4,8 @@ set -e
 cd "${0:A:h}"
 # 設定の検索の索引（Dock.swift の項目から）
 python3 -I tools/gen_search_index.py
+# ウェブ版の数学アプリ（超球など）を Web/ に写す（CDN のライブラリは Web/vendor の手元の写しに）
+python3 -I tools/sync_web.py
 swift build -c release
 APP=S3Walk.app
 rm -rf $APP
@@ -11,6 +13,8 @@ mkdir -p $APP/Contents/MacOS $APP/Contents/Resources
 cp .build/release/S3Walk $APP/Contents/MacOS/S3Walk
 # 軸の名前の書体（KaTeX の数式用の斜体＝TeX と同じ字形。次元おりがみ・ウェブ版と同じ。MIT、Fonts/KaTeX-LICENSE.txt）
 cp Fonts/KaTeX_Math-Italic.ttf Fonts/KaTeX-LICENSE.txt $APP/Contents/Resources/
+# ウェブ版の数学アプリ（アプリの中の窓で開く）
+cp -R Web $APP/Contents/Resources/Web
 # アイコン：アプリ自身の地図から作る（--icon）。なければ作り、大きさごとの絵を iconutil でまとめる
 if [ ! -f Icon/AppIcon-1024.png ]; then mkdir -p Icon; .build/release/S3Walk --icon Icon/AppIcon-1024.png >/dev/null; fi
 ICS=$(mktemp -d)/AppIcon.iconset; mkdir -p $ICS
@@ -36,5 +40,9 @@ cat > $APP/Contents/Info.plist <<'PLIST'
   <key>CADisableMinimumFrameDurationOnPhone</key><true/>
 </dict></plist>
 PLIST
-codesign --force --sign - $APP >/dev/null 2>&1 || true
+# 署名：この Mac の開発用の証明書（Apple Development）があれば、それで署名する。キーチェーンがアプリを「名前＋証明書」で見分けるので、
+#   作り直しても同期のログインの鍵（キーチェーン）の「常に許可」が残る（仮の署名 - だと、作るたびに別のアプリあつかいになってパスワードを聞かれた）
+SIGN_ID=$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/ { print $2; exit }')
+if [ -n "$SIGN_ID" ] && codesign --force --sign "$SIGN_ID" $APP >/dev/null 2>&1; then :
+else codesign --force --sign - $APP >/dev/null 2>&1 || true; fi
 echo "できた：$PWD/$APP"

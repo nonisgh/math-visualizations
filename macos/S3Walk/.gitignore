@@ -1,2 +1,6 @@
 .build/
 S3Walk.app/
+# ビルドの前に tools/sync_web.py が ~/math-visualizations から写すもの（元はこのリポジトリの直下にある）
+Web/*.html
+Web/lib/
+xcuserdata/

@@ -10,6 +10,7 @@ struct Journey {
     var w2 = Walker2.north               // S² の仲間
     var trail2: [V3] = [], foot2: [V3] = [], marks2: [V3] = []
     var marks: [V4] = []                 // 「ここに目印を置く」で置いた目印
+    var markKinds: [Int] = []            // 目印ごとの模型（シェーダーの番号 0〜8。−1 は前の版で置いたもの＝全体の「模型」に従う）。marks と同じ数
     var wasW = 1.0
     var prevS: Double? = nil, prevN: Double? = nil
     var passedN = true, passedS = false
@@ -73,12 +74,12 @@ extension Settings {
     static let dKeys: [(String, WritableKeyPath<Settings, Double>)] = [
         ("fov", \.fov), ("maxD", \.maxD), ("fog", \.fog), ("fade", \.fade), ("depth", \.depth),
         ("shellOp", \.shellOp), ("shellBack", \.shellBack), ("shellLum", \.shellLum), ("shellRange", \.shellRange),
-        ("spd", \.spd), ("quietScale", \.quietScale), ("mapMini", \.mapMini), ("roamK", \.roamK), ("scale", \.scale), ("mapXW", \.mapXW), ("mapYW", \.mapYW), ("mapZW", \.mapZW), ("mapD", \.mapD), ("glow", \.glow), ("uniL", \.uniL), ("mapBright", \.mapBright), ("lineViv", \.lineViv), ("modelSize", \.modelSize), ("planetSize", \.planetSize), ("gridTilt", \.gridTilt), ("gridAz", \.gridAz), ("gridSpinRate", \.gridSpinRate), ("followD", \.followD), ("mapExpand", \.mapExpand), ("trailKeep", \.trailKeep), ("hazeK", \.hazeK), ("mapWidth", \.mapWidth), ("mapSplit2", \.mapSplit2), ("mapSplit3a", \.mapSplit3a), ("mapSplit3b", \.mapSplit3b), ("autoAccel", \.autoAccel), ("autoMax", \.autoMax), ("autoAccelK", \.autoAccelK), ("autoMin", \.autoMin), ("wireFloor", \.wireFloor), ("stars", \.stars), ("band", \.band), ("nebK", \.nebK), ("bloom", \.bloom), ("expo", \.expo), ("grain", \.grain), ("lineW", \.lineW), ("solidWire", \.solidWire), ("picLine", \.picLine), ("turns", \.turns), ("tilt", \.tilt), ("prec", \.prec), ("ringStep", \.ringStep), ("map2XW", \.map2XW), ("map2YW", \.map2YW), ("map2ZW", \.map2ZW), ("mapAltXW", \.mapAltXW), ("mapAltYW", \.mapAltYW), ("mapAltZW", \.mapAltZW), ("map2AltXW", \.map2AltXW), ("map2AltYW", \.map2AltYW), ("map2AltZW", \.map2AltZW)]
+        ("spd", \.spd), ("cruise", \.cruise), ("quietScale", \.quietScale), ("mapMini", \.mapMini), ("roamK", \.roamK), ("scale", \.scale), ("mapXW", \.mapXW), ("mapYW", \.mapYW), ("mapZW", \.mapZW), ("mapD", \.mapD), ("glow", \.glow), ("uniL", \.uniL), ("mapBright", \.mapBright), ("lineViv", \.lineViv), ("modelSize", \.modelSize), ("planetSize", \.planetSize), ("gridTilt", \.gridTilt), ("gridAz", \.gridAz), ("gridSpinRate", \.gridSpinRate), ("followD", \.followD), ("mapExpand", \.mapExpand), ("trailKeep", \.trailKeep), ("hazeK", \.hazeK), ("mapWidth", \.mapWidth), ("mapSplit2", \.mapSplit2), ("mapSplit3a", \.mapSplit3a), ("mapSplit3b", \.mapSplit3b), ("autoAccel", \.autoAccel), ("autoMax", \.autoMax), ("autoAccelK", \.autoAccelK), ("autoMin", \.autoMin), ("wireFloor", \.wireFloor), ("stars", \.stars), ("band", \.band), ("nebK", \.nebK), ("bloom", \.bloom), ("expo", \.expo), ("grain", \.grain), ("lineW", \.lineW), ("solidWire", \.solidWire), ("picLine", \.picLine), ("turns", \.turns), ("tilt", \.tilt), ("prec", \.prec), ("ringStep", \.ringStep), ("map2XW", \.map2XW), ("map2YW", \.map2YW), ("map2ZW", \.map2ZW), ("mapAltXW", \.mapAltXW), ("mapAltYW", \.mapAltYW), ("mapAltZW", \.mapAltZW), ("map2AltXW", \.map2AltXW), ("map2AltYW", \.map2AltYW), ("map2AltZW", \.map2AltZW)]
     static let bKeys: [(String, WritableKeyPath<Settings, Bool>)] = [
         ("shell", \.shell), ("shellSolid", \.shellSolid), ("shellBare", \.shellBare), ("eq", \.eq), ("lite", \.lite), ("grand", \.grand),
         ("poles", \.poles), ("hidePair", \.hidePair), ("orient", \.orient), ("selfBall", \.selfBall), ("foot", \.foot), ("marksOn", \.marksOn),
-        ("fps60", \.fps60), ("autoQ", \.autoQ), ("mapFollow", \.mapFollow), ("routeSmart", \.routeSmart), ("quiet", \.quiet), ("routeFlow", \.routeFlow), ("cursor3D", \.cursor3D), ("mapAxes", \.mapAxes), ("mapTrail", \.mapTrail), ("mapPan", \.mapPan), ("turnSharp", \.turnSharp), ("edrOn", \.edrOn), ("space", \.space), ("polePlanet", \.polePlanet), ("trailLight", \.trailLight), ("autoRewind", \.autoRewind), ("modelPoles", \.modelPoles), ("modelMarks", \.modelMarks), ("modelSelf", \.modelSelf), ("follower", \.follower), ("idleReuse", \.idleReuse), ("rainbow4", \.rainbow4), ("turboHold", \.turboHold), ("gridSpin", \.gridSpin), ("free360", \.free360), ("shAxis", \.shAxis), ("shAxX", \.shAxX), ("shAxY", \.shAxY), ("shAxZ", \.shAxZ), ("shAxW", \.shAxW), ("nebula", \.nebula), ("cine", \.cine), ("map2On", \.map2On), ("s2On", \.s2On), ("lineCrisp", \.lineCrisp), ("mapLeft", \.mapLeft), ("map2Follow", \.map2Follow), ("haptics", \.haptics), ("gamepad", \.gamepad), ("padGame", \.padGame), ("padInvX", \.padInvX), ("padInvY", \.padInvY), ("ghostBack", \.ghostBack), ("circ", \.circ), ("room", \.room)]
-    static let iKeys: [(String, WritableKeyPath<Settings, Int>)] = [("shellN", \.shellN), ("mapCorner", \.mapCorner), ("cursorShape", \.cursorShape), ("passes", \.passes), ("mapRange", \.mapRange), ("map2Range", \.map2Range), ("mk", \.mk), ("lens", \.lens), ("ringAxis", \.ringAxis), ("modelKind", \.modelKind), ("shCap", \.shCap)]
+        ("fps60", \.fps60), ("autoQ", \.autoQ), ("mapFollow", \.mapFollow), ("routeSmart", \.routeSmart), ("quiet", \.quiet), ("routeFlow", \.routeFlow), ("cursor3D", \.cursor3D), ("mapAxes", \.mapAxes), ("mapTrail", \.mapTrail), ("mapPan", \.mapPan), ("turnSharp", \.turnSharp), ("edrOn", \.edrOn), ("space", \.space), ("polePlanet", \.polePlanet), ("trailLight", \.trailLight), ("autoRewind", \.autoRewind), ("modelPoles", \.modelPoles), ("modelMarks", \.modelMarks), ("modelSelf", \.modelSelf), ("follower", \.follower), ("idleReuse", \.idleReuse), ("rainbow4", \.rainbow4), ("turboHold", \.turboHold), ("gridSpin", \.gridSpin), ("free360", \.free360), ("shAxis", \.shAxis), ("shAxX", \.shAxX), ("shAxY", \.shAxY), ("shAxZ", \.shAxZ), ("shAxW", \.shAxW), ("markGrow", \.markGrow), ("padSwap", \.padSwap), ("nebula", \.nebula), ("cine", \.cine), ("map2On", \.map2On), ("s2On", \.s2On), ("lineCrisp", \.lineCrisp), ("mapLeft", \.mapLeft), ("map2Follow", \.map2Follow), ("haptics", \.haptics), ("gamepad", \.gamepad), ("padGame", \.padGame), ("padInvX", \.padInvX), ("padInvY", \.padInvY), ("ghostBack", \.ghostBack), ("circ", \.circ), ("room", \.room)]
+    static let iKeys: [(String, WritableKeyPath<Settings, Int>)] = [("shellN", \.shellN), ("mapCorner", \.mapCorner), ("cursorShape", \.cursorShape), ("passes", \.passes), ("mapRange", \.mapRange), ("map2Range", \.map2Range), ("mk", \.mk), ("lens", \.lens), ("ringAxis", \.ringAxis), ("modelKind", \.modelKind), ("markModel", \.markModel), ("shCap", \.shCap)]
     func dict() -> [String: Any] {
         var d: [String: Any] = [:]
         for (k, kp) in Settings.dKeys { d[k] = self[keyPath: kp] }
@@ -102,7 +103,7 @@ enum Store {
     static func snapshot(_ r: Renderer) -> [String: Any] {
         let c = r.cam
         return ["set": r.set.dict(), "p": arr(c.w.p), "r": arr(c.w.r), "u": arr(c.w.u), "f": arr(c.w.f),
-                "az": c.az, "el": c.el, "dist": r.journey.dist, "marks": r.journey.marks.map(arr),
+                "az": c.az, "el": c.el, "dist": r.journey.dist, "marks": r.journey.marks.map(arr), "markKinds": r.journey.markKinds,
                 "p2": a3(r.journey.w2.p), "r2": a3(r.journey.w2.r), "f2": a3(r.journey.w2.f), "marks2": r.journey.marks2.map(a3)]
     }
     static func save(_ r: Renderer) { UserDefaults.standard.set(snapshot(r), forKey: key) }
@@ -120,6 +121,8 @@ enum Store {
         if let az = d["az"] as? Double { r.cam.az = az }
         if let el = d["el"] as? Double { r.cam.el = el }
         if let m = d["marks"] as? [[Double]] { r.journey.marks = m.compactMap { v4($0) } }
+        r.journey.markKinds = (d["markKinds"] as? [Int]) ?? []
+        if r.journey.markKinds.count != r.journey.marks.count { r.journey.markKinds = Array((r.journey.markKinds + Array(repeating: -1, count: r.journey.marks.count)).prefix(r.journey.marks.count)) }
         if let p = v3(d["p2"]), let rr = v3(d["r2"]), let f = v3(d["f2"]) { r.journey.w2 = Walker2(p: simd_normalize(p), r: rr, f: f) }
         if let m = d["marks2"] as? [[Double]] { r.journey.marks2 = m.compactMap { v3($0) } }
         if r.journey.marks2.count != r.journey.marks.count { r.journey.marks2 = Array(repeating: r.journey.w2.p, count: r.journey.marks.count) }

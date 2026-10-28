@@ -73,9 +73,13 @@ struct Settings {
     var turnSharp = false       // ターンの道（半周 180°・極めぐり）の曲がり方：false スムーズ（双曲線）・true 直角
     var ringAxis = 2, ringStep = 10.0          // 回る輪：軸（0 x・1 y・2 z・3 w・4 全部）・1 周で回す角（度）
     var padGame = true          // ゲームのような操作（少し倒すとゆっくり・速めに回る・慣性つき）。ZL＋右スティックの見回し・加速はオン・オフによらない
-    var padInvX = false, padInvY = false   // 右スティックの反転（左右・上下）
+    var padInvX = false, padInvY = false   // 右スティックの反転（左右・上下）。入れかえた時は、向きを変える方（左）のスティック
+    var padSwap = false         // 左右のスティックを入れかえる（右で歩く・左で向き）
+    var cruise = 1.0            // 記録した自走の速さ（ふつうの何倍か）。アクセル・十字で合わせた速さを覚え、止めても・ターボのあとでも、この速さから
     var mk = 0                  // 目印の見せ方：0 玉・1 絵（絵文字）・2 色の点・3 なし（ウェブ版の P キー）・4 模型（3D、Mac 版だけ）
-    var modelKind = 3           // 模型の種類：0 怪獣・1 タツノオトシゴの竜・2 うんこ・3 いろいろ（目印ごとに順に）・4 いぬ・5 ねこ・6 たぬき・7 きつね・8 たこ・9 いか
+    var modelKind = 3           // 模型の種類（極・自分・ついてくる仲間）：0 怪獣・1 タツノオトシゴの竜・2 うんこ・3 いろいろ（ランダム）・4 いぬ・5 ねこ・6 たぬき・7 きつね・8 たこ・9 いか
+    var markGrow = true         // 置いた目印も、極の惑星と同じく宇宙と一緒に大きく（宇宙の大きさで小さくせず、もやにも沈めない）。広い宇宙でも、近づくと大きくなり、反対側を回ってきた像が追い上げてくる
+    var markModel = -1          // 次に置く目印の模型（シェーダーの番号 0 怪獣・1 竜・2 うんこ・3 いぬ・4 ねこ・5 たぬき・6 きつね・7 たこ・8 いか、−1 ランダム）。置いた後も目印ごとに変えられる
     var modelSize = 1.0         // 模型の大きさ（玉の何倍か）
     var modelPoles = true, modelMarks = true, modelSelf = true   // 模型にするもの：極（惑星の時は惑星の上に乗る）・置いた目印・自分の玉
     var follower = false, followD = 0.8   // ついてくる仲間：自分の後ろ followD を同じ向きで追いかけてくる模型（模型のモードの時）
@@ -120,6 +124,8 @@ struct Settings {
     var mapFollow = false, mapAxes = true, mapTrail = true
     var quiet = false           // 静かモード（ファンを回さない）：景色は 30 fps・描く細かさ quietScale に決め打ち（自動の細かさは止める）、地図は 20 fps。画質は後回し
     var quietScale = 0.4        // 静かモードの描く細かさ（M1 Max で 30 fps・0.4 なら GPU の使用は 2 割ほど）
+    /// 静かモードで実際に使う細かさ：4 方向レインボー・軸色の球層は約 1.65 倍重いので、画素を 1/1.65 に（細かさ × 0.78）して、ふつうのレインボーと同じくらいの静かさに
+    var quietScaleEff: Double { quietScale * (shell && (rainbow4 || shAxis) ? 0.78 : 1) }
     var routeFlow = false       // 自分の道のつなぎ方「素通り」：全部の点を通る滑らかな曲線で、止まらず・角なしで巡回（routeSmart より先）
     var routeSmart = true       // 自分の道のつなぎ方：true おまかせ（なるべくまっすぐ・2 点はループ・反対側はまっすぐ）／false 最短（往復は引き返す）
     var cursorShape = 1         // 地図の自分の矢印の形：0 三角錐・1 五角錐（底が五角形。底の 1 つの角が体の上）
@@ -169,11 +175,74 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// 前を見る（ウェブ版の「↺ 前を見る」）：見回しを 0 へ、なめらかに（ほとんどは 0.3 秒）。もう前を見ている時は、仰角も 0 へ（水平に）
     func levelView() {
         headGoing = false
-        levelEl = abs(cam.hy) < 0.5 && abs(cam.hp) < 0.5; leveling = true
+        levelEl = pathMode == .none && abs(cam.hy) < 0.5 && abs(cam.hp) < 0.5; leveling = true   // 決まった道の間は見回しだけ戻す
         say?(levelEl ? "水平に戻す（進む方位はそのまま）" : "前を見る（進む向きに目を戻す）")
     }
     /// コントローラーの Y：前を見る（進む向きは変えない。もう一度で水平にも）。ZL を押しながらなら、この向きへ進む
     func padY() { if padLookOnly { zlUsed = true; headGoPad() } else { levelView() } }
+    /// 自動走行（決まった道：螺旋・回る輪・ターン・極めぐり・自分の道）の間のコントローラーのボタン。true ならここで済んだ。
+    ///   B 中止・Y と R3 と ZR（R2） 前を見る（見回しを戻す）・A と十字の右 ターボ（速さ）・十字の上下 速さ（毎コマ step で読む）。歩く・縦横無尽などのボタンは効かない。＋・−（設定・地図）はそのまま
+    func padDuringAuto(_ k: String) -> Bool {
+        guard pathMode != .none else { return false }
+        switch k {
+        case "B": stopAuto()
+        case "Y": if padLookOnly { levelView() } else { stopAuto() }   // Y：自動の停止（自動走行をやめる）
+        case "R3", "ZR": levelView()
+        case "X": turboPress(pad: true)
+        case "A": break                                          // A を押している間、だんだん速く（毎コマ step で）
+        case "up": turboOn()
+        case "down": turboOff()
+        case "right": turboPress(pad: true)
+        case "menu", "options": return false
+        default: say?("自動走行中：右スティック 見回し・ZR（R2）か R3 前を見る・A とスティックの前後 速さ・十字の上下と X ターボ・B 中止・Y 完全停止")
+        }
+        return true
+    }
+    /// コントローラーのボタンのうち、歩くこと（Mac 版と iPad・iPhone 版で同じ）：A アクセル（止まっていれば歩き始める・押している間は速く）、
+    ///   B ブレーキ（押している間、遅く。止まると歩くのをやめる）、十字の上 ターボ（最高速）、十字の下 ターボを切る（記録した速さへ）、十字の右 ターボの切りかえ。true ならここで済んだ
+    func padWalk(_ k: String) -> Bool {
+        switch k {
+        case "A": if !walking { startByA = true; walking = true; roaming = false; pathMode = .none }   // A：止まっていれば、ゆっくりから走り出す
+        case "B": if roaming { roaming = false; say?("縦横無尽をやめた（B）") }
+        case "X": turboPress(pad: true)                          // X：ターボの切りかえ
+        case "Y":                                                // Y：自動で走るの開始・停止（ZL を押しながらなら、この向きへ進む）
+            if padLookOnly { zlUsed = true; headGoPad() }
+            else if walking && autoCruise { autoCruise = false; turboPrev = nil; stopping = true; say?("自動をやめた（なめらかに止まる）") }
+            else if walking { autoCruise = true; stopping = false; recordCruiseNow(); say?(String(format: "自動で走る ×%.1f（今の速さを保つ。Y でやめる）", autoSpeed)) }
+            else { roaming = false; pathMode = .none; walking = true; say?(String(format: "自動で走る ×%.1f（記録した速さ。Y でやめる）", max(0.1, set.cruise))) }   // 記録した速さで自動で走り出す（歩き始めで）
+        case "up": turboOn()
+        case "down": turboOff()
+        case "right": turboPress(pad: true)
+        default: return false
+        }
+        return true
+    }
+    /// ターボを入れる（十字の上）：止まっていれば最高速で歩き始める
+    func turboOn() {
+        let mx = max(1, set.autoMax)
+        if pathMode != .none { if pathSpeed < mx - 1e-6 { turboPrev = pathSpeed; pathSpeed = mx; say?(String(format: "ターボ！ 決まった道を最高速 ×%.0f で", mx)) }; return }
+        if !walking { turbo(); return }
+        if autoSpeed < mx - 1e-6 { if turboPrev == nil { turboPrev = autoSpeed }; autoSpeed = mx; rewinding = false; say?(String(format: "ターボ！ 最高速 ×%.0f", mx)) }
+    }
+    /// ターボを切る（十字の下）：ターボの前の速さ（記録した速さ）へ
+    func turboOff() {
+        guard let p = turboPrev else { say?("ターボは入っていない"); return }
+        if pathMode != .none { pathSpeed = p } else { autoSpeed = p }
+        turboPrev = nil; turboHolding = false
+        say?(String(format: "ターボを切った（×%.1f）", p))
+    }
+    /// 完全停止（コントローラーの Y）：歩く・縦横無尽・自動走行・ターボを全部止める（記録した速さは残す）
+    func fullStop() {
+        let was = walking || roaming || pathMode != .none
+        walking = false; roaming = false; pathMode = .none; turboPrev = nil; turboHolding = false; rewinding = false; padVel = .zero
+        say?(was ? "完全停止（Y）" : "止まっている（Y）")
+    }
+    /// 自動走行をやめる（コントローラーの B）
+    func stopAuto() {
+        guard pathMode != .none else { return }
+        pathMode = .none; walking = false; roaming = false; turboPrev = nil; turboHolding = false
+        say?("自動走行を中止しました（B）")
+    }
     /// この向きへ進む（ウェブ版の Enter）：見ている向きを進む向きにする。景色はそのまま、地図の黄色の円すいがなめらかに回って水色に重なる
     func headGoPad() {
         guard abs(cam.hy) > 0.01 || abs(cam.hp) > 0.01 else { return }
@@ -182,7 +251,12 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var padHold = 0.0, padPushWas = false
     /// 自走（歩き続ける）の速さの倍率・巻き戻し中か・巻き戻しの速さ（左スティックの前後で。アクセル・ブレーキ・巻き戻し）
     var autoSpeed = 1.0; private(set) var rewinding = false, rewindSpeed = 0.0
-    private var walkingWas = false, padThrottle = 0.0, padThrSmooth = 0.0
+    private var walkingWas = false, padThrottle = 0.0
+    /// A・B の踏み込み（0〜1）：スティックを倒すように、押すとだんだん入り、離すとだんだん抜ける（ボタンで一瞬カクつかないように）
+    private var aIn = 0.0, bIn = 0.0
+    /// 自動で走る（Y・キーの K・ターボで走り出した時）：アクセルを離しても今の速さを保つ。ブレーキでやめる
+    private(set) var autoCruise = false
+    private var startByA = false, stopping = false
     /// ZL を押している（見回しだけ）。パネルの表示用
     private(set) var padLookOnly = false
     /// ZL を押している間に、右スティックか Y を使ったか（使わずに離したら「前を見る」）
@@ -288,12 +362,12 @@ final class Renderer: NSObject, MTKViewDelegate {
         let big = markBig * (set.grand ? 0.7 : 1.0) / set.uniR    // 絵・色の点の時は玉を大きめに。壮大モードは 7 割。宇宙が大きいほど、本当の大きさは同じなので角度では小さく
         // 模型のモード：極・置いた目印・自分の玉を 3D の模型に（info.z が模型の種類。足あとは玉のまま）
         var nModel = 0
-        func put(_ c: V4, _ col: SIMD3<Float>, _ r: Double, _ pic: String? = nil, planet: Bool = false, model: Bool = false, me: Bool = false) {
+        func put(_ c: V4, _ col: SIMD3<Float>, _ r: Double, _ pic: String? = nil, planet: Bool = false, model: Bool = false, me: Bool = false, own: Int = -1, grow: Bool = false) {
             guard out.count < 64 else { return }
             var kind: Float = -1
-            // 模型の番号（シェーダー）：0 怪獣・1 竜・2 うんこ・3 いぬ・4 ねこ・5 たぬき・6 きつね・7 たこ・8 いか
-            if model && set.mk == 4 { kind = Float(set.modelKind < 3 ? set.modelKind : set.modelKind > 3 ? set.modelKind - 1 : nModel % 9); nModel += 1 }
-            out.append(MkGPU(c: SIMD4<Float>(c), col: SIMD4<Float>(col.x, col.y, col.z, Float(r)), info: SIMD4(planet || kind >= 0 ? -1 : Float(pic.map { PIC.index($0) } ?? -1), planet ? 1 : 0, kind, me ? 1 : 0)))
+            // 模型の番号（シェーダー）：0 怪獣・1 竜・2 うんこ・3 いぬ・4 ねこ・5 たぬき・6 きつね・7 たこ・8 いか。置いた目印は目印ごとの模型（own）
+            if model && set.mk == 4 { kind = Float(own >= 0 ? own : globalKind(nModel)); nModel += 1 }
+            out.append(MkGPU(c: SIMD4<Float>(c), col: SIMD4<Float>(col.x, col.y, col.z, Float(r)), info: SIMD4(planet || kind >= 0 ? -1 : Float(pic.map { PIC.index($0) } ?? -1), planet ? 1 : grow ? -1 : 0, kind, me ? 1 : 0)))   // info.y：1 惑星・−1 宇宙と一緒に大きい目印
         }
         let none = set.mk == 3
         let planets = set.poles && set.polePlanet && set.mk != 1          // 極の惑星（見せ方が「なし」でも出す。絵の時は絵）
@@ -307,26 +381,41 @@ final class Renderer: NSObject, MTKViewDelegate {
                     // 模型のモード：模型が惑星の上に立つ（模型の上＝z の方へ、惑星の半径＋足までの長さだけずらす。シェーダーの modelFrame と同じ向き）
                     if poleModel {
                         let rm = m.r * big, up0 = abs(m.c.z) < 0.9 ? V4(0, 0, 1, 0) : V4(0, 1, 0, 0), U = nrm(up0 - m.c * dot4(up0, m.c)), a = set.planetSize + 0.72 * rm
-                        put(m.c * cos(a) + U * sin(a), m.col, rm, model: true)
+                        put(m.c * cos(a) + U * sin(a), m.col, rm, model: true, own: globalKind(k))   // 極 k の模型（地図の絵と同じ種類）
                     }
-                } else { put(m.c, m.col, m.r * big, PIC.poles[k], model: poleModel) }
+                } else { put(m.c, m.col, m.r * big, PIC.poles[k], model: poleModel, own: poleModel ? globalKind(k) : -1) }
             }
         }
-        if set.marksOn && !none { for (i, p) in journey.marks.enumerated() { put(p, Journey.markColor(i), 0.1 * big, PIC.mark(i), model: set.modelMarks) } }
+        // 置いた目印：宇宙と一緒に大きく（markGrow）なら、極の惑星と同じく宇宙の大きさで小さくしない
+        let markR = 0.1 * (set.markGrow ? big * set.uniR : big)
+        if set.marksOn && !none { for (i, p) in journey.marks.enumerated() { put(p, Journey.markColor(i), markR, PIC.mark(i), model: set.modelMarks, own: markKind(i), grow: set.markGrow) } }
         if set.foot { for p in journey.foot { put(p, [0.8, 0.85, 1], 0.03 * big, PIC.foot) } }
         for m in set.extra where !set.hideLabels.contains(m.label) { put(m.c, m.col, m.r) }
         // ついてくる仲間：自分の後ろ（進む向きの逆）followD の所、同じ向き。info.w ＝ 2 ＋ 距離（シェーダーで体の向きから仲間の向きを作る）
         if set.follower && set.mk == 4 && out.count < 64 {
-            let L = cam.lookFrame().L, d = set.followD, kind = Float(set.modelKind < 3 ? set.modelKind : set.modelKind > 3 ? set.modelKind - 1 : 7)
+            let L = cam.lookFrame().L, d = set.followD, kind = Float(set.modelKind == 3 ? variety[15] : globalKind(0))
             out.append(MkGPU(c: SIMD4<Float>(cam.w.p * cos(d) - L * sin(d)), col: SIMD4<Float>(1, 1, 1, Float(0.2 * set.modelSize)), info: SIMD4(-1, 0, kind, Float(2 + d))))   // 宇宙の大きさで小さくしない
         }
         // デモの模型：置いた時の体の向きで立つ（info.w ＝ 9。向きは Uni の DR・DU・DF）
         if let d = demo, set.mk == 4, out.count < 64 {
             out.append(MkGPU(c: SIMD4<Float>(d.c), col: SIMD4<Float>(1, 1, 1, Float(0.22 * set.modelSize)), info: SIMD4(-1, 0, Float(d.kind), 9)))   // 宇宙の大きさで小さくしない
         }
-        if set.selfBall { put(cam.w.p, [1, 1, 1], (set.mk == 0 ? 0.09 : set.mk == 4 ? 0.2 * set.modelSize : 0.13) / set.uniR, PIC.selfPic, model: set.modelSelf, me: true) }
+        if set.selfBall { put(cam.w.p, [1, 1, 1], (set.mk == 0 ? 0.09 : set.mk == 4 ? 0.2 * set.modelSize : 0.13) / set.uniR, PIC.selfPic, model: set.modelSelf, me: true, own: set.modelSelf ? globalKind(9) : -1) }
         return out
     }
+    /// 模型の名前（シェーダーの番号の順）
+    static let modelNames = ["怪獣", "竜", "うんこ", "いぬ", "ねこ", "たぬき", "きつね", "たこ", "いか"]
+    /// 「いろいろ」の時の模型の並び（起動するたびにランダム。となりどうしは別の種類）
+    var variety: [Int] = Renderer.makeVariety()
+    static func makeVariety() -> [Int] {
+        var out: [Int] = []
+        while out.count < 16 { let k = Int.random(in: 0..<9); if k != out.last { out.append(k) } }
+        return out
+    }
+    /// 極・自分の模型：全体の「模型」（いろいろならランダムの並びの n 番目）
+    func globalKind(_ n: Int) -> Int { set.modelKind == 3 ? variety[n % variety.count] : set.modelKind < 3 ? set.modelKind : set.modelKind - 1 }
+    /// 置いた目印 i の模型（前の版で置いた目印は、全体の「模型」に従う）
+    func markKind(_ i: Int) -> Int { i < journey.markKinds.count && journey.markKinds[i] >= 0 ? journey.markKinds[i] : globalKind(8 + i) }
     func uniforms(width: Int, height: Int) -> Uni {
         let F = cam.viewFrame()
         var u = Uni()
@@ -601,17 +690,33 @@ final class Renderer: NSObject, MTKViewDelegate {
             if journey.trail.count > maxN { journey.trail.removeFirst(journey.trail.count - maxN) }
             if journey.trail2.count > maxN { journey.trail2.removeFirst(journey.trail2.count - maxN) }
         }
+        game.swapSticks = set.padSwap
         if set.turboHold { turboRelease() }
         if set.gridSpin && set.gridSpinRate != 0 { gridSpinAng = (gridSpinAng + dt * 2 * Double.pi * set.gridSpinRate / 60).truncatingRemainder(dividingBy: 2 * Double.pi) }   // 球層の網目の自転
         var sp = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR   // 宇宙が大きいほど、同じ速さで進む角度は小さい
         var mv = SIMD3<Double>(0, 0, 0)
         if roaming { journey.roam(&cam, dt, set.roamK) }
-        if pathMode != .none {                                   // 決まった道：自動で進む（キー・スティックで歩いたらやめる）
-            let manual = keys.contains(where: { [13, 1, 0, 2, 12, 14].contains($0) }) || (set.gamepad && game.read().move != .zero)
+        if pathMode != .none {                                   // 決まった道：自動で進む（キーで歩いたらやめる。コントローラーは B でやめる）
+            let manual = keys.contains(where: { [13, 1, 0, 2, 12, 14].contains($0) })
             if manual { pathMode = .none; say?("決まった道をやめた（歩いた）") }
             else {
-                // 十字の上・下を押し続けると、だんだん速く・遅く（1 秒で 2 倍・半分。最高は自走の最高速まで、いちばん遅くて 0.1 倍）
-                if set.gamepad { let dy = game.dpadY(); if dy != 0 { pathSpeed = max(0.1, min(set.autoMax, pathSpeed * exp(dy * 0.69 * dt))) } }
+                // コントローラー：見回し・前を見る・速さだけ効く（歩く・上下・縦横無尽などは効かない。B で中止。padDuringAuto）
+                //   右スティック 見回し（頭だけ。ZL を押していなくても）、十字の上・下か左スティックの前後を倒し続けると、だんだん速く・遅く
+                //   （1 秒で 2 倍・半分。最高は自走の最高速まで、いちばん遅くて 0.1 倍）
+                if set.gamepad {
+                    let g = game.read(), pg = set.padGame
+                    let lx = g.look.x * (set.padInvX ? -1 : 1), ly = g.look.y * (set.padInvY ? -1 : 1)
+                    let cx = pg ? lx * abs(lx) : lx, cy = pg ? ly * abs(ly) : ly
+                    if cx != 0 || cy != 0 { leveling = false; cam.hy += cx * (pg ? 140 : 90) * dt; cam.hp += cy * (pg ? 100 : 60) * dt }
+                    let dy = max(-1, min(1, g.move.z + (game.held("A") ? 1 : 0)))   // A を押している間・スティックの前後で、だんだん速く・遅く
+                    if dy != 0 { pathSpeed = max(0.1, min(set.autoMax, pathSpeed * exp(dy * 0.69 * dt))) }
+                    padLookOnly = false; padVel = .zero; padMove = .zero
+                }
+                if leveling {                                    // 前を見る（見回しだけ戻す。進む向きは道が決める）
+                    let k = max(0, 1 - dt * 10); cam.hy *= k; cam.hp *= k
+                    if abs(cam.hy) < 0.05 && abs(cam.hp) < 0.05 { cam.hy = 0; cam.hp = 0; leveling = false }
+                }
+                cam.clampAngles(free: set.free360)
                 var ds = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR * pathSpeed
                 // 速い時も道からはずれないよう、0.02 ずつに分けて進む
                 while ds > 1e-12 && pathMode != .none { let h = min(ds, 0.02); if pathMode == .custom { crStep(h) } else if pathMode.isTurn { turnStep(h) } else { pathStep(h) }; ds -= h }
@@ -637,9 +742,18 @@ final class Renderer: NSObject, MTKViewDelegate {
                 cam.az += cx * turnX * dt; cam.el += cy * turnY * dt
             }
             var target = g.move
-            // 自走（歩き続ける）の時は、左スティックの前後はアクセル・ブレーキ・巻き戻し（前後には歩かない。左右は横歩きのまま）
-            padThrottle = walking ? target.z : 0
-            if walking { target.z = 0 }
+            // 自走（歩き続ける）の時は、左スティック（入れかえた時は右）はアクセルとブレーキ・巻き戻しだけ（前後にも左右にも歩かない＝横歩きはしない。
+            //   斜めに倒した時も前後の分だけ効く）。上下（L・R）はそのまま
+            // 手で走る時（A・B で走る。自動・ターボでない時）は、左スティック（入れかえた時は右）は向きの操作（方向キー）：
+            //   左右で左・右へ曲がり、前後で上・下へ向く（右スティックと同じ速さ・反転の設定）。速さは A・B だけ。ZL を押している間は右スティックで見回しのまま
+            let steer = walking && !autoCruise && turboPrev == nil && !stopping
+            if steer {
+                let mx = target.x * (set.padInvX ? -1 : 1), my = target.z * (set.padInvY ? -1 : 1)
+                let sx = game ? mx * abs(mx) : mx, sy = game ? my * abs(my) : my
+                if sx != 0 || sy != 0 { leveling = false; headGoing = false; cam.az += sx * turnX * dt; cam.el += sy * turnY * dt }
+            }
+            padThrottle = walking && !steer ? target.z : 0
+            if walking { target.z = 0; target.x = 0 }
             if game {
                 padVel += (target - padVel) * min(1, dt * 6)
                 if simd_length(padVel) < 0.02 && target == .zero { padVel = .zero }
@@ -661,26 +775,56 @@ final class Renderer: NSObject, MTKViewDelegate {
         } else { padMove = .zero; padVel = .zero; padRun = 1 }
         // 自走の速さ：十字の上下でだんだん速く・遅く（離すとその速さのまま）、左スティックを手前へ倒すとブレーキ、止まってもまだ倒していると軌跡を巻き戻す
         let aLo = max(0, min(set.autoMin, set.autoMax)), aHi = max(aLo, set.autoMax)
-        if walking && !walkingWas { if turboStart { turboStart = false } else { autoSpeed = max(aLo, min(aHi, 1)) }; rewinding = false; rewindSpeed = 0 }
+        // 歩き始め：A で走り出した時は、車のようにゆっくりから（×0.25）。Y（自動）・キーの K・ターボで走り出した時は、自動（記録した速さを保つ）
+        if walking && !walkingWas {
+            if turboStart { turboStart = false; autoCruise = true }
+            else if startByA { turboPrev = nil; autoSpeed = aLo; autoCruise = false }   // A：0 から（いきなり速さを入れない）
+            else {
+                turboPrev = nil; autoSpeed = max(aLo, min(aHi, set.cruise)); autoCruise = true
+            }
+            startByA = false; stopping = false; rewinding = false; rewindSpeed = 0; aIn = 0; bIn = 0
+        }
         walkingWas = walking
         if walking && set.gamepad {
+            // 車のゲームのように（速さの増え方・減り方は、速いほど大きく＋少しの一定分。なめらかに 0 まで）：
+            //   アクセル（A・スティックの前）：押している間だけ加速。離すと、ゆっくり減速して止まる（エンジンブレーキ。自動の時は減速しない＝今の速さを保つ）
+            //   ブレーキ（B・スティックの手前）：押し始めはやわらかく、押し続けるほど強く（B は 0.5 秒で最大）。0 まで、なめらかに減る
+            //   手で走る時（A・B）の最高速は、自動（Y）の半分（autoMax ÷ 2）。アクセル・ブレーキ・離した時の減り方は、どれもゆるやかに（慣性を強めに）
             let th = padThrottle
-            // 十字の上・下を押し続けても、だんだん速く・遅く（決まった道と同じ。1 秒で 2 倍・半分）
-            let dy = game.dpadY(); if dy != 0 && !rewinding { autoSpeed = max(max(aLo, 0.1), min(aHi, autoSpeed * exp(dy * 0.69 * dt))) }
-            // 左スティックの前：ゆるやかなアクセル（倒しきって 1 秒に約 1.6 倍＝2 倍になるのに約 1.5 秒。autoAccelK で強さ）。倒し始めはゆっくり効かせて、急に速くならない。
-            //   左右は横歩き、手前はブレーキ → 止まったら巻き戻し
-            padThrSmooth += (max(0, th) - padThrSmooth) * min(1, dt / 0.6)
-            if th > 0.2 {
-                if rewinding { rewinding = false; rewindSpeed = 0; autoSpeed = max(aLo, 0.3) }
-                autoSpeed = min(aHi, max(autoSpeed, 0.3) * exp(0.6 * set.autoAccelK * padThrSmooth * dt))
-            } else if th < -0.2 {
-                if autoSpeed > aLo + 1e-6 { autoSpeed = max(aLo, autoSpeed - 2.5 * -th * dt * max(1, autoSpeed)) }
-                else if set.autoRewind && aLo < 0.02 {
+            let topHi = autoCruise || turboPrev != nil ? aHi : max(aLo, aHi / 2)   // 手で走る時は、自動の半分まで
+            // A は 0.3 秒、B は 0.5 秒でいっぱいまで入り、離すと 0.2 秒で抜ける（なめらかな S 字で。スティックを倒す・戻すのと同じ）
+            let aT = game.held("A") ? 1.0 : 0.0, bT = game.held("B") ? 1.0 : 0.0
+            aIn = aT > aIn ? min(aT, aIn + dt / 0.3) : max(aT, aIn - dt / 0.2)
+            bIn = bT > bIn ? min(bT, bIn + dt / 0.5) : max(bT, bIn - dt / 0.2)
+            let aE = aIn * aIn * (3 - 2 * aIn), bE = bIn * bIn * (3 - 2 * bIn)
+            let acc = max(aE, th > 0.2 ? th : 0)
+            let brk = max(bE, th < -0.2 ? -th : 0)
+            if brk > 0 {
+                if turboPrev != nil { turboPrev = nil; turboHolding = false }   // ターボ中のブレーキ：ターボの速さから、なめらかに（急に落とさない）
+                // 自動の時は、ブレーキでも自動のまま（遅くした速さを保つ。離しても減速しない。やめるのは Y か、止まるまでブレーキ）
+                autoSpeed = max(0, autoSpeed - (1.6 * autoSpeed + 0.9) * brk * dt)
+                if autoCruise { recordCruise() }
+            }
+            if acc > 0 && brk == 0 {
+                if rewinding { rewinding = false; rewindSpeed = 0 }
+                if turboPrev == nil && autoSpeed < topHi {
+                    // 止まっている所からの走り出しだけ、少し強く（×0.5 まで。0 から出ても遅すぎないように）
+                    let launch = 0.5 * max(0, 1 - autoSpeed / 0.5)
+                    autoSpeed = min(topHi, autoSpeed + (0.5 * set.autoAccelK * autoSpeed + 0.3 + launch) * acc * dt); recordCruise()
+                }
+            } else if brk == 0 && !autoCruise && turboPrev == nil && !stopping {
+                autoSpeed = max(0, autoSpeed - (0.18 * autoSpeed + 0.05) * dt)   // アクセルを離した：ゆるやかに減速（慣性が強め。×1 から止まるまで約 8 秒）
+            }
+            if stopping { autoSpeed = max(0, autoSpeed - (1.4 * autoSpeed + 0.5) * dt) }   // Y で自動をやめた：なめらかに止まる
+            // 止まった（速さがほぼ 0）：巻き戻し（スティックを手前へ倒し続けている時だけ）か、歩くのをやめる
+            if autoSpeed < 0.015 && (brk > 0 || (!autoCruise && acc == 0)) {
+                if th < -0.2 && set.autoRewind && aLo < 0.02 {
                     if !rewinding { say?("巻き戻し：通ってきた軌跡を逆にたどる") }
                     autoSpeed = 0; rewinding = true; rewindSpeed = min(6, rewindSpeed + 1.5 * -th * dt)
-                }
-            } else if rewinding { rewinding = false; rewindSpeed = 0 }
-            autoSpeed = max(aLo, min(aHi, autoSpeed))   // 設定で最高・最低を変えた時も、すぐその間に
+                } else if !rewinding { walking = false; stopping = false; autoSpeed = 0; if brk > 0 { say?("止まった（ブレーキ）") } }
+            } else if rewinding && th >= -0.2 { rewinding = false; rewindSpeed = 0 }
+            autoSpeed = min(aHi, autoSpeed)
+            if aLo > 0.02 && brk > 0 { autoSpeed = max(aLo, autoSpeed) }      // 最低速を決めている時は、ブレーキでもそこまで
             sp *= autoSpeed
         } else { rewinding = false }
         if rewinding { rewindStep(0.9 * set.spd * dt * max(0.3, rewindSpeed) / set.uniR) }
@@ -806,8 +950,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     /// アナ極に戻る（ウェブ版の resetNorth・R キー）。置いた目印は残す
     func resetNorth() {
-        let marks = journey.marks, marks2 = journey.marks2
-        cam = Camera(); journey = Journey(); journey.marks = marks; journey.marks2 = marks2
+        let marks = journey.marks, marks2 = journey.marks2, kinds = journey.markKinds
+        cam = Camera(); journey = Journey(); journey.marks = marks; journey.marks2 = marks2; journey.markKinds = kinds   // 目印の模型の種類も残す
         walking = false; roaming = false; pathMode = .none
     }
     /// 球層の網目の枠 → 世界の xyz の 3×3（行ごと）。M ＝ Rz(向き)·Ry(傾き)·Rz(自転)（ウェブ版の gridM と同じ）
@@ -834,6 +978,12 @@ final class Renderer: NSObject, MTKViewDelegate {
         let held = (turboKey.map { keys.contains($0) } ?? false) || (turboPadHeld && set.gamepad && game.turboButtonHeld())
         if !held { turboHolding = false; turboKey = nil; turboPadHeld = false; turbo() }
     }
+    /// アクセル・十字で合わせた自走の速さを記録する（ターボ中・巻き戻し中は記録しない。ブレーキでの減速も記録しない＝止めても前の速さで再開できる）
+    func recordCruiseNow() { if autoSpeed >= 0.1 && turboPrev == nil { set.cruise = (autoSpeed * 100).rounded() / 100 } }
+    private func recordCruise() {
+        guard turboPrev == nil, !rewinding, autoSpeed >= 0.1 else { return }
+        if abs(set.cruise - autoSpeed) > 0.005 { set.cruise = (autoSpeed * 100).rounded() / 100 }
+    }
     func turbo() {
         let mx = max(1, set.autoMax)
         if pathMode != .none {
@@ -841,7 +991,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             else { turboPrev = pathSpeed; pathSpeed = mx; say?(String(format: "ターボ！ 決まった道を最高速 ×%.0f で", mx)) }
             return
         }
-        if !walking { walking = true; roaming = false; turboPrev = 1; autoSpeed = mx; turboStart = true; say?(String(format: "ターボ！ 最高速 ×%.0f で歩き始めた", mx)); return }
+        if !walking { walking = true; roaming = false; turboPrev = max(0.1, set.cruise); autoSpeed = mx; turboStart = true; say?(String(format: "ターボ！ 最高速 ×%.0f で歩き始めた（やめると記録した ×%.1f に）", mx, max(0.1, set.cruise))); return }
         if let p = turboPrev, autoSpeed >= mx - 1e-6 { autoSpeed = p; turboPrev = nil; say?(String(format: "ターボをやめた（×%.1f）", p)) }
         else { turboPrev = autoSpeed; autoSpeed = mx; say?(String(format: "ターボ！ 最高速 ×%.0f", mx)) }
     }
@@ -895,13 +1045,51 @@ final class Renderer: NSObject, MTKViewDelegate {
             if best == nil || ang < best!.1 { best = (q, ang, d) }
         }
         guard let (q, ang, d) = best, ang < 0.6 else { say?("真ん中のあたりに明るい星が見つからない（宇宙の背景で、星の方を向いて）"); return }
-        journey.marks.append(q); journey.marks2.append(journey.w2.p)
-        say?(String(format: "目印 %d を、真ん中に見える星（距離 %.2f）に置いた。星といっしょに動き、反対側に近づくといっしょに広がって見える", journey.marks.count, d * set.uniR))
+        journey.marks.append(q); journey.marks2.append(journey.w2.p); journey.markKinds.append(nextMarkKind())
+        say?(String(format: "目印 %d を、真ん中に見える星（距離 %.2f）に置いた。星といっしょに動き、反対側に近づくといっしょに広がって見える", journey.marks.count, d * set.uniR) + modelNote())
     }
     /// ここに目印を置く（ウェブ版の addMark・M キー）
     func addMark() {
-        journey.marks.append(cam.w.p); journey.marks2.append(journey.w2.p)
-        say?("目印 \(journey.marks.count) を置いた（ぐるっと回って戻ってくると、また会える）")
+        journey.marks.append(cam.w.p); journey.marks2.append(journey.w2.p); journey.markKinds.append(nextMarkKind())
+        say?("目印 \(journey.marks.count) を置いた（ぐるっと回って戻ってくると、また会える）" + modelNote())
+    }
+    /// 次に置く目印の模型（ランダムの時は、ひとつ前の目印と違う種類から選ぶ）
+    func nextMarkKind() -> Int {
+        if set.markModel >= 0 { return min(8, set.markModel) }
+        var k = Int.random(in: 0..<9); while k == journey.markKinds.last && journey.markKinds.count > 0 { k = Int.random(in: 0..<9) }
+        return k
+    }
+    private func modelNote() -> String { set.mk == 4 && set.modelMarks ? "：" + Renderer.modelNames[markKind(journey.marks.count - 1)] : "" }
+    /// 目印 i を消す（あとの目印の番号・色は 1 つずつ前へ）
+    ///   routes：「自分の道」に、この目印から足した点があれば、それも外す（確かめの時は false）
+    func removeMark(_ i: Int, routes: Bool = true) {
+        guard i < journey.marks.count else { return }
+        let p = journey.marks[i]
+        journey.marks.remove(at: i)
+        if i < journey.marks2.count { journey.marks2.remove(at: i) }
+        if i < journey.markKinds.count { journey.markKinds.remove(at: i) }
+        if routes { let n = RouteStore.shared.removeMarkPoints([p]); if n > 0 { stopRouteAfterRemoval(); say?("目印を消した（自分の道からも \(n) 点外した）") } }
+    }
+    /// 目印を全部消す：置いた目印と、「自分の道」に入っている目印の点、ついてくる仲間、デモの模型（目印のように残って見えるものを全部）
+    func clearMarks() {
+        let ps = journey.marks
+        journey.marks = []; journey.marks2 = []; journey.markKinds = []
+        let n = RouteStore.shared.removeMarkPoints(ps)
+        if n > 0 { stopRouteAfterRemoval() }
+        let fol = set.follower, dem = demo != nil
+        set.follower = false; demo = nil
+        var msg = "目印を全部消した"
+        if n > 0 { msg += "・自分の道から \(n) 点外した" }
+        if fol { msg += "・ついてくる仲間も消した" }
+        if dem { msg += "・デモの模型も消した" }
+        say?(msg)
+    }
+    /// 自分の道を歩いている途中で、その道から点を外した時は止める（点の並びが変わったので）
+    private func stopRouteAfterRemoval() { if pathMode == .custom { pathMode = .none } }
+    /// 目印 i の模型を変える
+    func setMarkKind(_ i: Int, _ k: Int) {
+        while journey.markKinds.count < journey.marks.count { journey.markKinds.append(-1) }
+        if i < journey.markKinds.count { journey.markKinds[i] = k }
     }
 
     // ---- MTKViewDelegate ----
@@ -912,7 +1100,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         step(dt)
         let w = Int(view.drawableSize.width), h = Int(view.drawableSize.height)
         // 動いていない時は描き直さない（前のコマのまま）。止まって 0.3 秒たったら 1 回だけ細かく（描く細かさ 1）描いてから休む
-        let sig = FrameSig(set: set, cam: cam, marks: journey.marks.count, foot: journey.foot.count, w2: journey.w2.p, demo: demo?.c, grid: gridSpinAng, w: w, h: h, edr: edrHead, sceneScale: sceneScale)
+        let sig = FrameSig(set: set, cam: cam, marks: journey.marks.count, kinds: journey.markKinds, foot: journey.foot.count, w2: journey.w2.p, demo: demo?.c, grid: gridSpinAng, w: w, h: h, edr: edrHead, sceneScale: sceneScale)
         if sig != lastSig { lastSig = sig; stillSince = now; refined = false; idle = false }
         else if set.idleReuse {
             if refined { idle = true; if now - fpsT0 >= 0.5 { fpsT0 = now; fpsN = 0; onStats?(self) }; return }
@@ -938,6 +1126,37 @@ final class Renderer: NSObject, MTKViewDelegate {
             gpuLock.lock(); if gpuN > 0 { gpuMs = gpuSum / Double(gpuN) }; gpuSum = 0; gpuN = 0; gpuLock.unlock()
             onStats?(self)
         }
+    }
+
+    // ---- 地図に出す模型の小さな絵：景色と同じ描き方で、東極に置いた模型を斜め前から 1 回だけ描いて覚えておく（暗い背景）----
+    private var thumbs: [Int: CGImage] = [:]
+    /// 東極から距離 d、(w ＋ y)／√2 の向きにずれた所で、東極の方を向いて立つ（上は z）
+    static func nearEast(_ d: Double) -> Walker {
+        let n = V4(0, 1, 0, 1) / 2.0.squareRoot(), p = V4(1, 0, 0, 0) * cos(d) + n * sin(d), f = nrm(V4(1, 0, 0, 0) * sin(d) - n * cos(d)), u = V4(0, 0, 1, 0)
+        var r = V4(0, 1, 0, -1) / 2.0.squareRoot(); r -= p * dot4(r, p); r -= f * dot4(r, f); r = nrm(r)
+        let m = simd_double4x4(rows: [r, u, f, p])
+        if m.determinant < 0 { r = -r }
+        return Walker(p: p, r: r, u: u, f: f)
+    }
+    func modelThumb(_ kind: Int, size: Int = 96) -> CGImage? {
+        if let t = thumbs[kind] { return t }
+        let s0 = set, c0 = cam, d0 = demo, j0 = journey, sc0 = sceneScale
+        defer { set = s0; cam = c0; demo = d0; journey = j0; sceneScale = sc0 }
+        var s = Settings.plain
+        s.mk = 4; s.modelSize = 1; s.shell = false; s.eq = false; s.lite = false; s.circ = false; s.room = false; s.poles = false
+        s.selfBall = false; s.foot = false; s.marksOn = false; s.follower = false; s.fog = 0; s.fade = 0; s.space = true; s.stars = 0; s.band = 0; s.nebula = false
+        s.cine = false; s.glow = 0; s.wireFloor = 0; s.uniL = 0; s.fov = 38
+        set = s; journey = Journey(); sceneScale = 1
+        // 模型は東極に、極の模型と同じ向き（上は z、前はアナ極の方 w）。自分は東極から 0.5、w と y の間から見る（確かめの「斜め前から」と同じ）
+        demo = (V4(1, 0, 0, 0), V4(0, -1, 0, 0), V4(0, 0, 1, 0), V4(0, 0, 0, 1), kind, "")
+        cam = Camera(); cam.w = Renderer.nearEast(0.62); cam.az = 0; cam.el = 0
+        let px = renderOffscreen(width: size, height: size)
+        var b = [UInt8](repeating: 255, count: size * size * 4)
+        for i in 0..<(size * size) { for c in 0..<3 { b[i * 4 + c] = UInt8(max(0, min(255, px[i * 4 + c] * 255))) } }
+        guard let ctx = CGContext(data: &b, width: size, height: size, bitsPerComponent: 8, bytesPerRow: size * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue), let img = ctx.makeImage() else { return nil }
+        thumbs[kind] = img
+        return img
     }
 
     // ---- 画面の外に描いて画素を読む（確かめ・計測用）----
@@ -979,5 +1198,5 @@ final class Renderer: NSObject, MTKViewDelegate {
 // ---- 動いていない時は前のコマを使い回す：景色を決めるものが前のコマと同じかを比べる ----
 extension Settings: Equatable {}
 struct FrameSig: Equatable {
-    var set: Settings, cam: Camera, marks: Int, foot: Int, w2: V3, demo: V4?, grid: Double, w: Int, h: Int, edr: Double, sceneScale: Double
+    var set: Settings, cam: Camera, marks: Int, kinds: [Int], foot: Int, w2: V3, demo: V4?, grid: Double, w: Int, h: Int, edr: Double, sceneScale: Double
 }

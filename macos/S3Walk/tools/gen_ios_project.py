@@ -2,9 +2,9 @@
 #   Mac 版と同じ Sources/S3Walk の共通のファイル（景色・地図・計算）と、iOS/ の画面のファイルを 1 つのアプリにまとめる（iPhone と iPad の両方）
 import os, hashlib
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CORE = ['Cell120', 'Journey', 'Math4', 'Paths', 'Turns', 'Shaders', 'Renderer', 'MapRenderer', 'Atlas', 'GameInput', 'Theme', 'Keymap', 'Dock', 'SearchIndex', 'VirtualPad', 'CornerMap', 'CustomRoute', 'NativeSync', 'SupaConfig']
+CORE = ['Cell120', 'Journey', 'Math4', 'Paths', 'Turns', 'Shaders', 'Renderer', 'MapRenderer', 'Atlas', 'GameInput', 'Theme', 'Keymap', 'Dock', 'SearchIndex', 'VirtualPad', 'CornerMap', 'CustomRoute', 'NativeSync', 'SupaConfig', 'WebLab', 'HyperLab', 'TesseractLab', 'Origami']
 srcs = ['../Sources/S3Walk/%s.swift' % n for n in CORE] + sorted('%s' % f for f in os.listdir(os.path.join(root, 'iOS')) if f.endswith('.swift'))
-res = ['../Fonts/KaTeX_Math-Italic.ttf', 'Assets.xcassets', 'MacLook.plist']   # MacLook.plist：Mac 版で見ている見え方（初めて開いた時と「Mac の見え方に」で読む）
+res = ['../Fonts/KaTeX_Math-Italic.ttf', 'Assets.xcassets', 'MacLook.plist', '../Web']   # MacLook.plist：Mac 版で見ている見え方（初めて開いた時と「Mac の見え方に」で読む）
 def oid(s): return hashlib.md5(s.encode()).hexdigest()[:24].upper()
 P = oid('project'); T = oid('target'); G = oid('group'); PG = oid('products'); APP = oid('app')
 SB = oid('srcphase'); RB = oid('resphase'); FB = oid('fwphase'); CLP = oid('cl-proj'); CLT = oid('cl-target')
@@ -19,6 +19,7 @@ for f in srcs:
 w('\t\t%s = {isa = PBXFileReference; lastKnownFileType = file; path = "%s"; sourceTree = "<group>"; name = "%s"; };\n' % (oid('fr' + res[0]), res[0], os.path.basename(res[0])))
 w('\t\t%s = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "%s"; sourceTree = "<group>"; };\n' % (oid('fr' + res[1]), res[1]))
 w('\t\t%s = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "%s"; sourceTree = "<group>"; };\n' % (oid('fr' + res[2]), res[2]))
+w('\t\t%s = {isa = PBXFileReference; lastKnownFileType = folder; path = "%s"; sourceTree = "<group>"; name = Web; };\n' % (oid('fr' + res[3]), res[3]))   # ウェブ版の数学アプリ（フォルダのまま入れる）
 w('\t\t%s = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "S3WalkiOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };\n' % APP)
 w('\t\t%s = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (\n\t\t\t); runOnlyForDeploymentPostprocessing = 0; };\n' % FB)
 w('\t\t%s = {isa = PBXGroup; children = (\n%s\t\t\t\t%s,\n\t\t\t); sourceTree = "<group>"; };\n' % (G, ''.join('\t\t\t\t%s,\n' % oid('fr' + f) for f in srcs + res), PG))

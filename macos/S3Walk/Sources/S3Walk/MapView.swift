@@ -56,7 +56,7 @@ struct MapPane: NSViewRepresentable {
         let v = MapMTKView(frame: .zero, device: model.r.device)
         v.colorPixelFormat = .rgba16Float; v.colorspace = CGColorSpace(name: CGColorSpace.extendedSRGB)   // EDR：1 より明るい色も出せる
         (v.layer as? CAMetalLayer)?.wantsExtendedDynamicRangeContent = true
-        v.depthStencilPixelFormat = .depth32Float; v.sampleCount = 4
+        v.depthStencilPixelFormat = .invalid; v.sampleCount = 1               // 地図は自分で 2 倍に描いて縮める（MapRenderer.encodeSS）
         v.clearColor = MTLClearColor(red: 0x03 / 255.0, green: 0x07 / 255.0, blue: 0x12 / 255.0, alpha: 1)
         v.preferredFramesPerSecond = 60
         let m = model.renderer(slot)
@@ -72,6 +72,7 @@ struct MapPane: NSViewRepresentable {
         m.onLabels = { [weak labels, weak v] ls in
             labels?.update(ls)
             if let s = v?.window?.backingScaleFactor { m.backingScale = s }
+            m.superSample = m.world.set.quiet ? 1 : 2                     // 静かモードは縮めずにそのまま（軽く）
             // 地図の速さ：ふつうは 60 fps 前後、静かモードは 20 fps
             if let v, let w = v.window { v.preferredFramesPerSecond = { let hz = max(60, w.screen?.maximumFramesPerSecond ?? 60), want = m.world.set.quiet ? 20 : 60; return hz / max(1, hz / want) }() }
         }
@@ -112,6 +113,13 @@ final class LabelLayerView: NSView {
             t.string = l.text
             t.foregroundColor = col
             t.opacity = l.dim ? 0.45 : 1
+            if let img = l.img {                                        // 模型の小さな絵：丸く切って、ふちは目印の色
+                t.isHidden = true; d.isHidden = false; d.contents = img; d.contentsGravity = .resizeAspectFill; d.masksToBounds = true
+                d.backgroundColor = NSColor.black.cgColor; d.borderColor = col; d.opacity = l.dim ? 0.5 : 1
+                d.cornerRadius = l.size / 2; d.frame = CGRect(x: p.x - l.size / 2 + l.dx, y: p.y - l.size / 2, width: l.size, height: l.size)
+                continue
+            }
+            d.contents = nil; d.masksToBounds = false; d.cornerRadius = 5; d.borderColor = NSColor(srgbRed: 8 / 255, green: 12 / 255, blue: 28 / 255, alpha: 0.85).cgColor
             if l.dot {                                                  // 極：直径 10 の色の点（暗いふち）と、右に名前（ウェブ版の mapDots）
                 d.isHidden = false; d.backgroundColor = col; d.opacity = l.dim ? 0.45 : 1
                 d.frame = CGRect(x: p.x - 5, y: p.y - 5, width: 10, height: 10)

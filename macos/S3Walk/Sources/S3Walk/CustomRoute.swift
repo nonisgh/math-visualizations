@@ -70,6 +70,18 @@ final class RouteStore: ObservableObject {
         if routes.isEmpty { routes = [CustomRoute(name: "道 1", pts: [])] }
         sel = routes[min(i, routes.count - 1)].id
     }
+    /// 目印から足した点（名前が「目印」で始まり、場所が同じ）を、全部の道から外す。返り値は外した数
+    func removeMarkPoints(_ marks: [V4]) -> Int {
+        guard !marks.isEmpty else { return 0 }
+        var n = 0, rs = routes
+        for i in rs.indices {
+            let before = rs[i].pts.count
+            rs[i].pts.removeAll { q in q.name.hasPrefix("目印") && q.p.count == 4 && marks.contains { m in abs(m.x - q.p[0]) + abs(m.y - q.p[1]) + abs(m.z - q.p[2]) + abs(m.w - q.p[3]) < 1e-9 } }
+            n += before - rs[i].pts.count
+        }
+        if n > 0 { routes = rs }
+        return n
+    }
     func append(_ p: [Double], _ name: String) {
         guard let i = index, routes[i].pts.count < RouteStore.maxPts else { return }
         routes[i].pts.append(RoutePoint(p: p, name: name))
@@ -431,6 +443,8 @@ struct CustomRoutePanel: View {
     /// 蛍光ペンの黄緑（今向かっている点）
     static let marker = Color(red: 0.84, green: 1.0, blue: 0.18)
     static let axisColors: [Color] = AXIS_RGB.map { Color(red: Double($0.x), green: Double($0.y), blue: Double($0.z)) }
+    /// 目印の名前（模型のモードなら模型の名前も）：「目印 3（たぬき）」
+    static func markName(_ r: Renderer, _ k: Int) -> String { "目印 \(k + 1)" + (r.set.mk == 4 && r.set.modelMarks ? "（" + Renderer.modelNames[r.markKind(k)] + "）" : "") }
 
     var body: some View {
         let r = model.r
@@ -454,9 +468,9 @@ struct CustomRoutePanel: View {
             if let i = store.index {
                 TextField("道の名前", text: Binding(get: { store.routes[i].name }, set: { store.routes[i].name = $0 })).textFieldStyle(.roundedBorder)
                 let pts = store.routes[i].pts
-                if pts.isEmpty { Text("まだ点がない（下の極のボタンか、座標を入れて「この点を足す」）").font(.caption).foregroundStyle(Space.slate) }
+                if pts.isEmpty { Text("まだ点がない（下の極のボタン・置いた目印のボタンか、座標を入れて「この点を足す」）").font(.caption).foregroundStyle(Space.slate) }
                 // 今向かっている点は、蛍光ペンの黄緑で光らせる（歩いている間、0.2 秒ごとに見直す）
-                TimelineView(.periodic(from: .now, by: 0.2)) { _ in
+                TimelineView(.periodic(from: .now, by: r.set.quiet ? 0.5 : 0.2)) { _ in
                     let walking = r.pathMode == .custom && r.cr.routeID == store.routes[i].id
                     let target = walking && r.cr.heading < r.cr.src.count ? r.cr.src[r.cr.heading] : -1
                     VStack(alignment: .leading, spacing: 4) {
@@ -493,6 +507,27 @@ struct CustomRoutePanel: View {
                     }
                 }
                 .controlSize(.small).buttonStyle(.bordered)                // iPad でもボタンとわかるように枠をつける
+                // 置いた目印（押すと最後に足す）。広い宇宙では目印にたどり着きにくいので、道にして往復・巡回できるように
+                let marks = r.journey.marks
+                if !marks.isEmpty { VStack(alignment: .leading, spacing: 4) {
+                    Text("置いた目印").font(.caption).foregroundStyle(Space.slate)
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 4)], alignment: .leading, spacing: 4) {
+                        ForEach(marks.indices, id: \.self) { k in
+                            let c = Journey.markColor(k), name = CustomRoutePanel.markName(r, k)
+                            Button { store.append(Store.arr(marks[k]), name) } label: {
+                                HStack(spacing: 4) {
+                                    Circle().fill(Color(red: Double(c.x), green: Double(c.y), blue: Double(c.z))).frame(width: 9, height: 9)
+                                    Text(name).lineLimit(1)
+                                }
+                            }.disabled(full)
+                        }
+                    }
+                    Button("目印を全部、順に足す（目印めぐり）") {
+                        for k in marks.indices where (store.index.map { store.routes[$0].pts.count } ?? RouteStore.maxPts) < RouteStore.maxPts {
+                            store.append(Store.arr(marks[k]), CustomRoutePanel.markName(r, k))
+                        }
+                    }.disabled(full).help("置いた目印を番号の順に、この道の最後へ足す（16 点まで）。2 つなら往復、3 つ以上なら巡回")
+                }.controlSize(.small).buttonStyle(.bordered) }
                 // 座標を入れる（ウェブ版と同じ：最後に入れた数ほど優先）
                 Text("座標を入れる（x² ＋ y² ＋ z² ＋ w² ＝ 1。最後に入れた数がいちばん優先、まだ入れていない軸は残りを分け合う）")
                     .font(.caption).foregroundStyle(Space.slate).fixedSize(horizontal: false, vertical: true)

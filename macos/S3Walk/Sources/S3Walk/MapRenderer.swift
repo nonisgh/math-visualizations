@@ -40,7 +40,7 @@ struct MV { var p: SIMD4<Float>; var col: SIMD4<Float>; var n = SIMD4<Float>(0, 
 struct MapConfig { var follow: Bool; var range: Int; var xw: Double; var yw: Double; var zw: Double }
 struct MapUni { var view = matrix_identity_float4x4; var proj = matrix_identity_float4x4; var res = SIMD2<Float>(1, 1); var width: Float = 1; var feather: Float = 1; var light = SIMD4<Float>(0, 0, 1, 0); var cmul: Float = 1; var amul: Float = 1; var round: Float = 0; var pad1: Float = 0 }
 /// 名前の札：3 次元の位置・文字・色
-struct MapLabel { var pos: SIMD3<Float>; var text: String; var col: SIMD3<Float>; var size: CGFloat; var bg = false; var dot = false; var dim = false; var axis = false }   // axis：軸の名前（数式の斜体で、窓の中に収める）   // bg：白い丸の上の絵文字（絵のモード）、dot：極の点と名前（ウェブ版の mapDots）、dim：球の奥の側（薄く）
+struct MapLabel { var pos: SIMD3<Float>; var text: String; var col: SIMD3<Float>; var size: CGFloat; var bg = false; var dot = false; var dim = false; var axis = false; var img: CGImage? = nil; var dx: CGFloat = 0 }   // img：模型の小さな絵（模型のモード。丸く切って、ふちは目印の色）、dx：画面の上で横にずらす   // axis：軸の名前（数式の斜体で、窓の中に収める）   // bg：白い丸の上の絵文字（絵のモード）、dot：極の点と名前（ウェブ版の mapDots）、dim：球の奥の側（薄く）
 
 let mapShaderSource = #"""
 #include <metal_stdlib>
@@ -162,6 +162,9 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     var target = SIMD3<Double>(0, 0, 0)
     var onLabels: (([(CGPoint, MapLabel, Bool)]) -> Void)?
     var backingScale: CGFloat = 2
+    /// 縦横この倍の大きさに描いてから縮める（2 ＝ 1 画素に 4 倍のマルチサンプル × 4 ＝ 16 点。線のふちがなめらか）。静かモードは 1
+    var superSample = 2
+    private var ssTex: (ms: MTLTexture, dep: MTLTexture, hi: MTLTexture)?, dsPipe: MTLRenderPipelineState?, dsFmt = MTLPixelFormat.invalid
     var lastCPU = 0.0, lastGPU = 0.0            // 確かめ用：最後に画面の外へ描いた時の CPU・GPU の時間（ミリ秒）
 
     // 動かない線（網目・殻）は、写し方が変わった時だけ作り直す
@@ -389,11 +392,16 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                 let j = i < n ? i : 2 * n - 2 - i, t = Double(j) / Double(max(1, n - 1))
                 if (n - 1 - j) % kst != 0 { continue }                    // 宇宙が大きい段では殻を間引く（赤道の殻はいつも残す）
                 let th = m0 + t * (Double.pi / 2 - m0), wc = (i < n ? 1 : -1) * cos(th)
-                let col = axis ? MapRenderer.axisShellRGB(ax, i, n) : hslF((i < n ? t * 0.5 : 0.8 - t * 0.3) * 360, 0.95, 0.52)
+                let col = axis ? MapRenderer.axisShellRGB(ax, i, n) : MapRenderer.rainbowShell(i, n, t)
                 for (A, B) in MapRenderer.shellPairs(wc, sin(th), GM) { out.append((MapRenderer.axSwap(A, ax), MapRenderer.axSwap(B, ax), col, i < n ? th : Double.pi - th, ax)) }
             }
         }
         shellCache = (key, out); return out
+    }
+    /// レインボーの殻の色（ウェブ版：北は赤 → 水色、南は紫 → 青）。地図は細い線を足し合わせるので、アナ極のそばの小さな殻（赤・朱・橙）が重なってオレンジに見えやすい。
+    ///   そこで北の色の進みを少しだけ遅らせて（t^1.25）、極のそばを赤く保つ。色は濁らせず（彩度 1・明るさ 0.5）
+    static func rainbowShell(_ i: Int, _ n: Int, _ t: Double) -> SIMD3<Float> {
+        return i < n ? hslF(pow(t, 1.25) * 0.5 * 360, 1.0, 0.5) : hslF((0.8 - t * 0.3) * 360, 1.0, 0.5)
     }
     /// 軸色で殻の組が多い時は、足し合わせで白くならないよう 1 本ずつ暗く（ウェブ版の fk）
     var shellFk: Double { shellFams.count > 1 ? 0.75 / Double(shellFams.count) : 1 }
@@ -477,10 +485,64 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
     func draw(in view: MTKView) {
         let tNow = CACurrentMediaTime(); arrowDt = Float(max(0, min(0.1, tNow - arrowT))); arrowT = tNow
-        guard let rpd = view.currentRenderPassDescriptor, let drawable = view.currentDrawable, let cb = queue.makeCommandBuffer() else { return }
-        let placed = encode(cb, rpd, view.colorPixelFormat, view.sampleCount, Double(view.drawableSize.width), Double(view.drawableSize.height))
+        guard let drawable = view.currentDrawable, let cb = queue.makeCommandBuffer() else { return }
+        let placed = encodeSS(cb, into: drawable.texture, fmt: view.colorPixelFormat)
         cb.present(drawable); cb.commit()
         onLabels?(placed)
+    }
+    /// 縦横 superSample 倍の大きさに、4 倍のマルチサンプルで描いて、縮めて target へ（超球の試作の左と同じ方式）。
+    ///   線の太さ・ふちのぼかし・玉の大きさは画面の点で決めているので、描く間だけ backingScale も同じ倍にする（見た目の太さは変わらない）。
+    ///   マルチサンプルの絵と奥行きは GPU の中の小さな記憶（タイル）だけで済ませる（memoryless）
+    func encodeSS(_ cb: MTLCommandBuffer, into target: MTLTexture, fmt: MTLPixelFormat) -> [(CGPoint, MapLabel, Bool)] {
+        let ss = max(1, superSample), W = target.width * ss, H = target.height * ss
+        if ssTex == nil || ssTex!.hi.width != W || ssTex!.hi.height != H || ssTex!.hi.pixelFormat != fmt {
+            var memless = true
+            #if os(macOS)
+            memless = device.supportsFamily(.apple7) || device.supportsFamily(.apple6)
+            #endif
+            func tex(_ f: MTLPixelFormat, ms: Bool) -> MTLTexture? {
+                let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: f, width: W, height: H, mipmapped: false)
+                if ms { d.textureType = .type2DMultisample; d.sampleCount = 4; d.usage = [.renderTarget]; d.storageMode = memless ? .memoryless : .private }
+                else { d.usage = [.renderTarget, .shaderRead]; d.storageMode = .private }
+                return device.makeTexture(descriptor: d)
+            }
+            guard let ms = tex(fmt, ms: true), let dep = tex(.depth32Float, ms: true), let hi = tex(fmt, ms: false) else { return [] }
+            ssTex = (ms, dep, hi)
+        }
+        if dsPipe == nil || dsFmt != fmt {
+            let src = """
+            #include <metal_stdlib>
+            using namespace metal;
+            struct QO { float4 pos [[position]]; float2 uv; };
+            vertex QO dsv(uint vid [[vertex_id]]) { float2 p = float2((vid << 1) & 2, vid & 2); QO o; o.pos = float4(p * 2.0 - 1.0, 0.0, 1.0); o.uv = float2(p.x, 1.0 - p.y); return o; }
+            fragment float4 dsf(QO in [[stage_in]], texture2d<float> t [[texture(0)]], constant float& k [[buffer(0)]]) {
+                constexpr sampler s(filter::linear, address::clamp_to_edge);
+                float2 px = k / float2(t.get_width(), t.get_height());
+                return 0.25 * (t.sample(s, in.uv + float2(-px.x, -px.y)) + t.sample(s, in.uv + float2(px.x, -px.y)) + t.sample(s, in.uv + float2(-px.x, px.y)) + t.sample(s, in.uv + float2(px.x, px.y)));
+            }
+            """
+            guard let lib = try? device.makeLibrary(source: src, options: nil) else { return [] }
+            let d = MTLRenderPipelineDescriptor(); d.vertexFunction = lib.makeFunction(name: "dsv"); d.fragmentFunction = lib.makeFunction(name: "dsf")
+            d.colorAttachments[0].pixelFormat = fmt
+            dsPipe = try? device.makeRenderPipelineState(descriptor: d); dsFmt = fmt
+        }
+        guard let s = ssTex, let dp = dsPipe else { return [] }
+        let rpd = MTLRenderPassDescriptor()
+        rpd.colorAttachments[0].texture = s.ms; rpd.colorAttachments[0].resolveTexture = s.hi
+        rpd.colorAttachments[0].loadAction = .clear; rpd.colorAttachments[0].storeAction = .multisampleResolve
+        rpd.colorAttachments[0].clearColor = MTLClearColor(red: 0x03 / 255.0, green: 0x07 / 255.0, blue: 0x12 / 255.0, alpha: 1)
+        rpd.depthAttachment.texture = s.dep; rpd.depthAttachment.loadAction = .clear; rpd.depthAttachment.storeAction = .dontCare; rpd.depthAttachment.clearDepth = 1
+        let bs = backingScale; backingScale = bs * CGFloat(ss)
+        let placed = encode(cb, rpd, fmt, 4, Double(W), Double(H))
+        backingScale = bs
+        let fp = MTLRenderPassDescriptor()
+        fp.colorAttachments[0].texture = target; fp.colorAttachments[0].loadAction = .dontCare; fp.colorAttachments[0].storeAction = .store
+        if let f = cb.makeRenderCommandEncoder(descriptor: fp) {
+            var k: Float = ss > 1 ? 0.75 : 0                                 // 2 倍：4 点を混ぜる（少し広めに、なめらかに）、1 倍：そのまま写す
+            f.setRenderPipelineState(dp); f.setFragmentTexture(s.hi, index: 0); f.setFragmentBytes(&k, length: 4, index: 0)
+            f.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3); f.endEncoding()
+        }
+        return placed
     }
     /// 画面の外に描く（確かめ用）。戻り値は RGBA 8 ビットと、名前の札の位置
     func renderOffscreen(width: Int, height: Int) -> ([UInt8], [(CGPoint, MapLabel, Bool)]) {
@@ -674,7 +736,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         if slot == 2 { s2Content() } else {
         // 1. 玉（奥行きを書く）：8 つの極・足あと・置いた目印・自分
         var bs: [Ball] = []
-        let picMode = s.mk == 1, none = s.mk == 3
+        let picMode = s.mk == 1, none = s.mk == 3, modelMode = s.mk == 4
         let mk = max(0.3, pow(s.uniR, -0.35))                    // 宇宙が大きい時、地図の玉は見えなくならないよう 1/R ではなく R^−0.35 で小さく（下限 0.3。ウェブ版の mapK）
         func ball(_ p: V4, _ r: Double, _ col: SIMD3<Float>, cap: Double = 2.5, pic: String? = nil) -> SIMD3<Float>? {
             guard let (a, _) = map(p, R) else { return nil }
@@ -687,13 +749,25 @@ final class MapRenderer: NSObject, MTKViewDelegate {
                 if s.hidePair && m.pole && (0..<4).contains(where: { m.c[$0] < -0.5 }) { continue }
                 // ウェブ版と同じ：玉ではなく、画面の上の平らな点と名前（遠近で大きさが変わったりゆがんだりしない）。絵のモードでは絵
                 if picMode { _ = ball(m.c, m.r, m.col, pic: PIC.poles[j]) }
-                else if let (a, _) = map(m.c, R) { labels.append(MapLabel(pos: a, text: MapRenderer.poleName(m), col: world.poleCol(j), size: 10, dot: true)) }
+                else if let (a, _) = map(m.c, R) {
+                    labels.append(MapLabel(pos: a, text: MapRenderer.poleName(m), col: world.poleCol(j), size: 10, dot: true))
+                    // 模型のモード：極の点の上に、その極の模型の小さな絵（景色と同じ種類）
+                    if modelMode && s.modelPoles, let img = world.modelThumb(world.globalKind(j)) {
+                        let sz = CGFloat(24 * min(1.6, kOf(m.c, R)))
+                        labels.append(MapLabel(pos: a, text: "", col: world.poleCol(j), size: sz, img: img, dx: -sz / 2 - 4))   // 点の左に（右の名前に重ならないように）
+                    }
+                }
             }
         }
         if s.foot { for p in j.foot { _ = ball(p, 0.04, [0.8, 0.85, 1], pic: PIC.foot) } }
         if s.marksOn && !none {
             for (i, p) in j.marks.enumerated() {
-                if let a = ball(p, 0.085, Journey.markColor(i), pic: PIC.mark(i)), !picMode { labels.append(MapLabel(pos: a + SIMD3(0, 0, 0.18), text: "\(i + 1)", col: [1, 1, 1], size: 11)) }
+                // 模型のモード：玉の代わりに、その目印の模型の小さな絵（遠近で大きさも。ふちは目印の色）
+                if modelMode && s.modelMarks, let (a, _) = map(p, R), let img = world.modelThumb(world.markKind(i)) {
+                    let sz = CGFloat(30 * min(1.6, kOf(p, R)))
+                    labels.append(MapLabel(pos: a, text: "", col: Journey.markColor(i), size: sz, img: img))
+                    labels.append(MapLabel(pos: a + SIMD3(0, 0, 0.24), text: "\(i + 1)", col: [1, 1, 1], size: 11))
+                } else if let a = ball(p, 0.085, Journey.markColor(i), pic: PIC.mark(i)), !picMode { labels.append(MapLabel(pos: a + SIMD3(0, 0, 0.18), text: "\(i + 1)", col: [1, 1, 1], size: 11)) }
             }
         }
         // デモの模型：地図に「○○はここ」。自分から前へ進む光の道（大円）が、反対側を回って模型の背中に届くのも描く
@@ -719,7 +793,8 @@ final class MapRenderer: NSObject, MTKViewDelegate {
             // EDR で光らせるのは、照らす所だけの時（サーチライト）。全体の時はウェブ版と同じ明るさ（ギラギラしないように）
             let boost = config.range != 0 ? Float(world.edrBoost) : 1
             // 宇宙の時は、レインボーの殻を少し暗く（雰囲気。軸色はそのまま）。深海の時は、もやの明るさに合わせて殻を暗く（景色の暗いもやと調和。もやの明るさ 1 ならウェブ版と同じ）
-            let mood: Float = s.space ? (s.shAxis ? 1 : 0.6) : Float(0.3 + 0.7 * s.hazeK)
+            // 宇宙のレインボーは 0.6 → 0.82 倍に（前は暗すぎて、鮮やかさが落ちて見えた。宇宙の暗さは邪魔しない明るさ）
+            let mood: Float = s.space ? (s.shAxis ? 1 : 0.82) : Float(0.3 + 0.7 * s.hazeK)
             linesBuf(buf, staticCount, MapRenderer.levelWidth[MapRenderer.uniLevel(s)], additive: true, depth: depthRead, cmul: boost * mood * Float(s.mapBright), amul: 1)   // 宇宙が大きい段ほど細い線
         }
 

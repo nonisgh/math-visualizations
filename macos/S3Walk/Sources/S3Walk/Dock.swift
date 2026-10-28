@@ -66,6 +66,51 @@ struct FloatGroup: Codable, Identifiable, Equatable {
     var selected: PanelID
 }
 
+/// 次に置く目印の模型：ランダムか 9 種類から 1 つ（押したものが選ばれる。M キー・「ここに目印を置く」で置く時に使う）
+struct MarkModelChooser: View {
+    @ObservedObject var model: AppModel
+    var body: some View {
+        let r = model.r, sel = r.set.markModel
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach([[-1, 0, 1, 2, 3], [4, 5, 6, 7, 8]], id: \.self) { row in
+                HStack(spacing: 4) {
+                    ForEach(row, id: \.self) { k in
+                        Button(k < 0 ? "ランダム" : Renderer.modelNames[k]) { model.objectWillChange.send(); r.set.markModel = k }
+                            .buttonStyle(.plain).font(.caption)
+                            .padding(.horizontal, 7).padding(.vertical, 3)
+                            .background(sel == k ? Space.sky.opacity(0.85) : Space.chip.opacity(0.9), in: Capsule())
+                            .foregroundStyle(sel == k ? Space.bg : .white)
+                            .overlay(Capsule().stroke(Space.line))
+                    }
+                }
+            }
+        }
+    }
+}
+/// 置いた目印の一覧：番号（目印の色）・模型（あとから変えられる）・1 つずつ消す
+struct PlacedMarks: View {
+    @ObservedObject var model: AppModel
+    var body: some View {
+        let r = model.r
+        VStack(alignment: .leading, spacing: 3) {
+            Text("置いた目印（\(r.journey.marks.count)）").font(.caption.bold()).foregroundStyle(Space.lilac)
+            ForEach(Array(r.journey.marks.indices), id: \.self) { i in
+                HStack(spacing: 6) {
+                    let c = Journey.markColor(i)
+                    Circle().fill(Color(red: Double(c.x), green: Double(c.y), blue: Double(c.z))).frame(width: 10, height: 10)
+                    Text("\(i + 1)").font(.system(size: 11, design: .monospaced)).frame(width: 22, alignment: .leading)
+                    Picker("", selection: Binding(get: { r.markKind(i) }, set: { k in model.objectWillChange.send(); r.setMarkKind(i, k) })) {
+                        ForEach(0..<9, id: \.self) { k in Text(Renderer.modelNames[k]).tag(k) }
+                    }.labelsHidden().pickerStyle(.menu).controlSize(.small).frame(maxWidth: 120)
+                    Spacer(minLength: 2)
+                    Button { model.objectWillChange.send(); r.removeMark(i) } label: { Image(systemName: "xmark.circle") }
+                        .buttonStyle(.plain).foregroundStyle(Space.slate).help("目印 \(i + 1) を消す（あとの目印の番号は 1 つずつ前へ）")
+                }
+            }
+        }
+    }
+}
+
 /// ドックの並び・たたみ・浮いた窓（UserDefaults に保存）
 final class DockState: ObservableObject {
     static let key = "s3walk.dock.v1"
@@ -478,8 +523,11 @@ struct PanelContent: View {
             case .marks:
                 Picker("見せ方" + km.hint(.markStyle), selection: model.b(\.mk)) { Text("玉").tag(0); Text("絵").tag(1); Text("色の点").tag(2); Text("なし").tag(3); Text("模型").tag(4) }.pickerStyle(.segmented)
                 if r.set.mk == 4 {
-                    Picker("模型", selection: model.b(\.modelKind)) {
-                        Text("いろいろ（目印ごとに順に）").tag(3); Divider()
+                    Text("次に置く目印の模型（置くたびに選べる）").font(.caption).foregroundStyle(.secondary)
+                    MarkModelChooser(model: model)
+                    Picker("極と自分の模型", selection: Binding(get: { r.set.modelKind }, set: { v in
+                        model.objectWillChange.send(); if v == 3 { r.variety = Renderer.makeVariety() }; r.set.modelKind = v })) {   // いろいろを選び直すと、並びも引き直す
+                        Text("いろいろ（ランダム）").tag(3); Divider()
                         Text("怪獣").tag(0); Text("タツノオトシゴの竜").tag(1); Text("うんこ").tag(2)
                         Text("いぬ").tag(4); Text("ねこ").tag(5); Text("たぬき").tag(6); Text("きつね").tag(7); Text("たこ").tag(8); Text("いか").tag(9)
                     }.pickerStyle(.menu)
@@ -501,12 +549,33 @@ struct PanelContent: View {
                 Toggle("反対側の相棒を隠す", isOn: model.b(\.hidePair))
                 Toggle("足あと" + km.hint(.foot), isOn: model.b(\.foot))
                 Toggle("置いた目印", isOn: model.b(\.marksOn))
+                if r.set.marksOn {
+                    Toggle("目印も宇宙と一緒に大きく（極の惑星と同じ扱い：宇宙を広くしても小さくならず、もやにも沈まない）", isOn: model.b(\.markGrow)).padding(.leading, 14)
+                        .help("宇宙の膨張と一緒に、目印も大きくなっているという扱い。広い宇宙でも、近づくと大きく見え、反対側を回ってきた像が追い上げてくる。オフなら本当の大きさのまま（宇宙が広いほど点のように小さく、もやで消える）")
+                }
                 Toggle("自分の玉（2π 先に自分の背中）", isOn: model.b(\.selfBall))
                 Toggle("向きの赤い点" + km.hint(.orient), isOn: model.b(\.orient))
                 HStack {
                     Button("ここに目印を置く") { r.addMark(); model.changed() }
                     Button("真ん中の星に置く") { r.markAtStar(); model.changed() }.help("画面の真ん中にいちばん近く見える明るい星に目印（模型のモードなら模型）を置く。星と同じ点なので、星といっしょに動き、反対側に近づくといっしょに広がって見える")
-                    Button("目印を消す") { r.journey.marks = []; r.journey.marks2 = []; model.changed() }.disabled(r.journey.marks.isEmpty)
+                    Button("目印を消す") { r.clearMarks(); model.changed() }.disabled(r.journey.marks.isEmpty && !r.set.follower && r.demo == nil)
+                        .help("置いた目印を全部消す。自分の道に入っている目印の点・ついてくる仲間・デモの模型も一緒に消す")
+                }
+                if !r.journey.marks.isEmpty { PlacedMarks(model: model) }
+                // 目印ではないが、ずっと出ている模型（ついてくる仲間・デモの模型）。「目印を消す」では消えないので、ここで分かるように・消せるように
+                if (r.set.follower && r.set.mk == 4) || r.demo != nil {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("目印とは別に、今出ている模型").font(.caption.bold()).foregroundStyle(Space.amber)
+                        if r.set.follower && r.set.mk == 4 {
+                            HStack { Text("ついてくる仲間（自分の後ろ \(String(format: "%.1f", r.set.followD)) をいつもついてくる）").font(.caption); Spacer(minLength: 4)
+                                Button("消す") { r.set.follower = false; model.changed() } }
+                        }
+                        if let d = r.demo {
+                            HStack { Text("デモの模型（\(d.name)。置いた所にずっと立っている）").font(.caption); Spacer(minLength: 4)
+                                Button("消す") { r.demo = nil; model.changed() } }
+                        }
+                    }
+                    .controlSize(.small).padding(6).background(Space.amber.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
                 }
                 Text("体験（遠回りの光の像）").font(.caption.bold()).foregroundStyle(Space.lilac).padding(.top, 4)
                 HStack {
@@ -642,30 +711,37 @@ struct PanelContent: View {
                 }.disabled(r.set.map2Follow)
             case .mac:
                 Toggle("トラックパッドの触覚（赤道・極で「コツン」、殻ごとに「カチ」）", isOn: model.b(\.haptics))
-                Toggle("画面のゲームパッド（景色の真ん中に、コントローラーと同じボタン）", isOn: $model.showPad)
+                Toggle("画面のゲームパッド（景色の下の方に、コントローラーと同じボタン。⌄ でたたむ）", isOn: $model.showPad)
                 Toggle("ゲームコントローラーで歩く", isOn: model.b(\.gamepad))
                 Toggle("ゲームのような操作（少し倒すとゆっくり・速めに回る・慣性つき）", isOn: model.b(\.padGame))
-                Toggle("右スティックの左右を反転", isOn: model.b(\.padInvX))
-                Toggle("右スティックの上下を反転", isOn: model.b(\.padInvY))
+                Toggle("左右のスティックを入れかえる（右スティックで歩く・左スティックで向き。押し込みも入れかわる）", isOn: model.b(\.padSwap))
+                    .help("ゲームコントローラーと画面のゲームパッドの両方。自動走行の間の速さ（前後）・見回しも、入れかえた方で")
+                Toggle(r.set.padSwap ? "向きを変えるスティック（左）の左右を反転" : "右スティックの左右を反転", isOn: model.b(\.padInvX))
+                Toggle(r.set.padSwap ? "向きを変えるスティック（左）の上下を反転" : "右スティックの上下を反転", isOn: model.b(\.padInvY))
                 row("自走のアクセル", \.autoAccelK, 0.2, 2)
+                HStack {
+                    Text(String(format: "記録した自走の速さ ×%.2f（アクセル・十字で合わせた速さ。止めても・ターボのあとでも、この速さから）", r.set.cruise)).font(.caption).foregroundStyle(Space.slate).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 4)
+                    Button("×1 に戻す") { r.set.cruise = 1; if r.walking { r.autoSpeed = 1 }; model.changed() }.controlSize(.small)
+                }
                 row("自走の最高速（倍）", \.autoMax, 1, 50, "%.1f")
                 Picker("ターボ（Z・A・十字の右）", selection: model.b(\.turboHold)) { Text("押すたびに切りかえ").tag(false); Text("押している間だけ").tag(true) }.pickerStyle(.segmented)
                 row("自走の最低速（倍）", \.autoMin, 0, 10, "%.1f")
                 note("ブレーキで落とすのは最低速まで。0 なら止まって、まだ手前へ倒していると巻き戻し（最低速が 0 より大きい時は巻き戻さない）")
                 Toggle("自走で手前へ倒し続けると巻き戻し", isOn: model.b(\.autoRewind))
-                note("歩き続ける（コントローラーの B）の時：十字の上・下を押し続けるとだんだん速く・遅く（1 秒で 2 倍・半分、離すとその速さのまま）。左スティックの前もアクセル（ブレーキの 0.8 倍くらいの強さ、倒し始めはゆっくり）、左右は横歩き、手前へ倒すとブレーキ、止まってもまだ倒していると通ってきた軌跡を逆にたどる（倒し続けるほど速く）")
+                note("車のゲームのように：A アクセル（押している間だけ加速。止まっていれば、0 からゆっくり走り出す）。A・B はスティックを倒すように、押すとだんだん効き始め、離すとだんだん抜ける（一瞬カクつかない）。手で走る時の最高速は、自動の半分。アクセルを離すと、急に止まらずにゆるやかに減速して（慣性が強め。×1 から約 8 秒）、やがて止まる。B ブレーキ（押し始めはやわらかく、押し続けるほど強く。×1 からなら約 0.8 秒で止まる。ターボ中でも急に落とさず、その速さからなめらかに）。Y 自動で走るの開始・停止（記録した速さで走り出し、アクセルを離しても速さを保つ。自動の間は、アクセルを離しても減速しない。A で速く・B で遅くすると、その速さを保って記録（B で止まりきると、自動も終わる）。もう一度 Y で、なめらかに止まる）。X・十字の右 ターボの切りかえ、十字の上 ターボ、下 ターボを切る。左スティック（入れかえた時は右）：手で走る時（A・B）は向きの操作（方向キー。左右で曲がり、前後で上・下を向く）。自動・ターボの時は前後がアクセル（倒した分だけ）とブレーキで、止まってもまだ手前へ倒していると、通ってきた軌跡を逆にたどる（左右は効かない）")
                 if !r.game.names.isEmpty {
-                    TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+                    TimelineView(.periodic(from: .now, by: r.set.quiet ? 0.5 : 0.1)) { _ in
                         note("押しているボタン：" + r.game.pressedNames() + (r.padLookOnly ? "（見回しだけ）" : ""))
                     }
                 }
                 note(r.game.names.isEmpty ? "コントローラー：つながっていない（Joy-Con などを Bluetooth でつなぐと使える）" : "コントローラー：" + r.game.names.joined(separator: "・"))
-                note("右スティック 進む向き・ZL＋右スティック 見回しだけ（地図は回らず水色の円すい。ZL を押して離すだけで前を見る）・左スティック 進む向きへ歩く・Y 前を見る（進む向きは変えない）・ZL＋Y この向きへ進む（Enter）・右スティック押し込み 前を見る（もう一度で水平）・左スティック押し込み（L3） 軌跡を消す・L/R 上下・ZR 速く・A ターボ・B 歩き続ける・X 縦横無尽・十字の上下 殻の見える距離（歩き続ける・決まった道の間は、押し続けて速く・遅く）・十字の右 ターボ（いきなり最高速、もう一度で戻る）・＋ 設定・− 地図を出す・隠す")
+                note("右スティック 進む向き・ZL＋右スティック 見回しだけ（地図は回らず水色の円すい。ZL を押して離すだけで前を見る）・左スティック 進む向きへ歩く・Y 自動で走るの開始・停止・ZL＋Y この向きへ進む（Enter）・右スティック押し込み 前を見る（もう一度で水平）・左スティック押し込み（L3） 軌跡を消す・L/R 上下・ZR 速く・A アクセル・B ブレーキ・X ターボ・十字の上 ターボ・下 ターボを切る・右 ターボの切りかえ・＋ 設定・− 地図を出す・隠す。自動走行（螺旋・回る輪・ターン・極めぐり・自分の道）の間は、右スティック 見回し・左スティックの前後と十字の上下 速さ・ZR（R2）・Y・R3 前を見る（見回しを戻す）・A と十字の右 ターボ・B 中止（ほかの歩くボタンは効かない）")
             case .screen:
                 Toggle("静かモード（ファンを回さない：景色 30 fps・地図 20 fps・描く細かさを下げる。画質は後回し）", isOn: model.b(\.quiet))
                 if r.set.quiet {
                     row("画質（小さいほど静か）", \.quietScale, 0.25, 0.7, "%.2f").padding(.leading, 14)
-                    note(String(format: "画質の数は描く細かさ：小さいほど粗くて軽く静か、大きいほどきれいで重い。M1 Max の見積もり：30 fps・画質 %.2f で GPU の使用は約 %.0f%%（0.4 で約 2 割、0.5 で約 3 割。ふつうの 60 fps・0.9 では足りずに全力）。止まっている時は描き直さない", r.set.quietScale, 19 * pow(r.set.quietScale / 0.4, 2))).padding(.leading, 14)
+                    note(String(format: "画質の数は描く細かさ：小さいほど粗くて軽く静か、大きいほどきれいで重い。M1 Max の見積もり：30 fps・画質 %.2f で GPU の使用は約 %.0f%%（0.4 で約 2 割、0.5 で約 3 割。ふつうの 60 fps・0.9 では足りずに全力）。4 方向レインボー・軸色の球層は重いので、自動で画質を 0.78 倍に（今 %.2f）。止まっている時は描き直さない", r.set.quietScale, 19 * pow(r.set.quietScale / 0.4, 2), r.set.quietScaleEff)).padding(.leading, 14)
                 }
                 Toggle("60 fps 前後（144Hz の画面では 72）" + km.hint(.fps), isOn: model.b(\.fps60))
                 Toggle("足りない時だけ細かさを下げる", isOn: model.b(\.autoQ))

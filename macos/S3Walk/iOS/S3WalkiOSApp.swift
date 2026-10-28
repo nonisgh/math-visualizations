@@ -28,9 +28,12 @@ final class MobileModel: ObservableObject {
     func renderer(_ slot: Int) -> MapRenderer { slot == 0 ? mapRenderer : slot == 1 ? mapRenderer2 : s2Renderer }
     @Published var notice = ""
     @Published var showPanel = false
+    @Published var showWeb = false                 // ウェブ版の数学アプリの一覧（シート）
+    @Published var askProto = false                // 試作を選ぶ
+    @Published var proto: String? = nil            // 開いている試作（hyper・tess）
     @Published var mapMode: MapMode = .docked
     @Published var hudText = ""
-    /// 画面のゲームパッド（景色の真ん中に出す）
+    /// 画面のゲームパッド（景色の下の方に出す）
     @Published var showPad = false { didSet { if showPad { r.set.gamepad = true } else { r.game.vClear() } } }
     /// パネルの大きさ（Mac 版のパネルを縮めて入れる。1 で Mac と同じ大きさ）
     @Published var uiScale: Double = UserDefaults.standard.object(forKey: "s3walk.ios.uiScale") as? Double ?? (UIDevice.current.userInterfaceIdiom == .pad ? 0.85 : 0.8) {
@@ -51,6 +54,7 @@ final class MobileModel: ObservableObject {
         r.set.scale = 0.7                                      // 描く細かさは粗めから（足りていれば自動で細かくなる）
         if let s = UserDefaults.standard.string(forKey: "s3walk.mapMode"), let m = MapMode(rawValue: s == "floating" ? "corner" : s) { mapMode = m }
         else if UIDevice.current.userInterfaceIdiom == .phone { mapMode = .corner }
+        NativeSync.applyMapViews(maps, UserDefaults.standard.array(forKey: NativeSync.mapViewsKey))   // 地図の向き（前に回したまま）
         r.say = { [weak self] m in DispatchQueue.main.async { self?.say(m) } }
         r.onPad = { [weak self] k in self?.pad(k) }
         r.onStats = { [weak self] r in
@@ -60,26 +64,31 @@ final class MobileModel: ObservableObject {
         }
         setupSync()
     }
-    /// 同期（Supabase、NativeSync.swift）：共通の状態に、iPad・iPhone の画面の構成（パネルの並び・地図の置き方・パネルの大きさ・ゲームパッド）を足す
+    /// 同期（Supabase、NativeSync.swift）：共通の状態（と地図の向き）に、iPad か iPhone の画面の構成（パネルの並び・地図の置き方・パネルの大きさ・ゲームパッド・
+    ///   静かモード）を足す。iPad どうし・iPhone どうしでそろう（iPad と iPhone は画面が違うので別々）
     func setupSync() {
         let sy = NativeSync.shared
         sy.core = { [weak self] in
             guard let self else { return [:] }
             var d = NativeSync.commonCore(self.r)
-            d["ui_ios"] = ["dock": self.dock.export(), "mapMode": self.mapMode.rawValue, "uiScale": self.uiScale, "showPad": self.showPad] as [String: Any]
+            d["maps"] = NativeSync.mapViews(self.maps)
+            d[NativeSync.uiKey] = ["dock": self.dock.export(), "mapMode": self.mapMode.rawValue, "uiScale": self.uiScale, "showPad": self.showPad,
+                                   "set": NativeSync.kindSettings(self.r)] as [String: Any]
             return d
         }
         sy.position = { [weak self] in self.map { NativeSync.position($0.r) } ?? [:] }
         sy.apply = { [weak self] d, withPos in
             guard let self else { return }
             NativeSync.applyCommon(self.r, d, withPos)
-            self.r.set.gamepad = true
-            if let u = d["ui_ios"] as? [String: Any] {
+            NativeSync.applyMapViews(self.maps, d["maps"])
+            if let u = NativeSync.ui(d) {
+                NativeSync.applyKind(self.r, u)
                 if let k = u["dock"] as? [String: Any] { var k2 = k; k2["floating"] = nil; self.dock.load(k2) }
                 if let m = (u["mapMode"] as? String).flatMap(MapMode.init(rawValue:)) { self.setMap(m) }
                 if let v = u["uiScale"] as? Double, v != self.uiScale { self.uiScale = v }
                 if let v = u["showPad"] as? Bool, v != self.showPad { self.showPad = v }
             }
+            self.r.set.gamepad = true
             self.applyScale(); self.save(); self.changed()
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { sy.start() }
@@ -94,7 +103,7 @@ final class MobileModel: ObservableObject {
     func say(_ m: String) { notice = m; noticeT = CACurrentMediaTime(); let t = noticeT; DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in if self?.noticeT == t { self?.notice = "" } } }
     /// パネルの部品と設定をつなぐ（Mac 版の AppModel と同じ）
     func b<T>(_ kp: WritableKeyPath<Settings, T>) -> Binding<T> {
-        Binding(get: { self.r.set[keyPath: kp] }, set: { self.objectWillChange.send(); self.r.set[keyPath: kp] = $0; let k = kp as AnyKeyPath; if k == \Settings.scale || k == \Settings.cine || k == \Settings.fps60 || k == \Settings.quiet || k == \Settings.quietScale { self.applyScale() } })
+        Binding(get: { self.r.set[keyPath: kp] }, set: { self.objectWillChange.send(); self.r.set[keyPath: kp] = $0; let k = kp as AnyKeyPath; if k == \Settings.scale || k == \Settings.cine || k == \Settings.fps60 || k == \Settings.quiet || k == \Settings.quietScale || k == \Settings.rainbow4 || k == \Settings.shAxis || k == \Settings.shell { self.applyScale() } })
     }
     func rb<T>(_ kp: ReferenceWritableKeyPath<Renderer, T>) -> Binding<T> {
         Binding(get: { self.r[keyPath: kp] }, set: { self.objectWillChange.send(); self.r[keyPath: kp] = $0 })
@@ -104,11 +113,16 @@ final class MobileModel: ObservableObject {
     func save() {
         let snap = Store.snapshot(r), key = "\(snap)"
         if key != lastSaved { lastSaved = key; UserDefaults.standard.set(snap, forKey: Store.key) }
+        let v = NativeSync.mapViews(maps), k = NativeSync.json(v)                 // 地図の向き（前に回したまま）
+        if k != lastMapViews { lastMapViews = k; UserDefaults.standard.set(v, forKey: NativeSync.mapViewsKey) }
     }
+    private var lastMapViews = ""
+    /// 地図 1・2・S² の仲間（地図の向きの同期・保存）
+    var maps: [MapRenderer] { [mapRenderer, mapRenderer2, s2Renderer] }
     /// 描く細かさ：映画のような光の時は景色だけ粗く（星と仕上げは画面の細かさ）、それ以外は画面ごと粗く（Mac 版の applyScale と同じ）
     func applyScale() {
         guard let v = sceneView else { return }
-        let sc = r.set.quiet ? r.set.quietScale : r.set.scale, screen = v.window?.screen.scale ?? UIScreen.main.scale
+        let sc = r.set.quiet ? r.set.quietScaleEff : r.set.scale, screen = v.window?.screen.scale ?? UIScreen.main.scale
         r.sceneScale = r.set.cine ? sc : 1
         let cs = r.set.cine ? screen : screen * sc
         if abs(v.contentScaleFactor - cs) > 0.001 { v.contentScaleFactor = cs }
@@ -136,15 +150,11 @@ final class MobileModel: ObservableObject {
     }
     /// コントローラーのボタン（Mac 版と同じ）
     func pad(_ k: String) {
+        if r.padDuringAuto(k) { changed(); return }                 // 自動走行の間：B 中止・Y 前を見る・十字の上下 ターボ入・切（Renderer）
+        if r.padWalk(k) { changed(); return }                       // A アクセル・B ブレーキ・十字の上 ターボ入・下 ターボ切・右 ターボの切りかえ（Renderer。Mac 版と同じ）
         switch k {
-        case "A", "right": r.turboPress(pad: true)
-        case "B": r.walking.toggle(); r.roaming = false
-        case "X": r.roaming.toggle(); r.walking = false
-        case "Y": r.padY()
         case "R3": r.levelView()
-        // 十字の上下：止まっている時は殻の見える距離（歩き続ける・決まった道の間は速さ。Mac 版と同じ）
-        case "up": if r.pathMode == .none && !r.walking { r.set.shellRange = min(25.15, r.set.shellRange + 0.5); say(String(format: "殻の見える距離 %.1f", r.set.shellRange)) }
-        case "down": if r.pathMode == .none && !r.walking { r.set.shellRange = max(0.3, r.set.shellRange - 0.5); say(String(format: "殻の見える距離 %.1f", r.set.shellRange)) }
+        case "ZR": break                                          // ZR はふだん「押している間だけ速く」（毎コマ読む）。自動走行の間だけ前を見る
         case "menu": showPanel.toggle(); say(showPanel ? "設定を開いた（＋）" : "設定を閉じた（＋）")
         case "options":                                       // −：地図を隠す・前の置き方（すみ・並べる）で出す
             if mapMode == .hidden { setMap(lastShownMap); say(lastShownMap == .corner ? "地図をすみに出した（−）" : "地図を並べた（−）") }

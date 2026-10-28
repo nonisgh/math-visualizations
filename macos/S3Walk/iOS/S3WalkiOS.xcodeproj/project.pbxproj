@@ -24,11 +24,16 @@
 		2F08BFFCCD180BEFAB68EE92 = {isa = PBXBuildFile; fileRef = FC4452262653CB41897DBCEA; };
 		7123F8C1F9AF7FAF4F0555DF = {isa = PBXBuildFile; fileRef = 93E8DCA5B4CA5194D70F649E; };
 		B03D7934EDCC132E3AB4583B = {isa = PBXBuildFile; fileRef = B2B7F7B0BFD877C798D6EA82; };
+		34C298991127BA3E35343C96 = {isa = PBXBuildFile; fileRef = 5EBDB1BC360DC6E0B5130506; };
+		C37D946ACC5C473DCD40B312 = {isa = PBXBuildFile; fileRef = 330B099344C91EE1594B9AD6; };
+		018017F331A5F34C35D7307A = {isa = PBXBuildFile; fileRef = 71157E0343BDDC363491DA39; };
+		CFD60C5E7AF8F99F9EFE8B33 = {isa = PBXBuildFile; fileRef = B0F297DA5DD3A2015A7CC456; };
 		5155E2EE55FDFE25DFAC19A1 = {isa = PBXBuildFile; fileRef = 1FAC72C051C286EA92978499; };
 		0959BF28527B48A0B42E0852 = {isa = PBXBuildFile; fileRef = C80F26271FCA629F2CA125D3; };
 		ECC1C8F72EAC73CA94D7592E = {isa = PBXBuildFile; fileRef = 4FB2A1B2E2341710F59ACF10; };
 		121B2F4179DFD18DB91D6010 = {isa = PBXBuildFile; fileRef = 42D35BC73752536E532BE199; };
 		AA8D65C474F32928A067F747 = {isa = PBXBuildFile; fileRef = 2C61AA303D7F4F41186461F1; };
+		DAC78C1CD619D19B417DDF6D = {isa = PBXBuildFile; fileRef = 4B9E4E8C9AB41411BAEB523A; };
 		C873FB31A18A1DF5588561E6 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Cell120.swift"; sourceTree = "<group>"; name = "Cell120.swift"; };
 		81FAC5DA92A7727D1F36E016 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Journey.swift"; sourceTree = "<group>"; name = "Journey.swift"; };
 		2E50A7CD8B1A90768ABD914C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Math4.swift"; sourceTree = "<group>"; name = "Math4.swift"; };
@@ -48,11 +53,16 @@
 		FC4452262653CB41897DBCEA = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/CustomRoute.swift"; sourceTree = "<group>"; name = "CustomRoute.swift"; };
 		93E8DCA5B4CA5194D70F649E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/NativeSync.swift"; sourceTree = "<group>"; name = "NativeSync.swift"; };
 		B2B7F7B0BFD877C798D6EA82 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/SupaConfig.swift"; sourceTree = "<group>"; name = "SupaConfig.swift"; };
+		5EBDB1BC360DC6E0B5130506 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/WebLab.swift"; sourceTree = "<group>"; name = "WebLab.swift"; };
+		330B099344C91EE1594B9AD6 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLab.swift"; sourceTree = "<group>"; name = "HyperLab.swift"; };
+		71157E0343BDDC363491DA39 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/TesseractLab.swift"; sourceTree = "<group>"; name = "TesseractLab.swift"; };
+		B0F297DA5DD3A2015A7CC456 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Origami.swift"; sourceTree = "<group>"; name = "Origami.swift"; };
 		1FAC72C051C286EA92978499 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MobileViews.swift"; sourceTree = "<group>"; name = "MobileViews.swift"; };
 		C80F26271FCA629F2CA125D3 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "S3WalkiOSApp.swift"; sourceTree = "<group>"; name = "S3WalkiOSApp.swift"; };
 		4FB2A1B2E2341710F59ACF10 = {isa = PBXFileReference; lastKnownFileType = file; path = "../Fonts/KaTeX_Math-Italic.ttf"; sourceTree = "<group>"; name = "KaTeX_Math-Italic.ttf"; };
 		42D35BC73752536E532BE199 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets.xcassets"; sourceTree = "<group>"; };
 		2C61AA303D7F4F41186461F1 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "MacLook.plist"; sourceTree = "<group>"; };
+		4B9E4E8C9AB41411BAEB523A = {isa = PBXFileReference; lastKnownFileType = folder; path = "../Web"; sourceTree = "<group>"; name = Web; };
 		D2A57DC1D883FD21FB995169 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "S3WalkiOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		DAF6AA633395B1B76148E35B = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (
 			); runOnlyForDeploymentPostprocessing = 0; };
@@ -76,11 +86,16 @@
 				FC4452262653CB41897DBCEA,
 				93E8DCA5B4CA5194D70F649E,
 				B2B7F7B0BFD877C798D6EA82,
+				5EBDB1BC360DC6E0B5130506,
+				330B099344C91EE1594B9AD6,
+				71157E0343BDDC363491DA39,
+				B0F297DA5DD3A2015A7CC456,
 				1FAC72C051C286EA92978499,
 				C80F26271FCA629F2CA125D3,
 				4FB2A1B2E2341710F59ACF10,
 				42D35BC73752536E532BE199,
 				2C61AA303D7F4F41186461F1,
+				4B9E4E8C9AB41411BAEB523A,
 				86024CAD1E83101D97359D73,
 			); sourceTree = "<group>"; };
 		86024CAD1E83101D97359D73 = {isa = PBXGroup; children = (
@@ -100,6 +115,7 @@
 				ECC1C8F72EAC73CA94D7592E,
 				121B2F4179DFD18DB91D6010,
 				AA8D65C474F32928A067F747,
+				DAC78C1CD619D19B417DDF6D,
 			); runOnlyForDeploymentPostprocessing = 0; };
 		0F78FE532035D122ED352DBA = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
 				4AFB7FD2ECF4F7A505FB6B4C,
@@ -121,6 +137,10 @@
 				2F08BFFCCD180BEFAB68EE92,
 				7123F8C1F9AF7FAF4F0555DF,
 				B03D7934EDCC132E3AB4583B,
+				34C298991127BA3E35343C96,
+				C37D946ACC5C473DCD40B312,
+				018017F331A5F34C35D7307A,
+				CFD60C5E7AF8F99F9EFE8B33,
 				5155E2EE55FDFE25DFAC19A1,
 				0959BF28527B48A0B42E0852,
 			); runOnlyForDeploymentPostprocessing = 0; };

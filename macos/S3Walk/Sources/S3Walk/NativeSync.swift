@@ -1,9 +1,10 @@
 // 設定の同期（Supabase）：Mac 版と iPad・iPhone 版で、ほぼ全部の状態をそろえる。ウェブ版と同じ表 mathviz_state・同じログイン（メールとパスワード）で、行は別（app ＝ s3walk-native）。
 //   起動したら（ログインしてあれば）まず読む。前の同期の後に Supabase 側が変わっていれば、手元を「控え」に取ってから Supabase の設定にそろえる。
 //   Supabase 側が変わっていなくて手元だけ変わっていれば（オフラインで変えた分など）、手元を上げる。読み込みが済むまでは自動で上げない。
-//   そろえるもの：設定の値・自分の道・キー・ゲームパッドの大きさなど（どの端末も共通）、画面の構成（パネルの並び・地図の置き方など。Mac 同士・iPad／iPhone 同士で別々）、
-//   今いる所と目印（起動した時の読み込みでそろえる。動いている間に、ほかの端末の位置は当てない＝歩いている途中で飛ばない）。描く細かさと歩いた跡はそろえない
-//   変えたら 3 秒ほどで上げる（今いる所だけが変わった時は 15 秒ごと）。20 秒ごとにほかの端末の変更を見に行く。控えは 10 個まで（パネルから戻せる）
+//   そろえるもの：設定の値・自分の道・キー・地図の向き・ゲームパッドの大きさなど（どの端末も共通）、
+//   画面の構成（パネルの並び・浮いた窓・地図の置き方・窓の大きさ・静かモードなど。Mac どうし・iPad どうし・iPhone どうしで別々）。
+//   今いる所・向き・目印・歩いているか・決まった道は端末ごと（そろえない）。描く細かさ（自動で変わる）と歩いた跡もそろえない
+//   変えたら 3 秒ほどで上げる。20 秒ごとにほかの端末の変更を見に行く。控えは 10 個まで（パネルから戻せる）
 import SwiftUI
 import Security
 
@@ -12,15 +13,19 @@ final class NativeSync: ObservableObject {
     #if os(macOS)
     static let platform = "mac"
     #else
-    static let platform = "ios"
+    static let platform = UIDevice.current.userInterfaceIdiom == .phone ? "iphone" : "ipad"   // iPad と iPhone は画面の構成が違うので別々（前は 2 つで ui_ios）
     #endif
+    /// この種類の端末の画面の構成のキー（ui_mac・ui_ipad・ui_iphone）
+    static var uiKey: String { "ui_" + platform }
+    /// この種類の端末の画面の構成を読む（iPad・iPhone で、まだ自分の分が無ければ前の共通の ui_ios）
+    static func ui(_ d: [String: Any]) -> [String: Any]? { d[uiKey] as? [String: Any] ?? (platform == "mac" ? nil : d["ui_ios"] as? [String: Any]) }
 
     // ---- アプリとのつなぎ（AppModel・MobileModel が決める）----
     /// どの端末でも共通の状態（今いる所は入れない）
     var core: () -> [String: Any] = { [:] }
-    /// 今いる所・向き・目印
+    /// 今いる所・向き・目印（控えにだけ入れる。Supabase には上げない）
     var position: () -> [String: Any] = { [:] }
-    /// Supabase（か控え）の状態を当てる。withPosition：今いる所も当てる
+    /// Supabase（か控え）の状態を当てる。withPosition：今いる所も当てる（手元の控えに戻す時だけ）
     var apply: ([String: Any], Bool) -> Void = { _, _ in }
 
     // ---- 見える状態 ----
@@ -37,9 +42,8 @@ final class NativeSync: ObservableObject {
     private var userId = "", access = "", expiresAt = 0.0
     private var lastSynced: Int64 = 0          // そろえた Supabase の saved_at
     private var baseline = ""                  // そろえた時の共通の状態（JSON）
-    private var lastPos = "", lastPosUp = 0.0
     private var ready = false                  // 起動した時の読み込みが済んだ
-    private var foreign: [String: Any] = [:]   // ほかの種類の端末の画面の構成（ui_mac か ui_ios）。上げる時にそのまま残す
+    private var foreign: [String: Any] = [:]   // ほかの種類の端末の画面の構成（ui_mac・ui_ipad・ui_iphone など）。上げる時にそのまま残す
     private var busy = false, lastPull = 0.0
     let device: String
     private var timer: Timer?
@@ -69,16 +73,39 @@ final class NativeSync: ObservableObject {
     /// Supabase の状態を、この端末の分（共通・自分の種類の画面の構成）と、ほかの種類の端末の画面の構成に分ける（今いる所 pos は外す）
     static func split(_ d: [String: Any]) -> (own: [String: Any], foreign: [String: Any]) {
         var own: [String: Any] = [:], fo: [String: Any] = [:]
-        for (k, v) in d where k != "pos" { if k.hasPrefix("ui_") && k != "ui_" + platform { fo[k] = v } else { own[k] = v } }
+        for (k, v) in d where k != "pos" { if k.hasPrefix("ui_") && k != uiKey { fo[k] = v } else { own[k] = v } }
         return (own, fo)
     }
-    // ---- 共通の状態（Mac 版と iPad・iPhone 版で同じ）：設定の値（描く細かさは外す）・自分の道・キー・ゲームパッドの大きさ・座標の簡易入力 ----
+    // ---- 共通の状態（Mac 版と iPad・iPhone 版で同じ）：設定の値（描く細かさは外す）・自分の道・キー・ゲームパッドの大きさとたたみ・座標の簡易入力 ----
+    //   （地図の向きは maps で、アプリの側が足す）
     static func commonCore(_ r: Renderer) -> [String: Any] {
-        var s = r.set.dict(); s["scale"] = nil; s["gamepad"] = nil
-        s["quiet"] = nil; s["quietScale"] = nil                     // 静かモードは端末ごと（Mac はファン、iPad は電池）
+        var s = r.set.dict()
+        for k in perDeviceKind { s[k] = nil }
         let ud = UserDefaults.standard
         return ["set": s, "routes": RouteStore.shared.export(), "keys": Keymap.shared.export(),
-                "prefs": ["padScale": ud.object(forKey: "s3walk.vpad.scale") as? Double ?? 1.0, "coordSimple": ud.object(forKey: "s3walk.coord.simple") as? Bool ?? true]]
+                "prefs": ["padScale": ud.object(forKey: "s3walk.vpad.scale") as? Double ?? 1.0, "padFolded": ud.bool(forKey: "s3walk.vpad.folded"),
+                          "coordSimple": ud.object(forKey: "s3walk.coord.simple") as? Bool ?? true]]
+    }
+    /// 設定の値のうち、種類の端末ごと（ui_mac などに入れる）：静かモード（Mac はファン、iPad は電池）・コントローラーで歩く（iPad・iPhone はいつもオン）。
+    ///   描く細かさ scale は自動で変わり続けるので、どこにも入れない
+    static let perDeviceKind = ["scale", "gamepad", "quiet", "quietScale"]
+    static func kindSettings(_ r: Renderer) -> [String: Any] {
+        let s = r.set.dict(); var o: [String: Any] = [:]
+        for k in perDeviceKind where k != "scale" { o[k] = s[k] }
+        return o
+    }
+    static func applyKind(_ r: Renderer, _ u: [String: Any]) {
+        guard let s = u["set"] as? [String: Any] else { return }
+        var d = s; d["scale"] = nil; r.set.load(d)
+    }
+    /// 地図の向き（回した向き・近さ・ずらし。地図 1・2・S² の仲間）。手元にも覚えておく（mapViewsKey）
+    static let mapViewsKey = "s3walk.mapviews"
+    static func mapViews(_ ms: [MapRenderer]) -> [[Double]] { ms.map { [$0.yaw, $0.pitch, $0.dist, $0.target.x, $0.target.y, $0.target.z] } }
+    static func applyMapViews(_ ms: [MapRenderer], _ a: Any?) {
+        guard let a = a as? [[Double]] else { return }
+        for (m, v) in zip(ms, a) where v.count == 6 && v.allSatisfy(\.isFinite) {
+            m.yaw = v[0]; m.pitch = max(-1.55, min(1.55, v[1])); m.dist = max(2, min(60, v[2])); m.target = SIMD3(v[3], v[4], v[5])
+        }
     }
     static func applyCommon(_ r: Renderer, _ d: [String: Any], _ withPosition: Bool) {
         if let s = d["set"] as? [String: Any] { r.set.load(s) }
@@ -86,11 +113,12 @@ final class NativeSync: ObservableObject {
         if let k = d["keys"] as? [String: [String]] { Keymap.shared.load(k) }
         if let p = d["prefs"] as? [String: Any] {
             if let v = p["padScale"] as? Double { UserDefaults.standard.set(v, forKey: "s3walk.vpad.scale") }
+            if let v = p["padFolded"] as? Bool { UserDefaults.standard.set(v, forKey: "s3walk.vpad.folded") }
             if let v = p["coordSimple"] as? Bool { UserDefaults.standard.set(v, forKey: "s3walk.coord.simple") }
         }
         if withPosition, let p = d["pos"] as? [String: Any] { Store.applyPosition(r, p) }
     }
-    /// 今いる所・向き・目印（Store.snapshot の set 以外）
+    /// 今いる所・向き・目印（Store.snapshot の set 以外。手元の控えにだけ入れる）
     static func position(_ r: Renderer) -> [String: Any] { var d = Store.snapshot(r); d["set"] = nil; return d }
 
     // ---- JSON ----
@@ -164,15 +192,15 @@ final class NativeSync: ObservableObject {
         return Row(data: o["data"] as? [String: Any] ?? [:], saved: (o["saved_at"] as? NSNumber)?.int64Value ?? 0, device: o["device"] as? String ?? "")
     }
     @MainActor private func upload() async {
-        let c = core(), p = position(), cj = NativeSync.json(c)
-        var data = c; data["pos"] = p
+        let c = core(), cj = NativeSync.json(c)
+        var data = c                                                // 今いる所は上げない（端末ごと）
         for (k, v) in foreign { data[k] = v }                       // ほかの種類の端末の画面の構成は、そのまま残す
         let saved = Int64(Date().timeIntervalSince1970 * 1000)
         do {
             _ = try await rest("POST", "mathviz_state?on_conflict=user_id,app",
                                ["user_id": userId, "app": SupaConfig.app, "data": data, "build": "native-\(NativeSync.platform)", "saved_at": NSNumber(value: saved), "device": device],
                                prefer: "resolution=merge-duplicates,return=minimal")
-            baseline = cj; lastSynced = saved; lastPos = NativeSync.json(p); lastPosUp = Date().timeIntervalSince1970
+            baseline = cj; lastSynced = saved
             lastUp = Date(); status = "同期している（上げた）"; saveState()
         } catch { status = "上げられない：" + NativeSync.msg(error) }
     }
@@ -194,12 +222,12 @@ final class NativeSync: ObservableObject {
                 if local != baseline { await upload(); status = "手元で変えた分を上げた（Supabase は前のまま）" } else { status = "同期している（変わりなし）" }
                 return
             }
-            if remote != local || NativeSync.json(row.data["pos"] ?? [:]) != NativeSync.json(position()) {
+            if remote != local {
                 backup("Supabase から読み込む前の手元の設定")
-                apply(row.data, true)
+                apply(row.data, false)                              // 今いる所は当てない（端末ごと）
                 status = "Supabase の設定にそろえた（前の手元の設定は控えに）"
             } else { status = "同期している（同じだった）" }
-            baseline = coreJSON; lastSynced = row.saved; lastPos = NativeSync.json(position()); lastDown = Date(); ready = true; saveState()
+            baseline = coreJSON; lastSynced = row.saved; lastDown = Date(); ready = true; saveState()
         } catch { status = "読めない：" + NativeSync.msg(error) + "（読めるまで自動では上げない）" }
     }
 
@@ -209,7 +237,7 @@ final class NativeSync: ObservableObject {
         if !ready { if !busy { Task { @MainActor in await self.readFirst() } }; return }
         guard !busy else { return }
         let now = Date().timeIntervalSince1970
-        if coreJSON != baseline || (now - lastPosUp > 15 && NativeSync.json(position()) != lastPos) {
+        if coreJSON != baseline {
             busy = true; Task { @MainActor in await self.upload(); self.busy = false }
             return
         }
@@ -304,7 +332,7 @@ struct NativeSyncPanel: View {
                     Button("この控えに戻す") { sync.restore(b) }.controlSize(.small)
                 }
             }
-            Text("起動したら、まず Supabase から読み込みます。Supabase 側が前の同期から変わっていれば、手元の設定を控えに取ってからそろえます（変わっていなければ手元の変更を上げます）。設定の値・自分の道・キーなどはどの端末も共通、パネルの並びや地図の置き方は Mac どうし・iPad／iPhone どうしで別々。今いる所は起動した時だけそろえます。描く細かさ・歩いた跡はそろえません。パスワードは覚えません（ログインの鍵だけキーチェーンに）")
+            Text("起動したら、まず Supabase から読み込みます。Supabase 側が前の同期から変わっていれば、手元の設定を控えに取ってからそろえます（変わっていなければ手元の変更を上げます）。設定の値・自分の道・キー・地図の向きなどはどの端末も共通、パネルの並び・浮いた窓・地図の置き方・窓の大きさ・静かモードは Mac どうし・iPad どうし・iPhone どうしで別々。今いる所・目印・歩いているかは端末ごと（そろえません）。描く細かさ・歩いた跡もそろえません。パスワードは覚えません（ログインの鍵だけキーチェーンに）")
                 .font(.caption).foregroundStyle(Space.slate).fixedSize(horizontal: false, vertical: true)
         }
     }

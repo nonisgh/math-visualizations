@@ -2,8 +2,8 @@
 //   見回し（頭だけ）と進む向きは別（ウェブ版と同じ）。右スティック 進む向きを変える（矢印キー・Shift＋ドラッグ）、
 //   ZL を押しながら右スティック 見回しだけ（ZL を押して離すだけで前を見る。マウスのドラッグ。地図は回らず、水色の円すいが見ている向き）、左スティック 進む向きへ歩く（W・S・A・D。手前に倒すと後ろへ）、
 //   倒しきったままだと加速、左スティックを押し込む（L3） 軌跡（道すじ・足あと）を消す、Y・右スティックを押し込む 前を見る（進む向きは変えない。もう一度で水平にも）、ZL を押しながら Y この向きへ進む（Enter）、
-//   L・R 上・下、ZR 速く、A ターボ（十字の右と同じ）、B 歩き続ける、X 縦横無尽、
-//   十字 上下 殻の見える距離（決まった道の間は、押し続けると速く・遅く）、十字の右 ターボ（いきなり最高速、もう一度で戻る）、メニュー（＋） 設定、オプション（−） 地図を出す・隠す。Joy-Con を 1 本だけ横持ちした時は、十字（スティック）で歩き、A・X が使える
+//   L・R 上・下、ZR 速く、A アクセル（離すとゆっくり減速＝車のように）、B ブレーキ（押し始めはやわらかく）、X ターボ、Y 自動で走るの開始・停止、
+//   十字の上 ターボ・下 ターボを切る・右 ターボの切りかえ、メニュー（＋） 設定、オプション（−） 地図を出す・隠す。Joy-Con を 1 本だけ横持ちした時は、十字（スティック）で歩き、A・X が使える
 import Foundation
 import GameController
 #if os(macOS)
@@ -19,6 +19,8 @@ final class GameInput {
     var names: [String] { GCController.controllers().map { $0.vendorName ?? "コントローラー" } }
     /// 確かめる時のにせの入力（コントローラーの代わり）
     var fake: (move: SIMD3<Double>, look: SIMD2<Double>, fast: Bool, push: Bool, lookOnly: Bool)?
+    /// 左右のスティックを入れかえる（右で歩く・左で向き。押し込みの L3・R3 も入れかわる）。本物のコントローラーも画面のゲームパッドも
+    var swapSticks = false
 
     init() {
         GCController.shouldMonitorBackgroundEvents = false
@@ -28,9 +30,10 @@ final class GameInput {
     /// 画面のゲームパッド（VirtualPad）：スティック（右・上が ＋、−1〜1）と押しているボタン。本物のコントローラーと足し合わせて読む
     var vLeft = SIMD2<Double>(0, 0), vRight = SIMD2<Double>(0, 0), vHeld: Set<String> = []
     /// 画面のゲームパッドのボタン k を押す・離す（押した時、A・B・X・Y・R3・十字・＋・− はコントローラーと同じく onButton へ）
-    func vPress(_ k: String, _ on: Bool) {
+    func vPress(_ k0: String, _ on: Bool) {
+        let k = swapSticks ? (k0 == "L3" ? "R3" : k0 == "R3" ? "L3" : k0) : k0   // 入れかえた時は、押し込みも入れかわる
         if on { vHeld.insert(k) } else { vHeld.remove(k) }
-        if on && ["A", "B", "X", "Y", "R3", "up", "down", "right", "menu", "options"].contains(k) { onButton?(k) }
+        if on && ["A", "B", "X", "Y", "R3", "ZR", "up", "down", "right", "menu", "options"].contains(k) { onButton?(k) }
     }
     func vClear() { vLeft = .zero; vRight = .zero; vHeld = [] }
 
@@ -41,6 +44,17 @@ final class GameInput {
         var y = (vHeld.contains("up") ? 1.0 : 0) - (vHeld.contains("down") ? 1.0 : 0)
         for c in GCController.controllers() { if let g = c.extendedGamepad { if g.dpad.up.isPressed { y += 1 }; if g.dpad.down.isPressed { y -= 1 } } }
         return max(-1, min(1, y))
+    }
+    /// 確かめる時のにせのボタン（押している間）
+    var fakeHeld: Set<String>? = nil
+    /// A（アクセル）・B（ブレーキ）を押している
+    func held(_ k: String) -> Bool {
+        if let f = fakeHeld { return f.contains(k) }
+        if vHeld.contains(k) { return true }
+        return GCController.controllers().contains { c in
+            guard let g = c.extendedGamepad else { return k == "A" ? c.microGamepad?.buttonA.isPressed == true : k == "B" ? c.microGamepad?.buttonX.isPressed == true : false }
+            return k == "A" ? g.buttonA.isPressed : k == "B" ? g.buttonB.isPressed : false
+        }
     }
     /// 十字の右を押している（ターボを押している間だけの時）
     func dpadRight() -> Bool { vHeld.contains("right") || GCController.controllers().contains { $0.extendedGamepad?.dpad.right.isPressed == true } }
@@ -53,15 +67,18 @@ final class GameInput {
         func dz(_ v: Float) -> Double { let a = Double(v); return abs(a) < 0.15 ? 0 : (a - (a > 0 ? 0.15 : -0.15)) / 0.85 }   // 遊び
         for c in GCController.controllers() {
             if let g = c.extendedGamepad {
-                mv.x += dz(g.leftThumbstick.xAxis.value); mv.z += dz(g.leftThumbstick.yAxis.value)
-                lk.x += dz(g.rightThumbstick.xAxis.value); lk.y += dz(g.rightThumbstick.yAxis.value)
+                let ls = swapSticks ? g.rightThumbstick : g.leftThumbstick, rs = swapSticks ? g.leftThumbstick : g.rightThumbstick
+                let lb = swapSticks ? g.rightThumbstickButton : g.leftThumbstickButton, rb = swapSticks ? g.leftThumbstickButton : g.rightThumbstickButton
+                mv.x += dz(ls.xAxis.value); mv.z += dz(ls.yAxis.value)
+                lk.x += dz(rs.xAxis.value); lk.y += dz(rs.yAxis.value)
                 if g.rightShoulder.isPressed { mv.y += 1 }
                 if g.leftShoulder.isPressed { mv.y -= 1 }
                 if g.rightTrigger.value > 0.5 { fast = true }
-                if g.leftThumbstickButton?.isPressed == true { push = true }
+                if lb?.isPressed == true { push = true }
                 if g.leftTrigger.value > 0.5 { lookOnly = true }
                 edge("A", g.buttonA.isPressed); edge("B", g.buttonB.isPressed); edge("X", g.buttonX.isPressed); edge("Y", g.buttonY.isPressed)
-                edge("R3", g.rightThumbstickButton?.isPressed == true)
+                edge("R3", rb?.isPressed == true)
+                edge("ZR", g.rightTrigger.value > 0.5)                 // ZR（PlayStation の R2）：自動走行の間は前を見る（ふだんは押している間だけ速く＝ fast）
                 edge("up", g.dpad.up.isPressed); edge("down", g.dpad.down.isPressed); edge("right", g.dpad.right.isPressed); edge("menu", g.buttonMenu.isPressed)
                 edge("options", g.buttonOptions?.isPressed == true)
             } else if let m = c.microGamepad {
@@ -70,7 +87,8 @@ final class GameInput {
             }
         }
         // 画面のゲームパッド
-        mv.x += vLeft.x; mv.z += vLeft.y; lk += vRight
+        let vl = swapSticks ? vRight : vLeft, vr = swapSticks ? vLeft : vRight
+        mv.x += vl.x; mv.z += vl.y; lk += vr
         if vHeld.contains("R") { mv.y += 1 }
         if vHeld.contains("L") { mv.y -= 1 }
         if vHeld.contains("ZR") { fast = true }

@@ -401,32 +401,175 @@ enum Verify {
             func run(_ n: Int, _ z: Double) { for _ in 0..<n { r.game.fake = ([0, 0, z], .zero, false, false, false); r.step(1.0 / 120) } }
             run(120, 0); let d1 = r.journey.dist
             run(60, 1); let fwd = r.autoSpeed                                  // 左スティックの前：ゆっくりアクセル（0.5 秒で 1.5 倍より小さい）
-            r.game.fakeDpad = 1; run(240, 0); r.game.fakeDpad = nil; let fast = r.autoSpeed   // 十字の上で速く
+            r.game.fakeHeld = ["A"]; run(240, 0); r.game.fakeHeld = nil; run(30, 0); let fast = r.autoSpeed   // 離して A が抜けきるまで（0.2 秒）待つ   // A（アクセル）を押して速く
             run(120, 0); let cruise = r.autoSpeed, nTr = r.journey.trail.count, far = r.journey.dist
             run(450, -1); let back = r.journey.dist, nTr2 = r.journey.trail.count, rew = r.rewinding
             run(10, 0)
             r.walking = false; r.game.fake = (.zero, .zero, false, false, false); r.set.gamepad = false; r.step(1.0 / 120); r.game.fake = nil
-            check(d1 > 0 && fwd > 1.02 && fwd < 1.5 && fast > 2 && abs(cruise - fast) < 1e-9 && rew && back < far - 0.3 && nTr2 < nTr && !r.rewinding,
-                  String(format: "自走：左スティックの前でゆっくり加速、十字の上で ×%.1f（離してもそのまま）、手前でブレーキ→巻き戻し（道のり %.2f → %.2f、軌跡 %d → %d 点）", fast, far, back, nTr, nTr2))
+            check(d1 > 0 && fwd > 1.3 && fwd < 2.2 && fast > 2 && abs(cruise - fast) < 1e-9 && rew && back < far - 0.3 && nTr2 < nTr && !r.rewinding,
+                  String(format: "自走：左スティックの前で加速、A で ×%.1f（離してもそのまま）、手前でブレーキ→巻き戻し（道のり %.2f → %.2f、軌跡 %d → %d 点）", fast, far, back, nTr, nTr2))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
-        // 決まった道の速さ：十字の上を 1 秒押すと 2 倍、下を 2 秒で 1/2（極めぐりの道のままで）
+        // 決まった道の速さ：A を 1 秒押すと 2 倍、スティックを手前へ 2 秒で 1/2（極めぐりの道のままで）
         do {
             r.set = .plain; r.set.gamepad = true; r.startPath(.tour); r.game.fake = (.zero, .zero, false, false, false)
-            func run(_ n: Int, _ y: Double) { r.game.fakeDpad = y; for _ in 0..<n { r.step(1.0 / 120) } }
+            func run(_ n: Int, _ y: Double) { r.game.fakeHeld = y > 0 ? ["A"] : []; r.game.fake = ([0, 0, y < 0 ? y : 0], .zero, false, false, false); for _ in 0..<n { r.step(1.0 / 120) } }
             run(60, 0); let d0 = r.journey.dist; run(120, 1); let up = r.pathSpeed; run(240, -1); let dn = r.pathSpeed
             run(60, 0); let d1 = r.journey.dist, still = r.pathMode == .tour
-            r.game.fake = nil; r.game.fakeDpad = nil; r.pathMode = .none; r.set.gamepad = false
-            check(abs(up - 2) < 0.02 && abs(dn - 0.5) < 0.01 && still && d1 > d0, String(format: "決まった道の速さ：十字の上 1 秒で ×%.2f、下 2 秒で ×%.2f（極めぐりのまま）", up, dn))
+            r.game.fake = nil; r.game.fakeHeld = nil; r.pathMode = .none; r.set.gamepad = false
+            check(abs(up - 2) < 0.02 && abs(dn - 0.5) < 0.01 && still && d1 > d0, String(format: "決まった道の速さ：A を 1 秒で ×%.2f、スティックを手前へ 2 秒で ×%.2f（極めぐりのまま）", up, dn))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
-        // 歩き続ける時の十字の上下：速さが変わり、殻の見える距離は変わらない（前は下で 0.3 まで縮んで、殻が見えなくなった）
+        // 自動走行中のコントローラー：左スティックは歩かずに速さ（前 1 秒で 2 倍）、右スティックは見回し（道はそのまま）、X は効かない、B で中止（知らせが出る）
+        do {
+            r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.startPath(.tour)
+            var said = ""; let say0 = r.say; r.say = { said = $0 }
+            r.game.fake = (SIMD3(0, 0, 1), .zero, false, false, false); r.game.fakeDpad = 0
+            for _ in 0..<120 { r.step(1.0 / 120) }
+            let sp = r.pathSpeed, still = r.pathMode == .tour
+            r.game.fake = (SIMD3(0.8, 0, 0), SIMD2(1, 0), false, false, false); for _ in 0..<30 { r.step(1.0 / 120) }
+            let hy = r.cam.hy, still2 = r.pathMode == .tour
+            let xUsed = r.padDuringAuto("X"), roam = r.roaming
+            _ = r.padDuringAuto("ZR"); r.game.fake = (.zero, .zero, false, false, false); for _ in 0..<150 { r.step(1.0 / 120) }
+            let back = abs(r.cam.hy)
+            let bUsed = r.padDuringAuto("B"), stopped = r.pathMode == .none, msg = said
+            let after = r.padDuringAuto("B")
+            r.game.fake = nil; r.game.fakeDpad = nil; r.say = say0; r.set.gamepad = false
+            check(abs(sp - 2) < 0.03 && still && hy > 10 && still2 && xUsed && !roam && back < 0.05 && bUsed && stopped && msg.contains("中止") && !after,
+                  String(format: "自動走行中：左スティックの前で ×%.2f（極めぐりのまま）、右スティックで見回し %.0f°（道のまま）、X は効かない、Y で前へ戻す、B で中止「%@」", sp, hy, msg))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = false
+        }
+        // 目印ごとの模型：選んだ模型で置ける・ランダムは前の目印と違う種類・1 つずつ消すと並びがそろったまま・保存して戻すと同じ・地図の小さな絵ができる
+        do {
+            r.set = .plain; r.cam = Camera(); r.journey = Journey()
+            r.set.markModel = 5; r.addMark(); r.set.markModel = 7; r.cam.walk([0, 0, 1], 0.3); r.addMark()
+            r.set.markModel = -1; var diff = true
+            for _ in 0..<20 { r.cam.walk([0, 0, 1], 0.05); r.addMark(); let n = r.journey.markKinds.count; if r.journey.markKinds[n - 1] == r.journey.markKinds[n - 2] { diff = false } }
+            let k0 = Array(r.journey.markKinds.prefix(2))
+            r.removeMark(0, routes: false); let aligned = r.journey.marks.count == r.journey.markKinds.count && r.journey.marks2.count == r.journey.marks.count && r.journey.markKinds[0] == 7
+            let snap = Store.snapshot(r), kinds = r.journey.markKinds; r.journey = Journey(); Store.applyPosition(r, snap)
+            r.setMarkKind(0, 2)
+            let thumb = r.modelThumb(3, size: 48)
+            check(k0 == [5, 7] && diff && aligned && Array(r.journey.markKinds.dropFirst()) == Array(kinds.dropFirst()) && r.markKind(0) == 2 && thumb?.width == 48,
+                  "目印ごとの模型：たぬき・たこを選んで置けた、ランダムはとなりと別の種類、1 つ消しても並びがそろう、保存して戻せる、あとから変えられる、地図の小さな絵ができる")
+            r.set = .plain; r.cam = Camera(); r.journey = Journey()
+        }
+        // 次元おりがみ（ネイティブ版）の分解：中心の胞は動かず、ほかは離れる・くっつけると 0 に戻る・数えるは 1 個ずつ（まだの胞はうっすら）
+        do {
+            let o = OrigamiState(); o.reset(); o.progress = 1
+            func cv(_ n: Int) -> [[SIMD3<Double>]] { OrigamiState.cells(n).map { c in [o.place(o.fold(c, [Double](repeating: 1, count: n).enumerated().map { $0.offset == OrigamiState.fixed(c, n).0 ? OrigamiState.fixed(c, n).1 : $0.element }, n), n).0] } }
+            o.startXp(1); for _ in 0..<200 { o.tick(1.0 / 60) }
+            let off4 = o.explodeOffsets(cv(4), 4), off3 = o.explodeOffsets(cv(3), 3)
+            let apart = o.explodeRaw == 1 && off4[0] == .zero && off3[0] == .zero && off4.dropFirst().allSatisfy { simd_length($0) > 1.5 } && off3.dropFirst().allSatisfy { simd_length($0) > 1.5 }
+            o.startXp(0); var flashed = false; for _ in 0..<200 { o.tick(1.0 / 60); if o.cellFocus(3, 8).edge > 1.5 { flashed = true } }
+            let back = o.explodeRaw == 0 && o.explodeOffsets(cv(4), 4).allSatisfy { $0 == .zero }
+            o.startCount(); for _ in 0..<150 { o.tick(1.0 / 60) }
+            let dim = o.countIdx >= 0 && o.cellFocus(7, 8).face < 0.2 && o.cellFocus(o.countIdx, 8).face > 1.5
+            o.progress = 0; o.endCount(); o.explodeRaw = 1
+            let net = o.explodeOffsets(cv(4), 4), netOK = net[0] == .zero && net.dropFirst().allSatisfy { simd_length($0) > 0.3 }
+            check(apart && flashed && back && dim && netOK, "次元おりがみ・分解：中心の胞は動かず、ほかの胞は離れる（組み上がり・展開図）、くっつく瞬間に辺が光り 0 に戻る、数える時は今の胞が濃く・まだの胞はうっすら")
+        }
+        // 記録した自走の速さ：十字の上で ×2 にして止め、また歩き始めると ×2 から。ターボで歩き始めて、ターボをやめると ×2 に。自走の左右は横歩きしない
+        do {
+            r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.set.cruise = 1
+            r.walking = true; r.game.fake = (.zero, .zero, false, false, false); r.game.fakeDpad = 0; r.step(1.0 / 120)
+            r.game.fakeHeld = ["A"]; for _ in 0..<120 { r.step(1.0 / 120) }; r.game.fakeHeld = []
+            let rec = r.set.cruise
+            r.walking = false; r.step(1.0 / 120); r.walking = true; r.step(1.0 / 120); let again = r.autoSpeed
+            r.walking = false; r.step(1.0 / 120); r.turbo(); r.step(1.0 / 120); r.turbo(); let afterTurbo = r.autoSpeed
+            let p0 = r.cam.w.p; r.game.fake = (SIMD3(1, 0, 0), .zero, false, false, false); for _ in 0..<60 { r.step(1.0 / 120) }
+            r.game.fake = (.zero, .zero, false, false, false); r.cam.w.p = p0
+            r.game.fake = nil; r.game.fakeDpad = nil; r.game.fakeHeld = nil; r.walking = false; r.set.gamepad = false; r.step(1.0 / 120)
+            check(abs(rec - 1.71) < 0.05 && abs(again - rec) < 1e-9 && abs(afterTurbo - rec) < 1e-9, String(format: "記録した自走の速さ：×%.2f を覚えて、止めて歩き始めても ×%.2f、ターボのあとも ×%.2f", rec, again, afterTurbo))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.set.cruise = 1
+        }
+        // 自動（Y）の間は、アクセルを離しても減速しない。B で遅くしても自動のまま、その速さを保つ
+        do {
+            r.set = .plain; r.set.gamepad = true; r.set.autoMax = 4; r.cam = Camera(); r.journey = Journey(); r.walking = false; r.step(1.0 / 120)
+            r.game.fake = (.zero, .zero, false, false, false); r.game.fakeHeld = []; _ = r.padWalk("Y"); r.step(1.0 / 120)
+            r.game.fakeHeld = ["A"]; for _ in 0..<120 { r.step(1.0 / 120) }; let a1 = r.autoSpeed
+            r.game.fakeHeld = []; for _ in 0..<30 { r.step(1.0 / 120) }; let a1b = r.autoSpeed; for _ in 0..<360 { r.step(1.0 / 120) }; let a2 = r.autoSpeed
+            r.game.fakeHeld = ["B"]; for _ in 0..<48 { r.step(1.0 / 120) }; r.game.fakeHeld = []; for _ in 0..<30 { r.step(1.0 / 120) }; let b1 = r.autoSpeed
+            for _ in 0..<360 { r.step(1.0 / 120) }; let b2 = r.autoSpeed, still = r.walking && r.autoCruise, rec = r.set.cruise
+            r.game.fakeHeld = nil; r.game.fake = nil; r.walking = false; r.set.gamepad = false; r.step(1.0 / 120)
+            check(a1 > 1.5 && abs(a2 - a1b) < 1e-9 && b1 < a1b * 0.9 && abs(b2 - b1) < 1e-9 && still && abs(rec - b1) < 0.01,
+                  String(format: "自動の間：A で ×%.2f、離して 3 秒も ×%.2f（減速しない）。B で ×%.2f にしても自動のまま、3 秒後も ×%.2f", a1, a2, b1, b2))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.set.cruise = 1
+        }
+        // A・B はスティックのように：押した瞬間の速さの変わり方はほぼ 0 から、だんだん強く（一瞬カクつかない）。離した時も急に抜けない
+        do {
+            r.set = .plain; r.set.gamepad = true; r.set.autoMax = 4; r.cam = Camera(); r.journey = Journey(); r.walking = false; r.step(1.0 / 120)
+            r.game.fake = (.zero, .zero, false, false, false); r.game.fakeHeld = []; _ = r.padWalk("Y"); r.step(1.0 / 120)
+            func rate(_ held: Set<String>) -> Double { r.game.fakeHeld = held; let s = r.autoSpeed; r.step(1.0 / 120); return (r.autoSpeed - s) * 120 }
+            let a0 = rate(["A"]); for _ in 0..<60 { _ = rate(["A"]) }; let aFull = rate(["A"]); let aOff = rate([])
+            for _ in 0..<60 { _ = rate([]) }
+            let b0 = rate(["B"]); for _ in 0..<90 { _ = rate(["B"]) }; let bFull = rate(["B"]); let bOff = rate([])
+            r.game.fakeHeld = nil; r.game.fake = nil; r.walking = false; r.set.gamepad = false; r.step(1.0 / 120)
+            check(a0 < aFull * 0.05 && aOff > aFull * 0.9 && b0 > bFull * 0.05 && bOff < bFull * 0.9,
+                  String(format: "A・B はなめらかに効く：A の加速 押した瞬間 %.3f → いっぱい %.2f/秒（離した瞬間 %.2f）、B の減速 押した瞬間 %.3f → いっぱい %.2f/秒（離した瞬間 %.2f）", a0, aFull, aOff, b0, bFull, bOff))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.set.cruise = 1
+        }
+        // 手で走る時（A・B）は、左スティックが向きの操作（右へ倒すと右へ曲がり、前へ倒すと上を向く。速さは変えない）。自動の時は今までどおりアクセル
+        do {
+            r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.walking = false; r.step(1.0 / 120)
+            r.game.fake = (.zero, .zero, false, false, false); r.game.fakeHeld = []; _ = r.padWalk("A"); r.game.fakeHeld = ["A"]
+            for _ in 0..<120 { r.step(1.0 / 120) }; r.game.fakeHeld = []; for _ in 0..<30 { r.step(1.0 / 120) }
+            let az0 = r.cam.az, el0 = r.cam.el, s0 = r.autoSpeed
+            r.game.fake = (SIMD3(1, 0, 1), .zero, false, false, false); for _ in 0..<60 { r.step(1.0 / 120) }
+            let turned = r.cam.az - az0, up = r.cam.el - el0, s1 = r.autoSpeed, manual = r.walking && !r.autoCruise
+            r.game.fake = (.zero, .zero, false, false, false); _ = r.padWalk("Y"); r.step(1.0 / 120)
+            let az1 = r.cam.az; r.game.fake = (SIMD3(0, 0, 1), .zero, false, false, false); let s2 = r.autoSpeed; for _ in 0..<60 { r.step(1.0 / 120) }
+            let autoAcc = r.autoSpeed > s2 + 0.05 && abs(r.cam.az - az1) < 1e-9
+            r.game.fakeHeld = nil; r.game.fake = nil; r.walking = false; r.set.gamepad = false; r.step(1.0 / 120)
+            check(manual && turned > 10 && up > 5 && s1 < s0 && autoAcc,
+                  String(format: "手で走る時は左スティックで向き：右へ %.0f°・上へ %.0f°（速さは ×%.2f → ×%.2f、ゆるやかに減るだけ）、自動の時は前で加速", turned, up, s0, s1))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.set.cruise = 1
+        }
+        // 手で走る（A）時の最高速は、自動（Y）の半分
+        do {
+            r.set = .plain; r.set.gamepad = true; r.set.autoMax = 4; r.cam = Camera(); r.journey = Journey(); r.walking = false; r.step(1.0 / 120)
+            r.game.fake = (.zero, .zero, false, false, false); _ = r.padWalk("A"); r.game.fakeHeld = ["A"]; for _ in 0..<2400 { r.step(1.0 / 120) }; let man = r.autoSpeed
+            r.game.fakeHeld = []; _ = r.padWalk("Y"); r.game.fakeHeld = ["A"]; for _ in 0..<2400 { r.step(1.0 / 120) }; let auto = r.autoSpeed
+            r.game.fakeHeld = nil; r.game.fake = nil; r.walking = false; r.set.gamepad = false; r.step(1.0 / 120)
+            check(abs(man - 2) < 1e-9 && abs(auto - 4) < 1e-9, String(format: "最高速：手で走る時 ×%.1f、自動の時 ×%.1f（最高 4）", man, auto))
+            r.set = .plain; r.cam = Camera(); r.journey = Journey()
+        }
+        // 左右のスティックの入れかえ（画面のゲームパッド）：左を倒すと向き、右を倒すと歩く。押し込みも入れかわる
+        do {
+            let g = GameInput(); var got: [String] = []; g.onButton = { got.append($0) }
+            g.swapSticks = true; g.vLeft = SIMD2(0, 1); g.vRight = SIMD2(0, -1)
+            let a = g.read(); g.vPress("L3", true); g.vPress("L3", false); g.vPress("R3", true); let push = g.read().push; g.vClear()
+            g.swapSticks = false; g.vLeft = SIMD2(0, 1); let b = g.read(); g.vClear()
+            check(a.look.y == 1 && a.move.z == -1 && got == ["R3"] && push && b.move.z == 1 && b.look.y == 0, "左右のスティックの入れかえ：左で向き・右で歩く、L3 は前を見る（R3 の働き）・R3 は跡を消す（L3）。切ると元どおり")
+        }
+        // 同期：静かモード・コントローラーで歩くは種類の端末ごと（共通には入れない）、今いる所は上げない、地図の向きは行って戻る
+        do {
+            let c = NativeSync.commonCore(r)["set"] as? [String: Any] ?? [:], k = NativeSync.kindSettings(r)
+            let ms = [MapRenderer(world: r, slot: 0), MapRenderer(world: r, slot: 1)]
+            ms[0].yaw = 1.1; ms[0].pitch = 0.3; ms[0].dist = 7; ms[0].target = [0.1, 0.2, 0.3]
+            let v = NativeSync.mapViews(ms); ms[0].home(); NativeSync.applyMapViews(ms, v)
+            check(c["quiet"] == nil && c["gamepad"] == nil && c["scale"] == nil && k["quiet"] != nil && k["gamepad"] != nil && k["scale"] == nil
+                  && abs(ms[0].yaw - 1.1) < 1e-12 && abs(ms[0].dist - 7) < 1e-12 && ms[0].target == [0.1, 0.2, 0.3] && NativeSync.uiKey == "ui_mac",
+                  "同期：静かモード・コントローラーで歩くは Mac どうしだけ、描く細かさはそろえない、地図の向きは書き出して戻せる")
+        }
+        // 歩き続ける時のボタン：A を 1 秒で約 2.2 倍、十字の上 ターボ・下 ターボ切（元の速さへ）、B を押し続けるとブレーキで止まる
         do {
             r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; r.game.fake = (.zero, .zero, false, false, false)
             let sr = r.set.shellRange
-            r.game.fakeDpad = 0; r.step(1.0 / 120); r.game.fakeDpad = 1; for _ in 0..<120 { r.step(1.0 / 120) }; let up = r.autoSpeed
-            r.game.fakeDpad = nil; r.game.fake = nil; r.walking = false; r.set.gamepad = false; r.step(1.0 / 120)
-            check(abs(up - 2) < 0.03 && r.set.shellRange == sr, String(format: "歩き続ける時の十字の上：速さ ×%.2f（1 秒）、殻の見える距離はそのまま", up))
+            r.game.fakeHeld = []; r.step(1.0 / 120); r.game.fakeHeld = ["A"]; for _ in 0..<120 { r.step(1.0 / 120) }; let up = r.autoSpeed
+            r.game.fakeHeld = []; _ = r.padWalk("up"); r.step(1.0 / 120); let tb = r.autoSpeed; _ = r.padWalk("down"); r.step(1.0 / 120); let back = r.autoSpeed
+            let s0 = r.autoSpeed; r.game.fakeHeld = ["B"]; for _ in 0..<12 { r.step(1.0 / 120) }; let soft = (s0 - r.autoSpeed) / s0   // 押し始め 0.1 秒はやわらかく
+            for _ in 0..<600 { r.step(1.0 / 120) }; let stopped = !r.walking
+            r.game.fakeHeld = []; _ = r.padWalk("Y"); r.step(1.0 / 120); let yAuto = r.walking && r.autoCruise
+            _ = r.padWalk("X"); r.step(1.0 / 120); let xT = r.autoSpeed; _ = r.padWalk("X"); r.step(1.0 / 120)
+            _ = r.padWalk("Y"); r.step(1.0 / 120); let ySoft = r.walking; for _ in 0..<480 { r.step(1.0 / 120) }; let ystop = !r.walking && !r.roaming
+            // 車のように：A で走り出すとゆっくりから、離すと急に止まらずに減速して、やがて止まる
+            _ = r.padWalk("A"); r.game.fakeHeld = ["A"]; for _ in 0..<120 { r.step(1.0 / 120) }; let carUp = r.autoSpeed
+            r.game.fakeHeld = []; for _ in 0..<120 { r.step(1.0 / 120) }; let coast = r.autoSpeed; for _ in 0..<1800 { r.step(1.0 / 120) }; let coastStop = !r.walking
+            r.game.fakeHeld = nil; r.game.fake = nil; r.walking = false; r.set.gamepad = false; r.step(1.0 / 120)
+            check(abs(up - 1.71) < 0.05 && abs(tb - r.set.autoMax) < 1e-9 && abs(back - up) < 0.01 && stopped && soft < 0.12 && yAuto && abs(xT - r.set.autoMax) < 1e-9 && ySoft && ystop
+                  && carUp > 0.45 && coast < carUp && coast > carUp * 0.8 && coastStop && r.set.shellRange == sr,
+                  String(format: "歩き続ける時のボタン：A を 1 秒で ×%.2f、十字の上でターボ ×%.0f・下で ×%.2f、B は押し始めやわらか（0.1 秒で %.1f%%）・押し続けると止まる、Y で自動の開始・なめらかに停止、X でターボ。A で走り出すと ×%.2f、離して 1 秒で ×%.2f（急に止まらない）", up, tb, back, soft * 100, carUp, coast))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
         // ターボ：止まっていたら最高速で歩き始め、もう一度で元の速さに。決まった道では道の速さを最高速に
@@ -464,10 +607,10 @@ enum Verify {
         do {
             r.set = .plain; r.set.gamepad = true; r.set.autoMax = 3; r.set.autoMin = 0.5; r.cam = Camera(); r.journey = Journey(); r.walking = true
             func run(_ n: Int, _ z: Double) { for _ in 0..<n { r.game.fake = ([0, 0, z], .zero, false, false, false); r.step(1.0 / 120) } }
-            run(10, 0); r.game.fakeDpad = 1; run(1200, 0); r.game.fakeDpad = nil; let hi = r.autoSpeed
+            run(10, 0); r.game.fakeHeld = ["A"]; run(1200, 0); r.game.fakeHeld = nil; let hi = r.autoSpeed
             run(1200, -1); let lo = r.autoSpeed, rew = r.rewinding
             r.walking = false; r.game.fake = (.zero, .zero, false, false, false); r.set.gamepad = false; r.step(1.0 / 120); r.game.fake = nil
-            check(abs(hi - 3) < 1e-9 && abs(lo - 0.5) < 1e-9 && !rew, String(format: "自走の最高・最低：十字の上を押し続けて ×%.1f（最高 3）、手前で ×%.1f（最低 0.5、巻き戻さない）", hi, lo))
+            check(abs(hi - 3) < 1e-9 && abs(lo - 0.5) < 1e-9 && !rew, String(format: "自走の最高・最低：A を押し続けて ×%.1f（最高 3）、手前で ×%.1f（最低 0.5、巻き戻さない）", hi, lo))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
         // 宇宙の大きさ R：同じ速さで歩くと、進む角度は 1/R（1 秒で 0.9／R）。目印の見かけも 1/R
@@ -777,6 +920,41 @@ enum Verify {
     }
 
     /// 地図の 1 コマの時間（CPU で線を作る＋GPU）（`--mapbench`）
+    /// 地図の重さ：前の描き方（画面の大きさ・4 倍マルチサンプル）と、今の描き方（縦横 2 倍に描いて縮める）の GPU の時間を比べる
+    static func mapSSBench() {
+        guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev), let q = dev.makeCommandQueue() else { return }
+        r.set = Settings(); r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 20 { r.step(1.0 / 60) }; r.walking = false
+        let W = 1000, H = 1300, fmt = MTLPixelFormat.rgba16Float                        // Mac の地図の窓くらい（画素）・EDR の形式
+        func tex(_ f: MTLPixelFormat, _ ms: Bool) -> MTLTexture {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: f, width: W, height: H, mipmapped: false)
+            d.usage = [.renderTarget, .shaderRead]; d.storageMode = .private
+            if ms { d.textureType = .type2DMultisample; d.sampleCount = 4 }
+            return dev.makeTexture(descriptor: d)!
+        }
+        let out = tex(fmt, false), msC = tex(fmt, true), msD = tex(.depth32Float, true)
+        for slot in [0, 1] {
+            let m = MapRenderer(world: r, slot: slot); m.backingScale = 2
+            func run(_ ss: Bool) -> Double {
+                var g = 0.0
+                for i in 0..<40 {
+                    r.cam.walk([0, 0, 1], 0.01)
+                    let cb = q.makeCommandBuffer()!
+                    if ss { m.superSample = 2; _ = m.encodeSS(cb, into: out, fmt: fmt) }
+                    else {
+                        let rp = MTLRenderPassDescriptor()
+                        rp.colorAttachments[0].texture = msC; rp.colorAttachments[0].resolveTexture = out; rp.colorAttachments[0].loadAction = .clear; rp.colorAttachments[0].storeAction = .multisampleResolve
+                        rp.depthAttachment.texture = msD; rp.depthAttachment.loadAction = .clear; rp.depthAttachment.storeAction = .dontCare; rp.depthAttachment.clearDepth = 1
+                        _ = m.encode(cb, rp, fmt, 4, Double(W), Double(H))
+                    }
+                    cb.commit(); cb.waitUntilCompleted()
+                    if i >= 10 { g += (cb.gpuEndTime - cb.gpuStartTime) * 1000 }
+                }
+                return g / 30
+            }
+            let a = run(false), b = run(true)
+            print(String(format: "地図 %d：前（画面の大きさ・4 倍マルチサンプル）GPU %.2f ms/コマ、今（2 倍に描いて縮める）GPU %.2f ms/コマ（%.1f 倍）", slot + 1, a, b, b / max(0.001, a)))
+        }
+    }
     static func mapBench() {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
         r.set = Settings(); r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 20 { r.step(1.0 / 60) }; r.walking = false
@@ -809,12 +987,21 @@ enum Verify {
                                    ("4 方向レインボー・今（60 fps・0.9）", 60.0, 0.9, { (s: inout Settings) in s.shAxis = false; s.rainbow4 = true }),
                                    ("4 方向レインボー・静か（30 fps・0.4）", 30.0, 0.4, { (s: inout Settings) in s.shAxis = false; s.rainbow4 = true }),
                                    ("4 方向レインボー・静か・重ねる殻 12", 30.0, 0.4, { (s: inout Settings) in s.shAxis = false; s.rainbow4 = true; s.shCap = 12 }),
-                                   ("4 方向レインボー・静か（30 fps・0.3）", 30.0, 0.3, { (s: inout Settings) in s.shAxis = false; s.rainbow4 = true })] as [(String, Double, Double, (inout Settings) -> Void)] {
+                                   ("4 方向レインボー・静か（30 fps・0.3）", 30.0, 0.3, { (s: inout Settings) in s.shAxis = false; s.rainbow4 = true }),
+                                   ("4 方向レインボー・静かモードの自動（画質 0.4 × 0.78）", 30.0, 0.312, { (s: inout Settings) in s.shAxis = false; s.rainbow4 = true })] as [(String, Double, Double, (inout Settings) -> Void)] {
             r.set = us; f(&r.set); r.set.autoQ = false; r.cam = Camera(); r.cam.walk([0, 0, 1], 0.4)
             r.sceneScale = r.set.cine ? sc : 1
             let w = r.set.cine ? W : Int(Double(W) * sc), h = r.set.cine ? H : Int(Double(H) * sc)
             let ms = r.benchmark(width: w, height: h, frames: 60)
             print(String(format: "  %@：%.2f ms/コマ → GPU %.0f%%（%.0f fps）", name, ms, ms * fps / 10, fps))
+        }
+        // 1440p まで：画面全体（仕上げ・星を含む）を高さ 1440 相当に縮め、景色の画素の数は同じに（4K の画面 4096×2254 の景色 2800×2000 なら 0.64 倍）
+        for q in [0.4, 0.5] {
+            let k = 1440.0 / 2254.0, w = Int(Double(W) * k), h = Int(Double(H) * k)
+            r.set = us; r.set.autoQ = false; r.cam = Camera(); r.cam.walk([0, 0, 1], 0.4)
+            r.sceneScale = r.set.cine ? min(1, q / k) : 1
+            let ms = r.benchmark(width: r.set.cine ? w : Int(Double(w) * q / k), height: r.set.cine ? h : Int(Double(h) * q / k), frames: 60)
+            print(String(format: "  1440p まで・30 fps・画質 %.1f（景色の画素は同じ）：%.2f ms/コマ → GPU %.0f%%", q, ms, ms * 3))
         }
         r.sceneScale = 1
         r.set = us; r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 8 { r.step(1.0 / 60) }; r.walking = false
@@ -888,6 +1075,42 @@ enum Verify {
         print("[" + out.map { "[" + $0.map { String($0) }.joined(separator: ",") + "]" }.joined(separator: ",") + "]")
     }
     /// 地図を PNG に（`--mappng 保存先のフォルダ`）。名前の札は点で印
+    /// 確かめ：あなたの設定と今いる所で、地図だけを PNG に（色の見比べ用）。name：ファイル名
+    static func mapUserPNG(_ path: String) {
+        guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
+        let m = MapRenderer(world: r); m.backingScale = 2
+        if let d = UserDefaults.standard.dictionary(forKey: Store.key) {
+            var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); r.set = us
+            if ProcessInfo.processInfo.environment["S3_SPACE"] != nil { r.set.space = true }   // 確かめ用：宇宙の背景の時の地図
+            func v4(_ k: String) -> V4? { (d[k] as? [Double]).flatMap { $0.count == 4 ? V4($0[0], $0[1], $0[2], $0[3]) : nil } }
+            if let p = v4("p"), let rr = v4("r"), let u = v4("u"), let f = v4("f") { r.cam.w = Walker(p: p, r: rr, u: u, f: f); orthoFrame(&r.cam.w) }
+        }
+        if let a = UserDefaults.standard.array(forKey: NativeSync.mapViewsKey) { NativeSync.applyMapViews([m], a) } else { m.home() }
+        let w = 900, h = 900
+        var (px, _) = m.renderOffscreen(width: w, height: h)
+        let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        let dd = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, UTType.png.identifier as CFString, 1, nil)!
+        CGImageDestinationAddImage(dd, ctx.makeImage()!, nil); CGImageDestinationFinalize(dd)
+        print(path, "space", r.set.space, "shAxis", r.set.shAxis, "uniL", r.set.uniL, "mapBright", r.set.mapBright, "range", r.set.mapRange)
+    }
+    /// 超球（Metal 版の試作）の絵：光沢なし・あり、左（リングの球）と右（球殻の超球）
+    static func hyperPNG(_ dir: String) {
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0)] {
+            for side in [HyperLabRenderer.Side.left, .right] {
+                let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
+                st.viewYaw = 0.5; st.viewPitch = 0.3
+                if name.hasPrefix("正面") { st.pitch = 0.0203; st.roll = -0.0962; st.viewYaw = 0; st.viewPitch = 0; st.leftDist = 5.56; st.viewDist = 7.5 }   // ウェブ版の今の画面と同じ向き・大きさ
+                st.bump()
+                let (iw, ih) = name.hasPrefix("正面") ? (1024, 1536) : (900, 760)   // 正面はウェブ版の右の枠（1024×1536）と同じ形
+                guard let r = HyperLabRenderer(side: side, state: st, view: nil), let img = r.image(iw, ih) else { continue }
+                let url = URL(fileURLWithPath: dir).appendingPathComponent("超球_\(name)_\(side == .left ? "左" : "右").png")
+                let d = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
+                CGImageDestinationAddImage(d, img, nil); CGImageDestinationFinalize(d); print(url.path)
+            }
+        }
+    }
     static func mapPNG(_ dir: String) {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
         let m = MapRenderer(world: r); m.backingScale = 1
@@ -952,12 +1175,16 @@ enum Verify {
     }
 
     /// 東極から距離 d、(w ＋ y)／√2 の向きにずれた所で、東極の方を向いて立つ（上は z）
-    static func nearEast(_ d: Double) -> Walker {
-        let n = V4(0, 1, 0, 1) / 2.0.squareRoot(), p = V4(1, 0, 0, 0) * cos(d) + n * sin(d), f = nrm(V4(1, 0, 0, 0) * sin(d) - n * cos(d)), u = V4(0, 0, 1, 0)
-        var r = V4(0, 1, 0, -1) / 2.0.squareRoot(); r -= p * dot4(r, p); r -= f * dot4(r, f); r = nrm(r)
-        let m = simd_double4x4(rows: [r, u, f, p])
-        if m.determinant < 0 { r = -r }
-        return Walker(p: p, r: r, u: u, f: f)
+    static func nearEast(_ d: Double) -> Walker { Renderer.nearEast(d) }
+    /// 地図に出す模型の小さな絵を、PNG に書き出す（見て確かめる用）
+    static func thumbs(_ dir: String) {
+        guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
+        for k in 0..<9 {
+            guard let img = r.modelThumb(k, size: 192) else { continue }
+            let url = URL(fileURLWithPath: dir).appendingPathComponent("thumb\(k).png")
+            let d = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
+            CGImageDestinationAddImage(d, img, nil); CGImageDestinationFinalize(d)
+        }
     }
     /// 星雲のかたまり k の方を向く
     static func aimNeb(_ c: inout Camera, _ k: Int) {
@@ -1127,6 +1354,28 @@ enum Verify {
     }
 
     /// あなたの設定・今いる所から、今の進む向きへまっすぐ歩きながら、何枚か描く（走り続けた時の見え方を確かめる）
+    /// 確かめ：広い宇宙（×R）で、模型の目印から少し離れて前（反対側を回ってきた光の像）と後ろ（そのままの姿）を見る。もやを入れた時・入れない時
+    static func bigFlip(_ dir: String) {
+        guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { return }
+        let w = 640, h = 400
+        for (uniL, fog, d, grow) in [(0.0, 0.0, 0.6, false), (2.0, 0.0, 0.006, false), (2.0, 0.22, 0.006, false), (2.0, 0.0, Double.pi - 0.02, false), (3.0, 0.0, 0.0006, false),
+                                     (2.0, 0.22, 1.2, false), (2.0, 0.22, 1.2, true), (2.0, 0.22, 2.6, true)] {
+            var s = Settings(); s.mk = 4; s.uniL = uniL; s.fog = fog; s.fade = fog > 0 ? 0.25 : 0; s.maxD = grow ? 5.9 : 2 * Double.pi; s.shell = false; s.eq = false; s.poles = false; s.selfBall = false; s.foot = false; s.markGrow = grow
+            r.set = s; r.cam = Camera(); r.journey = Journey(); r.journey.marks = [r.cam.w.p]; r.journey.markKinds = [7]; r.journey.marks2 = [r.journey.w2.p]
+            r.cam.walk([0, 0, 1], d)
+            for (name, az) in [("前", 0.0), ("後ろ", 180.0)] {
+                r.cam.az = az
+                let px = r.renderOffscreen(width: w, height: h)
+                var b = [UInt8](repeating: 255, count: w * h * 4)
+                for i in 0..<(w * h) { for c in 0..<3 { b[i * 4 + c] = UInt8(max(0, min(255, px[i * 4 + c] * 255 + 0.5))) } }
+                let ctx = CGContext(data: &b, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+                let url = URL(fileURLWithPath: dir).appendingPathComponent(String(format: "big_L%.0f_fog%.2f_d%.4f%@_%@.png", uniL, fog, d, grow ? "_grow" : "", name))
+                let dd = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
+                CGImageDestinationAddImage(dd, ctx.makeImage()!, nil); CGImageDestinationFinalize(dd)
+                print(url.lastPathComponent)
+            }
+        }
+    }
     static func walkPNG(_ dir: String) {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev), let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) else { return }
         var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); r.set = us
