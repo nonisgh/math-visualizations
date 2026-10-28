@@ -991,6 +991,46 @@ enum Verify {
             print(String(format: "左の輪を作り直す（Z-W を変えた時）：%.1f ms / 回", (CACurrentMediaTime() - t0) * 100))
         }
     }
+    /// 地図の色：前の描き方（画面の大きさ・4 倍マルチサンプル）と今（縦横 2 倍に描いて縮める）で同じ絵を描き、色の鮮やかさを比べる
+    static func mapColorCompare(_ dir: String) {
+        guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev), let q = dev.makeCommandQueue() else { return }
+        r.set = Settings(); r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 3 { r.step(1.0 / 60) }; r.walking = false
+        let W = 1000, H = 1100, fmt = MTLPixelFormat.rgba16Float
+        func tex(_ ms: Bool, _ f: MTLPixelFormat = fmt) -> MTLTexture {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: f, width: W, height: H, mipmapped: false)
+            d.usage = [.renderTarget, .shaderRead]; d.storageMode = ms ? .private : .shared
+            if ms { d.textureType = .type2DMultisample; d.sampleCount = 4 }
+            return dev.makeTexture(descriptor: d)!
+        }
+        func read(_ t: MTLTexture) -> [Float] {
+            var h = [Float16](repeating: 0, count: W * H * 4)
+            t.getBytes(&h, bytesPerRow: W * 8, from: MTLRegionMake2D(0, 0, W, H), mipmapLevel: 0)
+            return h.map { Float($0) }
+        }
+        func stat(_ px: [Float]) -> String {
+            var n = 0, sat = 0.0, lum = 0.0, rn = 0, rsat = 0.0, rpk = 0.0
+            for i in stride(from: 0, to: px.count, by: 4) {
+                let rr = Double(px[i]), g = Double(px[i + 1]), b = Double(px[i + 2]), mx = max(rr, g, b), mn = min(rr, g, b)
+                if mx > 0.25 { n += 1; sat += (mx - mn) / mx; lum += mx }
+                if rr > 0.25 && rr > g * 1.6 && rr > b * 1.6 { rn += 1; rsat += (mx - mn) / mx; rpk += rr }
+            }
+            return String(format: "明るい画素 %d 鮮やかさ %.3f 明るさ %.3f ／ 赤い画素 %d 鮮やかさ %.3f 明るさ %.3f", n, sat / Double(max(1, n)), lum / Double(max(1, n)), rn, rsat / Double(max(1, rn)), rpk / Double(max(1, rn)))
+        }
+        for slot in [0, 1] {
+            let m = MapRenderer(world: r, slot: slot); m.backingScale = 2
+            let out = tex(false), ms = tex(true), dep = tex(true, .depth32Float)
+            var cb = q.makeCommandBuffer()!
+            let rp = MTLRenderPassDescriptor()
+            rp.colorAttachments[0].texture = ms; rp.colorAttachments[0].resolveTexture = out; rp.colorAttachments[0].loadAction = .clear; rp.colorAttachments[0].storeAction = .multisampleResolve
+            rp.colorAttachments[0].clearColor = MTLClearColor(red: 0x03 / 255.0, green: 0x07 / 255.0, blue: 0x12 / 255.0, alpha: 1)
+            rp.depthAttachment.texture = dep; rp.depthAttachment.loadAction = .clear; rp.depthAttachment.storeAction = .dontCare; rp.depthAttachment.clearDepth = 1
+            _ = m.encode(cb, rp, fmt, 4, Double(W), Double(H)); cb.commit(); cb.waitUntilCompleted()
+            let a = read(out)
+            let out2 = tex(false); cb = q.makeCommandBuffer()!; m.superSample = 2; _ = m.encodeSS(cb, into: out2, fmt: fmt); cb.commit(); cb.waitUntilCompleted()
+            let b = read(out2)
+            print("地図 \(slot + 1) 前（そのまま＋4 倍）：" + stat(a)); print("地図 \(slot + 1) 今（2 倍に描いて縮める）：" + stat(b))
+        }
+    }
     static func mapSSBench() {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev), let q = dev.makeCommandQueue() else { return }
         r.set = Settings(); r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 20 { r.step(1.0 / 60) }; r.walking = false
@@ -1167,7 +1207,7 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0)] {
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
                 st.viewYaw = 0.5; st.viewPitch = 0.3

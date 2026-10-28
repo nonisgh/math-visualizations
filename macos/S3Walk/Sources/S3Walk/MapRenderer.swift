@@ -538,7 +538,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         let fp = MTLRenderPassDescriptor()
         fp.colorAttachments[0].texture = target; fp.colorAttachments[0].loadAction = .dontCare; fp.colorAttachments[0].storeAction = .store
         if let f = cb.makeRenderCommandEncoder(descriptor: fp) {
-            var k: Float = ss > 1 ? 0.75 : 0                                 // 2 倍：4 点を混ぜる（少し広めに、なめらかに）、1 倍：そのまま写す
+            var k: Float = 0                                                 // 縦横ちょうど 2 倍：出す画素の真ん中は 2×2 の画素のかど＝ 1 回の線形の読みで 2×2 の平均（広げると線がにじんで、色が薄く見える）。1 倍はそのまま
             f.setRenderPipelineState(dp); f.setFragmentTexture(s.hi, index: 0); f.setFragmentBytes(&k, length: 4, index: 0)
             f.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3); f.endEncoding()
         }

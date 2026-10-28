@@ -292,6 +292,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     var onStats: ((Renderer) -> Void)?
     private(set) var drawSize = CGSize(width: 1, height: 1)
     var frameCount = 0
+    /// 窓が他の窓で完全に隠れている：歩く計算だけして、景色は描かない（4D 球アナロジーの景色の画面は、自分で同じ景色を描く）
+    var skipEncode = false
 
     init?(device: MTLDevice) {
         self.device = device
@@ -1106,6 +1108,11 @@ final class Renderer: NSObject, MTKViewDelegate {
         else if set.idleReuse {
             if refined { idle = true; if now - fpsT0 >= 0.5 { fpsT0 = now; fpsN = 0; onStats?(self) }; return }
             if now - stillSince < 0.3 { idle = false } else { refining = true }
+        }
+        if skipEncode {                                                  // 隠れている：描かずに、コマだけ進める（景色の画面が描き直すように）
+            frameCount += 1; fpsN += 1
+            if now - fpsT0 >= 0.5 { fps = Double(fpsN) / (now - fpsT0); fpsN = 0; fpsT0 = now; onStats?(self) }
+            return
         }
         onPoles?(poleLabels(aspect: view.drawableSize.width / max(1, view.drawableSize.height)))
         guard let rpd = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,

@@ -33,6 +33,7 @@ struct Main {
         if args.contains("--mapbench") { Verify.mapBench(); exit(0) }
         if args.contains("--mapssbench") { Verify.mapSSBench(); exit(0) }
         if args.contains("--hyperbench") { Verify.hyperBench(); exit(0) }
+        if args.contains("--mapcolor") { Verify.mapColorCompare(""); exit(0) }
         if args.contains("--quietbench") { Verify.quietBench(); exit(0) }
         if let i = args.firstIndex(of: "--mappng"), i + 1 < args.count { Verify.mapPNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--turndump"), i + 5 < args.count { Verify.turnDump(args[i + 1], args[i + 2] == "sharp", Int(args[i + 3])!, Double(args[i + 4])!, Int(args[i + 5])!); exit(0) }
@@ -747,6 +748,11 @@ final class WalkView: MTKView {
 
     func setup() {
         delegate = renderer
+        // 窓が完全に隠れたら景色を描かない（歩く計算は続ける）
+        NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main) { [weak self] n in
+            guard let self, let w = self.window, (n.object as? NSWindow) === w else { return }
+            self.renderer.skipEncode = !w.occlusionState.contains(.visible)
+        }
         colorPixelFormat = .rgba16Float
         colorspace = CGColorSpace(name: CGColorSpace.extendedSRGB)   // 0〜1 はブラウザと同じ色、1 より上は EDR の明るさ
         (layer as? CAMetalLayer)?.wantsExtendedDynamicRangeContent = true
