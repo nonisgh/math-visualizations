@@ -1086,7 +1086,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// 目印を全部消す：置いた目印と、「自分の道」に入っている目印の点、ついてくる仲間、デモの模型（目印のように残って見えるものを全部）
     func clearMarks() {
         let ps = journey.marks
-        journey.marks = []; journey.marks2 = []; journey.markKinds = []; journey.marksHit = []
+        journey.marks = []; journey.marks2 = []; journey.markKinds = []; journey.marksHit = []; journey.lap = 1
         let n = RouteStore.shared.removeMarkPoints(ps)
         if n > 0 { stopRouteAfterRemoval() }
         let fol = set.follower, dem = demo != nil

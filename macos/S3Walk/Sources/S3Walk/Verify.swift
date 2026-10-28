@@ -31,6 +31,17 @@ enum Verify {
         check(HLSlider.nudged(11, 1, "%.0f", 3, 41) == 12 && abs(HLSlider.nudged(0.82, -1, "%.2f", 0, 1.5) - 0.81) < 1e-9
               && abs(HLSlider.nudged(0.9, 10, "%.1f", 0.6, 4) - 1.9) < 1e-9 && HLSlider.nudged(175, 10, "%+.0f°", -180, 180) == 180,
               "矢印キー：層数 11 → 12、光沢 0.82 → 0.81、線の太さ 0.9 →（Shift）1.9、傾き 175° →（Shift）180°（端で止まる）")
+        print("== 周回（目印を全部通ったら 1 周）==")
+        do {
+            var j = Journey(); j.marks = [nrm(SIMD4(1, 0, 0, 0.2)), nrm(SIMD4(0, 1, 0, 0.2))]
+            var said: [String] = []
+            func go(_ p: SIMD4<Double>) { j.walked(nrm(p), 0.01, footOn: false) { said.append($0) } }
+            go(SIMD4(0, 0, 0, 1)); go(SIMD4(1, 0, 0, 0.2)); go(SIMD4(0, 0, 0, 1)); go(SIMD4(0, 1, 0, 0.2))   // 目印 1 → 2：1 周
+            let lap2 = j.lap == 2 && j.marksHit.isEmpty
+            go(SIMD4(0, 0, 0, 1)); go(SIMD4(1, 0, 0, 0.2))                                                   // 次の周の 1 つ目
+            check(lap2 && j.marksHit.count == 1 && said.contains { $0.contains("2 周目へ") } && j.trail.count <= 3,
+                  "目印 2 つを全部通ると 2 周目に（チェックと跡をリセット）。次の周も数える（\(j.lap) 周目・通った \(j.marksHit.count)・跡 \(j.trail.count) 点）")
+        }
         print("== 地図の写し方（ウェブ版の mapS3 と）==")
         turnChecks(r); mapChecks(r)
         print("== ウェブ版との比べ（refs/ の画素）==")
@@ -515,7 +526,7 @@ enum Verify {
                   String(format: "A・B はなめらかに効く：A の加速 押した瞬間 %.3f → いっぱい %.2f/秒（離した瞬間 %.2f）、B の減速 押した瞬間 %.3f → いっぱい %.2f/秒（離した瞬間 %.2f）", a0, aFull, aOff, b0, bFull, bOff))
             r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.set.cruise = 1
         }
-        // チェックポイント：置いた所に立っている間は数えず、前に置いた目印を通ると 1、ぐるっと 1 周して最初の目印に戻ると 2（全部）
+        // チェックポイント：置いた所に立っている間は数えず、前に置いた目印を通ると 1、ぐるっと 1 周して最初の目印に戻ると全部通ったので 1 周（チェックは 0 に戻って 2 周目）
         do {
             r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = false; r.step(1.0 / 60)
             var said: [String] = []; let keep = r.say; r.say = { said.append($0) }
@@ -524,12 +535,12 @@ enum Verify {
             r.walking = true
             while r.journey.dist < 0.5 { r.step(1.0 / 60) }; let h0 = r.journey.marksHit.count
             while r.journey.dist < 1.3 { r.step(1.0 / 60) }; let h1 = r.journey.marksHit.count
-            while r.journey.dist < 2 * .pi + 0.3 { r.step(1.0 / 60) }; let h2 = r.journey.marksHit.count
+            while r.journey.dist < 2 * .pi + 0.3 { r.step(1.0 / 60) }; let h2 = r.journey.marksHit.count, lap = r.journey.lap
             r.walking = false; r.step(1.0 / 60); r.say = keep
             let msg = said.filter { $0.hasPrefix("チェック") && $0.contains("目印") }, poles = r.journey.polesHit, poleMsg = said.filter { $0.contains("（極 ") }
-            r.clearMarks(); let cleared = r.journey.marksHit.isEmpty
-            check(h0 == 0 && h1 == 1 && h2 == 2 && msg.count == 2 && msg.last!.contains("全部") && cleared && poles.contains(0) && poles.contains(1) && poleMsg.count == poles.count - 2,
-                  "チェックポイント：置いた所では数えず（\(h0)）、前の目印を通って \(h1)、1 周して最初の目印で \(h2)（\(msg.last ?? "")）。目印を消すと記録も消える。極も 1 周で \(poles.count) つ（\(poles.map { MapRenderer.poleName(FIXED[$0]) }.joined(separator: "・"))）")
+            r.clearMarks(); let cleared = r.journey.marksHit.isEmpty && r.journey.lap == 1
+            check(h0 == 0 && h1 == 1 && h2 == 0 && lap == 2 && msg.count == 2 && msg.last!.contains("2 周目へ") && cleared && poles.contains(0) && poles.contains(1) && poleMsg.count == poles.count - 2,
+                  "チェックポイント：置いた所では数えず（\(h0)）、前の目印を通って \(h1)、1 周して最初の目印で全部通って \(lap) 周目へ（チェックは \(h2) に戻る。\(msg.last ?? "")）。目印を消すと記録と周回も消える。極も 1 周で \(poles.count) つ（\(poles.map { MapRenderer.poleName(FIXED[$0]) }.joined(separator: "・"))）")
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
         // 4D 球アナロジーの球層の数をさんぽと連動：さんぽで変えるとこちらへ、こちらで変えるとさんぽへ（3〜21 に収める）
@@ -1226,7 +1237,7 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
                 st.viewYaw = 0.5; st.viewPitch = 0.3
@@ -1241,6 +1252,7 @@ enum Verify {
                 case "線の彗星・歩いた跡": st.cursor = 2
                 case "極・前の丸・歩いた跡": st.symGlow = false; st.polesMode = 2
                 case "跡・白い光・歩いた跡": st.trailCol = 1
+                case "極・通った札・歩いた跡": st.polesMode = 2
                 case "極・英語・歩いた跡": st.poleEN = true; st.polesMode = 2
                 case "跡・軸の色・宇宙・歩いた跡": st.trailCol = 2; st.spaceMode = 1
                 case "極・光・宇宙・歩いた跡": st.polesMode = 2; st.spaceMode = 1

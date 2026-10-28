@@ -14,6 +14,10 @@ struct Journey {
     /// チェックポイント：歩いて通った目印（その目印の位置。並びは通った順）。目印のそば（0.12 以内）に外から入った時に記録する
     var marksHit: [V4] = []
     var polesHit: [Int] = []             // 通った極（FIXED の番号。通った順）
+    /// 周回：目印（2 つ以上）を全部通ったら 1 周。目印のチェックをリセットして次の周へ（1 ＝ 1 周目）
+    var lap = 1
+    /// 1 周したら歩いた跡（道すじ・足あと）も消す（4D 球アナロジーの「1 周で跡を消す」で入り切り）
+    static var lapClearsTrail = true
     var lastP: V4? = nil
     static let checkR = 0.12
     func isHit(_ m: V4) -> Bool { marksHit.contains { simd_distance($0, m) < 1e-9 } }
@@ -52,7 +56,14 @@ struct Journey {
         for (i, m) in marks.enumerated() where simd_dot(p, m) > cR && (lastP.map { simd_dot($0, m) <= cR } ?? false) && !isHit(m) {
             marksHit.append(m)
             let n = marks.filter { isHit($0) }.count
-            say(n == marks.count ? "チェック！ 目印 \(i + 1) を通過。これで全部の目印を通った（\(n)/\(marks.count)）" : "チェック！ 目印 \(i + 1) を通過（\(n)/\(marks.count)）")
+            if n == marks.count && marks.count >= 2 {
+                // 1 周：チェックをリセットして次の周へ（今いる目印は、離れてまた入った時に数える）
+                lap += 1; marksHit = []
+                if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }   // 跡も新しい周から
+                say("チェック！ 目印 \(i + 1) を通過。\(lap - 1) 周！ チェックポイントをリセットして \(lap) 周目へ")
+            } else {
+                say(n == marks.count ? "チェック！ 目印 \(i + 1) を通過。これで全部の目印を通った（\(n)/\(marks.count)）" : "チェック！ 目印 \(i + 1) を通過（\(n)/\(marks.count)）")
+            }
         }
         // 極も同じように：そばに外から入ったら通ったと記録（アナ極・カタ極は上の知らせがあるので、ほかの 6 つだけ知らせる）
         for (k, m) in FIXED.enumerated() where simd_dot(p, m.c) > cR && (lastP.map { simd_dot($0, m.c) <= cR } ?? false) && !polesHit.contains(k) {
@@ -122,7 +133,7 @@ enum Store {
     static func snapshot(_ r: Renderer) -> [String: Any] {
         let c = r.cam
         return ["set": r.set.dict(), "p": arr(c.w.p), "r": arr(c.w.r), "u": arr(c.w.u), "f": arr(c.w.f),
-                "az": c.az, "el": c.el, "dist": r.journey.dist, "marks": r.journey.marks.map(arr), "markKinds": r.journey.markKinds, "marksHit": r.journey.marksHit.map(arr), "polesHit": r.journey.polesHit,
+                "az": c.az, "el": c.el, "dist": r.journey.dist, "marks": r.journey.marks.map(arr), "markKinds": r.journey.markKinds, "marksHit": r.journey.marksHit.map(arr), "polesHit": r.journey.polesHit, "lap": r.journey.lap,
                 "p2": a3(r.journey.w2.p), "r2": a3(r.journey.w2.r), "f2": a3(r.journey.w2.f), "marks2": r.journey.marks2.map(a3)]
     }
     static func save(_ r: Renderer) { UserDefaults.standard.set(snapshot(r), forKey: key) }
@@ -143,6 +154,7 @@ enum Store {
         r.journey.markKinds = (d["markKinds"] as? [Int]) ?? []
         r.journey.marksHit = ((d["marksHit"] as? [[Double]]) ?? []).compactMap { v4($0) }
         r.journey.polesHit = ((d["polesHit"] as? [Int]) ?? []).filter { $0 >= 0 && $0 < 8 }
+        r.journey.lap = max(1, (d["lap"] as? Int) ?? 1)
         if r.journey.markKinds.count != r.journey.marks.count { r.journey.markKinds = Array((r.journey.markKinds + Array(repeating: -1, count: r.journey.marks.count)).prefix(r.journey.marks.count)) }
         if let p = v3(d["p2"]), let rr = v3(d["r2"]), let f = v3(d["f2"]) { r.journey.w2 = Walker2(p: simd_normalize(p), r: rr, f: f) }
         if let m = d["marks2"] as? [[Double]] { r.journey.marks2 = m.compactMap { v3($0) } }
