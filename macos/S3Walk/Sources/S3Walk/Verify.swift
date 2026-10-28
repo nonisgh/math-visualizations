@@ -992,6 +992,19 @@ enum Verify {
                 print(String(format: "%@・%@：GPU %.2f ms・CPU %.2f ms / コマ", name, side == .left ? "左" : "右", g, c))
             }
         }
+        // 今いる所の印の重さ（歩いた跡つき。三人称のダイブで寄り切った所＝彗星が画面の上でいちばん大きい所も）
+        for (name, cur, third) in [("印：さんぽ", 0, false), ("印：光の彗星", 1, false), ("印：線の彗星", 2, false), ("印：光の彗星・三人称", 1, true), ("印：線の彗星・三人称", 2, true)] {
+            let st = HyperLabState(); st.cursor = cur
+            guard let r = HyperLabRenderer(side: .right, state: st, view: nil) else { continue }
+            var c = Camera(); c.az = 50; var tr: [SIMD4<Double>] = []
+            for _ in 0..<120 { let L = c.lookFrame().L; c.w.p = nrm(c.w.p + L * 0.01); orthoFrame(&c.w); tr.append(c.w.p) }
+            let F = c.viewFrame()
+            r.walkOverride = { .init(trail: tr, pos: c.w.p, space: false, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
+            if third { st.diveThird = true; st.diveT = 1 }
+            st.bump()
+            let (g, cp) = r.bench(1600, 2000)
+            print(String(format: "%@・右：GPU %.2f ms・CPU %.2f ms / コマ", name, g, cp))
+        }
         let st = HyperLabState(); if let r = HyperLabRenderer(side: .left, state: st, view: nil) {
             let t0 = CACurrentMediaTime(); for k in 0..<10 { st.zw = Double(k) * 0.05; r.buildLeftForBench() }
             print(String(format: "左の輪を作り直す（Z-W を変えた時）：%.1f ms / 回", (CACurrentMediaTime() - t0) * 100))
@@ -1213,7 +1226,7 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
                 st.viewYaw = 0.5; st.viewPitch = 0.3
@@ -1225,6 +1238,8 @@ enum Verify {
                 case "断面カット・物体": st.cutOn = true; st.cutRef = 1; st.cutAngDeg = 90; st.cutWDeg = 120
                 case "ポリゴンカット": st.cutOn = true; st.cutRef = 2; st.polyArm = 1; st.cutWDeg = 200
                 case "彗星・歩いた跡": st.cursor = 1
+                case "線の彗星・歩いた跡": st.cursor = 2
+                case "彗星・宇宙・歩いた跡": st.cursor = 1; st.spaceMode = 1
                 case "球層・4方向": st.shellMode = 1
                 case "球層・軸の色", "球層・軸の色・ワイヤー": st.shellMode = 2
                 case "さんぽ印・歩いた跡": st.cursor = 0

@@ -77,7 +77,7 @@ final class HyperLabState: ObservableObject {
     @Published var axesDive = true                                    // ズーム（ダイブ）の間も座標軸を出す
     @Published var wipeLow = true                                     // さんぽの景色の画面（ワイプ）を低負荷で：画素は半分（1 秒 60 コマ）
     @Published var shutWalk = false                                   // さんぽの窓は描かない：さんぽの窓（景色・地図）を止め、描くのはこの窓だけ（景色の画面・ダイブは描く。歩く計算・跡はそのまま）
-    @Published var cursor = 1                                         // 今いる所の印：0 さんぽ（黄色の玉）・1 彗星（小さな光の頭と、歩いた道に沿って消えていく尾）
+    @Published var cursor = 1                                         // 今いる所の印：0 さんぽ（黄色の玉）・1 彗星（光で描く。コマと、ぼけた尾）・2 線の彗星（前の形）
     @Published var walkOpen = true                                    // パネルの「さんぽと連動」の欄を開いている
     // 自分を追う（さんぽの「自分中心」を広げたもの）：歩く人が真ん中（4D の手前、超球の正面）から「遊び」の角度より離れたら、
     //   傾き（Z-W・面内・前後・左右）を少しずつ動かして手前へ連れ戻す。遊び 0° ＝ いつも中心、90° ＝ 手前の半分は自由に横断して奥へ行きかけたら回す。
@@ -341,6 +341,7 @@ struct HLVert { var p: SIMD4<Float>; var n: SIMD4<Float>; var c: SIMD4<Float> }
 struct HLRight { var m4 = matrix_identity_float4x4; var q = SIMD4<Float>(1, 1, 3.8, 1.55); var r = SIMD4<Float>(1.35, 48, 0, 0); var d = SIMD4<Float>(0.6, 0, 0, 0) }
 /// 名前の札の頂点（位置・文字の絵の座標）
 struct HLLabelVert { var p: SIMD4<Float>; var uv: SIMD4<Float> }
+struct HLCometVert { var p: SIMD4<Float>; var q: SIMD4<Float> }
 /// 左の輪 1 本（シェーダーの RI）
 struct HLRing { var a: SIMD4<Float>; var c: SIMD4<Float> }
 struct HLUni {
@@ -441,6 +442,29 @@ struct LVert { float4 p; float4 uv; };
 struct LO { float4 pos [[position]]; float2 uv; };
 vertex LO lbv(uint vid [[vertex_id]], constant LVert* vs [[buffer(0)]], constant U& u [[buffer(1)]]) { LO o; o.pos = u.mvp * float4(vs[vid].p.xyz, 1.0); o.uv = vs[vid].uv.xy; return o; }
 fragment float4 lbf(LO in [[stage_in]], texture2d<float> t [[texture(0)]]) { constexpr sampler s(filter::linear, address::clamp_to_edge); return t.sample(s, in.uv); }
+// 光の彗星：頭（コマ）と尾を、画面に向く板に光の式で描く（足し合わせ）。q.xy：板の上の位置（頭は −1〜1 の丸、尾は x が頭からの割合 0〜1・y が横 −1〜1）、q.z：0 頭・1 尾、q.w：濃さ
+struct CV { float4 p; float4 q; };
+struct CMO { float4 pos [[position]]; float4 q; };
+vertex CMO cmv(uint vid [[vertex_id]], constant CV* vs [[buffer(0)]], constant U& u [[buffer(1)]]) { CMO o; o.pos = u.mvp * float4(vs[vid].p.xyz, 1.0); o.q = vs[vid].q; return o; }
+fragment float4 cmf(CMO in [[stage_in]], constant float4& tm [[buffer(2)]]) {
+    float t = tm.x; float3 col;
+    if (in.q.z < 0.5) {
+        // 頭：白く飛んだ核・青白い内側の光・青緑のコマ（ぼんやり広がる）
+        float r = length(in.q.xy), fade = 1.0 - smoothstep(0.75, 1.0, r);
+        float core = exp(-r * r / 0.0035), inner = exp(-r * r / 0.03), coma = exp(-r / 0.22);
+        float tw = 0.93 + 0.07 * sin(t * 2.3) * sin(t * 1.7 + 1.0);                     // ほんの少しゆらめく
+        col = (float3(1.0) * core * 2.2 + float3(0.85, 0.95, 1.0) * inner * 0.9 + float3(0.45, 0.95, 0.85) * coma * 0.45) * fade * tw;
+    } else {
+        // 尾：ふちはぼかし（ガウス）、真ん中に細い光のすじ（イオンの尾）、流れるすじ模様。先へ行くほど淡く・青く
+        float s = clamp(in.q.x, 0.0, 1.0), v = in.q.y;
+        float g = exp(-v * v * 4.0), core = exp(-v * v * 36.0), ion = exp(-v * v * 12.0);
+        float stri = 0.78 + 0.22 * sin(v * 17.0 + s * 11.0 - t * 1.7) * sin(v * 7.0 - s * 5.0 + t * 0.9);
+        float fall = pow(1.0 - s, 1.5);
+        float3 dust = mix(float3(1.0, 0.97, 0.9), float3(0.55, 0.75, 1.0), s);
+        col = (dust * g * 0.5 + float3(0.9, 0.97, 1.0) * core * 0.85 + float3(0.45, 0.7, 1.0) * ion * 0.35) * fall * stri;
+    }
+    return float4(col, in.q.w);
+}
 struct QO { float4 pos [[position]]; float2 uv; };   // 画面いっぱいの三角形（背景・縮める）
 // 宇宙モードの星（球面さんぽと同じ S³ の星）：右は超球の上を殻と同じ 4D の回転・遠近で、左は 4 つ目を落とした影 (x, y, w)（球の中に詰まる）。
 //   カメラに向いた小さな板に、光の点（芯とにじみ）を足し合わせて描く。明るい星ほど大きく。右の超球の奥（4D の裏）の星は少し暗く
@@ -592,6 +616,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     private var rPipeAdd: MTLRenderPipelineState!, starPipe: MTLRenderPipelineState!, bgPipe: MTLRenderPipelineState!, bgMakePipe: MTLRenderPipelineState!
     private var bgTex: MTLTexture?                                    // 宇宙の背景の絵（大きさが変わった時だけ作る。毎コマ星雲を計算すると重い）
     private lazy var starBuf: MTLBuffer? = { let s = Renderer.starList; return device.makeBuffer(bytes: s, length: MemoryLayout<StarGPU>.stride * s.count) }()
+    private var cometPipe: MTLRenderPipelineState!
     private var lbPipe: MTLRenderPipelineState!, labelTex: [String: MTLTexture] = [:]
     /// 左：2 倍の大きさで描くための絵（変わった時だけ作る）
     private var ssTex: (ms: MTLTexture, dep: MTLTexture, hi: MTLTexture)?
@@ -652,7 +677,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         for a in 0..<sa { for b in 0..<sb { mesh += [rq(a, b), rq(a + 1, b), rq(a + 1, b + 1), rq(a, b), rq(a + 1, b + 1), rq(a, b + 1)] } }
         ringMeshCount = mesh.count
         ringMesh = mesh.withUnsafeBytes { d.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
-        rPipeAdd = pipe(true, "hrv", add: true); starPipe = pipe(true, "stv", "stf", add: true); bgPipe = pipe(false, "dsv", "cpf")
+        rPipeAdd = pipe(true, "hrv", add: true); cometPipe = pipe(true, "cmv", "cmf", add: true); starPipe = pipe(true, "stv", "stf", add: true); bgPipe = pipe(false, "dsv", "cpf")
         let bp = MTLRenderPipelineDescriptor(); bp.vertexFunction = lib.makeFunction(name: "bgv"); bp.fragmentFunction = lib.makeFunction(name: "bgf")
         bp.colorAttachments[0].pixelFormat = .bgra8Unorm; bgMakePipe = try! d.makeRenderPipelineState(descriptor: bp)
         let dp = MTLRenderPipelineDescriptor(); dp.vertexFunction = lib.makeFunction(name: "dsv"); dp.fragmentFunction = lib.makeFunction(name: "dsf")
@@ -1461,10 +1486,11 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         }
         let P = pts.map { place($0) }
         var tri: [HLVert] = []; tri.reserveCapacity(P.count * 12)
+        var ctri: [HLCometVert] = []                                    // 光の彗星（足し合わせで、あとから描く）
         // カメラに近い所ほど小さく（ダイブで寄っても、画面の上の大きさがだいたい同じ。ふだんはほぼ 1）
         func near(_ p: SIMD3<Double>) -> Double { max(0.004, min(1, simd_length(eye - p) / 7.5)) }
         // 彗星の時：頭から道を戻った長さ。尾の届く所では跡を薄くして、尾が浮き出るように
-        let comet = st.cursor == 1, tailL = 1.05 * near(P[P.count - 1].0) * (st.diveThird && side == .right ? 1 + 3.5 * Self.diveEase(st.diveT).1 : 1)
+        let comet = st.cursor >= 1, real = st.cursor == 1, tailL = 1.05 * near(P[P.count - 1].0) * (st.diveThird && side == .right ? 1 + 3.5 * Self.diveEase(st.diveT).1 : 1)
         var fromHead = [Double](repeating: .infinity, count: P.count)
         if comet {
             fromHead[P.count - 1] = 0
@@ -1524,11 +1550,32 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                     prev = (l0, r0, col)
                 }
             }
-            tail(0.075, 0.5, SIMD3(0.85, 0.95, 1.0), SIMD3(0.35, 0.45, 1.0))   // 尾のにじみ（青白く、しぼみながら消える）   // 尾のにじみ（青白く、広がりながら消える）
-            tail(0.024, 1.0, SIMD3(1.0, 1.0, 1.0), SIMD3(0.55, 0.85, 1.0))            // 尾の芯
+            if real {
+                // 光の尾：道に沿った帯（頭で太く、後ろへしぼむ）。色と明るさは cmf が横の位置・頭からの割合で決める
+                var prev: (SIMD3<Double>, SIMD3<Double>, SIMD4<Float>, SIMD4<Float>)?
+                for k in 0..<idx.count where idx.count >= 2 {
+                    let j = idx[k], p = P[j].0
+                    let a = P[idx[max(0, k - 1)]].0, b = P[idx[min(idx.count - 1, k + 1)]].0
+                    let s = min(1, acc[k] / max(1e-9, tailL))
+                    var sd = simd_cross(b - a, eye - p); let l = simd_length(sd)
+                    sd = l < 1e-12 ? .zero : sd / l * 0.085 * sc * pow(1 - 0.8 * s, 1.2)
+                    let a0 = Float(0.6 + 0.4 * P[j].1) * gone
+                    let ql = SIMD4<Float>(Float(s), -1, 1, a0), qr = SIMD4<Float>(Float(s), 1, 1, a0), l0 = p - sd, r0 = p + sd
+                    func v(_ x: SIMD3<Double>, _ q: SIMD4<Float>) -> HLCometVert { HLCometVert(p: SIMD4(SIMD3<Float>(x), 1), q: q) }
+                    if let (pl, pr, pql, pqr) = prev { ctri += [v(pl, pql), v(pr, pqr), v(r0, qr), v(pl, pql), v(r0, qr), v(l0, ql)] }
+                    prev = (l0, r0, ql, qr)
+                }
+                // 光の頭：画面に向く板（コマはぼんやり広いので、板は大きめ）
+                let hs = 0.2 * sc
+                func hv(_ x: Double, _ y: Double) -> HLCometVert { HLCometVert(p: SIMD4(SIMD3<Float>(c + ax * (x * hs) + ay * (y * hs)), 1), q: SIMD4(Float(x), Float(y), 0, vis)) }
+                ctri += [hv(-1, -1), hv(1, -1), hv(1, 1), hv(-1, -1), hv(1, 1), hv(-1, 1)]
+            } else {
+                tail(0.075, 0.5, SIMD3(0.85, 0.95, 1.0), SIMD3(0.35, 0.45, 1.0))   // 尾のにじみ（青白く、しぼみながら消える）
+                tail(0.024, 1.0, SIMD3(1.0, 1.0, 1.0), SIMD3(0.55, 0.85, 1.0))     // 尾の芯
+            }
         }
         let gold = SIMD3<Float>(0.98, 0.80, 0.08), ice = SIMD3<Float>(1.0, 0.93, 0.78)   // 彗星の頭は暖かい白（水色の殻に埋もれない）
-        let discs: [(Double, SIMD4<Float>)] = comet
+        let discs: [(Double, SIMD4<Float>)] = real ? [] : comet
             ? [(0.085 * sc, SIMD4(ice, 0.28 * vis)), (0.045 * sc, SIMD4(ice, 0.8 * vis)), (0.022 * sc, SIMD4(1, 1, 1, vis))]   // 彗星の頭（玉より小さめ）
             : [(0.15 * sc, SIMD4(gold, 0.3 * vis)), (0.075 * sc, SIMD4(gold, vis)), (0.035 * sc, SIMD4(1, 1, 0.9, vis))]
         func rim(_ a: Double, _ rad: Double) -> SIMD3<Double> { let d: SIMD3<Double> = ax * cos(a) + ay * sin(a); return c + d * rad }
@@ -1538,15 +1585,26 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 for q in [c, rim(a0, rad), rim(a1, rad)] { tri.append(HLVert(p: SIMD4(SIMD3<Float>(q), 1), n: .zero, c: col)) }
             }
         }
-        guard !tri.isEmpty else { return }
         var u = u0; u.model = matrix_identity_float4x4; u.g.z = 0
-        e.setRenderPipelineState(alphaPipe); e.setDepthStencilState(depthAlways)
-        tri.withUnsafeBytes { b in
-            if b.count <= 4096 { e.setVertexBytes(b.baseAddress!, length: b.count, index: 0) }
-            else if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { e.setVertexBuffer(buf, offset: 0, index: 0) }
+        if !tri.isEmpty {
+            e.setRenderPipelineState(alphaPipe); e.setDepthStencilState(depthAlways)
+            tri.withUnsafeBytes { b in
+                if b.count <= 4096 { e.setVertexBytes(b.baseAddress!, length: b.count, index: 0) }
+                else if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { e.setVertexBuffer(buf, offset: 0, index: 0) }
+            }
+            e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1)
+            e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tri.count)
         }
-        e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1)
-        e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tri.count)
+        if !ctri.isEmpty {                                              // 光の彗星：足し合わせ（重なるほど明るく、白く飛ぶ）
+            e.setRenderPipelineState(cometPipe); e.setDepthStencilState(depthAlways)
+            ctri.withUnsafeBytes { b in
+                if b.count <= 4096 { e.setVertexBytes(b.baseAddress!, length: b.count, index: 0) }
+                else if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { e.setVertexBuffer(buf, offset: 0, index: 0) }
+            }
+            var tm = SIMD4<Float>(Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 1000)), 0, 0, 0)
+            e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&tm, length: 16, index: 2)
+            e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: ctri.count)
+        }
     }
     /// 確かめの絵用：歩いた跡の代わり（無ければアプリのもの）
     var walkOverride: (() -> HyperLabState.Walk)?
@@ -1923,9 +1981,9 @@ struct HyperLabView: View {
                         .help("3 つの画面（3D の球・さんぽの景色・4D の超球）の置き場所を順に回す（左上 → 左下 → 右）")
                     Toggle("歩いた跡", isOn: $st.walk).toggleStyle(.switch).font(.caption).fixedSize()
                         .help("球面さんぽで歩いた跡と今いる所を、右の超球（S³ そのもの）と左の球（影）に描く")
-                    Picker("", selection: $st.cursor) { Text("さんぽ").tag(0); Text("彗星").tag(1) }
-                        .pickerStyle(.segmented).frame(width: 110).labelsHidden().disabled(!st.walk)
-                        .help("今いる所の印。さんぽ：黄色の玉。彗星：小さな光の頭と、歩いた道に沿って細く消えていく尾")
+                    Picker("", selection: $st.cursor) { Text("さんぽ").tag(0); Text("彗星").tag(1); Text("線の彗星").tag(2) }
+                        .pickerStyle(.segmented).frame(width: 180).labelsHidden().disabled(!st.walk)
+                        .help("今いる所の印。さんぽ：黄色の玉。彗星：光で描く（白く飛んだ核と青緑のコマ、ぼけてすじの流れる尾）。線の彗星：線で描いた前の形")
                     Toggle("目印", isOn: $st.marksOn).toggleStyle(.switch).font(.caption).fixedSize()
                         .help("球面さんぽで置いた目印。歩いて通った目印（チェックポイント）は塗りつぶしと ✓、まだの目印は輪")
                     Picker("極", selection: $st.polesMode) { Text("出さない").tag(0); Text("通ると出る").tag(1); Text("いつも").tag(2) }
