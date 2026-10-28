@@ -48,6 +48,7 @@ final class MobileModel: ObservableObject {
         if let u = Bundle.main.url(forResource: "KaTeX_Math-Italic", withExtension: "ttf") { CTFontManagerRegisterFontsForURL(u as CFURL, .process, nil) }
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { fatalError("Metal が使えない") }
         self.r = r
+        HyperLabState.walkSource = { [unowned r] in (r.journey.trail, r.cam.w.p) }   // 超球の試作に、歩いた跡と今いる所を
         if UserDefaults.standard.dictionary(forKey: Store.key) == nil { MobileModel.macLook(r) }   // 初めて開いた時は Mac 版の見え方で
         Store.restore(r)
         r.set.gamepad = true                                   // 指のスティックもコントローラーと同じ入れ方で

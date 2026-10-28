@@ -82,6 +82,7 @@ final class AppModel: ObservableObject {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { fatalError("Metal が使えない") }
         self.r = r
         Store.restore(r)
+        HyperLabState.walkSource = { [unowned r] in (r.journey.trail, r.cam.w.p) }   // 超球の試作に、歩いた跡と今いる所を
         r.say = { [weak self] m in DispatchQueue.main.async { self?.say(m) } }
         r.onPad = { [weak self] k in self?.pad(k) }
         restoreMapMode()

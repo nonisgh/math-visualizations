@@ -1097,14 +1097,20 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0)] {
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
                 st.viewYaw = 0.5; st.viewPitch = 0.3
                 if name.hasPrefix("正面") { st.pitch = 0.0203; st.roll = -0.0962; st.viewYaw = 0; st.viewPitch = 0; st.leftDist = 5.56; st.viewDist = 7.5 }   // ウェブ版の今の画面と同じ向き・大きさ
                 st.bump()
                 let (iw, ih) = name.hasPrefix("正面") ? (1024, 1536) : (900, 760)   // 正面はウェブ版の右の枠（1024×1536）と同じ形
-                guard let r = HyperLabRenderer(side: side, state: st, view: nil), let img = r.image(iw, ih) else { continue }
+                guard let r = HyperLabRenderer(side: side, state: st, view: nil) else { continue }
+                if name.hasSuffix("歩いた跡") {                                    // 螺旋の道（極めぐりの螺旋のように）を 9 歩
+                    var tr: [SIMD4<Double>] = []
+                    for k in 0...900 { let s = Double(k) / 100, a = s * 0.9, b = s * 0.23; tr.append(nrm(SIMD4(cos(a) * sin(b + 0.2), sin(a) * sin(b + 0.2), sin(s * 0.5) * 0.35, cos(b + 0.2)))) }
+                    r.walkOverride = { (tr, tr.last!) }
+                }
+                guard let img = r.image(iw, ih) else { continue }
                 let url = URL(fileURLWithPath: dir).appendingPathComponent("超球_\(name)_\(side == .left ? "左" : "右").png")
                 let d = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
                 CGImageDestinationAddImage(d, img, nil); CGImageDestinationFinalize(d); print(url.path)

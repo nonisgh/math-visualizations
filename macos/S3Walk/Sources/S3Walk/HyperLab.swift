@@ -24,6 +24,9 @@ final class HyperLabState: ObservableObject {
     @Published var gloss = 1.0                                        // 光沢（照り返しライト・映り込み）の強さ。0 で今までの見た目
     @Published var glare = true                                       // グレア（色を深く・ふちが白く光る・斜めの映り込みの帯）
     @Published var fps = 0                                            // 1 秒あたりのコマ数（左の画面で数える。1 秒ごとに更新）
+    @Published var walk = true                                        // 球面さんぽで歩いた跡と今いる所を描く（お遊び）
+    /// 球面さんぽの歩いた跡（S³ の上の長さ 1 の点。古い順）と今いる所。アプリが起動した時に入れる（無ければ描かない）
+    static var walkSource: (() -> (trail: [SIMD4<Double>], pos: SIMD4<Double>))?
     var viewYaw = 0.0, viewPitch = 0.0, viewDist = 7.5                // 右の 3D 視点（ドラッグで回す）
     var leftDist = 5.5
     var version = 0                                                   // 形が変わったら増やす（描く側は変わった時だけ作り直す）
@@ -157,7 +160,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     let side: Side, st: HyperLabState
     let device: MTLDevice, queue: MTLCommandQueue
     private var opaquePipe: MTLRenderPipelineState!, alphaPipe: MTLRenderPipelineState!
-    private var depthWrite: MTLDepthStencilState!, depthRead: MTLDepthStencilState!
+    private var depthWrite: MTLDepthStencilState!, depthRead: MTLDepthStencilState!, depthAlways: MTLDepthStencilState!
     private var tris: [HLVert] = [], glass: [HLVert] = [], lines: [HLVert] = []
     private var triBuf: MTLBuffer?, glassBuf: MTLBuffer?, lineBuf: MTLBuffer?
     /// 右：層ごとの範囲（殻の面・その層の線）。ウェブ版（three.js）と同じく、層の順に「面 → 線」と描く
@@ -203,6 +206,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         dp.colorAttachments[0].pixelFormat = .bgra8Unorm; dsPipe = try! d.makeRenderPipelineState(descriptor: dp)
         let w = MTLDepthStencilDescriptor(); w.depthCompareFunction = .less; w.isDepthWriteEnabled = true; depthWrite = d.makeDepthStencilState(descriptor: w)
         let r = MTLDepthStencilDescriptor(); r.depthCompareFunction = .less; r.isDepthWriteEnabled = false; depthRead = d.makeDepthStencilState(descriptor: r)
+        let a = MTLDepthStencilDescriptor(); a.depthCompareFunction = .always; a.isDepthWriteEnabled = false; depthAlways = d.makeDepthStencilState(descriptor: a)
     }
 
     // ---- 色（ウェブ版の layerColor：中心が赤、北は赤→水色、南は紫→青）----
@@ -423,6 +427,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                     e.drawIndexedPrimitives(type: .line, indexCount: r.l.count, indexType: .uint32, indexBuffer: ri, indexBufferOffset: r.l.lowerBound * 4)
                 }
             }
+            drawWalk(e, u)
             return
         }
         if let b = glassBuf {
@@ -435,7 +440,78 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             e.setVertexBuffer(b, offset: 0, index: 0); e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1)
             e.drawPrimitives(type: .line, vertexStart: 0, vertexCount: lines.count)
         }
+        drawWalk(e, u)
     }
+    /// 球面さんぽで歩いた跡と今いる所（お遊び）。
+    ///   右：S³ はこの超球そのもの。歩いた点 (x, y, z, w) を R 倍して、殻と同じ 4D の回転・遠近で写す（超球の面の上を這う光の線）。
+    ///   左：2 次元とのアナロジー。4 つ目の z を落とした影 (x, y, w) を球の上へ（左の高さ z は右の w。輪と同じ対応）。
+    ///   線はカメラに向いた帯（にじみの太い帯＋芯）、古い所ほど青く淡く、新しい所ほど白く明るい。超球（球）の奥の側は薄く。今いる所は黄色の玉
+    private func drawWalk(_ e: MTLRenderCommandEncoder, _ u0: HLUni) {
+        guard st.walk, let src = walkOverride ?? HyperLabState.walkSource else { return }
+        let (trail0, pos) = src()
+        var pts = trail0
+        if pts.count > 3000 { let k = Double(pts.count) / 3000; pts = (0..<3000).map { trail0[min(trail0.count - 1, Int(Double($0) * k))] } }   // 多い時は間引く
+        pts.append(pos)
+        let R = Self.R, camW = st.camW, (eye, _, _, _) = camBasis()
+        let m4 = simd_double4x4(columns: (xf(SIMD4(1, 0, 0, 0)), xf(SIMD4(0, 1, 0, 0)), xf(SIMD4(0, 0, 1, 0)), xf(SIMD4(0, 0, 0, 1))))
+        let lr = leftRot()
+        // 点を画面の 3 次元へ。face：見えている側なら 1、奥の側は 0（なめらかに）
+        func place(_ p: SIMD4<Double>) -> (SIMD3<Double>, Double) {
+            if side == .right {
+                let v = m4 * (p * R), s = camW / max(0.6, camW - v.w) * Self.SCALE
+                let f = (v.w - R * R / camW) / R
+                return (SIMD3(v.x, v.y, v.z) * s, smoothstep(-0.1, 0.05, f))
+            }
+            var q = SIMD3(p.x, p.y, p.w); let l = simd_length(q); q = l < 1e-9 ? SIMD3(0, 0, 1) : q / l
+            let w = lr * (q * R * 1.012)
+            return (w, smoothstep(-0.15, 0.1, simd_dot(simd_normalize(w), simd_normalize(eye - w))))
+        }
+        let P = pts.map { place($0) }
+        var tri: [HLVert] = []; tri.reserveCapacity(P.count * 12)
+        func ribbon(_ width: Double, _ alpha: Float, _ bright: Float) {
+            guard P.count >= 2 else { return }
+            var prev: (SIMD3<Double>, SIMD3<Double>, SIMD4<Float>)?
+            for i in 0..<P.count {
+                let a = P[max(0, i - 1)].0, b = P[min(P.count - 1, i + 1)].0, p = P[i].0
+                if i > 0 && simd_length(P[i].0 - P[i - 1].0) > 0.6 { prev = nil; continue }   // 飛んだ所（初めに戻した時など）はつながない
+                var sd = simd_cross(b - a, eye - p); let l = simd_length(sd); sd = l < 1e-12 ? .zero : sd / l * width
+                let t = Float(i) / Float(max(1, P.count - 1)), vis = Float(0.45 + 0.55 * P[i].1)
+                let c = simd_mix(SIMD3<Float>(1.0, 0.30, 0.62), SIMD3<Float>(1.0, 0.97, 0.80), SIMD3(repeating: t * t)) * bright   // 殻の緑・青に映える暖かい色（古い所は桃色、新しい所は白）
+                let col = SIMD4(c, alpha * (0.45 + 0.55 * t) * vis)
+                let l0 = p - sd, r0 = p + sd
+                if let (pl, pr, pc) = prev {
+                    func v(_ x: SIMD3<Double>, _ c: SIMD4<Float>) -> HLVert { HLVert(p: SIMD4(SIMD3<Float>(x), 1), n: .zero, c: c) }
+                    tri.append(v(pl, pc)); tri.append(v(pr, pc)); tri.append(v(r0, col)); tri.append(v(pl, pc)); tri.append(v(r0, col)); tri.append(v(l0, col))
+                }
+                prev = (l0, r0, col)
+            }
+        }
+        ribbon(0.05, 0.22, 1.0)                                         // にじみ
+        ribbon(0.016, 1.0, 1.2)                                         // 芯
+        // 今いる所：カメラに向いた丸（黄色のにじみ＋白い芯）
+        let (c, f) = P[P.count - 1], fw = SIMD3<Double>(eye - c), up0 = abs(simd_normalize(fw).y) > 0.9 ? SIMD3<Double>(1, 0, 0) : SIMD3<Double>(0, 1, 0)
+        let ax = simd_normalize(simd_cross(up0, fw)), ay = simd_normalize(simd_cross(fw, ax)), vis = Float(0.6 + 0.4 * f)
+        let gold = SIMD3<Float>(0.98, 0.80, 0.08)
+        let discs: [(Double, SIMD4<Float>)] = [(0.15, SIMD4(gold, 0.3 * vis)), (0.075, SIMD4(gold, vis)), (0.035, SIMD4(1, 1, 0.9, vis))]
+        func rim(_ a: Double, _ rad: Double) -> SIMD3<Double> { let d: SIMD3<Double> = ax * cos(a) + ay * sin(a); return c + d * rad }
+        for (rad, col) in discs {
+            for k in 0..<24 {
+                let a0 = Double(k) / 24 * 2 * .pi, a1 = Double(k + 1) / 24 * 2 * .pi
+                for q in [c, rim(a0, rad), rim(a1, rad)] { tri.append(HLVert(p: SIMD4(SIMD3<Float>(q), 1), n: .zero, c: col)) }
+            }
+        }
+        guard !tri.isEmpty else { return }
+        var u = u0; u.model = matrix_identity_float4x4; u.g.z = 0
+        e.setRenderPipelineState(alphaPipe); e.setDepthStencilState(depthAlways)
+        tri.withUnsafeBytes { b in
+            if b.count <= 4096 { e.setVertexBytes(b.baseAddress!, length: b.count, index: 0) }
+            else if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { e.setVertexBuffer(buf, offset: 0, index: 0) }
+        }
+        e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1)
+        e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tri.count)
+    }
+    /// 確かめの絵用：歩いた跡の代わり（無ければアプリのもの）
+    var walkOverride: (() -> (trail: [SIMD4<Double>], pos: SIMD4<Double>))?
     /// 画面なしで描いて絵にする（確かめ用。4 倍のなめらかさ）
     func image(_ w: Int, _ h: Int) -> CGImage? {
         func tex(_ f: MTLPixelFormat, _ ms: Bool) -> MTLTexture? {
@@ -573,6 +649,8 @@ struct HyperLabView: View {
                 slider("層数", Binding(get: { Double(st.layers) }, set: { st.layers = Int($0.rounded()); st.bump() }), 3, 41, fmt: "%.0f")
                 slider("光沢", Binding(get: { st.gloss }, set: { st.gloss = $0 }), 0, 1.5, fmt: "%.2f")
                 Toggle("グレア", isOn: $st.glare).toggleStyle(.switch).font(.caption).fixedSize()
+                Toggle("歩いた跡", isOn: $st.walk).toggleStyle(.switch).font(.caption).fixedSize()
+                    .help("球面さんぽで歩いた跡と今いる所を、右の超球（S³ そのもの）と左の球（影）に描く")
             }
         }
         .padding(10)
