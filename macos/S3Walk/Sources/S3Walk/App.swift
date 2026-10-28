@@ -84,7 +84,7 @@ final class AppModel: ObservableObject {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { fatalError("Metal が使えない") }
         self.r = r
         Store.restore(r)
-        HyperLabState.walkSource = { [unowned r] in .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks, hit: r.journey.marks.map { r.journey.isHit($0) }, poles: r.journey.polesHit, lap: r.journey.lap, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov) }   // 超球の試作に、歩いた跡・今いる所・目印を
+        HyperLabState.walkSource = { [unowned r] in .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks, hit: r.journey.marks.map { r.journey.isHit($0) }, poles: r.journey.polesHit, lap: r.journey.lap, head: r.cam.lookFrame().L, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov) }   // 超球の試作に、歩いた跡・今いる所・目印を
         r.say = { [weak self] m in DispatchQueue.main.async { self?.say(m) } }
         r.onPad = { [weak self] k in self?.pad(k) }
         restoreMapMode()

@@ -65,16 +65,23 @@ enum Verify {
             let s = HyperSound.shared
             let still = s.renderTest(seconds: 1, speed: 0, zoom: 0), slow = s.renderTest(seconds: 1, speed: 0.3, zoom: 0)
             let fast = s.renderTest(seconds: 1, speed: 1, zoom: 0), dive = s.renderTest(seconds: 1, speed: 1, zoom: 1)
-            let bell = s.renderTest(seconds: 1, speed: 0, zoom: 0, chimeAt: 0.2)
+            let bell = s.renderTest(seconds: 1, speed: 0, zoom: 1, chimeAt: 0.2), bellFar = s.renderTest(seconds: 1, speed: 0, zoom: 0, chimeAt: 0.2)
             let turn = s.renderTest(seconds: 1, speed: 1, zoom: 1, turn: 1)
             if let dir = ProcessInfo.processInfo.environment["S3_SNDWAV"] {     // 聞いて確かめる用：風切り音を wav に
-                for (n, sp, z, tr) in [("1_遅い", 0.4, 0.0, 0.0), ("2_速い", 1.0, 0.0, 0.0), ("3_ズーム", 1.0, 1.0, 0.0), ("4_ズーム右へ曲がる", 1.0, 1.0, 1.0)] {
+                for (n, sp, z, tr) in [("1_遅い", 0.4, 0.0, 0.0), ("2_速い", 1.0, 0.0, 0.0), ("3_ズーム", 1.0, 1.0, 0.0), ("4_ズーム右へ曲がる", 1.0, 1.0, 1.0), ("5_ズーム中くらい", 0.6, 1.0, 0.0)] {
                     _ = s.renderTest(seconds: 4, speed: sp, zoom: z, turn: tr, wav: dir + "/風切り_\(n).caf")
                 }
             }
-            check(still.rms < 1e-4 && slow.rms > still.rms && fast.rms > slow.rms && dive.rms > fast.rms * 1.5 && dive.peak < 0.95 && turn.rms > dive.rms && turn.rms < dive.rms * 2.6 && turn.peak < 0.95 && bell.rms > 0.01,
-                  String(format: "風切り音：止まると無音（%.4f）、遅い %.3f < 速い %.3f < ズームで寄る %.3f < 曲がる %.3f（いちばん大きい値 %.2f、割れない）。チリン %.3f",
-                         still.rms, slow.rms, fast.rms, dive.rms, turn.rms, max(dive.peak, turn.peak), bell.rms))
+            check(still.rms < 1e-4 && slow.rms > still.rms && fast.rms > slow.rms && dive.rms > fast.rms * 1.5 && dive.peak < 0.95 && turn.rms > dive.rms && turn.rms < dive.rms * 2.6 && turn.peak < 0.95 && bell.rms > 0.01 && fast.rms < dive.rms * 0.08 && bellFar.rms > bell.rms * 0.8,
+                  String(format: "風切り音：止まると無音（%.4f）、遅い %.4f < 外から全速 %.4f（かすか）< ズームで寄る %.3f < 曲がる %.3f（いちばん大きい値 %.2f、割れない）。チリン 寄って %.3f・外からも %.3f（いつも聞こえる）",
+                         still.rms, slow.rms, fast.rms, dive.rms, turn.rms, max(dive.peak, turn.peak), bell.rms, bellFar.rms))
+        }
+        do {                                                             // ズーム中に回した分は、離すとゆーっくり戻る
+            let st = HyperLabState(); st.diveYawOff = 1.0; st.tickDive(0)
+            var at: [Double] = []
+            for i in 1...480 { st.tickDive(1.0 / 60); if i == 30 || i == 120 || i == 240 || i == 480 { at.append(st.diveYawOff) } }
+            check(at[0] > 0.85 && at[1] > 0.2 && at[1] < 0.75 && at[2] < 0.25 && abs(at[3]) < 0.03 && at.allSatisfy { $0 > -0.02 },
+                  String(format: "ズーム中に回した 1.0 は、離すと 0.5 秒で %.2f（静かに動き出す）・2 秒で %.2f・4 秒で %.2f・8 秒で %.3f（行き過ぎない）", at[0], at[1], at[2], at[3]))
         }
         print("== 地図の写し方（ウェブ版の mapS3 と）==")
         turnChecks(r); mapChecks(r)
@@ -1044,7 +1051,7 @@ enum Verify {
             var c = Camera(); c.az = 50; var tr: [SIMD4<Double>] = []
             for _ in 0..<120 { let L = c.lookFrame().L; c.w.p = nrm(c.w.p + L * 0.01); orthoFrame(&c.w); tr.append(c.w.p) }
             let F = c.viewFrame()
-            r.walkOverride = { .init(trail: tr, pos: c.w.p, space: false, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
+            r.walkOverride = { .init(trail: tr, pos: c.w.p, head: c.lookFrame().L, space: false, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
             if third { st.diveThird = true; st.diveT = 1; st.diveManual = true; st.tickDive(0) }
             st.bump()
             let (g, cp) = r.bench(1600, 2000)
@@ -1271,7 +1278,7 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("宇宙・半透明・星の遠近", 1.0, true, 2), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・三人称", 1.0, true, 0), ("ダイブ0.80・南へ・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
                 st.viewYaw = 0.5; st.viewPitch = 0.3
@@ -1308,6 +1315,7 @@ enum Verify {
                 case "4D切断x・正面": st.cutOn = true; st.cutKind = 2; st.cut4Axis = 0; st.cutPos = 0.2; st.pitch = 0; st.roll = 0; st.viewYaw = 0.35; st.viewPitch = 0.25
                 case "4D切断x": st.cutOn = true; st.cutKind = 2; st.cut4Axis = 0; st.cutPos = 0.2
                 case "4D切断・宇宙": st.cutOn = true; st.cutKind = 2; st.cutPos = 0.1; st.spaceMode = 1
+                case "宇宙・半透明・星の遠近": st.spaceMode = 1; st.starDepth = 0.8
                 case "宇宙・正面": st.spaceMode = 1; st.pitch = 0.0203; st.roll = -0.0962; st.viewYaw = 0; st.viewPitch = 0
                 default: break
                 }
@@ -1316,10 +1324,11 @@ enum Verify {
                 guard let r = HyperLabRenderer(side: side, state: st, view: nil) else { continue }
                 if name.hasPrefix("ダイブ") {                                    // 少し歩いた所から、景色の向きでダイブ（宇宙モード）
                     var c = Camera(); c.az = 50; var tr: [SIMD4<Double>] = []
+                    if name.contains("南へ") { c.az = 0; c.el = 0; c.w = Walker(p: SIMD4(0, 0, 0, 1), r: SIMD4(1, 0, 0, 0), u: SIMD4(0, 0, 1, 0), f: SIMD4(0, -1, 0, 0)) }   // アナ極から南極（−y）へ向かう＝天の川の中を見る
                     for _ in 0..<120 { let L = c.lookFrame().L; c.w.p = nrm(c.w.p + L * 0.01); orthoFrame(&c.w); tr.append(c.w.p) }   // 見ている向きへ 1.2 歩いた跡
                     let F = c.viewFrame()
-                    r.walkOverride = { .init(trail: tr, pos: c.w.p, space: true, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
-                    st.diveT = Double(name.dropFirst(3).prefix(4)) ?? 0; st.spaceMode = 1; if name.hasSuffix("軸なし") { st.axesDive = false }; if name.hasSuffix("三人称") { st.diveThird = true }
+                    r.walkOverride = { .init(trail: tr, pos: c.w.p, head: c.lookFrame().L, space: true, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
+                    st.diveT = Double(name.dropFirst(3).prefix(4)) ?? 0; st.spaceMode = 1; if name.hasSuffix("軸なし") { st.axesDive = false }; if name.hasSuffix("三人称") { st.diveThird = true }; if let c = ProcessInfo.processInfo.environment["S3_CHASE"]?.split(separator: ",").compactMap({ Double($0) }), c.count == 3 { st.chaseDist = c[0]; st.chasePitch = c[1]; st.chaseYaw = c[2] }
                 }
                 if name.hasPrefix("同じ道") {                                     // 大きな円を 1 周半：今いる所の前に、前の周の跡が重なる
                     var tr: [SIMD4<Double>] = []

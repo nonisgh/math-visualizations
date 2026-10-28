@@ -30,7 +30,7 @@ final class MobileModel: ObservableObject {
     @Published var showPanel = false
     @Published var showWeb = false                 // ウェブ版の数学アプリの一覧（シート）
     @Published var askProto = false                // 試作を選ぶ
-    @Published var proto: String? = nil            // 開いている試作（hyper・tess）
+    @Published var proto: String? = ProcessInfo.processInfo.arguments.contains("--hyper") ? "hyper" : nil   // 開いている試作（hyper・tess）。--hyper で起動すると超球アナロジーを開いて始まる（確かめ用）
     @Published var mapMode: MapMode = .docked
     @Published var hudText = ""
     /// 画面のゲームパッド（景色の下の方に出す）
@@ -48,7 +48,7 @@ final class MobileModel: ObservableObject {
         if let u = Bundle.main.url(forResource: "KaTeX_Math-Italic", withExtension: "ttf") { CTFontManagerRegisterFontsForURL(u as CFURL, .process, nil) }
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { fatalError("Metal が使えない") }
         self.r = r
-        HyperLabState.walkSource = { [unowned r] in .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks, hit: r.journey.marks.map { r.journey.isHit($0) }, poles: r.journey.polesHit, lap: r.journey.lap, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov) }   // 超球の試作に、歩いた跡・今いる所・目印を
+        HyperLabState.walkSource = { [unowned r] in .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks, hit: r.journey.marks.map { r.journey.isHit($0) }, poles: r.journey.polesHit, lap: r.journey.lap, head: r.cam.lookFrame().L, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov) }   // 超球の試作に、歩いた跡・今いる所・目印を
         if UserDefaults.standard.dictionary(forKey: Store.key) == nil { MobileModel.macLook(r) }   // 初めて開いた時は Mac 版の見え方で
         Store.restore(r)
         r.set.gamepad = true                                   // 指のスティックもコントローラーと同じ入れ方で
