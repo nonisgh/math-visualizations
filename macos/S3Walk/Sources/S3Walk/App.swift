@@ -756,7 +756,7 @@ final class WalkView: MTKView {
         }
         // 4D 球アナロジーで「さんぽの窓は止める」の間：さんぽの窓を選んでも、超球の窓へ自動で切りかえる（真っ黒の窓に用はない）
         NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] n in
-            guard let self, let w = self.window, (n.object as? NSWindow) === w, HyperLabState.walkShut, let h = HyperLabWindow.window, h.isVisible else { return }
+            guard let self, let w = self.window, (n.object as? NSWindow) === w, HyperLabState.walkShut, !HyperLabState.shutAuto, let h = HyperLabWindow.window, h.isVisible else { return }   // 前の窓だけ描く（自動）の時は、さんぽの窓へそのまま切りかえる
             DispatchQueue.main.async { h.makeKeyAndOrderFront(nil) }
         }
         colorPixelFormat = .rgba16Float
