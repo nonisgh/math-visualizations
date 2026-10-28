@@ -68,6 +68,10 @@ final class HyperLabState: ObservableObject {
         guard let s = HyperLabState.walkRendererGet?()?.set else { return 0 }
         return s.shAxis ? 2 : s.rainbow4 ? 1 : 0
     }
+    @Published var depth4On = false                                   // 4D の遠近（見る人の 4 次元の視線 w′ に沿って奥ほど）を入れる
+    @Published var depth4 = 3                                         // 4D の遠近の種類：1 かすみ・2 ぼかし・3 両方
+    @Published var symGlow = true                                     // 極・目印を光る星で描く（白い光に極の色がほんのり・十字のきらめき）。切ると前の丸と輪
+    @Published var depth4K = 0.7                                      // 4D の遠近の強さ
     @Published var diveThird = false                                  // ダイブの行き先：false 一人称（自分の目＝さんぽの景色へ）・true 三人称（斜め後ろから自分＝彗星を追う）
     @Published var chaseDist = 0.5                                    // 三人称：後ろへの距離（3D の画面の長さ）
     @Published var chasePitch = 25.0                                  // 三人称：上から見下ろす角度（°）
@@ -186,7 +190,7 @@ final class HyperLabState: ObservableObject {
          "axes": axes, "axPlus": axPlus, "axThin": axThin, "walk": walk, "marksOn": marksOn, "polesMode": polesMode,
          "spaceMode": spaceMode, "starsPct": starsPct, "layersLink": layersLink, "walkView": walkView, "order": order,
          "followOn": followOn, "followSlack": followSlack, "followSpeed": followSpeed, "followHeading": followHeading, "followDrift": followDrift,
-         "diveBlend": diveBlend, "quality": quality, "adaptive": adaptive, "wireW": wireW, "walkOpen": walkOpen, "cursor": cursor, "shutWalk": shutWalk, "axesDive": axesDive, "wipeLow": wipeLow, "shellMode": shellMode, "splitX": splitX, "splitY": splitY, "diveThird": diveThird, "chaseDist": chaseDist, "chasePitch": chasePitch, "chaseYaw": chaseYaw]
+         "diveBlend": diveBlend, "quality": quality, "adaptive": adaptive, "wireW": wireW, "walkOpen": walkOpen, "cursor": cursor, "shutWalk": shutWalk, "axesDive": axesDive, "wipeLow": wipeLow, "shellMode": shellMode, "splitX": splitX, "splitY": splitY, "diveThird": diveThird, "chaseDist": chaseDist, "chasePitch": chasePitch, "chaseYaw": chaseYaw, "depth4": depth4, "depth4K": depth4K, "depth4On": depth4On, "symGlow": symGlow]
     }
     func load() {
         guard let d = UserDefaults.standard.dictionary(forKey: Self.saveKey) else { return }
@@ -200,7 +204,7 @@ final class HyperLabState: ObservableObject {
         int("spaceMode", &spaceMode); dbl("starsPct", &starsPct); bol("layersLink", &layersLink); bol("walkView", &walkView)
         if let o = d["order"] as? [Int], o.count == 3, Set(o) == [0, 1, 2] { order = o }
         bol("followOn", &followOn); dbl("followSlack", &followSlack); dbl("followSpeed", &followSpeed); bol("followHeading", &followHeading); dbl("followDrift", &followDrift)
-        bol("diveBlend", &diveBlend); int("quality", &quality); bol("adaptive", &adaptive); dbl("wireW", &wireW); bol("walkOpen", &walkOpen); int("cursor", &cursor); bol("shutWalk", &shutWalk); bol("axesDive", &axesDive); bol("wipeLow", &wipeLow); int("shellMode", &shellMode); dbl("splitX", &splitX); dbl("splitY", &splitY); bol("diveThird", &diveThird); dbl("chaseDist", &chaseDist); dbl("chasePitch", &chasePitch); dbl("chaseYaw", &chaseYaw)
+        bol("diveBlend", &diveBlend); int("quality", &quality); bol("adaptive", &adaptive); dbl("wireW", &wireW); bol("walkOpen", &walkOpen); int("cursor", &cursor); bol("shutWalk", &shutWalk); bol("axesDive", &axesDive); bol("wipeLow", &wipeLow); int("shellMode", &shellMode); dbl("splitX", &splitX); dbl("splitY", &splitY); bol("diveThird", &diveThird); dbl("chaseDist", &chaseDist); dbl("chasePitch", &chasePitch); dbl("chaseYaw", &chaseYaw); int("depth4", &depth4); dbl("depth4K", &depth4K); bol("depth4On", &depth4On); bol("symGlow", &symGlow)
         if cutOn && cutKind == 0 && cutRef == 2 { polyArm &+= 1 }            // ポリゴンカットは開いた時の手前で作り直す
         lastSaved = "\(snapshot)"
     }
@@ -338,10 +342,10 @@ struct HLStatsLabel: View {
 struct HLVert { var p: SIMD4<Float>; var n: SIMD4<Float>; var c: SIMD4<Float> }
 /// 描く時の定数：key・rim は照り返しライトの向き（カメラについて回る）、camR・camU はカメラの右・上（グレアの帯）、g は（光沢・グレア・光を当てる・未使用）
 /// 右の殻の毎コマの定数（シェーダーの HR）
-struct HLRight { var m4 = matrix_identity_float4x4; var q = SIMD4<Float>(1, 1, 3.8, 1.55); var r = SIMD4<Float>(1.35, 48, 0, 0); var d = SIMD4<Float>(0.6, 0, 0, 0) }
+struct HLRight { var m4 = matrix_identity_float4x4; var q = SIMD4<Float>(1, 1, 3.8, 1.55); var r = SIMD4<Float>(1.35, 48, 0, 0); var d = SIMD4<Float>(0.6, 0, 0, 0); var e = SIMD4<Float>(0, 0, 0, 0) }
 /// 名前の札の頂点（位置・文字の絵の座標）
 struct HLLabelVert { var p: SIMD4<Float>; var uv: SIMD4<Float> }
-struct HLCometVert { var p: SIMD4<Float>; var q: SIMD4<Float> }
+struct HLCometVert { var p: SIMD4<Float>; var q: SIMD4<Float>; var c = SIMD4<Float>(1, 1, 1, 1) }
 /// 左の輪 1 本（シェーダーの RI）
 struct HLRing { var a: SIMD4<Float>; var c: SIMD4<Float> }
 struct HLUni {
@@ -373,7 +377,9 @@ vertex O ringv(uint vid [[vertex_id]], uint iid [[instance_id]], const device fl
 }
 // 右の殻（GPU で 4D の回転・遠近）：元の点（層ごとに緯度 × 経度の 4D の点）は 1 度だけ送り、回す行列だけを毎コマ渡す。
 //   法線はとなりの点を同じように写して求める。4D の裏側（4D の視点から見て奥の半分）は暗く・くすませる（ウェブ版の「裏側を暗く」）
-struct HR { float4x4 m4; float4 q; float4 r; float4 d; };    // q：色の倍率・透明度・camW・SCALE、r：R・網目の細かさ M、d.x：遠近の下限（ふだん 0.6、ダイブで近づく時は小さく）
+struct HR { float4x4 m4; float4 q; float4 r; float4 d; float4 e; };   // e：4D の遠近（x かすみ・y ぼかし の強さ）    // q：色の倍率・透明度・camW・SCALE、r：R・網目の細かさ M、d.x：遠近の下限（ふだん 0.6、ダイブで近づく時は小さく）
+// 4D の奥行き：見る人の 4 次元の視線（w′）に沿って、手前（＋R）0 〜 奥（−R）1。物体の w 軸ではなく、回したあとの w′（見る向き）で測る
+inline float dep4(float vw, constant HR& h) { return clamp((h.r.x - vw) / (2.0 * h.r.x), 0.0, 1.0); }
 inline float3 hproj(float4 b, constant HR& h) { float4 v = h.m4 * b; return v.xyz * (h.q.z / max(h.d.x, h.q.z - v.w) * h.q.w); }
 vertex O hrv(uint vid [[vertex_id]], const device float4* base [[buffer(0)]], constant U& u [[buffer(1)]], constant HR& h [[buffer(2)]], const device float4* lc [[buffer(3)]]) {
     uint M = uint(h.r.y), M1 = M + 1, per = M1 * M1, L = vid / per, k = vid % per, i = k / M1, j = k % M1, o0 = L * per;
@@ -383,48 +389,55 @@ vertex O hrv(uint vid [[vertex_id]], const device float4* base [[buffer(0)]], co
     float3 n = cross(a, c); if (length(n) < 1e-7) n = P;
     float R = h.r.x, face = (v.w - R * R / h.q.z) / R, bk = 0.6 * (1.0 - smoothstep(-0.1, 0.05, face));
     float3 col = lc[L].rgb * h.q.x; float gray = dot(col, float3(0.299, 0.587, 0.114));
-    O o; o.pos = u.mvp * float4(P, 1.0); o.wp = P; o.n = n; o.c = float4((col + (gray - col) * (0.4 * bk)) * (1.0 - 0.5 * bk), h.q.y * lc[L].a); o.ph = float(j) / float(M) * 2.0 * M_PI_F;
+    O o; o.pos = u.mvp * float4(P, 1.0); o.wp = P; o.n = n; float hz = h.e.x * pow(dep4(v.w, h), 1.3);                          // 4D のかすみ：奥ほど背景の色へ溶けて淡く
+    col = mix(col, float3(0.012, 0.027, 0.07), hz * 0.85);
+    o.c = float4((col + (gray - col) * (0.4 * bk)) * (1.0 - 0.5 * bk), h.q.y * lc[L].a * (1.0 - 0.55 * hz)); o.ph = float(j) / float(M) * 2.0 * M_PI_F;
     // 殻（g.z ＝ 2）：光は頂点ごとに計算して面の上でなめらかにつなぐ（21 枚の半透明の殻を全部の画素で計算すると、とても重い。殻はなめらかな球なので頂点で十分）
     if (u.g.z > 1.5) o.c = lightHL(n, P, o.c, 0.0, u);
     return o;
 }
 // ---- 太さのある線（ワイヤー）：1 画素の線（.line）は Retina では髪の毛ほど細く、色が薄く見えるので、線分ごとに画面の上で帯に広げる ----
 //   ふちは 1 画素ぶんやわらかく。k：（画面の幅・高さ（画素）・線の太さの半分（画素）・未使用）
-struct WO { float4 pos [[position]]; float4 c; float3 wp; float ph; float side; float hw; };
-inline WO wideLine(float4 ca, float4 cb, float4 colA, float4 colB, float3 wa, float3 wb, float pha, float phb, uint vid, float4 k) {
+//   blA・blB：4D のぼかし（端ごと。太さを最大 6 倍、ふちのやわらかさを太さぶんまで）
+struct WO { float4 pos [[position]]; float4 c; float3 wp; float ph; float side; float hw; float sf; };
+inline WO wideLine(float4 ca, float4 cb, float4 colA, float4 colB, float3 wa, float3 wb, float pha, float phb, uint vid, float4 k, float blA, float blB) {
     float2 ha = k.xy * 0.5;
     WO o;
-    if (ca.w <= 1e-4 || cb.w <= 1e-4) { o.pos = float4(0, 0, -2, 1); o.c = 0; o.wp = 0; o.ph = 0; o.side = 0; o.hw = 1; return o; }
+    if (ca.w <= 1e-4 || cb.w <= 1e-4) { o.pos = float4(0, 0, -2, 1); o.c = 0; o.wp = 0; o.ph = 0; o.side = 0; o.hw = 1; o.sf = 0; return o; }
     float2 sa = ca.xy / ca.w * ha, sb = cb.xy / cb.w * ha, d = sb - sa; float L = length(d); d = L > 1e-4 ? d / L : float2(1, 0);
     float2 n = float2(-d.y, d.x);
     int corner = vid == 0 ? 0 : vid == 1 ? 1 : vid == 2 ? 2 : vid == 3 ? 2 : vid == 4 ? 1 : 3;
     bool atB = corner >= 2; float side = (corner == 1 || corner == 3) ? 1.0 : -1.0;
-    float hw = k.z + 0.5;
+    float bl = atB ? blB : blA, w0 = k.z * (1.0 + 5.0 * bl), sf = (k.z + 1.5) * 3.0 * bl;
+    float hw = w0 + 0.5 + sf * 0.5;
     float4 p = atB ? cb : ca;
     float2 off = n * side * hw + d * (atB ? 0.5 : -0.5);
     p.xy += off / ha * p.w;
-    o.pos = p; o.c = atB ? colB : colA; o.wp = atB ? wb : wa; o.ph = atB ? phb : pha; o.side = side * hw; o.hw = k.z;
+    o.pos = p; o.c = atB ? colB : colA; o.wp = atB ? wb : wa; o.ph = atB ? phb : pha; o.side = side * hw; o.hw = w0; o.sf = sf;
     return o;
 }
 // 右の網目：線分 iid の両はしの番号は idx[2 iid]・idx[2 iid ＋ 1]（殻と同じ写し方・色）
-inline void hshade(uint vid, const device float4* base, constant HR& h, const device float4* lc, thread float3& P, thread float4& c, thread float& ph) {
+inline void hshade(uint vid, const device float4* base, constant HR& h, const device float4* lc, thread float3& P, thread float4& c, thread float& ph, thread float& bl) {
     uint M = uint(h.r.y), M1 = M + 1, per = M1 * M1, L = vid / per, kk = vid % per, j = kk % M1;
     float4 b = base[vid], v = h.m4 * b; P = hproj(b, h);
     float R = h.r.x, face = (v.w - R * R / h.q.z) / R, bk = 0.6 * (1.0 - smoothstep(-0.1, 0.05, face));
     float3 col = lc[L].rgb * h.q.x; float gray = dot(col, float3(0.299, 0.587, 0.114));
-    c = float4((col + (gray - col) * (h.d.y * bk)) * (1.0 - h.d.z * bk), h.q.y * lc[L].a); ph = float(j) / float(M) * 2.0 * M_PI_F;   // 網目の裏側：灰色へ寄せる割合 d.y・暗くする割合 d.z
+    float dp = dep4(v.w, h), hz = h.e.x * pow(dp, 1.3);
+    col = mix(col, float3(0.012, 0.027, 0.07), hz * 0.85);
+    bl = h.e.y * pow(dp, 1.25);                                         // 4D のぼかし：奥ほど太く・やわらかく・淡く（ぼけた線の見え方）
+    c = float4((col + (gray - col) * (h.d.y * bk)) * (1.0 - h.d.z * bk), h.q.y * lc[L].a * (1.0 - 0.5 * hz) / (1.0 + 3.5 * bl)); ph = float(j) / float(M) * 2.0 * M_PI_F;   // 網目の裏側：灰色へ寄せる割合 d.y・暗くする割合 d.z
 }
 vertex WO hrwv(uint vid [[vertex_id]], uint iid [[instance_id]], const device float4* base [[buffer(0)]], constant U& u [[buffer(1)]], constant HR& h [[buffer(2)]],
                const device float4* lc [[buffer(3)]], const device uint* idx [[buffer(4)]], constant float4& k [[buffer(5)]]) {
-    float3 Pa, Pb; float4 cA, cB; float pa, pb;
-    hshade(idx[iid * 2], base, h, lc, Pa, cA, pa); hshade(idx[iid * 2 + 1], base, h, lc, Pb, cB, pb);
-    return wideLine(u.mvp * float4(Pa, 1), u.mvp * float4(Pb, 1), cA, cB, Pa, Pb, pa, pb, vid, k);
+    float3 Pa, Pb; float4 cA, cB; float pa, pb, ba, bb;
+    hshade(idx[iid * 2], base, h, lc, Pa, cA, pa, ba); hshade(idx[iid * 2 + 1], base, h, lc, Pb, cB, pb, bb);
+    return wideLine(u.mvp * float4(Pa, 1), u.mvp * float4(Pb, 1), cA, cB, Pa, Pb, pa, pb, vid, k, ba, bb);
 }
 // 左など：線分 iid ＝ 頂点 2 iid と 2 iid ＋ 1（HLVert の並び）
 vertex WO segwv(uint vid [[vertex_id]], uint iid [[instance_id]], constant V* vs [[buffer(0)]], constant U& u [[buffer(1)]], constant float4& k [[buffer(5)]]) {
     V a = vs[iid * 2], b = vs[iid * 2 + 1];
     float4 wa = u.model * float4(a.p.xyz, 1), wb = u.model * float4(b.p.xyz, 1);
-    return wideLine(u.mvp * wa, u.mvp * wb, a.c, b.c, wa.xyz, wb.xyz, 0, 0, vid, k);
+    return wideLine(u.mvp * wa, u.mvp * wb, a.c, b.c, wa.xyz, wb.xyz, 0, 0, vid, k, 0, 0);
 }
 fragment float4 wlf(WO in [[stage_in]], constant U& u [[buffer(1)]]) {
     if (u.cut.x > 2.5) { if (dot(in.wp, u.cutN.xyz) > u.cutN.w) discard_fragment(); }
@@ -433,7 +446,8 @@ fragment float4 wlf(WO in [[stage_in]], constant U& u [[buffer(1)]]) {
         a -= 2.0 * M_PI_F * floor((a + M_PI_F) / (2.0 * M_PI_F));
         if (abs(a) < u.cut.z) discard_fragment();
     }
-    float a = clamp(in.hw + 0.5 - abs(in.side), 0.0, 1.0);
+    float a = clamp((in.hw + 0.5 + in.sf * 0.5 - abs(in.side)) / (1.0 + in.sf), 0.0, 1.0);   // ふちは 1 画素（ぼかしの時は、そのぶん広く）やわらかく
+    if (in.sf > 0.01) a = a * a * (3.0 - 2.0 * a);
     if (a <= 0.0) discard_fragment();
     return float4(in.c.rgb, in.c.a * a);
 }
@@ -443,11 +457,30 @@ struct LO { float4 pos [[position]]; float2 uv; };
 vertex LO lbv(uint vid [[vertex_id]], constant LVert* vs [[buffer(0)]], constant U& u [[buffer(1)]]) { LO o; o.pos = u.mvp * float4(vs[vid].p.xyz, 1.0); o.uv = vs[vid].uv.xy; return o; }
 fragment float4 lbf(LO in [[stage_in]], texture2d<float> t [[texture(0)]]) { constexpr sampler s(filter::linear, address::clamp_to_edge); return t.sample(s, in.uv); }
 // 光の彗星：頭（コマ）と尾を、画面に向く板に光の式で描く（足し合わせ）。q.xy：板の上の位置（頭は −1〜1 の丸、尾は x が頭からの割合 0〜1・y が横 −1〜1）、q.z：0 頭・1 尾、q.w：濃さ
-struct CV { float4 p; float4 q; };
-struct CMO { float4 pos [[position]]; float4 q; };
-vertex CMO cmv(uint vid [[vertex_id]], constant CV* vs [[buffer(0)]], constant U& u [[buffer(1)]]) { CMO o; o.pos = u.mvp * float4(vs[vid].p.xyz, 1.0); o.q = vs[vid].q; return o; }
+//   q.z：4 通った極・目印（色の光と十字のきらめき）・5 まだの極・目印（色の光の輪）。c：その色
+struct CV { float4 p; float4 q; float4 c; };
+struct CMO { float4 pos [[position]]; float4 q; float4 c; };
+vertex CMO cmv(uint vid [[vertex_id]], constant CV* vs [[buffer(0)]], constant U& u [[buffer(1)]]) { CMO o; o.pos = u.mvp * float4(vs[vid].p.xyz, 1.0); o.q = vs[vid].q; o.c = vs[vid].c; return o; }
 fragment float4 cmf(CMO in [[stage_in]], constant float4& tm [[buffer(2)]]) {
     float t = tm.x; float3 col;
+    if (in.q.z > 3.5) {
+        float2 p = in.q.xy; float r = length(p), fade = 1.0 - smoothstep(0.7, 1.0, r);
+        float3 c = in.c.rgb, cw = mix(c, float3(1.0), 0.55);
+        float ph = in.c.r * 7.0 + in.c.g * 13.0 + in.c.b * 3.0, tw = 0.82 + 0.18 * sin(t * 2.6 + ph) * sin(t * 1.3 + ph * 0.7);   // またたき（色ごとにずれる）
+        if (in.q.z < 4.5) {
+            // 通った：白い芯・色の光・ぼんやりした外の光・十字のきらめき（細い斜めの十字も少し）
+            float core = exp(-r * r / 0.004), halo = exp(-r * r / 0.03), outer = exp(-r / 0.2);
+            float2 d = float2(p.x + p.y, p.x - p.y) * 0.7071;
+            float sp = exp(-abs(p.x) * 38.0) * exp(-abs(p.y) * 3.2) + exp(-abs(p.y) * 38.0) * exp(-abs(p.x) * 3.2);
+            float sd = exp(-abs(d.x) * 45.0) * exp(-abs(d.y) * 6.0) + exp(-abs(d.y) * 45.0) * exp(-abs(d.x) * 6.0);
+            col = (float3(1.0) * core * 1.8 + c * (halo * 1.1 + outer * 0.35) + cw * (sp * 0.75 + sd * 0.25) * tw) * fade;   // 白く光る星に、極の色がほんのり
+        } else {
+            // まだ：色の光の輪（中はうすく）
+            float ring = exp(-pow((r - 0.3) / 0.055, 2.0)), inner = exp(-r * r / 0.03);
+            col = (c * ring * 1.0 + c * inner * 0.22 + cw * exp(-r * r / 0.002) * 0.35) * fade * (0.9 + 0.1 * tw);
+        }
+        return float4(col, in.q.w);
+    }
     if (in.q.z < 0.5) {
         // 頭：白く飛んだ核・青白い内側の光・青緑のコマ（ぼんやり広がる）
         float r = length(in.q.xy), fade = 1.0 - smoothstep(0.75, 1.0, r);
@@ -484,17 +517,19 @@ struct Star { float4 p; float4 c; };
 struct SO { float4 pos [[position]]; float4 c; float2 q; };
 vertex SO stv(uint vid [[vertex_id]], uint iid [[instance_id]], const device Star* st [[buffer(0)]], constant U& u [[buffer(1)]], constant HR& h [[buffer(2)]], constant float4& k [[buffer(3)]]) {
     Star s = st[iid * uint(k.z)];                                       // k：大きさ・左右（0 右・1 左）・間引き・明るさ
-    float R = h.r.x; float3 P; float vis = 1.0;
+    float R = h.r.x; float3 P; float vis = 1.0, sblur = 0.0;
     if (k.y < 0.5) {
         float4 v = h.m4 * (s.p * R); P = v.xyz * (h.q.z / max(h.d.x, h.q.z - v.w) * h.q.w);
         vis = 0.45 + 0.55 * smoothstep(-0.1, 0.05, (v.w - R * R / h.q.z) / R);
+        float dp = dep4(v.w, h), bl = h.e.y * pow(dp, 1.5);
+        vis *= (1.0 - 0.6 * h.e.x * pow(dp, 1.3)) / (1.0 + 3.0 * bl); sblur = bl;
     } else if (k.y > 1.5) {                                             // 4D で切る：超平面（法線 h.r.w の軸）＝ h.r.z のすぐそばの星だけ（切り口の 3D の中に、遠近なしで。切った軸の所に w を置く）
         float4 v = h.m4 * (s.p * R); int ax = int(h.r.w); float vk = v[ax];
         float3 q = v.xyz; if (ax < 3) q[ax] = v.w; P = q * h.q.w;
         float dw = (vk - h.r.z) / 0.07; vis = exp(-dw * dw);
     } else { P = (u.model * float4(float3(s.p.x, s.p.y, s.p.w) * R, 1.0)).xyz; }
     float2 q = float2((vid == 1 || vid == 2 || vid == 4) ? 1.0 : -1.0, (vid == 2 || vid == 4 || vid == 5) ? 1.0 : -1.0);
-    float b = s.c.w, r = k.x * (0.55 + 0.45 * sqrt(b)) * clamp(length(u.eye.xyz - P) / 7.5, 0.02, 1.0);   // カメラに近い星も、画面の上の大きさは同じくらいに（ダイブ）
+    float b = s.c.w, r = k.x * (0.55 + 0.45 * sqrt(b)) * clamp(length(u.eye.xyz - P) / 7.5, 0.02, 1.0) * (1.0 + 1.6 * sblur);   // 4D のぼかし：奥の星は大きくぼんやり。カメラに近い星も、画面の上の大きさは同じくらいに（ダイブ）
     P += (u.camR.xyz * q.x + u.camU.xyz * q.y) * r;
     SO o; o.pos = u.mvp * float4(P, 1.0); o.c = float4(s.c.rgb, min(2.2, 0.45 + 0.7 * b) * vis * k.w); o.q = q; return o;
 }
@@ -901,7 +936,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         let s = st
         var sig: [Double] = [s.pitch, s.roll, s.yaw, s.zw, s.viewYaw, s.viewPitch, s.viewDist, s.leftDist, s.camW, s.gloss, s.glare ? 1 : 0,
                              Double(s.layers), Double(s.mode), Double(s.hemi), Double(s.lzw), s.cutOn ? 1 : 0, Double(s.cutRef), s.cutAngDeg, s.cutWDeg, s.cutPhi, Double(s.cutKind), Double(s.planeDir), s.cutPos, s.cutSweep ? 1 : 0, Double(s.cut4Axis), s.wireW, s.followOn ? 1 : 0, s.followSlack, s.followDrift, s.diveT,
-                             s.axes ? 1 : 0, s.axPlus ? 1 : 0, s.axThin ? 1 : 0, s.walk ? 1 : 0, s.marksOn ? 1 : 0, Double(s.cursor), s.diveThird ? 1 : 0, s.chaseDist, s.chasePitch, s.chaseYaw, Double(s.shellModeNow), Double(s.polesMode), Double(s.spaceMode), s.starsPct, s.spaceNow ? 1 : 0, s.auto ? 1 : 0,
+                             s.axes ? 1 : 0, s.axPlus ? 1 : 0, s.axThin ? 1 : 0, s.walk ? 1 : 0, s.marksOn ? 1 : 0, Double(s.cursor), Double(s.depth4), s.depth4K, s.depth4On ? 1 : 0, s.symGlow ? 1 : 0, s.diveThird ? 1 : 0, s.chaseDist, s.chasePitch, s.chaseYaw, Double(s.shellModeNow), Double(s.polesMode), Double(s.spaceMode), s.starsPct, s.spaceNow ? 1 : 0, s.auto ? 1 : 0,
                              Double(view.drawableSize.width), Double(view.drawableSize.height)]
         if (s.walk || s.marksOn), let src = walkOverride ?? HyperLabState.walkSource {
             let w = src(); sig += [Double(w.trail.count), w.pos.x, w.pos.y, w.pos.z, w.pos.w, Double(w.marks.count), Double(w.hit.filter { $0 }.count), Double(w.poles.count)]
@@ -1047,6 +1082,9 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             hg.d.x = Float(effClamp); hl.d.x = Float(effClamp)
             hl.d.y = Float(HyperLabState.wireBackGray); hl.d.z = Float(HyperLabState.wireBackDark)   // 宇宙：殻と網目は控えめに（中の星が見えるよう）
             hg.r = SIMD4(Float(Self.R), Float(rMesh), 0, 0); hl.r = hg.r
+            // 4D の遠近：ダイブで寄るほど弱める（寄った所は景色と同じに）
+            let dk = st.depth4On ? Float(st.depth4K * (1 - Self.diveEase(st.diveT).1)) : 0
+            hg.e = SIMD4(st.depth4 == 1 || st.depth4 == 3 ? dk : 0, st.depth4 >= 2 ? dk : 0, 0, 0); hl.e = hg.e
             var ug = u; ug.g.z = HyperLabState.shellPixelLight ? 1 : 2; ug.g.w = 0   // 殻の光：ふだんは頂点ごと（2）。比べる時は画素ごと（1）
             var ul = u; ul.g.z = 0
             if st.cutOn && st.cutKind == 0 && st.cutRef < 2 {
@@ -1274,17 +1312,30 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             }
         }
         var tags: [(String, SIMD3<Float>, SIMD3<Double>)] = []
+        // 光で描く時：画面に向く板 1 枚に、cmf が色の光・十字のきらめき（通った）／光の輪（まだ）を描く
+        var ctri: [HLCometVert] = []
+        func glow(_ c: SIMD3<Double>, _ col: SIMD3<Float>, _ hit: Bool, _ vis: Float, _ big: Double) {
+            let sc = max(0.004, min(1, simd_length(eye - c) / 7.5)), hs = big * sc
+            let fw = eye - c, up0 = abs(simd_normalize(fw).y) > 0.9 ? SIMD3<Double>(1, 0, 0) : SIMD3<Double>(0, 1, 0)
+            let ax = simd_normalize(simd_cross(up0, fw)), ay = simd_normalize(simd_cross(fw, ax))
+            func v(_ x: Double, _ y: Double) -> HLCometVert {
+                HLCometVert(p: SIMD4(SIMD3<Float>(c + ax * (x * hs) + ay * (y * hs)), 1), q: SIMD4(Float(x), Float(y), hit ? 4 : 5, vis), c: SIMD4(col, 1))
+            }
+            ctri += [v(-1, -1), v(1, -1), v(1, 1), v(-1, -1), v(1, 1), v(-1, 1)]
+        }
         // 8 つの極（さんぽの地図と同じ色・名前）：通った極は塗りつぶしと ✓、まだの極（いつも出す時）は輪
         for k in poles {
             let (c, f) = walkPlace(FIXED[k].c), col = MapRenderer.poleDotCol(k), vis = Float(0.5 + 0.5 * f), hit = wk.poles.contains(k)
-            if hit { disc(c, 0, 0.11, SIMD4(col, 0.25 * vis)); disc(c, 0, 0.06, SIMD4(col, vis)); disc(c, 0.06, 0.072, SIMD4(1, 1, 1, 0.9 * vis)) }
+            if st.symGlow { glow(c, col, hit, vis, 0.3) }                // 光る星（極の色がほんのり）
+            else if hit { disc(c, 0, 0.11, SIMD4(col, 0.25 * vis)); disc(c, 0, 0.06, SIMD4(col, vis)); disc(c, 0.06, 0.072, SIMD4(1, 1, 1, 0.9 * vis)) }
             else { disc(c, 0, 0.06, SIMD4(col, 0.14 * vis)); disc(c, 0.045, 0.062, SIMD4(col, 0.9 * vis)) }
             tags.append((hit ? "✓" + MapRenderer.poleName(FIXED[k]) : MapRenderer.poleName(FIXED[k]), hit ? SIMD3<Float>(0.75, 1.0, 0.55) : col, c + Uv * 0.15))
         }
         for (i, m) in wk.marks.enumerated() where st.marksOn {
             let (c, f) = walkPlace(m), col = Journey.markColor(i), vis = Float(0.5 + 0.5 * f)
             let hit = i < wk.hit.count && wk.hit[i]
-            if hit {
+            if st.symGlow { glow(c, col, hit, vis, 0.27) }
+            else if hit {
                 disc(c, 0, 0.12, SIMD4(col, 0.28 * vis))                       // にじみ
                 disc(c, 0, 0.068, SIMD4(col, vis))                             // 塗りつぶし
                 disc(c, 0.068, 0.082, SIMD4(1, 1, 1, 0.9 * vis))               // 白いふち
@@ -1295,10 +1346,19 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             tags.append((hit ? "✓\(i + 1)" : "\(i + 1)", hit ? SIMD3<Float>(0.75, 1.0, 0.55) : col, c + Uv * 0.15))
         }
         var u = u0; u.model = matrix_identity_float4x4; u.g.z = 0; u.cut = .zero
-        e.setRenderPipelineState(alphaPipe); e.setDepthStencilState(depthAlways)
-        tri.withUnsafeBytes { b in if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { e.setVertexBuffer(buf, offset: 0, index: 0) } }
-        e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1)
-        e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tri.count)
+        if !tri.isEmpty {
+            e.setRenderPipelineState(alphaPipe); e.setDepthStencilState(depthAlways)
+            tri.withUnsafeBytes { b in if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { e.setVertexBuffer(buf, offset: 0, index: 0) } }
+            e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1)
+            e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tri.count)
+        }
+        if !ctri.isEmpty {                                              // 光の極・目印（足し合わせ）
+            e.setRenderPipelineState(cometPipe); e.setDepthStencilState(depthAlways)
+            ctri.withUnsafeBytes { b in if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { e.setVertexBuffer(buf, offset: 0, index: 0) } }
+            var tm = SIMD4<Float>(Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 1000)), 0, 0, 0)
+            e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&tm, length: 16, index: 2)
+            e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: ctri.count)
+        }
         e.setRenderPipelineState(lbPipe); e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1)
         if side == .left || st.diveT == 0 { for (s, col, c) in tags { drawLabel(e, s, col, c, k: 0.7, math: false) } }
     }
@@ -1945,6 +2005,13 @@ struct HyperLabView: View {
                     .pickerStyle(.segmented).frame(width: 90).labelsHidden().disabled(!st.axes)
                     .help("線：細い軸線と平たい矢じり。立体：つやのある管と円すいの矢印")
                 Divider().frame(height: 18)
+                Toggle("4D の遠近", isOn: $st.depth4On).toggleStyle(.switch).font(.caption).fixedSize()
+                    .help("右の超球で、4 次元で遠い所ほど、かすませる・ぼかす")
+                Picker("", selection: $st.depth4) { Text("かすみ").tag(1); Text("ぼかし").tag(2); Text("両方").tag(3) }
+                    .pickerStyle(.segmented).frame(width: 170).labelsHidden().disabled(!st.depth4On)
+                    .help("右の超球で、4 次元で遠い所ほど：かすみ＝背景の色へ溶けて淡く、ぼかし＝網目の線が太くやわらかく淡く（ピンぼけのように）・星は大きくぼんやり。奥行きは物体の w 軸ではなく、見る人の 4 次元の視線（w′）で測る（4D で回すと、x・y・z・w の混ざった向きになる）")
+                slider("強さ", Binding(get: { st.depth4K }, set: { st.depth4K = $0 }), 0, 1, fmt: "%.2f").frame(width: 90).disabled(!st.depth4On)
+                Divider().frame(height: 18)
                 Text("Z-W を左の球で").font(.caption).foregroundStyle(.secondary)
                 Picker("", selection: Binding(get: { st.lzw }, set: { st.lzw = $0; st.bump() })) { Text("断面").tag(0); Text("影（投影）").tag(1); Text("両方").tag(2) }
                     .pickerStyle(.segmented).frame(width: 210).labelsHidden()
@@ -2028,6 +2095,8 @@ struct HyperLabView: View {
                         .help("今いる所の印。さんぽ：黄色の玉。彗星：光で描く（白く飛んだ核と青緑のコマ、ぼけてすじの流れる尾）。線の彗星：線で描いた前の形")
                     Toggle("目印", isOn: $st.marksOn).toggleStyle(.switch).font(.caption).fixedSize()
                         .help("球面さんぽで置いた目印。歩いて通った目印（チェックポイント）は塗りつぶしと ✓、まだの目印は輪")
+                    Toggle("光で描く", isOn: $st.symGlow).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.marksOn && st.polesMode == 0)
+                        .help("極と目印を光る星で描く（通った所は白く光る星に極の色がほんのり、十字のきらめき。まだの所は光の輪。ゆっくりまたたく）。切ると前の丸と輪")
                     Picker("極", selection: $st.polesMode) { Text("出さない").tag(0); Text("通ると出る").tag(1); Text("いつも").tag(2) }
                         .pickerStyle(.segmented).frame(width: 210).font(.caption)
                         .help("8 つの極（アナ極・カタ極・東西南北・天・地）。通ると出る：歩いて通った極だけ ✓ つきで出てくる。いつも：全部出し、通った極は ✓")
