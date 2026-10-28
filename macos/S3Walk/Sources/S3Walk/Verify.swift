@@ -25,6 +25,12 @@ enum Verify {
         journeyChecks(r)
         print("== パネルのドック（並べかえ・たたみ・保存）==")
         dockChecks()
+        print("== スライダー（数字の入力・矢印キー）==")
+        check(HLSlider.parse("15", 3, 41) == 15 && HLSlider.parse("９", 0, 1.5) == 1.5 && HLSlider.parse("−30°", -180, 180) == -30 && HLSlider.parse("abc", 0, 1) == nil,
+              "数字の入力：15 → 15、全角の ９（範囲 0〜1.5）→ 1.5、−30° → −30、文字だけ → 変えない")
+        check(HLSlider.nudged(11, 1, "%.0f", 3, 41) == 12 && abs(HLSlider.nudged(0.82, -1, "%.2f", 0, 1.5) - 0.81) < 1e-9
+              && abs(HLSlider.nudged(0.9, 10, "%.1f", 0.6, 4) - 1.9) < 1e-9 && HLSlider.nudged(175, 10, "%+.0f°", -180, 180) == 180,
+              "矢印キー：層数 11 → 12、光沢 0.82 → 0.81、線の太さ 0.9 →（Shift）1.9、傾き 175° →（Shift）180°（端で止まる）")
         print("== 地図の写し方（ウェブ版の mapS3 と）==")
         turnChecks(r); mapChecks(r)
         print("== ウェブ版との比べ（refs/ の画素）==")
@@ -1207,7 +1213,7 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0)] {
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
                 st.viewYaw = 0.5; st.viewPitch = 0.3
@@ -1218,9 +1224,14 @@ enum Verify {
                 case "断面カット・画面": st.cutOn = true; st.cutRef = 0; st.cutAngDeg = 0; st.cutWDeg = 120
                 case "断面カット・物体": st.cutOn = true; st.cutRef = 1; st.cutAngDeg = 90; st.cutWDeg = 120
                 case "ポリゴンカット": st.cutOn = true; st.cutRef = 2; st.polyArm = 1; st.cutWDeg = 200
+                case "彗星・歩いた跡": st.cursor = 1
+                case "球層・4方向": st.shellMode = 1
+                case "球層・軸の色", "球層・軸の色・ワイヤー": st.shellMode = 2
+                case "さんぽ印・歩いた跡": st.cursor = 0
                 case "座標軸・プラスのみ": st.axPlus = true
                 case "座標軸・立体": st.axThin = false
                 case "宇宙": st.spaceMode = 1
+                case "ワイヤー・宇宙", "ハイブリッド・宇宙": st.spaceMode = 1
                 case "平面・手前": st.cutOn = true; st.cutKind = 1; st.planeDir = 0; st.cutPos = 0
                 case "平面・x": st.cutOn = true; st.cutKind = 1; st.planeDir = 3; st.cutPos = -0.2
                 case "4D切断": st.cutOn = true; st.cutKind = 2; st.cutPos = 0.3
@@ -1238,7 +1249,7 @@ enum Verify {
                     for _ in 0..<120 { let L = c.lookFrame().L; c.w.p = nrm(c.w.p + L * 0.01); orthoFrame(&c.w); tr.append(c.w.p) }   // 見ている向きへ 1.2 歩いた跡
                     let F = c.viewFrame()
                     r.walkOverride = { .init(trail: tr, pos: c.w.p, space: true, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
-                    st.diveT = Double(name.dropFirst(3)) ?? 0; st.spaceMode = 1
+                    st.diveT = Double(name.dropFirst(3).prefix(4)) ?? 0; st.spaceMode = 1; if name.hasSuffix("軸なし") { st.axesDive = false }; if name.hasSuffix("三人称") { st.diveThird = true }
                 }
                 if name.hasSuffix("歩いた跡") {                                    // 螺旋の道（極めぐりの螺旋のように）を 9 歩
                     var tr: [SIMD4<Double>] = []

@@ -161,6 +161,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     private var arrowDir: [Int: SIMD3<Float>] = [:], arrowT = CACurrentMediaTime(), arrowDt: Float = 1.0 / 60   // 円すいの向き（なめらかに回す）
     var target = SIMD3<Double>(0, 0, 0)
     var onLabels: (([(CGPoint, MapLabel, Bool)]) -> Void)?
+    private var blackSize: CGSize?                                   // 真っ黒を出した大きさ（4D 球アナロジーで「さんぽの窓は止める」の間）
     var backingScale: CGFloat = 2
     /// 縦横この倍の大きさに描いてから縮める（2 ＝ 1 画素に 4 倍のマルチサンプル × 4 ＝ 16 点。線のふちがなめらか）。静かモードは 1
     var superSample = 2
@@ -485,6 +486,17 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
     func draw(in view: MTKView) {
         let tNow = CACurrentMediaTime(); arrowDt = Float(max(0, min(0.1, tNow - arrowT))); arrowT = tNow
+        if HyperLabState.walkShut {                                      // 4D 球アナロジーで「さんぽの窓は止める」：真っ黒を 1 回だけ
+            if blackSize != view.drawableSize, let d = view.currentDrawable, let cb = queue.makeCommandBuffer() {
+                let rp = MTLRenderPassDescriptor()
+                rp.colorAttachments[0].texture = d.texture; rp.colorAttachments[0].loadAction = .clear
+                rp.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1); rp.colorAttachments[0].storeAction = .store
+                cb.makeRenderCommandEncoder(descriptor: rp)?.endEncoding()
+                cb.present(d); cb.commit(); blackSize = view.drawableSize; onLabels?([])
+            }
+            return
+        }
+        blackSize = nil
         guard let drawable = view.currentDrawable, let cb = queue.makeCommandBuffer() else { return }
         let placed = encodeSS(cb, into: drawable.texture, fmt: view.colorPixelFormat)
         cb.present(drawable); cb.commit()

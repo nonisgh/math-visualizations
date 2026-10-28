@@ -834,7 +834,7 @@ final class WalkView: MTKView {
         // 60 fps の時は、画面の速さを割り切れる速さのうち 60 以上でいちばん遅いもの（144Hz → 72、120Hz → 60、60Hz → 60）。
         //   60 のままだと 144Hz の画面では 3 コマに 1 回（48 fps）になる
         let hz = max(60, window?.screen?.maximumFramesPerSecond ?? 60)
-        let fps = quiet ? hz / max(1, hz / 30) : renderer.set.fps60 && !HyperLabState.boostWalk ? hz / max(1, hz / 60) : hz   // 4D 球アナロジーのダイブ・追う間は速く
+        let fps = quiet ? hz / max(1, hz / 30) : (renderer.set.fps60 || HyperLabState.walkShut) && !HyperLabState.boostWalk ? hz / max(1, hz / 60) : hz   // 4D 球アナロジーのダイブ・追う間は速く
         if preferredFramesPerSecond != fps { preferredFramesPerSecond = fps }
     }
 

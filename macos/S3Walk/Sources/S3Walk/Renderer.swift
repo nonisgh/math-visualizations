@@ -271,6 +271,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     var gridSpinAng = 0.0              // 網目の自転の今の角（ウェブ版の GRID.spin）
     var sceneScale = 1.0              // 景色を描く細かさ（映画のような光の時。画面は画面の細かさのまま）
     private var lastSig: FrameSig? = nil, stillSince = 0.0, refined = false, refining = false
+    private var blackSize: CGSize?                                   // 真っ黒を出した大きさ（4D 球アナロジーで「さんぽの窓は止める」の間）
     private(set) var idle = false      // 動いていないので描き直していない
     var pathSpeed = 1.0                // 決まった道の速さの倍率（コントローラーの十字の上下で）
     let game = GameInput()
@@ -1102,6 +1103,18 @@ final class Renderer: NSObject, MTKViewDelegate {
         let now = CACurrentMediaTime(); gapRun = max(gapRun, (now - lastT) * 1000); let dt = min(0.05, now - lastT); lastT = now
         step(dt)
         let w = Int(view.drawableSize.width), h = Int(view.drawableSize.height)
+        // 4D 球アナロジーで「さんぽの窓は止める」：真っ黒を 1 回だけ出して、あとは描かずにコマだけ進める（景色の画面・ダイブが描き直すように）
+        if HyperLabState.walkShut {
+            if blackSize != view.drawableSize, let rpd = view.currentRenderPassDescriptor, let d = view.currentDrawable, let cb = queue.makeCommandBuffer() {
+                rpd.colorAttachments[0].loadAction = .clear; rpd.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
+                cb.makeRenderCommandEncoder(descriptor: rpd)?.endEncoding()
+                cb.present(d); cb.commit(); blackSize = view.drawableSize; onPoles?([])
+            }
+            frameCount += 1; fpsN += 1
+            if now - fpsT0 >= 0.5 { fps = Double(fpsN) / (now - fpsT0); fpsN = 0; fpsT0 = now; onStats?(self) }
+            return
+        }
+        if blackSize != nil { blackSize = nil; lastSig = nil; refined = false; stillSince = now }   // 戻った：すぐ描き直す
         // 動いていない時は描き直さない（前のコマのまま）。止まって 0.3 秒たったら 1 回だけ細かく（描く細かさ 1）描いてから休む
         let sig = FrameSig(set: set, cam: cam, marks: journey.marks.count, kinds: journey.markKinds, foot: journey.foot.count, w2: journey.w2.p, demo: demo?.c, grid: gridSpinAng, w: w, h: h, edr: edrHead, sceneScale: sceneScale)
         if sig != lastSig { lastSig = sig; stillSince = now; refined = false; idle = false }
