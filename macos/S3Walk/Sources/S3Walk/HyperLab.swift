@@ -519,6 +519,16 @@ struct CMO { float4 pos [[position]]; float4 q; float4 c; };
 vertex CMO cmv(uint vid [[vertex_id]], constant CV* vs [[buffer(0)]], constant U& u [[buffer(1)]]) { CMO o; o.pos = u.mvp * float4(vs[vid].p.xyz, 1.0); o.q = vs[vid].q; o.c = vs[vid].c; return o; }
 fragment float4 cmf(CMO in [[stage_in]], constant float4& tm [[buffer(2)]]) {
     float t = tm.x; float3 col;
+    if (in.q.z > 5.5) {
+        // 当たった瞬間（kind 6、q.w が光の強さ 1 → 0）：星の色の混じった光が弾けて、輪が広がる・十字の長い光
+        float2 p = in.q.xy; float r = length(p), fl = in.q.w;
+        float3 c = in.c.rgb, cw = mix(c, float3(1.0), 0.55);
+        float ringR = 0.22 + 0.62 * (1.0 - fl), ring = exp(-pow((r - ringR) / 0.05, 2.0)) * fl;
+        float burst = exp(-r * r / 0.035) * fl * fl * 2.2;
+        float sp = (exp(-abs(p.x) * 30.0) * exp(-abs(p.y) * 1.6) + exp(-abs(p.y) * 30.0) * exp(-abs(p.x) * 1.6)) * fl * 1.3;
+        col = (cw * burst + c * ring * 1.3 + cw * sp) * (1.0 - smoothstep(0.85, 1.0, r));
+        return float4(col, 1.0);
+    }
     if (in.q.z > 3.5) {
         float2 p = in.q.xy; float r = length(p), fade = 1.0 - smoothstep(0.7, 1.0, r);
         float3 c = in.c.rgb, cw = mix(c, float3(1.0), 0.55);
@@ -1029,6 +1039,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         if (s.walk || s.marksOn), let src = walkOverride ?? HyperLabState.walkSource {
             let w = src(); sig += [Double(w.trail.count), w.pos.x, w.pos.y, w.pos.z, w.pos.w, Double(w.marks.count), Double(w.hit.filter { $0 }.count), Double(w.poles.count)]
         }
+        if flashing { sig.append(CACurrentMediaTime()) }                 // 当たった瞬間の光の間は、止まっていても描き続ける
         // ほんの少しの違い（計算の誤差）は「同じ」とみなす
         let moved = sig.count != lastSig.count || zip(sig, lastSig).contains { abs($0 - $1) > 1e-7 }
         // 動いている時のコマ数：ふだんは画面のいちばん速いコマ数。実際のコマ数が 2 秒続けて目標の 8 割に届かなければ（GPU があふれて
@@ -1403,6 +1414,14 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         let w = leftRot() * (q * R * 1.012)
         return (w, smoothstep(-0.15, 0.1, simd_dot(simd_normalize(w), simd_normalize(eye - w))))
     }
+    /// 当たった瞬間（極・目印が「通った」になった時刻）：ピカッと光らせる。前のコマの「通った」を覚えて比べる（初めのコマは光らせない）
+    /// 光っている間（1 秒）は描き続ける（当たった瞬間の記録は Journey.hitPulse）
+    var flashing: Bool { let now = ProcessInfo.processInfo.systemUptime; return Journey.hitPulse.contains { now - $0.t < 1.0 } }
+    /// 極の色：軸の色の球層の時は、その極が乗る軸の色（アナ・カタ＝w 紫、東西＝x 赤、北南＝y 緑、天地＝z 青）。ほかは地図と同じ色
+    func poleColor(_ k: Int) -> SIMD3<Float> {
+        guard st.shellModeNow == 2 else { return MapRenderer.poleDotCol(k) }
+        return Self.axisCol[[3, 3, 0, 0, 1, 1, 2, 2][k]]
+    }
     /// 球面さんぽの目印（チェックポイント）：まだ通っていない目印は目印の色の輪、通った目印は塗りつぶしの丸と ✓。番号は地図と同じ（置いた順）
     private func drawMarks(_ e: MTLRenderCommandEncoder, _ u0: HLUni) {
         guard st.marksOn || st.polesMode > 0, let src = walkOverride ?? HyperLabState.walkSource else { return }
@@ -1425,6 +1444,27 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         var tags: [(String, SIMD3<Float>, SIMD3<Double>, Bool, Bool)] = []   // 名前・色・場所・英語（セリフ体）・極
         // 光で描く時：画面に向く板 1 枚に、cmf が色の光・十字のきらめき（通った）／光の輪（まだ）を描く
         var ctri: [HLCometVert] = []
+        let now = ProcessInfo.processInfo.systemUptime
+        /// 当たった瞬間の光の強さ（1 → 0、約 0.9 秒）。極は番号、目印は場所で探す（周回でチェックが消えても光る）
+        func flashOf(pole k: Int) -> Float {
+            guard let h = Journey.hitPulse.last(where: { $0.pole == k }) else { return 0 }
+            let f = max(0, 1 - (now - h.t) / 0.9); return Float(f * f)
+        }
+        func flashOf(mark m: SIMD4<Double>) -> Float {
+            guard let h = Journey.hitPulse.last(where: { $0.pole < 0 && simd_distance($0.p, m) < 1e-9 }) else { return 0 }
+            let f = max(0, 1 - (now - h.t) / 0.9); return Float(f * f)
+        }
+        /// ピカッ：大きな板に、弾ける光と広がる輪
+        func flash(_ c: SIMD3<Double>, _ col: SIMD3<Float>, _ fl: Float, _ big: Double) {
+            guard fl > 0.001 else { return }
+            let sc = max(0.004, min(1, simd_length(eye - c) / 7.5)), hs = big * sc * 2.6
+            let fw = eye - c, up0 = abs(simd_normalize(fw).y) > 0.9 ? SIMD3<Double>(1, 0, 0) : SIMD3<Double>(0, 1, 0)
+            let ax = simd_normalize(simd_cross(up0, fw)), ay = simd_normalize(simd_cross(fw, ax))
+            func v(_ x: Double, _ y: Double) -> HLCometVert {
+                HLCometVert(p: SIMD4(SIMD3<Float>(c + ax * (x * hs) + ay * (y * hs)), 1), q: SIMD4(Float(x), Float(y), 6, fl), c: SIMD4(col, 1))
+            }
+            ctri += [v(-1, -1), v(1, -1), v(1, 1), v(-1, -1), v(1, 1), v(-1, 1)]
+        }
         func glow(_ c: SIMD3<Double>, _ col: SIMD3<Float>, _ hit: Bool, _ vis: Float, _ big: Double) {
             let sc = max(0.004, min(1, simd_length(eye - c) / 7.5)), hs = big * sc
             let fw = eye - c, up0 = abs(simd_normalize(fw).y) > 0.9 ? SIMD3<Double>(1, 0, 0) : SIMD3<Double>(0, 1, 0)
@@ -1436,8 +1476,10 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         }
         // 8 つの極（さんぽの地図と同じ色・名前）：通った極は塗りつぶしと ✓、まだの極（いつも出す時）は輪
         for k in poles {
-            let (c, f) = walkPlace(FIXED[k].c), col = MapRenderer.poleDotCol(k), vis = Float(0.5 + 0.5 * f), hit = wk.poles.contains(k)
-            if st.symGlow { glow(c, col, hit, vis, 0.3) }                // 光る星（極の色がほんのり）
+            let (c, f) = walkPlace(FIXED[k].c), col = poleColor(k), vis = Float(0.5 + 0.5 * f), hit = wk.poles.contains(k)
+            let fl = flashOf(pole: k)
+            flash(c, col, fl, 0.3)                                         // 当たった瞬間：ピカッ
+            if st.symGlow { glow(c, col, hit, vis, 0.3 * Double(1 + 0.8 * fl)) }   // 光る星（極の色がほんのり。光っている間は少し大きく）
             else if hit { disc(c, 0, 0.11, SIMD4(col, 0.25 * vis)); disc(c, 0, 0.06, SIMD4(col, vis)); disc(c, 0.06, 0.072, SIMD4(1, 1, 1, 0.9 * vis)) }
             else { disc(c, 0, 0.06, SIMD4(col, 0.14 * vis)); disc(c, 0.045, 0.062, SIMD4(col, 0.9 * vis)) }
             let pn = st.poleEN ? MapRenderer.poleNameEN(FIXED[k]) : MapRenderer.poleName(FIXED[k])
@@ -1446,7 +1488,9 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         for (i, m) in wk.marks.enumerated() where st.marksOn {
             let (c, f) = walkPlace(m), col = Journey.markColor(i), vis = Float(0.5 + 0.5 * f)
             let hit = i < wk.hit.count && wk.hit[i]
-            if st.symGlow { glow(c, col, hit, vis, 0.27) }
+            let fl = flashOf(mark: m)
+            flash(c, SIMD3(1, 1, 1), fl, 0.27)                                // 目印は白く光る
+            if st.symGlow { glow(c, col, hit, vis, 0.27 * Double(1 + 0.8 * fl)) }
             else if hit {
                 disc(c, 0, 0.12, SIMD4(col, 0.28 * vis))                       // にじみ
                 disc(c, 0, 0.068, SIMD4(col, vis))                             // 塗りつぶし
@@ -2302,7 +2346,7 @@ struct HyperLabView: View {
                         .toggleStyle(.switch).font(.caption).fixedSize().disabled(HyperLabState.walkRendererGet?() == nil)
                         .help("画面のゲームパッドを出す（さんぽの窓と同じ。押すとコントローラーと同じ働きで歩く）。パネルを隠していても出る")
                     Toggle("英語", isOn: $st.poleEN).toggleStyle(.switch).font(.caption).fixedSize()
-                        .help("極の名前を英語に（セリフ体で小さく）：Ana Pole・Kata Pole・North / South / East / West Pole・Zenith・Nadir。さんぽの景色の画面も")
+                        .help("極の名前を英語に（セリフ体で小さく）：Ana・Kata・North・South・East・West・Zenith・Nadir。さんぽの景色の画面も")
                     Picker("極", selection: $st.polesMode) { Text("出さない").tag(0); Text("通ると出る").tag(1); Text("いつも").tag(2) }
                         .pickerStyle(.segmented).frame(width: 210).font(.caption)
                         .help("8 つの極（アナ極・カタ極・東西南北・天・地）。通ると出る：歩いて通った極だけ ✓ つきで出てくる。いつも：全部出し、通った極は ✓")

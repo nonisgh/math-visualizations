@@ -173,15 +173,15 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     private var s2Buf: MTLBuffer?, s2Count = 0
     /// 極の名前（ウェブ版の poleName）：アナ極・カタ極・東極・西極・北極・南極・天極・地極
     static func poleName(_ m: Marker) -> String { m.label == "N" ? "アナ極" : m.label == "S" ? "カタ極" : (m.label.split(separator: " ").first.map(String.init) ?? m.label) + "極" }
-    /// 極の英語の名前（4D 球アナロジーの英語モード）：アナ極 Ana Pole・カタ極 Kata Pole・東西南北 East / West / North / South Pole・天 Zenith・地 Nadir
+    /// 極の英語の名前（4D 球アナロジーの英語モード。短く）：アナ極 Ana・カタ極 Kata・東西南北 East / West / North / South・天 Zenith・地 Nadir
     static func poleNameEN(_ m: Marker) -> String {
         switch m.label.split(separator: " ").first.map(String.init) ?? m.label {
-        case "N": return "Ana Pole"
-        case "S": return "Kata Pole"
-        case "東": return "East Pole"
-        case "西": return "West Pole"
-        case "北": return "North Pole"
-        case "南": return "South Pole"
+        case "N": return "Ana"
+        case "S": return "Kata"
+        case "東": return "East"
+        case "西": return "West"
+        case "北": return "North"
+        case "南": return "South"
         case "天": return "Zenith"
         case "地": return "Nadir"
         default: return m.label

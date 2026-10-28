@@ -19,6 +19,10 @@ struct Journey {
     /// 1 周したら歩いた跡（道すじ・足あと）も消す（4D 球アナロジーの「1 周で跡を消す」で入り切り）
     static var lapClearsTrail = true
     var lastP: V4? = nil
+    /// 外から目印・極のそば（checkR）に入って、まだ数えていないもの。いちばん近づいて離れ始めた所で数える（すぐ横を通り過ぎた瞬間）
+    var enteredMarks: [V4] = [], enteredPoles: Set<Int> = []
+    /// 当たった瞬間の記録（場所・時刻 systemUptime・極の番号、目印は −1）。4D 球アナロジーがピカッと光らせる。周回でチェックが消えても光るよう、ここに残す（2 秒で消す）
+    static var hitPulse: [(p: V4, t: Double, pole: Int)] = []
     static let checkR = 0.12
     func isHit(_ m: V4) -> Bool { marksHit.contains { simd_distance($0, m) < 1e-9 } }
     var wasW = 1.0
@@ -53,7 +57,16 @@ struct Journey {
         }
         // チェックポイント：目印のそばに外から入ったら、通ったと記録して知らせる（置いた所に立っている間は数えない。離れて戻ってきたら数える）
         let cR = cos(Journey.checkR)
-        for (i, m) in marks.enumerated() where simd_dot(p, m) > cR && (lastP.map { simd_dot($0, m) <= cR } ?? false) && !isHit(m) {
+        // 入った：外からそばに入った目印を覚える（置いた所に立っている間は数えない＝外から入った時だけ）。そばを出たら忘れる
+        for m in marks where !isHit(m) {
+            let inNow = simd_dot(p, m) > cR, wasOut = lastP.map { simd_dot($0, m) <= cR } ?? false
+            if inNow && wasOut && !enteredMarks.contains(where: { simd_distance($0, m) < 1e-9 }) { enteredMarks.append(m) }
+            if !inNow { enteredMarks.removeAll { simd_distance($0, m) < 1e-9 } }
+        }
+        // 数える：入っていて、いちばん近づいた所を過ぎた（前より離れた）時
+        for (i, m) in marks.enumerated() where !isHit(m) && enteredMarks.contains(where: { simd_distance($0, m) < 1e-9 }) && (lastP.map { simd_dot(p, m) < simd_dot($0, m) } ?? false) {
+            enteredMarks.removeAll { simd_distance($0, m) < 1e-9 }
+            Journey.hitPulse.append((m, ProcessInfo.processInfo.systemUptime, -1))
             marksHit.append(m)
             let n = marks.filter { isHit($0) }.count
             if n == marks.count && marks.count >= 2 {
@@ -65,8 +78,15 @@ struct Journey {
                 say(n == marks.count ? "チェック！ 目印 \(i + 1) を通過。これで全部の目印を通った（\(n)/\(marks.count)）" : "チェック！ 目印 \(i + 1) を通過（\(n)/\(marks.count)）")
             }
         }
-        // 極も同じように：そばに外から入ったら通ったと記録（アナ極・カタ極は上の知らせがあるので、ほかの 6 つだけ知らせる）
-        for (k, m) in FIXED.enumerated() where simd_dot(p, m.c) > cR && (lastP.map { simd_dot($0, m.c) <= cR } ?? false) && !polesHit.contains(k) {
+        // 極も同じように：外からそばに入って、いちばん近づいた所を過ぎたら通ったと記録（アナ極・カタ極は上の知らせがあるので、ほかの 6 つだけ知らせる）
+        for (k, m) in FIXED.enumerated() where !polesHit.contains(k) {
+            let inNow = simd_dot(p, m.c) > cR, wasOut = lastP.map { simd_dot($0, m.c) <= cR } ?? false
+            if inNow && wasOut { enteredPoles.insert(k) }
+            if !inNow { enteredPoles.remove(k) }
+        }
+        for (k, m) in FIXED.enumerated() where !polesHit.contains(k) && enteredPoles.contains(k) && (lastP.map { simd_dot(p, m.c) < simd_dot($0, m.c) } ?? false) {
+            enteredPoles.remove(k)
+            Journey.hitPulse.append((m.c, ProcessInfo.processInfo.systemUptime, k))
             polesHit.append(k)
             if k >= 2 { say("チェック！ \(MapRenderer.poleName(m))を通過（極 \(polesHit.count)/8）") }
         }
@@ -77,6 +97,7 @@ struct Journey {
             say("8 つの極を全部通った！ \(lap - 1) 周。チェックポイントをリセットして \(lap) 周目へ")
         }
         lastP = p
+        if !Journey.hitPulse.isEmpty { let now = ProcessInfo.processInfo.systemUptime; Journey.hitPulse.removeAll { now - $0.t > 2 } }
         prevS = dS; prevN = dN; wasW = w
     }
 

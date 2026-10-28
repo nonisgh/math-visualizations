@@ -36,19 +36,29 @@ enum Verify {
             var j = Journey(); j.marks = [nrm(SIMD4(1, 0, 0, 0.2)), nrm(SIMD4(0, 1, 0, 0.2))]
             var said: [String] = []
             func go(_ p: SIMD4<Double>) { j.walked(nrm(p), 0.01, footOn: false) { said.append($0) } }
-            go(SIMD4(0, 0, 0, 1)); go(SIMD4(1, 0, 0, 0.2)); go(SIMD4(0, 0, 0, 1)); go(SIMD4(0, 1, 0, 0.2))   // 目印 1 → 2：1 周
-            let lap2 = j.lap == 2 && j.marksHit.isEmpty
-            go(SIMD4(0, 0, 0, 1)); go(SIMD4(1, 0, 0, 0.2))                                                   // 次の周の 1 つ目
-            check(lap2 && j.marksHit.count == 1 && said.contains { $0.contains("2 周目へ") } && j.trail.count <= 3,
-                  "目印 2 つを全部通ると 2 周目に（チェックと跡をリセット）。次の周も数える（\(j.lap) 周目・通った \(j.marksHit.count)・跡 \(j.trail.count) 点）")
+            // m のすぐ横を通り過ぎる（遠く → 近づく → いちばん近い → 離れる → 遠く）
+            func pass(_ m: SIMD4<Double>) { let q = nrm(m), s = nrm(SIMD4(0, 0, 1, 0) - q * simd_dot(SIMD4(0, 0, 1, 0), q)); for t in [-0.5, -0.08, -0.03, 0.0, 0.03, 0.08, 0.5] { go(q * cos(t) + s * sin(t)) } }
+            go(SIMD4(0, 0, 0, 1)); pass(SIMD4(1, 0, 0, 0.2)); go(SIMD4(0, 0, 0, 1)); pass(SIMD4(0, 1, 0, 0.2))   // 目印 1 → 2：1 周
+            let lap2 = j.lap == 2 && j.marksHit.isEmpty, tr2 = j.trail.count   // 1 周した直後の跡の点の数
+            go(SIMD4(0, 0, 0, 1)); pass(SIMD4(1, 0, 0, 0.2))                                                     // 次の周の 1 つ目
+            check(lap2 && j.marksHit.count == 1 && said.contains { $0.contains("2 周目へ") } && tr2 <= 3,
+                  "目印 2 つを全部通ると 2 周目に（チェックと跡をリセット）。次の周も数える（\(j.lap) 周目・通った \(j.marksHit.count)・1 周した直後の跡 \(tr2) 点）")
         }
         do {                                                             // 目印がない時は、8 つの極を全部通ったら 1 周
             var j = Journey(); var said: [String] = []
             func go(_ p: SIMD4<Double>) { j.walked(nrm(p), 0.01, footOn: false) { said.append($0) } }
             let mid = SIMD4<Double>(0.5, 0.5, 0.5, 0.5)
-            go(mid); for m in FIXED { go(m.c); go(mid) }
+            func pass(_ q: SIMD4<Double>) { let s = nrm(mid - q * simd_dot(mid, q)); for t in [-0.5, -0.06, 0.0, 0.06, 0.5] { go(q * cos(t) + s * sin(t)) } }
+            go(mid); for m in FIXED { pass(m.c); go(mid) }
             check(j.lap == 2 && j.polesHit.isEmpty && said.contains { $0.contains("8 つの極を全部通った") },
                   "目印がない時は 8 つの極を全部通ると 2 周目に（極のチェックをリセット。\(j.lap) 周目・残り \(j.polesHit.count)）")
+        }
+        do {                                                             // そばに入っただけでは数えず、いちばん近い所を過ぎて数える
+            var j = Journey(); let m = nrm(SIMD4<Double>(1, 0, 0, 0.2)); j.marks = [m, nrm(SIMD4<Double>(0, 1, 0, 0.2))]
+            let s = nrm(SIMD4<Double>(0, 0, 1, 0)); var said: [String] = []
+            func go(_ t: Double) { j.walked(m * cos(t) + s * sin(t), 0.01, footOn: false) { said.append($0) } }
+            go(-0.5); go(-0.1); go(-0.05); let early = j.marksHit.count; go(0.0); go(0.05); let after = j.marksHit.count
+            check(early == 0 && after == 1, "チェックは、そばに入っただけでは付かず（\(early)）、目印のすぐ横を通り過ぎた所で付く（\(after)）")
         }
         print("== 地図の写し方（ウェブ版の mapS3 と）==")
         turnChecks(r); mapChecks(r)
@@ -1245,7 +1255,7 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
                 st.viewYaw = 0.5; st.viewPitch = 0.3
@@ -1309,6 +1319,15 @@ enum Verify {
                     r.walkOverride = { .init(trail: tr, pos: tr.last!, marks: mk, hit: [true, true, true, false], poles: [0, 2]) }   // 極はアナ極と東極を通った
                 }
                 st.tickDive(0)                                                   // なめらかに追う値（三人称の割合など）を、今の設定に合わせる
+                if name.hasPrefix("光る瞬間") {                                   // 1 枚目は「まだ」、2 枚目で「通った」に変わる（当たった瞬間の光）
+                    var tr: [SIMD4<Double>] = []
+                    for k in 0...600 { let s = Double(k) / 100, a = s * 0.9, b = s * 0.23; tr.append(nrm(SIMD4(cos(a) * sin(b + 0.2), sin(a) * sin(b + 0.2), sin(s * 0.5) * 0.35, cos(b + 0.2)))) }
+                    let mk = [tr[150], tr[420]]
+                    r.walkOverride = { .init(trail: tr, pos: tr.last!, marks: mk, hit: [true, true], poles: [0, 2]) }
+                    st.polesMode = 2; if name.hasSuffix("軸の色") { st.shellMode = 2 }; st.bump()
+                    let now = ProcessInfo.processInfo.systemUptime                  // 目印 2 と東極に、たった今当たった
+                    Journey.hitPulse = [(mk[1], now - 0.08, -1), (FIXED[2].c, now - 0.08, 2)]
+                }
                 guard let img = r.image(iw, ih) else { continue }
                 let url = URL(fileURLWithPath: dir).appendingPathComponent("超球_\(name)_\(side == .left ? "左" : "右").png")
                 let d = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
