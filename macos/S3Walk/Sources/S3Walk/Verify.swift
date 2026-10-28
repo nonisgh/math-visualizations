@@ -86,6 +86,22 @@ enum Verify {
             check(at[0] > 0.85 && at[1] > 0.2 && at[1] < 0.75 && at[2] < 0.25 && abs(at[3]) < 0.03 && at.allSatisfy { $0 > -0.02 },
                   String(format: "ズーム中に回した 1.0 は、離すと 0.5 秒で %.2f（静かに動き出す）・2 秒で %.2f・4 秒で %.2f・8 秒で %.3f（行き過ぎない）", at[0], at[1], at[2], at[3]))
         }
+        do {                                                             // オートカメラのダイナミック：きついカーブで真上近くへ展開し、まっすぐに戻るとゆっくり戻る
+            let st = HyperLabState(); st.autoCam = true; st.diveThird = true; st.diveT = 1; st.diveManual = true
+            if let r = HyperLabRenderer(side: .right, state: st, view: nil) {
+            var c = Camera(); c.az = 0; var turn = true
+            r.walkOverride = {
+                let F = c.viewFrame()
+                return .init(trail: [c.w.p], pos: c.w.p, head: c.lookFrame().L, space: false, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70)
+            }
+            func run(_ sec: Double) { for _ in 0..<Int(sec * 60) { if turn { c.az += 90.0 / 60 }; c.walk([0, 0, 1], 0.01); r.autoCamForTest(1.0 / 60) } }
+            run(0.2); let p0 = st.autoPitch
+            run(2.0); let p1 = st.autoPitch, d1 = st.autoDyn
+            turn = false; run(4.0); let p2 = st.autoPitch
+            check(d1 > 0.8 && p1 > p0 + 0.6 && p2 < p1 * 0.5,
+                  String(format: "オートカメラ：きついカーブ（1 秒に 90°）で見下ろしが %.2f → %.2f rad（ダイナミック %.2f）、まっすぐに戻ると 4 秒で %.2f へ", p0, p1, d1, p2))
+            }
+        }
         print("== 地図の写し方（ウェブ版の mapS3 と）==")
         turnChecks(r); mapChecks(r)
         print("== ウェブ版との比べ（refs/ の画素）==")

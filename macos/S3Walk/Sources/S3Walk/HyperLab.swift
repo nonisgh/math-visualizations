@@ -125,7 +125,7 @@ final class HyperLabState: ObservableObject {
     /// ズーム中に回した分（ドラッグで足す。手を離すと所定の角度へゆっくり戻る）
     var diveYawOff = 0.0, divePitchOff = 0.0, diveDragging = false
     /// オートカメラの角度（ラジアン、なめらかに追う）と時刻
-    var autoYaw = 0.0, autoPitch = 0.0, autoT = 0.0
+    var autoYaw = 0.0, autoPitch = 0.0, autoT = 0.0, autoDyn = 0.0   // autoDyn：ダイナミックの強さ（0〜1）
     private var diveYawVel = 0.0, divePitchVel = 0.0               // 戻る速さ（ばねのように：静かに動き出して、ゆっくり止まる）
     /// なめらかに追いかける値（三人称の割合・後ろ・見下ろす・斜め）：切りかえやスライダーで、カメラがパッと動かないように
     var thirdK = 0.0, chaseDistS = 0.5, chasePitchS = 25.0, chaseYawS = 20.0
@@ -1200,7 +1200,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     private var sndWobT = 0.0                                         // 前に低音をゆらした時刻
     private var sndPos: SIMD4<Double>?, sndSpeed = 0.0, sndFwd: SIMD4<Double>?, sndTurn = 0.0, sndPulseT = ProcessInfo.processInfo.systemUptime
     /// オートカメラ：ゆっくり周りを漂う（40 秒・27 秒の波）＋曲がる時は外側へ回り込む（曲がる道すじと尾が見えるように）。ズーム中だけ
-    private var acFwd: SIMD4<Double>?, acTurn = 0.0
+    private var acFwd: SIMD4<Double>?, acTurn = 0.0, acTurnU = 0.0, acVert = 0.0
     /// 彗星の速さ（S³ の上で 1 秒に進む角度をならして、0〜1 に）
     private var csPos: SIMD4<Double>?
     private func tickCometSpeed(_ dt: Double) {
@@ -1211,23 +1211,37 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         let target = min(1, (v / 1.4).squareRoot())
         st.cometSpd += (target - st.cometSpd) * (1 - exp(-dt * 3))
     }
+    /// 確かめ用：オートカメラだけを 1 コマ進める
+    func autoCamForTest(_ dt: Double) { tickAutoCam(dt) }
     private func tickAutoCam(_ dt: Double) {
         var ty = 0.0, tp = 0.0
         if st.autoCam && st.diveT > 0.3 && !st.diveDragging {
             st.autoT += dt
-            var tr = 0.0
+            var tr = 0.0, tu = 0.0, vert = 0.0
             if let w = (wsrc)?() {
                 let hd = w.head ?? w.fwd
-                if let f0 = acFwd, dt > 0, simd_length(w.vR) > 0.5 { let df = hd - f0; tr = simd_length(df) > 0.5 ? 0 : simd_dot(df, w.vR) / dt }
+                if let f0 = acFwd, dt > 0, simd_length(w.vR) > 0.5 {
+                    let df = hd - f0
+                    if simd_length(df) < 0.5 { tr = simd_dot(df, w.vR) / dt; tu = simd_dot(df, w.vU) / dt }   // 左右に曲がる速さ・上下に曲がる速さ
+                }
+                if simd_length(w.vU) > 0.5 { vert = simd_dot(hd, w.vU) }    // 進む向きの上下の成分（垂直に近いほど ±1）
                 acFwd = hd
             }
-            acTurn += (tr - acTurn) * (1 - exp(-dt * 1.5))
+            acTurn += (tr - acTurn) * (1 - exp(-dt * 1.5)); acTurnU += (tu - acTurnU) * (1 - exp(-dt * 1.5)); acVert += (vert - acVert) * (1 - exp(-dt * 2))
             let a = st.autoT
             ty = 0.6 * sin(2 * .pi * a / 40) - 0.45 * max(-1, min(1, acTurn / 1.2))   // 右へ曲がると左（外側）へ回り込む
             tp = 0.18 * sin(2 * .pi * a / 27 + 1)
+            // ダイナミック：きついカーブ・垂直に近い動きの時は、水平の目線から真上近くの目線へ大きく展開（曲がる道すじ全体が見えるように）
+            let sharp = min(1, (acTurn * acTurn + acTurnU * acTurnU).squareRoot() / 1.1), vertical = smoothstep(0.35, 0.85, abs(acVert))
+            let dyn = max(sharp, vertical)
+            st.autoDyn = dyn
+            tp += 1.05 * dyn * (1 - 0.18 * sin(2 * .pi * a / 27 + 1))           // 最大およそ 60°、見下ろしを足す
+            ty *= 1 - 0.5 * dyn                                               // 真上へ回る間は左右の回り込みを控えめに
         }
-        let k = 1 - exp(-dt * 0.6)                                       // とてもゆっくり追う
-        st.autoYaw += (ty - st.autoYaw) * k; st.autoPitch += (tp - st.autoPitch) * k
+        // 展開する時は少し速く（約 1 秒）、戻る時はゆっくり（約 3 秒）
+        let up = tp > st.autoPitch && st.autoDyn > 0.2
+        let k = 1 - exp(-dt * 0.6), kp = 1 - exp(-dt * (up ? 1.1 : 0.35))
+        st.autoYaw += (ty - st.autoYaw) * k; st.autoPitch += (tp - st.autoPitch) * kp
         if abs(st.autoYaw) < 1e-5 && ty == 0 { st.autoYaw = 0 }; if abs(st.autoPitch) < 1e-5 && tp == 0 { st.autoPitch = 0 }
     }
     private func tickSound(_ dt: Double) {
@@ -2815,7 +2829,7 @@ struct HyperLabView: View {
                         .pickerStyle(.segmented).frame(width: 170).labelsHidden().disabled(!st.diveOverview)
                         .help("全体像の今いる所の印。同じ：ふつうと同じ。さんぽ：黄色の玉（遠くからでも見つけやすい）。彗星・線：光の彗星・線の彗星")
                     Toggle("オートカメラ", isOn: $st.autoCam).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.diveThird)
-                        .help("ズーム（三人称）の時、よく見える角度へ自動で：ゆっくり周りを漂い、曲がる時は外側へ回り込んで、曲がる道すじと尾を見せる。ドラッグで回すとその間は止まる")
+                        .help("ズーム（三人称）の時、よく見える角度へ自動で：ゆっくり周りを漂い、曲がる時は外側へ回り込む。きついカーブや垂直に近い動きの時は、水平の目線から真上近くへ大きく展開して、曲がる道すじ全体を見せる（ダイナミック）。ドラッグで回すとその間は止まる")
                     Toggle("景色に溶かす", isOn: $st.diveBlend).toggleStyle(.switch).font(.caption).fixedSize()
                         .disabled(st.diveThird).help("ダイブの最後に、さんぽの景色へ溶け込ませる（一人称の時）。切ると、寄ったまま超球の網目（4D の外から見た姿）で見続けられる（左下の景色と見比べに）")
                     Spacer()
