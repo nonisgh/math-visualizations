@@ -71,6 +71,8 @@ final class HyperLabState: ObservableObject {
     @Published var padOn = false                                      // 画面のゲームパッド（さんぽと同じ。コントローラーと同じ働き）
     @Published var panelHidden = false                                // パネルを隠す（画面いっぱいに超球と景色だけ）
     @Published var poleEN = false                                     // 英語モード：極の名前を英語（セリフ体で小さく）
+    @Published var soundOn = false                                    // 音：彗星が走る「シューッ」（速さ・ズームに合わせて）と、チェックポイントの「チリン」
+    @Published var soundVol = 0.7                                     // 音の大きさ
     @Published var uiScale = 1.0                                      // パネルと隅の表示の大きさ（⌘＋・⌘−・⌘0。0.75〜2）
     @Published var lapClear = true                                    // 1 周（目印を全部通る）したら歩いた跡も消す
     @Published var show3D = true                                      // 左の 3D の球を出す（切ると、さんぽの景色と 4D の超球だけ）
@@ -210,7 +212,7 @@ final class HyperLabState: ObservableObject {
          "axes": axes, "axPlus": axPlus, "axThin": axThin, "walk": walk, "marksOn": marksOn, "polesMode": polesMode,
          "spaceMode": spaceMode, "starsPct": starsPct, "layersLink": layersLink, "walkView": walkView, "order": order,
          "followOn": followOn, "followSlack": followSlack, "followSpeed": followSpeed, "followHeading": followHeading, "followDrift": followDrift,
-         "diveBlend": diveBlend, "quality": quality, "adaptive": adaptive, "wireW": wireW, "walkOpen": walkOpen, "cursor": cursor, "shutWalk": shutWalk, "axesDive": axesDive, "wipeLow": wipeLow, "shellMode": shellMode, "splitX": splitX, "splitY": splitY, "diveThird": diveThird, "chaseDist": chaseDist, "chasePitch": chasePitch, "chaseYaw": chaseYaw, "depth4": depth4, "depth4K": depth4K, "depth4On": depth4On, "symGlow": symGlow, "trailW": trailW, "trailCol": trailCol, "poleEN": poleEN, "panelHidden": panelHidden, "padOn": padOn, "clearAhead": clearAhead, "show3D": show3D, "lapClear": lapClear, "uiScale": uiScale]
+         "diveBlend": diveBlend, "quality": quality, "adaptive": adaptive, "wireW": wireW, "walkOpen": walkOpen, "cursor": cursor, "shutWalk": shutWalk, "axesDive": axesDive, "wipeLow": wipeLow, "shellMode": shellMode, "splitX": splitX, "splitY": splitY, "diveThird": diveThird, "chaseDist": chaseDist, "chasePitch": chasePitch, "chaseYaw": chaseYaw, "depth4": depth4, "depth4K": depth4K, "depth4On": depth4On, "symGlow": symGlow, "trailW": trailW, "trailCol": trailCol, "poleEN": poleEN, "panelHidden": panelHidden, "padOn": padOn, "clearAhead": clearAhead, "show3D": show3D, "lapClear": lapClear, "uiScale": uiScale, "soundOn": soundOn, "soundVol": soundVol]
     }
     func load() {
         guard let d = UserDefaults.standard.dictionary(forKey: Self.saveKey) else { return }
@@ -224,7 +226,7 @@ final class HyperLabState: ObservableObject {
         int("spaceMode", &spaceMode); dbl("starsPct", &starsPct); bol("layersLink", &layersLink); bol("walkView", &walkView)
         if let o = d["order"] as? [Int], o.count == 3, Set(o) == [0, 1, 2] { order = o }
         bol("followOn", &followOn); dbl("followSlack", &followSlack); dbl("followSpeed", &followSpeed); bol("followHeading", &followHeading); dbl("followDrift", &followDrift)
-        bol("diveBlend", &diveBlend); int("quality", &quality); bol("adaptive", &adaptive); dbl("wireW", &wireW); bol("walkOpen", &walkOpen); int("cursor", &cursor); bol("shutWalk", &shutWalk); bol("axesDive", &axesDive); bol("wipeLow", &wipeLow); int("shellMode", &shellMode); dbl("splitX", &splitX); dbl("splitY", &splitY); bol("diveThird", &diveThird); dbl("chaseDist", &chaseDist); dbl("chasePitch", &chasePitch); dbl("chaseYaw", &chaseYaw); int("depth4", &depth4); dbl("depth4K", &depth4K); bol("depth4On", &depth4On); bol("symGlow", &symGlow); dbl("trailW", &trailW); int("trailCol", &trailCol); bol("poleEN", &poleEN); bol("panelHidden", &panelHidden); bol("padOn", &padOn); bol("clearAhead", &clearAhead); bol("show3D", &show3D); bol("lapClear", &lapClear); dbl("uiScale", &uiScale); uiScale = min(2, max(0.75, uiScale))
+        bol("diveBlend", &diveBlend); int("quality", &quality); bol("adaptive", &adaptive); dbl("wireW", &wireW); bol("walkOpen", &walkOpen); int("cursor", &cursor); bol("shutWalk", &shutWalk); bol("axesDive", &axesDive); bol("wipeLow", &wipeLow); int("shellMode", &shellMode); dbl("splitX", &splitX); dbl("splitY", &splitY); bol("diveThird", &diveThird); dbl("chaseDist", &chaseDist); dbl("chasePitch", &chasePitch); dbl("chaseYaw", &chaseYaw); int("depth4", &depth4); dbl("depth4K", &depth4K); bol("depth4On", &depth4On); bol("symGlow", &symGlow); dbl("trailW", &trailW); int("trailCol", &trailCol); bol("poleEN", &poleEN); bol("panelHidden", &panelHidden); bol("padOn", &padOn); bol("clearAhead", &clearAhead); bol("show3D", &show3D); bol("lapClear", &lapClear); bol("soundOn", &soundOn); dbl("soundVol", &soundVol); dbl("uiScale", &uiScale); uiScale = min(2, max(0.75, uiScale))
         if cutOn && cutKind == 0 && cutRef == 2 { polyArm &+= 1 }            // ポリゴンカットは開いた時の手前で作り直す
         lastSaved = "\(snapshot)"
     }
@@ -964,6 +966,27 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     // 確かめ用（環境変数 S3_HL_LOG）：1 秒ごとに、描く間隔の最大・描く処理の時間（CPU）の平均と最大
     static let logOn = ProcessInfo.processInfo.environment["S3_HL_LOG"] != nil
     private var lgN = 0, lgCPU = 0.0, lgMaxCPU = 0.0, lgMaxGap = 0.0, lgT = 0.0, lgLong = 0
+    /// 音：彗星（今いる所）の S³ の上の速さ（ラジアン／秒）をならして、シューの大きさ・高さへ。当たった瞬間にチリン
+    private var sndPos: SIMD4<Double>?, sndSpeed = 0.0, sndFwd: SIMD4<Double>?, sndTurn = 0.0, sndPulseT = ProcessInfo.processInfo.systemUptime
+    private func tickSound(_ dt: Double) {
+        let snd = HyperSound.shared
+        guard st.soundOn else { if snd.running { snd.stop() }; return }
+        if !snd.running { snd.start(); sndPulseT = ProcessInfo.processInfo.systemUptime }
+        var sp = 0.0
+        if let w = (walkOverride ?? HyperLabState.walkSource)?() {
+            if let p0 = sndPos, dt > 0 { let d = simd_length(w.pos - p0); sp = d > 0.5 ? 0 : d / dt }   // 飛んだ時（初めに戻した時など）は数えない
+            sndPos = w.pos
+            // 曲がる速さ：進む向きが、右の向き（景色の右）へ毎秒どれだけ変わったか（＋で右へ曲がる）
+            var tr = 0.0
+            if let f0 = sndFwd, dt > 0, simd_length(w.vR) > 0.5 { let df = w.fwd - f0; tr = simd_length(df) > 0.5 ? 0 : simd_dot(df, w.vR) / dt }
+            sndFwd = w.fwd
+            sndTurn += (tr - sndTurn) * (1 - exp(-dt * 4))
+        }
+        sndSpeed += (sp - sndSpeed) * (1 - exp(-dt * 6))
+        snd.update(speed: (sndSpeed / 1.4).squareRoot(), zoom: Self.diveEase(st.diveT).1, turn: max(-1, min(1, sndTurn / 1.2)), volume: st.soundVol)
+        for h in Journey.hitPulse where h.t > sndPulseT { snd.chime(pole: h.pole) }
+        if let last = Journey.hitPulse.last?.t, last > sndPulseT { sndPulseT = last }
+    }
     /// 毎コマの受け持ち（状態を進める・画質の自動・保存など）：ふだんは左の画面。3D の球を隠している時は右の画面
     private var owner: Bool { side == .left || !st.show3D }
     func draw(in view: MTKView) {
@@ -977,7 +1000,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         }
         if Self.logOn { let g = (t0 - lastT) * 1000; lgMaxGap = max(lgMaxGap, g); if g > 12 { lgLong += 1 } }
         let now = CACurrentMediaTime(), dt = min(0.05, now - lastT); lastT = now
-        if owner { st.tick(dt); st.pullLayers(); st.tickCut(dt); st.tickFollow(dt); st.tickDive(dt); updateLive(now) }   // 自動の回転・さんぽの層数を読むのは受け持ちの画面（ふだん左。右は同じ状態を描く）
+        if owner { st.tick(dt); st.pullLayers(); st.tickCut(dt); st.tickFollow(dt); st.tickDive(dt); updateLive(now); tickSound(dt) }   // 自動の回転・さんぽの層数を読むのは受け持ちの画面（ふだん左。右は同じ状態を描く）
         pace(view, dt)
         Self.fit(view)
         if owner { fpsN += 1; if now - fpsT >= 1 { st.saveIfChanged(); let f = Int((Double(fpsN) / (now - fpsT)).rounded()); fpsN = 0; fpsT = now; DispatchQueue.main.async { [st] in st.stats.text = String(format: "%d fps・GPU %.1f＋%.1f ms・画質 %.0f%%", f, st.gpuL, st.gpuR, HyperLabState.renderK * 100) } } }
@@ -2296,7 +2319,8 @@ struct HyperLabView: View {
         .onChange(of: st.lapClear) { _, v in Journey.lapClearsTrail = v }
         .onChange(of: st.poleEN) { _, v in HyperLabState.poleENNow = v }
         .onChange(of: st.wipeLow) { _, v in HyperLabState.wipeLow = v }
-        .onDisappear { HyperLabState.walkShut = false }              // 窓を閉じた（iPad は全画面を閉じた）：さんぽはまた描く
+        // 窓を閉じた（iPad は全画面を閉じた）：さんぽはまた描く・音も止める
+        .onDisappear { HyperLabState.walkShut = false; HyperSound.shared.stop() }
     }
     /// 球面さんぽとつなぐ機能：景色の画面・並び・歩いた跡・目印・極・球層の数・宇宙・自分を追う・ダイブ
     var walkSection: some View {
@@ -2342,6 +2366,9 @@ struct HyperLabView: View {
                         .help("球面さんぽで置いた目印。歩いて通った目印（チェックポイント）は塗りつぶしと ✓、まだの目印は輪")
                     Toggle("光で描く", isOn: $st.symGlow).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.marksOn && st.polesMode == 0)
                         .help("極と目印を光る星で描く（通った所は白く光る星に極の色がほんのり、十字のきらめき。まだの所は光の輪。ゆっくりまたたく）。切ると前の丸と輪")
+                    Toggle("音", isOn: $st.soundOn).toggleStyle(.switch).font(.caption).fixedSize()
+                        .help("音を出す：彗星が空気を押し切って走る風切り音（速いほど高く大きく・重く、曲がる時は外側へ風が流れてひと吹き強まる、ズームで寄るほど大きく）と、チェックポイントに当たった時の「チリン」")
+                    slider("音量", Binding(get: { st.soundVol }, set: { st.soundVol = $0 }), 0, 1, fmt: "%.2f").frame(width: 80).disabled(!st.soundOn)
                     Toggle("ゲームパッド", isOn: Binding(get: { st.padOn }, set: { on in st.padOn = on; if !on { HyperLabState.walkRendererGet?()?.game.vClear() } }))
                         .toggleStyle(.switch).font(.caption).fixedSize().disabled(HyperLabState.walkRendererGet?() == nil)
                         .help("画面のゲームパッドを出す（さんぽの窓と同じ。押すとコントローラーと同じ働きで歩く）。パネルを隠していても出る")

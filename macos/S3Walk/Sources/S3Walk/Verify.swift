@@ -60,6 +60,22 @@ enum Verify {
             go(-0.5); go(-0.1); go(-0.05); let early = j.marksHit.count; go(0.0); go(0.05); let after = j.marksHit.count
             check(early == 0 && after == 1, "チェックは、そばに入っただけでは付かず（\(early)）、目印のすぐ横を通り過ぎた所で付く（\(after)）")
         }
+        print("== 4D 球アナロジーの音（画面なしで作って大きさを測る）==")
+        do {
+            let s = HyperSound.shared
+            let still = s.renderTest(seconds: 1, speed: 0, zoom: 0), slow = s.renderTest(seconds: 1, speed: 0.3, zoom: 0)
+            let fast = s.renderTest(seconds: 1, speed: 1, zoom: 0), dive = s.renderTest(seconds: 1, speed: 1, zoom: 1)
+            let bell = s.renderTest(seconds: 1, speed: 0, zoom: 0, chimeAt: 0.2)
+            let turn = s.renderTest(seconds: 1, speed: 1, zoom: 1, turn: 1)
+            if let dir = ProcessInfo.processInfo.environment["S3_SNDWAV"] {     // 聞いて確かめる用：風切り音を wav に
+                for (n, sp, z, tr) in [("1_遅い", 0.4, 0.0, 0.0), ("2_速い", 1.0, 0.0, 0.0), ("3_ズーム", 1.0, 1.0, 0.0), ("4_ズーム右へ曲がる", 1.0, 1.0, 1.0)] {
+                    _ = s.renderTest(seconds: 4, speed: sp, zoom: z, turn: tr, wav: dir + "/風切り_\(n).caf")
+                }
+            }
+            check(still.rms < 1e-4 && slow.rms > still.rms && fast.rms > slow.rms && dive.rms > fast.rms * 1.5 && dive.peak < 0.95 && turn.rms > dive.rms && turn.rms < dive.rms * 2.6 && turn.peak < 0.95 && bell.rms > 0.01,
+                  String(format: "風切り音：止まると無音（%.4f）、遅い %.3f < 速い %.3f < ズームで寄る %.3f < 曲がる %.3f（いちばん大きい値 %.2f、割れない）。チリン %.3f",
+                         still.rms, slow.rms, fast.rms, dive.rms, turn.rms, max(dive.peak, turn.peak), bell.rms))
+        }
         print("== 地図の写し方（ウェブ版の mapS3 と）==")
         turnChecks(r); mapChecks(r)
         print("== ウェブ版との比べ（refs/ の画素）==")
