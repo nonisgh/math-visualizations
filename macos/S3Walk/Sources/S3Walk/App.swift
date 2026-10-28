@@ -754,6 +754,11 @@ final class WalkView: MTKView {
             guard let self, let w = self.window, (n.object as? NSWindow) === w else { return }
             self.renderer.skipEncode = !w.occlusionState.contains(.visible)
         }
+        // 4D 球アナロジーで「さんぽの窓は止める」の間：さんぽの窓を選んでも、超球の窓へ自動で切りかえる（真っ黒の窓に用はない）
+        NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] n in
+            guard let self, let w = self.window, (n.object as? NSWindow) === w, HyperLabState.walkShut, let h = HyperLabWindow.window, h.isVisible else { return }
+            DispatchQueue.main.async { h.makeKeyAndOrderFront(nil) }
+        }
         colorPixelFormat = .rgba16Float
         colorspace = CGColorSpace(name: CGColorSpace.extendedSRGB)   // 0〜1 はブラウザと同じ色、1 より上は EDR の明るさ
         (layer as? CAMetalLayer)?.wantsExtendedDynamicRangeContent = true
@@ -767,7 +772,9 @@ final class WalkView: MTKView {
         renderer.onStats = { [weak self] r in self?.stats(r) }
         // パネルの部品を押した後も、キーはいつも景色の操作に（⌘・⌃ の付いたキーはメニューへ）
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { [weak self] e in
-            guard let self, self.window?.isKeyWindow == true else { return e }
+            // 歩くキー：さんぽの窓が前の時。「さんぽの窓は止める」の間は、超球の窓が前でも（文字や数字を打っている時は除く）
+            let viaHyper = HyperLabState.walkShut && NSApp.keyWindow != nil && NSApp.keyWindow === HyperLabWindow.window && !(NSApp.keyWindow?.firstResponder is NSText)
+            guard let self, self.window?.isKeyWindow == true || viaHyper else { return e }
             if e.type == .flagsChanged { self.flags(e); return e }
             // ショートカットキーの設定でキーを待っている時：次に押したキーをその操作のキーに（Esc でやめる、⌫ でキーなし）
             let km = Keymap.shared

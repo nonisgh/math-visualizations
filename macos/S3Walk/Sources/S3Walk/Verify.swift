@@ -67,6 +67,9 @@ enum Verify {
             let fast = s.renderTest(seconds: 1, speed: 1, zoom: 0), dive = s.renderTest(seconds: 1, speed: 1, zoom: 1)
             let bell = s.renderTest(seconds: 1, speed: 0, zoom: 1, chimeAt: 0.2), bellFar = s.renderTest(seconds: 1, speed: 0, zoom: 0, chimeAt: 0.2)
             let turn = s.renderTest(seconds: 1, speed: 1, zoom: 1, turn: 1)
+            let spR = s.renderTest(seconds: 1, speed: 1, zoom: 1, at: SIMD3(1.5, 0, 0)), spL = s.renderTest(seconds: 1, speed: 1, zoom: 1, at: SIMD3(-1.5, 0, 0))
+            check(spR.rmsR > spR.rms * 1.15 && spL.rms > spL.rmsR * 1.15 && spR.peak < 1,   // 低い音が多いので、左右の差は 2 割ほど（低い音ほど耳の差が小さい）
+                  String(format: "空間オーディオ：右から鳴らすと右の耳 %.3f > 左 %.3f、左から鳴らすと左 %.3f > 右 %.3f（割れない）", spR.rmsR, spR.rms, spL.rms, spL.rmsR))
             if let dir = ProcessInfo.processInfo.environment["S3_SNDWAV"] {     // 聞いて確かめる用：風切り音を wav に
                 for (n, sp, z, tr) in [("1_遅い", 0.4, 0.0, 0.0), ("2_速い", 1.0, 0.0, 0.0), ("3_ズーム", 1.0, 1.0, 0.0), ("4_ズーム右へ曲がる", 1.0, 1.0, 1.0), ("5_ズーム中くらい", 0.6, 1.0, 0.0)] {
                     _ = s.renderTest(seconds: 4, speed: sp, zoom: z, turn: tr, wav: dir + "/風切り_\(n).caf")

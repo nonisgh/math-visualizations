@@ -10,14 +10,19 @@
 //   ズーム（ダイブ）で寄るほど大きく近く、外から眺めている時は控えめ。
 //   チリン：チェックポイントに当たった瞬間に、短いベルの音（極ごとに音の高さを変える。目印は高い音）。
 //   描く側（毎コマ）から update・chime で目標を渡し、音を作る側（音の糸）はそれをなめらかに追う。
+//   空間オーディオ（spatial）：1 つの音（モノ）にして、AVAudioEnvironmentNode の頭の伝達関数（HRTF）で、彗星のいる方向から聞こえるように。
+//     左右だけでなく上下・前後も分かる（ヘッドホンで）。広い場所の残響を少し。切ると、前の左右のステレオ。
 import AVFoundation
 
 final class HyperSound {
     static let shared = HyperSound()
     private var engine: AVAudioEngine?
     private var node: AVAudioSourceNode?
+    private var envNode: AVAudioEnvironmentNode?
+    /// 空間オーディオで鳴らす（切りかえたら、鳴らし直す）
+    var spatial = true { didSet { if spatial != oldValue && running { stop(); start() } } }
     /// 描く側が書き、音の糸が読む目標（Float の読み書きだけ。少し古い値を読んでも音は崩れない）
-    private final class Target { var gain: Float = 0; var cutoff: Float = 400; var turn: Float = 0; var press: Float = 0; var vol: Float = 0.8; var near: Float = 1; var zoom: Float = 0; var chimes: [(f: Float, a: Float)] = []; let lock = NSLock() }
+    private final class Target { var gain: Float = 0; var cutoff: Float = 400; var turn: Float = 0; var press: Float = 0; var vol: Float = 0.8; var near: Float = 1; var zoom: Float = 0; var kick = 0; var chimes: [(f: Float, a: Float)] = []; let lock = NSLock() }
     private let tgt = Target()
     private(set) var running = false
 
@@ -30,14 +35,36 @@ final class HyperSound {
         #endif
         let e = AVAudioEngine()
         let sr = e.outputNode.outputFormat(forBus: 0).sampleRate
-        guard let (n, fmt) = makeNode(Float(sr > 0 ? sr : 48000)) else { return }
-        e.attach(n); e.connect(n, to: e.mainMixerNode, format: fmt)
+        guard let (n, fmt) = makeNode(Float(sr > 0 ? sr : 48000), mono: spatial) else { return }
+        e.attach(n)
+        if spatial { envNode = attachSpatial(e, n, fmt) } else { e.connect(n, to: e.mainMixerNode, format: fmt) }
         do { try e.start() } catch { return }
         engine = e; node = n; running = true
     }
+    /// 空間オーディオ：音 → 環境（HRTF・広い場所の残響を少し）→ 出力。距離で小さくするのは自分でやるので、環境では減らさない
+    private func attachSpatial(_ e: AVAudioEngine, _ n: AVAudioSourceNode, _ fmt: AVAudioFormat) -> AVAudioEnvironmentNode {
+        let env = AVAudioEnvironmentNode()
+        e.attach(env)
+        e.connect(n, to: env, format: fmt)
+        e.connect(env, to: e.mainMixerNode, format: nil)
+        env.listenerPosition = AVAudio3DPoint(x: 0, y: 0, z: 0)
+        env.distanceAttenuationParameters.rolloffFactor = 0
+        env.reverbParameters.enable = true; env.reverbParameters.loadFactoryReverbPreset(.largeHall2); env.reverbParameters.level = -8
+        n.renderingAlgorithm = .HRTFHQ
+        if #available(macOS 13.0, iOS 16.0, *) { n.sourceMode = .pointSource }
+        n.reverbBlend = 0.22
+        n.position = AVAudio3DPoint(x: 0, y: 0, z: -1.5)
+        return env
+    }
+    /// 空間オーディオの音の場所（聞く人から見て：x 右・y 上・−z 前。長さは 1 くらい）
+    func setPosition(_ p: SIMD3<Float>) {
+        guard spatial, let n = node else { return }
+        n.position = AVAudio3DPoint(x: p.x, y: p.y, z: p.z)
+    }
     /// 音を作る節（シュー・チリン）。rate は 1 秒の標本の数
-    private func makeNode(_ rate: Float) -> (AVAudioSourceNode, AVAudioFormat)? {
-        guard let fmt = AVAudioFormat(standardFormatWithSampleRate: Double(rate), channels: 2) else { return nil }
+    ///   mono：空間オーディオ用に 1 つの音で（左右の振り分けは環境がする）
+    private func makeNode(_ rate: Float, mono: Bool = false) -> (AVAudioSourceNode, AVAudioFormat)? {
+        guard let fmt = AVAudioFormat(standardFormatWithSampleRate: Double(rate), channels: mono ? 1 : 2) else { return nil }
         // 音の糸の中だけで使う状態
         var g: Float = 0, fc: Float = 400, tn: Float = 0, pr: Float = 0
         var low: Float = 0, band: Float = 0, low2: Float = 0, band2: Float = 0      // 流れ（2 段の帯域）
@@ -46,14 +73,17 @@ final class HyperSound {
         var gust: Float = 0, gust2: Float = 0, flut: Float = 0                 // 突風（ゆっくり）・はためき（速め）のゆらぎ
         var buf: Float = 0, rr1: Float = 0, rr2: Float = 0, rr3: Float = 0     // 揺さぶりの位相・ゴーッ（3 段の低域）
         var crk: Float = 0, crkEnv: Float = 0, cl: Float = 0, cb: Float = 0, sizz: Float = 0   // パチパチ（破裂の大きさ・減り・帯域）・ジリジリ
+        var wob: Float = 0, wobPh: Float = 0                                   // 低音のゆらぎ（1 → 0）
         var seed: UInt32 = 0x9E3779B9, ph: Float = 0, wa: Float = 0, wb: Float = 1.7, nr: Float = 0   // wa・wb：寄せては返す波の位相、nr：近さ（チリンの大きさ）
         var voices: [(f: Float, a: Float, p: Float, t: Float)] = []
         let t = tgt
         let n = AVAudioSourceNode(format: fmt) { _, _, frames, abl -> OSStatus in
             let bufs = UnsafeMutableAudioBufferListPointer(abl)
-            guard bufs.count >= 2, let L = bufs[0].mData?.assumingMemoryBound(to: Float.self), let R = bufs[1].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
-            t.lock.lock(); let tg = t.gain * t.vol, tc = t.cutoff, tt = t.turn, tp = t.press * t.vol, vol = t.vol, tnr = t.near, tzm = t.zoom; let new = t.chimes; t.chimes = []; t.lock.unlock()
+            guard bufs.count >= 1, let L = bufs[0].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
+            let R = bufs.count >= 2 ? bufs[1].mData?.assumingMemoryBound(to: Float.self) : nil   // nil：空間オーディオ（1 つの音）
+            t.lock.lock(); let tg = t.gain * t.vol, tc = t.cutoff, tt = t.turn, tp = t.press * t.vol, vol = t.vol, tnr = t.near, tzm = t.zoom; let kicks = t.kick; t.kick = 0; let new = t.chimes; t.chimes = []; t.lock.unlock()
             for c in new where voices.count < 8 { voices.append((c.f, c.a * vol, 0, 0)) }
+            if kicks > 0 { wob = 1 }
             let kg = 1 - exp(-1 / (rate * 0.12)), kc = 1 - exp(-1 / (rate * 0.09)), kt = 1 - exp(-1 / (rate * 0.18))   // なめらかに追う（風は急には変わらない）
             let dt = 1 / rate
             let kGust = 1 - exp(-dt * 1.3), kGust2 = 1 - exp(-dt * 0.35), kFlut = 1 - exp(-dt * 9)
@@ -74,7 +104,10 @@ final class HyperSound {
                 let wv0 = max(0, min(1, 0.5 + 0.3 * sin(wa) + 0.2 * sin(wb) + 0.15 * gust2)), wv = wv0 + (0.5 - wv0) * tzm
                 nr += (tnr - nr) * kg
                 // 流れ：帯の高さは速さ＋曲がり＋突風で滑る
-                let fcm = fc * (1 + 0.55 * at + 0.12 * gust) * (0.7 + 0.55 * wv)   // 波で高さが上下する
+                // 低音のゆらぎ（きついカーブ・ときどき）：低いうなりが大きく揺れて、0.7 秒ほどで戻る（高さは少しだけ）
+                wob *= exp(-dt * 4); wobPh += 2 * Float.pi * 5 * dt; if wobPh > 2 * Float.pi { wobPh -= 2 * Float.pi }
+                let wq = wob * sin(wobPh)
+                let fcm = fc * (1 + 0.55 * at + 0.12 * gust) * (0.7 + 0.55 * wv) * (1 + 0.06 * wq)   // 波で高さが上下する
                 let f1 = min(0.95, 2 * sin(Float.pi * fcm / rate)), q: Float = 0.9 - 0.35 * at   // 曲がる時は帯が細く鋭く（空気をつかむ）
                 low += f1 * band; let high = wn - low - q * band; band += f1 * high
                 let f2 = min(0.95, 2 * sin(Float.pi * fcm * 0.5 / rate))
@@ -87,7 +120,7 @@ final class HyperSound {
                 rl1 += (wn - rl1) * fr; rl2 += (rl1 - rl2) * fr
                 let flow = (band2 * 0.9 + band * 0.25) * g * 0.6 * gw * (q / 0.9) * (q / 0.9) * (1 + 0.25 * at) * (0.55 + 0.75 * wv)   // 帯を鋭くした分の響き（2 段なので q の 2 乗）は打ち消す
                 let hiss = hb * g * 0.1 * gw * (0.8 + 0.6 * flut) * (1 + 0.5 * at) * (0.4 + 0.9 * wv)   // 高いシューは控えめに、波に合わせて
-                let press = rl2 * pr * 3.2 * (0.8 + 0.4 * gw)
+                let press = rl2 * pr * 5.2 * (0.8 + 0.4 * gw) * (1 + 0.75 * wq)   // 低いうなりは強めに（ゆらぐ時は大きく揺れる）
                 // 揺さぶり（ボボボ）：速いほど速く強く脈打つ。脈の速さは突風で少しずれる
                 let spd = min(1, pr * 2.2)                                       // 速さの目安（0〜1）
                 buf += 2 * Float.pi * (9 + 11 * spd + 1.5 * gust) * dt; if buf > 2 * Float.pi { buf -= 2 * Float.pi }
@@ -108,7 +141,7 @@ final class HyperSound {
                 // ジリジリ：とても高いざらつき（熱い空気）。速い時だけ
                 sizz += (wn - sizz) * 0.6
                 let sizzle = (wn - sizz) * pr * 0.25 * spd * (0.7 + 0.5 * flut)
-                var s = flow + hiss + roar * 0.5 + crackle + sizzle
+                var s = (flow + hiss + roar * 0.85 * (1 + 0.5 * wq) + crackle + sizzle) * (1 + 0.1 * wq)   // ゴーッ（低い）も強めに
                 // チリン（ベル：基音と 2.76 倍の部分音、すぐ減る）
                 var bell: Float = 0
                 for v in voices.indices {
@@ -123,8 +156,12 @@ final class HyperSound {
                 // 左右で少しずらす（広がり）。圧は真ん中
                 sL += (s - sL) * 0.7; sR += (s - sR) * 0.55
                 // 端はやわらかく丸める（割れない）
-                L[i] = tanh(sL * (1 - pan) * 2.6 + press + bell * 0.22)
-                R[i] = tanh(sR * pan * 2.6 + press + bell * 0.22)
+                if let R {
+                    L[i] = tanh(sL * (1 - pan) * 2.6 + press + bell * 0.22)
+                    R[i] = tanh(sR * pan * 2.6 + press + bell * 0.22)
+                } else {
+                    L[i] = tanh(sL * 1.6 + press + bell * 0.22)                 // 空間オーディオ：方向は環境が付ける
+                }
             }
             voices.removeAll { $0.t > 2.2 }
             return noErr
@@ -132,29 +169,33 @@ final class HyperSound {
         return (n, fmt)
     }
     /// 確かめ用：画面も音も出さずに seconds 秒ぶん作って、平均の大きさ（RMS）といちばん大きい値を返す
-    func renderTest(seconds: Double, speed: Double, zoom: Double, turn: Double = 0, chimeAt: Double? = nil, wav: String? = nil) -> (rms: Float, peak: Float) {
+    ///   at：空間オーディオで、この場所から鳴らす（nil ならステレオ）。rmsR：右の耳の大きさ
+    func renderTest(seconds: Double, speed: Double, zoom: Double, turn: Double = 0, chimeAt: Double? = nil, wav: String? = nil, at: SIMD3<Float>? = nil) -> (rms: Float, peak: Float, rmsR: Float) {
         let e = AVAudioEngine(), rate: Float = 48000
-        guard let (n, fmt) = makeNode(rate) else { return (0, 0) }
-        e.attach(n); e.connect(n, to: e.mainMixerNode, format: fmt)
-        do { try e.enableManualRenderingMode(.offline, format: fmt, maximumFrameCount: 4800); try e.start() } catch { return (0, 0) }
+        guard let (n, fmt) = makeNode(rate, mono: at != nil), let outFmt = AVAudioFormat(standardFormatWithSampleRate: Double(rate), channels: 2) else { return (0, 0, 0) }
+        e.attach(n)
+        do { try e.enableManualRenderingMode(.offline, format: outFmt, maximumFrameCount: 4800) } catch { return (0, 0, 0) }
+        if let p = at { _ = attachSpatial(e, n, fmt); n.position = AVAudio3DPoint(x: p.x, y: p.y, z: p.z) } else { e.connect(n, to: e.mainMixerNode, format: fmt) }
+        do { try e.start() } catch { return (0, 0, 0) }
         update(speed: speed, zoom: zoom, turn: turn, volume: 1)
-        guard let buf = AVAudioPCMBuffer(pcmFormat: e.manualRenderingFormat, frameCapacity: 4800) else { return (0, 0) }
-        let file = wav.flatMap { try? AVAudioFile(forWriting: URL(fileURLWithPath: $0), settings: fmt.settings) }   // 聞いて確かめる用の音のファイル
-        var sum: Double = 0, cnt = 0, peak: Float = 0, done = 0.0, rung = false
+        guard let buf = AVAudioPCMBuffer(pcmFormat: e.manualRenderingFormat, frameCapacity: 4800) else { return (0, 0, 0) }
+        let file = wav.flatMap { try? AVAudioFile(forWriting: URL(fileURLWithPath: $0), settings: e.manualRenderingFormat.settings) }   // 聞いて確かめる用の音のファイル
+        var sum: Double = 0, sumR: Double = 0, cnt = 0, peak: Float = 0, done = 0.0, rung = false
         while done < seconds {
             if let c = chimeAt, !rung, done >= c { chime(pole: 2); rung = true }
             guard (try? e.renderOffline(4800, to: buf)) == .success, let L = buf.floatChannelData?[0] else { break }
             try? file?.write(from: buf)
-            for i in 0..<Int(buf.frameLength) { let v = L[i]; sum += Double(v * v); cnt += 1; peak = max(peak, abs(v)) }
+            let Rch = (buf.format.channelCount > 1 ? buf.floatChannelData?[1] : nil) ?? L
+            for i in 0..<Int(buf.frameLength) { let v = L[i], w = Rch[i]; sum += Double(v * v); sumR += Double(w * w); cnt += 1; peak = max(peak, abs(v), abs(w)) }
             done += 0.1
         }
         e.stop(); tgt.lock.lock(); tgt.gain = 0; tgt.lock.unlock()
-        return (Float((sum / Double(max(1, cnt))).squareRoot()), peak)
+        return (Float((sum / Double(max(1, cnt))).squareRoot()), peak, Float((sumR / Double(max(1, cnt))).squareRoot()))
     }
     func stop() {
         guard running else { return }
-        engine?.stop(); if let n = node { engine?.detach(n) }
-        engine = nil; node = nil; running = false
+        engine?.stop(); if let n = node { engine?.detach(n) }; if let v = envNode { engine?.detach(v) }
+        engine = nil; node = nil; envNode = nil; running = false
         tgt.lock.lock(); tgt.gain = 0; tgt.press = 0; tgt.turn = 0; tgt.chimes = []; tgt.lock.unlock()
     }
     /// 毎コマ：速さ（0〜1）・ズーム（0〜1）・曲がる速さ（−1〜1、＋は右へ）・音量から、風の大きさ・高さ・圧・曲がり
@@ -169,6 +210,8 @@ final class HyperSound {
         tgt.lock.lock(); tgt.gain = gain; tgt.press = press; tgt.cutoff = cutoff; tgt.turn = tr * s; tgt.vol = Float(volume); tgt.zoom = z; tgt.near = 1;   // チリンはいつもはっきり（チェックポイントの通過は聞こえた方がいい）
         tgt.lock.unlock()
     }
+    /// 低音をゆらす（きついカーブ・ときどき）
+    func shellPass() { tgt.lock.lock(); tgt.kick += 1; tgt.lock.unlock() }
     /// チリン：極は番号ごとの音（ペンタトニック）、目印は高い音
     func chime(pole k: Int) {
         let scale: [Float] = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.7, 1318.5]
