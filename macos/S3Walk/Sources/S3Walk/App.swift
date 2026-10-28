@@ -32,6 +32,7 @@ struct Main {
         if args.contains("--mapstats") { Verify.mapStats(); exit(0) }
         if args.contains("--mapbench") { Verify.mapBench(); exit(0) }
         if args.contains("--mapssbench") { Verify.mapSSBench(); exit(0) }
+        if args.contains("--hyperbench") { Verify.hyperBench(); exit(0) }
         if args.contains("--quietbench") { Verify.quietBench(); exit(0) }
         if let i = args.firstIndex(of: "--mappng"), i + 1 < args.count { Verify.mapPNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--turndump"), i + 5 < args.count { Verify.turnDump(args[i + 1], args[i + 2] == "sharp", Int(args[i + 3])!, Double(args[i + 4])!, Int(args[i + 5])!); exit(0) }
@@ -82,7 +83,7 @@ final class AppModel: ObservableObject {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { fatalError("Metal が使えない") }
         self.r = r
         Store.restore(r)
-        HyperLabState.walkSource = { [unowned r] in (r.journey.trail, r.cam.w.p) }   // 超球の試作に、歩いた跡と今いる所を
+        HyperLabState.walkSource = { [unowned r] in .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks, hit: r.journey.marks.map { r.journey.isHit($0) }, poles: r.journey.polesHit, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov) }   // 超球の試作に、歩いた跡・今いる所・目印を
         r.say = { [weak self] m in DispatchQueue.main.async { self?.say(m) } }
         r.onPad = { [weak self] k in self?.pad(k) }
         restoreMapMode()
@@ -99,6 +100,9 @@ final class AppModel: ObservableObject {
             dock.reset(); dock.floatPanel(.shell); if let g = dock.floating.first { dock.addTab(.view, to: g.id) }
         }
         setupSync()
+        // 4D 球アナロジーの「球層の数をさんぽと連動」：読む・書く（書いたらパネルも描き直す。保存・同期はいつもの流れで）
+        HyperLabState.walkRendererGet = { [weak r = self.r] in r }   // 4D 球アナロジーの「さんぽの景色」の画面が、同じ Renderer で描く
+        HyperLabState.walkShells = (get: { [unowned self] in self.r.set.shellN }, set: { [weak self] n in self?.r.set.shellN = n; self?.changed() })
     }
     /// 同期（Supabase、NativeSync.swift）：共通の状態（と地図の向き）に、Mac の画面の構成（パネルの並び・浮いた窓・地図の置き方・パネル・表示・ゲームパッド・
     ///   窓の大きさと場所・浮いた地図の窓・静かモードとコントローラーで歩く）を足す。Mac が 2 台あれば、レイアウトもそろう（窓は、その画面に収まるように）
@@ -824,13 +828,13 @@ final class WalkView: MTKView {
         // 60 fps の時は、画面の速さを割り切れる速さのうち 60 以上でいちばん遅いもの（144Hz → 72、120Hz → 60、60Hz → 60）。
         //   60 のままだと 144Hz の画面では 3 コマに 1 回（48 fps）になる
         let hz = max(60, window?.screen?.maximumFramesPerSecond ?? 60)
-        let fps = quiet ? hz / max(1, hz / 30) : renderer.set.fps60 ? hz / max(1, hz / 60) : hz
+        let fps = quiet ? hz / max(1, hz / 30) : renderer.set.fps60 && !HyperLabState.boostWalk ? hz / max(1, hz / 60) : hz   // 4D 球アナロジーのダイブ・追う間は速く
         if preferredFramesPerSecond != fps { preferredFramesPerSecond = fps }
     }
 
     /// 細かさの自動：実際の fps が目標（60 など）に 2 回続けて届かなければ粗く、4 回（2 秒）続けて届いていれば少しずつ細かく（いちばん細かいのは 1）。
     ///   GPU の時間では決めない（軽いと Mac が GPU を遅くするので、時間が長く見えて、細かさを下げ続けてしまう）
-    private var okStreak = 0, badStreak = 0, cap = 1.0, capT = CACurrentMediaTime()
+    private var okStreak = 0, badStreak = 0, cap = 1.0, capT = CACurrentMediaTime(), boostSeen = false
     let logFPS = CommandLine.arguments.contains("--log")
     func autoScale(_ r: Renderer) {
         guard r.set.autoQ, !r.set.quiet, r.fps > 0, !r.idle else { return }   // 止まって描き直していない時・静かモードの時は、細かさを変えない
@@ -854,6 +858,7 @@ final class WalkView: MTKView {
         let head = Double(window?.screen?.maximumExtendedDynamicRangeColorComponentValue ?? 1)
         if abs(head - r.edrHead) > 0.01 { r.edrHead = head; model?.changed() }
         autoScale(r)
+        if boostSeen != HyperLabState.boostWalk { boostSeen = HyperLabState.boostWalk; applyScale() }
         applyScale()
         if logFPS { print(String(format: "fps %.1f / %d  最長 %.1f ms  GPU %.2f ms  %d×%d  細かさ %.2f", r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale)); fflush(stdout) }
         let p = r.cam.w.p, fromN = acos(max(-1, min(1, p.w)))

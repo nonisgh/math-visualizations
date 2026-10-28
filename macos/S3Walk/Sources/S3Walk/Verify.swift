@@ -509,6 +509,61 @@ enum Verify {
                   String(format: "A・B はなめらかに効く：A の加速 押した瞬間 %.3f → いっぱい %.2f/秒（離した瞬間 %.2f）、B の減速 押した瞬間 %.3f → いっぱい %.2f/秒（離した瞬間 %.2f）", a0, aFull, aOff, b0, bFull, bOff))
             r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.set.cruise = 1
         }
+        // チェックポイント：置いた所に立っている間は数えず、前に置いた目印を通ると 1、ぐるっと 1 周して最初の目印に戻ると 2（全部）
+        do {
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = false; r.step(1.0 / 60)
+            var said: [String] = []; let keep = r.say; r.say = { said.append($0) }
+            r.addMark()
+            var c2 = r.cam; c2.walk([0, 0, 1], 1.0); r.journey.marks.append(c2.w.p); r.journey.marks2.append(r.journey.w2.p); r.journey.markKinds.append(0)
+            r.walking = true
+            while r.journey.dist < 0.5 { r.step(1.0 / 60) }; let h0 = r.journey.marksHit.count
+            while r.journey.dist < 1.3 { r.step(1.0 / 60) }; let h1 = r.journey.marksHit.count
+            while r.journey.dist < 2 * .pi + 0.3 { r.step(1.0 / 60) }; let h2 = r.journey.marksHit.count
+            r.walking = false; r.step(1.0 / 60); r.say = keep
+            let msg = said.filter { $0.hasPrefix("チェック") && $0.contains("目印") }, poles = r.journey.polesHit, poleMsg = said.filter { $0.contains("（極 ") }
+            r.clearMarks(); let cleared = r.journey.marksHit.isEmpty
+            check(h0 == 0 && h1 == 1 && h2 == 2 && msg.count == 2 && msg.last!.contains("全部") && cleared && poles.contains(0) && poles.contains(1) && poleMsg.count == poles.count - 2,
+                  "チェックポイント：置いた所では数えず（\(h0)）、前の目印を通って \(h1)、1 周して最初の目印で \(h2)（\(msg.last ?? "")）。目印を消すと記録も消える。極も 1 周で \(poles.count) つ（\(poles.map { MapRenderer.poleName(FIXED[$0]) }.joined(separator: "・"))）")
+            r.set = .plain; r.cam = Camera(); r.journey = Journey()
+        }
+        // 4D 球アナロジーの球層の数をさんぽと連動：さんぽで変えるとこちらへ、こちらで変えるとさんぽへ（3〜21 に収める）
+        do {
+            let keep = HyperLabState.walkShells
+            var walkN = 11
+            HyperLabState.walkShells = (get: { walkN }, set: { walkN = $0 })
+            let st = HyperLabState(); st.layers = 5; st.layersLink = true
+            st.pullLayers(); let a = st.layers
+            walkN = 15; st.pullLayers(); let b = st.layers
+            st.setLayers(7); let c = walkN
+            st.setLayers(30); let d = (st.layers, walkN)
+            st.layersLink = false; st.setLayers(30); let e = (st.layers, walkN)
+            HyperLabState.walkShells = keep
+            check(a == 11 && b == 15 && c == 7 && d == (21, 21) && e == (30, 21),
+                  "球層の数の連動：さんぽ 11 → こちら \(a)、さんぽ 15 → \(b)、こちらで 7 → さんぽ \(c)、30 → どちらも \(d.0)（3〜21）。切ると別々（こちら \(e.0)・さんぽ \(e.1)）")
+        }
+        // 4D 球アナロジーの「自分を追う」：遊び 0° は真ん中へ（進む向きも上へ）、遊び 90° は遊びの中では動かさず、外（奥）へ行くと 90° まで連れ戻す
+        do {
+            let keep = HyperLabState.walkSource
+            let back = nrm(SIMD4<Double>(0.3, -0.5, 0.4, -0.7)), fw = nrm(SIMD4<Double>(0.6, 0.2, -0.7, 0.1) - back * dot4(SIMD4<Double>(0.6, 0.2, -0.7, 0.1), back))
+            HyperLabState.walkSource = { .init(trail: [], pos: back, fwd: fw) }
+            let st = HyperLabState(); st.followOn = true; st.followSlack = 0; st.followHeading = true
+            for _ in 0..<600 { st.tickFollow(1.0 / 60) }
+            let c0 = st.rot4(back).w, up = st.rot4(fw).y
+            let st2 = HyperLabState(); st2.followOn = true; st2.followSlack = 90; st2.followDrift = 0
+            let near = nrm(SIMD4<Double>(0.6, 0, 0, 0.8)); HyperLabState.walkSource = { .init(trail: [], pos: near) }
+            for _ in 0..<60 { st2.tickFollow(1.0 / 60) }; let still = st2.pitch == 0 && st2.roll == 0 && st2.zw == 0
+            HyperLabState.walkSource = { .init(trail: [], pos: back) }
+            for _ in 0..<600 { st2.tickFollow(1.0 / 60) }; let th = acos(max(-1, min(1, st2.rot4(back).w))) * 180 / .pi
+            // ゆるく回す：遊びの中でも少しずつ回る（1 秒で数度ほど。止まらないが、ゆっくり）
+            let st3 = HyperLabState(); st3.followOn = true; st3.followSlack = 90; st3.followDrift = 0.3
+            HyperLabState.walkSource = { .init(trail: [], pos: near) }
+            let th0 = acos(st3.rot4(near).w); for _ in 0..<60 { st3.tickFollow(1.0 / 60) }; let drift = (th0 - acos(st3.rot4(near).w)) * 180 / .pi
+            HyperLabState.walkSource = keep
+            // 進む向きを上へ向けるのは面内（X-Y）の回転だけなので、画面の奥行きの成分を除いた分まで（いちばん上を向いた時の値と比べる）
+            let fv = st.rot4(fw), best = (fv.x * fv.x + fv.y * fv.y).squareRoot()
+            check(c0 > 0.995 && up > best - 0.03 && still && abs(th - 90) < 3 && drift > 0.3 && drift < 15,
+                  String(format: "自分を追う：遊び 0° で真ん中へ（正面 %.3f・進む向きの上 %.2f／できる限り %.2f）、遊び 90° は中では動かさず、奥からは %.1f° まで戻す。ゆるく回すと遊びの中でも 1 秒で %.1f° 寄る", c0, up, best, th, drift))
+        }
         // 手で走る時（A・B）は、左スティックが向きの操作（右へ倒すと右へ曲がり、前へ倒すと上を向く。速さは変えない）。自動の時は今までどおりアクセル
         do {
             r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.walking = false; r.step(1.0 / 120)
@@ -921,6 +976,21 @@ enum Verify {
 
     /// 地図の 1 コマの時間（CPU で線を作る＋GPU）（`--mapbench`）
     /// 地図の重さ：前の描き方（画面の大きさ・4 倍マルチサンプル）と、今の描き方（縦横 2 倍に描いて縮める）の GPU の時間を比べる
+    /// 超球の試作の重さ：左（2 倍に描いて縮める）・右を、窓の半分くらいの大きさ（1600×2000 画素）で
+    static func hyperBench() {
+        for (name, setup) in [("ふつう", { (s: HyperLabState) in }), ("光沢 0・座標軸なし・跡なし", { (s: HyperLabState) in s.gloss = 0; s.axes = false; s.walk = false; s.marksOn = false }), ("宇宙", { (s: HyperLabState) in s.spaceMode = 1 })] as [(String, (HyperLabState) -> Void)] {
+            for side in [HyperLabRenderer.Side.left, .right] {
+                let st = HyperLabState(); setup(st)
+                guard let r = HyperLabRenderer(side: side, state: st, view: nil) else { continue }
+                let (g, c) = r.bench(1600, 2000)
+                print(String(format: "%@・%@：GPU %.2f ms・CPU %.2f ms / コマ", name, side == .left ? "左" : "右", g, c))
+            }
+        }
+        let st = HyperLabState(); if let r = HyperLabRenderer(side: .left, state: st, view: nil) {
+            let t0 = CACurrentMediaTime(); for k in 0..<10 { st.zw = Double(k) * 0.05; r.buildLeftForBench() }
+            print(String(format: "左の輪を作り直す（Z-W を変えた時）：%.1f ms / 回", (CACurrentMediaTime() - t0) * 100))
+        }
+    }
     static func mapSSBench() {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev), let q = dev.makeCommandQueue() else { return }
         r.set = Settings(); r.cam = Camera(); r.journey = Journey(); r.walking = true; while r.journey.dist < 20 { r.step(1.0 / 60) }; r.walking = false
@@ -1097,18 +1167,44 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0)] {
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
                 st.viewYaw = 0.5; st.viewPitch = 0.3
                 if name.hasPrefix("正面") { st.pitch = 0.0203; st.roll = -0.0962; st.viewYaw = 0; st.viewPitch = 0; st.leftDist = 5.56; st.viewDist = 7.5 }   // ウェブ版の今の画面と同じ向き・大きさ
+                switch name {
+                case "ZW影": st.zw = 0.7; st.lzw = 1
+                case "ZW両方": st.zw = 0.7; st.lzw = 2
+                case "断面カット・画面": st.cutOn = true; st.cutRef = 0; st.cutAngDeg = 0; st.cutWDeg = 120
+                case "断面カット・物体": st.cutOn = true; st.cutRef = 1; st.cutAngDeg = 90; st.cutWDeg = 120
+                case "ポリゴンカット": st.cutOn = true; st.cutRef = 2; st.polyArm = 1; st.cutWDeg = 200
+                case "座標軸・プラスのみ": st.axPlus = true
+                case "座標軸・立体": st.axThin = false
+                case "宇宙": st.spaceMode = 1
+                case "平面・手前": st.cutOn = true; st.cutKind = 1; st.planeDir = 0; st.cutPos = 0
+                case "平面・x": st.cutOn = true; st.cutKind = 1; st.planeDir = 3; st.cutPos = -0.2
+                case "4D切断": st.cutOn = true; st.cutKind = 2; st.cutPos = 0.3
+                case "4D切断x・正面": st.cutOn = true; st.cutKind = 2; st.cut4Axis = 0; st.cutPos = 0.2; st.pitch = 0; st.roll = 0; st.viewYaw = 0.35; st.viewPitch = 0.25
+                case "4D切断x": st.cutOn = true; st.cutKind = 2; st.cut4Axis = 0; st.cutPos = 0.2
+                case "4D切断・宇宙": st.cutOn = true; st.cutKind = 2; st.cutPos = 0.1; st.spaceMode = 1
+                case "宇宙・正面": st.spaceMode = 1; st.pitch = 0.0203; st.roll = -0.0962; st.viewYaw = 0; st.viewPitch = 0
+                default: break
+                }
                 st.bump()
                 let (iw, ih) = name.hasPrefix("正面") ? (1024, 1536) : (900, 760)   // 正面はウェブ版の右の枠（1024×1536）と同じ形
                 guard let r = HyperLabRenderer(side: side, state: st, view: nil) else { continue }
+                if name.hasPrefix("ダイブ") {                                    // 少し歩いた所から、景色の向きでダイブ（宇宙モード）
+                    var c = Camera(); c.az = 50; var tr: [SIMD4<Double>] = []
+                    for _ in 0..<120 { let L = c.lookFrame().L; c.w.p = nrm(c.w.p + L * 0.01); orthoFrame(&c.w); tr.append(c.w.p) }   // 見ている向きへ 1.2 歩いた跡
+                    let F = c.viewFrame()
+                    r.walkOverride = { .init(trail: tr, pos: c.w.p, space: true, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
+                    st.diveT = Double(name.dropFirst(3)) ?? 0; st.spaceMode = 1
+                }
                 if name.hasSuffix("歩いた跡") {                                    // 螺旋の道（極めぐりの螺旋のように）を 9 歩
                     var tr: [SIMD4<Double>] = []
                     for k in 0...900 { let s = Double(k) / 100, a = s * 0.9, b = s * 0.23; tr.append(nrm(SIMD4(cos(a) * sin(b + 0.2), sin(a) * sin(b + 0.2), sin(s * 0.5) * 0.35, cos(b + 0.2)))) }
-                    r.walkOverride = { (tr, tr.last!) }
+                    let mk = [tr[150], tr[420], tr[700], nrm(SIMD4<Double>(0.3, -0.6, 0.5, 0.55))]   // 目印 4 つ（はじめの 3 つは通った）
+                    r.walkOverride = { .init(trail: tr, pos: tr.last!, marks: mk, hit: [true, true, true, false], poles: [0, 2]) }   // 極はアナ極と東極を通った
                 }
                 guard let img = r.image(iw, ih) else { continue }
                 let url = URL(fileURLWithPath: dir).appendingPathComponent("超球_\(name)_\(side == .left ? "左" : "右").png")

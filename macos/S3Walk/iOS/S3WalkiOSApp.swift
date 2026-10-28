@@ -48,7 +48,7 @@ final class MobileModel: ObservableObject {
         if let u = Bundle.main.url(forResource: "KaTeX_Math-Italic", withExtension: "ttf") { CTFontManagerRegisterFontsForURL(u as CFURL, .process, nil) }
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { fatalError("Metal が使えない") }
         self.r = r
-        HyperLabState.walkSource = { [unowned r] in (r.journey.trail, r.cam.w.p) }   // 超球の試作に、歩いた跡と今いる所を
+        HyperLabState.walkSource = { [unowned r] in .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks, hit: r.journey.marks.map { r.journey.isHit($0) }, poles: r.journey.polesHit, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov) }   // 超球の試作に、歩いた跡・今いる所・目印を
         if UserDefaults.standard.dictionary(forKey: Store.key) == nil { MobileModel.macLook(r) }   // 初めて開いた時は Mac 版の見え方で
         Store.restore(r)
         r.set.gamepad = true                                   // 指のスティックもコントローラーと同じ入れ方で
@@ -61,9 +61,12 @@ final class MobileModel: ObservableObject {
         r.onStats = { [weak self] r in
             let c = r.cam, p = c.w.p
             let s = String(format: "%.0f fps・細かさ %.0f%%　アナ極から %.2f　方位 %+.0f° 仰角 %+.0f° 見回し %+.0f°/%+.0f°", r.fps, r.set.scale * 100, acos(max(-1, min(1, p.w))) * r.set.uniR, c.az, c.el, c.hy, c.hp)
-            DispatchQueue.main.async { self?.autoScale(r); if self?.hudText != s { self?.hudText = s }; self?.save() }
+            DispatchQueue.main.async { self?.autoScale(r); if self?.hudText != s { self?.hudText = s }; self?.save(); if self?.boostSeen != HyperLabState.boostWalk { self?.boostSeen = HyperLabState.boostWalk; self?.applyScale() } }
         }
         setupSync()
+        // 4D 球アナロジーの「球層の数をさんぽと連動」：読む・書く（書いたらパネルも描き直す。保存・同期はいつもの流れで）
+        HyperLabState.walkRendererGet = { [weak r = self.r] in r }   // 4D 球アナロジーの「さんぽの景色」の画面が、同じ Renderer で描く
+        HyperLabState.walkShells = (get: { [unowned self] in self.r.set.shellN }, set: { [weak self] n in self?.r.set.shellN = n; self?.changed() })
     }
     /// 同期（Supabase、NativeSync.swift）：共通の状態（と地図の向き）に、iPad か iPhone の画面の構成（パネルの並び・地図の置き方・パネルの大きさ・ゲームパッド・
     ///   静かモード）を足す。iPad どうし・iPhone どうしでそろう（iPad と iPhone は画面が違うので別々）
@@ -121,6 +124,7 @@ final class MobileModel: ObservableObject {
     /// 地図 1・2・S² の仲間（地図の向きの同期・保存）
     var maps: [MapRenderer] { [mapRenderer, mapRenderer2, s2Renderer] }
     /// 描く細かさ：映画のような光の時は景色だけ粗く（星と仕上げは画面の細かさ）、それ以外は画面ごと粗く（Mac 版の applyScale と同じ）
+    var boostSeen = false
     func applyScale() {
         guard let v = sceneView else { return }
         let sc = r.set.quiet ? r.set.quietScaleEff : r.set.scale, screen = v.window?.screen.scale ?? UIScreen.main.scale
@@ -128,7 +132,7 @@ final class MobileModel: ObservableObject {
         let cs = r.set.cine ? screen : screen * sc
         if abs(v.contentScaleFactor - cs) > 0.001 { v.contentScaleFactor = cs }
         let hz = max(60, v.window?.screen.maximumFramesPerSecond ?? 60)
-        let fps = r.set.quiet ? 30 : r.set.fps60 ? 60 : hz
+        let fps = r.set.quiet ? 30 : r.set.fps60 && !HyperLabState.boostWalk ? 60 : hz   // 4D 球アナロジーのダイブ・追う間は速く
         if v.preferredFramesPerSecond != fps { v.preferredFramesPerSecond = fps }
     }
     /// 細かさの自動（Mac 版と同じ考え）：fps が目標に 2 回続けて届かなければ粗く、4 秒続けて届いていれば少しずつ細かく

@@ -1065,6 +1065,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     func removeMark(_ i: Int, routes: Bool = true) {
         guard i < journey.marks.count else { return }
         let p = journey.marks[i]
+        journey.marksHit.removeAll { simd_distance($0, p) < 1e-9 }   // 通った記録も一緒に消す
         journey.marks.remove(at: i)
         if i < journey.marks2.count { journey.marks2.remove(at: i) }
         if i < journey.markKinds.count { journey.markKinds.remove(at: i) }
@@ -1073,7 +1074,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// 目印を全部消す：置いた目印と、「自分の道」に入っている目印の点、ついてくる仲間、デモの模型（目印のように残って見えるものを全部）
     func clearMarks() {
         let ps = journey.marks
-        journey.marks = []; journey.marks2 = []; journey.markKinds = []
+        journey.marks = []; journey.marks2 = []; journey.markKinds = []; journey.marksHit = []
         let n = RouteStore.shared.removeMarkPoints(ps)
         if n > 0 { stopRouteAfterRemoval() }
         let fol = set.follower, dem = demo != nil
