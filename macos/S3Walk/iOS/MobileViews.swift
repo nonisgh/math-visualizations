@@ -235,9 +235,10 @@ struct SceneView: UIViewRepresentable {
 ///   点が重なる時は手前の点だけ。名前はアナ極を先に、あとは手前から順に、点の右・左・上・下で空いている所へ（どこも空いていなければ隠す）
 final class PoleOverlayIOS: UIView {
     private var dots: [CALayer] = [], labs: [CATextLayer] = []
+    var serif = false                                                 // 名前をセリフ体で（4D 球アナロジーの英語モード）
     func update(_ ls: [Renderer.PoleLab]) {
         CATransaction.begin(); CATransaction.setDisableActions(true)
-        let sc = window?.screen.scale ?? 2, font = UIFont.boldSystemFont(ofSize: 11)
+        let sc = window?.screen.scale ?? 2, font = serif ? (UIFont(name: "Baskerville-SemiBold", size: 11) ?? UIFont(name: "Georgia", size: 11)!) : UIFont.boldSystemFont(ofSize: 11)
         while dots.count < 8 {
             let d = CALayer(); d.borderWidth = 2; d.borderColor = UIColor(red: 8 / 255, green: 12 / 255, blue: 28 / 255, alpha: 0.85).cgColor
             let t = CATextLayer(); t.contentsScale = sc; t.font = font; t.fontSize = 11; t.alignmentMode = .left
@@ -266,7 +267,7 @@ final class PoleOverlayIOS: UIView {
                 if r.minX < 0 || r.maxX > w || r.minY < 0 || r.maxY > h { continue }
                 if rects.contains(where: { $0.intersects(r) }) { continue }
                 if shown.contains(where: { $0.k != it.k && $0.x > r.minX - 4 && $0.x < r.maxX + 4 && $0.y > r.minY - 4 && $0.y < r.maxY + 4 }) { continue }
-                t.isHidden = false; t.string = it.lab.name
+                t.isHidden = false; t.string = it.lab.name; t.font = font
                 t.foregroundColor = UIColor(red: CGFloat(it.lab.col.x), green: CGFloat(it.lab.col.y), blue: CGFloat(it.lab.col.z), alpha: 1).cgColor
                 t.frame = r.insetBy(dx: 0, dy: -1); rects.append(r); break
             }

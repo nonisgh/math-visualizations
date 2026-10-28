@@ -173,6 +173,26 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     private var s2Buf: MTLBuffer?, s2Count = 0
     /// 極の名前（ウェブ版の poleName）：アナ極・カタ極・東極・西極・北極・南極・天極・地極
     static func poleName(_ m: Marker) -> String { m.label == "N" ? "アナ極" : m.label == "S" ? "カタ極" : (m.label.split(separator: " ").first.map(String.init) ?? m.label) + "極" }
+    /// 極の英語の名前（4D 球アナロジーの英語モード）：アナ極 Ana Pole・カタ極 Kata Pole・東西南北 East / West / North / South Pole・天 Zenith・地 Nadir
+    static func poleNameEN(_ m: Marker) -> String {
+        switch m.label.split(separator: " ").first.map(String.init) ?? m.label {
+        case "N": return "Ana Pole"
+        case "S": return "Kata Pole"
+        case "東": return "East Pole"
+        case "西": return "West Pole"
+        case "北": return "North Pole"
+        case "南": return "South Pole"
+        case "天": return "Zenith"
+        case "地": return "Nadir"
+        default: return m.label
+        }
+    }
+    /// 「西極 0.52」のような日本語の名前を英語に（先頭の名前だけ入れかえる）
+    static func poleNameToEN(_ s: String) -> String {
+        let parts = s.split(separator: " ", maxSplits: 1).map(String.init)
+        guard let m = FIXED.first(where: { poleName($0) == parts.first }) else { return s }
+        return poleNameEN(m) + (parts.count > 1 ? " " + parts[1] : "")
+    }
     /// 極の点の色（ウェブ版の dotCss）：アナ極は赤（いちばん内側の殻の色）、カタ極は紫、ほかは目印の色
     static func poleDotCol(_ k: Int) -> SIMD3<Float> { k == 0 ? hexRGB(0xef4444) : k == 1 ? hexRGB(0xa855f7) : FIXED[k].col }
     /// S² の仲間での 8 つの極（ウェブ版の FIXED の p2。天・地 ±z は S² に無い）

@@ -68,6 +68,11 @@ final class HyperLabState: ObservableObject {
         guard let s = HyperLabState.walkRendererGet?()?.set else { return 0 }
         return s.shAxis ? 2 : s.rainbow4 ? 1 : 0
     }
+    @Published var padOn = false                                      // 画面のゲームパッド（さんぽと同じ。コントローラーと同じ働き）
+    @Published var panelHidden = false                                // パネルを隠す（画面いっぱいに超球と景色だけ）
+    @Published var poleEN = false                                     // 英語モード：極の名前を英語（セリフ体で小さく）
+    @Published var trailW = 0.6                                       // 歩いた跡の太さ（倍率。1 が前の太さ）
+    @Published var trailCol = 0                                       // 歩いた跡の色：0 桃色（古い所）→ 白（新しい所）・1 白い光・2 軸の色（いちばん近い軸の色）
     @Published var depth4On = false                                   // 4D の遠近（見る人の 4 次元の視線 w′ に沿って奥ほど）を入れる
     @Published var depth4 = 3                                         // 4D の遠近の種類：1 かすみ・2 ぼかし・3 両方
     @Published var symGlow = true                                     // 極・目印を光る星で描く（白い光に極の色がほんのり・十字のきらめき）。切ると前の丸と輪
@@ -148,6 +153,8 @@ final class HyperLabState: ObservableObject {
     static var walkShut = false
     /// さんぽの景色の画面（ワイプ）を低負荷で描く（WalkWipe が読む）
     static var wipeLow = true
+    /// 英語モード（ワイプの極の名前も。WalkWipe が読む）
+    static var poleENNow = false
     // 網目（ワイヤー）の色の加減（確かめ用に環境変数でも変えられる）：裏側を灰色へ寄せる割合・暗くする割合、宇宙モードでの濃さ
     static var wireBackGray = Double(ProcessInfo.processInfo.environment["S3_WG"] ?? "") ?? 0.15   // 網目は灰色へ寄せすぎない（黄色・緑がオリーブ色に濁って闇に溶ける）
     static var wireBackDark = Double(ProcessInfo.processInfo.environment["S3_WD"] ?? "") ?? 0.4
@@ -190,7 +197,7 @@ final class HyperLabState: ObservableObject {
          "axes": axes, "axPlus": axPlus, "axThin": axThin, "walk": walk, "marksOn": marksOn, "polesMode": polesMode,
          "spaceMode": spaceMode, "starsPct": starsPct, "layersLink": layersLink, "walkView": walkView, "order": order,
          "followOn": followOn, "followSlack": followSlack, "followSpeed": followSpeed, "followHeading": followHeading, "followDrift": followDrift,
-         "diveBlend": diveBlend, "quality": quality, "adaptive": adaptive, "wireW": wireW, "walkOpen": walkOpen, "cursor": cursor, "shutWalk": shutWalk, "axesDive": axesDive, "wipeLow": wipeLow, "shellMode": shellMode, "splitX": splitX, "splitY": splitY, "diveThird": diveThird, "chaseDist": chaseDist, "chasePitch": chasePitch, "chaseYaw": chaseYaw, "depth4": depth4, "depth4K": depth4K, "depth4On": depth4On, "symGlow": symGlow]
+         "diveBlend": diveBlend, "quality": quality, "adaptive": adaptive, "wireW": wireW, "walkOpen": walkOpen, "cursor": cursor, "shutWalk": shutWalk, "axesDive": axesDive, "wipeLow": wipeLow, "shellMode": shellMode, "splitX": splitX, "splitY": splitY, "diveThird": diveThird, "chaseDist": chaseDist, "chasePitch": chasePitch, "chaseYaw": chaseYaw, "depth4": depth4, "depth4K": depth4K, "depth4On": depth4On, "symGlow": symGlow, "trailW": trailW, "trailCol": trailCol, "poleEN": poleEN, "panelHidden": panelHidden, "padOn": padOn]
     }
     func load() {
         guard let d = UserDefaults.standard.dictionary(forKey: Self.saveKey) else { return }
@@ -204,7 +211,7 @@ final class HyperLabState: ObservableObject {
         int("spaceMode", &spaceMode); dbl("starsPct", &starsPct); bol("layersLink", &layersLink); bol("walkView", &walkView)
         if let o = d["order"] as? [Int], o.count == 3, Set(o) == [0, 1, 2] { order = o }
         bol("followOn", &followOn); dbl("followSlack", &followSlack); dbl("followSpeed", &followSpeed); bol("followHeading", &followHeading); dbl("followDrift", &followDrift)
-        bol("diveBlend", &diveBlend); int("quality", &quality); bol("adaptive", &adaptive); dbl("wireW", &wireW); bol("walkOpen", &walkOpen); int("cursor", &cursor); bol("shutWalk", &shutWalk); bol("axesDive", &axesDive); bol("wipeLow", &wipeLow); int("shellMode", &shellMode); dbl("splitX", &splitX); dbl("splitY", &splitY); bol("diveThird", &diveThird); dbl("chaseDist", &chaseDist); dbl("chasePitch", &chasePitch); dbl("chaseYaw", &chaseYaw); int("depth4", &depth4); dbl("depth4K", &depth4K); bol("depth4On", &depth4On); bol("symGlow", &symGlow)
+        bol("diveBlend", &diveBlend); int("quality", &quality); bol("adaptive", &adaptive); dbl("wireW", &wireW); bol("walkOpen", &walkOpen); int("cursor", &cursor); bol("shutWalk", &shutWalk); bol("axesDive", &axesDive); bol("wipeLow", &wipeLow); int("shellMode", &shellMode); dbl("splitX", &splitX); dbl("splitY", &splitY); bol("diveThird", &diveThird); dbl("chaseDist", &chaseDist); dbl("chasePitch", &chasePitch); dbl("chaseYaw", &chaseYaw); int("depth4", &depth4); dbl("depth4K", &depth4K); bol("depth4On", &depth4On); bol("symGlow", &symGlow); dbl("trailW", &trailW); int("trailCol", &trailCol); bol("poleEN", &poleEN); bol("panelHidden", &panelHidden); bol("padOn", &padOn)
         if cutOn && cutKind == 0 && cutRef == 2 { polyArm &+= 1 }            // ポリゴンカットは開いた時の手前で作り直す
         lastSaved = "\(snapshot)"
     }
@@ -892,6 +899,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     private var lgN = 0, lgCPU = 0.0, lgMaxCPU = 0.0, lgMaxGap = 0.0, lgT = 0.0, lgLong = 0
     func draw(in view: MTKView) {
         let t0 = CACurrentMediaTime()
+        if side == .left { HyperLabState.walkRendererGet?()?.driveIfIdle() }   // さんぽの画面が描かれていない時は、ここから歩く計算を進める
         defer {
             if Self.logOn {
                 let c = (CACurrentMediaTime() - t0) * 1000; lgN += 1; lgCPU += c; lgMaxCPU = max(lgMaxCPU, c)
@@ -936,7 +944,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         let s = st
         var sig: [Double] = [s.pitch, s.roll, s.yaw, s.zw, s.viewYaw, s.viewPitch, s.viewDist, s.leftDist, s.camW, s.gloss, s.glare ? 1 : 0,
                              Double(s.layers), Double(s.mode), Double(s.hemi), Double(s.lzw), s.cutOn ? 1 : 0, Double(s.cutRef), s.cutAngDeg, s.cutWDeg, s.cutPhi, Double(s.cutKind), Double(s.planeDir), s.cutPos, s.cutSweep ? 1 : 0, Double(s.cut4Axis), s.wireW, s.followOn ? 1 : 0, s.followSlack, s.followDrift, s.diveT,
-                             s.axes ? 1 : 0, s.axPlus ? 1 : 0, s.axThin ? 1 : 0, s.walk ? 1 : 0, s.marksOn ? 1 : 0, Double(s.cursor), Double(s.depth4), s.depth4K, s.depth4On ? 1 : 0, s.symGlow ? 1 : 0, s.diveThird ? 1 : 0, s.chaseDist, s.chasePitch, s.chaseYaw, Double(s.shellModeNow), Double(s.polesMode), Double(s.spaceMode), s.starsPct, s.spaceNow ? 1 : 0, s.auto ? 1 : 0,
+                             s.axes ? 1 : 0, s.axPlus ? 1 : 0, s.axThin ? 1 : 0, s.walk ? 1 : 0, s.marksOn ? 1 : 0, Double(s.cursor), Double(s.depth4), s.depth4K, s.depth4On ? 1 : 0, s.symGlow ? 1 : 0, s.trailW, Double(s.trailCol), s.poleEN ? 1 : 0, s.diveThird ? 1 : 0, s.chaseDist, s.chasePitch, s.chaseYaw, Double(s.shellModeNow), Double(s.polesMode), Double(s.spaceMode), s.starsPct, s.spaceNow ? 1 : 0, s.auto ? 1 : 0,
                              Double(view.drawableSize.width), Double(view.drawableSize.height)]
         if (s.walk || s.marksOn), let src = walkOverride ?? HyperLabState.walkSource {
             let w = src(); sig += [Double(w.trail.count), w.pos.x, w.pos.y, w.pos.z, w.pos.w, Double(w.marks.count), Double(w.hit.filter { $0 }.count), Double(w.poles.count)]
@@ -1239,13 +1247,14 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         drawAxisTris(e, u0, tri, depthTest: true)
     }
     /// 軸の名前の文字の絵（数式の斜体。暗いふちどりつき。1 度だけ作る）
-    private func labelTexture(_ s: String, _ col: SIMD3<Float>, math: Bool = true) -> MTLTexture? {
-        let key = "\(s)|\(col)|\(math)"
+    private func labelTexture(_ s: String, _ col: SIMD3<Float>, math: Bool = true, serif: Bool = false) -> MTLTexture? {
+        let key = "\(s)|\(col)|\(math)|\(serif)"
         if let t = labelTex[key] { return t }
         let size: CGFloat = 96
         let name = ["KaTeX_Math-Italic", "STIXTwoText-Italic", "Georgia-Italic"].first { (CTFontCopyPostScriptName(CTFontCreateWithName($0 as CFString, 12, nil)) as String) == $0 } ?? "Georgia-Italic"
         // 軸の名前は数式の斜体、目印の番号と ✓ はふつうの太字（数式の書体だと ✓ が √ のように見える）
-        let font = math ? CTFontCreateWithName(name as CFString, size, nil) : (CTFontCreateUIFontForLanguage(.emphasizedSystem, size * 0.9, nil) ?? CTFontCreateWithName("Helvetica-Bold" as CFString, size * 0.9, nil))
+        let font = serif ? CTFontCreateWithName("Baskerville-SemiBold" as CFString, size * 0.95, nil)   // 英語モードの極の名前（セリフ体）
+            : math ? CTFontCreateWithName(name as CFString, size, nil) : (CTFontCreateUIFontForLanguage(.emphasizedSystem, size * 0.9, nil) ?? CTFontCreateWithName("Helvetica-Bold" as CFString, size * 0.9, nil))
         func line(_ stroke: Bool) -> CTLine {
             var a: [NSAttributedString.Key: Any] = [NSAttributedString.Key(kCTFontAttributeName as String): font]
             let c = CGColor(srgbRed: CGFloat(col.x), green: CGFloat(col.y), blue: CGFloat(col.z), alpha: 1), dark = CGColor(srgbRed: 3 / 255, green: 7 / 255, blue: 18 / 255, alpha: 0.92)
@@ -1271,8 +1280,8 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     /// ダイブの間（右）は画面を左右の鏡にしているので、札の文字は逆に並べて裏返らないように
     private var mirrorX: Double { side == .right && st.diveT > 0 ? -1 : 1 }
     /// 札を 1 枚：c を真ん中に、いつも画面に向く板で（大きさは画面の上でだいたい同じに。k で倍率）
-    private func drawLabel(_ e: MTLRenderCommandEncoder, _ s: String, _ col: SIMD3<Float>, _ c: SIMD3<Double>, k: Double = 1, math: Bool = true) {
-        guard let tex = labelTexture(s, col, math: math) else { return }
+    private func drawLabel(_ e: MTLRenderCommandEncoder, _ s: String, _ col: SIMD3<Float>, _ c: SIMD3<Double>, k: Double = 1, math: Bool = true, serif: Bool = false) {
+        guard let tex = labelTexture(s, col, math: math, serif: serif) else { return }
         let (eye, Rv, Uv, _) = camBasis()
         let dist = simd_length(eye - c), hgt = 0.075 * dist / 5.5 * 2.6 * k, wid = hgt * Double(tex.width) / Double(tex.height)
         let rx = Rv * (wid / 2 * mirrorX), uy = Uv * (hgt / 2)
@@ -1311,7 +1320,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 for q in ps { tri.append(HLVert(p: SIMD4(SIMD3<Float>(q), 1), n: .zero, c: col)) }
             }
         }
-        var tags: [(String, SIMD3<Float>, SIMD3<Double>)] = []
+        var tags: [(String, SIMD3<Float>, SIMD3<Double>, Bool)] = []      // 名前・色・場所・英語の極（セリフ体）
         // 光で描く時：画面に向く板 1 枚に、cmf が色の光・十字のきらめき（通った）／光の輪（まだ）を描く
         var ctri: [HLCometVert] = []
         func glow(_ c: SIMD3<Double>, _ col: SIMD3<Float>, _ hit: Bool, _ vis: Float, _ big: Double) {
@@ -1329,7 +1338,8 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             if st.symGlow { glow(c, col, hit, vis, 0.3) }                // 光る星（極の色がほんのり）
             else if hit { disc(c, 0, 0.11, SIMD4(col, 0.25 * vis)); disc(c, 0, 0.06, SIMD4(col, vis)); disc(c, 0.06, 0.072, SIMD4(1, 1, 1, 0.9 * vis)) }
             else { disc(c, 0, 0.06, SIMD4(col, 0.14 * vis)); disc(c, 0.045, 0.062, SIMD4(col, 0.9 * vis)) }
-            tags.append((hit ? "✓" + MapRenderer.poleName(FIXED[k]) : MapRenderer.poleName(FIXED[k]), hit ? SIMD3<Float>(0.75, 1.0, 0.55) : col, c + Uv * 0.15))
+            let pn = st.poleEN ? MapRenderer.poleNameEN(FIXED[k]) : MapRenderer.poleName(FIXED[k])
+            tags.append((hit ? "✓" + pn : pn, hit ? SIMD3<Float>(0.75, 1.0, 0.55) : col, c + Uv * 0.15, st.poleEN))
         }
         for (i, m) in wk.marks.enumerated() where st.marksOn {
             let (c, f) = walkPlace(m), col = Journey.markColor(i), vis = Float(0.5 + 0.5 * f)
@@ -1343,7 +1353,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 disc(c, 0, 0.07, SIMD4(col, 0.16 * vis))                       // うすい中
                 disc(c, 0.055, 0.075, SIMD4(col, 0.95 * vis))                  // 輪
             }
-            tags.append((hit ? "✓\(i + 1)" : "\(i + 1)", hit ? SIMD3<Float>(0.75, 1.0, 0.55) : col, c + Uv * 0.15))
+            tags.append((hit ? "✓\(i + 1)" : "\(i + 1)", hit ? SIMD3<Float>(0.75, 1.0, 0.55) : col, c + Uv * 0.15, false))
         }
         var u = u0; u.model = matrix_identity_float4x4; u.g.z = 0; u.cut = .zero
         if !tri.isEmpty {
@@ -1360,7 +1370,8 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: ctri.count)
         }
         e.setRenderPipelineState(lbPipe); e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1)
-        if side == .left || st.diveT == 0 { for (s, col, c) in tags { drawLabel(e, s, col, c, k: 0.7, math: false) } }
+        let lk = side == .right && st.diveT > 0 ? 0.5 : 0.7                // 寄っている間も名前を（小さく）
+        for (s, col, c, en) in tags { drawLabel(e, s, col, c, k: en ? lk * 0.8 : lk, math: false, serif: en) }   // 英語の極はセリフ体で小さく
     }
     /// 軸の名前の札：矢印の先の少し外に、いつも画面に向く板で。左の z は右の w に当たるので「z(w)」（紫）
     private func drawAxisLabels(_ e: MTLRenderCommandEncoder, _ u0: HLUni) {
@@ -1579,7 +1590,15 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 if i > 0 && simd_length(P[i].0 - P[i - 1].0) > 0.6 { prev = nil; continue }   // 飛んだ所（初めに戻した時など）はつながない
                 var sd = simd_cross(b - a, eye - p); let l = simd_length(sd); sd = l < 1e-12 ? .zero : sd / l * width * near(p)
                 let t = Float(i) / Float(max(1, P.count - 1)), vis = Float(0.45 + 0.55 * P[i].1)
-                let c = simd_mix(SIMD3<Float>(1.0, 0.30, 0.62), SIMD3<Float>(1.0, 0.97, 0.80), SIMD3(repeating: t * t)) * bright   // 殻の緑・青に映える暖かい色（古い所は桃色、新しい所は白）
+                let c: SIMD3<Float>
+                switch st.trailCol {
+                case 1: c = simd_mix(SIMD3<Float>(0.62, 0.74, 0.95), SIMD3<Float>(1.0, 1.0, 1.0), SIMD3(repeating: t * t)) * bright * 1.1   // 白い光（古い所はうすい青白）
+                case 2:                                                     // 軸の色：その点がいちばん近い軸（x 赤・y 緑・z 青・w 紫）の色。間はなめらかに混ぜる
+                    let q = pts[i], wq = SIMD4<Double>(pow(q.x, 4), pow(q.y, 4), pow(q.z, 4), pow(q.w, 4)), sw = max(1e-9, wq.x + wq.y + wq.z + wq.w)
+                    var a = SIMD3<Float>(0, 0, 0); for k in 0..<4 { a += Self.axisCol[k] * Float(wq[k] / sw) }
+                    c = simd_mix(a * 1.1, simd_mix(a, SIMD3(repeating: 1), SIMD3(repeating: 0.3)) * 1.25, SIMD3(repeating: t * t)) * bright   // 殻に埋もれないよう明るめに
+                default: c = simd_mix(SIMD3<Float>(1.0, 0.30, 0.62), SIMD3<Float>(1.0, 0.97, 0.80), SIMD3(repeating: t * t)) * bright   // 殻の緑・青に映える暖かい色（古い所は桃色、新しい所は白）
+                }
                 // 彗星の尾の所は薄く（寄った時は、尾の届く先まで）
                 let z0 = 0.35 + 0.65 * Double(zm), z1 = 1.1 + 1.4 * Double(zm)
                 let fh = fromHead[i], keep = fh.isInfinite ? 1 : Float(max(0, min(1, (fh - z0 * tailL) / (z1 * tailL))))
@@ -1592,8 +1611,8 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 prev = (l0, r0, col)
             }
         }
-        ribbon(0.05, 0.22, 1.0)                                         // にじみ
-        ribbon(0.016, 1.0, 1.2)                                         // 芯
+        ribbon(0.05 * st.trailW, 0.22, 1.0)                             // にじみ（太さは「跡の太さ」で）
+        ribbon(0.016 * st.trailW, 1.0, 1.2)                             // 芯
         // 今いる所：さんぽ＝黄色の玉、彗星＝小さな光の頭と、歩いた道に沿って細く消えていく尾
         let (c, f) = P[P.count - 1], fw = SIMD3<Double>(eye - c), up0 = abs(simd_normalize(fw).y) > 0.9 ? SIMD3<Double>(1, 0, 0) : SIMD3<Double>(0, 1, 0)
         let gone = st.diveThird ? Float(1) : Float(1 - max(0, min(1, (st.diveT - 0.8) / 0.12)))   // 一人称はダイブの終わり（背中に追いつく所）で消える
@@ -1809,6 +1828,11 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
 final class WalkWipe: NSObject, MTKViewDelegate {
     private var lastFrame = -1, lastSize = CGSize.zero, sizeT = 0.0
     let big: Bool                                                    // ダイブで右に重ねる大きな画面か（小さい方は、その間は休む）
+    #if os(macOS)
+    weak var overlay: PoleOverlay?                                    // 景色の上の極（色の点と名前。さんぽの窓と同じ）
+    #else
+    weak var overlay: PoleOverlayIOS?
+    #endif
     init(big: Bool) { self.big = big }
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
     func draw(in view: MTKView) {
@@ -1827,6 +1851,10 @@ final class WalkWipe: NSObject, MTKViewDelegate {
         lastFrame = r.frameCount; lastSize = sz
         r.encode(cb, rpd, view.colorPixelFormat, Int(sz.width), Int(sz.height))
         cb.present(d); cb.commit()
+        var ls = r.poleLabels(aspect: Double(sz.width / max(1, sz.height)))   // 描いた時だけ（景色が変わった時）
+        let en = HyperLabState.poleENNow
+        if en { for i in ls.indices { ls[i].name = MapRenderer.poleNameToEN(ls[i].name) } }
+        overlay?.serif = en; overlay?.update(ls)
     }
 }
 #if os(macOS)
@@ -1839,6 +1867,7 @@ struct WalkScenePane: NSViewRepresentable {
         v.colorPixelFormat = .rgba16Float; v.colorspace = CGColorSpace(name: CGColorSpace.extendedSRGB)   // さんぽの窓と同じ（EDR）
         (v.layer as? CAMetalLayer)?.wantsExtendedDynamicRangeContent = true
         v.framebufferOnly = true; v.preferredFramesPerSecond = 60; v.delegate = context.coordinator.wipe
+        let po = PoleOverlay(frame: v.bounds); po.autoresizingMask = [.width, .height]; v.addSubview(po); context.coordinator.wipe.overlay = po
         return v
     }
     func updateNSView(_ v: MTKView, context: Context) {}
@@ -1851,6 +1880,7 @@ struct WalkScenePane: UIViewRepresentable {
     func makeUIView(context: Context) -> MTKView {
         let v = MTKView(frame: .zero, device: HyperLabState.walkRendererGet?()?.device ?? MTLCreateSystemDefaultDevice())
         v.colorPixelFormat = .bgra8Unorm; v.framebufferOnly = true; v.preferredFramesPerSecond = 60; v.delegate = context.coordinator.wipe
+        let po = PoleOverlayIOS(frame: v.bounds); po.autoresizingMask = [.flexibleWidth, .flexibleHeight]; po.isUserInteractionEnabled = false; v.addSubview(po); context.coordinator.wipe.overlay = po
         return v
     }
     func updateUIView(_ v: MTKView, context: Context) {}
@@ -1900,8 +1930,28 @@ struct HyperLabView: View {
             }
             .coordinateSpace(name: "hlsplit")
             .background(Color(red: 0.12, green: 0.16, blue: 0.23))
-            controls
+            // 画面のゲームパッド（下の真ん中。パネルを隠していても出す）
+            .overlay(alignment: .bottom) {
+                if st.padOn, let r = HyperLabState.walkRendererGet?() {
+                    VirtualPad(game: r.game) { st.padOn = false; r.game.vClear() }.spaceControls()
+                        .padding(.bottom, 14).onAppear { r.set.gamepad = true }
+                }
+            }
+            // パネルを隠している時：右下に小さな「パネル」ボタンだけ
+            .overlay(alignment: .bottomTrailing) {
+                if st.panelHidden {
+                    Button { withAnimation(.easeInOut(duration: 0.18)) { st.panelHidden = false } } label: {
+                        Label("パネル", systemImage: "slider.horizontal.3").font(.caption).padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(Color(red: 0.06, green: 0.09, blue: 0.16).opacity(0.75), in: Capsule())
+                            .overlay(Capsule().stroke(Color(red: 0.2, green: 0.25, blue: 0.33)))
+                    }.buttonStyle(.plain).foregroundStyle(.secondary).padding(12)
+                    .help("パネルを出す（⌘⌥P）")
+                }
+            }
+            if !st.panelHidden { controls.transition(.move(edge: .bottom).combined(with: .opacity)) }
         }
+        // ⌘⌥P：パネルを隠す・出す（見えないボタンでキーだけ受ける）
+        .background(Button("") { withAnimation(.easeInOut(duration: 0.18)) { st.panelHidden.toggle() } }.keyboardShortcut("p", modifiers: [.command, .option]).opacity(0).allowsHitTesting(false))
         .background(Color(red: 3 / 255, green: 7 / 255, blue: 18 / 255))
         .preferredColorScheme(.dark)
     }
@@ -1965,6 +2015,8 @@ struct HyperLabView: View {
             HStack(spacing: 8) {
                 Button(st.auto ? "停止" : "回転") { st.auto.toggle() }
                 Button("初期位置") { st.reset() }
+                Button { withAnimation(.easeInOut(duration: 0.18)) { st.panelHidden = true } } label: { Label("パネルを隠す", systemImage: "rectangle.bottomthird.inset.filled") }
+                    .help("パネルを隠して、画面いっぱいに超球と景色だけ（右下の「パネル」か ⌘⌥P で戻す）")
                 Picker("", selection: Binding(get: { st.mode }, set: { st.mode = $0; st.bump() })) { Text("ハイブリッド").tag(0); Text("ワイヤー").tag(1); Text("半透明").tag(2) }
                     .pickerStyle(.segmented).frame(width: 240).labelsHidden()
                 Picker("", selection: Binding(get: { st.hemi }, set: { st.hemi = $0; st.bump() })) { Text("全球").tag(0); Text("北").tag(1); Text("南").tag(2) }
@@ -2059,7 +2111,8 @@ struct HyperLabView: View {
         .controlSize(.small)
         .onAppear { HyperLabState.walkShut = st.shutWalk }
         .onChange(of: st.shutWalk) { _, v in HyperLabState.walkShut = v }
-        .onAppear { HyperLabState.wipeLow = st.wipeLow }
+        .onAppear { HyperLabState.wipeLow = st.wipeLow; HyperLabState.poleENNow = st.poleEN }
+        .onChange(of: st.poleEN) { _, v in HyperLabState.poleENNow = v }
         .onChange(of: st.wipeLow) { _, v in HyperLabState.wipeLow = v }
         .onDisappear { HyperLabState.walkShut = false }              // 窓を閉じた（iPad は全画面を閉じた）：さんぽはまた描く
     }
@@ -2089,6 +2142,10 @@ struct HyperLabView: View {
                     Button("⟳ 並び") { let o = st.order; st.order = [o[2], o[0], o[1]] }
                         .help("3 つの画面（3D の球・さんぽの景色・4D の超球）の置き場所を順に回す（左上 → 左下 → 右）")
                     Toggle("歩いた跡", isOn: $st.walk).toggleStyle(.switch).font(.caption).fixedSize()
+                    Picker("", selection: $st.trailCol) { Text("桃色").tag(0); Text("白い光").tag(1); Text("軸の色").tag(2) }
+                        .pickerStyle(.segmented).frame(width: 170).labelsHidden().disabled(!st.walk)
+                        .help("歩いた跡の色。桃色：古い所は桃色、新しい所は白。白い光：青白から白。軸の色：その場所がいちばん近い軸の色（x 赤・y 緑・z 青・w 紫）")
+                    slider("跡の太さ", Binding(get: { st.trailW }, set: { st.trailW = $0 }), 0.2, 2, fmt: "×%.1f").frame(width: 90).disabled(!st.walk)
                         .help("球面さんぽで歩いた跡と今いる所を、右の超球（S³ そのもの）と左の球（影）に描く")
                     Picker("", selection: $st.cursor) { Text("さんぽ").tag(0); Text("彗星").tag(1); Text("線の彗星").tag(2) }
                         .pickerStyle(.segmented).frame(width: 180).labelsHidden().disabled(!st.walk)
@@ -2097,6 +2154,11 @@ struct HyperLabView: View {
                         .help("球面さんぽで置いた目印。歩いて通った目印（チェックポイント）は塗りつぶしと ✓、まだの目印は輪")
                     Toggle("光で描く", isOn: $st.symGlow).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.marksOn && st.polesMode == 0)
                         .help("極と目印を光る星で描く（通った所は白く光る星に極の色がほんのり、十字のきらめき。まだの所は光の輪。ゆっくりまたたく）。切ると前の丸と輪")
+                    Toggle("ゲームパッド", isOn: Binding(get: { st.padOn }, set: { on in st.padOn = on; if !on { HyperLabState.walkRendererGet?()?.game.vClear() } }))
+                        .toggleStyle(.switch).font(.caption).fixedSize().disabled(HyperLabState.walkRendererGet?() == nil)
+                        .help("画面のゲームパッドを出す（さんぽの窓と同じ。押すとコントローラーと同じ働きで歩く）。パネルを隠していても出る")
+                    Toggle("英語", isOn: $st.poleEN).toggleStyle(.switch).font(.caption).fixedSize()
+                        .help("極の名前を英語に（セリフ体で小さく）：Ana Pole・Kata Pole・North / South / East / West Pole・Zenith・Nadir。さんぽの景色の画面も")
                     Picker("極", selection: $st.polesMode) { Text("出さない").tag(0); Text("通ると出る").tag(1); Text("いつも").tag(2) }
                         .pickerStyle(.segmented).frame(width: 210).font(.caption)
                         .help("8 つの極（アナ極・カタ極・東西南北・天・地）。通ると出る：歩いて通った極だけ ✓ つきで出てくる。いつも：全部出し、通った極は ✓")

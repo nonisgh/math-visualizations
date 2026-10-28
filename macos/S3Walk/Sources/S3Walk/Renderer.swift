@@ -289,6 +289,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var gapRun = 0.0
     private var fpsN = 0, fpsT0 = CACurrentMediaTime(), gpuSum = 0.0, gpuN = 0
     private var lastT = CACurrentMediaTime()
+    private var drawT = CACurrentMediaTime()                          // さんぽの画面が最後に描かれた時（driveIfIdle 用）
     private let gpuLock = NSLock()
     var onStats: ((Renderer) -> Void)?
     private(set) var drawSize = CGSize(width: 1, height: 1)
@@ -686,6 +687,14 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
 
     // ---- 歩く（ウェブ版の loop の一部）----
+    /// さんぽの画面が描かれていない時（iPad で 4D 球アナロジーを全画面で出している時など）に、ほかの画面から歩く計算を進める。
+    ///   さんぽの画面が描いている間は何もしない（2 重に進めない）
+    func driveIfIdle() {
+        let now = CACurrentMediaTime()
+        guard now - drawT > 0.12 else { return }
+        let dt = min(0.05, now - lastT); lastT = now
+        step(dt); frameCount += 1
+    }
     func step(_ dt: Double) {
         // 残す軌跡：x·π より古い所は消す（点は 0.02 おき）。S² の仲間の軌跡も同じ数だけ
         if set.trailKeep > 0 {
@@ -1100,7 +1109,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) { drawSize = size }
 
     func draw(in view: MTKView) {
-        let now = CACurrentMediaTime(); gapRun = max(gapRun, (now - lastT) * 1000); let dt = min(0.05, now - lastT); lastT = now
+        let now = CACurrentMediaTime(); gapRun = max(gapRun, (now - lastT) * 1000); let dt = min(0.05, now - lastT); lastT = now; drawT = now
         step(dt)
         let w = Int(view.drawableSize.width), h = Int(view.drawableSize.height)
         // 4D 球アナロジーで「さんぽの窓は止める」：真っ黒を 1 回だけ出して、あとは描かずにコマだけ進める（景色の画面・ダイブが描き直すように）
