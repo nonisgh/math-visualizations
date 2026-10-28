@@ -454,6 +454,18 @@ fragment float4 cmf(CMO in [[stage_in]], constant float4& tm [[buffer(2)]]) {
         float core = exp(-r * r / 0.0035), inner = exp(-r * r / 0.03), coma = exp(-r / 0.22);
         float tw = 0.93 + 0.07 * sin(t * 2.3) * sin(t * 1.7 + 1.0);                     // ほんの少しゆらめく
         col = (float3(1.0) * core * 2.2 + float3(0.85, 0.95, 1.0) * inner * 0.9 + float3(0.45, 0.95, 0.85) * coma * 0.45) * fade * tw;
+    } else if (in.q.z > 2.5) {
+        // イオンの尾（寄った時）：細めの青い光。まっすぐ長く、縦のすじ（磁力線に沿うガス）が入って、ゆっくり流れる
+        float s = clamp(in.q.x, 0.0, 1.0), v = in.q.y;
+        float g = exp(-v * v * 5.0), fil = 0.62 + 0.38 * (0.5 + 0.5 * sin(v * 23.0 + s * 4.0 - t * 0.6)) * (0.6 + 0.4 * sin(v * 9.0 - s * 7.0 + t * 0.4));
+        float fall = pow(1.0 - s, 1.1) * smoothstep(0.0, 0.06, s);
+        col = mix(float3(0.55, 0.78, 1.0), float3(0.25, 0.45, 1.0), s) * g * fil * fall * 0.9;
+    } else if (in.q.z > 1.5) {
+        // ちりの尾（寄った時）：頭の所は白く、先へ行くほど扇のように広がって淡く（形はハレ・ボップ彗星の写真のように）
+        float s = clamp(in.q.x, 0.0, 1.0), v = in.q.y;
+        float g = exp(-v * v * 2.2) + 0.25 * exp(-(v - 0.6) * (v - 0.6) * 10.0);        // 片方のふちが少し明るい
+        float fall = pow(1.0 - s, 1.3) * (0.35 + 0.65 * exp(-s * 3.0)) + exp(-s * 9.0) * 0.9;
+        col = mix(float3(1.0, 0.97, 0.9), float3(0.55, 0.75, 1.0), smoothstep(0.0, 0.7, s)) * g * fall * 1.0;   // 色はふつうの尾と同じ（白 → 青白）
     } else {
         // 尾：ふちはぼかし（ガウス）、真ん中に細い光のすじ（イオンの尾）、流れるすじ模様。先へ行くほど淡く・青く
         float s = clamp(in.q.x, 0.0, 1.0), v = in.q.y;
@@ -1490,12 +1502,14 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         // カメラに近い所ほど小さく（ダイブで寄っても、画面の上の大きさがだいたい同じ。ふだんはほぼ 1）
         func near(_ p: SIMD3<Double>) -> Double { max(0.004, min(1, simd_length(eye - p) / 7.5)) }
         // 彗星の時：頭から道を戻った長さ。尾の届く所では跡を薄くして、尾が浮き出るように
+        // 寄った割合（ダイブ）：ふつうは細くしぼむ尾、寄るほど写真のような 2 本の尾（広がるちりの尾・まっすぐな青いイオンの尾）へ
+        let zm = st.cursor == 1 && side == .right && st.diveT > 0 ? Float(smoothstep(0.25, 0.75, Self.diveEase(st.diveT).1)) : 0
         let comet = st.cursor >= 1, real = st.cursor == 1, tailL = 1.05 * near(P[P.count - 1].0) * (st.diveThird && side == .right ? 1 + 3.5 * Self.diveEase(st.diveT).1 : 1)
         var fromHead = [Double](repeating: .infinity, count: P.count)
         if comet {
             fromHead[P.count - 1] = 0
             var k = P.count - 2
-            while k >= 0 { let d = simd_length(P[k].0 - P[k + 1].0); if d > 0.6 { break }; fromHead[k] = fromHead[k + 1] + d; if fromHead[k] > tailL * 1.5 { break }; k -= 1 }
+            while k >= 0 { let d = simd_length(P[k].0 - P[k + 1].0); if d > 0.6 { break }; fromHead[k] = fromHead[k + 1] + d; if fromHead[k] > tailL * 3 { break }; k -= 1 }
         }
         func ribbon(_ width: Double, _ alpha: Float, _ bright: Float) {
             guard P.count >= 2 else { return }
@@ -1506,7 +1520,9 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 var sd = simd_cross(b - a, eye - p); let l = simd_length(sd); sd = l < 1e-12 ? .zero : sd / l * width * near(p)
                 let t = Float(i) / Float(max(1, P.count - 1)), vis = Float(0.45 + 0.55 * P[i].1)
                 let c = simd_mix(SIMD3<Float>(1.0, 0.30, 0.62), SIMD3<Float>(1.0, 0.97, 0.80), SIMD3(repeating: t * t)) * bright   // 殻の緑・青に映える暖かい色（古い所は桃色、新しい所は白）
-                let fh = fromHead[i], keep = fh.isInfinite ? 1 : Float(max(0, min(1, (fh - 0.35 * tailL) / (1.1 * tailL))))   // 彗星の尾の所は薄く
+                // 彗星の尾の所は薄く（寄った時は、尾の届く先まで）
+                let z0 = 0.35 + 0.65 * Double(zm), z1 = 1.1 + 1.4 * Double(zm)
+                let fh = fromHead[i], keep = fh.isInfinite ? 1 : Float(max(0, min(1, (fh - z0 * tailL) / (z1 * tailL))))
                 let col = SIMD4(c, alpha * (0.45 + 0.55 * t) * vis * keep * keep)
                 let l0 = p - sd, r0 = p + sd
                 if let (pl, pr, pc) = prev {
@@ -1551,17 +1567,43 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 }
             }
             if real {
+                func v(_ x: SIMD3<Double>, _ q: SIMD4<Float>) -> HLCometVert { HLCometVert(p: SIMD4(SIMD3<Float>(x), 1), q: q) }
+                // 帯：点の列に沿って、横の半分の幅 wid(s) で。kind は cmf の種類
+                func strip(_ pts: [SIMD3<Double>], _ ss: [Double], _ kind: Float, _ alpha: (Int) -> Float, _ wid: (Double) -> Double) {
+                    guard pts.count >= 2 else { return }
+                    var prev: (SIMD3<Double>, SIMD3<Double>, SIMD4<Float>, SIMD4<Float>)?
+                    for k in 0..<pts.count {
+                        let p = pts[k], a = pts[max(0, k - 1)], b = pts[min(pts.count - 1, k + 1)]
+                        var sd = simd_cross(b - a, eye - p); let l = simd_length(sd)
+                        sd = l < 1e-12 ? .zero : sd / l * wid(ss[k])
+                        let al = alpha(k), ql = SIMD4<Float>(Float(ss[k]), -1, kind, al), qr = SIMD4<Float>(Float(ss[k]), 1, kind, al), l0 = p - sd, r0 = p + sd
+                        if let (pl, pr, pql, pqr) = prev { ctri += [v(pl, pql), v(pr, pqr), v(r0, qr), v(pl, pql), v(r0, qr), v(l0, ql)] }
+                        prev = (l0, r0, ql, qr)
+                    }
+                }
+                let tp = idx.map { P[$0].0 }, ts = acc.map { min(1, $0 / max(1e-9, tailL)) }
+                if zm > 0.01 && tp.count >= 2 {
+                    // ちりの尾：道に沿って、先へ行くほど広がる
+                    strip(tp, ts, 2, { k in Float(0.6 + 0.4 * P[idx[k]].1) * gone * zm }, { s in 0.09 * sc * (0.4 + 2.2 * s) })
+                    // イオンの尾：頭から、道の向きを画面の上で 32° 回した向きへ、まっすぐ長く
+                    let back = simd_normalize(tp[min(tp.count - 1, 3)] - c + SIMD3(1e-9, 0, 0)), kk = simd_normalize(fw), th = 32.0 * .pi / 180
+                    let d1: SIMD3<Double> = back * cos(th), d2: SIMD3<Double> = simd_cross(kk, back) * sin(th), d3: SIMD3<Double> = kk * (simd_dot(kk, back) * (1 - cos(th)))
+                    let dir: SIMD3<Double> = d1 + d2 + d3
+                    let n = 28, L = tailL * 2.1
+                    var ip: [SIMD3<Double>] = [], iss: [Double] = []
+                    for q in 0...n { let f = Double(q) / Double(n); ip.append(c + dir * (L * f)); iss.append(f) }
+                    strip(ip, iss, 3, { _ in vis * zm }, { s in 0.05 * sc * (0.45 + 1.0 * s) })
+                }
                 // 光の尾：道に沿った帯（頭で太く、後ろへしぼむ）。色と明るさは cmf が横の位置・頭からの割合で決める
                 var prev: (SIMD3<Double>, SIMD3<Double>, SIMD4<Float>, SIMD4<Float>)?
-                for k in 0..<idx.count where idx.count >= 2 {
+                for k in 0..<idx.count where idx.count >= 2 && zm < 0.99 {
                     let j = idx[k], p = P[j].0
                     let a = P[idx[max(0, k - 1)]].0, b = P[idx[min(idx.count - 1, k + 1)]].0
                     let s = min(1, acc[k] / max(1e-9, tailL))
                     var sd = simd_cross(b - a, eye - p); let l = simd_length(sd)
                     sd = l < 1e-12 ? .zero : sd / l * 0.085 * sc * pow(1 - 0.8 * s, 1.2)
-                    let a0 = Float(0.6 + 0.4 * P[j].1) * gone
+                    let a0 = Float(0.6 + 0.4 * P[j].1) * gone * (1 - zm)
                     let ql = SIMD4<Float>(Float(s), -1, 1, a0), qr = SIMD4<Float>(Float(s), 1, 1, a0), l0 = p - sd, r0 = p + sd
-                    func v(_ x: SIMD3<Double>, _ q: SIMD4<Float>) -> HLCometVert { HLCometVert(p: SIMD4(SIMD3<Float>(x), 1), q: q) }
                     if let (pl, pr, pql, pqr) = prev { ctri += [v(pl, pql), v(pr, pqr), v(r0, qr), v(pl, pql), v(r0, qr), v(l0, ql)] }
                     prev = (l0, r0, ql, qr)
                 }
