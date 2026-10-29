@@ -13,6 +13,7 @@
 //   空間オーディオ（spatial）：1 つの音（モノ）にして、AVAudioEnvironmentNode の頭の伝達関数（HRTF）で、彗星のいる方向から聞こえるように。
 //     左右だけでなく上下・前後も分かる（ヘッドホンで）。広い場所の残響を少し。切ると、前の左右のステレオ。
 import AVFoundation
+import QuartzCore
 
 final class HyperSound {
     static let shared = HyperSound()
@@ -22,7 +23,7 @@ final class HyperSound {
     /// 空間オーディオで鳴らす（切りかえたら、鳴らし直す）
     var spatial = true { didSet { if spatial != oldValue && running { stop(); start() } } }
     /// 描く側が書き、音の糸が読む目標（Float の読み書きだけ。少し古い値を読んでも音は崩れない）
-    private final class Target { var gain: Float = 0; var cutoff: Float = 400; var turn: Float = 0; var press: Float = 0; var vol: Float = 0.8; var near: Float = 1; var zoom: Float = 0; var kick = 0; var ice = 0; var chimes: [(f: Float, a: Float)] = []; let lock = NSLock() }
+    private final class Target { var gain: Float = 0; var cutoff: Float = 400; var turn: Float = 0; var press: Float = 0; var vol: Float = 0.8; var near: Float = 1; var zoom: Float = 0; var kick = 0; var ice = 0; var chimes: [(f: Float, a: Float)] = []; var beatCyc = 0.0; var beatRate = 0.0; var beatStamp = 0.0; let lock = NSLock() }
     private let tgt = Target()
     private(set) var running = false
 
@@ -56,6 +57,11 @@ final class HyperSound {
         n.position = AVAudio3DPoint(x: 0, y: 0, z: -1.5)
         return env
     }
+    /// エンジンの低いうなりのリズム（何回目か・速さ Hz・知らせた時刻）。音が鳴っていない時は時刻が古いまま
+    func beatClock() -> (cyc: Double, rate: Double, stamp: Double) {
+        tgt.lock.lock(); defer { tgt.lock.unlock() }
+        return (tgt.beatCyc, tgt.beatRate, tgt.beatStamp)
+    }
     /// 空間オーディオの音の場所（聞く人から見て：x 右・y 上・−z 前。長さは 1 くらい）
     func setPosition(_ p: SIMD3<Float>) {
         guard spatial, let n = node else { return }
@@ -75,6 +81,7 @@ final class HyperSound {
         var crk: Float = 0, crkEnv: Float = 0, cl: Float = 0, cb: Float = 0, sizz: Float = 0   // パチパチ（破裂の大きさ・減り・帯域）・ジリジリ
         var wob: Float = 0, wobPh: Float = 0                                   // 低音のゆらぎ（1 → 0）
         var en1: Float = 0, en2: Float = 0, en3: Float = 0, enS: Float = 0, enPrev: Float = 0, enAcc: Float = 0   // 宇宙船のエンジン（3 つの位相・ならした速さ・加速）
+        var beat = 0.0, beatF: Float = 0                                       // エンジンの 2 つの低い音のうなり（何回目か。整数の時が山）・うなりの速さ（Hz）
         var bf1: Float = 0, bf2: Float = 0, btm: Float = 0, btm2: Float = 0    // 窓から顔を出した時の風：耳にぶつかる低いばたつき（2 段の低域・不規則な揺れ 2 つ）
         var seed: UInt32 = 0x9E3779B9, ph: Float = 0, wa: Float = 0, wb: Float = 1.7, nr: Float = 0   // wa・wb：寄せては返す波の位相、nr：近さ（チリンの大きさ）
         var voices: [(f: Float, a: Float, p: Float, t: Float)] = []
@@ -164,6 +171,7 @@ final class HyperSound {
                 enAcc += (max(0, (enS - enPrev) / dt) * 4 - enAcc) * (1 - exp(-dt * 3)); enPrev = enS
                 let up = min(1, enAcc), fe = (70 + 230 * enS + 90 * up) * (1 + 0.04 * tn * sin(wa * 9))
                 en1 += 2 * Float.pi * fe * dt; en2 += 2 * Float.pi * fe * 1.007 * dt; en3 += 2 * Float.pi * fe * 6.03 * dt
+                beatF = fe * 0.007; beat += Double(beatF * dt)                  // 2 つの音の位相の差が 0 にそろう所（整数）が、うなりの山
                 if en1 > 2 * Float.pi { en1 -= 2 * Float.pi }; if en2 > 2 * Float.pi { en2 -= 2 * Float.pi }; if en3 > 2 * Float.pi { en3 -= 2 * Float.pi }
                 let ea = pow(max(0, g), 0.7) * (0.25 + 0.75 * enS)
                 let engine = (sin(en1) * 0.5 + sin(en2) * 0.35 + sin(en1 * 2) * 0.12) * ea * 0.16 + sin(en3) * ea * (0.012 + 0.05 * up)
@@ -204,6 +212,7 @@ final class HyperSound {
                 }
             }
             voices.removeAll { $0.t > 2.2 }
+            t.lock.lock(); t.beatCyc = beat; t.beatRate = Double(beatF); t.beatStamp = CACurrentMediaTime(); t.lock.unlock()
             return noErr
         }
         return (n, fmt)

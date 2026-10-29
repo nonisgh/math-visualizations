@@ -400,6 +400,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         // 置いた目印：宇宙と一緒に大きく（markGrow）なら、極の惑星と同じく宇宙の大きさで小さくしない
         let markR = 0.1 * (set.markGrow ? big * set.uniR : big)
         if set.marksOn && !none { for (i, p) in journey.marks.enumerated() { put(p, Journey.markColor(i), markR, PIC.mark(i), model: set.modelMarks, own: markKind(i), grow: set.markGrow) } }
+        // 自分の道の点（ランダムな点など）のチェックポイント：さんぽの景色にも光る玉で出す（まだの点は金色、通った点は淡い緑）。目印と同じ所の点は、目印の方で出る
+        if set.marksOn && !none { for p in journey.routePts { put(p, journey.isRouteHit(p) ? [0.55, 0.9, 0.6] : [1, 0.85, 0.4], markR * 0.75, grow: set.markGrow) } }
         if set.foot { for p in journey.foot { put(p, [0.8, 0.85, 1], 0.03 * big, PIC.foot) } }
         for m in set.extra where !set.hideLabels.contains(m.label) { put(m.c, m.col, m.r) }
         // ついてくる仲間：自分の後ろ（進む向きの逆）followD の所、同じ向き。info.w ＝ 2 ＋ 距離（シェーダーで体の向きから仲間の向きを作る）
