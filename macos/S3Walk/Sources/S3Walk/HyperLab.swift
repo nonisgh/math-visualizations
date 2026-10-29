@@ -679,11 +679,15 @@ inline void hshade(uint vid, const device float4* base, constant HR& h, const de
     uint M = uint(h.r.y), M1 = M + 1, per = M1 * M1, L = vid / per, kk = vid % per, j = kk % M1;
     float4 b = base[vid], v = h.m4 * b; P = hproj(b, h);
     float R = h.r.x, face = (v.w - R * R / h.q.z) / R, bk = 0.6 * (1.0 - smoothstep(-0.1, 0.05, face));
-    float3 col = lc[L].rgb * h.q.x; float gray = dot(col, float3(0.299, 0.587, 0.114));
+    float3 col = lc[L].rgb * h.q.x;
+    // 4 方向レインボー：光の線にするので、暗い色（紫・青）は明るさをそろえて光らせる（色合いはそのまま）
+    if (h.r.z > 0.0) { float mx = max(max(col.r, col.g), col.b); col = col / max(mx, 0.05) * mix(0.75, mx, 0.4); }
+    float gray = dot(col, float3(0.299, 0.587, 0.114));
     float dp = dep4(v.w, h), hz = h.e.x * pow(dp, 1.3);
     col = mix(col, float3(0.012, 0.027, 0.07), hz * 0.85);
     bl = h.e.y * pow(dp, 1.25);                                         // 4D のぼかし：奥ほど太く・やわらかく・淡く（ぼけた線の見え方）
-    c = float4((col + (gray - col) * (h.d.y * bk)) * (1.0 - h.d.z * bk), h.q.y * lc[L].a * (1.0 - 0.5 * hz) / (1.0 + 3.5 * bl)); ph = float(j) / float(M) * 2.0 * M_PI_F;   // 網目の裏側：灰色へ寄せる割合 d.y・暗くする割合 d.z
+    float la = h.r.z > 0.0 ? min(lc[L].a, h.r.z) : lc[L].a;              // 網目の濃さの上限（4 方向レインボー）
+    c = float4((col + (gray - col) * (h.d.y * bk)) * (1.0 - h.d.z * bk), h.q.y * la * (1.0 - 0.5 * hz) / (1.0 + 3.5 * bl)); ph = float(j) / float(M) * 2.0 * M_PI_F;   // 網目の裏側：灰色へ寄せる割合 d.y・暗くする割合 d.z
 }
 vertex WO hrwv(uint vid [[vertex_id]], uint iid [[instance_id]], const device float4* base [[buffer(0)]], constant U& u [[buffer(1)]], constant HR& h [[buffer(2)]],
                const device float4* lc [[buffer(3)]], const device uint* idx [[buffer(4)]], constant float4& k [[buffer(5)]]) {
@@ -1610,6 +1614,9 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             hg.d.x = Float(effClamp); hl.d.x = Float(effClamp)
             hl.d.y = Float(HyperLabState.wireBackGray); hl.d.z = Float(HyperLabState.wireBackDark)   // 宇宙：殻と網目は控えめに（中の星が見えるよう）
             hg.r = SIMD4(Float(Self.R), Float(rMesh), 0, 0); hl.r = hg.r
+            // 4 方向レインボー：網目の線は、極に近い殻でも前より濃くしない（濃くすると、奥のかすみで暗くした線が黒い線になって上に重なる）。r.z：網目の濃さの上限
+            //   宇宙の時は、網目と殻をもう少し透明に（中の星屑が見えるように）
+            if st.shellModeNow == 1 && shellFams(left: false).count > 1 { hl.r.z = sp ? 0.28 : 0.45; if sp { hg.q.y *= 0.7 } }
             // 4D の遠近：ダイブで寄るほど弱める（寄った所は景色と同じに）
             let dk = st.depth4On ? Float(st.depth4K * (1 - Self.diveEase(dvT).1)) : 0
             hg.e = SIMD4(st.depth4 == 1 || st.depth4 == 3 ? dk : 0, st.depth4 >= 2 ? dk : 0, 0, 0); hl.e = hg.e
@@ -1628,16 +1635,21 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             if dvT == 0 || st.axesDive { drawAxes4(e, u) }           // ダイブの間も（「ズーム中も」を切ると出さない）
             var wk = SIMD4<Float>(Float(sz.width), Float(sz.height), Float(st.wireW * HyperLabState.renderK * 0.5), 0)   // 線の太さ（画面の点 × 細かさ）
             e.setRenderPipelineState(rPipe); e.setVertexBuffer(rb, offset: 0, index: 0); e.setVertexBuffer(rc, offset: 0, index: 3)
-            for r in ranges {
+            // 4 方向レインボー：面を全部先に描いてから、線をまとめて描く（線が奥行きを書くので、層ごとに交互に描くと、あとの面が線の所だけ抜けて黒い筋になる）
+            func drawFaces(_ r: (g: Range<Int>, l: Range<Int>)) {
                 if solidA > 0 && !r.g.isEmpty {
                     e.setDepthStencilState(depthRead)
                     e.setVertexBytes(&ug, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&ug, length: MemoryLayout<HLUni>.stride, index: 1)
                     e.setVertexBytes(&hg, length: MemoryLayout<HLRight>.stride, index: 2)
                     e.drawIndexedPrimitives(type: .triangle, indexCount: r.g.count, indexType: .uint32, indexBuffer: ri, indexBufferOffset: r.g.lowerBound * 4)
                 }
+            }
+            func drawWires(_ r: (g: Range<Int>, l: Range<Int>)) {
                 if wireA > 0 && !r.l.isEmpty {
                     // 網目は太さのある帯で（1 画素の線は細すぎて色が薄く見える）。宇宙の時は足し合わせて光らせる（さんぽの景色の線のように）
-                    e.setDepthStencilState(depthWrite); e.setRenderPipelineState(sp ? wirePipeAdd : wirePipe)
+                    // 4 方向レインボー・宇宙でダイブ中：線は奥行きを書かない（書くと、あとから描く星屑が線の所だけ隠れて、暗い筋になる）。
+                    //   外から見る時は書く（書かないと、奥の線まで全部重なって白く飛ぶ）
+                    e.setDepthStencilState(hl.r.z > 0 && sp && dvT > 0 ? depthRead : depthWrite); e.setRenderPipelineState(sp || hl.r.z > 0 ? wirePipeAdd : wirePipe)   // 4 方向レインボーも光の線（暗い紫が黒い線に沈まない）
                     e.setVertexBytes(&ul, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&ul, length: MemoryLayout<HLUni>.stride, index: 1)
                     e.setVertexBytes(&hl, length: MemoryLayout<HLRight>.stride, index: 2)
                     e.setVertexBuffer(ri, offset: r.l.lowerBound * 4, index: 4); e.setVertexBytes(&wk, length: 16, index: 5)
@@ -1645,6 +1657,8 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                     e.setRenderPipelineState(rPipe)
                 }
             }
+            if hl.r.z > 0 { for r in ranges { drawFaces(r) }; for r in ranges { drawWires(r) } }
+            else { for r in ranges { drawFaces(r); drawWires(r) } }
             drawStars(e, u, hg)
             // 寄った時の星は、さんぽと同じ本物の星だけ（drawStars。天の川は、さんぽと同じ y・z の大きな円のまわりの星）
             drawWalk(e, u); drawMarks(e, u)                               // ダイブの間も、跡をたどって背中へ寄る（玉は画面の上で大きくなりすぎないよう縮める）
