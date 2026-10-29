@@ -96,6 +96,17 @@ final class GameInput {
         if vHeld.contains("ZL") { lookOnly = true }
         return (mv, lk, fast, push, lookOnly)
     }
+    /// スティックだけを読む（ボタンの押した瞬間の知らせは出さない。左・右は手で持った時の左右＝入れかえの設定によらない）
+    func sticks() -> (left: SIMD2<Double>, right: SIMD2<Double>) {
+        func dz(_ v: Float) -> Double { let a = Double(v); return abs(a) < 0.15 ? 0 : (a - (a > 0 ? 0.15 : -0.15)) / 0.85 }
+        var l = SIMD2<Double>(0, 0), r = SIMD2<Double>(0, 0)
+        for c in GCController.controllers() {
+            guard let g = c.extendedGamepad else { continue }
+            l += SIMD2(dz(g.leftThumbstick.xAxis.value), dz(g.leftThumbstick.yAxis.value)); r += SIMD2(dz(g.rightThumbstick.xAxis.value), dz(g.rightThumbstick.yAxis.value))
+        }
+        l += vLeft; r += vRight
+        return (l, r)
+    }
     /// 今押しているボタン・倒しているスティック（パネルに出して、どのボタンがどう読めているか確かめる）
     func pressedNames() -> String {
         var out: [String] = []

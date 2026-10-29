@@ -45,6 +45,7 @@ extension Renderer {
     /// 決まった道を歩き始める（アナ極から）
     func startPath(_ m: PathMode) {
         pathSpeed = max(0.1, set.routeStart)                 // 出発の速さ（パネルの「出発の速さ」）
+        if m == .tour && (set.tourFlow || set.tourShow) { startTourFlow(show: set.tourShow); return }   // 極めぐり「極を踏む」「ショー」
         if m.isTurn { startTurn(m); return }
         resetNorth(); pathMode = m; path = PathWalk()
         if m == .ring {

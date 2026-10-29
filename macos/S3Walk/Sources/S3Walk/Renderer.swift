@@ -128,6 +128,8 @@ struct Settings {
     /// 静かモードで実際に使う細かさ：4 方向レインボー・軸色の球層は約 1.65 倍重いので、画素を 1/1.65 に（細かさ × 0.78）して、ふつうのレインボーと同じくらいの静かさに
     var quietScaleEff: Double { quietScale * (shell && (rainbow4 || shAxis) ? 0.78 : 1) }
     var routeFlow = false       // 自分の道のつなぎ方「素通り」：全部の点を通る滑らかな曲線で、止まらず・角なしで巡回（routeSmart より先）
+    var tourFlow = false        // 極めぐり「極を踏む」：8 つの極をちょうど通る滑らかな曲線で（前もって回り込んで、極をぴったり踏んで次の極へ。ループ）
+    var tourShow = false        // 極めぐり「ショー」（極を踏むの仲間）：極と極の間でわざと寄り道して、くねっと S 字に曲がる（予定の道の矢印のカーブが映える）
     var routeSmart = true       // 自分の道のつなぎ方：true おまかせ（なるべくまっすぐ・2 点はループ・反対側はまっすぐ）／false 最短（往復は引き返す）
     var cursorShape = 1         // 地図の自分の矢印の形：0 三角錐・1 五角錐（底が五角形。底の 1 つの角が体の上）
     var mapCorner = 1           // すみの小さな地図の場所：0 左上・1 右上・2 右下・3 左下
@@ -278,6 +280,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var blackSize: CGSize?                                   // 真っ黒を出した大きさ（4D 球アナロジーで「さんぽの窓は止める」の間）
     private(set) var idle = false      // 動いていないので描き直していない
     var pathSpeed = 1.0                // 決まった道の速さの倍率（コントローラーの十字の上下で）
+    var padCamMask = 0                 // ダイブのカメラに使っているスティック（1 左・2 右。手で持った時の左右）。そのスティックは歩くのには使わない
     let game = GameInput()
     var onPad: ((String) -> Void)?           // コントローラーのボタン（A・B・X・Y・十字・メニュー）
     private var lastBand = -1
@@ -720,7 +723,8 @@ final class Renderer: NSObject, MTKViewDelegate {
                 //   右スティック 見回し（頭だけ。ZL を押していなくても）、十字の上・下か左スティックの前後を倒し続けると、だんだん速く・遅く
                 //   （1 秒で 2 倍・半分。最高は自走の最高速まで、いちばん遅くて 0.1 倍）
                 if set.gamepad {
-                    let g = game.read(), pg = set.padGame
+                    var g = game.read(); let pg = set.padGame
+                    maskCamSticks(&g)
                     let lx = g.look.x * (set.padInvX ? -1 : 1), ly = g.look.y * (set.padInvY ? -1 : 1)
                     let cx = pg ? lx * abs(lx) : lx, cy = pg ? ly * abs(ly) : ly
                     if cx != 0 || cy != 0 { leveling = false; cam.hy += cx * (pg ? 140 : 90) * dt; cam.hp += cy * (pg ? 100 : 60) * dt }
@@ -742,7 +746,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         // ゲームコントローラー：スティックの倒し具合で速さも変わる
         var padMul = 1.0
         if set.gamepad {
-            let g = game.read()
+            var g = game.read(); maskCamSticks(&g)
             let lx = g.look.x * (set.padInvX ? -1 : 1), ly = g.look.y * (set.padInvY ? -1 : 1)   // 右スティックの反転（左右・上下それぞれ）
             // 右スティック：進む向きを変える（矢印キー・Shift＋ドラッグ。地図も回る）。ZL を押しながらだと見回しだけ（頭だけ＝マウスのドラッグ。
             //   地図は回らず、水色の円すいが見ている向きを指す）。左スティックは進む向きへ歩く（W・S・A・D）。Y・右スティックの押し込みで前を見る（進む向きは変えない）、
@@ -1068,6 +1072,13 @@ final class Renderer: NSObject, MTKViewDelegate {
     func addMark() {
         journey.marks.append(cam.w.p); journey.marks2.append(journey.w2.p); journey.markKinds.append(nextMarkKind())
         say?("目印 \(journey.marks.count) を置いた（ぐるっと回って戻ってくると、また会える）" + modelNote())
+    }
+    /// ダイブのカメラに使っているスティックの分を、歩くのに使わないよう消す（入れかえの設定の時は、手で持った左右と役目が入れかわる）
+    func maskCamSticks(_ g: inout (move: SIMD3<Double>, look: SIMD2<Double>, fast: Bool, push: Bool, lookOnly: Bool)) {
+        guard padCamMask != 0 else { return }
+        let mMove = set.padSwap ? 2 : 1, mLook = set.padSwap ? 1 : 2
+        if padCamMask & mMove != 0 { g.move.x = 0; g.move.z = 0 }
+        if padCamMask & mLook != 0 { g.look = .zero }
     }
     /// 目印をまとめて置く（ランダムな点の道など）
     func addMarks(_ qs: [V4]) {

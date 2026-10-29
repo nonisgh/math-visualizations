@@ -228,6 +228,33 @@ enum Verify {
                 r.set = .plain
                 check(abs(s1 - 3.5) < 1e-9 && abs(s2 - 3.5) < 1e-9 && abs(s3 - 3.5) < 1e-9, String(format: "出発の速さ ×3.5：螺旋も自分の道も ×%.1f・×%.1f から歩き出す。設定から読み戻して ×%.1f", s1, s2, s3))
             }
+            // 極めぐり「極を踏む」：8 つの極を全部ちょうど通る（いちばん近い所 0.01 以内）、止まらずにループ（2 周目も同じ）
+            do {
+                r.set = .plain; r.set.tourFlow = true; r.journey = Journey(); r.startPath(.tour)
+                let tf = r.tourActive && r.pathMode == .custom
+                var best = [Double](repeating: 9, count: 8)
+                for _ in 0..<1800 where r.pathMode == .custom {
+                    r.crStep(0.01)
+                    for k in 0..<8 { let q = RouteStore.poles[k].1; best[k] = min(best[k], acos(max(-1, min(1, dot4(r.cam.w.p, V4(q[0], q[1], q[2], q[3])))))) }
+                }
+                let still = r.pathMode == .custom, far2 = best.max() ?? 9, laps = r.journey.lap, ph = r.journey.polesHit.count
+                r.pathMode = .none; r.set = .plain
+                check(tf && still && far2 < 0.01 && laps >= 2, String(format: "極めぐり・極を踏む：8 つの極を全部通る（いちばん遠い極まで %.4f）、チェックが付いて %d 周目（今の周の極 %d）、止まらずに巡回", far2, laps, ph))
+            }
+            // 極めぐり「ショー」：寄り道しながら 8 つの極を全部ちょうど通り、極のチェックで周回する（寄り道の点はチェックポイントにしない）
+            do {
+                r.set = .plain; r.set.tourShow = true; r.journey = Journey(); r.startPath(.tour)
+                let n0 = r.cr.pts.count, rp = r.journey.routePts.count
+                var best = [Double](repeating: 9, count: 8), maxTurn = 0.0, prevD: V4? = nil, prevP = r.cam.w.p
+                for _ in 0..<3200 where r.pathMode == .custom {
+                    r.crStep(0.01); let p = r.cam.w.p
+                    for k in 0..<8 { let q = RouteStore.poles[k].1; best[k] = min(best[k], acos(max(-1, min(1, dot4(p, V4(q[0], q[1], q[2], q[3])))))) }
+                    let d = p - prevP; if simd_length(d) > 1e-9 { let dn = simd_normalize(d); if let pd = prevD { maxTurn = max(maxTurn, acos(max(-1, min(1, dot4(pd, dn))))) }; prevD = dn }; prevP = p
+                }
+                let far3 = best.max() ?? 9, laps = r.journey.lap
+                r.pathMode = .none; r.set = .plain
+                check(n0 == 16 && rp == 0 && far3 < 0.01 && laps >= 2, String(format: "極めぐり・ショー：16 点（極 8 ＋ 寄り道 8、寄り道はチェックポイントにしない）、8 つの極を全部通る（いちばん遠い極まで %.4f）、%d 周目へ。1 歩（0.01）の向きの変わり 最大 %.1f°", far3, laps, maxTurn * 180 / .pi))
+            }
             check(okR, String(format: "ランダムな点：長さ 1・一様（平均 最大 %.3f、2 乗の平均 %.3f〜%.3f）、8 点を素通りで巡回すると全部の点を通る（いちばん遠い点まで %.3f）", mMax, sMin, sMax, far))
         }
         // 自分の道：1 点は行って止まる、2 点は往復、3 点以上は巡回（どの点のそばも通る・ほかの極には寄らない）

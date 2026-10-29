@@ -206,7 +206,36 @@ private func clamp1(_ x: Double) -> Double { max(-1, min(1, x)) }
 
 extension Renderer {
     /// 自分の道を歩き始める（今いる所から ① へ）
-    func startCustom(_ route: CustomRoute) {
+    /// 極めぐり「極を踏む」の名前（歩いている道がこれかどうかを見分ける）
+    static let tourFlowTitle = "極めぐり"
+    /// 今、極めぐりを歩いているか（ふつうの極めぐり・極を踏む極めぐり）
+    var tourActive: Bool { pathMode == .tour || (pathMode == .custom && cr.title == Renderer.tourFlowTitle) }
+    /// 極めぐり「極を踏む」：アナ極から、となりの極を順に（アナ → 東 → 北 → 天 → カタ → 西 → 南 → 地）ちょうど通る滑らかな曲線で巡回
+    ///   show：ショー（極と極の間に寄り道の点をはさむ。寄り道は、行く 2 つの軸とは別の軸の向きへ、毎回軸を変え、左右も交互に＝くねっと S 字）。
+    ///   寄り道の点はチェックポイントにしない（チェックと周回は極で数える）
+    func startTourFlow(show: Bool = false) {
+        resetNorth()
+        let order = [0, 2, 4, 6, 1, 3, 5, 7]
+        var pts: [RoutePoint] = []
+        func ax(_ k: Int) -> Int { k / 2 == 0 ? 3 : k / 2 == 1 ? 0 : k / 2 == 2 ? 1 : 2 }   // 極の番号 → 軸（アナ・カタ w、東・西 x、北・南 y、天・地 z）
+        for (i, k) in order.enumerated() {
+            let q = RouteStore.poles[k].1
+            pts.append(RoutePoint(p: q, name: RouteStore.poles[k].0))
+            if show {
+                let k2 = order[(i + 1) % order.count], q2 = RouteStore.poles[k2].1
+                let used = [ax(k), ax(k2)], others = (0..<4).filter { !used.contains($0) }
+                let side = others[i % others.count], sgn = i % 2 == 0 ? 1.0 : -1.0, o = 0.5
+                var m = (0..<4).map { (q[$0] + q2[$0]) / 2.0.squareRoot() * cos(o) }
+                m[side] += sgn * sin(o)
+                let l = (m.map { $0 * $0 }.reduce(0, +)).squareRoot()
+                pts.append(RoutePoint(p: m.map { $0 / l }, name: "寄り道"))
+            }
+        }
+        startCustom(CustomRoute(name: Renderer.tourFlowTitle, pts: pts), flow: true, checkpoints: !show)
+        say?(show ? "極めぐり（ショー）：極と極の間でくねっと寄り道しながら、8 つの極をぴったり踏んで巡回"
+                  : "極めぐり（極を踏む）：8 つの極を、前もって回り込みながらぴったり踏んで、止まらずに巡回")
+    }
+    func startCustom(_ route: CustomRoute, flow: Bool = false, checkpoints: Bool = true) {
         var pts: [V4] = [], names: [String] = [], src: [Int] = []
         for (k, q) in route.pts.enumerated() where q.p.count == 4 {
             let p = nrm(V4(q.p[0], q.p[1], q.p[2], q.p[3]))
@@ -221,8 +250,9 @@ extension Renderer {
         // 道の点をチェックポイントに（極・目印と同じ所は、そちらで数えるので除く）。周回は道の点で数える（2 つ以上の時）
         var cp: [V4] = [], cn: [String] = []
         for (k, p) in pts.enumerated() where !FIXED.contains(where: { dot4($0.c, p) > cos(0.002) }) && !journey.marks.contains(where: { dot4($0, p) > cos(0.002) }) { cp.append(p); cn.append(names[k]) }
+        if !checkpoints { cp = []; cn = [] }
         journey.routePts = cp; journey.routeNames = cn; journey.routeHit = []; journey.enteredRoute = []
-        if set.routeFlow && pts.count >= 2 { startFlow(); return }
+        if (set.routeFlow || flow) && pts.count >= 2 { startFlow(); return }
         let dist = acos(clamp1(dot4(cam.w.p, pts[0])))
         if dist < 0.003 {
             if cr.once { pathMode = .none; say?("もう \(names[0]) にいる"); return }

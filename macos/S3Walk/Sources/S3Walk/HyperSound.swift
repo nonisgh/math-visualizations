@@ -74,6 +74,7 @@ final class HyperSound {
         var buf: Float = 0, rr1: Float = 0, rr2: Float = 0, rr3: Float = 0     // 揺さぶりの位相・ゴーッ（3 段の低域）
         var crk: Float = 0, crkEnv: Float = 0, cl: Float = 0, cb: Float = 0, sizz: Float = 0   // パチパチ（破裂の大きさ・減り・帯域）・ジリジリ
         var wob: Float = 0, wobPh: Float = 0                                   // 低音のゆらぎ（1 → 0）
+        var en1: Float = 0, en2: Float = 0, en3: Float = 0, enS: Float = 0, enPrev: Float = 0, enAcc: Float = 0   // 宇宙船のエンジン（3 つの位相・ならした速さ・加速）
         var bf1: Float = 0, bf2: Float = 0, btm: Float = 0, btm2: Float = 0    // 窓から顔を出した時の風：耳にぶつかる低いばたつき（2 段の低域・不規則な揺れ 2 つ）
         var seed: UInt32 = 0x9E3779B9, ph: Float = 0, wa: Float = 0, wb: Float = 1.7, nr: Float = 0   // wa・wb：寄せては返す波の位相、nr：近さ（チリンの大きさ）
         var voices: [(f: Float, a: Float, p: Float, t: Float)] = []
@@ -157,7 +158,16 @@ final class HyperSound {
                 // ジリジリ：とても高いざらつき（熱い空気）。速い時だけ
                 sizz += (wn - sizz) * 0.6
                 let sizzle = (wn - sizz) * pr * 0.25 * spd * (0.7 + 0.5 * flut)
-                var s = (flow + hiss + roar * 0.85 * (1 + 0.5 * wq)  + crackle + sizzle + buffet) * (1 + 0.1 * wq)   // カーブではゴーッも強く   // ゴーッ（低い）も強めに
+                // 宇宙船のエンジン（シュイーン）：低いうなり（少しずらした 2 つの音）と高い鳴き（6 倍あたり）。速いほど高く大きく、
+                //   加速する時は鳴きが強まって音が上がる。曲がる時は高さが少し揺れる
+                enS += (spd - enS) * (1 - exp(-dt * 2.5))
+                enAcc += (max(0, (enS - enPrev) / dt) * 4 - enAcc) * (1 - exp(-dt * 3)); enPrev = enS
+                let up = min(1, enAcc), fe = (70 + 230 * enS + 90 * up) * (1 + 0.04 * tn * sin(wa * 9))
+                en1 += 2 * Float.pi * fe * dt; en2 += 2 * Float.pi * fe * 1.007 * dt; en3 += 2 * Float.pi * fe * 6.03 * dt
+                if en1 > 2 * Float.pi { en1 -= 2 * Float.pi }; if en2 > 2 * Float.pi { en2 -= 2 * Float.pi }; if en3 > 2 * Float.pi { en3 -= 2 * Float.pi }
+                let ea = pow(max(0, g), 0.7) * (0.25 + 0.75 * enS)
+                let engine = (sin(en1) * 0.5 + sin(en2) * 0.35 + sin(en1 * 2) * 0.12) * ea * 0.16 + sin(en3) * ea * (0.012 + 0.05 * up)
+                var s = (flow + hiss + roar * 0.85 * (1 + 0.5 * wq) + crackle + sizzle + buffet + engine) * (1 + 0.1 * wq)   // ゴーッ（低い）も強めに
                 // チリン（ベル：基音と 2.76 倍の部分音、すぐ減る）
                 var bell: Float = 0
                 for v in voices.indices {

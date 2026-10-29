@@ -496,7 +496,7 @@ struct PanelContent: View {
                     Button("見回しを戻す") { r.cam.hy = 0; r.cam.hp = 0; model.changed() }
                 }
             case .path:
-                Picker("道", selection: Binding(get: { r.pathMode.rawValue }, set: { v in
+                Picker("道", selection: Binding(get: { r.tourActive ? 4 : r.pathMode.rawValue }, set: { v in
                     if v == 0 { r.pathMode = .none } else { r.startPath(PathMode(rawValue: v)!) }; model.changed() })) {
                     Text("なし").tag(0); Text("螺旋").tag(1); Text("回る輪").tag(2); Text("半周 180°").tag(3); Text("極めぐり").tag(4)
                 }.pickerStyle(.segmented)
@@ -507,6 +507,11 @@ struct PanelContent: View {
                 if r.pathMode == .none || r.pathMode == .half || r.pathMode.isPolytope || r.pathMode == .custom {
                     Picker("曲がり方", selection: model.b(\.turnSharp)) { Text("スムーズ").tag(false); Text("直角").tag(true) }.pickerStyle(.segmented)
                     note("超立方体・二十四胞体：4 次元の正多胞体の頂点（S³ の上の点）を、辺（60° の大円の弧）に沿って一筆書きで、全部の辺を 1 回ずつ通る（超立方体 32 本・二十四胞体 96 本）。地図に骨組みがまるごと描かれる。全部を残すには「残す軌跡」を 0 に（地図のパネル）。光の線の跡は古い所ほど暗く消えるので、骨組みを全部見るには光の線をオフに")
+                    Picker("極めぐりの回り方", selection: Binding(get: { r.set.tourShow ? 2 : r.set.tourFlow ? 1 : 0 }, set: { v in
+                        r.set.tourFlow = v >= 1; r.set.tourShow = v == 2; if r.tourActive { r.startPath(.tour) }; model.changed() })) {   // 極めぐりの途中で切りかえたら、すぐ新しい回り方で歩き直す
+                        Text("ふつう").tag(0); Text("極を踏む").tag(1); Text("ショー").tag(2)
+                    }.pickerStyle(.segmented)
+                        .help("ふつう：スムーズは極を少しよけて曲がる（双曲線）・直角は極で向きを変える。極を踏む：8 つの極をちょうど通る滑らかな曲線で止まらずに巡回。ショー：極と極の間でくねっと S 字に寄り道しながら、極をぴったり踏んで巡回（予定の道の矢印のカーブが映える）")
                     note("半周 180°：アナ極→カタ極→アナ極と経線を進み、両方の極でターン（すきまの大きい向きへ。地図の軌跡がだんだん球を埋める）。極めぐり：となりの極だけをたどって 8 つの極を回る（アナ→東→北→天→カタ→西→南→地）。スムーズは双曲線で極を少しよけ、直角は極でその場で向きを変える（次の曲がり角から）")
                 }
                 if r.pathMode == .none || r.pathMode == .spiral {
