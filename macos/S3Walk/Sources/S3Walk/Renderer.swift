@@ -1066,6 +1066,10 @@ final class Renderer: NSObject, MTKViewDelegate {
         journey.marks.append(cam.w.p); journey.marks2.append(journey.w2.p); journey.markKinds.append(nextMarkKind())
         say?("目印 \(journey.marks.count) を置いた（ぐるっと回って戻ってくると、また会える）" + modelNote())
     }
+    /// 目印をまとめて置く（ランダムな点の道など）
+    func addMarks(_ qs: [V4]) {
+        for q in qs { journey.marks.append(q); journey.marks2.append(journey.w2.p); journey.markKinds.append(nextMarkKind()) }
+    }
     /// 次に置く目印の模型（ランダムの時は、ひとつ前の目印と違う種類から選ぶ）
     func nextMarkKind() -> Int {
         if set.markModel >= 0 { return min(8, set.markModel) }

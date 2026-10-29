@@ -89,7 +89,7 @@ final class HyperLabState: ObservableObject {
     @Published var chaseDist = 0.5                                    // 三人称：後ろへの距離（3D の画面の長さ）
     @Published var chasePitch = 25.0                                  // 三人称：上から見下ろす角度（°）
     @Published var chaseYaw = 20.0                                    // 三人称：斜めの角度（°、＋で右うしろ）
-    @Published var ovCursor = -1                                      // 全体像の今いる所の印：−1 ふつうと同じ・0 さんぽ・1 彗星・2 線の彗星・3 巨大彗星
+    @Published var ovCursor = -1                                      // 全体像の今いる所の印：−1 ふつうと同じ・0 さんぽ・1 彗星・2 線の彗星・3 巨大彗星・4 大彗星
     @Published var diveOverview = false                               // ダイブ中は 3D の球の場所に、外から見た超球の全体像を出す（ダイブしながら全体も分かる）
     @Published var autoCam = true                                     // オートカメラ（ズームの三人称）：ゆっくり周りを漂い、曲がる時は外側へ回り込む（よく見える角度へ）
     @Published var splitX = 0.5                                       // 画面の仕切り：左の列の幅（窓の幅に対して）
@@ -103,7 +103,7 @@ final class HyperLabState: ObservableObject {
     @Published var walkMenu = true                                    // さんぽメニュー（この窓に浮かぶ、さんぽの操作の小窓）を出す
     @Published var shutAuto = false                                   // 前の窓だけ描く（自動）：超球の窓が前ならさんぽの窓（景色・地図）を止め、さんぽの窓が前ならさんぽを描いて超球は控えめに。瞬時に切りかえ
     @Published var shutWalk = false                                   // さんぽの窓は描かない：さんぽの窓（景色・地図）を止め、描くのはこの窓だけ（景色の画面・ダイブは描く。歩く計算・跡はそのまま）
-    @Published var cursor = 1                                         // 今いる所の印：0 さんぽ（黄色の玉）・1 彗星（光で描く。コマと、ぼけた尾）・2 線の彗星（前の形）・3 巨大彗星（光の彗星を大きく。ダイブで寄るとふつう）
+    @Published var cursor = 1                                         // 今いる所の印：0 さんぽ（黄色の玉）・1 彗星（光で描く。コマと、ぼけた尾）・2 線の彗星（前の形）・3 巨大彗星・4 大彗星（光の玉の中に彗星。巨大はさらに大きく。ダイブで寄るとふつう）
     @Published var walkOpen = true                                    // パネルの「さんぽと連動」の欄を開いている
     // 自分を追う（さんぽの「自分中心」を広げたもの）：歩く人が真ん中（4D の手前、超球の正面）から「遊び」の角度より離れたら、
     //   傾き（Z-W・面内・前後・左右）を少しずつ動かして手前へ連れ戻す。遊び 0° ＝ いつも中心、90° ＝ 手前の半分は自由に横断して奥へ行きかけたら回す。
@@ -721,10 +721,14 @@ fragment float4 cmf(CMO in [[stage_in]], constant float4& tm [[buffer(2)]]) {
     float sp = clamp(tm.y, 0.0, 1.0), t = tm.x * (1.0 + 2.5 * sp), glow = 1.0 + 0.7 * sp;   // 速いほど、すじが速く流れて明るく（派手に）
     float3 col;
     if (in.q.z > 6.5) {
-        // 予定の道の光の点（kind 7）：白い芯と、まわりの色の光（c）。q.w：濃さ
-        float r = length(in.q.xy);
-        float core = exp(-r * r / 0.02), halo = exp(-r * r / 0.1);
-        col = (mix(in.c.rgb, float3(1.0), 0.5) * core * 2.2 + in.c.rgb * halo * 0.9) * (1.0 - smoothstep(0.75, 1.0, r));
+        // 予定の道の光の矢印（kind 7）：進む向き（板の x）を指す「＞」の形の光。白い芯と、まわりの色の光（c）。q.w：濃さ
+        float2 p = in.q.xy; float r = length(p);
+        float2 tip = float2(0.42, 0.0);
+        float2 a0 = float2(-0.3, 0.5) - tip, a1 = float2(-0.3, -0.5) - tip, pa = p - tip;
+        float d0 = length(pa - a0 * clamp(dot(pa, a0) / dot(a0, a0), 0.0, 1.0)), d1 = length(pa - a1 * clamp(dot(pa, a1) / dot(a1, a1), 0.0, 1.0));
+        float d = min(d0, d1);
+        float core = exp(-d * d / 0.006), halo = exp(-d * d / 0.04);
+        col = (mix(in.c.rgb, float3(1.0), 0.5) * core * 2.0 + in.c.rgb * halo * 0.8) * (1.0 - smoothstep(0.8, 1.0, r));
         return float4(col, in.q.w);
     }
     if (in.q.z > 5.5) {
@@ -767,9 +771,11 @@ fragment float4 cmf(CMO in [[stage_in]], constant float4& tm [[buffer(2)]]) {
         }
         // 巨大彗星（c.z：大きさの割合 0〜1）：芯と内側の光を太く、コマを明るく（引きの絵でも、ひと目でわかる光の玉に）
         float gb = in.c.z;
-        float core = exp(-r * r / (0.0035 * (1.0 + 4.0 * gb))), inner = exp(-r * r / (0.03 * (1.0 + 2.0 * gb))), coma = exp(-r / (0.22 * (1.0 + 0.3 * gb))) * (1.0 + 1.2 * gb);
+        //   白い芯は出さず、真ん中を少し暗くした光の玉にする（足し合わせで真っ白に飛ぶと、中のふつうの彗星が見えない）
+        float core = exp(-r * r / 0.0035) * (1.0 - gb), inner = exp(-r * r / (0.03 * (1.0 + 2.0 * gb))) * (1.0 - 0.55 * gb), coma = exp(-r / (0.22 * (1.0 + 0.3 * gb))) * (1.0 + 1.2 * gb);
+        float hollow = 1.0 - gb * 0.8 * (1.0 - smoothstep(0.03, 0.28, r));
         float tw = 0.93 + (0.07 + 0.12 * sp) * sin(t * 2.3) * sin(t * 1.7 + 1.0);      // ゆらめく（速いほど強く）
-        col = (float3(1.0) * core * 2.2 * glow + float3(0.85, 0.95, 1.0) * inner * 0.9 * glow + float3(0.45, 0.95, 0.85) * coma * (0.45 + 0.35 * sp)) * fade * tw;
+        col = (float3(1.0) * core * 2.2 * glow + float3(0.85, 0.95, 1.0) * inner * 0.9 * glow + float3(0.45, 0.95, 0.85) * coma * (0.45 + 0.35 * sp)) * fade * tw * hollow;
     } else if (in.q.z > 2.5) {
         // イオンの尾（寄った時）：細めの青い光。まっすぐ長く、縦のすじ（磁力線に沿うガス）が入って、ゆっくり流れる
         float s = clamp(in.q.x, 0.0, 1.0), v = in.q.y;
@@ -1440,7 +1446,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             let w = src(); sig += [Double(w.trail.count), w.pos.x, w.pos.y, w.pos.z, w.pos.w, Double(w.marks.count), Double(w.hit.filter { $0 }.count), Double(w.poles.count)]
         }
         if owner { HyperLabState.planWanted = s.walk && s.planOn }
-        if flashing || (side == .right && s.diveT > 0.05) || (s.walk && (s.cursor == 1 || s.cursor == 3)) || (HyperLabState.planWanted && HyperLabState.planActive) { sig.append(CACurrentMediaTime()) }   // 光の彗星を出している間も（すじが流れる）   // 光っている間・寄っている間（星がまたたく）は、止まっていても描き続ける                 // 当たった瞬間の光の間は、止まっていても描き続ける
+        if flashing || (side == .right && s.diveT > 0.05) || (s.walk && [1, 3, 4].contains(s.cursor)) || (HyperLabState.planWanted && HyperLabState.planActive) { sig.append(CACurrentMediaTime()) }   // 光の彗星を出している間も（すじが流れる）   // 光っている間・寄っている間（星がまたたく）は、止まっていても描き続ける                 // 当たった瞬間の光の間は、止まっていても描き続ける
         // ほんの少しの違い（計算の誤差）は「同じ」とみなす
         let moved = sig.count != lastSig.count || zip(sig, lastSig).contains { abs($0 - $1) > 1e-7 }
         // 動いている時のコマ数：ふだんは画面のいちばん速いコマ数。実際のコマ数が 2 秒続けて目標の 8 割に届かなければ（GPU があふれて
@@ -1459,7 +1465,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         //   画質を決めるのは左の画面だけ（同じ窓の両方が同じ値を使う）
         // 超球だけ（さんぽの窓は止める）の時は静かに：動かす時も画面の速さを割り切れる 60 以上のいちばん遅い速さまで（144Hz → 72、120Hz → 60）。ファンを回さない
         var top = (s.shutWalk || HyperLabState.walkShut) ? maxFPS / max(1, maxFPS / 60) : maxFPS
-        if s.walk && (s.cursor == 1 || s.cursor == 3) && s.cometSpd < 0.03 && s.diveT == 0 { top = min(top, maxFPS / max(1, maxFPS / 60)) }   // 彗星が止まっている時は 60 まで（なめらかなまま、少し静かに）
+        if s.walk && [1, 3, 4].contains(s.cursor) && s.cometSpd < 0.03 && s.diveT == 0 { top = min(top, maxFPS / max(1, maxFPS / 60)) }   // 彗星が止まっている時は 60 まで（なめらかなまま、少し静かに）
         if quiet { top = min(top, maxFPS / max(1, maxFPS / 45)) }
         if HyperLabState.hyperIdle { top = maxFPS / max(1, maxFPS / 15) }   // 前の窓だけ描く：さんぽの窓が前の間は画面オフ（計算だけゆっくり続ける）
         if wasIdle && !HyperLabState.hyperIdle { moveFPS = top; if !lowFPS { view.preferredFramesPerSecond = moveFPS } }   // 超球の窓が前に戻ったら、すぐ元のなめらかさに
@@ -2190,12 +2196,18 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         func near(_ p: SIMD3<Double>) -> Double { max(0.004, min(1, simd_length(eye - p) / 7.5)) }
         // 彗星の時：頭から道を戻った長さ。尾の届く所では跡を薄くして、尾が浮き出るように
         // 寄った割合（ダイブ）：ふつうは細くしぼむ尾、寄るほど写真のような 2 本の尾（広がるちりの尾・まっすぐな青いイオンの尾）へ
-        let zm = (cur == 1 || cur == 3) && side == .right && dvT > 0 ? Float(smoothstep(0.25, 0.75, Self.diveEase(dvT).1)) : 0
-        // 巨大彗星（印 3）：光の彗星を大きく（全体像・引きの絵でも、どこにいるかひと目でわかる）。ダイブで寄るほど、ふつうの大きさへ戻す
-        let gk = cur == 3 ? (side == .right ? 1 - Self.diveEase(dvT).1 : 1) : 0, gHead = 1 + 3.5 * gk, gTail = 1 + 1.5 * gk
+        let zm = [1, 3, 4].contains(cur) && side == .right && dvT > 0 ? Float(smoothstep(0.25, 0.75, Self.diveEase(dvT).1)) : 0
+        // 引きの絵の光の彗星（印 4 大彗星・3 巨大彗星）：光の玉を大きくして、その中にふつうの大きさの彗星（全体像・引きの絵でも、どこにいるかひと目でわかる）。
+        //   巨大彗星はさらに大きく。ダイブで寄るほど、ふつうの大きさへ戻す（印 1 彗星は、いつもふつうの大きさ）
+        let gk = cur == 3 || cur == 4 ? (side == .right ? 1 - Self.diveEase(dvT).1 : 1) : 0
+        let gHead = 1 + (cur == 3 ? 5.5 : 3.5) * gk, gTail = 1 + (cur == 3 ? 2.0 : 1.5) * gk
         // 彗星の明るさ：4D の奥の側（超球の殻の裏）は少し暗く。巨大彗星は殻をまたいでも同じ明るさ（大きな光が殻のふちで欠けて見えないように）
         func fz(_ f: Double) -> Double { 0.6 + 0.4 * (f + (1 - f) * gk) }
-        let comet = cur >= 1, real = cur == 1 || cur == 3, tailL = 1.05 * (1 + 0.6 * st.cometSpd) * near(P[P.count - 1].0) * (side == .right ? 1 + 3.5 * dvThird * Self.diveEase(dvT).1 : 1) * gTail
+        // 尾の長さで速さを見せる：ダイブ中・大彗星・巨大彗星は、ゆっくりの時はほとんど尾を引かず、速さが乗ってくる（cometSpd 0.5 ほど）と今まで通りの尾に
+        //   （ふだんの引きの彗星は、いつも今まで通り）
+        let spW = max(side == .right ? Self.diveEase(dvT).1 : 0, gk > 0 ? 1 : 0), cs = st.cometSpd
+        let spdK = (1 + 0.6 * cs) * (1 - spW * (1 - (0.15 + 0.85 * smoothstep(0.03, 0.5, cs))))
+        let comet = cur >= 1, real = [1, 3, 4].contains(cur), tailL = 1.05 * spdK * near(P[P.count - 1].0) * (side == .right ? 1 + 3.5 * dvThird * Self.diveEase(dvT).1 : 1) * gTail
         var fromHead = [Double](repeating: .infinity, count: P.count)
         if comet {
             fromHead[P.count - 1] = 0
@@ -2347,7 +2359,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                     let s = min(1, acc[k] / max(1e-9, tailL))
                     var sd = simd_cross(b - a, eye - p); let l = simd_length(sd)
                     sd = l < 1e-12 ? .zero : sd / l * 0.085 * sc * pow(1 - 0.8 * s, 1.2)
-                    let a0 = Float(fz(P[j].1)) * gone * (1 - zm)
+                    let a0 = Float(fz(P[j].1) * (1 - 0.5 * gk)) * gone * (1 - zm)   // 巨大彗星の太い尾は控えめに（中の彗星の尾が見えるよう）
                     let ql = SIMD4<Float>(Float(s), -1, 1, a0), qr = SIMD4<Float>(Float(s), 1, 1, a0), l0 = p - sd, r0 = p + sd
                     if let (pl, pr, pql, pqr) = prev { ctri += [v(pl, pql), v(pr, pqr), v(r0, qr), v(pl, pql), v(r0, qr), v(l0, ql)] }
                     prev = (l0, r0, ql, qr)
@@ -2373,7 +2385,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                         if let (pl, pr, pql, pqr) = pv { ctri += [v(pl, pql), v(pr, pqr), v(r0, qr), v(pl, pql), v(r0, qr), v(l0, ql)] }
                         pv = (l0, r0, ql, qr)
                     }
-                    let hs0 = 0.2 * sc0, a0 = vis * Float(gk)
+                    let hs0 = 0.26 * sc0, a0 = vis * Float(gk) * 1.6                // 頭は少し大きく明るく（「ここ」がわかるように）
                     func hv0(_ x: Double, _ y: Double) -> HLCometVert { HLCometVert(p: SIMD4(SIMD3<Float>(c + ax * (x * hs0) + ay * (y * hs0)), 1), q: SIMD4(Float(x), Float(y), 0, a0), c: SIMD4(0, 0, 0, 1)) }
                     ctri += [hv0(-1, -1), hv0(1, -1), hv0(1, 1), hv0(-1, -1), hv0(1, 1), hv0(-1, 1)]
                 }
@@ -2385,14 +2397,15 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         // 予定の道：これから進む道を、光の点線で（点はゆっくり進む向きへ流れる。先へ行くほど淡く、彗星のすぐ前は出さない）
         HyperLabState.planActive = !wk.plan.isEmpty
         if st.planOn && wk.plan.count >= 2 {
-            let pl = wk.plan, (_, Rv, Uv, _) = camBasis()
+            let pl = wk.plan
             var cum = [0.0]; cum.reserveCapacity(pl.count)
             for i in 1..<pl.count { cum.append(cum[i - 1] + simd_length(pl[i] - pl[i - 1])) }
-            let total = cum[cum.count - 1], gap = 0.07
+            let total = cum[cum.count - 1], gap = 0.09
             let phase = (CACurrentMediaTime() * 0.09).truncatingRemainder(dividingBy: gap)   // 1 秒に 0.09 ずつ流れる
             let dive = side == .right ? 1 + 2.5 * dvThird * Self.diveEase(dvT).1 : 1
             let col = SIMD4<Float>(1.0, 0.78, 0.35, 1)                  // 金色（水色・緑の超球に溶けない）
             var d = phase, j = 1
+            var side4: SIMD4<Double>? = nil                               // 矢印の横の向き（4D。道に沿って少しずつ回して運ぶ）
             while d < total {
                 while j < cum.count - 1 && cum[j] < d { j += 1 }
                 let a = cum[j - 1], b = cum[j], f = b > a ? (d - a) / (b - a) : 0
@@ -2402,9 +2415,29 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                     let k = d / total
                     let al = Float(smoothstep(0.03, 0.09, d) * (1 - smoothstep(0.55, 1.0, k)) * (0.4 + 0.6 * face))
                     if al > 0.01 {
-                        let hs = 0.11 * near(q) * dive
-                        func dv(_ x: Double, _ y: Double) -> HLCometVert { HLCometVert(p: SIMD4(SIMD3<Float>(q + Rv * (x * hs) + Uv * (y * hs)), 1), q: SIMD4(Float(x), Float(y), 7, al), c: col) }
-                        ctri += [dv(-1, -1), dv(1, -1), dv(1, 1), dv(-1, -1), dv(1, 1), dv(-1, 1)]
+                        let hs = 0.065 * near(q) * dive
+                        // 矢印は S³ の上に寝かせる：進む向き t4 と横の向き n4（どちらも 4D の、その点の接する向き）で形を作って、画面の 3 次元へ写す。
+                        //   写した形のゆがみ（見る角度で斜めにつぶれる・伸びる）はそのまま、大きさだけ hs にそろえる
+                        let p4 = q4 / l
+                        var t4 = pl[min(pl.count - 1, j)] - pl[j - 1]; t4 -= p4 * simd_dot(t4, p4)
+                        let tl4 = simd_length(t4)
+                        if tl4 > 1e-12 {
+                            t4 /= tl4
+                            var n4 = side4 ?? {
+                                let ax: [SIMD4<Double>] = [SIMD4(1, 0, 0, 0), SIMD4(0, 1, 0, 0), SIMD4(0, 0, 1, 0), SIMD4(0, 0, 0, 1)]
+                                return ax.min { abs(simd_dot($0, p4)) + abs(simd_dot($0, t4)) < abs(simd_dot($1, p4)) + abs(simd_dot($1, t4)) }!
+                            }()
+                            n4 -= p4 * simd_dot(n4, p4); n4 -= t4 * simd_dot(n4, t4)
+                            let nl = simd_length(n4)
+                            if nl > 1e-9 {
+                                n4 /= nl; side4 = n4
+                                let e = 0.01
+                                func at(_ v: SIMD4<Double>) -> SIMD3<Double> { place(simd_normalize(p4 + v * e)).0 - q }
+                                let X3 = at(t4), Y3 = at(n4), k = hs / max(1e-9, max(simd_length(X3), simd_length(Y3)))
+                                func dv(_ x: Double, _ y: Double) -> HLCometVert { HLCometVert(p: SIMD4(SIMD3<Float>(q + X3 * (x * k) + Y3 * (y * k)), 1), q: SIMD4(Float(x), Float(y), 7, al), c: col) }
+                                ctri += [dv(-1, -1), dv(1, -1), dv(1, 1), dv(-1, -1), dv(1, 1), dv(-1, 1)]
+                            }
+                        }
                     }
                 }
                 d += gap
@@ -2973,9 +3006,9 @@ struct HyperLabView: View {
                         .help("同じ道をまた通る時、今いる所（彗星）の前とすぐそばの古い跡を一時的に薄くして、今いる所を目立たせる。通り過ぎるとまた見える")
                     slider("跡の太さ", Binding(get: { st.trailW }, set: { st.trailW = $0 }), 0.2, 2, fmt: "×%.1f").frame(width: 90).disabled(!st.walk)
                         .help("球面さんぽで歩いた跡と今いる所を、右の超球（S³ そのもの）と左の球（影）に描く")
-                    Picker("", selection: $st.cursor) { Text("さんぽ").tag(0); Text("彗星").tag(1); Text("巨大彗星").tag(3); Text("線の彗星").tag(2) }
-                        .pickerStyle(.segmented).frame(width: 250).labelsHidden().disabled(!st.walk)
-                        .help("今いる所の印。さんぽ：黄色の玉。彗星：光で描く（白く飛んだ核と青緑のコマ、ぼけてすじの流れる尾）。巨大彗星：光の彗星を大きく（引きの絵・ダイブ中の全体像でもひと目でわかる。ダイブで寄るとふつうの大きさ）。線の彗星：線で描いた前の形")
+                    Picker("", selection: $st.cursor) { Text("さんぽ").tag(0); Text("彗星").tag(1); Text("大彗星").tag(4); Text("巨大彗星").tag(3); Text("線の彗星").tag(2) }
+                        .pickerStyle(.segmented).frame(width: 310).labelsHidden().disabled(!st.walk)
+                        .help("今いる所の印。さんぽ：黄色の玉。彗星：光で描く（白く飛んだ核と青緑のコマ、ぼけてすじの流れる尾）。大彗星：引きの絵では大きな光の玉の中に、白い頭と尾のふつうの彗星（どこにいるかひと目でわかる）。巨大彗星：光の玉をさらに大きく（ダイブ中の全体像でも目立つ）。大彗星・巨大彗星もダイブで寄るとふつうの彗星。線の彗星：線で描いた前の形")
                     Toggle("目印", isOn: $st.marksOn).toggleStyle(.switch).font(.caption).fixedSize()
                         .help("球面さんぽで置いた目印。歩いて通った目印（チェックポイント）は塗りつぶしと ✓、まだの目印は輪")
                     Toggle("光で描く", isOn: $st.symGlow).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.marksOn && st.polesMode == 0)
@@ -3030,8 +3063,8 @@ struct HyperLabView: View {
                     }
                     Toggle("ダイブ中は全体像", isOn: $st.diveOverview).toggleStyle(.switch).font(.caption).fixedSize()
                         .help("ダイブしている間、3D の球の場所に、外から見た超球の全体像を出す（どこを走っているかを見ながらダイブできる）。3D の球を出している時だけ")
-                    Picker("", selection: $st.ovCursor) { Text("同じ").tag(-1); Text("さんぽ").tag(0); Text("彗星").tag(1); Text("巨大").tag(3); Text("線").tag(2) }
-                        .pickerStyle(.segmented).frame(width: 215).labelsHidden().disabled(!st.diveOverview)
+                    Picker("", selection: $st.ovCursor) { Text("同じ").tag(-1); Text("さんぽ").tag(0); Text("彗星").tag(1); Text("大").tag(4); Text("巨大").tag(3); Text("線").tag(2) }
+                        .pickerStyle(.segmented).frame(width: 245).labelsHidden().disabled(!st.diveOverview)
                         .help("全体像の今いる所の印。同じ：ふつうと同じ。さんぽ：黄色の玉（遠くからでも見つけやすい）。彗星・線：光の彗星・線の彗星")
                     Toggle("オートカメラ", isOn: $st.autoCam).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.diveThird)
                         .help("ズーム（三人称）の時、よく見える角度へ自動で：ゆっくり周りを漂い、曲がる時は外側へ回り込む。きついカーブや垂直に近い動きの時は、水平の目線から真上近くへ大きく展開して、曲がる道すじ全体を見せる（ダイナミック）。ドラッグで回すとその間は止まる")

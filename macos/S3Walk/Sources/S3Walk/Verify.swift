@@ -180,6 +180,27 @@ enum Verify {
             }
             r.pathMode = .none
         }
+        // ランダムな点の道：点は長さ 1 で S³ に一様（平均はほぼ 0、各成分の 2 乗の平均はほぼ 1/4）。8 点の巡回で、全部の点のそばを通る
+        do {
+            let qs = (0..<20000).map { _ in RouteStore.randomPoint() }
+            let unit = qs.allSatisfy { abs($0.map { $0 * $0 }.reduce(0, +) - 1) < 1e-9 }
+            var mean = [Double](repeating: 0, count: 4), sq = [Double](repeating: 0, count: 4)
+            for q in qs { for a in 0..<4 { mean[a] += q[a]; sq[a] += q[a] * q[a] } }
+            for a in 0..<4 { mean[a] /= Double(qs.count); sq[a] /= Double(qs.count) }
+            let pts = (0..<8).map { _ in RouteStore.randomPoint() }
+            let rt = CustomRoute(name: "確かめ", pts: pts.enumerated().map { RoutePoint(p: $1, name: "ランダム \(RouteStore.nums[$0])") })
+            r.set = .plain; r.set.routeFlow = true; r.resetNorth(); r.startCustom(rt)   // 素通り：全部の点をちょうど通る（目印のチェックが付く）
+            var best = [Double](repeating: 9, count: pts.count)
+            let pv = pts.map { V4($0[0], $0[1], $0[2], $0[3]) }
+            for _ in 0..<12000 where r.pathMode == .custom {
+                r.crStep(0.01)
+                for k in pv.indices { let c = max(-1.0, min(1.0, dot4(r.cam.w.p, pv[k]))); best[k] = min(best[k], acos(c)) }
+            }
+            r.pathMode = .none
+            let mMax = mean.map { abs($0) }.max() ?? 9, sMin = sq.min() ?? 0, sMax = sq.max() ?? 9, far = best.max() ?? 9
+            let okR = unit && mMax < 0.02 && abs(sMin - 0.25) < 0.01 && abs(sMax - 0.25) < 0.01 && far < 0.02
+            check(okR, String(format: "ランダムな点：長さ 1・一様（平均 最大 %.3f、2 乗の平均 %.3f〜%.3f）、8 点を素通りで巡回すると全部の点を通る（いちばん遠い点まで %.3f）", mMax, sMin, sMax, far))
+        }
         // 自分の道：1 点は行って止まる、2 点は往復、3 点以上は巡回（どの点のそばも通る・ほかの極には寄らない）
         do {
             func route(_ ks: [Int]) -> CustomRoute { CustomRoute(name: "確かめ", pts: ks.map { RoutePoint(p: RouteStore.poles[$0].1, name: RouteStore.poles[$0].0) }) }
@@ -1331,7 +1352,7 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("巨大彗星・歩いた跡", 1.0, true, 0), ("予定の道・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("宇宙・半透明・星の遠近", 1.0, true, 2), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ1.00・巨大彗星・三人称", 1.0, true, 0), ("ダイブ1.00・右へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・上へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・三人称", 1.0, true, 0), ("ダイブ0.80・南へ・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("巨大彗星・歩いた跡", 1.0, true, 0), ("大彗星・歩いた跡", 1.0, true, 0), ("予定の道・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("宇宙・半透明・星の遠近", 1.0, true, 2), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ1.00・巨大彗星・三人称", 1.0, true, 0), ("ダイブ1.00・右へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・上へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・三人称", 1.0, true, 0), ("ダイブ0.80・南へ・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
                 st.viewYaw = 0.5; st.viewPitch = 0.3
@@ -1344,6 +1365,7 @@ enum Verify {
                 case "ポリゴンカット": st.cutOn = true; st.cutRef = 2; st.polyArm = 1; st.cutWDeg = 200
                 case "彗星・歩いた跡": st.cursor = 1
                 case "巨大彗星・歩いた跡": st.cursor = 3
+                case "大彗星・歩いた跡": st.cursor = 4
                 case "予定の道・歩いた跡": st.cursor = 1
                 case "線の彗星・歩いた跡": st.cursor = 2
                 case "極・前の丸・歩いた跡": st.symGlow = false; st.polesMode = 2

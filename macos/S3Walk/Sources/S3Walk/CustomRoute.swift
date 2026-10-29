@@ -82,6 +82,22 @@ final class RouteStore: ObservableObject {
         if n > 0 { routes = rs }
         return n
     }
+    /// S³ の上に一様にばらまいた点（4 つの正規分布の数を長さ 1 に）
+    static func randomPoint() -> [Double] {
+        func gauss() -> Double { let u = max(1e-12, Double.random(in: 0..<1)), v = Double.random(in: 0..<1); return (-2 * log(u)).squareRoot() * cos(2 * .pi * v) }
+        var q = [gauss(), gauss(), gauss(), gauss()]
+        let l = (q.map { $0 * $0 }.reduce(0, +)).squareRoot()
+        if l < 1e-9 { return [0, 0, 0, 1] }
+        q = q.map { $0 / l }; return q
+    }
+    /// ランダムな点 n 個（1〜16）の新しい道を作って選ぶ
+    @discardableResult func addRandom(_ n: Int) -> CustomRoute {
+        let n = max(1, min(RouteStore.maxPts, n))
+        var k = 1; while routes.contains(where: { $0.name == "ランダム \(k)" }) { k += 1 }
+        let r = CustomRoute(name: "ランダム \(k)", pts: (0..<n).map { j in RoutePoint(p: RouteStore.randomPoint(), name: "ランダム \(RouteStore.nums[j])") })
+        routes.append(r); sel = r.id
+        return r
+    }
     func append(_ p: [Double], _ name: String) {
         guard let i = index, routes[i].pts.count < RouteStore.maxPts else { return }
         routes[i].pts.append(RoutePoint(p: p, name: name))
@@ -439,6 +455,8 @@ struct CustomRoutePanel: View {
     @State private var texts = ["", "", "", ""]
     @FocusState private var focus: Int?
     @AppStorage("s3walk.coord.simple") private var simple = true   // 簡易入力：2 → 0.2、35 → 0.35、-999 → −0.999（ウェブ版と同じ）
+    @AppStorage("s3walk.random.n") private var randN = 6               // ランダムな道の点の数（1〜16）
+    @AppStorage("s3walk.random.marks") private var randMarks = true    // ランダムな点を目印にも置く（光る・通るとチェック）
     static let axisNames = ["x", "y", "z", "w"]
     /// 蛍光ペンの黄緑（今向かっている点）
     static let marker = Color(red: 0.84, green: 1.0, blue: 0.18)
@@ -465,6 +483,16 @@ struct CustomRoutePanel: View {
                 Button("新しい道") { store.add() }
                 Button("この道を消す") { store.remove() }.disabled(store.routes.count <= 1 && (store.routes.first?.pts.isEmpty ?? true))
             }
+            // ランダムな点の道：S³ の上に一様にばらまいた点を n 個（1〜16）。目印にも置くと、光って・通るとチェックが付く
+            HStack(spacing: 6) {
+                Text("ランダムな点").font(.caption)
+                Stepper(value: $randN, in: 1...RouteStore.maxPts) { Text("\(randN) 個").font(.caption.monospacedDigit()).frame(width: 34, alignment: .trailing) }.fixedSize()
+                Toggle("目印にも置く", isOn: $randMarks).font(.caption).fixedSize()
+                    .help("ランダムな点を目印にも置く（光る星になり、通るとチェックが付く。周回も数える）")
+                Button("作る") { makeRandom(walk: false) }.help("ランダムな点の新しい道を作る（まだ歩かない）")
+                Button("作って歩く") { makeRandom(walk: true) }.help("ランダムな点の新しい道を作って、すぐ歩き出す（1 点は行って止まる、2 点は往復、3 点以上は巡回）")
+            }
+            .controlSize(.small).buttonStyle(.bordered)
             if let i = store.index {
                 TextField("道の名前", text: Binding(get: { store.routes[i].name }, set: { store.routes[i].name = $0 })).textFieldStyle(.roundedBorder)
                 let pts = store.routes[i].pts
@@ -556,6 +584,14 @@ struct CustomRoutePanel: View {
         .onChange(of: focus) { old, _ in if let a = old { commit(a); syncTexts() } }
     }
 
+    /// ランダムな点の道を作る（目印にも置く時は、その点に目印を置く）。walk なら、すぐ歩き出す
+    func makeRandom(walk: Bool) {
+        let r = model.r, rt = store.addRandom(randN)
+        if randMarks { r.addMarks(rt.pts.map { V4($0.p[0], $0.p[1], $0.p[2], $0.p[3]) }) }
+        if walk { r.startCustom(rt) }
+        r.say?("ランダムな \(rt.pts.count) 点の道「\(rt.name)」を作った" + (randMarks ? "（目印にも置いた）" : "") + (walk ? "。歩き出す" : ""))
+        model.changed()
+    }
     /// 欄 a の文字を数にして入れる（簡易入力の時は 35 → 0.35 など。読めない時は元に戻す）
     func commit(_ a: Int) { if let v = CoordInput.parse(texts[a], simple: simple) { ci.set(a, max(-1, min(1, v))) } }
     func syncTexts() { for a in 0..<4 where focus != a { texts[a] = CustomRoutePanel.num(ci.v[a]) } }
