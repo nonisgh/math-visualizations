@@ -170,6 +170,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private(set) var padRun = 1.0
     /// 最後に歩いた向きと時刻（地図の黄色の円すいが、歩いている間はこの向きを指す。ウェブ版の W.lastDir）
     var lastDir: V4?, lastDirT = 0.0
+    var planCache: (frame: Int, pts: [V4]) = (-1, [])   // 決まった道・自分の道の、これから先の道（plannedPath。歩いたコマごとに 1 回だけ作る）
     /// 前を見ている途中（leveling：見回しを 0 へ。levelEl なら仰角も 0 へ）・この向きへ進む途中（headGoing）
     private(set) var leveling = false, levelEl = false, headGoing = false
     /// 前を見る（ウェブ版の「↺ 前を見る」）：見回しを 0 へ、なめらかに（ほとんどは 0.3 秒）。もう前を見ている時は、仰角も 0 へ（水平に）

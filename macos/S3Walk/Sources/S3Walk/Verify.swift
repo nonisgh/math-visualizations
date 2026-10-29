@@ -101,6 +101,18 @@ enum Verify {
             check(d1 > 0.8 && p1 > p0 + 0.6 && p2 < p1 * 0.5,
                   String(format: "オートカメラ：きついカーブ（1 秒に 90°）で見下ろしが %.2f → %.2f rad（ダイナミック %.2f）、まっすぐに戻ると 4 秒で %.2f へ", p0, p1, d1, p2))
             }
+            if let r = HyperLabRenderer(side: .right, state: st, view: nil) {    // スター・ウォーズの追いかけ：曲がると彗星が先に流れ、カメラの傾きはあとから
+                var c = Camera(); c.az = 0; var turn = false
+                r.walkOverride = { let F = c.viewFrame(); return .init(trail: [c.w.p], pos: c.w.p, head: c.lookFrame().L, space: false, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
+                var o = (SIMD3<Double>(), 0.0, 0.0)
+                func run(_ sec: Double) { for _ in 0..<Int(sec * 60) { if turn { c.az += 90.0 / 60 }; c.walk([0, 0, 1], 0.01); o = r.chaseForTest(1.0 / 60) } }
+                run(1); let s0 = simd_length(o.0), h0 = o.2
+                turn = true; run(0.3); let l1 = simd_length(o.0), b1 = abs(o.1), h1 = o.2
+                run(2.0); let l2 = simd_length(o.0), b2 = abs(o.1)
+                turn = false; run(2.5); let l3 = simd_length(o.0), b3 = abs(o.1), h3 = o.2
+                check(s0 < 1e-6 && l1 > 0.12 && b1 < b2 * 0.45 && b2 > 0.25 && l3 < 0.02 && b3 < b2 * 0.2 && h0 < 1e-6 && h1 > 0.5 && h3 < 0.02,
+                      String(format: "追いかけ：まっすぐは真ん中（%.3f）。曲がると 0.3 秒で彗星が先へ %.2f 流れ（傾きはまだ %.2f rad）、2 秒で傾き %.2f rad、まっすぐに戻ると %.3f・%.3f へ。頭のゆがみ まっすぐ %.3f → 曲がって %.2f → 戻って %.3f", s0, l1, b1, b2, l3, b3, h0, h1, h3))
+            }
         }
         print("== 地図の写し方（ウェブ版の mapS3 と）==")
         turnChecks(r); mapChecks(r)
@@ -149,6 +161,25 @@ enum Verify {
 
     // ---- ターンの道：ウェブ版の fillStep・fqStep を node で動かした点（refs/turn_*.json、refs/turn_ref.js で作る。4000 コマ・ds 0.005・40 コマおき）と比べる ----
     static func turnChecks(_ r: Renderer) {
+        // 予定の道：先の道を作っても、今の状態は変わらない（言葉も出ない）。そのあと実際に歩いた道は、予定の道に重なる
+        do {
+            let rt = CustomRoute(name: "確かめ", pts: [0, 2, 6].map { RoutePoint(p: RouteStore.poles[$0].1, name: RouteStore.poles[$0].0) })
+            for (label, start) in [("自分の道（3 点の巡回）", { r.set = .plain; r.resetNorth(); r.startCustom(rt) }), ("螺旋", { r.set = .plain; r.startPath(.spiral) }), ("極めぐり", { r.set = .plain; r.startPath(.tour) })] as [(String, () -> Void)] {
+                start()
+                func adv(_ h: Double) { if r.pathMode == .custom { r.crStep(h) } else if r.pathMode.isTurn { r.turnStep(h) } else { r.pathStep(h) } }
+                for _ in 0..<40 { adv(0.02) }
+                let saySaved = r.say; var said = 0; r.say = { _ in said += 1 }
+                let p0 = r.cam.w.p, n0 = r.journey.trail.count, m0 = r.pathMode
+                r.planCache = (-1, []); let plan = r.plannedPath(ahead: 2.0)
+                let same = simd_distance(r.cam.w.p, p0) < 1e-12 && r.journey.trail.count == n0 && r.pathMode == m0 && said == 0
+                var worst = 0.0
+                for _ in 0..<90 { adv(0.02); let q = r.cam.w.p; worst = max(worst, plan.map { simd_distance($0, q) }.min() ?? 9) }
+                r.say = saySaved
+                check(same && plan.count > 50 && worst < 0.03,
+                      String(format: "予定の道・%@：作っても今の所・跡・道は変わらず言葉も出ない、点 %d 個、そのあと 1.8 歩いた所は予定の道から最大 %.4f", label, plan.count, worst))
+            }
+            r.pathMode = .none
+        }
         // 自分の道：1 点は行って止まる、2 点は往復、3 点以上は巡回（どの点のそばも通る・ほかの極には寄らない）
         do {
             func route(_ ks: [Int]) -> CustomRoute { CustomRoute(name: "確かめ", pts: ks.map { RoutePoint(p: RouteStore.poles[$0].1, name: RouteStore.poles[$0].0) }) }
@@ -1055,11 +1086,14 @@ enum Verify {
     /// 地図の重さ：前の描き方（画面の大きさ・4 倍マルチサンプル）と、今の描き方（縦横 2 倍に描いて縮める）の GPU の時間を比べる
     /// 超球の試作の重さ：左（2 倍に描いて縮める）・右を、窓の半分くらいの大きさ（1600×2000 画素）で
     static func hyperBench() {
+        // 大きさを変えて測る時：S3_BENCH="幅,高さ"（画素）
+        let bsz = (ProcessInfo.processInfo.environment["S3_BENCH"] ?? "").split(separator: ",").compactMap { Int($0) }
+        let bw = bsz.count == 2 ? bsz[0] : 1600, bh = bsz.count == 2 ? bsz[1] : 2000
         for (name, setup) in [("ふつう", { (s: HyperLabState) in }), ("光沢 0・座標軸なし・跡なし", { (s: HyperLabState) in s.gloss = 0; s.axes = false; s.walk = false; s.marksOn = false }), ("宇宙", { (s: HyperLabState) in s.spaceMode = 1 })] as [(String, (HyperLabState) -> Void)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); setup(st)
                 guard let r = HyperLabRenderer(side: side, state: st, view: nil) else { continue }
-                let (g, c) = r.bench(1600, 2000)
+                let (g, c) = r.bench(bw, bh)
                 print(String(format: "%@・%@：GPU %.2f ms・CPU %.2f ms / コマ", name, side == .left ? "左" : "右", g, c))
             }
         }
@@ -1073,7 +1107,7 @@ enum Verify {
             r.walkOverride = { .init(trail: tr, pos: c.w.p, head: c.lookFrame().L, space: false, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
             if third { st.diveThird = true; st.diveT = 1; st.diveManual = true; st.tickDive(0) }
             st.bump()
-            let (g, cp) = r.bench(1600, 2000)
+            let (g, cp) = r.bench(bw, bh)
             print(String(format: "%@・右：GPU %.2f ms・CPU %.2f ms / コマ", name, g, cp))
         }
         let st = HyperLabState(); if let r = HyperLabRenderer(side: .left, state: st, view: nil) {
@@ -1297,7 +1331,7 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("宇宙・半透明・星の遠近", 1.0, true, 2), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・三人称", 1.0, true, 0), ("ダイブ0.80・南へ・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("巨大彗星・歩いた跡", 1.0, true, 0), ("予定の道・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("宇宙・半透明・星の遠近", 1.0, true, 2), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ1.00・巨大彗星・三人称", 1.0, true, 0), ("ダイブ1.00・右へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・上へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・三人称", 1.0, true, 0), ("ダイブ0.80・南へ・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
                 st.viewYaw = 0.5; st.viewPitch = 0.3
@@ -1309,6 +1343,8 @@ enum Verify {
                 case "断面カット・物体": st.cutOn = true; st.cutRef = 1; st.cutAngDeg = 90; st.cutWDeg = 120
                 case "ポリゴンカット": st.cutOn = true; st.cutRef = 2; st.polyArm = 1; st.cutWDeg = 200
                 case "彗星・歩いた跡": st.cursor = 1
+                case "巨大彗星・歩いた跡": st.cursor = 3
+                case "予定の道・歩いた跡": st.cursor = 1
                 case "線の彗星・歩いた跡": st.cursor = 2
                 case "極・前の丸・歩いた跡": st.symGlow = false; st.polesMode = 2
                 case "跡・白い光・歩いた跡": st.trailCol = 1
@@ -1347,7 +1383,7 @@ enum Verify {
                     for _ in 0..<120 { let L = c.lookFrame().L; c.w.p = nrm(c.w.p + L * 0.01); orthoFrame(&c.w); tr.append(c.w.p) }   // 見ている向きへ 1.2 歩いた跡
                     let F = c.viewFrame()
                     r.walkOverride = { .init(trail: tr, pos: c.w.p, head: c.lookFrame().L, space: true, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
-                    st.diveT = Double(name.dropFirst(3).prefix(4)) ?? 0; st.spaceMode = 1; if name.hasSuffix("軸なし") { st.axesDive = false }; if name.hasSuffix("三人称") { st.diveThird = true }; if let c = ProcessInfo.processInfo.environment["S3_CHASE"]?.split(separator: ",").compactMap({ Double($0) }), c.count == 3 { st.chaseDist = c[0]; st.chasePitch = c[1]; st.chaseYaw = c[2] }
+                    st.diveT = Double(name.dropFirst(3).prefix(4)) ?? 0; st.spaceMode = 1; if name.hasSuffix("軸なし") { st.axesDive = false }; if name.contains("巨大彗星") { st.cursor = 3 }; if name.hasSuffix("三人称") { st.diveThird = true }; if let c = ProcessInfo.processInfo.environment["S3_CHASE"]?.split(separator: ",").compactMap({ Double($0) }), c.count == 3 { st.chaseDist = c[0]; st.chasePitch = c[1]; st.chaseYaw = c[2] }
                 }
                 if name.hasPrefix("同じ道") {                                     // 大きな円を 1 周半：今いる所の前に、前の周の跡が重なる
                     var tr: [SIMD4<Double>] = []
@@ -1360,9 +1396,23 @@ enum Verify {
                     var tr: [SIMD4<Double>] = []
                     for k in 0...900 { let s = Double(k) / 100, a = s * 0.9, b = s * 0.23; tr.append(nrm(SIMD4(cos(a) * sin(b + 0.2), sin(a) * sin(b + 0.2), sin(s * 0.5) * 0.35, cos(b + 0.2)))) }
                     let mk = [tr[150], tr[420], tr[700], nrm(SIMD4<Double>(0.3, -0.6, 0.5, 0.55))]   // 目印 4 つ（はじめの 3 つは通った）
-                    r.walkOverride = { .init(trail: tr, pos: tr.last!, marks: mk, hit: [true, true, true, false], poles: [0, 2]) }   // 極はアナ極と東極を通った
+                    // 予定の道：同じ螺旋のこれから先（4 歩ぶん）
+                    let plan: [SIMD4<Double>] = name.hasPrefix("予定の道") ? (900...1300).map { k in let s = Double(k) / 100, a = s * 0.9, b = s * 0.23; return nrm(SIMD4(cos(a) * sin(b + 0.2), sin(a) * sin(b + 0.2), sin(s * 0.5) * 0.35, cos(b + 0.2))) } : []
+                    r.walkOverride = { .init(trail: tr, pos: tr.last!, marks: mk, hit: [true, true, true, false], poles: [0, 2], plan: plan) }   // 極はアナ極と東極を通った
                 }
                 st.tickDive(0)                                                   // なめらかに追う値（三人称の割合など）を、今の設定に合わせる
+                if name.contains("へカーブ") {                                    // 追いかけ：まっすぐ 1 秒のあと、0.4 秒きつく曲がった所（彗星が先へ流れ、カメラはまだ傾ききらない）
+                    var c = Camera(); c.az = 50; var tr: [SIMD4<Double>] = [], turn = false
+                    let up = name.contains("上へ")
+                    r.walkOverride = { let F = c.viewFrame(); return .init(trail: tr, pos: c.w.p, head: c.lookFrame().L, space: true, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
+                    st.autoCam = true
+                    for i in 0..<84 {
+                        turn = i >= 60
+                        if turn { if up { c.el += 90.0 / 60 } else { c.az += 90.0 / 60 } }
+                        let L = c.lookFrame().L; c.w.p = nrm(c.w.p + L * 0.01); orthoFrame(&c.w); tr.append(c.w.p)
+                        _ = r.chaseForTest(1.0 / 60)
+                    }
+                }
                 if name.hasPrefix("光る瞬間") {                                   // 1 枚目は「まだ」、2 枚目で「通った」に変わる（当たった瞬間の光）
                     var tr: [SIMD4<Double>] = []
                     for k in 0...600 { let s = Double(k) / 100, a = s * 0.9, b = s * 0.23; tr.append(nrm(SIMD4(cos(a) * sin(b + 0.2), sin(a) * sin(b + 0.2), sin(s * 0.5) * 0.35, cos(b + 0.2)))) }
