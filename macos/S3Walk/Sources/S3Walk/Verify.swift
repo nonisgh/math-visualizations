@@ -199,6 +199,32 @@ enum Verify {
             r.pathMode = .none
             let mMax = mean.map { abs($0) }.max() ?? 9, sMin = sq.min() ?? 0, sMax = sq.max() ?? 9, far = best.max() ?? 9
             let okR = unit && mMax < 0.02 && abs(sMin - 0.25) < 0.01 && abs(sMax - 0.25) < 0.01 && far < 0.02
+            // 道の点のチェックポイント：素通りで歩くと、全部の点にチェックが付いて（光とチリンの記録 hitPulse も）、全部通ると 1 周。道をやめるとおしまい
+            do {
+                r.set = .plain; r.set.routeFlow = true; r.resetNorth(); r.journey = Journey(); Journey.hitPulse = []
+                r.startCustom(rt)
+                let n0 = r.journey.routePts.count
+                var maxHit = 0, pulses = 0, said: [String] = []
+                let sv = r.say; r.say = { said.append($0) }
+                for _ in 0..<12000 where r.pathMode == .custom && r.journey.lap < 2 {
+                    r.crStep(0.01); maxHit = max(maxHit, r.journey.routeHit.count)
+                    pulses = max(pulses, Journey.hitPulse.filter { $0.pole == -1 }.count)
+                }
+                let lapped = r.journey.lap >= 2
+                r.pathMode = .none
+                let cleared = r.journey.routePts.isEmpty
+                r.say = sv
+                let okC = n0 == pts.count && lapped && maxHit == pts.count - 1 && pulses >= 1 && cleared && said.contains { $0.contains("周目へ") }
+                check(okC, "道の点のチェックポイント：\(n0) 点。素通りで歩くと 1 つずつチェックが付き（光の記録あり）、全部通って 2 周目へ。道をやめるとチェックポイントもおしまい")
+            }
+            // 出発の速さ：決まった道・自分の道を歩き始めると、その速さから。設定を書き出して読み戻しても同じ
+            do {
+                r.set = .plain; r.set.routeStart = 3.5; r.resetNorth(); r.startPath(.spiral); let s1 = r.pathSpeed
+                r.startCustom(rt); let s2 = r.pathSpeed; r.pathMode = .none
+                var st2 = Settings(); st2.load(["routeStart": 3.5]); let s3 = st2.routeStart
+                r.set = .plain
+                check(abs(s1 - 3.5) < 1e-9 && abs(s2 - 3.5) < 1e-9 && abs(s3 - 3.5) < 1e-9, String(format: "出発の速さ ×3.5：螺旋も自分の道も ×%.1f・×%.1f から歩き出す。設定から読み戻して ×%.1f", s1, s2, s3))
+            }
             check(okR, String(format: "ランダムな点：長さ 1・一様（平均 最大 %.3f、2 乗の平均 %.3f〜%.3f）、8 点を素通りで巡回すると全部の点を通る（いちばん遠い点まで %.3f）", mMax, sMin, sMax, far))
         }
         // 自分の道：1 点は行って止まる、2 点は往復、3 点以上は巡回（どの点のそばも通る・ほかの極には寄らない）
@@ -1545,6 +1571,7 @@ enum Verify {
         let w = 1600, h = 1000
         let extra: [(String, (inout Settings, inout Camera) -> Void)] = [
             ("軽い線だけ（ウェブ版の既定の見え方）", { s, c in s.shell = false; s.lite = true; c.el = 10; c.walk([0, 0, 1], 1.0) }),
+            ("4 方向レインボー（極に近い殻ほど濃く）", { s, c in s.rainbow4 = true; c.el = 10; c.az = 35; c.walk([0, 0, 1], 0.8) }),
             ("模型・怪獣（東極を 0.5 手前から）", { s, c in s.mk = 4; s.modelKind = 0; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.07) }),
             ("模型・竜（東極を 0.5 手前から）", { s, c in s.mk = 4; s.modelKind = 1; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.07) }),
             ("模型・うんこ（東極を 0.5 手前から）", { s, c in s.mk = 4; s.modelKind = 2; s.shell = false; c.face(V4(1, 0, 0, 0)); c.walk([0, 0, 1], 1.07) }),
@@ -1718,7 +1745,9 @@ enum Verify {
     }
     static func walkPNG(_ dir: String) {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev), let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) else { return }
-        var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:]); r.set = us
+        var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:])
+        if ProcessInfo.processInfo.environment["S3_R4"] != nil { us.rainbow4 = true; us.shAxis = false; us.shell = true }   // 4 方向レインボーで見る
+        r.set = us
         func v4(_ k: String) -> V4? { (d[k] as? [Double]).flatMap { $0.count == 4 ? V4($0[0], $0[1], $0[2], $0[3]) : nil } }
         if let p = v4("p"), let rr = v4("r"), let u = v4("u"), let f = v4("f") { r.cam.w = Walker(p: p, r: rr, u: u, f: f); orthoFrame(&r.cam.w) }
         r.cam.az = d["az"] as? Double ?? 30; r.cam.el = d["el"] as? Double ?? 0

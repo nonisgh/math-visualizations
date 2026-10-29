@@ -827,7 +827,9 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
             float4 q = cs * E1 + sn * E2, vt = -sn * E1 + cs * E2;
             float3 c0 = (u.shAx == 0 || (u.shAx & 16) != 0) ? sh[i].yzw : axisShellCol(ax, i, n, u.shellLum);
             float3 cc, em; float al; shadeShell(t, fadeR, i, n, q, vt, wc, -sn * amp, hz, u, c0, axPerm(u.L0, ax), cc, al, em);
-            if ((u.shAx & 16) != 0) { al *= 0.4; em *= 0.5; }              // 4 方向レインボー：殻が 4 倍重なるので 1 枚ずつ薄く（白っぽく埋まらないように）
+            // 4 方向レインボー：殻が 4 倍重なるので 1 枚ずつ薄く（白っぽく埋まらないように）。極に近い殻（赤・紫など）ほど濃く、赤道に近い殻ほど薄く
+            //   （真ん中の緑・水色に埋もれず、極の色が前に浮き出る。平均の濃さは前と同じくらい）
+            if ((u.shAx & 16) != 0) { float pk = smoothstep(0.1, 0.9, abs(wc)); al *= 0.08 + 0.72 * pk; em *= 0.12 + 0.9 * pk; }
             col += T * (al * cc + em); T *= (1.0 - al);
             if (T < 0.01) { done = true; break; }
             // 4 方向レインボーは 1 枚ずつ薄いので、手前 16 枚までで十分（奥は見た目がほとんど変わらない。重さは枚数にほぼ比例）

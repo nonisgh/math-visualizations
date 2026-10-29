@@ -84,7 +84,7 @@ final class AppModel: ObservableObject {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { fatalError("Metal が使えない") }
         self.r = r
         Store.restore(r)
-        HyperLabState.walkSource = { [unowned r] in .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks, hit: r.journey.marks.map { r.journey.isHit($0) }, poles: r.journey.polesHit, lap: r.journey.lap, head: r.cam.lookFrame().L, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov, plan: HyperLabState.planWanted ? r.plannedPath() : []) }   // 超球の試作に、歩いた跡・今いる所・目印を
+        HyperLabState.walkSource = { [unowned r] in .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks + r.journey.routePts, hit: r.journey.marks.map { r.journey.isHit($0) } + r.journey.routePts.map { r.journey.isRouteHit($0) }, poles: r.journey.polesHit, lap: r.journey.lap, head: r.cam.lookFrame().L, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov, plan: HyperLabState.planWanted ? r.plannedPath() : []) }   // 超球の試作に、歩いた跡・今いる所・目印を
         r.say = { [weak self] m in DispatchQueue.main.async { self?.say(m) } }
         r.onPad = { [weak self] k in self?.pad(k) }
         restoreMapMode()
@@ -884,7 +884,7 @@ final class WalkView: MTKView {
                        r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale * 100, (r.set.autoQ ? "・自動" : "") + (r.idle ? "・止まっているので描き直さない" : ""),
                        String(format: big ? "%.0f" : "%.2f", fromN * UR), opp, String(format: big ? "%.0f" : "%.2f", r.journey.dist * UR), r.journey.dist / (2 * Double.pi),
                        r.cam.az, r.cam.el, r.cam.hy, r.cam.hp, mode)
-        let j = r.journey, s2 = j.marks.count >= 2 || !j.polesHit.isEmpty || j.lap > 1 ? s + "　\(j.lap) 周目" : s   // 周回（目印 2 つ以上、なければ 8 つの極で数える）
+        let j = r.journey, s2 = j.marks.count >= 2 || j.routePts.count >= 2 || !j.polesHit.isEmpty || j.lap > 1 ? s + "　\(j.lap) 周目" : s   // 周回（目印 2 つ以上、なければ 8 つの極で数える）
         DispatchQueue.main.async { if self.model?.hudState.text != s2 { self.model?.hudState.text = s2 }; self.model?.tick() }
     }
 

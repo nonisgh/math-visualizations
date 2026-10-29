@@ -415,6 +415,13 @@ struct HLWalkMenu: View {
                     Button("アナ極へ") { r.resetNorth(); tick &+= 1 }.help("出発点（アナ極）に戻る。目印は残す")
                 }
                 HStack(spacing: 4) {
+                    // 道の速さ：歩いている道の今の速さと、次に歩き始める時の速さ（出発の速さ）をいっしょに
+                    Text("道の速さ").font(.caption2).foregroundStyle(.secondary)
+                    Slider(value: Binding(get: { r.pathMode != .none ? r.pathSpeed : r.set.routeStart }, set: { v in r.set.routeStart = v; if r.pathMode != .none { r.pathSpeed = v }; tick &+= 1 }), in: 0.2...16).frame(width: 100)
+                        .help("決まった道・自分の道の速さ。次に歩き始める時も、この速さから")
+                    Text(String(format: "×%.1f", r.pathMode != .none ? r.pathSpeed : r.set.routeStart)).font(.caption2.monospacedDigit()).foregroundStyle(.secondary).frame(width: 34, alignment: .trailing)
+                }
+                HStack(spacing: 4) {
                     Text("決まった道").font(.caption2).foregroundStyle(.secondary)
                     ForEach([(PathMode.spiral, "螺旋"), (.ring, "回る輪"), (.tour, "極めぐり")], id: \.0.rawValue) { m, name in
                         Button(name) { if r.pathMode == m { r.pathMode = .none } else { r.startPath(m) }; tick &+= 1 }
@@ -1259,7 +1266,12 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             ranges.append((g0..<l0, l0..<idx.count))
         }
         let thin: Float = fams.count > 1 ? (st.shellModeNow == 1 ? 0.45 : 0.6) : 1   // 4 組重なるので 1 枚ずつ薄く（白っぽく埋まらないように）
-        let cols = L.map { SIMD4<Float>($0.col, thin) }
+        // 4 方向レインボー：極に近い殻（赤・紫など）ほど濃く、赤道に近い殻ほど薄く。描く順も、極に近い殻をあとに（上に重ねる）。
+        //   真ん中の緑・水色に埋もれず、極の色が前に浮き出る（殻の形と場所はそのまま）
+        func poleK(_ w: Double) -> Double { smoothstep(0.1, 0.9, abs(w) / Self.R) }
+        let four = fams.count > 1 && st.shellModeNow == 1
+        let cols = L.map { SIMD4<Float>($0.col, four ? thin * Float(0.2 + 1.7 * poleK($0.w)) : thin) }
+        if four { ranges = ranges.indices.sorted { poleK(L[$0].w) < poleK(L[$1].w) }.map { ranges[$0] } }
         rBase = base.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
         rCol = cols.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: max(16, $0.count), options: .storageModeShared) }
         rIdx = idx.isEmpty ? nil : idx.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }

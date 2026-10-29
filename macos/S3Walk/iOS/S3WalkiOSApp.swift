@@ -48,7 +48,7 @@ final class MobileModel: ObservableObject {
         if let u = Bundle.main.url(forResource: "KaTeX_Math-Italic", withExtension: "ttf") { CTFontManagerRegisterFontsForURL(u as CFURL, .process, nil) }
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { fatalError("Metal が使えない") }
         self.r = r
-        HyperLabState.walkSource = { [unowned r] in .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks, hit: r.journey.marks.map { r.journey.isHit($0) }, poles: r.journey.polesHit, lap: r.journey.lap, head: r.cam.lookFrame().L, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov, plan: HyperLabState.planWanted ? r.plannedPath() : []) }   // 超球の試作に、歩いた跡・今いる所・目印を
+        HyperLabState.walkSource = { [unowned r] in .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks + r.journey.routePts, hit: r.journey.marks.map { r.journey.isHit($0) } + r.journey.routePts.map { r.journey.isRouteHit($0) }, poles: r.journey.polesHit, lap: r.journey.lap, head: r.cam.lookFrame().L, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov, plan: HyperLabState.planWanted ? r.plannedPath() : []) }   // 超球の試作に、歩いた跡・今いる所・目印を
         if UserDefaults.standard.dictionary(forKey: Store.key) == nil { MobileModel.macLook(r) }   // 初めて開いた時は Mac 版の見え方で
         Store.restore(r)
         r.set.gamepad = true                                   // 指のスティックもコントローラーと同じ入れ方で
@@ -61,7 +61,7 @@ final class MobileModel: ObservableObject {
         r.onStats = { [weak self] r in
             let c = r.cam, p = c.w.p
             let s0 = String(format: "%.0f fps・細かさ %.0f%%　アナ極から %.2f　方位 %+.0f° 仰角 %+.0f° 見回し %+.0f°/%+.0f°", r.fps, r.set.scale * 100, acos(max(-1, min(1, p.w))) * r.set.uniR, c.az, c.el, c.hy, c.hp)
-            let j = r.journey, s = j.marks.count >= 2 || !j.polesHit.isEmpty || j.lap > 1 ? s0 + "　\(j.lap) 周目" : s0   // 周回（目印 2 つ以上、なければ 8 つの極で数える）
+            let j = r.journey, s = j.marks.count >= 2 || j.routePts.count >= 2 || !j.polesHit.isEmpty || j.lap > 1 ? s0 + "　\(j.lap) 周目" : s0   // 周回（目印 2 つ以上、なければ 8 つの極で数える）
             DispatchQueue.main.async { self?.autoScale(r); if self?.hudText != s { self?.hudText = s }; self?.save(); if self?.boostSeen != HyperLabState.boostWalk || self?.shutSeen != HyperLabState.walkShut { self?.boostSeen = HyperLabState.boostWalk; self?.shutSeen = HyperLabState.walkShut; self?.applyScale() } }
         }
         setupSync()

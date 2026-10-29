@@ -44,7 +44,7 @@ struct PathWalk {
 extension Renderer {
     /// 決まった道を歩き始める（アナ極から）
     func startPath(_ m: PathMode) {
-        pathSpeed = 1
+        pathSpeed = max(0.1, set.routeStart)                 // 出発の速さ（パネルの「出発の速さ」）
         if m.isTurn { startTurn(m); return }
         resetNorth(); pathMode = m; path = PathWalk()
         if m == .ring {

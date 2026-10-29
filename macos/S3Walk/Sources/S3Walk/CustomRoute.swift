@@ -215,9 +215,13 @@ extension Renderer {
         }
         if pts.count > 1, dot4(pts[0], pts[pts.count - 1]) > cos(0.002) { pts.removeLast(); names.removeLast(); src.removeLast() }   // 最後が ① と同じなら、巡回で ① に戻る
         guard !pts.isEmpty else { say?("点を 1 つ以上入れてください（極のボタンか、座標を入れて「この点を足す」）"); return }
-        pathSpeed = 1; pathMode = .custom
+        pathSpeed = max(0.1, set.routeStart); pathMode = .custom   // 出発の速さ（パネルの「出発の速さ」）
         cr = CRWalk(pts: pts, names: names, title: route.name, once: pts.count == 1)
         cr.routeID = route.id; cr.src = src
+        // 道の点をチェックポイントに（極・目印と同じ所は、そちらで数えるので除く）。周回は道の点で数える（2 つ以上の時）
+        var cp: [V4] = [], cn: [String] = []
+        for (k, p) in pts.enumerated() where !FIXED.contains(where: { dot4($0.c, p) > cos(0.002) }) && !journey.marks.contains(where: { dot4($0, p) > cos(0.002) }) { cp.append(p); cn.append(names[k]) }
+        journey.routePts = cp; journey.routeNames = cn; journey.routeHit = []; journey.enteredRoute = []
         if set.routeFlow && pts.count >= 2 { startFlow(); return }
         let dist = acos(clamp1(dot4(cam.w.p, pts[0])))
         if dist < 0.003 {

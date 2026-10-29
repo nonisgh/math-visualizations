@@ -14,6 +14,9 @@ struct Journey {
     /// チェックポイント：歩いて通った目印（その目印の位置。並びは通った順）。目印のそば（0.12 以内）に外から入った時に記録する
     var marksHit: [V4] = []
     var polesHit: [Int] = []             // 通った極（FIXED の番号。通った順）
+    /// 自分の道の点（ランダムな点・座標で入れた点など。極・目印と同じ所は除く）も、歩いている間はチェックポイント。routeNames は知らせの名前
+    var routePts: [V4] = [], routeNames: [String] = [], routeHit: [V4] = [], enteredRoute: [V4] = []
+    func isRouteHit(_ m: V4) -> Bool { routeHit.contains { simd_distance($0, m) < 1e-9 } }
     /// 周回：目印（2 つ以上）を全部通ったら 1 周。目印が 2 つより少ない時は 8 つの極を全部通ったら 1 周。チェックをリセットして次の周へ（1 ＝ 1 周目）
     var lap = 1
     /// 1 周したら歩いた跡（道すじ・足あと）も消す（4D 球アナロジーの「1 周で跡を消す」で入り切り）
@@ -69,13 +72,32 @@ struct Journey {
             Journey.hitPulse.append((m, ProcessInfo.processInfo.systemUptime, -1))
             marksHit.append(m)
             let n = marks.filter { isHit($0) }.count
-            if n == marks.count && marks.count >= 2 {
+            if n == marks.count && marks.count >= 2 && routePts.count < 2 {
                 // 1 周：チェックをリセットして次の周へ（今いる目印は、離れてまた入った時に数える）
                 lap += 1; marksHit = []
                 if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }   // 跡も新しい周から
                 say("チェック！ 目印 \(i + 1) を通過。\(lap - 1) 周！ チェックポイントをリセットして \(lap) 周目へ")
             } else {
                 say(n == marks.count ? "チェック！ 目印 \(i + 1) を通過。これで全部の目印を通った（\(n)/\(marks.count)）" : "チェック！ 目印 \(i + 1) を通過（\(n)/\(marks.count)）")
+            }
+        }
+        // 自分の道の点も同じように（当たった時の光とチリンは目印と同じ）。2 つ以上あれば、全部通って 1 周
+        for m in routePts where !isRouteHit(m) {
+            let inNow = simd_dot(p, m) > cR, wasOut = lastP.map { simd_dot($0, m) <= cR } ?? false
+            if inNow && wasOut && !enteredRoute.contains(where: { simd_distance($0, m) < 1e-9 }) { enteredRoute.append(m) }
+            if !inNow { enteredRoute.removeAll { simd_distance($0, m) < 1e-9 } }
+        }
+        for (i, m) in routePts.enumerated() where !isRouteHit(m) && enteredRoute.contains(where: { simd_distance($0, m) < 1e-9 }) && (lastP.map { simd_dot(p, m) < simd_dot($0, m) } ?? false) {
+            enteredRoute.removeAll { simd_distance($0, m) < 1e-9 }
+            Journey.hitPulse.append((m, ProcessInfo.processInfo.systemUptime, -1))
+            routeHit.append(m)
+            let n = routePts.filter { isRouteHit($0) }.count, name = i < routeNames.count ? routeNames[i] : "道の点 \(i + 1)"
+            if n == routePts.count && routePts.count >= 2 {
+                lap += 1; routeHit = []
+                if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }
+                say("チェック！ \(name) を通過。\(lap - 1) 周！ チェックポイントをリセットして \(lap) 周目へ")
+            } else {
+                say("チェック！ \(name) を通過（\(n)/\(routePts.count)）")
             }
         }
         // 極も同じように：外からそばに入って、いちばん近づいた所を過ぎたら通ったと記録（アナ極・カタ極は上の知らせがあるので、ほかの 6 つだけ知らせる）
@@ -91,7 +113,7 @@ struct Journey {
             if k >= 2 { say("チェック！ \(MapRenderer.poleName(m))を通過（極 \(polesHit.count)/8）") }
         }
         // 目印が 2 つより少ない時は、8 つの極が周回のチェックポイント
-        if marks.count < 2 && polesHit.count >= FIXED.count {
+        if marks.count < 2 && routePts.count < 2 && polesHit.count >= FIXED.count {
             lap += 1; polesHit = []
             if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }
             say("8 つの極を全部通った！ \(lap - 1) 周。チェックポイントをリセットして \(lap) 周目へ")
@@ -131,7 +153,7 @@ extension Settings {
     static let dKeys: [(String, WritableKeyPath<Settings, Double>)] = [
         ("fov", \.fov), ("maxD", \.maxD), ("fog", \.fog), ("fade", \.fade), ("depth", \.depth),
         ("shellOp", \.shellOp), ("shellBack", \.shellBack), ("shellLum", \.shellLum), ("shellRange", \.shellRange),
-        ("spd", \.spd), ("cruise", \.cruise), ("quietScale", \.quietScale), ("mapMini", \.mapMini), ("roamK", \.roamK), ("scale", \.scale), ("mapXW", \.mapXW), ("mapYW", \.mapYW), ("mapZW", \.mapZW), ("mapD", \.mapD), ("glow", \.glow), ("uniL", \.uniL), ("mapBright", \.mapBright), ("lineViv", \.lineViv), ("modelSize", \.modelSize), ("planetSize", \.planetSize), ("gridTilt", \.gridTilt), ("gridAz", \.gridAz), ("gridSpinRate", \.gridSpinRate), ("followD", \.followD), ("mapExpand", \.mapExpand), ("trailKeep", \.trailKeep), ("hazeK", \.hazeK), ("mapWidth", \.mapWidth), ("mapSplit2", \.mapSplit2), ("mapSplit3a", \.mapSplit3a), ("mapSplit3b", \.mapSplit3b), ("autoAccel", \.autoAccel), ("autoMax", \.autoMax), ("autoAccelK", \.autoAccelK), ("autoMin", \.autoMin), ("wireFloor", \.wireFloor), ("stars", \.stars), ("band", \.band), ("nebK", \.nebK), ("bloom", \.bloom), ("expo", \.expo), ("grain", \.grain), ("lineW", \.lineW), ("solidWire", \.solidWire), ("picLine", \.picLine), ("turns", \.turns), ("tilt", \.tilt), ("prec", \.prec), ("ringStep", \.ringStep), ("map2XW", \.map2XW), ("map2YW", \.map2YW), ("map2ZW", \.map2ZW), ("mapAltXW", \.mapAltXW), ("mapAltYW", \.mapAltYW), ("mapAltZW", \.mapAltZW), ("map2AltXW", \.map2AltXW), ("map2AltYW", \.map2AltYW), ("map2AltZW", \.map2AltZW)]
+        ("spd", \.spd), ("cruise", \.cruise), ("routeStart", \.routeStart), ("quietScale", \.quietScale), ("mapMini", \.mapMini), ("roamK", \.roamK), ("scale", \.scale), ("mapXW", \.mapXW), ("mapYW", \.mapYW), ("mapZW", \.mapZW), ("mapD", \.mapD), ("glow", \.glow), ("uniL", \.uniL), ("mapBright", \.mapBright), ("lineViv", \.lineViv), ("modelSize", \.modelSize), ("planetSize", \.planetSize), ("gridTilt", \.gridTilt), ("gridAz", \.gridAz), ("gridSpinRate", \.gridSpinRate), ("followD", \.followD), ("mapExpand", \.mapExpand), ("trailKeep", \.trailKeep), ("hazeK", \.hazeK), ("mapWidth", \.mapWidth), ("mapSplit2", \.mapSplit2), ("mapSplit3a", \.mapSplit3a), ("mapSplit3b", \.mapSplit3b), ("autoAccel", \.autoAccel), ("autoMax", \.autoMax), ("autoAccelK", \.autoAccelK), ("autoMin", \.autoMin), ("wireFloor", \.wireFloor), ("stars", \.stars), ("band", \.band), ("nebK", \.nebK), ("bloom", \.bloom), ("expo", \.expo), ("grain", \.grain), ("lineW", \.lineW), ("solidWire", \.solidWire), ("picLine", \.picLine), ("turns", \.turns), ("tilt", \.tilt), ("prec", \.prec), ("ringStep", \.ringStep), ("map2XW", \.map2XW), ("map2YW", \.map2YW), ("map2ZW", \.map2ZW), ("mapAltXW", \.mapAltXW), ("mapAltYW", \.mapAltYW), ("mapAltZW", \.mapAltZW), ("map2AltXW", \.map2AltXW), ("map2AltYW", \.map2AltYW), ("map2AltZW", \.map2AltZW)]
     static let bKeys: [(String, WritableKeyPath<Settings, Bool>)] = [
         ("shell", \.shell), ("shellSolid", \.shellSolid), ("shellBare", \.shellBare), ("eq", \.eq), ("lite", \.lite), ("grand", \.grand),
         ("poles", \.poles), ("hidePair", \.hidePair), ("orient", \.orient), ("selfBall", \.selfBall), ("foot", \.foot), ("marksOn", \.marksOn),

@@ -518,6 +518,12 @@ struct PanelContent: View {
                     Picker("輪の軸", selection: model.b(\.ringAxis)) { Text("x").tag(0); Text("y").tag(1); Text("z").tag(2); Text("w").tag(3); Text("全部").tag(4) }.pickerStyle(.segmented)
                     row("1 周で回す角", \.ringStep, 2, 45, "%.0f°")
                 }
+                row("出発の速さ（×）", \.routeStart, 0.2, 16, "%.1f")
+                if r.pathMode != .none {
+                    Button(String(format: "今の道の速さ ×%.1f を出発の速さに", r.pathSpeed)) { r.set.routeStart = r.pathSpeed; model.changed() }
+                        .controlSize(.small).help("歩いている道の今の速さを、次に道を歩き始める時の速さにする")
+                }
+                note("出発の速さ：決まった道・自分の道を歩き始める時の速さ（ふつうの何倍か）。歩きながら十字の上・下で変えた速さは、その道の間だけ")
                 CustomRoutePanel(model: model)
                 note("キーかスティックで歩くと、決まった道はやめる。コントローラーの十字の上・下を押し続けると、道の速さがだんだん速く・遅く（1 秒で 2 倍・半分、最高は自走の最高速まで）")
             case .marks:

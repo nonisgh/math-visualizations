@@ -76,6 +76,7 @@ struct Settings {
     var padInvX = false, padInvY = false   // 右スティックの反転（左右・上下）。入れかえた時は、向きを変える方（左）のスティック
     var padSwap = false         // 左右のスティックを入れかえる（右で歩く・左で向き）
     var cruise = 1.0            // 記録した自走の速さ（ふつうの何倍か）。アクセル・十字で合わせた速さを覚え、止めても・ターボのあとでも、この速さから
+    var routeStart = 1.0        // 決まった道・自分の道を歩き始める時の速さ（ふつうの何倍か）。歩きながら十字で変えた速さは、次の出発には持ち越さない
     var mk = 0                  // 目印の見せ方：0 玉・1 絵（絵文字）・2 色の点・3 なし（ウェブ版の P キー）・4 模型（3D、Mac 版だけ）
     var modelKind = 3           // 模型の種類（極・自分・ついてくる仲間）：0 怪獣・1 タツノオトシゴの竜・2 うんこ・3 いろいろ（ランダム）・4 いぬ・5 ねこ・6 たぬき・7 きつね・8 たこ・9 いか
     var markGrow = true         // 置いた目印も、極の惑星と同じく宇宙と一緒に大きく（宇宙の大きさで小さくせず、もやにも沈めない）。広い宇宙でも、近づくと大きくなり、反対側を回ってきた像が追い上げてくる
@@ -263,7 +264,9 @@ final class Renderer: NSObject, MTKViewDelegate {
     /// ZL を押している間に、右スティックか Y を使ったか（使わずに離したら「前を見る」）
     private var zlUsed = false
     var journey = Journey()
-    var pathMode: PathMode = .none     // 決まった道（螺旋・回る輪）
+    var pathMode: PathMode = .none {   // 決まった道（螺旋・回る輪）
+        didSet { if pathMode != .custom && !journey.routePts.isEmpty { journey.routePts = []; journey.routeNames = []; journey.routeHit = []; journey.enteredRoute = [] } }   // 自分の道をやめたら、道の点のチェックポイントもおしまい
+    }
     var path = PathWalk()
     var turn = TurnWalk()              // ターンの道（半周 180°・極めぐり）
     var cr = CRWalk()                  // 自分の道（選んだ点を行く・往復・巡回。CustomRoute.swift）
