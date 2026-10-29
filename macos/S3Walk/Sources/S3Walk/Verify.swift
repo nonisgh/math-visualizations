@@ -68,13 +68,16 @@ enum Verify {
             let bell = s.renderTest(seconds: 1, speed: 0, zoom: 1, chimeAt: 0.2), bellFar = s.renderTest(seconds: 1, speed: 0, zoom: 0, chimeAt: 0.2)
             let turn = s.renderTest(seconds: 1, speed: 1, zoom: 1, turn: 1)
             let spR = s.renderTest(seconds: 1, speed: 1, zoom: 1, at: SIMD3(1.5, 0, 0)), spL = s.renderTest(seconds: 1, speed: 1, zoom: 1, at: SIMD3(-1.5, 0, 0))
-            check(spR.rmsR > spR.rms * 1.15 && spL.rms > spL.rmsR * 1.15 && spR.peak < 1,   // 低い音が多いので、左右の差は 2 割ほど（低い音ほど耳の差が小さい）
+            check(spR.rmsR > spR.rms * 1.1 && spL.rms > spL.rmsR * 1.1 && spR.peak < 1,   // 低い音が多いので、左右の差は 1 割ほど（低い音ほど耳の差が小さい。高いパチパチを消したので前より小さい）
                   String(format: "空間オーディオ：右から鳴らすと右の耳 %.3f > 左 %.3f、左から鳴らすと左 %.3f > 右 %.3f（割れない）", spR.rmsR, spR.rms, spL.rms, spL.rmsR))
             if let dir = ProcessInfo.processInfo.environment["S3_SNDWAV"] {     // 聞いて確かめる用：風切り音を wav に
                 for (n, sp, z, tr) in [("1_遅い", 0.4, 0.0, 0.0), ("2_速い", 1.0, 0.0, 0.0), ("3_ズーム", 1.0, 1.0, 0.0), ("4_ズーム右へ曲がる", 1.0, 1.0, 1.0), ("5_ズーム中くらい", 0.6, 1.0, 0.0)] {
                     _ = s.renderTest(seconds: 4, speed: sp, zoom: z, turn: tr, wav: dir + "/風切り_\(n).caf")
                 }
             }
+            let icy = s.renderTest(seconds: 0.5, speed: 0, zoom: 1, iceAt: 0.05), icyNo = s.renderTest(seconds: 0.5, speed: 0, zoom: 1)
+            check(icy.rms > 0.005 && icy.rms > icyNo.rms * 10 && icy.peak < 0.95, String(format: "シュパッ：止まっていても聞こえる（%.4f、鳴らさないと %.5f）、割れない（いちばん大きい値 %.2f）", icy.rms, icyNo.rms, icy.peak))
+            if let dir = ProcessInfo.processInfo.environment["S3_SNDWAV"] { _ = s.renderTest(seconds: 2, speed: 0.8, zoom: 1, turn: 0.6, iceAt: 0.5, wav: dir + "/シュパッ.caf") }
             check(still.rms < 1e-4 && slow.rms > still.rms && fast.rms > slow.rms && dive.rms > fast.rms * 1.5 && dive.peak < 0.95 && turn.rms > dive.rms && turn.rms < dive.rms * 2.6 && turn.peak < 0.95 && bell.rms > 0.01 && fast.rms < dive.rms * 0.08 && bellFar.rms > bell.rms * 0.8,
                   String(format: "風切り音：止まると無音（%.4f）、遅い %.4f < 外から全速 %.4f（かすか）< ズームで寄る %.3f < 曲がる %.3f（いちばん大きい値 %.2f、割れない）。チリン 寄って %.3f・外からも %.3f（いつも聞こえる）",
                          still.rms, slow.rms, fast.rms, dive.rms, turn.rms, max(dive.peak, turn.peak), bell.rms, bellFar.rms))
@@ -1378,7 +1381,7 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("巨大彗星・歩いた跡", 1.0, true, 0), ("大彗星・歩いた跡", 1.0, true, 0), ("予定の道・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("宇宙・半透明・星の遠近", 1.0, true, 2), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ1.00・予定の道・三人称", 1.0, true, 0), ("ダイブ0.00・予定の道", 1.0, true, 0), ("ダイブ1.00・巨大彗星・三人称", 1.0, true, 0), ("ダイブ1.00・右へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・上へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・三人称", 1.0, true, 0), ("ダイブ0.80・南へ・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("ダイブ0.60・4方向", 1.0, true, 0), ("ダイブ1.00・4方向・三人称", 1.0, true, 0), ("ダイブ0.60・軸の色", 1.0, true, 0), ("球層・軸の色・宇宙", 1.0, true, 0), ("ダイブ0.60・4方向・深海", 1.0, true, 0), ("球層・4方向・深海", 1.0, true, 0), ("球層・4方向・宇宙", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
+                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("巨大彗星・歩いた跡", 1.0, true, 0), ("大彗星・歩いた跡", 1.0, true, 0), ("予定の道・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("宇宙・半透明・星の遠近", 1.0, true, 2), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ1.00・予定の道・三人称", 1.0, true, 0), ("ダイブ1.00・予定の道・急カーブ・三人称", 1.0, true, 0), ("ダイブ0.00・予定の道・急カーブ", 1.0, true, 0), ("ダイブ0.00・予定の道", 1.0, true, 0), ("ダイブ1.00・巨大彗星・三人称", 1.0, true, 0), ("ダイブ1.00・右へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・上へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・三人称", 1.0, true, 0), ("ダイブ0.80・南へ・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("ダイブ0.60・4方向", 1.0, true, 0), ("ダイブ1.00・4方向・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・4方向・三人称", 1.0, true, 0), ("ダイブ0.60・軸の色", 1.0, true, 0), ("球層・軸の色・宇宙", 1.0, true, 0), ("ダイブ0.60・4方向・深海", 1.0, true, 0), ("球層・4方向・深海", 1.0, true, 0), ("球層・4方向・宇宙", 1.0, true, 0), ("球層・4方向・宇宙・天の川の中心", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
                 st.viewYaw = 0.5; st.viewPitch = 0.3
@@ -1408,6 +1411,7 @@ enum Verify {
                 case "球層・4方向": st.shellMode = 1
                 case "球層・4方向・深海": st.shellMode = 1; st.spaceMode = 2
                 case "球層・4方向・宇宙": st.shellMode = 1; st.spaceMode = 1
+                case "球層・4方向・宇宙・天の川の中心": st.shellMode = 1; st.spaceMode = 1; st.viewYaw = 0.9; st.viewPitch = -0.4
                 case "球層・軸の色", "球層・軸の色・ワイヤー": st.shellMode = 2
                 case "球層・軸の色・宇宙": st.shellMode = 2; st.spaceMode = 1
                 case "さんぽ印・歩いた跡": st.cursor = 0
@@ -1435,7 +1439,7 @@ enum Verify {
                     let F = c.viewFrame()
                     // 予定の道：まっすぐ 0.4 進んでから、右へ大きくカーブ（工事の看板のような光が走る所）
                     var plan: [SIMD4<Double>] = []
-                    if name.contains("予定の道") { var c2 = c; for k in 0..<130 { if k > 20 && k < 80 { c2.az += 1.6 }; let L = c2.lookFrame().L; c2.w.p = nrm(c2.w.p + L * 0.02); orthoFrame(&c2.w); plan.append(c2.w.p) } }
+                    if name.contains("予定の道") { let turnStep = name.contains("急カーブ") ? 5.0 : 1.6; var c2 = c; for k in 0..<130 { if k > 20 && k < 80 { c2.az += turnStep }; let L = c2.lookFrame().L; c2.w.p = nrm(c2.w.p + L * 0.02); orthoFrame(&c2.w); plan.append(c2.w.p) } }
                     r.walkOverride = { .init(trail: tr, pos: c.w.p, head: c.lookFrame().L, space: true, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70, plan: plan) }
                     st.diveT = Double(name.dropFirst(3).prefix(4)) ?? 0; st.spaceMode = 1; if name.hasSuffix("軸なし") { st.axesDive = false }; if name.contains("巨大彗星") { st.cursor = 3 }; if name.contains("4方向") { st.shellMode = 1 }; if name.contains("軸の色") { st.shellMode = 2 }; if name.hasSuffix("深海") { st.spaceMode = 2 }; if name.hasSuffix("三人称") { st.diveThird = true }; if let c = ProcessInfo.processInfo.environment["S3_CHASE"]?.split(separator: ",").compactMap({ Double($0) }), c.count == 3 { st.chaseDist = c[0]; st.chasePitch = c[1]; st.chaseYaw = c[2] }
                 }
@@ -1455,7 +1459,7 @@ enum Verify {
                     r.walkOverride = { .init(trail: tr, pos: tr.last!, marks: mk, hit: [true, true, true, false], poles: [0, 2], plan: plan) }   // 極はアナ極と東極を通った
                 }
                 st.tickDive(0)                                                   // なめらかに追う値（三人称の割合など）を、今の設定に合わせる
-                if name.contains("予定の道・三人称") { st.autoCam = true; _ = r.focusForTest(3) }   // オートカメラの見せ場（前のカーブへ向く）
+                if name.contains("予定の道") && name.hasSuffix("三人称") { st.autoCam = true; _ = r.focusForTest(3) }   // オートカメラの見せ場（前のカーブへ向く）
                 if name.contains("へカーブ") {                                    // 追いかけ：まっすぐ 1 秒のあと、0.4 秒きつく曲がった所（彗星が先へ流れ、カメラはまだ傾ききらない）
                     var c = Camera(); c.az = 50; var tr: [SIMD4<Double>] = [], turn = false
                     let up = name.contains("上へ")
