@@ -140,7 +140,7 @@ final class MobileModel: ObservableObject {
         let cs = r.set.cine ? screen : screen * sc
         if abs(v.contentScaleFactor - cs) > 0.001 { v.contentScaleFactor = cs }
         let hz = max(60, v.window?.screen.maximumFramesPerSecond ?? 60)
-        let fps = r.set.quiet ? 30 : (r.set.fps60 || HyperLabState.walkShut) && !HyperLabState.boostWalk ? 60 : hz   // 4D 球アナロジーのダイブ・追う間は速く
+        let fps = r.set.quiet ? 30 : (r.set.fps60 || HyperLabState.walkShut || HyperLabState.boostWalk) ? 60 : hz   // 4D 球アナロジーのダイブ・追う間も 60（超球の窓の上限と同じ）
         if v.preferredFramesPerSecond != fps { v.preferredFramesPerSecond = fps }
     }
     /// 細かさの自動（Mac 版と同じ考え）：fps が目標に 2 回続けて届かなければ粗く、4 秒続けて届いていれば少しずつ細かく
