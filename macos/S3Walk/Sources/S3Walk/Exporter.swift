@@ -384,12 +384,12 @@ final class VideoExport: ObservableObject {
         // 超球の窓のレイアウト：左の列（幅は仕切りの比率）の上に地図、下にさんぽの景色、右の残りに大きくダイブ画面。すき間は黒
         guard let s2 = st2, let g = glass else { return false }
         let gap = max(2, outW / 480)
-        let lw = max(64, min(outW - 64, Int(Double(outW) * s2.splitX))), th = max(64, min(outH - 64, Int(Double(outH) * s2.splitY)))
+        let lw = max(64, min(outW - 64, Int(Double(outW) * s2.splitX))), th = max(64, min(outH - 64, Int(Double(outH) * s2.splitAt(s2.splitK))))
         let rw = outW - lw - gap, bh = outH - th - gap
         g.clear(cb, dst)
         if let dive = r.paneTexture(rw, outH), r.renderExport(cb, into: dive, w: rw, h: outH, withMap: false) { g.copy(cb, dive, into: dst, x: lw + gap, y: 0, w: rw, h: outH) }
         if let map = r.overviewTexture(cb, lw, th) { g.copy(cb, map, into: dst, x: 0, y: 0, w: lw, h: th) }
-        if s2.map2 && (force || s2.diveT > 0) {                            // 地図 2 枚：左下はW 地図
+        if s2.map2 && (force || s2.diveT > 0) {                            // 地図 2 枚：左下はY-W 地図
             if let m2 = r.overviewTexture(cb, lw, bh, motion: true) { g.copy(cb, m2, into: dst, x: 0, y: th + gap, w: lw, h: bh) }
         } else if let walk = r.walkSceneTexture(cb, lw, bh, cam: rec.walkCam) { g.copy(cb, walk, into: dst, x: 0, y: th + gap, w: lw, h: bh) }
         return true
@@ -435,7 +435,7 @@ final class VideoExport: ObservableObject {
         let k = dive.width / CGFloat(max(200, HyperLabRenderer.liveRightW)), ks = k * CGFloat(s2.uiScale)
         if lay == 1 {
             let gap = max(2, outW / 480)
-            let lw = max(64, min(outW - 64, Int(Double(outW) * s2.splitX))), th = max(64, min(outH - 64, Int(Double(outH) * s2.splitY)))
+            let lw = max(64, min(outW - 64, Int(Double(outW) * s2.splitX))), th = max(64, min(outH - 64, Int(Double(outH) * s2.splitAt(s2.splitK))))
             let map = CGRect(x: 0, y: 0, width: lw, height: th), walk = CGRect(x: 0, y: th + gap, width: lw, height: outH - th - gap)
             // さんぽの景色の極（色の点と名前。さんぽの窓と同じ）。カメラは記録したさんぽのカメラ
             let two = s2.map2 && (force || s2.diveT > 0)
@@ -447,8 +447,8 @@ final class VideoExport: ObservableObject {
                 if pen { for i in ls.indices { ls[i].name = MapRenderer.poleNameToEN(ls[i].name) } }
                 hud.poles(ls, in: walk, k: k, serif: pen)
             }
-            hud.caption("ナビ地図", in: map, k: k)
-            hud.caption(two ? "W 地図" : "【さんぽの景色】今いる所から見た S³（歩くのはさんぽの窓・コントローラーで）", in: walk, k: k)
+            hud.caption("自分地図\n自分が真ん中\n進む向きが上", in: map, k: k)
+            hud.caption(two ? "Y-W 地図\nw の高さで回る\n赤と紫が重なる" : "【さんぽの景色】今いる所から見た S³（歩くのはさんぽの窓・コントローラーで）", in: walk, k: k)
             hud.caption("【観察側】4D の超球（球殻を積む）　ドラッグで見る向き", in: dive, k: k)
         }
         // 走行中の座標（左上）・周回（右上）・角度の読み（左下）。ダイブ画面だけで左上に地図がある時は、座標は地図の下へ

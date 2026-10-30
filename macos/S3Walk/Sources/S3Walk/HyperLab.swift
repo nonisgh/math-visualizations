@@ -101,6 +101,9 @@ final class HyperLabState: ObservableObject {
     var showRoll = 0.0                                                // ショーカメラの傾き（斜めに構えて迫力を出す。ゆっくり追う）
     @Published var autoCam = true                                     // オートカメラ（ズームの三人称）：ゆっくり周りを漂い、曲がる時は外側へ回り込む（よく見える角度へ）
     @Published var splitX = 0.5                                       // 画面の仕切り：左の列の幅（窓の幅に対して）
+    let splitA = HLSplitAnim()
+    var splitK = 0.0, splitP = 0.0                                    // 交差で仕切りを下げる量（0〜1）とその進み
+    func splitAt(_ k: Double) -> Double { max(splitY, min(0.8, splitY + 0.22 * k)) }
     @Published var splitY = 0.5                                       // 画面の仕切り：左の列の上の画面の高さ
     @Published var axesDive = true                                    // ズーム（ダイブ）の間も座標軸を出す
     @Published var railOn = false                                     // 先に道を描く：決まった道・自分の道の 1 周ぶんを、歩く前から細い線で（ジェットコースターのレール）
@@ -122,7 +125,7 @@ final class HyperLabState: ObservableObject {
     @Published var shutAuto = false                                   // 前の窓だけ描く（自動）：超球の窓が前ならさんぽの窓（景色・地図）を止め、さんぽの窓が前ならさんぽを描いて超球は控えめに。瞬時に切りかえ
     @Published var shutWalk = false                                   // さんぽの窓は描かない：さんぽの窓（景色・地図）を止め、描くのはこの窓だけ（景色の画面・ダイブは描く。歩く計算・跡はそのまま）
     @Published var naviCenter = true                                  // 上の地図を車のナビのように（自分がいつも真ん中で、背景が動く）
-    @Published var map2 = true                                        // ダイブの間、さんぽの景色の場所をW 地図にする（地図 2 枚）
+    @Published var map2 = true                                        // ダイブの間、さんぽの景色の場所をY-W 地図にする（地図 2 枚）
     var map2Now: Bool { map2 && (diveOn || diveT > 0) }
     @Published var ovShow = true                                      // 地図の構図：ダイブの間、全体像の向きを自動で（横から球層を見せる・赤と紫の玉を重ねて見せる）
     @Published var glareAuto = true                                   // 強い照り返しをよける（白いかたまりになる向きの間だけ、さっと弱める）
@@ -594,6 +597,14 @@ struct HLSplitBar: View {
 final class HLStats: ObservableObject { @Published var text = "" }
 /// 動いている間に変わる表示（角度の読み・景色の重ねぐあい）。パネル全体を描き直すと 40 ms ほど止まってカクつくので、ここだけ描き直す
 final class HLLive: ObservableObject { @Published var angles = ""; @Published var fade = 0.0; @Published var lap = ""; @Published var coords = "" }
+/// 赤玉・紫玉の交差で、左の列の仕切りをゆっくり下げる量（0〜1）。パネル全体を描き直さないよう、ここだけ見る
+final class HLSplitAnim: ObservableObject { @Published var k = 0.0 }
+struct HLSplitK<C: View>: View {
+    @ObservedObject var a: HLSplitAnim
+    let c: (Double) -> C
+    init(a: HLSplitAnim, @ViewBuilder c: @escaping (Double) -> C) { self.a = a; self.c = c }
+    var body: some View { c(a.k) }
+}
 /// 周回（右の画面の隅に小さく）
 struct HLLapLabel: View {
     @ObservedObject var live: HLLive
@@ -652,7 +663,7 @@ struct HLVert { var p: SIMD4<Float>; var n: SIMD4<Float>; var c: SIMD4<Float> }
 /// 描く時の定数：key・rim は照り返しライトの向き（カメラについて回る）、camR・camU はカメラの右・上（グレアの帯）、g は（光沢・グレア・光を当てる・未使用）
 /// 右の殻の毎コマの定数（シェーダーの HR）
 struct HLRight { var m4 = matrix_identity_float4x4; var q = SIMD4<Float>(1, 1, 3.8, 1.55); var r = SIMD4<Float>(1.35, 48, 0, 0); var d = SIMD4<Float>(0.6, 0, 0, 0); var e = SIMD4<Float>(0, 0, 0, 0); var s = SIMD4<Float>(0, 0, 0, 0); var t = SIMD4<Float>(0, 0, 0, 0); var f = SIMD4<Float>(0, 0, 0, 0)
-    var a0 = SIMD4<Float>(0, 0, 0, 0), a1 = SIMD4<Float>(0, 0, 0, 0), a2 = SIMD4<Float>(0, 0, 0, 0), a3 = SIMD4<Float>(0, 0, 0, 0) }   // a0〜a3：予定の道の矢印の明かり（S³ の点。強さは t.w）   // f：進む向き（S³ の接する向き。ヘッドライト）   // s：自分のいる所（S³ の点）、t.x：その近くを濃くする強さ（下の HR と同じ）
+    var a0 = SIMD4<Float>(0, 0, 0, 0), a1 = SIMD4<Float>(0, 0, 0, 0), a2 = SIMD4<Float>(0, 0, 0, 0), a3 = SIMD4<Float>(0, 0, 0, 0), n = SIMD4<Float>(0, 0, 0, 0) }   // a0〜a3：予定の道の矢印の明かり（S³ の点。強さは t.w）   // f：進む向き（S³ の接する向き。ヘッドライト）   // s：自分のいる所（S³ の点）、t.x：その近くを濃くする強さ（下の HR と同じ）
 /// 名前の札の頂点（位置・文字の絵の座標）
 struct HLLabelVert { var p: SIMD4<Float>; var uv: SIMD4<Float> }
 struct HLCometVert { var p: SIMD4<Float>; var q: SIMD4<Float>; var c = SIMD4<Float>(1, 1, 1, 1) }
@@ -687,7 +698,7 @@ vertex O ringv(uint vid [[vertex_id]], uint iid [[instance_id]], const device fl
 }
 // 右の殻（GPU で 4D の回転・遠近）：元の点（層ごとに緯度 × 経度の 4D の点）は 1 度だけ送り、回す行列だけを毎コマ渡す。
 //   法線はとなりの点を同じように写して求める。4D の裏側（4D の視点から見て奥の半分）は暗く・くすませる（ウェブ版の「裏側を暗く」）
-struct HR { float4x4 m4; float4 q; float4 r; float4 d; float4 e; float4 s; float4 t; float4 f; float4 a0; float4 a1; float4 a2; float4 a3; };   // a0〜a3：矢印の明かり   // f：進む向き（ヘッドライト）   // s：自分のいる所（S³ の点）、t.x：その近くの殻・網目を濃くする強さ（selfK）
+struct HR { float4x4 m4; float4 q; float4 r; float4 d; float4 e; float4 s; float4 t; float4 f; float4 a0; float4 a1; float4 a2; float4 a3; float4 n; };   // a0〜a3：矢印の明かり   // f：進む向き（ヘッドライト）   // s：自分のいる所（S³ の点）、t.x：その近くの殻・網目を濃くする強さ（selfK）
 // 自分のいる所の近さ（0〜1）：S³ の上の角度で 0.15 以内は 1、0.6 で 0 へ（殻が自分のそばを通り過ぎる時に浮かぶ）
 // ヘッドライト（h.t.y）：自分のいる所から S³ の上で遠いほど暗く（0.35 で 1、1.6 で 0.4 倍）。ダイブの景色の時だけ
 inline float headK(float4 b, constant HR& h) {
@@ -709,8 +720,14 @@ inline float arrowK(float4 b, constant HR& h) {
 inline float selfK(float4 b, constant HR& h) { if (h.t.x <= 0.0) return 0.0; float a = acos(clamp(dot(b / h.r.x, h.s), -1.0, 1.0)); return h.t.x * (1.0 - smoothstep(0.15, 0.6, a)); }   // e：4D の遠近（x かすみ・y ぼかし の強さ）    // q：色の倍率・透明度・camW・SCALE、r：R・網目の細かさ M、d.x：遠近の下限（ふだん 0.6、ダイブで近づく時は小さく）
 // 4D の奥行き：見る人の 4 次元の視線（w′）に沿って、手前（＋R）0 〜 奥（−R）1。物体の w 軸ではなく、回したあとの w′（見る向き）で測る
 inline float dep4(float vw, constant HR& h) { return clamp((h.r.x - vw) / (2.0 * h.r.x), 0.0, 1.0); }
-// 玉の交差を透かす（h.e.w）：w の極のまわりの殻（赤玉・紫玉）だけ残して、間の殻を透明に
-inline float ballK(float4 b, constant HR& h) { return mix(1.0, smoothstep(0.80, 0.96, abs(b.w) / h.r.x) * (1.0 + 0.9 * h.e.w), h.e.w); }
+// 極星の交差を透かす（h.e.w）：今通る極の軸（h.d.w。0 x・1 y・2 z・3 w）の両端のまわりだけ残して、間の殻を透明に
+inline float ballK(float4 b, constant HR& h) { if (h.e.w <= 0.0) return 1.0; return mix(1.0, smoothstep(0.80, 0.96, abs(b[int(h.d.w)]) / h.r.x) * (1.0 + 0.9 * h.e.w), h.e.w); }
+// 自分のまわりの穴（h.n.w。xyz はカメラの向き）：真ん中の自分とカメラの間の殻だけ透かす（やわらかい筒の形）
+inline float holeK(float3 P, constant HR& h) {
+    if (h.n.w <= 0.0) return 1.0;
+    float R3 = h.r.x * h.q.w, along = dot(P, h.n.xyz) / R3, rad = length(P - h.n.xyz * dot(P, h.n.xyz)) / R3;
+    return 1.0 - h.n.w * (1.0 - smoothstep(0.26, 0.5, rad)) * smoothstep(-0.06, 0.1, along);
+}
 inline float3 hproj(float4 b, constant HR& h) { float4 v = h.m4 * b; return v.xyz * (h.q.z / max(h.d.x, h.q.z - v.w) * h.q.w); }
 vertex O hrv(uint vid [[vertex_id]], const device float4* base [[buffer(0)]], constant U& u [[buffer(1)]], constant HR& h [[buffer(2)]], const device float4* lc [[buffer(3)]]) {
     uint M = uint(h.r.y), M1 = M + 1, per = M1 * M1, L = vid / per, k = vid % per, i = k / M1, j = k % M1, o0 = L * per;
@@ -726,7 +743,7 @@ vertex O hrv(uint vid [[vertex_id]], const device float4* base [[buffer(0)]], co
     // 殻（g.z ＝ 2）：光は頂点ごとに計算して面の上でなめらかにつなぐ（21 枚の半透明の殻を全部の画素で計算すると、とても重い。殻はなめらかな球なので頂点で十分）
     // 4 方向レインボー（h.r.z）：殻が何枚も重なるので、表面をざらっと（てかりがぼんやり広がる。殻ごとの小さなてかりが点々と並んで白い筋にならない）
     if (u.g.z > 1.5) o.c = lightHL(n, P, o.c, h.r.z > 0.0 ? 0.6 : 0.0, u);
-    o.c.a *= ballK(b, h);                                             // 反射の明るさも一緒に透かす（照り返しは不透明さを足すので、光のあとで）
+    o.c.a *= ballK(b, h) * holeK(P, h);                                             // 反射の明るさも一緒に透かす（照り返しは不透明さを足すので、光のあとで）
     // 自分の近くの殻：少し濃く・明るく（離れるほど元に）
     { float sk = selfK(b, h), ak = arrowK(b, h); o.c.a *= 1.0 + 1.6 * sk + 0.9 * ak; o.c.rgb *= (1.0 + 0.35 * sk) * max(headK(b, h), 0.7 + 0.3 * ak) + float3(1.0, 0.78, 0.35) * 0.12 * ak; }
     // 斜めから見た殻は濃く（薄い膜を斜めに通る光は、膜の中を長く通る：1 −（1 − a）^(1／cos)）。ふつうのレインボー（h.t.z）。
@@ -770,7 +787,7 @@ inline void hshade(uint vid, const device float4* base, constant HR& h, const de
     bl = h.e.y * pow(dp, 1.25);                                         // 4D のぼかし：奥ほど太く・やわらかく・淡く（ぼけた線の見え方）
     float la = h.r.z > 0.0 ? min(lc[L].a, h.r.z) : lc[L].a;              // 網目の濃さの上限（4 方向レインボー）
     float sk = selfK(b, h), ak = arrowK(b, h); la *= 1.0 + 1.3 * sk + 0.8 * ak; col = col * (1.0 + 0.4 * sk) * max(headK(b, h), 0.7 + 0.3 * ak) + float3(1.0, 0.78, 0.35) * 0.18 * ak;   // 自分の近くの網目：少し強く（離れるほど元に）。遠くはヘッドライトで暗く
-    c = float4((col + (gray - col) * (h.d.y * bk)) * (1.0 - h.d.z * bk), h.q.y * la * (1.0 - 0.5 * hz) / (1.0 + 3.5 * bl) * ballK(base[vid], h)); ph = float(j) / float(M) * 2.0 * M_PI_F;   // 網目の裏側：灰色へ寄せる割合 d.y・暗くする割合 d.z
+    c = float4((col + (gray - col) * (h.d.y * bk)) * (1.0 - h.d.z * bk), h.q.y * la * (1.0 - 0.5 * hz) / (1.0 + 3.5 * bl) * ballK(base[vid], h) * holeK(P, h)); ph = float(j) / float(M) * 2.0 * M_PI_F;   // 網目の裏側：灰色へ寄せる割合 d.y・暗くする割合 d.z
 }
 vertex WO hrwv(uint vid [[vertex_id]], uint iid [[instance_id]], const device float4* base [[buffer(0)]], constant U& u [[buffer(1)]], constant HR& h [[buffer(2)]],
                const device float4* lc [[buffer(3)]], const device uint* idx [[buffer(4)]], constant float4& k [[buffer(5)]]) {
@@ -785,7 +802,8 @@ vertex WO segwv(uint vid [[vertex_id]], uint iid [[instance_id]], constant V* vs
     return wideLine(u.mvp * wa, u.mvp * wb, a.c, b.c, wa.xyz, wb.xyz, 0, 0, vid, k, 0, 0);
 }
 fragment float4 wlf(WO in [[stage_in]], constant U& u [[buffer(1)]]) {
-    if (u.cut.x > 2.5) { if (dot(in.wp, u.cutN.xyz) > u.cutN.w) discard_fragment(); }
+    if (u.cut.x > 3.5) { if (dot(in.wp, u.cutN.xyz) > 0.0 && dot(in.wp, u.cut.yzw) > 0.0) discard_fragment(); }   // 2 枚の面の両方の側（地球の断面図のくさび）
+    else if (u.cut.x > 2.5) { if (dot(in.wp, u.cutN.xyz) > u.cutN.w) discard_fragment(); }
     else if (u.cut.x > 0.5) {
         float a = (u.cut.x < 1.5 ? atan2(dot(in.wp, u.camR.xyz), dot(in.wp, cross(u.camR.xyz, u.camU.xyz))) : in.ph) - u.cut.y;
         a -= 2.0 * M_PI_F * floor((a + M_PI_F) / (2.0 * M_PI_F));
@@ -1121,7 +1139,8 @@ float4 lightHL(float3 nIn, float3 wp, float4 c, float roughAdd, constant U& u) {
 }
 fragment float4 hlf(O in [[stage_in]], constant U& u [[buffer(1)]]) {
     // 断面カット（ウェブ版と同じ）：画面に固定は、画面から見た向き（0 ＝ 手前・右回りに 90° ＝ 右）、物体に固定は殻の経度。くさびの中は描かない
-    if (u.cut.x > 2.5) { if (dot(in.wp, u.cutN.xyz) > u.cutN.w) discard_fragment(); }   // 平面で切る：向きの側（手前）を消す
+    if (u.cut.x > 3.5) { if (dot(in.wp, u.cutN.xyz) > 0.0 && dot(in.wp, u.cut.yzw) > 0.0) discard_fragment(); }   // 2 枚の面の両方の側（地球の断面図のくさび）
+    else if (u.cut.x > 2.5) { if (dot(in.wp, u.cutN.xyz) > u.cutN.w) discard_fragment(); }   // 平面で切る：向きの側（手前）を消す
     else if (u.cut.x > 0.5) {
         float a = (u.cut.x < 1.5 ? atan2(dot(in.wp, u.camR.xyz), dot(in.wp, cross(u.camR.xyz, u.camU.xyz))) : in.ph) - u.cut.y;
         a -= 2.0 * M_PI_F * floor((a + M_PI_F) / (2.0 * M_PI_F));
@@ -1139,7 +1158,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     let side: Side, st: HyperLabState
     /// 全体像（ダイブ中に 3D の球の場所へ出す、ダイブしていない超球）：ダイブは見ない
     var overview = false
-    var ovMotion = false                                              // 全体像のうち、W 地図（軸がうねうね動く・断面・中へ入る）。ふつうの全体像はナビ地図
+    var ovMotion = false                                              // 全体像のうち、Y-W 地図（軸がうねうね動く・断面・中へ入る）。ふつうの全体像は自分地図
     // 動画の書き出し（記録 → 書き出し）で、記録した時刻・拍・細かさで描き直すための差しかえ。nil ならふだんどおり
     var clockOverride: Double? = nil, domOverride: Double? = nil, renderKOverride: Double? = nil
     var nowT: Double { clockOverride ?? CACurrentMediaTime() }
@@ -1424,9 +1443,11 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     /// 地図の構図（全体像だけの向き）：ダイブの間、ときどき w 軸を横にして球層の重なりを見せ、赤い玉・紫の玉を通る時は w 軸に沿って正面から（今の玉の真後ろにもう 1 つが隠れる）
     private var ovAng: SIMD4<Double>? = nil, ovCur: SIMD4<Double>? = nil, ovVel = SIMD4<Double>(0, 0, 0, 0), ovDrift = 0.0, ovLast = -9.0, ovCutK = 0.0, ovCutLast = -99.0, ovSpd = 0.0, ovDist0: Double? = nil
     private var ovLogT = -9.0
-    private var ovBallT = -99.0
+    private var ovBallT = -99.0, ovPeekT = -1.0, ovCutSlow = true, ovWedgeT = -1.0, ovWedgeK = 0.0, ovWedgeLast = -99.0, ovPitch = 0.0, ovViewYaw = 0.0
+    /// YZ の面（x ＝ 0）の法線：x 軸が地図の 3D でどちらを向いているか
+    private func ovYZNormal() -> SIMD3<Double> { let v = xf(SIMD4(1, 0, 0, 0)); return SIMD3(v.x, v.y, v.z) }
     private func tickOvShot() {
-        guard overview, ovMotion, st.ovShow, st.diveT > 0.3, let w = (wsrc)?() else { ovAng = nil; ovCur = nil; ovVel = .zero; ovCutK = 0; ovDist0 = nil; return }
+        guard overview, ovMotion, st.ovShow, st.diveT > 0.3, let w = (wsrc)?() else { ovAng = nil; ovCur = nil; ovVel = .zero; ovCutK = 0; ovPeekT = -1; ovWedgeT = -1; ovWedgeK = 0; ovPitch = 0; ovViewYaw = 0; ovDist0 = nil; return }
         let now = nowT, dt = max(0, min(0.1, now - ovLast)); ovLast = now
         let cur0 = SIMD4(st.zw, st.yaw, st.pitch, st.roll)
         var cur = ovCur ?? cur0
@@ -1443,8 +1464,33 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         var target = cur0
         if ball { ovBallT = now }
         // 断面：外の殻に隠れていた赤玉と紫玉を見せる
-        let open: Double = abs(sin(cur.z)) < 0.72 ? 1 : 0                // 回転の角度で判断：赤と紫が重なる向き（0°・180°）に近づいたら、すかさず開く（約 0.3 秒）。離れたらゆっくり閉じる
-        ovCutK += (open - ovCutK) * (1 - exp(-dt * (open > 0 ? 4 : 1)))
+        let ballOpen = abs(sin(cur.z)) < 0.72                            // 回転の角度で判断：赤と紫が重なる向き（0°・180°）に近づいたら、すかさず開く（約 0.3 秒）。離れたらゆっくり閉じる
+        // 見せ場：w に沿って上り下りしている時に、地球の断面図のように YZ の面から 90° 開いて中を見せる（5 秒で閉じ始める。18 秒あける）。
+        //   z は画面の奥行きなので、開く間はカメラを横へ 45°・少し上へ回して、2 枚の切り口を見せる
+        let climb = abs(w.fwd.w)
+        let yzN = ovYZNormal()
+        if ovWedgeT < 0 && !ballOpen && ovPeekT < 0 && ovCutK < 0.05 && climb > 0.6 && now - ovWedgeLast > 18 && simd_length(yzN) > 0.3 {
+            ovWedgeT = now; ovWedgeLast = now
+            if Self.glintLog { print(String(format: "くさび %.1f 秒 %@", now, w.fwd.w > 0 ? "上り" : "下り")) }
+        }
+        if ovWedgeT >= 0 && (ballOpen || now - ovWedgeT > 5) { ovWedgeT = -1 }
+        let wedgeTo: Double = ovWedgeT >= 0 ? 1 : 0
+        ovWedgeK += (wedgeTo - ovWedgeK) * (1 - exp(-dt * 1.6))
+        ovViewYaw += (wedgeTo * 0.8 - ovViewYaw) * (1 - exp(-dt * 1.1))
+        if ovWedgeK < 0.002 { ovWedgeK = 0 }
+        // 中を通る時：彗星のすぐ手前までを軽く切って見せて、2.5 秒ですぐ戻す（8 秒あける）
+        if !ballOpen && ovPeekT < 0 && ovWedgeT < 0 && ovWedgeK < 0.05 && rr < 0.5 && now - ovCutLast > 8 {
+            ovPeekT = now; ovCutLast = now
+            if Self.glintLog { print(String(format: "中の断面 %.1f 秒 中心から %.2f", now, rr)) }
+        }
+        if ballOpen || (ovPeekT >= 0 && now - ovPeekT > 2.5) { ovPeekT = -1 }
+        var open = ballOpen ? 1.0 : 0.0
+        if ovPeekT >= 0 {
+            let depth = simd_dot(walkPlace(w.pos).0, camBasis().3) / (Self.R * Self.SCALE * 1.15)
+            open = max(0.2, min(0.75, 0.9 - depth))
+        }
+        if ballOpen { ovCutSlow = true } else if ovPeekT >= 0 { ovCutSlow = false }
+        ovCutK += (open - ovCutK) * (1 - exp(-dt * (open > ovCutK ? 4 : ovCutSlow ? 1 : 3)))
         if ovCutK < 0.002 { ovCutK = 0 }
         // 向きは Y-W 面の回転 1 つだけ：自分の w の高さで決まる。アナ極で 0°（赤玉が手前、紫玉が真後ろ）、赤道で 90°（球層が真横）、カタ極で 180°（紫玉が手前、赤玉が真後ろ）
         let py = acos(max(-1, min(1, w.pos.w / max(1e-9, simd_length(w.pos)))))
@@ -1458,15 +1504,20 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             cur[k] = HyperLabState.norm(cur[k] + ovVel[k] * dt)
         }
         ovCur = cur
+        // 斜め上・斜め下へゆっくり振る（1 往復 40 秒）。赤と紫が重なる時は真横に戻す
+        let pitTo: Double = ballOpen ? 0 : ovWedgeT >= 0 ? 0.4 : 0.5 * sin(now * 2 * .pi / 40)
+        ovPitch += (pitTo - ovPitch) * (1 - exp(-dt * 0.7))
         ovDrift = HyperLabState.norm(ovDrift + dt * 0.045)                // いつもゆっくり回っている（2 分あまりで 1 周）
         ovAng = cur + SIMD4(0, ovDrift, 0, 0)
         if Self.glintLog && now - ovLogT >= 3 { ovLogT = now; print(String(format: "地図 %.0f 秒 w %+.2f 目標 %.2f 今 %.2f 回 %.2f 面内 %.2f 全 %.2f", now, w.pos.w, target[2], cur[2], cur[3], cur[1], cur[0])) }
     }
     /// 上の地図（車のナビ）：自分がいつも真ん中で、背景が動く。自分のいる所を 4 次元の手前（w）へ、進む向きを画面の上（y）へ、右を右（x）へ写す。
     ///   ダイブの間だけ。曲がる時に背景がぱっと回らないよう、向きは少しならす
-    private var naviM: simd_double4x4? = nil, naviR = SIMD4<Double>(0, 0, 0, 0), naviF = SIMD4<Double>(0, 0, 0, 0), naviU = SIMD4<Double>(0, 0, 0, 0), naviLast = -9.0, naviBall = 0.0
+    private var naviM: simd_double4x4? = nil, naviR = SIMD4<Double>(0, 0, 0, 0), naviF = SIMD4<Double>(0, 0, 0, 0), naviU = SIMD4<Double>(0, 0, 0, 0), naviLast = -9.0, naviBall = 0.0, naviAxis = 3, naviHole = 0.0
     private func tickNavi() {
-        guard overview, !ovMotion, st.naviCenter, st.diveT > 0.3, let w = (wsrc)?(), simd_length(w.vL) > 0.5, simd_length(w.vR) > 0.5 else { naviM = nil; naviBall = 0; return }
+        guard overview, !ovMotion, st.naviCenter, st.diveT > 0.3, let w = (wsrc)?(), simd_length(w.vL) > 0.5, simd_length(w.vR) > 0.5 else {
+            if overview && !ovMotion && naviM != nil { st.splitK = 0; st.splitP = 0; st.splitA.k = 0 }
+            naviM = nil; naviBall = 0; naviHole = 0; return }
         let now = nowT, dt = max(0, min(0.1, now - naviLast)); naviLast = now
         let p = simd_normalize(w.pos), f0 = simd_length(w.fwd) > 0.5 ? w.fwd : w.vL
         if naviM == nil { naviR = w.vR; naviF = f0; naviU = w.vU }
@@ -1476,9 +1527,21 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         func clean(_ v: SIMD4<Double>, _ o: [SIMD4<Double>]) -> SIMD4<Double> { var t = v; for q in o { t -= q * simd_dot(t, q) }; let l = simd_length(t); return l < 1e-9 ? v : t / l }
         naviF = clean(naviF, [p]); naviR = clean(naviR, [p, naviF]); naviU = clean(naviU, [p, naviF, naviR])
         naviM = simd_double4x4(rows: [naviR, naviF, naviU, p])
-        // 赤玉・紫玉のそばを通る間だけ、間の殻を透かす（交わる所が見える）。さっと透けて、ゆっくり戻る
-        let toBall = acos(min(1, abs(p.w))), want: Double = toBall < 0.62 ? 1 : 0
+        // 極星のそばを通る間だけ、間の殻を透かす（正反対の極星と交わる所が見える）。さっと透けて、ゆっくり戻る。軸は、いちばん近い極の軸（戻る間は前の軸のまま）
+        let ap = abs(p), ak = (0..<4).max { ap[$0] < ap[$1] } ?? 3
+        let toBall = acos(min(1, ap[ak])), want: Double = toBall < 0.62 ? (ak == 3 ? 1 : 0.35) : 0   // 赤玉・紫玉はしっかり、ほかの極星は軽く
+        if want > 0 {
+            if Self.glintLog && (naviAxis != ak || naviBall < 0.02) { print(String(format: "透かす %.1f 秒 軸 %d", now, ak)) }
+            naviAxis = ak
+        }
         naviBall += (want - naviBall) * (1 - exp(-dt * (want > 0 ? 3.5 : 1.2)))
+        // 赤玉・紫玉の交差：上の地図をゆっくり大きくして、通り過ぎたらゆっくり戻す。単振動のなめらかさ（cos の半周。動き出しと止まりの速さが 0）で、3.2 秒で開いて 3.6 秒で戻す
+        let bigTo: Double = ak == 3 && toBall < 0.75 ? 1 : 0
+        st.splitP = max(0, min(1, st.splitP + (bigTo > 0 ? dt / 3.2 : -dt / 3.6)))
+        st.splitK = 0.5 - 0.5 * cos(.pi * st.splitP)
+        if abs(st.splitA.k - st.splitK) > 0.004 || (st.splitK == 0 && st.splitA.k != 0) { st.splitA.k = st.splitK }
+        // 自分のまわりの穴：いつも開けておく。極星のそばを通る間は閉じる（赤玉・紫玉の間は、間の殻が透けるので見える）
+        naviHole += ((want > 0 ? 0 : 1) - naviHole) * (1 - exp(-dt * 2.5))
     }
     func xf(_ v0: SIMD4<Double>) -> SIMD4<Double> {
         if let m = naviM { return m * v0 }
@@ -1665,7 +1728,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     ///   落ち込みでは、カメラが前の高い所へゆっくり舞い上がり、向かってくる彗星を見下ろす（彗星はカメラの下へ落ちていく）。抜けたら少しして後ろへ戻る。
     ///   マンネリにならないよう、最近使った 3 つは選ばず、角度・距離に毎回少し揺らぎを入れ、4 回に 1 回はあえて先回りしない
     private func aiDirector(_ dt: Double) -> (Double, Double, Double, Double, Double, Double)? {
-        // 赤い玉（アナ極）・紫の玉（カタ極）を通る時：真後ろから傾けずに、玉へまっすぐ向かう（彗星が玉に入っていくのが正面からわかる）。通り抜けたら、いつもの動きへ
+        // 赤い玉（アナ極）・紫の玉（カタ極）を通る時：真後ろから傾けずに、少し下がって玉へまっすぐ向かう（2 つの玉の交差がわかる）。通り抜けたら、いつもの動きへ
         if let w = (wsrc)?() {
             func toPole(_ p: SIMD4<Double>) -> Double { acos(min(1, abs(p.w) / max(1e-9, simd_length(p)))) }
             let here = toPole(w.pos)
@@ -1673,7 +1736,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             for i in stride(from: 0, to: min(w.plan.count, 45), by: 3) { next = min(next, toPole(w.plan[i])) }
             if here < 0.42 || next < 0.3 {
                 aiShot = nil; aiKey = -99; aiHold = 0
-                return (0, 0.14, 1.2, 0, 0, 0)
+                return (0, 0.14, 1.7, 0, 0, 0)
             }
         }
         var ahead: (cat: Int, sg: Double)? = nil
@@ -2196,6 +2259,8 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             // 4D の遠近：ダイブで寄るほど弱める（寄った所は景色と同じに）
             let dk = st.depth4On ? Float(st.depth4K * (1 - Self.diveEase(dvT).1)) : 0
             hg.e = SIMD4(st.depth4 == 1 || st.depth4 == 3 ? dk : 0, st.depth4 >= 2 ? dk : 0, 0, Float(naviBall)); hl.e = hg.e
+            hg.d.w = Float(naviAxis); hl.d.w = hg.d.w
+            if naviHole > 0.001 { hg.n = SIMD4(SIMD3<Float>(simd_normalize(eye)), Float(naviHole)); hl.n = hg.n }
             // 天の川の淡い光は出さない（暗いのが魅力）。天の川は星の密度で見せる（drawStars）
             var ug = u; ug.g.z = HyperLabState.shellPixelLight ? 1 : 2; ug.g.w = 0   // 殻の光：ふだんは頂点ごと（2）。比べる時は画素ごと（1）
             var ul = u; ul.g.z = 0
@@ -2616,6 +2681,20 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     }
     /// 平面で切る：平面の向きと位置を定数へ（左右とも。くさびは右だけ、別に）。画面に固定は手前・右・上、物体に固定は x・y・z（左は球と一緒に傾く）
     private func planeCut(_ u: inout HLUni) {
+        if overview && ovWedgeK > 0.005 && ovWedgeK >= ovCutK {           // 見せ場：地球の断面図のように、YZ の面ともう 1 枚の面で、カメラの側を 90° 開く
+            let B = camBasis().3
+            var n = ovYZNormal(); let l = simd_length(n); n = l > 1e-6 ? n / l : camBasis().1
+            if simd_dot(n, B) < 0 { n = -n }
+            let v4 = xf(SIMD4(0, 0, 0, 1)); var a = SIMD3(v4.x, v4.y, v4.z); a -= n * simd_dot(a, n)    // くさびの軸：w 軸の見え方（YZ の面の中）
+            if simd_length(a) < 1e-6 { a = camBasis().2 - n * simd_dot(camBasis().2, n) }
+            a = simd_normalize(a)
+            var m = simd_cross(a, n); if simd_dot(m, B) < 0 { m = -m }
+            let hw = Double.pi / 4                                        // 90° の半分。開ききった時、2 枚の面が YZ の面とそれに直角の面になる
+            let c: SIMD3<Double> = m * cos(hw) + n * sin(hw), t: SIMD3<Double> = n * cos(hw) - m * sin(hw), h = hw * ovWedgeK   // 閉じた所から、c を中心に開いていく
+            let n1: SIMD3<Double> = c * sin(h) - t * cos(h), n2: SIMD3<Double> = c * sin(h) + t * cos(h)
+            u.cut = SIMD4(4, Float(n2.x), Float(n2.y), Float(n2.z)); u.cutN = SIMD4(SIMD3<Float>(n1), 0)
+            return
+        }
         if overview && ovCutK > 0.001 {                                   // 地図の断面のカット：手前の半分を、カメラに向いた平面で切る
             let rad = Self.R * Self.SCALE * 1.15
             u.cut = SIMD4(3, 0, 0, 0); u.cutN = SIMD4(SIMD3<Float>(simd_normalize(camBasis().3)), Float((1 - ovCutK) * rad))
@@ -3806,7 +3885,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     /// カメラの位置と、右・上・うしろ（画面の奥と逆）の向き
     func camBasis() -> (SIMD3<Double>, SIMD3<Double>, SIMD3<Double>, SIMD3<Double>) {
         let ovFixed = ovMotion || naviM != nil                           // 2 枚の地図は、ドラッグの 3D の向きを使わない
-        var yaw = side == .left || ovFixed ? 0 : st.viewYaw, pit = side == .left || ovFixed ? 0 : st.viewPitch, dist = side == .left ? st.leftDist : st.viewDist
+        var yaw = side == .left ? 0 : ovMotion ? ovViewYaw : ovFixed ? 0 : st.viewYaw, pit = side == .left ? 0 : ovMotion ? ovPitch : ovFixed ? 0 : st.viewPitch, dist = side == .left ? st.leftDist : st.viewDist
         if side == .right && dvT > 0 {                              // ダイブ：見る向きは正面へ、3D のカメラは自分のいる所（原点）へ
             let (e1, e2) = Self.diveEase(dvT)
             // 一人称：見る向きは正面、背中へ寄る（近いほどゆっくり）。三人称：斜め後ろの少し上で止まって、自分（彗星）を追う
@@ -3991,9 +4070,9 @@ struct HyperLabView: View {
             // 並び：3 つの時は［左上・左下・右］、さんぽの景色を出さない時は［左・右］（order の順。⟳ で回す）
             let items = st.order.filter { ($0 != 1 || st.map2Now || (st.walkView && HyperLabState.walkRendererGet?() != nil)) && ($0 != 0 || st.show3D) }
             // 仕切りはドラッグで動かせる（位置は保存。ダブルクリックで半分に）。景色の画面を小さくすると、描く画素もそのぶん減って軽くなる
-            GeometryReader { g in
+            HLSplitK(a: st.splitA) { sk in GeometryReader { g in
                 let W = max(1, g.size.width), H = max(1, g.size.height), bar: CGFloat = 5
-                let lw: CGFloat = min(W - 140, max(140, W * CGFloat(st.splitX))), th: CGFloat = min(H - bar - 90, max(90, (H - bar) * CGFloat(st.splitY)))
+                let lw: CGFloat = min(W - 140, max(140, W * CGFloat(st.splitX))), th: CGFloat = min(H - bar - 90, max(90, (H - bar) * CGFloat(st.splitAt(sk))))
                 HStack(spacing: 0) {
                     if items.count == 1 { slot(items[0]) }                  // 4D の超球だけ
                     else if items.count == 3 {
@@ -4008,7 +4087,7 @@ struct HyperLabView: View {
                         slot(items[items.count - 1])
                     }
                 }
-            }
+            } }
             .coordinateSpace(name: "hlsplit")
             .background(Color(red: 0.12, green: 0.16, blue: 0.23))
             // 画面のゲームパッド（下の真ん中。パネルを隠していても出す）
@@ -4064,12 +4143,12 @@ struct HyperLabView: View {
         switch k {
         case 0:
             if st.diveOverview && (st.diveOn || st.diveT > 0) {
-                pane(.right, "ナビ地図", overview: true).id(3)
+                pane(.right, "自分地図\n自分が真ん中\n進む向きが上", overview: true).id(3)
             } else {
                 pane(.left, "【操作側】3D の球（リングを積む）　ドラッグで傾ける・⇧＋横ドラッグで Z-W").id(0)
             }
         case 1:
-            if st.map2Now { pane(.right, "W 地図", overview: true, motion: true).id(4) }
+            if st.map2Now { pane(.right, "Y-W 地図\nw の高さで回る\n赤と紫が重なる", overview: true, motion: true).id(4) }
             else { walkPane.id(1) }
         default: pane(.right, "【観察側】4D の超球（球殻を積む）　ドラッグで見る向き").id(2)
         }
@@ -4298,9 +4377,9 @@ struct HyperLabView: View {
                 // 見せるもの（収まらない時は折り返す）
                 HLWrap(spacing: 10) {
                     Toggle("自分が真ん中", isOn: $st.naviCenter).toggleStyle(.switch).font(.caption).fixedSize()
-                        .help("ダイブの間、上の地図を車のナビのように：自分がいつも真ん中で背景が動き、進む向きが上。赤い玉へ向かうと赤い玉が近づき、裏から紫の玉が寄ってくる")
+                        .help("ダイブの間、上の地図を車のナビのように：自分がいつも真ん中で背景が動き、進む向きが上。赤い玉へ向かうと赤い玉が近づき、裏から紫の玉が寄ってくる。赤い玉・紫の玉のそばを通る間は、間の球層が透けて重なる所が見える（ほかの極星は軽く）")
                     Toggle("地図 2 枚", isOn: $st.map2).toggleStyle(.switch).font(.caption).fixedSize()
-                        .help("ダイブの間、さんぽの景色の場所をW 地図にする（上はナビ地図：自分を追う。下はW 地図：軸がうねうね動く・断面・中へ入る）。切ると、さんぽの景色に戻す")
+                        .help("ダイブの間、さんぽの景色の場所をY-W 地図にする（上は自分地図：自分を追う。下はY-W 地図：軸がうねうね動く・断面・中へ入る）。切ると、さんぽの景色に戻す")
                     Toggle("さんぽの景色", isOn: $st.walkView).toggleStyle(.switch).font(.caption).fixedSize().disabled(HyperLabState.walkRendererGet?() == nil)
                         .help("さんぽの窓と同じ景色（今いる所から見た S³）を、画面を割って出す")
                     Picker("", selection: $st.wipeLow) { Text("低負荷").tag(true); Text("きれい").tag(false) }
@@ -4362,8 +4441,8 @@ struct HyperLabView: View {
                         .toggleStyle(.switch).font(.caption).fixedSize().disabled(HyperLabState.walkRendererGet?() == nil)
                         .help("画面のゲームパッドを出す（さんぽの窓と同じ。押すとコントローラーと同じ働きで歩く）。パネルを隠していても出る")
                     Toggle("座標", isOn: $st.coordOn).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.walk)
-                    Toggle("W 地図の動き", isOn: $st.ovShow).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.walk)
-                        .help("W 地図の演出。自分の w の高さに合わせて Y-W 面でゆっくり回す（赤道で球層が真横、アナ極・カタ極で赤と紫の玉が重なる）。玉の近くでは断面を開く")
+                    Toggle("Y-W 地図の動き", isOn: $st.ovShow).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.walk)
+                        .help("Y-W 地図の演出。自分の w の高さに合わせて Y-W 面でゆっくり回す（赤道で球層が真横、アナ極・カタ極で赤と紫の玉が重なる）。玉の近くでは断面を開き、中を通る時も軽く切ってすぐ戻す。w に沿って上り下りする時は、ときどき地球の断面図のように YZ の面から 90° 開いて中を見せる")
                         .help("走行中の座標を右の画面の左上に（S³ の上の x・y・z・w、アナ極からの角度、いちばん近い極、速さ）。計器のように書きかわる")
                     Toggle("英語", isOn: $st.poleEN).toggleStyle(.switch).font(.caption).fixedSize()
                         .help("極の名前を英語に（セリフ体で小さく）：Ana・Kata・North・South・East・West・Zenith・Nadir。さんぽの景色の画面も")
