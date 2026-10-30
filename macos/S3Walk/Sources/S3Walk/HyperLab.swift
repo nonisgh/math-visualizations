@@ -675,13 +675,19 @@ struct HLUni {
     var camR = SIMD4<Float>(1, 0, 0, 0), camU = SIMD4<Float>(0, 1, 0, 0), g = SIMD4<Float>(1, 1, 1, 0)
     var cut = SIMD4<Float>(0, 0, 0, 0)                                // 断面カット：（0 なし・1 画面に固定・2 物体に固定・3 平面、中心の角、開きの半分）
     var cutN = SIMD4<Float>(0, 0, 1, 0)                               // 平面で切る：平面の向き（xyz）と位置（w）。向きの側（手前）を消す
+    var halo = SIMD4<Float>(0, 0, 0, 0)                               // 地図のカーソルのまわりを薄くする（画素の位置 xy・半径 z・強さ w）
 }
 
 private let hlShader = """
 #include <metal_stdlib>
 using namespace metal;
 struct V { float4 p; float4 n; float4 c; };
-struct U { float4x4 mvp; float4x4 model; float4 eye; float4 key; float4 rim; float4 camR; float4 camU; float4 g; float4 cut; float4 cutN; };
+struct U { float4x4 mvp; float4x4 model; float4 eye; float4 key; float4 rim; float4 camR; float4 camU; float4 g; float4 cut; float4 cutN; float4 halo; };
+// 地図のカーソルのまわり（u.halo：画素の位置 xy・半径 z・強さ w）：殻と網目だけをやわらかく薄くする（黒く塗らないので、奥の星や空間は見える）
+inline float haloK(float2 px, constant U& u) {
+    if (u.halo.w <= 0.0) return 1.0;
+    return 1.0 - u.halo.w * (1.0 - smoothstep(u.halo.z * 0.45, u.halo.z, distance(px, u.halo.xy)));
+}
 struct O { float4 pos [[position]]; float3 n; float3 wp; float4 c; float ph; };   // ph：殻の経度（物体に固定の断面カット）
 vertex O hlv(uint vid [[vertex_id]], constant V* vs [[buffer(0)]], constant U& u [[buffer(1)]]) {
     V v = vs[vid]; O o; float4 w = u.model * float4(v.p.xyz, 1.0);
@@ -812,7 +818,7 @@ fragment float4 wlf(WO in [[stage_in]], constant U& u [[buffer(1)]]) {
     float a = clamp((in.hw + 0.5 + in.sf * 0.5 - abs(in.side)) / (1.0 + in.sf), 0.0, 1.0);   // ふちは 1 画素（ぼかしの時は、そのぶん広く）やわらかく
     if (in.sf > 0.01) a = a * a * (3.0 - 2.0 * a);
     if (a <= 0.0) discard_fragment();
-    return float4(in.c.rgb, in.c.a * a);
+    return float4(in.c.rgb, in.c.a * a * haloK(in.pos.xy, u));
 }
 // 名前の札：文字の絵（色・ふちどり済み、アルファを掛けてある）を、いつも画面に向く板に貼る。奥行きは見ない（いつも見える）
 struct LVert { float4 p; float4 uv; };
@@ -1146,7 +1152,7 @@ fragment float4 hlf(O in [[stage_in]], constant U& u [[buffer(1)]]) {
         a -= 2.0 * M_PI_F * floor((a + M_PI_F) / (2.0 * M_PI_F));
         if (abs(a) < u.cut.z) discard_fragment();
     }
-    if (u.g.z < 0.5 || u.g.z > 1.5) return in.c;                     // 光なし（線・札）か、頂点で光を計算済み（右の殻）
+    if (u.g.z < 0.5 || u.g.z > 1.5) return float4(in.c.rgb, in.c.a * haloK(in.pos.xy, u));   // 光なし（線・札）か、頂点で光を計算済み（右の殻）
     float3 nn = normalize(in.n), dxy = max(abs(dfdx(nn)), abs(dfdy(nn)));   // 粗さに面の曲がり具合を足す（細い管がチラつかない。three.js と同じ）
     return lightHL(in.n, in.wp, in.c, max(max(dxy.x, dxy.y), dxy.z), u);
 }
@@ -1443,11 +1449,11 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     /// 地図の構図（全体像だけの向き）：ダイブの間、ときどき w 軸を横にして球層の重なりを見せ、赤い玉・紫の玉を通る時は w 軸に沿って正面から（今の玉の真後ろにもう 1 つが隠れる）
     private var ovAng: SIMD4<Double>? = nil, ovCur: SIMD4<Double>? = nil, ovVel = SIMD4<Double>(0, 0, 0, 0), ovDrift = 0.0, ovLast = -9.0, ovCutK = 0.0, ovCutLast = -99.0, ovSpd = 0.0, ovDist0: Double? = nil
     private var ovLogT = -9.0
-    private var ovBallT = -99.0, ovPeekT = -1.0, ovCutSlow = true, ovWedgeT = -1.0, ovWedgeK = 0.0, ovWedgeLast = -99.0, ovPitch = 0.0, ovViewYaw = 0.0
+    private var ovBallT = -99.0, ovPeekT = -1.0, ovCutSlow = true, ovWedgeT = -1.0, ovWedgeK = 0.0, ovWedgeLast = -99.0, ovPitch = 0.0, ovViewYaw = 0.0, ovBall = 0.0
     /// YZ の面（x ＝ 0）の法線：x 軸が地図の 3D でどちらを向いているか
     private func ovYZNormal() -> SIMD3<Double> { let v = xf(SIMD4(1, 0, 0, 0)); return SIMD3(v.x, v.y, v.z) }
     private func tickOvShot() {
-        guard overview, ovMotion, st.ovShow, st.diveT > 0.3, let w = (wsrc)?() else { ovAng = nil; ovCur = nil; ovVel = .zero; ovCutK = 0; ovPeekT = -1; ovWedgeT = -1; ovWedgeK = 0; ovPitch = 0; ovViewYaw = 0; ovDist0 = nil; return }
+        guard overview, ovMotion, st.ovShow, st.diveT > 0.3, let w = (wsrc)?() else { ovAng = nil; ovCur = nil; ovVel = .zero; ovCutK = 0; ovPeekT = -1; ovWedgeT = -1; ovWedgeK = 0; ovPitch = 0; ovViewYaw = 0; ovBall = 0; ovDist0 = nil; return }
         let now = nowT, dt = max(0, min(0.1, now - ovLast)); ovLast = now
         let cur0 = SIMD4(st.zw, st.yaw, st.pitch, st.roll)
         var cur = ovCur ?? cur0
@@ -1464,6 +1470,12 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         var target = cur0
         if ball { ovBallT = now }
         // 断面：外の殻に隠れていた赤玉と紫玉を見せる
+        // 自分が赤玉・紫玉の線の上（Y-W の面の上）を走っている間：自分が地図の真ん中に来て、2 つの玉が両側から寄る。自分地図と同じく間の殻を透かす。
+        //   Y は面内の回転で X と混ざるので、回したあとの x と z で見る
+        let g1 = (ovAng ?? cur)[1], xr = w.pos.x * cos(g1) - w.pos.y * sin(g1), onLine = (xr * xr + w.pos.z * w.pos.z).squareRoot() < 0.22 && abs(sin(cur.z)) >= 0.72
+        if Self.glintLog && onLine && ovBall < 0.02 { print(String(format: "線の上 %.1f 秒", now)) }
+        ovBall += ((onLine ? 1 : 0) - ovBall) * (1 - exp(-dt * (onLine ? 3.5 : 1.2)))
+        if ovBall < 0.002 { ovBall = 0 }
         let ballOpen = abs(sin(cur.z)) < 0.72                            // 回転の角度で判断：赤と紫が重なる向き（0°・180°）に近づいたら、すかさず開く（約 0.3 秒）。離れたらゆっくり閉じる
         // 見せ場：w に沿って上り下りしている時に、地球の断面図のように YZ の面から 90° 開いて中を見せる（5 秒で閉じ始める。18 秒あける）。
         //   z は画面の奥行きなので、開く間はカメラを横へ 45°・少し上へ回して、2 枚の切り口を見せる
@@ -2258,7 +2270,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             if hl.r.z > 0 && dvT > 0 { let dz = Float(Self.diveEase(dvT).1); hl.r.z *= 1 - 0.35 * dz; hg.q.y *= 1 - 0.15 * dz }
             // 4D の遠近：ダイブで寄るほど弱める（寄った所は景色と同じに）
             let dk = st.depth4On ? Float(st.depth4K * (1 - Self.diveEase(dvT).1)) : 0
-            hg.e = SIMD4(st.depth4 == 1 || st.depth4 == 3 ? dk : 0, st.depth4 >= 2 ? dk : 0, 0, Float(naviBall)); hl.e = hg.e
+            hg.e = SIMD4(st.depth4 == 1 || st.depth4 == 3 ? dk : 0, st.depth4 >= 2 ? dk : 0, 0, Float(max(naviBall, ovBall))); hl.e = hg.e
             hg.d.w = Float(naviAxis); hl.d.w = hg.d.w
             if naviHole > 0.001 { hg.n = SIMD4(SIMD3<Float>(simd_normalize(eye)), Float(naviHole)); hl.n = hg.n }
             // 天の川の淡い光は出さない（暗いのが魅力）。天の川は星の密度で見せる（drawStars）
@@ -2274,6 +2286,14 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 return
             }
             if dvT == 0 || st.axesDive { drawAxes4(e, u) }           // ダイブの間も（「ズーム中も」を切ると出さない）
+            // 地図のカーソルのまわり：殻と網目だけを薄くして、カーソルを目立たせる（星は消さない）
+            if overview, st.walk, let w = (wsrc)?() {
+                let q = u.mvp * SIMD4(SIMD3<Float>(walkPlace(w.pos).0), 1)
+                if q.w > 1e-4 {
+                    let W = Float(sz.width), H = Float(sz.height)
+                    u.halo = SIMD4((q.x / q.w * 0.5 + 0.5) * W, (0.5 - q.y / q.w * 0.5) * H, 0.13 * min(W, H), 0.9)
+                }
+            }
             var wk = SIMD4<Float>(Float(sz.width), Float(sz.height), Float(st.wireW * rK * 0.5), 0)   // 線の太さ（画面の点 × 細かさ）
             e.setRenderPipelineState(rPipe); e.setVertexBuffer(rb, offset: 0, index: 0); e.setVertexBuffer(rc, offset: 0, index: 3)
             // 4 方向レインボー・軸の色：面を全部先に描いてから、線をまとめて描く（線が奥行きを書くので、層ごとに交互に描くと、あとの面が線の所だけ抜けて黒い筋になる）
@@ -2303,6 +2323,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             }
             if multiFam { for r in ranges { drawFaces(r) }; for r in ranges { drawWires(r) } }
             else { for r in ranges { drawFaces(r); drawWires(r) } }
+            u.halo = .zero
             drawStars(e, u, hg)
             // 寄った時の星は、さんぽと同じ本物の星だけ（drawStars。天の川は、さんぽと同じ y・z の大きな円のまわりの星）
             drawWalk(e, u); drawMarks(e, u)                               // ダイブの間も、跡をたどって背中へ寄る（玉は画面の上で大きくなりすぎないよう縮める）
