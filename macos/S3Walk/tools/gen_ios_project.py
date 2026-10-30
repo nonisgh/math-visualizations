@@ -2,7 +2,7 @@
 #   Mac 版と同じ Sources/S3Walk の共通のファイル（景色・地図・計算）と、iOS/ の画面のファイルを 1 つのアプリにまとめる（iPhone と iPad の両方）
 import os, hashlib
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CORE = ['Cell120', 'Journey', 'Math4', 'Paths', 'Turns', 'Shaders', 'Renderer', 'MapRenderer', 'Atlas', 'GameInput', 'Theme', 'Keymap', 'Dock', 'SearchIndex', 'VirtualPad', 'CornerMap', 'CustomRoute', 'NativeSync', 'SupaConfig', 'WebLab', 'HyperLab', 'TesseractLab', 'Origami', 'HyperSound']
+CORE = ['Cell120', 'Journey', 'Math4', 'Paths', 'Turns', 'Shaders', 'Renderer', 'MapRenderer', 'Atlas', 'GameInput', 'Theme', 'Keymap', 'Dock', 'SearchIndex', 'VirtualPad', 'CornerMap', 'CustomRoute', 'NativeSync', 'SupaConfig', 'WebLab', 'HyperLab', 'TesseractLab', 'Origami', 'HyperSound', 'Recorder']
 srcs = ['../Sources/S3Walk/%s.swift' % n for n in CORE] + sorted('%s' % f for f in os.listdir(os.path.join(root, 'iOS')) if f.endswith('.swift'))
 res = ['../Fonts/KaTeX_Math-Italic.ttf', 'Assets.xcassets', 'MacLook.plist', '../Web']   # MacLook.plist：Mac 版で見ている見え方（初めて開いた時と「Mac の見え方に」で読む）
 def oid(s): return hashlib.md5(s.encode()).hexdigest()[:24].upper()
@@ -34,6 +34,7 @@ tgt = {'PRODUCT_NAME': '"$(TARGET_NAME)"', 'PRODUCT_BUNDLE_IDENTIFIER': 'io.gith
        'INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad': '"UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"',
        'INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone': '"UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"',
        'INFOPLIST_KEY_GCSupportsControllerUserInteraction': 'YES', 'INFOPLIST_KEY_UIStatusBarHidden': 'YES',
+       'INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription': '"録画した動画を写真に保存します"',
        'ASSETCATALOG_COMPILER_APPICON_NAME': 'AppIcon', 'CODE_SIGN_STYLE': 'Automatic', 'CURRENT_PROJECT_VERSION': '1', 'MARKETING_VERSION': '1.0',
        'LD_RUNPATH_SEARCH_PATHS': '"$(inherited) @executable_path/Frameworks"', 'ENABLE_PREVIEWS': 'NO'}
 # 実機に入れる時のチーム（Xcode の Signing で選んだもの）。iOS/team.txt に書いておくと、作り直しても消えない

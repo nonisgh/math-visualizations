@@ -29,6 +29,7 @@
 		018017F331A5F34C35D7307A = {isa = PBXBuildFile; fileRef = 71157E0343BDDC363491DA39; };
 		CFD60C5E7AF8F99F9EFE8B33 = {isa = PBXBuildFile; fileRef = B0F297DA5DD3A2015A7CC456; };
 		DEAF61A1DE79116095324F9A = {isa = PBXBuildFile; fileRef = 9B1840ADA6D4B19874866638; };
+		0086208066024A3A65743D5C = {isa = PBXBuildFile; fileRef = 7C93E7CB303EA675908B21BD; };
 		5155E2EE55FDFE25DFAC19A1 = {isa = PBXBuildFile; fileRef = 1FAC72C051C286EA92978499; };
 		0959BF28527B48A0B42E0852 = {isa = PBXBuildFile; fileRef = C80F26271FCA629F2CA125D3; };
 		ECC1C8F72EAC73CA94D7592E = {isa = PBXBuildFile; fileRef = 4FB2A1B2E2341710F59ACF10; };
@@ -59,6 +60,7 @@
 		71157E0343BDDC363491DA39 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/TesseractLab.swift"; sourceTree = "<group>"; name = "TesseractLab.swift"; };
 		B0F297DA5DD3A2015A7CC456 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Origami.swift"; sourceTree = "<group>"; name = "Origami.swift"; };
 		9B1840ADA6D4B19874866638 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperSound.swift"; sourceTree = "<group>"; name = "HyperSound.swift"; };
+		7C93E7CB303EA675908B21BD = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Recorder.swift"; sourceTree = "<group>"; name = "Recorder.swift"; };
 		1FAC72C051C286EA92978499 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MobileViews.swift"; sourceTree = "<group>"; name = "MobileViews.swift"; };
 		C80F26271FCA629F2CA125D3 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "S3WalkiOSApp.swift"; sourceTree = "<group>"; name = "S3WalkiOSApp.swift"; };
 		4FB2A1B2E2341710F59ACF10 = {isa = PBXFileReference; lastKnownFileType = file; path = "../Fonts/KaTeX_Math-Italic.ttf"; sourceTree = "<group>"; name = "KaTeX_Math-Italic.ttf"; };
@@ -93,6 +95,7 @@
 				71157E0343BDDC363491DA39,
 				B0F297DA5DD3A2015A7CC456,
 				9B1840ADA6D4B19874866638,
+				7C93E7CB303EA675908B21BD,
 				1FAC72C051C286EA92978499,
 				C80F26271FCA629F2CA125D3,
 				4FB2A1B2E2341710F59ACF10,
@@ -145,6 +148,7 @@
 				018017F331A5F34C35D7307A,
 				CFD60C5E7AF8F99F9EFE8B33,
 				DEAF61A1DE79116095324F9A,
+				0086208066024A3A65743D5C,
 				5155E2EE55FDFE25DFAC19A1,
 				0959BF28527B48A0B42E0852,
 			); runOnlyForDeploymentPostprocessing = 0; };
@@ -176,6 +180,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "球面さんぽ";
 				INFOPLIST_KEY_GCSupportsControllerUserInteraction = YES;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "録画した動画を写真に保存します";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -195,6 +200,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "球面さんぽ";
 				INFOPLIST_KEY_GCSupportsControllerUserInteraction = YES;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "録画した動画を写真に保存します";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

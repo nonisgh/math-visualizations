@@ -317,6 +317,7 @@ struct S3WalkApp: App {
                 Button("次元おりがみ（光で描く）") { ProtoWindows.open("tess", "次元おりがみ（光で描く試作）", TessLabView()) }.keyboardShortcut("k", modifiers: [.command, .shift])
                 Button("次元おりがみ（ネイティブ版・移植の第 1 歩）") { ProtoWindows.open("origami", "次元おりがみ（ネイティブ版）", OrigamiView()) }.keyboardShortcut("o", modifiers: [.command, .shift])
             }
+            CommandMenu("録画") { RecordMenuItem() }
             CommandMenu("数学") {
                 Button("超球（2 次元とのアナロジー）") { WebLabWindows.shared.open("hypersphere_beta", title: WebLab.hypersphereTitle) }.keyboardShortcut("h", modifiers: [.command, .shift])
                 // ウェブ版の数学アプリ（サイトの一覧に載っているもの全部）：まとまりごとに、別の窓で開く
@@ -774,8 +775,13 @@ final class WalkView: MTKView {
         renderer.onStats = { [weak self] r in self?.stats(r) }
         // パネルの部品を押した後も、キーはいつも景色の操作に（⌘・⌃ の付いたキーはメニューへ）
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { [weak self] e in
+            // 超球の窓が前の時の、超球の窓のショートカットキー（4 球層の色・D ダイブ・スペース パネル・O 操作モード）。文字を打っている時と ⌘・⌃ 付きは除く
+            //   さんぽの窓を止めている時・操作モードの時は、キーはさんぽの操作が先（W・A・S・D で歩く、O で向き、N で背景など）。4 とスペースだけ超球の窓のもの
+            if e.type == .keyDown, !e.isARepeat, NSApp.keyWindow != nil, NSApp.keyWindow === HyperLabWindow.window, !(NSApp.keyWindow?.firstResponder is NSText),
+               !e.modifierFlags.contains(.command), !e.modifierFlags.contains(.control), let c = e.charactersIgnoringModifiers,
+               !(HyperLabState.walkShut || HyperLabState.opModeNow) || c == "4" || c == " ", HyperLabState.hyperKey?(c) == true { return nil }
             // 歩くキー：さんぽの窓が前の時。「さんぽの窓は止める」の間は、超球の窓が前でも（文字や数字を打っている時は除く）
-            let viaHyper = HyperLabState.walkShut && NSApp.keyWindow != nil && NSApp.keyWindow === HyperLabWindow.window && !(NSApp.keyWindow?.firstResponder is NSText)
+            let viaHyper = (HyperLabState.walkShut || HyperLabState.opModeNow) && NSApp.keyWindow != nil && NSApp.keyWindow === HyperLabWindow.window && !(NSApp.keyWindow?.firstResponder is NSText)
             guard let self, self.window?.isKeyWindow == true || viaHyper else { return e }
             if e.type == .flagsChanged { self.flags(e); return e }
             // ショートカットキーの設定でキーを待っている時：次に押したキーをその操作のキーに（Esc でやめる、⌫ でキーなし）
