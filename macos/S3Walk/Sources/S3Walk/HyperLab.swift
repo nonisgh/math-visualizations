@@ -721,7 +721,7 @@ inline float selfK(float4 b, constant HR& h) { if (h.t.x <= 0.0) return 0.0; flo
 // 4D の奥行き：見る人の 4 次元の視線（w′）に沿って、手前（＋R）0 〜 奥（−R）1。物体の w 軸ではなく、回したあとの w′（見る向き）で測る
 inline float dep4(float vw, constant HR& h) { return clamp((h.r.x - vw) / (2.0 * h.r.x), 0.0, 1.0); }
 // 極星の交差を透かす（h.e.w）：今通る極の軸（h.d.w。0 x・1 y・2 z・3 w）の両端のまわりだけ残して、間の殻を透明に
-inline float ballK(float4 b, constant HR& h) { if (h.e.w <= 0.0) return 1.0; return mix(1.0, smoothstep(0.80, 0.96, abs(b[int(h.d.w)]) / h.r.x) * (1.0 + 0.9 * h.e.w), h.e.w); }
+inline float ballK(float4 b, constant HR& h) { if (h.e.w <= 0.0) return 1.0; return mix(1.0, max(0.18, smoothstep(0.80, 0.96, abs(b[int(h.d.w)]) / h.r.x) * (1.0 + 0.9 * h.e.w)), h.e.w); }   // 間の殻も消しきらず、うっすら残す（表と裏が入れかわる所が見える）
 // 自分のまわりの穴（h.n.w。xyz はカメラの向き）：真ん中の自分とカメラの間の殻だけ透かす（やわらかい筒の形）
 inline float holeK(float3 P, constant HR& h) {
     if (h.n.w <= 0.0) return 1.0;
