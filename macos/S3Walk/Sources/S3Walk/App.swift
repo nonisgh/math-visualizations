@@ -28,6 +28,7 @@ struct Main {
         if let i = args.firstIndex(of: "--bigflip"), i + 1 < args.count { Verify.bigFlip(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--thumbs"), i + 1 < args.count { Verify.thumbs(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--hyperpng"), i + 1 < args.count { Verify.hyperPNG(args[i + 1]); exit(0) }
+        if args.contains("--exporttest") && args.contains("--arm") { let u = VideoExport.selfTestArm(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
         if args.contains("--exporttest") && args.contains("--route") { let u = VideoExport.selfTestRoute(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
         if args.contains("--exporttest") && args.contains("--ring") { let u = VideoExport.selfTestRing(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
         if args.contains("--exporttest") { let u = VideoExport.selfTest(uhd: args.contains("--4k"), seconds: 3, layout: args.contains("--layout1") ? 1 : 0, force: args.contains("--force")); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }

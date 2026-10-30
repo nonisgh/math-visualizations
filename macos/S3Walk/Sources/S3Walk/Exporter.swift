@@ -72,7 +72,16 @@ final class VideoExport: ObservableObject {
     private let aq = DispatchQueue(label: "s3walk.export.audio")
     private var watch: Timer? = nil
 
-    func toggle() { recording ? stopRecording() : startRecording() }
+    // 走り出しで始めて、止まったら黒く消して終わる：押すと待機。走り出したら記録を始めてフェードイン、止まったらフェードアウトして、真っ黒で記録も終わり
+    @Published var autoRec = UserDefaults.standard.bool(forKey: "s3walk.export.auto") { didSet { UserDefaults.standard.set(autoRec, forKey: "s3walk.export.auto") } }
+    @Published private(set) var armed = false
+    private var armPos: SIMD4<Double>? = nil, armT = 0.0, stillSince: Double? = nil, recFade = false, fadeNow = false, autoStopping = false
+    func toggle() {
+        if armed { armed = false; return }
+        if recording { stopRecording(); return }
+        recFade = false
+        if autoRec { armPos = nil; autoStopping = false; armed = true } else { startRecording() }
+    }
 
     private func fileName() -> String {
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyyMMdd_HHmmss"
@@ -126,6 +135,20 @@ final class VideoExport: ObservableObject {
     func capture(_ f0: RecFrame) {
         ensureTap()
         if keepLast { ringCapture(f0) }
+        // 動いているか（1 秒に 0.02 rad より速い）。待機中は走り出しを待ち、自動の記録中は止まったのを見る
+        let dtA = f0.t - armT, spd = armPos.map { simd_length(f0.walk.pos - $0) / max(1e-6, dtA) } ?? 0, usable = armPos != nil && dtA > 0 && dtA < 0.5
+        armPos = f0.walk.pos; armT = f0.t
+        if armed && usable && spd > 0.02 { armed = false; recFade = true; stillSince = nil; startRecording() }
+        if recording && recFade {
+            if spd > 0.02 { stillSince = nil }
+            else if usable {
+                let s0 = stillSince ?? f0.t; stillSince = s0
+                if f0.t - s0 >= 0.3 + Double(Self.genFO) / 60 && !autoStopping {   // 止まってから 2 秒ぶん（フェードアウト）を記録して、真っ黒の所で終わる
+                    autoStopping = true
+                    DispatchQueue.main.async { self.stopRecording() }
+                }
+            }
+        }
         guard recording else { return }
         var f = f0
         let raw = f.trailAdd
@@ -250,7 +273,7 @@ final class VideoExport: ObservableObject {
         if force { s2.diveOn = true; s2.diveThird = true; s2.diveT = 1; s2.thirdK = 1; s2.diveFade = 0 }
         var c: CVMetalTextureCache?; CVMetalTextureCacheCreate(nil, nil, r.device, nil, &c); cache = c
         let t0 = frames[0].t, t1 = frames[frames.count - 1].t
-        nOut = gen != nil ? genOut : max(1, Int((t1 - t0) * 60)); iOut = 0; jRec = 0; trail = []; appliedTo = -1; aIdx = 0; inFlight = 0; failed = false
+        nOut = gen != nil ? genOut : max(1, Int((t1 - t0) * 60)); iOut = 0; fadeNow = gen == nil && recFade; if fadeNow { genOut = nOut }; jRec = 0; trail = []; appliedTo = -1; aIdx = 0; inFlight = 0; failed = false
         let al = aq.sync { audio }, makingSound = gen != nil && genSnd != nil; wq.sync { aList = al; audioDone = false; aLive = makingSound }                  // 記録した音（書き出し中は、書く糸の上だけで使う）
         r.walkOverride = { [weak self] in self?.curWalk ?? HyperLabState.Walk(trail: [], pos: SIMD4(0, 0, 0, 1)) }
         progress = 0; rendering = true
@@ -353,7 +376,7 @@ final class VideoExport: ObservableObject {
         defer { if let k = keep { Journey.hitPulse = k } }
         guard drawLayout0(r, cb, dst, rec) else { return false }
         if withText { drawHUD(r, cb, dst, rec) }
-        if gen != nil, let g = glass { let b = genBright(iOut); if b < 0.999 { g.fade(cb, dst, 1 - b) } }   // 決まった道から作る時：フェードイン・アウト
+        if gen != nil || fadeNow, let g = glass { let b = genBright(iOut); if b < 0.999 { g.fade(cb, dst, 1 - b) } }   // 決まった道から作る時：フェードイン・アウト
         return true
     }
     private func drawLayout0(_ r: HyperLabRenderer, _ cb: MTLCommandBuffer, _ dst: MTLTexture, _ rec: RecFrame) -> Bool {
@@ -474,6 +497,10 @@ final class VideoExport: ObservableObject {
             if t - t0 > tRel { break }
             aIdx += 1
             if t < t0 { continue }
+            if fadeNow, let d = b.floatChannelData {                       // 自動の記録：音も絵と一緒にフェード
+                let g = genBright(Int((t - t0) * 60)), inter = b.format.isInterleaved, ch = Int(b.format.channelCount), n = Int(b.frameLength) * (inter ? ch : 1)
+                if g < 0.999 { for c in 0..<(inter ? 1 : ch) { for i in 0..<n { d[c][i] *= g } } }
+            }
             if let sb = Self.sampleBuffer(b, CMTime(seconds: t - t0, preferredTimescale: CMTimeScale(b.format.sampleRate))) { ai.append(sb) }
         }
         // 記録した音を全部渡したら、音はおしまいと知らせる（そうしないと、音の先の絵を待たせてしまう）
@@ -494,7 +521,7 @@ final class VideoExport: ObservableObject {
                 let ok = wr.status == .completed && ok0, err = wr.error?.localizedDescription ?? ""
                 DispatchQueue.main.async {
                     self.writer = nil; self.vIn = nil; self.aIn = nil; self.adaptor = nil; self.r2 = nil; self.st2 = nil
-                    self.frames = []; self.lastRaw = []; self.aq.sync { self.audio = [] }; self.gen = nil; self.genTpl = nil; self.genSt = nil; self.genSnd?.stop(); self.genSnd = nil; self.genHits = []
+                    self.frames = []; self.lastRaw = []; self.aq.sync { self.audio = [] }; self.gen = nil; self.fadeNow = false; self.recFade = false; self.genTpl = nil; self.genSt = nil; self.genSnd?.stop(); self.genSnd = nil; self.genHits = []
                     self.rendering = false; self.progress = 1
                     self.saved(ok, err, n, u, note)
                 }
@@ -703,6 +730,35 @@ final class VideoExport: ObservableObject {
         let bc = snd.beatClock()
         return bc.rate > 0.05 ? bc.cyc / 6 : nil
     }
+    /// 確かめ（--exporttest --arm）：待機して 1 秒止まる → 4 秒走る → 止まる。走った所から始まって、止まってから 2 秒あまりで終わるか
+    static func selfTestArm() -> URL? {
+        let ex = VideoExport.shared
+        let st = HyperLabState(); st.walk = true
+        guard let r = HyperLabRenderer(side: .right, state: st, view: nil) else { return nil }
+        var w = HyperLabState.Walk(trail: [], pos: SIMD4(0, 0, 0, 1))
+        r.walkOverride = { w }
+        HyperLabRenderer.liveMain = r
+        ex.layout = 0; ex.forceDive = true; ex.uhd = false; ex.keepLast = false; ex.autoRec = true; ex.quality = 0
+        ex.toggle()
+        var a = 0.0, trail: [SIMD4<Double>] = [], n = 0
+        let t0 = CACurrentMediaTime()
+        for i in 0..<300 {
+            let t = Double(i) / 30
+            if t > 1 && !ex.recording && !ex.armed { break }
+            if t >= 1 && t < 5 { a += 0.3 / 30 }
+            let p = SIMD4(sin(a), 0, 0, cos(a)), f = SIMD4(cos(a), 0, 0, -sin(a)); if t >= 1 && t < 5 { trail.append(p) }
+            w = HyperLabState.Walk(trail: trail, pos: p, head: f, fwd: f, vR: SIMD4(0, 1, 0, 0), vU: SIMD4(0, 0, 1, 0), vL: f, dist: a)
+            HyperLabState.walkSource = { w }
+            if var fr = r.recordFrame() { fr.t = t0 + t; ex.capture(fr) }
+            if ex.recording { n = ex.frames.count }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.0005))
+        }
+        print("自動の記録：\(n) コマぶん覚えた（30 コマで 4 秒走って、止まって 2.3 秒なので 190 コマくらいのはず）")
+        let limit = Date().addingTimeInterval(120)
+        while ex.rendering && Date() < limit { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        print("書き出しの確かめ：\(ex.message ?? "（知らせなし）")")
+        return ex.lastURL
+    }
     /// 確かめ（--exporttest --ring）：直前 1 分の覚え方。走る → 止まる（含めない）→ 走る、途中で遠くへ飛ぶ（そこから先だけ）を作って、直前 1 分を書き出す
     static func selfTestRing() -> URL? {
         let ex = VideoExport.shared
@@ -744,6 +800,7 @@ final class VideoExport: ObservableObject {
         st.soundOn = true; st.followOn = true; st.coordOn = true            // 地図が自分を追って回るか・文字が入るかも見る
         if CommandLine.arguments.contains("--rail") { st.railOn = true; HyperLabState.railWanted = true }
         if CommandLine.arguments.contains("--cur0") { st.cursor = 0; st.ovCursor = 0 }
+        if CommandLine.arguments.contains("--glintlog") { HyperLabRenderer.glintLog = true }
         if let i = CommandLine.arguments.firstIndex(of: "--quality") { ex.quality = Int(CommandLine.arguments[i + 1]) ?? 1 }
         ex.uhd = CommandLine.arguments.contains("--4k"); ex.layout = 1; ex.forceDive = true; ex.genPath = PathMode.tour.rawValue; ex.genSeconds = seconds
         if !userset { wr.set.routeStart = CommandLine.arguments.contains("--slow") ? 1 : CommandLine.arguments.contains("--4k") ? 1.5 : 6 }
@@ -957,6 +1014,8 @@ struct ExportButton: View {
                 }
             } else if ex.rendering {
                 Label(String(format: "書き出し中 %.0f%%", ex.progress * 100), systemImage: "hourglass")
+            } else if ex.armed {
+                Label("走り出すのを待っています", systemImage: "hourglass.circle").foregroundStyle(.orange)
             } else {
                 Label("動画を作る", systemImage: "film")
             }
@@ -1015,6 +1074,8 @@ struct RecordPanelButton: View {
                 Text("動画を作る（記録 → 書き出し）").font(.headline)
                 Text("走っている間は動きと音だけを覚え、止めたあとで 60 コマ・最高の細かさで描き直します。").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack { ExportButton(); Spacer() }
+                Toggle("走り出しで始めて、止まったら黒く消して終わる", isOn: $ex.autoRec).disabled(ex.recording || ex.rendering || ex.armed)
+                    .help("「動画を作る」を押すと待機する。走り出したら記録を始めてフェードイン（1.5 秒）、止まったらフェードアウト（2 秒）して、真っ黒になった所で記録が止まり、描き直しに進む。音も一緒にフェードする")
                 HStack {
                     Button { ex.exportLast() } label: { Label(String(format: "直前の 1 分を書き出す（%.0f 秒ぶん）", ex.ringSeconds), systemImage: "gobackward.60") }
                         .font(.caption).disabled(!ex.keepLast || ex.recording || ex.rendering || ex.ringSeconds < 1)
