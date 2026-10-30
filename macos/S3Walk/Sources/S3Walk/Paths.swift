@@ -95,6 +95,26 @@ extension Renderer {
 extension Renderer {
     /// 決まった道・自分の道（巡回）の、これから先の道（S³ の上の点。今いる所から ahead の長さまで、every おき）。
     ///   歩く仕組みをそのまま、こっそり先まで進めて調べる（言葉・震え・チェックの光は出さず、終わったら全部元に戻す）。歩いたコマごとに 1 回だけ作る
+    /// 先に描く道（レール）：今の道の 1 周ぶん。重いので道を変えた時だけ作って覚える（歩いている本体は動かさない）
+    func railPath() -> [V4] {
+        guard pathMode != .none else { return [] }
+        let key = "\(pathMode.rawValue) \(cr.routeID?.uuidString ?? "") \(cr.title) \(cr.pts.count) \(cr.flow != nil) \(set.tourFlow) \(set.tourShow)"
+        if railCache.key == key { return railCache.pts }
+        let s0 = (cam, journey, cr, turn, path, pathMode, lastDir, lastDirT), pulse = Journey.hitPulse, sy = say, hap = set.haptics
+        say = nil; set.haptics = false
+        var lw = VideoExport.LapWatch(); lw.laps = lw.lapsFromNow(self)
+        var raw: [V4] = [cam.w.p], prev = cam.w.p, acc = 0.0, dist = 0.0
+        while dist < 120 && pathMode != .none && !lw.done(self) {
+            if pathMode == .custom { crStep(0.02) } else if pathMode.isTurn { turnStep(0.02) } else { pathStep(0.02) }
+            dist += 0.02; acc += acos(max(-1, min(1, dot4(cam.w.p, prev)))); prev = cam.w.p
+            if acc >= 0.02 { raw.append(cam.w.p); acc = 0 }
+        }
+        (cam, journey, cr, turn, path, pathMode, lastDir, lastDirT) = s0
+        Journey.hitPulse = pulse; say = sy; set.haptics = hap
+        let stride = max(1, raw.count / 3000), out = Swift.stride(from: 0, to: raw.count, by: stride).map { raw[$0] } + [raw[raw.count - 1]]   // 多い時は間引く
+        railCache = (key, out)
+        return out
+    }
     func plannedPath(ahead: Double = 2.6, every: Double = 0.02) -> [V4] {
         guard pathMode != .none else { return [] }
         if planCache.frame == frameCount { return planCache.pts }

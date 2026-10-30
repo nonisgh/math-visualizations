@@ -707,7 +707,7 @@ enum Verify {
             r.walking = false; r.step(1.0 / 60); r.say = keep
             let msg = said.filter { $0.hasPrefix("チェック") && $0.contains("目印") }, poles = r.journey.polesHit, poleMsg = said.filter { $0.contains("（極 ") }
             r.clearMarks(); let cleared = r.journey.marksHit.isEmpty && r.journey.lap == 1
-            check(h0 == 0 && h1 == 1 && h2 == 0 && lap == 2 && msg.count == 2 && msg.last!.contains("2 周目へ") && cleared && poles.contains(0) && poles.contains(1) && poleMsg.count == poles.count - 2,
+            check(h0 == 0 && h1 == 1 && h2 == 0 && lap == 2 && msg.count == 2 && msg.last!.contains("2 周目へ") && cleared && poles == [0] && poleMsg.isEmpty,   // 周が変わると通った極もリセット（2 周目もチャイムが鳴る）。残るのは今通ったアナ極だけ
                   "チェックポイント：置いた所では数えず（\(h0)）、前の目印を通って \(h1)、1 周して最初の目印で全部通って \(lap) 周目へ（チェックは \(h2) に戻る。\(msg.last ?? "")）。目印を消すと記録と周回も消える。極も 1 周で \(poles.count) つ（\(poles.map { MapRenderer.poleName(FIXED[$0]) }.joined(separator: "・"))）")
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }

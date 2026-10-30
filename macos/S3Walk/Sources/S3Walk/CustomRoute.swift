@@ -252,6 +252,7 @@ extension Renderer {
         for (k, p) in pts.enumerated() where !FIXED.contains(where: { dot4($0.c, p) > cos(0.002) }) && !journey.marks.contains(where: { dot4($0, p) > cos(0.002) }) { cp.append(p); cn.append(names[k]) }
         if !checkpoints { cp = []; cn = [] }
         journey.routePts = cp; journey.routeNames = cn; journey.routeHit = []; journey.enteredRoute = []
+        journey.lapPoles = FIXED.indices.filter { k in pts.contains { dot4(FIXED[k].c, $0) > cos(0.002) } }   // 道が通る極（極だけの道も、これを全部通って 1 周）
         if (set.routeFlow || flow) && pts.count >= 2 { startFlow(); return }
         let dist = acos(clamp1(dot4(cam.w.p, pts[0])))
         if dist < 0.003 {

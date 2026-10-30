@@ -14,6 +14,7 @@ struct Journey {
     /// チェックポイント：歩いて通った目印（その目印の位置。並びは通った順）。目印のそば（0.12 以内）に外から入った時に記録する
     var marksHit: [V4] = []
     var polesHit: [Int] = []             // 通った極（FIXED の番号。通った順）
+    var lapPoles: [Int] = []             // 歩いている自分の道が通る極（2 つ以上あれば、この極を全部通って 1 周。8 つの極を全部通らない道でも周回する）
     /// 自分の道の点（ランダムな点・座標で入れた点など。極・目印と同じ所は除く）も、歩いている間はチェックポイント。routeNames は知らせの名前
     var routePts: [V4] = [], routeNames: [String] = [], routeHit: [V4] = [], enteredRoute: [V4] = []
     func isRouteHit(_ m: V4) -> Bool { routeHit.contains { simd_distance($0, m) < 1e-9 } }
@@ -74,7 +75,7 @@ struct Journey {
             let n = marks.filter { isHit($0) }.count
             if n == marks.count && marks.count >= 2 && routePts.count < 2 {
                 // 1 周：チェックをリセットして次の周へ（今いる目印は、離れてまた入った時に数える）
-                lap += 1; marksHit = []
+                lap += 1; marksHit = []; polesHit = []
                 if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }   // 跡も新しい周から
                 say("チェック！ 目印 \(i + 1) を通過。\(lap - 1) 周！ チェックポイントをリセットして \(lap) 周目へ")
             } else {
@@ -93,7 +94,7 @@ struct Journey {
             routeHit.append(m)
             let n = routePts.filter { isRouteHit($0) }.count, name = i < routeNames.count ? routeNames[i] : "道の点 \(i + 1)"
             if n == routePts.count && routePts.count >= 2 {
-                lap += 1; routeHit = []
+                lap += 1; routeHit = []; polesHit = []
                 if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }
                 say("チェック！ \(name) を通過。\(lap - 1) 周！ チェックポイントをリセットして \(lap) 周目へ")
             } else {
@@ -113,10 +114,10 @@ struct Journey {
             if k >= 2 { say("チェック！ \(MapRenderer.poleName(m))を通過（極 \(polesHit.count)/8）") }
         }
         // 目印が 2 つより少ない時は、8 つの極が周回のチェックポイント
-        if marks.count < 2 && routePts.count < 2 && polesHit.count >= FIXED.count {
+        if marks.count < 2 && routePts.count < 2 && (lapPoles.count >= 2 ? lapPoles.allSatisfy { polesHit.contains($0) } : polesHit.count >= FIXED.count) {
             lap += 1; polesHit = []
             if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }
-            say("8 つの極を全部通った！ \(lap - 1) 周。チェックポイントをリセットして \(lap) 周目へ")
+            say(lapPoles.count >= 2 ? "道の極を全部通った！ \(lap - 1) 周。チェックポイントをリセットして \(lap) 周目へ" : "8 つの極を全部通った！ \(lap - 1) 周。チェックポイントをリセットして \(lap) 周目へ")
         }
         lastP = p
         if !Journey.hitPulse.isEmpty { let now = ProcessInfo.processInfo.systemUptime; Journey.hitPulse.removeAll { now - $0.t > 2 } }

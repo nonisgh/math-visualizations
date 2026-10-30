@@ -173,6 +173,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     private(set) var padRun = 1.0
     /// 最後に歩いた向きと時刻（地図の黄色の円すいが、歩いている間はこの向きを指す。ウェブ版の W.lastDir）
     var lastDir: V4?, lastDirT = 0.0
+    var railCache: (key: String, pts: [V4]) = ("", [])                  // 先に描く道（railPath。道を変えた時だけ作り直す）
     var planCache: (frame: Int, pts: [V4]) = (-1, [])   // 決まった道・自分の道の、これから先の道（plannedPath。歩いたコマごとに 1 回だけ作る）
     /// 前を見ている途中（leveling：見回しを 0 へ。levelEl なら仰角も 0 へ）・この向きへ進む途中（headGoing）
     private(set) var leveling = false, levelEl = false, headGoing = false
@@ -267,7 +268,10 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var zlUsed = false
     var journey = Journey()
     var pathMode: PathMode = .none {   // 決まった道（螺旋・回る輪）
-        didSet { if pathMode != .custom && !journey.routePts.isEmpty { journey.routePts = []; journey.routeNames = []; journey.routeHit = []; journey.enteredRoute = [] } }   // 自分の道をやめたら、道の点のチェックポイントもおしまい
+        didSet {
+            if pathMode != .custom && !journey.routePts.isEmpty { journey.routePts = []; journey.routeNames = []; journey.routeHit = []; journey.enteredRoute = [] }
+            if pathMode != .custom && !journey.lapPoles.isEmpty { journey.lapPoles = [] }
+        }   // 自分の道をやめたら、道の点のチェックポイントもおしまい
     }
     var path = PathWalk()
     var turn = TurnWalk()              // ターンの道（半周 180°・極めぐり）
