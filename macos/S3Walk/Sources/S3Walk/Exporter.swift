@@ -389,7 +389,9 @@ final class VideoExport: ObservableObject {
         g.clear(cb, dst)
         if let dive = r.paneTexture(rw, outH), r.renderExport(cb, into: dive, w: rw, h: outH, withMap: false) { g.copy(cb, dive, into: dst, x: lw + gap, y: 0, w: rw, h: outH) }
         if let map = r.overviewTexture(cb, lw, th) { g.copy(cb, map, into: dst, x: 0, y: 0, w: lw, h: th) }
-        if let walk = r.walkSceneTexture(cb, lw, bh, cam: rec.walkCam) { g.copy(cb, walk, into: dst, x: 0, y: th + gap, w: lw, h: bh) }
+        if s2.map2 && (force || s2.diveT > 0) {                            // 地図 2 枚：左下はW 地図
+            if let m2 = r.overviewTexture(cb, lw, bh, motion: true) { g.copy(cb, m2, into: dst, x: 0, y: th + gap, w: lw, h: bh) }
+        } else if let walk = r.walkSceneTexture(cb, lw, bh, cam: rec.walkCam) { g.copy(cb, walk, into: dst, x: 0, y: th + gap, w: lw, h: bh) }
         return true
     }
     /// 書き出しの絵の上の文字：画面と同じ見た目・同じ割合の大きさで（画面の点 → 書き出しの画素は、右の画面の高さの比）
@@ -436,7 +438,8 @@ final class VideoExport: ObservableObject {
             let lw = max(64, min(outW - 64, Int(Double(outW) * s2.splitX))), th = max(64, min(outH - 64, Int(Double(outH) * s2.splitY)))
             let map = CGRect(x: 0, y: 0, width: lw, height: th), walk = CGRect(x: 0, y: th + gap, width: lw, height: outH - th - gap)
             // さんぽの景色の極（色の点と名前。さんぽの窓と同じ）。カメラは記録したさんぽのカメラ
-            if let wr = gen ?? HyperLabState.walkRendererGet?() {
+            let two = s2.map2 && (force || s2.diveT > 0)
+            if !two, let wr = gen ?? HyperLabState.walkRendererGet?() {
                 let saved = wr.cam; if let c = rec.walkCam { wr.cam = c }
                 var ls = wr.poleLabels(aspect: Double(walk.width / max(1, walk.height)))
                 wr.cam = saved
@@ -444,8 +447,8 @@ final class VideoExport: ObservableObject {
                 if pen { for i in ls.indices { ls[i].name = MapRenderer.poleNameToEN(ls[i].name) } }
                 hud.poles(ls, in: walk, k: k, serif: pen)
             }
-            hud.caption("【全体像】4D の超球（ダイブ中も、外から見た全体）　ドラッグで見る向き", in: map, k: k)
-            hud.caption("【さんぽの景色】今いる所から見た S³（歩くのはさんぽの窓・コントローラーで）", in: walk, k: k)
+            hud.caption("ナビ地図", in: map, k: k)
+            hud.caption(two ? "W 地図" : "【さんぽの景色】今いる所から見た S³（歩くのはさんぽの窓・コントローラーで）", in: walk, k: k)
             hud.caption("【観察側】4D の超球（球殻を積む）　ドラッグで見る向き", in: dive, k: k)
         }
         // 走行中の座標（左上）・周回（右上）・角度の読み（左下）。ダイブ画面だけで左上に地図がある時は、座標は地図の下へ
@@ -789,7 +792,8 @@ final class VideoExport: ObservableObject {
         return ex.lastURL
     }
     /// 確かめ（--exporttest --route）：極めぐりを 8 秒、超球の窓のレイアウトで（さんぽの景色も裏のさんぽで描く）
-    static func selfTestRoute(seconds: Double = 0) -> URL? {
+    static func selfTestRoute(seconds seconds0: Double = 0) -> URL? {
+        let seconds = CommandLine.arguments.contains("--2laps") ? -1 : seconds0
         let ex = VideoExport.shared
         let st = HyperLabState(); st.walk = true; st.planOn = true
         guard let r = HyperLabRenderer(side: .right, state: st, view: nil), let wr = Renderer(device: r.device) else { return nil }
@@ -1031,7 +1035,7 @@ extension Renderer {
     /// 超球の窓へ渡す、さんぽの今（歩いた跡・今いる所・目印・見ている向き・予定の道）
     func hyperWalk() -> HyperLabState.Walk {
         let r = self
-        return .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks + r.journey.routePts, hit: r.journey.marks.map { r.journey.isHit($0) } + r.journey.routePts.map { r.journey.isRouteHit($0) }, poles: r.journey.polesHit, lap: r.journey.lap, head: r.cam.lookFrame().L, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov, plan: HyperLabState.planWanted ? r.plannedPath() : [], dist: r.journey.dist, rail: HyperLabState.railWanted ? r.railPath() : [])
+        return .init(trail: r.journey.trail, pos: r.cam.w.p, marks: r.journey.marks + r.journey.routePts, hit: r.journey.marks.map { r.journey.isHit($0) } + r.journey.routePts.map { r.journey.isRouteHit($0) }, poles: r.journey.polesHit, lap: r.journey.lap, head: r.cam.lookFrame().L, space: r.set.space, fwd: r.cam.w.f, vR: r.cam.viewFrame().R, vU: r.cam.viewFrame().U, vL: r.cam.viewFrame().L, fov: r.set.fov, plan: HyperLabState.planWanted ? r.plannedPath() : [], dist: r.journey.dist, rail: HyperLabState.railWanted ? (r.pathMode != .none ? r.railPath() : r.railCache.pts) : [])
     }
 }
 
