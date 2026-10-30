@@ -57,6 +57,17 @@ final class HyperSound {
         n.position = AVAudio3DPoint(x: 0, y: 0, z: -1.5)
         return env
     }
+    /// 動画の書き出し用：出口の手前（ミキサー）の音の形。鳴っていない時は nil
+    func tapFormat() -> AVAudioFormat? { guard running, let e = engine else { return nil }; return e.mainMixerNode.outputFormat(forBus: 0) }
+    /// 動画の書き出し用：出口の手前の音を写し取る（止めるまで）
+    func tap(_ f: @escaping (AVAudioPCMBuffer, AVAudioTime) -> Void) {
+        guard let e = engine else { return }
+        let m = e.mainMixerNode; m.removeTap(onBus: 0)
+        m.installTap(onBus: 0, bufferSize: 2048, format: m.outputFormat(forBus: 0)) { b, t in f(b, t) }
+        tapped = true
+    }
+    func untap() { engine?.mainMixerNode.removeTap(onBus: 0); tapped = false }
+    private(set) var tapped = false
     /// エンジンの低いうなりのリズム（何回目か・速さ Hz・知らせた時刻）。音が鳴っていない時は時刻が古いまま
     func beatClock() -> (cyc: Double, rate: Double, stamp: Double) {
         tgt.lock.lock(); defer { tgt.lock.unlock() }
@@ -212,7 +223,7 @@ final class HyperSound {
                 }
             }
             voices.removeAll { $0.t > 2.2 }
-            t.lock.lock(); t.beatCyc = beat; t.beatRate = Double(beatF); t.beatStamp = CACurrentMediaTime(); t.lock.unlock()
+            if t.lock.try() { t.beatCyc = beat; t.beatRate = Double(beatF); t.beatStamp = CACurrentMediaTime(); t.lock.unlock() }   // 音の糸は待たない（取れない時は次の回に）
             return noErr
         }
         return (n, fmt)
@@ -242,10 +253,27 @@ final class HyperSound {
         e.stop(); tgt.lock.lock(); tgt.gain = 0; tgt.lock.unlock()
         return (Float((sum / Double(max(1, cnt))).squareRoot()), peak, Float((sumR / Double(max(1, cnt))).squareRoot()))
     }
+    /// 動画の書き出し用：鳴らさずに、手で少しずつ音を作る（決まった道から作る動画の音。shared とは別に作って使う）
+    func startOffline(rate: Double = 48000) -> AVAudioFormat? {
+        guard !running, let outFmt = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2), let (n, fmt) = makeNode(Float(rate), mono: spatial) else { return nil }
+        let e = AVAudioEngine()
+        e.attach(n)
+        do { try e.enableManualRenderingMode(.offline, format: outFmt, maximumFrameCount: 4096) } catch { return nil }
+        if spatial { envNode = attachSpatial(e, n, fmt) } else { e.connect(n, to: e.mainMixerNode, format: fmt) }
+        do { try e.start() } catch { return nil }
+        engine = e; node = n; running = true
+        return e.manualRenderingFormat
+    }
+    /// 書き出し用：次の frames 標本ぶんの音を作る
+    func renderOffline(_ frames: Int) -> AVAudioPCMBuffer? {
+        guard let e = engine, e.isInManualRenderingMode, let b = AVAudioPCMBuffer(pcmFormat: e.manualRenderingFormat, frameCapacity: AVAudioFrameCount(frames)),
+              (try? e.renderOffline(AVAudioFrameCount(frames), to: b)) == .success else { return nil }
+        return b
+    }
     func stop() {
         guard running else { return }
         engine?.stop(); if let n = node { engine?.detach(n) }; if let v = envNode { engine?.detach(v) }
-        engine = nil; node = nil; envNode = nil; running = false
+        engine = nil; node = nil; envNode = nil; running = false; tapped = false
         tgt.lock.lock(); tgt.gain = 0; tgt.press = 0; tgt.turn = 0; tgt.chimes = []; tgt.lock.unlock()
     }
     /// 毎コマ：速さ（0〜1）・ズーム（0〜1）・曲がる速さ（−1〜1、＋は右へ）・音量から、風の大きさ・高さ・圧・曲がり

@@ -6,6 +6,7 @@
 //   ウェブ版の角度・色・遠近（camW）・層の作り方はそのまま。切り欠き・4D カメラ・旅・学習などは、まだ（ウェブ版の窓で）
 import SwiftUI
 import MetalKit
+import CoreVideo
 
 /// 共通の状態（左右の画面とパネルで共有）
 final class HyperLabState: ObservableObject {
@@ -103,6 +104,7 @@ final class HyperLabState: ObservableObject {
     @Published var splitY = 0.5                                       // 画面の仕切り：左の列の上の画面の高さ
     @Published var axesDive = true                                    // ズーム（ダイブ）の間も座標軸を出す
     @Published var planOn = true                                      // 予定の道：決まった道・自分の道（巡回）を歩く時、これから先の道を光の点線で
+    @Published var showMode = 1                                       // ショーカメラ：0 A（構図を順に回す＋カーブで真後ろの斜め構え）・1 B（ジェットコースター：先の落ち込み・昇り・急カーブへ先回り）
     @Published var spinMode = 0                                       // 矢印の回り方：0 拍（音のうなりに合わせたドミノ）・1 カーブ（曲がる所で自分から回る）・2 両方・3 波・4 らせん
     @Published var spinAmp = 90.0                                     // 波：振れ幅（度）。らせん：1 枚ごとのねじれ（度）
     @Published var spinLen = 6.0                                      // 波：波長（矢印の枚数）。らせん：拍 2 つで何回りするか（×0.1）
@@ -300,7 +302,7 @@ final class HyperLabState: ObservableObject {
          "axes": axes, "axPlus": axPlus, "axThin": axThin, "walk": walk, "marksOn": marksOn, "polesMode": polesMode,
          "spaceMode": spaceMode, "starsPct": starsPct, "layersLink": layersLink, "walkView": walkView, "order": order,
          "followOn": followOn, "followSlack": followSlack, "followSpeed": followSpeed, "followHeading": followHeading, "followDrift": followDrift,
-         "diveBlend": diveBlend, "quality": quality, "adaptive": adaptive, "wireW": wireW, "walkOpen": walkOpen, "cursor": cursor, "shutWalk": shutWalk, "shutAuto": shutAuto, "walkMenu": walkMenu, "walkPanelOn": walkPanelOn, "walkPanelSel": walkPanelSel, "axesDive": axesDive, "wipeLow": wipeLow, "hyperQ": hyperQ, "planOn": planOn, "planMark": planMark, "planShell": planShell, "planLong": planLong, "planDense": planDense, "opMode": opMode, "spinMode": spinMode, "spinAmp": spinAmp, "spinLen": spinLen, "shellMode": shellMode, "splitX": splitX, "splitY": splitY, "diveThird": diveThird, "chaseDist": chaseDist, "chasePitch": chasePitch, "chaseYaw": chaseYaw, "autoCam": autoCam, "camShow": camShow, "padCam": padCam, "padCamStick": padCamStick, "diveOverview": diveOverview, "ovCursor": ovCursor, "depth4": depth4, "depth4K": depth4K, "depth4On": depth4On, "symGlow": symGlow, "trailW": trailW, "trailCol": trailCol, "poleEN": poleEN, "coordOn": coordOn, "panelHidden": panelHidden, "padOn": padOn, "clearAhead": clearAhead, "show3D": show3D, "lapClear": lapClear, "uiScale": uiScale, "soundOn": soundOn, "soundVol": soundVol, "soundSpatial": soundSpatial, "starDepth": starDepth]
+         "diveBlend": diveBlend, "quality": quality, "adaptive": adaptive, "wireW": wireW, "walkOpen": walkOpen, "cursor": cursor, "shutWalk": shutWalk, "shutAuto": shutAuto, "walkMenu": walkMenu, "walkPanelOn": walkPanelOn, "walkPanelSel": walkPanelSel, "axesDive": axesDive, "wipeLow": wipeLow, "hyperQ": hyperQ, "planOn": planOn, "planMark": planMark, "planShell": planShell, "planLong": planLong, "planDense": planDense, "opMode": opMode, "spinMode": spinMode, "showMode": showMode, "spinAmp": spinAmp, "spinLen": spinLen, "shellMode": shellMode, "splitX": splitX, "splitY": splitY, "diveThird": diveThird, "chaseDist": chaseDist, "chasePitch": chasePitch, "chaseYaw": chaseYaw, "autoCam": autoCam, "camShow": camShow, "padCam": padCam, "padCamStick": padCamStick, "diveOverview": diveOverview, "ovCursor": ovCursor, "depth4": depth4, "depth4K": depth4K, "depth4On": depth4On, "symGlow": symGlow, "trailW": trailW, "trailCol": trailCol, "poleEN": poleEN, "coordOn": coordOn, "panelHidden": panelHidden, "padOn": padOn, "clearAhead": clearAhead, "show3D": show3D, "lapClear": lapClear, "uiScale": uiScale, "soundOn": soundOn, "soundVol": soundVol, "soundSpatial": soundSpatial, "starDepth": starDepth]
     }
     func load() {
         guard let d = UserDefaults.standard.dictionary(forKey: Self.saveKey) else { return }
@@ -314,7 +316,7 @@ final class HyperLabState: ObservableObject {
         int("spaceMode", &spaceMode); dbl("starsPct", &starsPct); bol("layersLink", &layersLink); bol("walkView", &walkView)
         if let o = d["order"] as? [Int], o.count == 3, Set(o) == [0, 1, 2] { order = o }
         bol("followOn", &followOn); dbl("followSlack", &followSlack); dbl("followSpeed", &followSpeed); bol("followHeading", &followHeading); dbl("followDrift", &followDrift)
-        bol("diveBlend", &diveBlend); int("quality", &quality); bol("adaptive", &adaptive); dbl("wireW", &wireW); bol("walkOpen", &walkOpen); int("cursor", &cursor); bol("shutWalk", &shutWalk); bol("shutAuto", &shutAuto); bol("walkMenu", &walkMenu); bol("walkPanelOn", &walkPanelOn); int("walkPanelSel", &walkPanelSel); bol("axesDive", &axesDive); bol("wipeLow", &wipeLow); int("hyperQ", &hyperQ); bol("planOn", &planOn); int("planMark", &planMark); bol("planShell", &planShell); bol("planLong", &planLong); bol("planDense", &planDense); bol("opMode", &opMode); int("spinMode", &spinMode); dbl("spinAmp", &spinAmp); dbl("spinLen", &spinLen); int("shellMode", &shellMode); dbl("splitX", &splitX); dbl("splitY", &splitY); bol("diveThird", &diveThird); dbl("chaseDist", &chaseDist); dbl("chasePitch", &chasePitch); dbl("chaseYaw", &chaseYaw); bol("autoCam", &autoCam); bol("camShow", &camShow); bol("padCam", &padCam); int("padCamStick", &padCamStick); bol("diveOverview", &diveOverview); int("ovCursor", &ovCursor); int("depth4", &depth4); dbl("depth4K", &depth4K); bol("depth4On", &depth4On); bol("symGlow", &symGlow); dbl("trailW", &trailW); int("trailCol", &trailCol); bol("poleEN", &poleEN); bol("coordOn", &coordOn); bol("panelHidden", &panelHidden); bol("padOn", &padOn); bol("clearAhead", &clearAhead); bol("show3D", &show3D); bol("lapClear", &lapClear); bol("soundOn", &soundOn); dbl("soundVol", &soundVol); bol("soundSpatial", &soundSpatial); dbl("starDepth", &starDepth); dbl("uiScale", &uiScale); uiScale = min(2, max(0.75, uiScale))
+        bol("diveBlend", &diveBlend); int("quality", &quality); bol("adaptive", &adaptive); dbl("wireW", &wireW); bol("walkOpen", &walkOpen); int("cursor", &cursor); bol("shutWalk", &shutWalk); bol("shutAuto", &shutAuto); bol("walkMenu", &walkMenu); bol("walkPanelOn", &walkPanelOn); int("walkPanelSel", &walkPanelSel); bol("axesDive", &axesDive); bol("wipeLow", &wipeLow); int("hyperQ", &hyperQ); bol("planOn", &planOn); int("planMark", &planMark); bol("planShell", &planShell); bol("planLong", &planLong); bol("planDense", &planDense); bol("opMode", &opMode); int("showMode", &showMode); int("spinMode", &spinMode); if ![0, 5, 6].contains(spinMode) { spinMode = 0 }; dbl("spinAmp", &spinAmp); dbl("spinLen", &spinLen); int("shellMode", &shellMode); dbl("splitX", &splitX); dbl("splitY", &splitY); bol("diveThird", &diveThird); dbl("chaseDist", &chaseDist); dbl("chasePitch", &chasePitch); dbl("chaseYaw", &chaseYaw); bol("autoCam", &autoCam); bol("camShow", &camShow); bol("padCam", &padCam); int("padCamStick", &padCamStick); bol("diveOverview", &diveOverview); int("ovCursor", &ovCursor); int("depth4", &depth4); dbl("depth4K", &depth4K); bol("depth4On", &depth4On); bol("symGlow", &symGlow); dbl("trailW", &trailW); int("trailCol", &trailCol); bol("poleEN", &poleEN); bol("coordOn", &coordOn); bol("panelHidden", &panelHidden); bol("padOn", &padOn); bol("clearAhead", &clearAhead); bol("show3D", &show3D); bol("lapClear", &lapClear); bol("soundOn", &soundOn); dbl("soundVol", &soundVol); bol("soundSpatial", &soundSpatial); dbl("starDepth", &starDepth); dbl("uiScale", &uiScale); uiScale = min(2, max(0.75, uiScale))
         if cutOn && cutKind == 0 && cutRef == 2 { polyArm &+= 1 }            // ポリゴンカットは開いた時の手前で作り直す
         lastSaved = "\(snapshot)"
     }
@@ -843,7 +845,7 @@ fragment float4 cmf(CMO in [[stage_in]], constant float4& tm [[buffer(2)]]) {
         float halo = exp(-max(d, 0.0) * max(d, 0.0) / 0.006) * (1.0 - core);
         //   陰影：上の腕は 1、下の腕は c.w の明るさ（折り紙のように少し折った腕に光が当たる）。境目はなめらかに。うしろほど少し暗く
         float shade = mix(in.c.w, 1.0, smoothstep(-0.04, 0.04, p.y)) * (0.82 + 0.18 * smoothstep(-0.3, 0.5, p.x));
-        return float4((mix(in.c.rgb, float3(1.0), 0.25) * core * 0.9 + in.c.rgb * halo * 0.7) * shade, in.q.w);
+        return float4((mix(in.c.rgb, float3(1.0), 0.25) * core * 1.05 + in.c.rgb * halo * 0.8) * shade, in.q.w);
     }
     if (in.q.z > 10.5) {
         // 矢印のポリゴンのまわりの光（kind 11）：帯の真ん中ほど明るく、ふちで 0 へ（q.y：帯の横 −1〜1）
@@ -1125,6 +1127,17 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     let side: Side, st: HyperLabState
     /// 全体像（ダイブ中に 3D の球の場所へ出す、ダイブしていない超球）：ダイブは見ない
     var overview = false
+    // 動画の書き出し（記録 → 書き出し）で、記録した時刻・拍・細かさで描き直すための差しかえ。nil ならふだんどおり
+    var clockOverride: Double? = nil, domOverride: Double? = nil, renderKOverride: Double? = nil
+    var nowT: Double { clockOverride ?? CACurrentMediaTime() }
+    var rK: Double { renderKOverride ?? HyperLabState.renderK }
+    /// いま画面に出ている、右の超球の画面（記録はこの画面から取る）
+    static weak var liveMain: HyperLabRenderer?
+    /// 誘導灯の光とドミノの拍（彗星の音のうなり 6 つで 1 回。音が鳴っていない時は 4 秒ごと）
+    static func domClock(_ now: Double) -> Double {
+        let b = HyperSound.shared.beatClock()
+        return now - b.stamp < 0.4 && b.rate > 0.05 ? (b.cyc + b.rate * (now - b.stamp)) / 6 : now / 4.0
+    }
     private var dvT: Double { overview ? 0 : st.diveT }
     private var dvFade: Double { overview ? 0 : st.diveFade }
     private var dvThird: Double { overview ? 0 : st.thirdK }
@@ -1146,6 +1159,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     private var leftRings: [(rho: Double, h: Double, col: SIMD3<Float>)] = []
     private var rPipeAdd: MTLRenderPipelineState!, starPipe: MTLRenderPipelineState!, bgPipe: MTLRenderPipelineState!, bgMakePipe: MTLRenderPipelineState!
     private var bgTex: MTLTexture?                                    // 宇宙の背景の絵（大きさが変わった時だけ作る。毎コマ星雲を計算すると重い）
+    private var bgTex2: MTLTexture?
     /// 天の川：S³ の大きな球面（法線 milkyN に垂直な S²）のまわりに、細かい星と、ぼんやりした光の雲。寄ると見える
     static let milkyN = simd_normalize(SIMD4<Float>(0.35, 0.55, -0.25, 0.72))
     private lazy var milkyBufs: (dust: MTLBuffer?, haze: MTLBuffer?, nd: Int, nh: Int) = {
@@ -1188,7 +1202,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         guard z > 0.02 else { return }
         let mb = milkyBufs
         var uu = u, hh = h; uu.cut = .zero
-        var tz = SIMD4<Float>(Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 1000)), 0.3 * z, z, 0)   // またたきは控えめ。z：遠近
+        var tz = SIMD4<Float>(Float(nowT.truncatingRemainder(dividingBy: 1000)), 0.3 * z, z, 0)   // またたきは控えめ。z：遠近
         e.setRenderPipelineState(starPipe); e.setDepthStencilState(haze ? depthAlways : depthRead)
         e.setVertexBytes(&uu, length: MemoryLayout<HLUni>.stride, index: 1); e.setVertexBytes(&hh, length: MemoryLayout<HLRight>.stride, index: 2)
         e.setVertexBytes(&tz, length: 16, index: 4); e.setFragmentBytes(&tz, length: 16, index: 4)
@@ -1529,22 +1543,108 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             // 予定の道を全部出している時は、長い矢印の鎖が画面を大きく横切るので、傾き・ずらしを半分に（カメラが荒ぶって見えない）
             if st.planLong { showRollT *= 0.5; showFrameT *= 0.5; ty *= 0.7 }
         } else { showDistT = 1; showRollT = 0; showIdx = 0; showT = 0 }
-        st.showDist += (showDistT - st.showDist) * (1 - exp(-dt * 0.9))
-        st.showRoll += (showRollT - st.showRoll) * (1 - exp(-dt * 0.9))
+        // 視点の切りかえは、ばねで S 字に動かす（ゆっくり動き出して、途中で速く、着く前にまたゆっくり。急に向きが変わった感じにしない）
+        func spring(_ x: inout Double, _ v: inout Double, _ to: Double, _ w: Double) {
+            let n = max(1, Int(ceil(dt / 0.01))), h = dt / Double(n)
+            for _ in 0..<n { v += (w * w * (to - x) - 2 * w * v) * h; x += v * h }
+        }
+        spring(&st.showDist, &sdV, showDistT, 1.3)
         if !(st.camShow && st.autoCam && st.diveT > 0.3 && !st.camHeld) { showFrameT = .zero }
-        st.showFrame += (showFrameT - st.showFrame) * (1 - exp(-dt * 0.9))
+        spring(&st.showFrame.x, &sfV.x, showFrameT.x, 1.3); spring(&st.showFrame.y, &sfV.y, showFrameT.y, 1.3)
         // 展開する時は少し速く（約 1 秒）、戻る時はゆっくり（約 3 秒）
         let up = tp > st.autoPitch && st.autoDyn > 0.2
-        let fast = st.camShow && st.autoCam                               // ショーカメラは角度の切りかえを少し速く（約 0.9 秒）
-        let k = 1 - exp(-dt * (fast ? 1.1 : 0.6)), kp = 1 - exp(-dt * (fast ? 1.1 : up ? 1.1 : 0.35))
-        st.autoYaw += (ty - st.autoYaw) * k; st.autoPitch += (tp - st.autoPitch) * kp
+        let fast = st.camShow && st.autoCam                               // ショーカメラは、ゆっくり回り込む（切りかえに 2〜3 秒。落ち着いた動き）
+        let k = 1 - exp(-dt * (fast ? 0.55 : 0.6)), kp = 1 - exp(-dt * (fast ? 0.55 : up ? 1.1 : 0.35))
+        _ = k; _ = kp
+        // 四元数のカメラ：左右・上下・傾きを 1 つの回転（四元数）にまとめて、ばねで追いかける。
+        //   いつもいちばん近い回り方で、きれいな弧を描いて回り込む（左右を別々に追うと遠回りしたり、真上の近くでロックしたようにガクッと回ったりした）。
+        //   向きの組み立て：左右（y 軸）→ 上下（x 軸）→ 傾き（z 軸）。追いかけた四元数を同じ組み立ての角度に戻して、カメラへ渡す
+        let rollT = showRollT * 0.6                                           // 傾きは控えめに（ショーカメラ以外は 0）
+        func qOf(_ y: Double, _ p: Double, _ rl: Double) -> simd_quatd {
+            simd_quatd(angle: y, axis: SIMD3(0, 1, 0)) * simd_quatd(angle: p, axis: SIMD3(1, 0, 0)) * simd_quatd(angle: rl, axis: SIMD3(0, 0, 1))
+        }
+        var qT = qOf(ty, tp, rollT)
+        if simd_dot(qT.vector, camQ.vector) < 0 { qT = simd_quatd(vector: -qT.vector) }
+        let wq = up ? 1.9 : fast ? 1.25 : 1.0                                // 展開（見下ろしへ開く）は少し速く、ほかはゆっくり（約 3 秒で弧を描いて着く）
+        let nq = max(1, Int(ceil(dt / 0.01))), hq = dt / Double(nq)
+        for _ in 0..<nq {
+            var e = qT * camQ.inverse; if e.real < 0 { e = simd_quatd(vector: -e.vector) }
+            let ang = e.angle, ev = ang > 1e-9 ? e.axis * ang : SIMD3<Double>(0, 0, 0)
+            camW += (wq * wq * ev - 2 * wq * camW) * hq                         // 回転のずれへ向かうばね（行き過ぎない）
+            let wl = simd_length(camW)
+            if wl > 1e-12 { camQ = simd_normalize(simd_quatd(angle: wl * hq, axis: camW / wl) * camQ) }
+        }
+        let mq = simd_matrix3x3(camQ), c3 = mq.columns.2
+        st.autoPitch = asin(max(-1, min(1, -c3.y))); st.autoYaw = atan2(c3.x, c3.z); st.showRoll = atan2(mq.columns.0.y, mq.columns.1.y)
         if abs(st.autoYaw) < 1e-5 && ty == 0 { st.autoYaw = 0 }; if abs(st.autoPitch) < 1e-5 && tp == 0 { st.autoPitch = 0 }
     }
     /// ショーカメラ：カーブが近い（予定の道で 0.7 以内に、1 歩 0.02 で 0.7° より大きく曲がる所がある）か曲がっている間は、真後ろの低い所から
     ///   （ターンを後ろから見せる。曲がり終えて 1 秒は続ける）。まっすぐな所は 4.5 秒ごとに：斜め右上（傾ける）→ 右の真横 → 真上の近く → 斜め左上（傾ける）→ 左の真横 → 高く引いた全体 → 低い斜め後ろ → 後ろ。
     ///   返り値は、オートカメラの左右・見下ろしの目標（三人称の基本の角度からのずれ）と、距離の倍率
     private var showIdx = 0, showT = 0.0, showHold = 0.0, showDistT = 1.0, showRollT = 0.0, showFrameT = SIMD2<Double>(0, 0)
+    // 演出 AI の覚え：先回りしている構図・そのカーブの種類・抜けてから戻るまで・最近使った構図
+    private var sdV = 0.0, sfV = SIMD2<Double>(0, 0)                       // 視点のばねの速さ（距離・彗星の置き場所）
+    private var camQ = simd_quatd(ix: 0, iy: 0, iz: 0, r: 1), camW = SIMD3<Double>(0, 0, 0)   // 四元数のカメラ：今の向きと、回る速さ（角速度）
+    private var aiShot: (Double, Double, Double, Double, Double, Double)? = nil, aiKey = -99, aiHold = 0.0, aiHist: [Int] = []
+    /// 演出 AI（ジェットコースター）：予定の道の先の落ち込み・昇り・急カーブを読み、先回りして構える。
+    ///   落ち込みでは、カメラが前の高い所へゆっくり舞い上がり、向かってくる彗星を見下ろす（彗星はカメラの下へ落ちていく）。抜けたら少しして後ろへ戻る。
+    ///   マンネリにならないよう、最近使った 3 つは選ばず、角度・距離に毎回少し揺らぎを入れ、4 回に 1 回はあえて先回りしない
+    private func aiDirector(_ dt: Double) -> (Double, Double, Double, Double, Double, Double)? {
+        var ahead: (cat: Int, sg: Double)? = nil
+        if let w = (wsrc)?(), w.plan.count >= 3 {
+            let pl = w.plan
+            for i in 1..<min(pl.count - 1, 46) {
+                guard Self.geoTurn(pl[i - 1], pl[i], pl[i + 1]) > 0.03 else { continue }   // 1 歩（0.02）で 1.7° より急
+                let p = simd_normalize(pl[i]); var bend = (pl[i + 1] - pl[i]) - (pl[i] - pl[i - 1]); bend -= p * simd_dot(bend, p)
+                let lr = simd_dot(bend, w.vR), ud = simd_dot(bend, w.vU)
+                ahead = abs(ud) > abs(lr) * 0.8 ? (ud < 0 ? 0 : 1, 1) : (2, lr >= 0 ? 1 : -1)   // 0 落ち込み・1 昇り・2 左右（sg ＋右）
+                break
+            }
+        }
+        // (左右（0 真後ろ・±π 真正面）、見下ろし、距離、傾き、彗星の横の置き場所、縦の置き場所)
+        func shots(_ cat: Int, _ sg: Double) -> [(Double, Double, Double, Double, Double, Double)] {
+            let s2: Double = Bool.random() ? 1 : -1
+            switch cat {
+            case 0: return [(2.4 * s2, 0.85, 1.5, 0.08 * s2, 0, -0.12),   // 先回り：前の高い所から、向かってくる彗星を見下ろす（下へ落ちていく）
+                            (0.25, 1.1, 1.6, 0, 0, -0.15),                  // 真後ろの高い所から、落ちていく深さ
+                            (1.4 * s2, 0.65, 1.5, 0.1 * s2, 0, -0.1)]       // 横の高い所から、落ちていく高低差
+            case 1: return [(2.5 * s2, -0.35, 1.3, 0.06 * s2, 0, 0.18),  // 前の低い所から、昇ってくる彗星を見上げる
+                            (1.3 * s2, 0.1, 1.6, 0, 0, 0)]                  // 真横から、高さの変わり方
+            default: return [(-1.0 * sg, 0.5, 1.4, 0.12 * sg, 0, 0),       // カーブの外側の高い所
+                             (-0.2 * sg, 0.25, 1.0, 0.18 * sg, 0, 0),       // 真後ろで、曲がる側へ軽く傾けて
+                             (0.3 * sg, 1.0, 1.7, 0, 0, 0),                 // 上の引き（曲がる道すじ全体）
+                             (-0.4 * sg, 0.3, 1.1, 0.85 * sg, 0, 0)]       // 飛行機の旋回のように、曲がる側へ大きく傾けて
+            }
+        }
+        if let a = ahead {
+            aiHold = 1.6
+            let key = a.cat * 10 + Int(a.sg)
+            if key != aiKey {
+                aiKey = key
+                let c = shots(a.cat, a.sg)
+                let recent = Set(aiHist.suffix(3))
+                var pool = c.indices.filter { !recent.contains(a.cat * 100 + $0) }; if pool.isEmpty { pool = Array(c.indices) }
+                if Double.random(in: 0..<1) < 0.25 { aiShot = nil }                // あえて先回りしない（いつもの構図のまま）
+                else {
+                    let i = pool.randomElement()!, b = c[i]; aiHist.append(a.cat * 100 + i); if aiHist.count > 8 { aiHist.removeFirst() }
+                    func jit(_ v: Double) -> Double { v * Double.random(in: 0.88...1.12) }
+                    aiShot = (jit(b.0), jit(b.1), jit(b.2), jit(b.3), b.4, b.5)
+                }
+            }
+        } else {
+            aiHold -= dt
+            if aiHold <= 0 { aiShot = nil; aiKey = -99 }
+        }
+        return aiShot
+    }
     private func showShot(_ dt: Double) -> (Double, Double, Double, Double) {
+        // 演出 AI が先回りしている時は、その構図（いつもの回し方は止めておく）
+        if st.showMode == 1, let a = aiDirector(dt) {
+            showFrameT = SIMD2(a.4, a.5); showT = 0
+            let mw = smoothstep(0.52, 0.78, st.diveT)
+            let baseY = st.chaseYawS * (1 - 2 * mw) * .pi / 180, baseP = st.chasePitchS * .pi / 180
+            return (a.0 - baseY, a.1 - baseP, a.2, a.3)
+        }
         var curve = abs(acTurn) > 0.35 || abs(acTurnU) > 0.35
         if let w = (wsrc)?(), w.plan.count >= 3 {
             let pl = w.plan
@@ -1552,21 +1652,24 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 if Self.geoTurn(pl[i - 1], pl[i], pl[i + 1]) > 0.012 { curve = true; break }
             }
         }
-        if curve { showHold = 1 } else { showHold -= dt }
+        if curve { showHold = 2.5 } else { showHold -= dt }   // カーブを抜けて 2.5 秒は構えたまま（すぐ切りかわってカクつかない）
         // (左右（0 で真後ろ、＋で右）、見下ろし、距離の倍率)
         // (左右（0 で真後ろ、＋で右）、見下ろし、距離の倍率、傾き)。斜め上からの斜め構え（傾けて迫力）を、真横・真上・引きの間にはさむ
         //   6 つ目：彗星を画面のどこに置くか（横 −左 ＋右、縦 −下 ＋上。カメラの距離の割合）。左上・右上に置く構図、見下ろす構図も
         let shots: [(Double, Double, Double, Double, Double, Double)] = [
             (0, 0.16, 0.8, 0, 0, 0), (0.8, 0.45, 1.1, 0.34, 0, 0), (0.75, -0.42, 1.0, 0.16, -0.2, 0.2), (1.35, 0.22, 1.05, 0.12, 0, 0), (0.25, 1.2, 1.3, 0, 0, 0),
             (-0.8, 0.45, 1.1, -0.34, 0, 0), (-0.75, -0.42, 1.0, -0.16, 0.2, 0.2), (-1.35, 0.22, 1.05, -0.12, 0, 0), (0.55, 0.6, 1.8, 0.2, 0, 0),
-            (0.7, 0.05, 0.9, -0.28, 0, 0)]   // 見上げる構図（見下ろしがマイナス）：下から仰ぐので、彗星は画面の左上・右上に
+            (0.7, 0.05, 0.9, -0.28, 0, 0),   // 見上げる構図（見下ろしがマイナス）：下から仰ぐので、彗星は画面の左上・右上に
+            (0.3, 0.5, 3.0, 0, 0, 0), (-0.9, 0.35, 3.4, -0.08, 0, 0), (1.6, 0.8, 2.8, 0.08, 0, 0),   // 大きく引いた全体（まっすぐな所で、ときどき）
+            (0.55, 0.2, 1.1, 0.8, 0, 0), (-0.55, 0.2, 1.1, -0.8, 0, 0)]   // 斜めの構図（地平線を大きく傾ける。飛行機の旋回のようにダイナミックに）
         // カーブの時：真後ろの少し斜め（曲がる側の外から）、曲がる側へ傾けて構える。彗星は真ん中
         let tsg: Double = acTurn >= 0 ? 1 : -1
-        var shot: (Double, Double, Double, Double, Double, Double) = (-0.35 * tsg, 0.28, 0.85, 0.22 * tsg, 0, 0)
+        var shot: (Double, Double, Double, Double, Double, Double) = (-0.35 * tsg, 0.28, 0.85, 0.12 * tsg, 0, 0)
         if showHold > 0 { showT = 0; showIdx = 0 }
         else {
             showT += dt
-            if showT > 4.5 { showT = 0; showIdx = (showIdx + 1) % shots.count }
+            // 7 秒ごとに次の構図（忙しくない）。順番ではなくランダムに（同じのが続かない）。大きく引いた全体もときどき入る
+            if showT > 7 { showT = 0; var n = Int.random(in: 0..<shots.count); if n == showIdx { n = (n + 1) % shots.count }; showIdx = n }
             shot = shots[showIdx]
         }
         showFrameT = SIMD2(shot.4, shot.5)
@@ -1621,6 +1724,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         }
         if Self.logOn { let g = (t0 - lastT) * 1000; lgMaxGap = max(lgMaxGap, g); if g > 12 { lgLong += 1 } }
         let now = CACurrentMediaTime(), dt = min(0.05, now - lastT); lastT = now
+        if VideoExport.shared.rendering && side == .right && !overview { return }   // 動画を書き出している間は、右の画面を止めて（GPU を書き出しに回す）
         #if os(macOS)
         if owner && st.shutAuto {                                        // 前の窓だけ描く：どちらの窓が前（キー）かで、瞬時に切りかえ
             let hk = HyperLabWindow.window?.isKeyWindow ?? false, wk = HyperLabWindow.walkWindow?.isKeyWindow ?? false
@@ -1666,6 +1770,93 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             encode(e, view.drawableSize); e.endEncoding()
         }
         timeGPU(cb); cb.present(dr); cb.commit()
+        if !overview { Self.liveMain = self }
+        if (VideoExport.shared.recording || VideoExport.shared.keepLast) && !overview, let f = recordFrame() { VideoExport.shared.capture(f) }   // 記録している間・直前 1 分を覚える間：この画面の動きを 1 コマずつ覚える（描き直すのは止めたあと）
+    }
+    // ---- 動画の書き出し：16:9（1920×1080）で画面の裏でもう一度描く。ダイブ中は左上に小さく全体像の地図 ----
+    private var exMS: MTLTexture?, exDep: MTLTexture?, exOut: MTLTexture?, exCache: CVMetalTextureCache?, exOverview: HyperLabRenderer?, exGlass: InsetGlass?
+    private func exAlloc(_ w: Int, _ h: Int) {
+        guard exMS?.width != w || exMS?.height != h else { return }
+        let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: w, height: h, mipmapped: false)
+        d.usage = [.renderTarget, .shaderRead]; d.storageMode = .private; exOut = device.makeTexture(descriptor: d)
+        d.textureType = .type2DMultisample; d.sampleCount = 4; exMS = device.makeTexture(descriptor: d)
+        let dd = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .depth32Float, width: w, height: h, mipmapped: false)
+        dd.usage = [.renderTarget]; dd.storageMode = .private; dd.textureType = .type2DMultisample; dd.sampleCount = 4; exDep = device.makeTexture(descriptor: dd)
+    }
+    private func exPass(_ cb: MTLCommandBuffer, _ resolve: MTLTexture, _ w: Int, _ h: Int) -> Bool {
+        guard let ms = exMS, let dep = exDep else { return false }
+        let rp = MTLRenderPassDescriptor()
+        rp.colorAttachments[0].texture = ms; rp.colorAttachments[0].resolveTexture = resolve
+        rp.colorAttachments[0].loadAction = .clear; rp.colorAttachments[0].storeAction = .multisampleResolve
+        rp.colorAttachments[0].clearColor = MTLClearColor(red: 3 / 255, green: 7 / 255, blue: 18 / 255, alpha: 1)
+        rp.depthAttachment.texture = dep; rp.depthAttachment.loadAction = .clear; rp.depthAttachment.storeAction = .dontCare; rp.depthAttachment.clearDepth = 1
+        guard let e = cb.makeRenderCommandEncoder(descriptor: rp) else { return false }
+        encode(e, CGSize(width: w, height: h)); e.endEncoding(); return true
+    }
+    /// 書き出しの 1 コマ：dst（w×h）へ描く（ダイブ中は鏡を広げ、左上に小さくガラスの窓の地図）。いつも最高の細かさ
+    func renderExport(_ cb: MTLCommandBuffer, into dst: MTLTexture, w: Int, h: Int, withMap: Bool) -> Bool {
+        renderKOverride = 1
+        exAlloc(w, h)
+        guard let mid = exOut, exPass(cb, dvT > 0 ? mid : dst, w, h) else { return false }
+        if dvT > 0 { mirrorPass(cb, mid, dst) }                             // ダイブ：鏡を広げて（画面と同じ）
+        if dvT > 0.3 && withMap {
+            if exOverview == nil { exOverview = HyperLabRenderer(side: .right, state: st, view: nil); exOverview?.overview = true }
+            if exGlass == nil { exGlass = InsetGlass(device) }
+            if let ov = exOverview {
+                ov.walkOverride = walkOverride; ov.clockOverride = clockOverride; ov.domOverride = domOverride; ov.renderKOverride = 1
+                let iw = w / 4, ih = h / 4
+                if let img = ov.renderInsetTexture(cb, iw, ih) { exGlass?.draw(cb, img, into: dst, x: w / 60, y: w / 60, w: iw, h: ih) }
+            }
+        }
+        return true
+    }
+    /// 記録の 1 コマ：その時の動き（カメラ・ダイブ・彗星の場所・道・跡・拍）
+    func recordFrame() -> VideoExport.RecFrame? {
+        guard side == .right, let w = (wsrc)?() else { return nil }
+        let now = CACurrentMediaTime(), raw = HyperLabState.walkSource?()
+        return VideoExport.RecFrame(t: now, dom: Self.domClock(now), walk: w, rawTrail: raw?.trail ?? w.trail,
+            f: [st.diveT, st.diveFade, st.thirdK, st.chaseDistS, st.chasePitchS, st.chaseYawS, st.autoYaw, st.autoPitch, st.autoT, st.autoDyn,
+                st.showDist, st.showRoll, st.diveYawOff, st.divePitchOff, st.cometSpd, st.cometNear, st.zw, st.pitch, st.roll, st.yaw,
+                st.viewYaw, st.viewPitch, st.viewDist, st.camW, st.cutPos, st.cutPhi],
+            cometDir: st.cometDir, showFrame: st.showFrame, layers: st.layers, lzw: st.lzw, version: st.version,
+            diveOn: st.diveOn, dragging: st.diveDragging, padHolding: st.padHolding, walkCam: HyperLabState.walkRendererGet?()?.cam)
+    }
+    /// 書き出し：ダイブ画面を描く入れ物（レイアウトの右の大きな所）
+    private var exPaneTex: MTLTexture?
+    func paneTexture(_ w: Int, _ h: Int) -> MTLTexture? {
+        if let t = exPaneTex, t.width == w, t.height == h { return t }
+        let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: w, height: h, mipmapped: false)
+        d.usage = [.renderTarget, .shaderRead]; d.storageMode = .private; exPaneTex = device.makeTexture(descriptor: d); return exPaneTex
+    }
+    /// 書き出し：外から見た超球の全体像（地図）を w×h に描いた絵（黒地のまま）
+    func overviewTexture(_ cb: MTLCommandBuffer, _ w: Int, _ h: Int) -> MTLTexture? {
+        if exOverview == nil { exOverview = HyperLabRenderer(side: .right, state: st, view: nil); exOverview?.overview = true }
+        guard let ov = exOverview else { return nil }
+        ov.walkOverride = walkOverride; ov.clockOverride = clockOverride; ov.domOverride = domOverride; ov.renderKOverride = 1
+        return ov.renderInsetTexture(cb, w, h)
+    }
+    /// 書き出し：さんぽの景色を、記録したさんぽのカメラで w×h に描いた絵（さんぽの窓と同じ描き方。カメラは描く間だけ借りて戻す）
+    private var exWalkTex: MTLTexture?
+    func walkSceneTexture(_ cb: MTLCommandBuffer, _ w: Int, _ h: Int, cam: Camera?) -> MTLTexture? {
+        guard let wr = VideoExport.shared.gen ?? HyperLabState.walkRendererGet?() else { return nil }   // 決まった道から作る時は、裏で歩くさんぽで
+        if exWalkTex?.width != w || exWalkTex?.height != h {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: w, height: h, mipmapped: false)
+            d.usage = [.renderTarget, .shaderRead]; d.storageMode = .private; exWalkTex = device.makeTexture(descriptor: d)
+        }
+        guard let t = exWalkTex else { return nil }
+        let rp = MTLRenderPassDescriptor(); rp.colorAttachments[0].texture = t; rp.colorAttachments[0].loadAction = .clear; rp.colorAttachments[0].storeAction = .store
+        rp.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let saved = wr.cam
+        if let cam { wr.cam = cam }
+        wr.encode(cb, rp, .rgba16Float, w, h)
+        wr.cam = saved
+        return t
+    }
+    /// 書き出しの左上の小さな地図：小さく描いた絵を返す（重ねるのは InsetGlass）
+    func renderInsetTexture(_ cb: MTLCommandBuffer, _ w: Int, _ h: Int) -> MTLTexture? {
+        exAlloc(w, h)
+        guard let out = exOut, exPass(cb, out, w, h) else { return nil }
+        return out
     }
     private var liveT = 0.0
     /// 角度の読みを 0.5 秒ごとに（変わった時だけ。表示を変えるたびに窓の並べ直しが走るので、少なめに）
@@ -1765,15 +1956,16 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 let got = Double(pN) / pT; pN = 0; pT = 0
                 if got < Double(moveFPS) * 0.82 { slowS += 1; fastS = 0 } else if got > Double(moveFPS) * 0.94 { fastS += 1; slowS = 0 } else { slowS = 0; fastS = 0 }
                 let lv = maxFPS / max(1, moveFPS), auto = s.quality == 0 && owner
-                if slowS >= (auto && HyperLabState.renderK > 0.76 ? 1 : 4) {
+                if slowS >= 2 {
                     slowS = 0
-                    // 自動は 75% まで（それより下げると細い線がぼやけて混ざり、色がくすんで見える）
-                    if auto && HyperLabState.renderK > 0.76 { HyperLabState.renderK = max(0.75, HyperLabState.renderK - 0.125) }
-                    else if moveFPS > maxFPS / 2 { moveFPS = maxFPS / (lv + 1); view.preferredFramesPerSecond = moveFPS }
-                } else if fastS >= 2 && (s.diveT == 0 || s.diveT == 1) {     // 余裕が 1 秒続いたら戻す（くすんだままにしない）
+                    // 足りない時は、まずコマ数を落として画質を守る（粗密・道を全部などで重い時も、絵はきれいなまま）。
+                    //   コマ数がもう半分（60Hz なら 30）まで落ちていたら、自動の時だけ画質を 75% まで（それより下げると細い線がぼやけて混ざり、色がくすんで見える）
+                    if moveFPS > maxFPS / 2 { moveFPS = maxFPS / (lv + 1); view.preferredFramesPerSecond = moveFPS }
+                    else if auto && HyperLabState.renderK > 0.76 { HyperLabState.renderK = max(0.75, HyperLabState.renderK - 0.125) }
+                } else if fastS >= 2 && (s.diveT == 0 || s.diveT == 1) {     // 余裕が 1 秒続いたら戻す（画質を先に、次にコマ数）
                     fastS = 0
-                    if lv > 1 && maxFPS / (lv - 1) <= top { moveFPS = maxFPS / (lv - 1); view.preferredFramesPerSecond = moveFPS }
-                    else if auto && HyperLabState.renderK < kMax - 0.001 { HyperLabState.renderK = min(kMax, HyperLabState.renderK + 0.125) }
+                    if auto && HyperLabState.renderK < kMax - 0.001 { HyperLabState.renderK = min(kMax, HyperLabState.renderK + 0.125) }
+                    else if lv > 1 && maxFPS / (lv - 1) <= top { moveFPS = maxFPS / (lv - 1); view.preferredFramesPerSecond = moveFPS }
                 }
             }
         } else { pN = 0; pT = 0; slowS = 0; fastS = 0 }
@@ -1929,7 +2121,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 return
             }
             if dvT == 0 || st.axesDive { drawAxes4(e, u) }           // ダイブの間も（「ズーム中も」を切ると出さない）
-            var wk = SIMD4<Float>(Float(sz.width), Float(sz.height), Float(st.wireW * HyperLabState.renderK * 0.5), 0)   // 線の太さ（画面の点 × 細かさ）
+            var wk = SIMD4<Float>(Float(sz.width), Float(sz.height), Float(st.wireW * rK * 0.5), 0)   // 線の太さ（画面の点 × 細かさ）
             e.setRenderPipelineState(rPipe); e.setVertexBuffer(rb, offset: 0, index: 0); e.setVertexBuffer(rc, offset: 0, index: 3)
             // 4 方向レインボー・軸の色：面を全部先に描いてから、線をまとめて描く（線が奥行きを書くので、層ごとに交互に描くと、あとの面が線の所だけ抜けて黒い筋になる）
             let multiFam = (st.shellModeNow == 1 || st.shellModeNow == 2) && shellFams(left: false).count > 1   // 4 方向レインボー・軸の色（4 軸）
@@ -1972,7 +2164,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         }
         if let b = lineBuf {
             // 線は太さのある帯で（左は 2 倍の大きさに描くので、太さも 2 倍）
-            var k = SIMD4<Float>(Float(sz.width), Float(sz.height), Float(st.wireW * (side == .left ? 2 : 1) * HyperLabState.renderK * 0.5), 0)   // 画質を下げても、画面の上の太さは同じ
+            var k = SIMD4<Float>(Float(sz.width), Float(sz.height), Float(st.wireW * (side == .left ? 2 : 1) * rK * 0.5), 0)   // 画質を下げても、画面の上の太さは同じ
             e.setRenderPipelineState(segPipe); e.setDepthStencilState(depthRead); u.g.z = 0
             e.setVertexBuffer(b, offset: 0, index: 0); e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1)
             e.setVertexBytes(&k, length: 16, index: 5)
@@ -2151,11 +2343,12 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     }
     /// 歩いた跡・目印の点を画面の 3 次元へ（右：超球の上を 4D の回転・遠近で、左：影 (x, y, w) を球の上へ）。face：見えている側なら 1、奥の側は 0
     private func walkPlace(_ p: SIMD4<Double>) -> (SIMD3<Double>, Double) {
-        let R = Self.R, camW = side == .right ? effCamW : st.camW, (eye, _, _, _) = camBasis()
-        if side == .right {
+        let R = Self.R, camW = side == .right ? effCamW : st.camW
+        if side == .right {                                                // 右はカメラの向きを使わない（camBasis は重いので、左の時だけ求める）
             let v = effM * (p * R), s = camW / max(effClamp, camW - v.w) * Self.SCALE
             return (SIMD3(v.x, v.y, v.z) * s, smoothstep(-0.1, 0.05, (v.w - R * R / camW) / R))
         }
+        let eye = camBasis().0
         var q = SIMD3(p.x, p.y, p.w); let l = simd_length(q); q = l < 1e-9 ? SIMD3(0, 0, 1) : q / l
         let w = leftRot() * (q * R * 1.012)
         return (w, smoothstep(-0.15, 0.1, simd_dot(simd_normalize(w), simd_normalize(eye - w))))
@@ -2257,7 +2450,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         if !ctri.isEmpty {                                              // 光の極・目印（足し合わせ）
             e.setRenderPipelineState(cometPipe); e.setDepthStencilState(depthAlways)
             ctri.withUnsafeBytes { b in if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { e.setVertexBuffer(buf, offset: 0, index: 0) } }
-            var tm = SIMD4<Float>(Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 1000)), 0, 0, 0)
+            var tm = SIMD4<Float>(Float(nowT.truncatingRemainder(dividingBy: 1000)), 0, 0, 0)
             e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&tm, length: 16, index: 2)
             e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: ctri.count)
         }
@@ -2411,7 +2604,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         for _ in 0..<n { headWarpV += (om * om * (tgt - headWarp) - 2 * ze * om * headWarpV) * h; headWarp += headWarpV * h }
     }
     private func lagFrame(_ w: HyperLabState.Walk, _ k0: Double, step: Double? = nil) -> (SIMD4<Double>, SIMD4<Double>, SIMD4<Double>) {
-        let now = CACurrentMediaTime(), dt = step ?? min(0.05, max(0, now - lagT)); lagT = now
+        let now = nowT, dt = step ?? min(0.05, max(0, now - lagT)); lagT = now
         lagMix += (k0 - lagMix) * (1 - exp(-dt * 2)); if k0 == 0 && lagMix < 1e-3 { lagMix = 0 }   // オートカメラを入り切りした時もなめらかに
         let k = lagMix
         if dt > 0 { tickHeadWarp(w, dt) }
@@ -2479,7 +2672,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     /// 確かめ用：見せ場の向きを sec 秒ぶん進めて、強さを返す
     func focusForTest(_ sec: Double) -> Double { guard let w = wsrc?() else { return 0 }; diveSetup(); for _ in 0..<Int(sec * 60) { tickFocus(w, step: 1.0 / 60) }; return focusW }
     private func tickFocus(_ w: HyperLabState.Walk, step: Double? = nil) {
-        let now = CACurrentMediaTime(), dt = step ?? min(0.05, max(0, now - focusT)); focusT = now
+        let now = nowT, dt = step ?? min(0.05, max(0, now - focusT)); focusT = now
         var bestK = 0.0, bestD = SIMD3<Double>(), bestKey = "", seen: Set<String> = []
         if st.autoCam && !st.camHeld && dvThird > 0.5 && simd_length(w.vL) > 0.5 {
             let c0 = walkPlace(w.pos).0
@@ -2514,6 +2707,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     private func spaceBackground(_ sz: CGSize) -> MTLTexture? {
         let sc = side == .left ? 2.0 : 1.0, w = max(1, Int(Double(sz.width) / sc)), h = max(1, Int(Double(sz.height) / sc))
         if let t = bgTex, t.width == w, t.height == h { return t }
+        if let t = bgTex2, t.width == w, t.height == h { return t }        // 動画を書き出している間は、画面の大きさと 16:9 の 2 つを覚えておく
         let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: w, height: h, mipmapped: false)
         d.usage = [.renderTarget, .shaderRead]; d.storageMode = .private
         guard let tex = device.makeTexture(descriptor: d), let cb = queue.makeCommandBuffer() else { return nil }
@@ -2522,7 +2716,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         var k = SIMD4<Float>(Float(Double(w) / Double(h)), 0, 0, 0)
         e.setRenderPipelineState(bgMakePipe); e.setFragmentBytes(&k, length: 16, index: 0); e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3); e.endEncoding()
         cb.commit()                                                     // この後で積む絵より先に GPU で描かれる（同じ列）
-        bgTex = tex
+        bgTex2 = bgTex; bgTex = tex
         return tex
     }
     /// 宇宙モードの星（球面さんぽと同じ 12000 個）。星の数で間引く。右は超球の上、左は影（球の中）
@@ -2532,7 +2726,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         let all = Renderer.starList.count, step = st.spaceNow ? max(1, Int((100 / max(5, st.starsPct)).rounded())) : 1
         var uu = u, hh = h, k = SIMD4<Float>(side == .right ? 0.02 : 0.015, side == .right ? 0 : 1, Float(step), (side == .right ? 0.9 : 0.42) * (st.spaceNow ? 1 : 0.6 * z))   // 左は球の中に詰まるので小さく淡く
         // またたき・十字の光：寄るほど強く（宇宙モードで外から見ている時も、ほんの少し）
-        var tz = SIMD4<Float>(Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 1000)), st.spaceNow ? 0.15 : 0, z, Float(st.starDepth) * (1 - z))   // またたきはほんの少し。z：寄った時の遠近、w：引きの遠近
+        var tz = SIMD4<Float>(Float(nowT.truncatingRemainder(dividingBy: 1000)), st.spaceNow ? 0.15 : 0, z, Float(st.starDepth) * (1 - z))   // またたきはほんの少し。z：寄った時の遠近、w：引きの遠近
         // 4 方向レインボー：網目がにぎやかなので、星屑を強めに（大きく・明るく・よくまたたく）。網目に負けずに星の海が見えるように
         //   星は遠近つき（近いほど大きくくっきり、遠いほど小さく淡く。hh.e.z）で、空間の奥行きがわかるように
         if (st.shellModeNow == 1 || st.shellModeNow == 2) && !slice { k.w *= 1.8 + 0.8 * z; tz.y = max(tz.y, 0.1) * 2.2; hh.e.z = 1 }   // ダイブで寄るほど、さらに明るく
@@ -2578,7 +2772,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         //   （ふだんの引きの彗星は、いつも今まで通り）
         let spW = max(side == .right ? Self.diveEase(dvT).1 : 0, gk > 0 ? 1 : 0), cs = st.cometSpd
         let spdK = (1 + 0.6 * cs) * (1 - spW * (1 - (0.15 + 0.85 * smoothstep(0.03, 0.5, cs))))
-        let comet = cur >= 1, real = [1, 3, 4].contains(cur), tailL = 1.05 * spdK * near(P[P.count - 1].0) * (side == .right ? 1 + 3.5 * dvThird * Self.diveEase(dvT).1 : 1) * gTail
+        let comet = cur >= 1, real = [1, 3, 4].contains(cur), tailL = 1.05 * spdK * near(P[P.count - 1].0) * (side == .right ? 1 + 3.5 * dvThird * Self.diveEase(dvT).1 : 1) * gTail * (side == .right ? 1 + 0.35 * max(0, st.showDist - 1) * dvThird : 1)   // ショーカメラが大きく引いた時は、尾を少し長く流す（遠くからでも流れがきれいに）
         var fromHead = [Double](repeating: .infinity, count: P.count)
         if comet {
             fromHead[P.count - 1] = 0
@@ -2780,7 +2974,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             // ダイブで寄るほど：自分のすぐ近くの空間が大きく引き伸ばされる（S³ の短い道のりが画面では長い）。そこで寄った時は、矢印を
             //   画面の 3D の距離で等間隔に並べ（すぐ前から）、大きさも 3D のまま（近いほど大きく、遠いほど小さく）にする
             let dz = side == .right ? Self.diveEase(dvT).1 : 0, ecd = max(0.05, simd_length(eye - c)), nearC = near(c)
-            let total = cum[cum.count - 1], now = CACurrentMediaTime()
+            let total = cum[cum.count - 1], now = nowT
             let dive = side == .right ? 1 + 2.5 * dvThird * dz : 1
             let march = dz > 0.4, G = 0.47 * ecd * (1 - 0.55 * surgeK)   // 寄った時の矢印の間隔（3D）。迫る間はぐっと詰める
             // 曲がり具合（道の点ごと。となりの向きとの角度の、少し先までの大きい方）：カーブの所は工事の看板の矢印のように、光が手前から奥へ順に走る
@@ -2818,7 +3012,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 var t = 0.0
                 marchLoop: while marks.count < (long ? 500 : 90) && t < dMax {
                     let step = (t < 0.05 ? 0.0008 : t < 0.3 ? 0.004 : 0.015) / max(1, dens(t)), tn = min(dMax, t + step), dw = (tn - t) * dens(t)
-                    let (q4, _) = seg(tn), l = simd_length(q4); if l > 1e-9 { let q = place(q4 / l).0; s3 += simd_length(q - prev); prev = q }
+                    if !long { let (q4, _) = seg(tn), l = simd_length(q4); if l > 1e-9 { let q = place(q4 / l).0; s3 += simd_length(q - prev); prev = q } }   // 3D の道のりはふつうの長さの時だけ使う
                     while W + dw >= u * gp {                                     // この 1 歩の中に矢印の所がある（複数あればみんな）
                         let d = t + (tn - t) * max(0, min(1, (u * gp - W) / max(1e-12, dw)))   // 1 歩の中で、ちょうど重みつきの道のりが u・gp になる所
                         if !long && s3 > lim { break marchLoop }                     // 遠く（4D の遠近で大きく曲がる所）は出さない
@@ -2873,10 +3067,9 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             }
             var rollRef: Double? = nil                                       // このコマの、鎖全体の回し（立体の矢印）
             var ksRun = Double.infinity                                      // 立体の矢印の大きさ：道の先へ行くほど必ず小さく（それまでの矢印のいちばん小さい大きさ）
-            // 誘導灯の光とドミノのスピンの拍：彗星の流れる音（エンジンの低いうなり）のリズムに合わせる。うなり 2 つで 1 回、光の粒がうなりの山で手前を出発する。
-            //   音が鳴っていない時は 1.8 秒ごと
-            let bclk = HyperSound.shared.beatClock()
-            let domC = now - bclk.stamp < 0.4 && bclk.rate > 0.05 ? (bclk.cyc + bclk.rate * (now - bclk.stamp)) / 2 : now / 1.8
+            // 誘導灯の光とドミノのスピンの拍：彗星の流れる音（エンジンの低いうなり）のリズムに合わせる。うなり 6 つで 1 回（走っている時で 4 秒ほど）、光の粒がうなりの山で手前を出発し、ゆっくり先へ走る。
+            //   疾走感の中をゆっくり光がうねっていく。音が鳴っていない時は 4 秒ごと
+            let domC = domOverride ?? Self.domClock(now)
             var bendMax = 0.0
             for mk in marks { let j = seg(mk.d).1; bendMax = max(bendMax, bend[max(0, j - 1)], bend[min(pl.count - 1, j)]) }
             let dtA = min(0.1, max(0, now - arrowSmT)); arrowSmT = now
@@ -2886,10 +3079,21 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             func needle(_ x: inout Double, _ v: inout Double, _ to: Double, _ mi: Int) { let w = 6.0 / (1 + 0.22 * Double(mi)), z = 0.6, n = max(1, Int(ceil(dtA / 0.008))), h = dtA / Double(n); for _ in 0..<n { v += (w * w * (to - x) - 2 * z * w * v) * h; x += v * h } }
             var spinNew: [Int: (r: Double, v: Double)] = [:], curveNew: [Int: Double] = [:]
             defer { arrowSm = smNew; arrowRoll = rollNew; spinSm = spinNew; curveSpin = curveNew }
+            let camFwd = simd_normalize(c - eye)                              // カメラの向き（彗星はいつも画面の中ほど）。視界の外の矢印は計算しない
             for (mi, mk) in marks.enumerated() {
                 let d = mk.d, (q4, j) = seg(d), l = simd_length(q4)
                 if l > 1e-9 {
                     let (q, face) = place(q4 / l)
+                    // 視界に入らない矢印（カメラの向きから 75° より外・後ろ）は、向きや回りの計算をしない（ばねの状態だけ持ち越す）
+                    if march && mark == 0 {
+                        let vq = q - eye, lq = simd_length(vq)
+                        if lq < 1e-9 || simd_dot(vq / lq, camFwd) < 0.25 {
+                            let key = Int(mk.u.rounded())
+                            if let v = arrowSm[key] { smNew[key] = v }; if let v = spinSm[key] { spinNew[key] = v }
+                            if let v = curveSpin[key] { curveNew[key] = v }; if let v = arrowRoll[key] { rollNew[key] = v }
+                            continue
+                        }
+                    }
                     let k = mk.k, kc = k   // kc：並びの中の位置（0 手前 〜 1 先頭）
                     var bk = 0.0                                              // この矢印のあたり（前後 4 点）の曲がり具合
                     for t in max(0, j - 3)...min(pl.count - 1, j + 4) { bk = max(bk, bend[t]) }
@@ -2928,6 +3132,14 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                         // らせん：1 枚ごとに少しずつねじれて並び（DNA のように）、鎖全体が拍に合わせて回り続ける
                         if st.spinMode == 3 { target = st.spinAmp * .pi / 180 * sin(2 * .pi * (domC - mk.u / max(1, st.spinLen))) }
                         if st.spinMode == 4 { target = mk.u * st.spinAmp * .pi / 180 + 2 * .pi * domC * st.spinLen * 0.1 }
+                        // 進路：今走っている向きと、その矢印の所の道の向きの角度で寝かせ方を決める（平行なら垂直に立って薄い板に、直角なら水平に寝て面が見える。間はなめらかに）。
+                        //   遠くのまっすぐ先の板ほど薄く見え、自分が進んで向きが変わると、矢印が次々に起き上がったり寝たりする。完全に垂直だと厚みゼロで消えるので、少し手前まで
+                        //   進路 B（6）はその逆：平行なら寝て面が見え、直角なら立って線に見える（遠くでカーブしている板ほどひねったテープのように薄く）
+                        if st.spinMode == 5 || st.spinMode == 6, let cx = cX {
+                            let qa4 = seg(max(0, d - 0.004)).0, qb4 = seg(min(total, d + 0.004)).0
+                            var tg = place(simd_normalize(qb4)).0 - place(simd_normalize(qa4)).0; tg -= Bv * simd_dot(tg, Bv)
+                            if simd_length(tg) > 1e-9 { let th = acos(min(1, abs(simd_dot(simd_normalize(tg), cx)))); target = 0.72 * (st.spinMode == 5 ? .pi / 2 - th : th) }
+                        }
                         var ss = spinSm[skey] ?? (target, 0)
                         if abs(target - ss.r) > 1.5 * .pi { ss.r += .pi * ((target - ss.r) / .pi).rounded() }   // 拍の数えが飛んだ時（音が鳴り始めた時など）は、半回り単位で追いつかせる（くるくる回らない）
                         let sw = 6.5, sz = 0.35, sn = max(1, Int(ceil(dtA / 0.008))), sh = dtA / Double(sn)
@@ -2938,18 +3150,20 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                     }
                     let neon: Double = {
                         let head = (domC - domC.rounded(.down)) * 1.8 / 1.1 * 1.15 - 0.05   // 光の先頭（並びの位置 k、0 手前〜1 先）
-                        if march && mark == 0 { return smoothstep(0.8, 7, abs(spinVel)) }   // 立体の矢印：回っている間だけ光る（スピンと光がぴったり同じ時に）
-                        let x = head - kc                                                        // 光が過ぎてからの距離
-                        return x >= 0 ? exp(-x / 0.12) : exp(-x * x / 0.0016)
+                        let x = head - kc                                                        // 光の先頭からの距離（＋：先頭より手前）
+                        // 白い光は拍のドミノと同じ：先頭が来た板だけがぱっと光って、すぐ落ち着く（短いきらめきが 1 枚ずつ先へ伝わる。前後の板は暗いまま）
+                        let byLight = x >= 0 ? exp(-x / 0.055) : exp(-x * x / 0.0009)
+                        if march && mark == 0 { return max(byLight, smoothstep(0.8, 7, abs(spinVel))) }   // 立体の矢印：走る光に加えて、回っている板も光る（拍のドミノでは同じ時に）
+                        return byLight
                     }()
-                    let lit = march ? 0.6 + 1.2 * neon : (1 - 0.55 * curv) + 2.8 * curv * wave
+                    let lit = march ? 0.55 + 2.3 * neon : (1 - 0.55 * curv) + 2.8 * curv * wave
                     // 先へ行くほど消える（フェードアウト）。カーブの所は、曲がる先まではっきり見せる（消え方を弱める）
                     let keep = 1 - 0.35 * curv                                         // 先の方はだんだん薄く消える（最初の形のように）。カーブの所だけ少しゆるく
                     // 「道を全部」の時は、先の方も淡くしない（左上の地図のように、道の終わりの先端まで描き切る）
                     let allWay = march && st.planLong
                     var al = Float(mk.fade * (1 - smoothstep(0.55, 1.0, k) * keep * (allWay ? 0 : 1)) * (0.4 + 0.6 * face) * lit)
                     if march { al *= Float(1 - (allWay ? 0 : 0.55) * smoothstep(0.3, 1.0, k) * keep) }
-                    if march && mark == 0 { al *= Float(1 + 0.7 * smoothstep(0.1, 0.8, k) * smoothstep(0.03, 0.12, mk.sp)) }   // 立体の矢印：先端の方（奥の小さい矢印）ほど濃く（遠くまで線がくっきり続く）   // 寄った時は、先へ行くほどしっかり淡く（遠近。先はほとんど消える）
+                    if march && mark == 0 { al *= Float((1 + 0.7 * smoothstep(0.1, 0.8, k) * smoothstep(0.03, 0.12, mk.sp)) * (0.6 + 0.4 * smoothstep(0, 0.3, k))) }   // 自分のすぐ手前の板は少し暗め（明るすぎない）   // 立体の矢印：先端の方（奥の小さい矢印）ほど濃く（遠くまで線がくっきり続く）   // 寄った時は、先へ行くほどしっかり淡く（遠近。先はほとんど消える）
                     else { al *= Float(min(1.3, max(0.35 + 0.4 * curv, pow(nearC / max(1e-4, near(q)), 1.2)))) }   // 外から見る時も、奥の矢印ほど淡く
                     // 急カーブ（曲率半径が小さい所）：矢印を朱色寄りに、二重の「≫」にして、遠くても小さくはっきり（消えにくく）
                     let tight = smoothstep(0.03, 0.09, bk)
@@ -2973,7 +3187,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                         let t = simd_mix(ac[gi], ac[gi + 1], SIMD3(repeating: gf))
                         colW = simd_mix(colW, SIMD4(t, 1), SIMD4(repeating: Self.beadAxisTint))
                     }
-                    if march { colW = simd_mix(colW, SIMD4<Float>(1, 1, 1, 1), SIMD4(repeating: Float(0.08 + 0.6 * neon))) }   // 寄った時：ふだんから少し白く光り、光が来た所はしっかり白く
+                    if march { colW = simd_mix(colW, SIMD4<Float>(1, 1, 1, 1), SIMD4(repeating: Float(0.06 + 0.9 * neon))) }   // 寄った時：ふだんから少し白く光り、光が来た所はしっかり白く
                     if al > 0.01 {
                         // 大きさの遠近：寄った時は 3D のまま。外から見る時も、彗星より手前の矢印ほど大きく、奥ほど小さく（少し強めに）
                         //   外から見る時（左上の地図など）：矢印は 3D でだいたい同じ大きさの物として（彗星のそばの大きさがもと）、カメラから遠いほど必ず小さく。
@@ -3003,7 +3217,8 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                                 let vl = simd_length(v); if vl > 0.3 { basis.append(v / vl) }
                             }
                             var n4 = side4 ?? SIMD4<Double>()
-                            if basis.count == 2 {
+                            if basis.count == 2 && march && mark == 0 { n4 = basis[0] }   // 立体の矢印は横の向きを平行移動で決めるので、ここは何でもよい（計算を省く）
+                            else if basis.count == 2 {
                                 let xs = at(t4), want = simd_cross(Bv, xs)              // 画面の上で、進む向きに垂直な向き
                                 let c1 = simd_dot(at(basis[0]), want), c2 = simd_dot(at(basis[1]), want)
                                 if abs(c1) + abs(c2) > 1e-12 { n4 = basis[0] * c1 + basis[1] * c2 }
@@ -3013,7 +3228,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                             if nl > 1e-9 {
                                 n4 /= nl; side4 = n4
                                 var X3 = at(t4), Y3 = at(n4); var k = hs / max(1e-9, max(simd_length(X3), simd_length(Y3)))
-                                if march {
+                                if march && mark != 0 {                                  // 立体の矢印は道の接線と平行移動で向きを決めるので、前の羽の向きの計算は飛ばす
                                     // 寄った時（ダイブ）：S³ のゆがみは使わず、ふつうの 3D の空間で（向きは画面の上の道の向き、大きさは 3D の距離だけで決まる）
                                     var xs = simd_normalize(X3)
                                     // 先読み：矢印は、少し先（S³ の上で 0.05 先）の道の所を指す（曲がる手前から、曲がる側へ向いて導く）
@@ -3086,7 +3301,8 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                                 }
                                 // 3D の傾き（ダイブ）：飛行機が曲がる時のように、矢印をその所の曲がりへ傾ける。曲がり具合は少し手前と少し先の道の向きの差
                                 //   （その矢印の所の曲がりに合わせるので、軌道が少しずつちがう矢印が、なめらかにつながって傾く）
-                                if march {
+                                // 奥の小さな板（カメラ距離の 6 倍より遠い立体の矢印）は、曲がる所の傾きを求めない（見た目では分からない。計算を省く）
+                                if march && !(mark == 0 && simd_length(eye - q) > 6 * ecd) {
                                     func dir(_ dd: Double) -> SIMD3<Double>? {
                                         let (a4, _) = seg(max(0, min(total, dd))), b4 = seg(max(0, min(total, dd + 0.01))).0, la = simd_length(a4), lb = simd_length(b4)
                                         guard la > 1e-9, lb > 1e-9 else { return nil }
@@ -3237,7 +3453,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 if b.count <= 4096 { e.setVertexBytes(b.baseAddress!, length: b.count, index: 0) }
                 else if let buf = device.makeBuffer(bytes: b.baseAddress!, length: b.count, options: .storageModeShared) { e.setVertexBuffer(buf, offset: 0, index: 0) }
             }
-            var tm = SIMD4<Float>(Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 1000)), Float(st.cometSpd), 0, 0)   // y：彗星の速さ（派手さ）
+            var tm = SIMD4<Float>(Float(nowT.truncatingRemainder(dividingBy: 1000)), Float(st.cometSpd), 0, 0)   // y：彗星の速さ（派手さ）
             e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&tm, length: 16, index: 2)
             e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: ctri.count)
         }
@@ -3246,7 +3462,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     ///   迫る間は、予定の道の矢印の間も詰めて見せる（望遠のように、奥行きが詰まって見える）
     private var surgeK: Double {
         guard side == .right, st.autoCam, !st.camHeld, dvThird > 0.3 else { return 0 }
-        let t = CACurrentMediaTime(), zw = max(0, sin(t * 0.21) * sin(t * 0.53 + 0.7) * sin(t * 0.083 + 2.1))
+        let t = nowT, zw = max(0, sin(t * 0.21) * sin(t * 0.53 + 0.7) * sin(t * 0.083 + 2.1))
         return smoothstep(0.3, 0.7, zw)
     }
     // 目印の色の候補：金・暖かい白・水色・青白・桃色・若葉
@@ -3303,7 +3519,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         var u = u0; u.model = matrix_identity_float4x4
         e.setRenderPipelineState(cometPipe); e.setDepthStencilState(depthAlways)
         vs.withUnsafeBytes { b in e.setVertexBytes(b.baseAddress!, length: b.count, index: 0) }
-        var tm = SIMD4<Float>(Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 1000)), 0, 0, 0)
+        var tm = SIMD4<Float>(Float(nowT.truncatingRemainder(dividingBy: 1000)), 0, 0, 0)
         e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&tm, length: 16, index: 2)
         e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vs.count)
     }
@@ -3470,6 +3686,7 @@ final class WalkWipe: NSObject, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
     func draw(in view: MTKView) {
         guard let r = HyperLabState.walkRendererGet?() else { return }
+        if VideoExport.shared.rendering { return }                      // 動画を書き出している間は休む（さんぽの景色も書き出しに使うので）
         if !big && HyperLabState.walkBigShown { return }               // 右の大きな画面へ受け渡し中
         if HyperLabState.hyperIdle {                                     // 前の窓だけ描く：さんぽの窓が前の間はオフ（真っ暗を 1 回）
             if !offShown, let rpd = view.currentRenderPassDescriptor, let d = view.currentDrawable, let cb = r.queue.makeCommandBuffer() {
@@ -3881,10 +4098,11 @@ struct HyperLabView: View {
                         .help("予定の道の矢印の間隔を、まっすぐな所は広く、カーブでは密に（急なカーブで 3 倍ほど）。矢印は道の上に止まったまま")
                     Toggle("道を全部", isOn: $st.planLong).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.walk || !st.planOn)
                         .help("ダイブで寄った時も、左上の地図と同じように予定の道の終わりまで矢印を出す（遠くは 4D の遠近で小さく詰まって見える）。切ると、彗星の先のほどよい長さまで")
-                    Picker("", selection: $st.spinMode) { Text("拍").tag(0); Text("カーブ").tag(1); Text("両方").tag(2); Text("波").tag(3); Text("らせん").tag(4) }
-                        .pickerStyle(.segmented).frame(width: 240).labelsHidden().disabled(!st.walk || !st.planOn || st.planMark != 0)
-                        .help("立体の矢印の回り方。拍：彗星の音（エンジンの低いうなり）に合わせて、手前から順にドミノのように回る。カーブ：道が曲がっている所の矢印が、曲がる向きへ自分から回り続ける（右へ曲がる所は右回り、左は左回り。急なほど速く。まっすぐな所は止まる）。両方：その両方。波：傾きがサインカーブの波になって手前から先へ伝わる（拍に合わせて）。らせん：1 枚ごとにねじれて並び、鎖全体が拍に合わせて回り続ける。回っている間は光る")
-                    if st.spinMode >= 3 {
+                    // 回り方は「拍・進路A・進路B」の 3 つに整理（カーブ・両方・波・らせんは選べないようにした。仕組みは残してある）
+                    Picker("", selection: Binding(get: { [0, 5, 6].contains(st.spinMode) ? st.spinMode : 0 }, set: { st.spinMode = $0 })) { Text("拍").tag(0); Text("進路A").tag(5); Text("進路B").tag(6) }
+                        .pickerStyle(.segmented).frame(width: 170).labelsHidden().disabled(!st.walk || !st.planOn || st.planMark != 0)
+                        .help("立体の矢印の回り方。拍：彗星の音（エンジンの低いうなり）に合わせて、手前から順にドミノのように回る。カーブ：道が曲がっている所の矢印が、曲がる向きへ自分から回り続ける（右へ曲がる所は右回り、左は左回り。急なほど速く。まっすぐな所は止まる）。両方：その両方。波：傾きがサインカーブの波になって手前から先へ伝わる（拍に合わせて）。らせん：1 枚ごとにねじれて並び、鎖全体が拍に合わせて回り続ける。進路A：今走っている向きと矢印の向きの角度で、平行なら立って薄く、直角なら寝て面が見える（まっすぐ先ほど薄く）。進路B：その逆で、直角なら立って線に見える（遠くでカーブしている板ほどひねったテープのように薄く）。どちらも進むにつれて次々に寝たり起き上がったりする（回らない。ゆがんだ矢印のスピード感を生かす）。回っている間は光る")
+                    if false && (st.spinMode == 3 || st.spinMode == 4) {
                         slider(st.spinMode == 3 ? "振れ" : "ねじれ", Binding(get: { st.spinAmp }, set: { st.spinAmp = $0 }), 0, 180, fmt: "%.0f°").frame(width: 90)
                             .help("波：傾きの振れ幅。らせん：となりの矢印とのねじれの角")
                         slider(st.spinMode == 3 ? "波長" : "速さ", Binding(get: { st.spinLen }, set: { st.spinLen = $0 }), 1, 20, fmt: "%.0f").frame(width: 90)
@@ -3911,7 +4129,7 @@ struct HyperLabView: View {
                         .help("球面さんぽで置いた目印。歩いて通った目印（チェックポイント）は塗りつぶしと ✓、まだの目印は輪")
                     Toggle("光で描く", isOn: $st.symGlow).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.marksOn && st.polesMode == 0)
                         .help("極と目印を光る星で描く（通った所は白く光る星に極の色がほんのり、十字のきらめき。まだの所は光の輪。ゆっくりまたたく）。切ると前の丸と輪")
-                    RecordButton()
+                    RecordPanelButton()
                     Toggle("音", isOn: $st.soundOn).toggleStyle(.switch).font(.caption).fixedSize()
                         .help("音を出す：彗星が空気を押し切って走る風切り音（速いほど高く大きく・重く、曲がる時は外側へ風が流れてひと吹き強まる、ズームで寄るほど大きく）と、チェックポイントに当たった時の「チリン」")
                     slider("音量", Binding(get: { st.soundVol }, set: { st.soundVol = $0 }), 0, 1, fmt: "%.2f").frame(width: 80).disabled(!st.soundOn)
@@ -3977,7 +4195,10 @@ struct HyperLabView: View {
                         .pickerStyle(.segmented).frame(width: 110).labelsHidden().disabled(!st.padCam || !st.diveThird)
                         .help("カメラを回すスティック（手で持った時の左右）")
                     Toggle("ショーカメラ", isOn: $st.camShow).toggleStyle(.switch).font(.caption).fixedSize().disabled(!st.diveThird || !st.autoCam)
-                        .help("オートカメラの仲間：カーブが近づくと彗星の真後ろの低い所へ回り込んで、ターンを後ろから見せる。まっすぐな所では 4.5 秒ごとに、斜め右上（傾ける）・右の真横・真上の近く・斜め左上（傾ける）・左の真横・高く引いた全体・低い斜め後ろ、と角度を切りかえる。下から見上げて、彗星を画面の左上・右上に置く構図も（極めぐりのショーと相性がいい）")
+                        .help("オートカメラの仲間：カーブが近づくと彗星の真後ろの低い所へ回り込んで、ターンを後ろから見せる。まっすぐな所では 7 秒ごとにランダムに、大きく引いた全体も交えて、斜め右上（傾ける）・右の真横・真上の近く・斜め左上（傾ける）・左の真横・高く引いた全体・低い斜め後ろ、と角度を切りかえる。下から見上げて、彗星を画面の左上・右上に置く構図も（極めぐりのショーと相性がいい）")
+                    Picker("", selection: $st.showMode) { Text("A").tag(0); Text("B").tag(1) }
+                        .pickerStyle(.segmented).frame(width: 70).labelsHidden().disabled(!st.diveThird || !st.autoCam || !st.camShow)
+                        .help("ショーカメラの演出。A：いろいろな構図を順に回して、カーブでは真後ろの斜めに構える。B：ジェットコースターのように、先の落ち込み・昇り・急カーブを読んで先回りする（落ち込みでは前の高い所へ舞い上がり、向かってくる彗星を見下ろす）。どちらもゆっくり落ち着いて動く")
                     Toggle("景色に溶かす", isOn: $st.diveBlend).toggleStyle(.switch).font(.caption).fixedSize()
                         .disabled(st.diveThird).help("ダイブの最後に、さんぽの景色へ溶け込ませる（一人称の時）。切ると、寄ったまま超球の網目（4D の外から見た姿）で見続けられる（左下の景色と見比べに）")
                     Spacer()

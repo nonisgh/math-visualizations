@@ -30,6 +30,7 @@
 		CFD60C5E7AF8F99F9EFE8B33 = {isa = PBXBuildFile; fileRef = B0F297DA5DD3A2015A7CC456; };
 		DEAF61A1DE79116095324F9A = {isa = PBXBuildFile; fileRef = 9B1840ADA6D4B19874866638; };
 		0086208066024A3A65743D5C = {isa = PBXBuildFile; fileRef = 7C93E7CB303EA675908B21BD; };
+		28D7CF31EFD6EC365E0E0D08 = {isa = PBXBuildFile; fileRef = 74E9DFDD0FF38EC91A41333C; };
 		5155E2EE55FDFE25DFAC19A1 = {isa = PBXBuildFile; fileRef = 1FAC72C051C286EA92978499; };
 		0959BF28527B48A0B42E0852 = {isa = PBXBuildFile; fileRef = C80F26271FCA629F2CA125D3; };
 		ECC1C8F72EAC73CA94D7592E = {isa = PBXBuildFile; fileRef = 4FB2A1B2E2341710F59ACF10; };
@@ -61,6 +62,7 @@
 		B0F297DA5DD3A2015A7CC456 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Origami.swift"; sourceTree = "<group>"; name = "Origami.swift"; };
 		9B1840ADA6D4B19874866638 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperSound.swift"; sourceTree = "<group>"; name = "HyperSound.swift"; };
 		7C93E7CB303EA675908B21BD = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Recorder.swift"; sourceTree = "<group>"; name = "Recorder.swift"; };
+		74E9DFDD0FF38EC91A41333C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Exporter.swift"; sourceTree = "<group>"; name = "Exporter.swift"; };
 		1FAC72C051C286EA92978499 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MobileViews.swift"; sourceTree = "<group>"; name = "MobileViews.swift"; };
 		C80F26271FCA629F2CA125D3 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "S3WalkiOSApp.swift"; sourceTree = "<group>"; name = "S3WalkiOSApp.swift"; };
 		4FB2A1B2E2341710F59ACF10 = {isa = PBXFileReference; lastKnownFileType = file; path = "../Fonts/KaTeX_Math-Italic.ttf"; sourceTree = "<group>"; name = "KaTeX_Math-Italic.ttf"; };
@@ -96,6 +98,7 @@
 				B0F297DA5DD3A2015A7CC456,
 				9B1840ADA6D4B19874866638,
 				7C93E7CB303EA675908B21BD,
+				74E9DFDD0FF38EC91A41333C,
 				1FAC72C051C286EA92978499,
 				C80F26271FCA629F2CA125D3,
 				4FB2A1B2E2341710F59ACF10,
@@ -149,6 +152,7 @@
 				CFD60C5E7AF8F99F9EFE8B33,
 				DEAF61A1DE79116095324F9A,
 				0086208066024A3A65743D5C,
+				28D7CF31EFD6EC365E0E0D08,
 				5155E2EE55FDFE25DFAC19A1,
 				0959BF28527B48A0B42E0852,
 			); runOnlyForDeploymentPostprocessing = 0; };
