@@ -1449,11 +1449,11 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     /// 地図の構図（全体像だけの向き）：ダイブの間、ときどき w 軸を横にして球層の重なりを見せ、赤い玉・紫の玉を通る時は w 軸に沿って正面から（今の玉の真後ろにもう 1 つが隠れる）
     private var ovAng: SIMD4<Double>? = nil, ovCur: SIMD4<Double>? = nil, ovVel = SIMD4<Double>(0, 0, 0, 0), ovDrift = 0.0, ovLast = -9.0, ovCutK = 0.0, ovCutLast = -99.0, ovSpd = 0.0, ovDist0: Double? = nil
     private var ovLogT = -9.0
-    private var ovBallT = -99.0, ovPeekT = -1.0, ovCutSlow = true, ovWedgeT = -1.0, ovWedgeK = 0.0, ovWedgeLast = -99.0, ovPitch = 0.0, ovViewYaw = 0.0, ovBall = 0.0
+    private var ovBallT = -99.0, ovPeekT = -1.0, ovCutSlow = true, ovWedgeT = -1.0, ovWedgeK = 0.0, ovWedgeLast = -99.0, ovPitch = 0.0, ovViewYaw = 0.0, ovBall = 0.0, ovOm = 0.38, ovPhi: Double? = nil, ovDir = 1.0, ovLastA = 0.0, ovLastDa = 0.0
     /// YZ の面（x ＝ 0）の法線：x 軸が地図の 3D でどちらを向いているか
     private func ovYZNormal() -> SIMD3<Double> { let v = xf(SIMD4(1, 0, 0, 0)); return SIMD3(v.x, v.y, v.z) }
     private func tickOvShot() {
-        guard overview, ovMotion, st.ovShow, st.diveT > 0.3, let w = (wsrc)?() else { ovAng = nil; ovCur = nil; ovVel = .zero; ovCutK = 0; ovPeekT = -1; ovWedgeT = -1; ovWedgeK = 0; ovPitch = 0; ovViewYaw = 0; ovBall = 0; ovDist0 = nil; return }
+        guard overview, ovMotion, st.ovShow, st.diveT > 0.3, let w = (wsrc)?() else { ovAng = nil; ovCur = nil; ovVel = .zero; ovCutK = 0; ovPeekT = -1; ovWedgeT = -1; ovWedgeK = 0; ovPitch = 0; ovViewYaw = 0; ovBall = 0; ovPhi = nil; ovDist0 = nil; return }
         let now = nowT, dt = max(0, min(0.1, now - ovLast)); ovLast = now
         let cur0 = SIMD4(st.zw, st.yaw, st.pitch, st.roll)
         var cur = ovCur ?? cur0
@@ -1504,15 +1504,25 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         if ballOpen { ovCutSlow = true } else if ovPeekT >= 0 { ovCutSlow = false }
         ovCutK += (open - ovCutK) * (1 - exp(-dt * (open > ovCutK ? 4 : ovCutSlow ? 1 : 3)))
         if ovCutK < 0.002 { ovCutK = 0 }
+        // 極を通る時に跳ね返らないよう、角度はマイナスや 180° の先へも続ける（玉が真ん中を抜けて反対側へ出て、2 つが入れかわる）
+        let a0 = acos(max(-1, min(1, w.pos.w / max(1e-9, simd_length(w.pos)))))
+        if ovPhi == nil { let yr = w.pos.x * sin(cur.y) + w.pos.y * cos(cur.y); ovDir = yr >= 0 ? 1 : -1; ovPhi = ovDir * a0; ovLastA = a0; ovLastDa = 0 }
+        let da = a0 - ovLastA
+        if abs(da) > 1e-5 {
+            if da * ovLastDa < 0 && (a0 < 0.42 || a0 > .pi - 0.42) { ovDir = -ovDir }
+            ovPhi = (ovPhi ?? 0) + ovDir * da; ovLastDa = da; ovLastA = a0
+        }
         // 向きは Y-W 面の回転 1 つだけ：自分の w の高さで決まる。アナ極で 0°（赤玉が手前、紫玉が真後ろ）、赤道で 90°（球層が真横）、カタ極で 180°（紫玉が手前、赤玉が真後ろ）
-        let py = acos(max(-1, min(1, w.pos.w / max(1e-9, simd_length(w.pos)))))
+        let py = HyperLabState.norm(ovPhi ?? a0)
         target = SIMD4(0, 0, py, 0.22 * sin(py))
         // ばねで動かす：ゆっくり動き出して、ゆっくり止まる（加速度がついて、雄大に）。速さに上限（1 秒に約 15°）
-        let om = 0.38
+        // 玉を通る時だけ、ばねを少しずつ強くして遅れを小さくする（ぴったり重なるように。急に動き出さない）
+        ovOm += ((ball ? 2.6 : 0.38) - ovOm) * (1 - exp(-dt * 0.8))
+        let om = ovOm, vMax = ball ? 0.6 : 0.26
         for k in 0..<4 {
             let d = HyperLabState.norm(target[k] - cur[k])
             ovVel[k] += (om * om * d - 2 * om * ovVel[k]) * dt
-            ovVel[k] = max(-0.26, min(0.26, ovVel[k]))
+            ovVel[k] = max(-vMax, min(vMax, ovVel[k]))
             cur[k] = HyperLabState.norm(cur[k] + ovVel[k] * dt)
         }
         ovCur = cur
@@ -3726,6 +3736,26 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             for k in 0..<24 {
                 let a0 = Double(k) / 24 * 2 * .pi, a1 = Double(k + 1) / 24 * 2 * .pi
                 for q in [c, rim(a0, rad), rim(a1, rad)] { tri.append(HLVert(p: SIMD4(SIMD3<Float>(q), 1), n: .zero, c: col)) }
+            }
+        }
+        // 地図で赤玉と紫玉が重なる時：2 つの色の円が近づいて、重なった所が白く光る（暗い背景なので、乗算ではなく光の足し算のように）
+        if overview {
+            let pa = walkPlace(SIMD4(0, 0, 0, 1)).0, pk = walkPlace(SIMD4(0, 0, 0, -1)).0, r0 = 0.22 * Self.R * Self.SCALE
+            let dd = simd_length(pa - pk), o = max(0, 1 - dd / (2 * r0)), ok = smoothstep(0, 0.25, o)
+            if ok > 0.01 {
+                func soft(_ ctr: SIMD3<Double>, _ rad: Double, _ col: SIMD3<Float>, _ am: Float) {
+                    for (ra, aa) in [(1.0, 0.25), (0.8, 0.3), (0.6, 0.35)] as [(Double, Float)] {
+                        for k in 0..<48 {
+                            let a0 = Double(k) / 48 * 2 * .pi, a1 = Double(k + 1) / 48 * 2 * .pi
+                            let e0: SIMD3<Double> = ax * cos(a0) + ay * sin(a0), e1: SIMD3<Double> = ax * cos(a1) + ay * sin(a1)
+                            let q1: SIMD3<Double> = ctr + e0 * (rad * ra), q2: SIMD3<Double> = ctr + e1 * (rad * ra)
+                            for q in [ctr, q1, q2] { tri.append(HLVert(p: SIMD4(SIMD3<Float>(q), 1), n: .zero, c: SIMD4(col, am * aa))) }
+                        }
+                    }
+                }
+                soft(pk, r0, SIMD3(0.72, 0.3, 1.0), Float(ok))
+                soft(pa, r0, SIMD3(1.0, 0.22, 0.2), Float(ok))
+                soft((pa + pk) / 2, r0 * (0.2 + 0.75 * o), SIMD3(1.0, 0.92, 0.95), Float(o * 1.6))
             }
         }
         if !comet && overview && st.autoCam && st.diveT > 0.3 && simd_length(st.camTan) > 0.5 {   // オートカメラの視点：カメラのいる方向の外に白い三角（中心を指す）。カメラが手前の側なら濃く、奥の側なら薄く
