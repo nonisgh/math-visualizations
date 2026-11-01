@@ -9,6 +9,10 @@
 //     隕石らしさ：表面が焼けてはじける「パチパチ」（まばらな小さな破裂。速さの 2 乗で増える）と、熱い空気の「ジリジリ」（高いざらつき）。
 //   ズーム（ダイブ）で寄るほど大きく近く、外から眺めている時は控えめ。
 //   チリン：チェックポイントに当たった瞬間に、短いベルの音（極ごとに音の高さを変える。目印は高い音）。
+//   場所の音：w の高さで音色が変わる（アナ極の側は明るく軽く、カタ極の側は暗く重く）。入れていれば、球層を横切るたびに小さく「スッ」と鳴る。
+//   低音：圧・ゴーッ・ばたつき・エンジンの低い音をまとめて強める（1 が元のまま）。
+//   ひねり：上下・左右のどちらへでも、向きが変わる速さに合わせて、風の帯が上がって大きくなる（すっと強まって、ゆっくり戻る）。
+//   ガラララッ：荒れた路面を走るような、不ぞろいな連打の風切り。速さの 2 乗で強く、カーブで強まる（荒さで大きさを変える）。
 //   描く側（毎コマ）から update・chime で目標を渡し、音を作る側（音の糸）はそれをなめらかに追う。
 //   空間オーディオ（spatial）：1 つの音（モノ）にして、AVAudioEnvironmentNode の頭の伝達関数（HRTF）で、彗星のいる方向から聞こえるように。
 //     左右だけでなく上下・前後も分かる（ヘッドホンで）。広い場所の残響を少し。切ると、前の左右のステレオ。
@@ -23,7 +27,7 @@ final class HyperSound {
     /// 空間オーディオで鳴らす（切りかえたら、鳴らし直す）
     var spatial = true { didSet { if spatial != oldValue && running { stop(); start() } } }
     /// 描く側が書き、音の糸が読む目標（Float の読み書きだけ。少し古い値を読んでも音は崩れない）
-    private final class Target { var gain: Float = 0; var cutoff: Float = 400; var turn: Float = 0; var press: Float = 0; var vol: Float = 0.8; var near: Float = 1; var zoom: Float = 0; var kick = 0; var ice = 0; var chimes: [(f: Float, a: Float)] = []; var beatCyc = 0.0; var beatRate = 0.0; var beatStamp = 0.0; let lock = NSLock() }
+    private final class Target { var gain: Float = 0; var cutoff: Float = 400; var turn: Float = 0; var press: Float = 0; var vol: Float = 0.8; var near: Float = 1; var zoom: Float = 0; var height: Float = 0; var layer = 0; var bass: Float = 1; var rough: Float = 1; var swing: Float = 0; var kick = 0; var ice = 0; var chimes: [(f: Float, a: Float)] = []; var beatCyc = 0.0; var beatRate = 0.0; var beatStamp = 0.0; let lock = NSLock() }
     private let tgt = Target()
     private(set) var running = false
 
@@ -83,7 +87,9 @@ final class HyperSound {
     private func makeNode(_ rate: Float, mono: Bool = false) -> (AVAudioSourceNode, AVAudioFormat)? {
         guard let fmt = AVAudioFormat(standardFormatWithSampleRate: Double(rate), channels: mono ? 1 : 2) else { return nil }
         // 音の糸の中だけで使う状態
-        var g: Float = 0, fc: Float = 400, tn: Float = 0, pr: Float = 0
+        var g: Float = 0, fc: Float = 400, tn: Float = 0, pr: Float = 0, ht: Float = 0, bs: Float = 1, rg: Float = 1, sw: Float = 0   // ht：w の高さ（−1〜1）、bs：低音の倍率、rg：荒さ、sw：ひねり
+        var lyT: Float = 9, lyL: Float = 0, lyB: Float = 0                      // 球層を横切る「スッ」（鳴り始めからの時間・帯域）
+        var rtPh: Float = 0, rtA: Float = 1, rt1: Float = 0, rt2: Float = 0    // ガラララッ（連打の位相・1 打の強さ・2 段の低域）
         var low: Float = 0, band: Float = 0, low2: Float = 0, band2: Float = 0      // 流れ（2 段の帯域）
         var hl: Float = 0, hb: Float = 0                                       // 乱れ（高い帯域）
         var rl1: Float = 0, rl2: Float = 0                                     // 圧（低い 2 段の低域）
@@ -103,19 +109,21 @@ final class HyperSound {
             let bufs = UnsafeMutableAudioBufferListPointer(abl)
             guard bufs.count >= 1, let L = bufs[0].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
             let R = bufs.count >= 2 ? bufs[1].mData?.assumingMemoryBound(to: Float.self) : nil   // nil：空間オーディオ（1 つの音）
-            t.lock.lock(); let tg = t.gain * t.vol, tc = t.cutoff, tt = t.turn, tp = t.press * t.vol, vol = t.vol, tnr = t.near, tzm = t.zoom; let kicks = t.kick; t.kick = 0; let ices = t.ice; t.ice = 0; let new = t.chimes; t.chimes = []; t.lock.unlock()
+            t.lock.lock(); let tg = t.gain * t.vol, tc = t.cutoff, tt = t.turn, tp = t.press * t.vol, vol = t.vol, tnr = t.near, tzm = t.zoom, tht = t.height, tbs = t.bass, trg = t.rough, tsw = t.swing; let kicks = t.kick; t.kick = 0; let lays = t.layer; t.layer = 0; let ices = t.ice; t.ice = 0; let new = t.chimes; t.chimes = []; t.lock.unlock()
             for c in new where voices.count < 8 { voices.append((c.f, c.a * vol, 0, 0)) }
             if kicks > 0 { wob = 1 }
+            if lays > 0 { lyT = 0 }
             if ices > 0 {
                 iceT = 0; iceF = []; iceP = []
                 for _ in 0..<4 { seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5; iceF.append(2800 + 4200 * Float(seed & 0xFFFF) / 65535); iceP.append(0) }
             }
             let kg = 1 - exp(-1 / (rate * 0.12)), kc = 1 - exp(-1 / (rate * 0.09)), kt = 1 - exp(-1 / (rate * 0.18))   // なめらかに追う（風は急には変わらない）
             let dt = 1 / rate
+            let kSwUp = 1 - exp(-dt * 12), kSwDn = 1 - exp(-dt * 2.5)   // ひねり：すっと強まって、ゆっくり戻る
             let kGust = 1 - exp(-dt * 1.3), kGust2 = 1 - exp(-dt * 0.35), kFlut = 1 - exp(-dt * 9)
             var sL: Float = 0, sR: Float = 0
             for i in 0..<Int(frames) {
-                g += (tg - g) * kg; fc += (tc - fc) * kc; tn += (tt - tn) * kt; pr += (tp - pr) * kg
+                g += (tg - g) * kg; fc += (tc - fc) * kc; tn += (tt - tn) * kt; pr += (tp - pr) * kg; ht += (tht - ht) * kc; bs += (tbs - bs) * kg; rg += (trg - rg) * kg; sw += (tsw - sw) * (tsw > sw ? kSwUp : kSwDn)
                 // 白い雑音（xorshift）
                 seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5
                 let wn = Float(Int32(bitPattern: seed)) / Float(Int32.max)
@@ -133,7 +141,8 @@ final class HyperSound {
                 // 低音のゆらぎ（きついカーブ・ときどき）：低いうなりが大きく揺れて、0.7 秒ほどで戻る（高さは少しだけ）
                 wob *= exp(-dt * 4); wobPh += 2 * Float.pi * 5 * dt; if wobPh > 2 * Float.pi { wobPh -= 2 * Float.pi }
                 let wq = wob * sin(wobPh)
-                let fcm = fc * (1 + 0.55 * at + 0.12 * gust) * (0.7 + 0.55 * wv) * (1 + 0.06 * wq)   // 波で高さが上下する
+                let bh = bs * (1 - 0.35 * ht)                                     // 低い音は、カタ極の側ほど重く
+                let fcm = fc * (1 + 0.35 * ht) * (1 + 0.55 * at + 1.3 * sw + 0.12 * gust) * (0.7 + 0.55 * wv) * (1 + 0.06 * wq)   // 波で高さが上下する
                 let f1 = min(0.95, 2 * sin(Float.pi * fcm / rate)), q: Float = 0.9 - 0.35 * at   // 曲がる時は帯が細く鋭く（空気をつかむ）
                 low += f1 * band; let high = wn - low - q * band; band += f1 * high
                 let f2 = min(0.95, 2 * sin(Float.pi * fcm * 0.5 / rate))
@@ -144,9 +153,9 @@ final class HyperSound {
                 // 圧：前の空気を押す重いうなり（雑音を 2 段で低く。60〜140 Hz あたり）
                 let fr = min(0.5, 2 * sin(Float.pi * (60 + 80 * min(1, pr * 2)) / rate))
                 rl1 += (wn - rl1) * fr; rl2 += (rl1 - rl2) * fr
-                let flow = (band2 * 0.9 + band * 0.25) * g * 0.6 * gw * (q / 0.9) * (q / 0.9) * (1 + 0.25 * at) * (0.55 + 0.75 * wv)   // 帯を鋭くした分の響き（2 段なので q の 2 乗）は打ち消す
-                let hiss = hb * g * 0.1 * gw * (0.8 + 0.6 * flut) * (1 + 0.5 * at) * (0.4 + 0.9 * wv)   // 高いシューは控えめに、波に合わせて
-                let press = rl2 * pr * 5.2 * (0.8 + 0.4 * gw) * (1 + 0.75 * wq)   // 低いうなりは強めに（ゆらぐ時は大きく揺れる）
+                let flow = (band2 * 0.9 + band * 0.25) * g * (1 + 1.2 * sw) * 0.6 * gw * (q / 0.9) * (q / 0.9) * (1 + 0.25 * at) * (0.55 + 0.75 * wv)   // 帯を鋭くした分の響き（2 段なので q の 2 乗）は打ち消す
+                let hiss = hb * g * (1 + 2.5 * sw) * 0.1 * gw * (0.8 + 0.6 * flut) * (1 + 0.5 * at) * (0.4 + 0.9 * wv)   // 高いシューは控えめに、波に合わせて
+                let press = rl2 * pr * 5.2 * bh * (0.8 + 0.4 * gw) * (1 + 0.75 * wq)   // 低いうなりは強めに（ゆらぐ時は大きく揺れる）
                 // 揺さぶり（ボボボ）：速いほど速く強く脈打つ。脈の速さは突風で少しずれる
                 let spd = min(1, pr * 2.2)                                       // 速さの目安（0〜1）
                 buf += 2 * Float.pi * (9 + 11 * spd + 1.5 * gust) * dt; if buf > 2 * Float.pi { buf -= 2 * Float.pi }
@@ -154,7 +163,7 @@ final class HyperSound {
                 // ゴーッ：3 段の低域（250〜700 Hz より上を落とす）。揺さぶりで脈打つ
                 let fro = min(0.5, 2 * sin(Float.pi * (250 + 450 * spd) / rate))
                 rr1 += (wn - rr1) * fro; rr2 += (rr1 - rr2) * fro; rr3 += (rr2 - rr3) * fro
-                let roar = rr3 * pr * 4.5 * gw * (1 - throbAmt + throbAmt * 2 * throb * throb)
+                let roar = rr3 * pr * 4.5 * bh * gw * (1 - throbAmt + throbAmt * 2 * throb * throb)
                 // パチパチ：まばらに小さな破裂（1 秒に 0〜40 回、速さの 2 乗で増える）。高めの帯で、すぐ消える
                 let rate2 = 40 * spd * spd
                 seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5
@@ -172,7 +181,13 @@ final class HyperSound {
                 let wn2 = Float(Int32(bitPattern: seed)) / Float(Int32.max)
                 btm += (wn2 * 9 - btm) * (1 - exp(-dt * (40 + 50 * spd))); btm2 += (wn2 * 4 - btm2) * (1 - exp(-dt * 6))
                 let flap = min(1.6, max(0, 0.55 + 0.7 * btm + 0.35 * btm2))   // ばたつき（大きくなりすぎない）
-                let buffet = bf2 * pr * flap * (0.55 + 0.7 * at) * (0.6 + 0.4 * gw)
+                let buffet = bf2 * pr * bh * flap * (0.55 + 0.7 * at) * (0.6 + 0.4 * gw)
+                // ガラララッ：低めの雑音（180〜440 Hz）を、1 秒に 24〜44 回の不ぞろいな連打で叩く
+                rtPh += 2 * Float.pi * (24 + 20 * spd) * (1 + 0.2 * gust) * dt
+                if rtPh > 2 * Float.pi { rtPh -= 2 * Float.pi; rtA = 0.35 + 0.65 * Float((seed >> 8) & 0xFF) / 255 }
+                let frt = min(0.5, 2 * sin(Float.pi * (180 + 260 * spd) / rate))
+                rt1 += (wn - rt1) * frt; rt2 += (rt1 - rt2) * frt
+                let hit = max(0, sin(rtPh)), rattle = rt2 * hit * hit * hit * rtA * pr * rg * 6 * (1 + 0.35 * at + 0.8 * sw)
                 // ジリジリ：とても高いざらつき（熱い空気）。速い時だけ
                 sizz += (wn - sizz) * 0.6
                 let sizzle = (wn - sizz) * pr * 0.25 * spd * (0.7 + 0.5 * flut)
@@ -180,18 +195,27 @@ final class HyperSound {
                 //   加速する時は鳴きが強まって音が上がる。曲がる時は高さが少し揺れる
                 enS += (spd - enS) * (1 - exp(-dt * 2.5))
                 enAcc += (max(0, (enS - enPrev) / dt) * 4 - enAcc) * (1 - exp(-dt * 3)); enPrev = enS
-                let up = min(1, enAcc), fe = (70 + 230 * enS + 90 * up) * (1 + 0.04 * tn * sin(wa * 9))
+                let up = min(1, enAcc), fe = (70 + 230 * enS + 90 * up) * (1 + 0.12 * ht) * (1 + 0.04 * tn * sin(wa * 9))
                 en1 += 2 * Float.pi * fe * dt; en2 += 2 * Float.pi * fe * 1.007 * dt; en3 += 2 * Float.pi * fe * 6.03 * dt
                 beatF = fe * 0.007; beat += Double(beatF * dt)                  // 2 つの音の位相の差が 0 にそろう所（整数）が、うなりの山
                 if en1 > 2 * Float.pi { en1 -= 2 * Float.pi }; if en2 > 2 * Float.pi { en2 -= 2 * Float.pi }; if en3 > 2 * Float.pi { en3 -= 2 * Float.pi }
                 let ea = pow(max(0, g), 0.7) * (0.25 + 0.75 * enS)
-                let engine = (sin(en1) * 0.5 + sin(en2) * 0.35 + sin(en1 * 2) * 0.12) * ea * 0.16 + sin(en3) * ea * (0.012 + 0.05 * up)
-                var s = (flow + hiss + roar * 0.85 * (1 + 0.5 * wq) + crackle + sizzle + buffet + engine) * (1 + 0.1 * wq)   // ゴーッ（低い）も強めに
+                let engine = (sin(en1) * 0.5 + sin(en2) * 0.35 + sin(en1 * 2) * 0.12) * ea * 0.16 * bh + sin(en3) * ea * (0.012 + 0.05 * up)
+                // 球層を横切る「スッ」：短い高めの風（0.15 秒ほど）
+                var pass: Float = 0
+                if lyT < 0.15 {
+                    lyT += dt
+                    let fl = min(0.95, 2 * sin(Float.pi * (2600 - 1400 * lyT / 0.15) / rate))
+                    lyL += fl * lyB; let lh = wn - lyL - 0.5 * lyB; lyB += fl * lh
+                    pass = lyB * exp(-lyT * 26) * min(1, lyT / 0.01) * 0.3 * vol
+                }
+                var s = (pass + flow + hiss + roar * 0.85 * (1 + 0.5 * wq) + crackle + sizzle + buffet + engine + rattle) * (1 + 0.1 * wq)   // ゴーッ（低い）も強めに
                 // チリン（ベル：基音と 2.76 倍の部分音、すぐ減る）
-                var bell: Float = 0
+                var bell: Float = 0, bellE: Float = 0                           // bellE：ベルの大きさ（鳴っている間、風を少し下げる）
                 for v in voices.indices {
                     voices[v].p += 2 * Float.pi * voices[v].f * dt; voices[v].t += dt
                     let env = voices[v].a * exp(-voices[v].t * 3.2) * nr          // 遠くから眺めている時は、かすかに
+                    bellE += env
                     bell += env * (sin(voices[v].p) + 0.35 * sin(voices[v].p * 2.76) * exp(-voices[v].t * 6))
                 }
                 // シュパッ：0.04 秒で立ち上がる「シュ」（帯は 8 kHz から 2.5 kHz へ下がる）→ 「パッ」と小さな破裂、氷のかけらのきらめき
@@ -214,12 +238,13 @@ final class HyperSound {
                 s = max(-1, min(1, s))
                 // 左右で少しずらす（広がり）。圧は真ん中
                 sL += (s - sL) * 0.7; sR += (s - sR) * 0.55
-                // 端はやわらかく丸める（割れない）
+                // 端はやわらかく丸める（割れない）。チリンは丸める外で足す（風が強くても埋もれない）
+                let duck = 1 - min(0.4, bellE * 0.5), bl = tanh(bell * 0.3) * 0.5
                 if let R {
-                    L[i] = tanh(sL * (1 - pan) * 2.6 + press + bell * 0.22)
-                    R[i] = tanh(sR * pan * 2.6 + press + bell * 0.22)
+                    L[i] = tanh(sL * (1 - pan) * 2.6 + press) * duck + bl
+                    R[i] = tanh(sR * pan * 2.6 + press) * duck + bl
                 } else {
-                    L[i] = tanh(sL * 1.6 + press + bell * 0.22)                 // 空間オーディオ：方向は環境が付ける
+                    L[i] = tanh(sL * 1.6 + press) * duck + bl                 // 空間オーディオ：方向は環境が付ける
                 }
             }
             voices.removeAll { $0.t > 2.2 }
@@ -274,11 +299,11 @@ final class HyperSound {
         guard running else { return }
         engine?.stop(); if let n = node { engine?.detach(n) }; if let v = envNode { engine?.detach(v) }
         engine = nil; node = nil; envNode = nil; running = false; tapped = false
-        tgt.lock.lock(); tgt.gain = 0; tgt.press = 0; tgt.turn = 0; tgt.chimes = []; tgt.lock.unlock()
+        tgt.lock.lock(); tgt.gain = 0; tgt.press = 0; tgt.turn = 0; tgt.height = 0; tgt.chimes = []; tgt.lock.unlock()
     }
     /// 毎コマ：速さ（0〜1）・ズーム（0〜1）・曲がる速さ（−1〜1、＋は右へ）・音量から、風の大きさ・高さ・圧・曲がり
     /// near：引きの絵で、彗星が手前（1）か奥（0）か。奥へ行くと小さく、回り込んで手前に来ると少し大きく
-    func update(speed: Double, zoom: Double, turn: Double = 0, near cn: Double = 0.5, volume: Double) {
+    func update(speed: Double, zoom: Double, turn: Double = 0, swing: Double = 0, near cn: Double = 0.5, volume: Double) {
         let s = Float(max(0, min(1, speed))), z = Float(max(0, min(1, zoom))), tr = Float(max(-1, min(1, turn)))
         let zp = pow(z, 1.3), far = 0.012 + 0.07 * pow(Float(max(0, min(1, cn))), 1.6)   // 外から眺めている時は、聞こえるか聞こえないか（奥で消えそう・手前で少し）
         let near = far * (1 - zp) + zp                                 // ズームで寄るほど大きく
@@ -287,9 +312,28 @@ final class HyperSound {
         let gain = sEff * near * (1 + 0.25 * abs(tr))  // 曲がる時は、ひと吹き強まる
         let press = pow(s, 2 - 0.7 * zp) * near * 0.5   // 空気抵抗（速さの 2 乗）を押し切る重さ。寄った時は強め
         let cutoff = 150 + 1300 * s * (0.6 + 0.4 * z)                 // 速いほど高い（低めのトーン）
-        tgt.lock.lock(); tgt.gain = gain; tgt.press = press; tgt.cutoff = cutoff; tgt.turn = tr * s; tgt.vol = Float(volume); tgt.zoom = z; tgt.near = 1;   // チリンはいつもはっきり（チェックポイントの通過は聞こえた方がいい）
+        tgt.lock.lock(); tgt.gain = gain; tgt.press = press; tgt.cutoff = cutoff; tgt.turn = tr * s; tgt.swing = Float(max(0, min(1, swing))) * s.squareRoot(); tgt.vol = Float(volume); tgt.zoom = z; tgt.near = 1;   // チリンはいつもはっきり（チェックポイントの通過は聞こえた方がいい）
         tgt.lock.unlock()
+        logValues(s, z, gain, press, cutoff)
     }
+    /// 確かめ用（環境変数 S3_SND_LOG にファイルの場所）：1 秒ごとに、音へ渡した値を書く（動いている時と書き出しの時を比べる）
+    private static let logPath = ProcessInfo.processInfo.environment["S3_SND_LOG"]
+    private var logT = 0.0
+    private func logValues(_ s: Float, _ z: Float, _ gain: Float, _ press: Float, _ cutoff: Float) {
+        guard let p = Self.logPath else { return }
+        let now = CACurrentMediaTime(); if now - logT < 1 { return }; logT = now
+        let line = String(format: "%@ 速さ %.3f 寄り %.3f 風 %.3f 圧 %.3f 高さ %.0f 空間 %d\n", engine?.isInManualRenderingMode == true ? "書き出し" : "動作中", s, z, gain, press, cutoff, spatial ? 1 : 0)
+        if let d = line.data(using: .utf8) {
+            if !FileManager.default.fileExists(atPath: p) { FileManager.default.createFile(atPath: p, contents: nil) }
+            if let h = FileHandle(forWritingAtPath: p) { h.seekToEndOfFile(); h.write(d); h.closeFile() }
+        }
+    }
+    /// 毎コマ：今の w の高さ（−1〜1）と場所の音の強さ（0〜1）、低音の倍率、荒さ
+    func tune(height: Double, place: Double, bass: Double, rough: Double = 1) {
+        tgt.lock.lock(); tgt.height = Float(height * place); tgt.bass = Float(bass); tgt.rough = Float(rough); tgt.lock.unlock()
+    }
+    /// 球層を横切った時の「スッ」
+    func layerPass() { tgt.lock.lock(); tgt.layer += 1; tgt.lock.unlock() }
     /// シュパッ（氷がはじけるような音。カーブの揺れの時にときどき）
     func icePop() { tgt.lock.lock(); tgt.ice += 1; tgt.lock.unlock() }
     /// 低音をゆらす（きついカーブ・ときどき）

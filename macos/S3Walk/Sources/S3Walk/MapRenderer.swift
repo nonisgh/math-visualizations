@@ -194,7 +194,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         return poleNameEN(m) + (parts.count > 1 ? " " + parts[1] : "")
     }
     /// 極の点の色（ウェブ版の dotCss）：アナ極は赤（いちばん内側の殻の色）、カタ極は紫、ほかは目印の色
-    static func poleDotCol(_ k: Int) -> SIMD3<Float> { k == 0 ? hexRGB(0xef4444) : k == 1 ? hexRGB(0xa855f7) : FIXED[k].col }
+    static func poleDotCol(_ k: Int) -> SIMD3<Float> { k == 0 ? hexRGB(0xff2b2b) : k == 1 ? hexRGB(0xa855f7) : FIXED[k].col }
     /// S² の仲間での 8 つの極（ウェブ版の FIXED の p2。天・地 ±z は S² に無い）
     static let s2Pole: [SIMD3<Double>?] = [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], nil, nil]
 

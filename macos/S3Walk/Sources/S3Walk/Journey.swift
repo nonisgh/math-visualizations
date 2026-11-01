@@ -14,6 +14,7 @@ struct Journey {
     /// チェックポイント：歩いて通った目印（その目印の位置。並びは通った順）。目印のそば（0.12 以内）に外から入った時に記録する
     var marksHit: [V4] = []
     var polesHit: [Int] = []             // 通った極（FIXED の番号。通った順）
+    var lapByRoute = false               // 自分の道：周回は道の最後の点を過ぎた時に数える（Renderer の endLap）
     var lapPoles: [Int] = []             // 歩いている自分の道が通る極（2 つ以上あれば、この極を全部通って 1 周。8 つの極を全部通らない道でも周回する）
     /// 自分の道の点（ランダムな点・座標で入れた点など。極・目印と同じ所は除く）も、歩いている間はチェックポイント。routeNames は知らせの名前
     var routePts: [V4] = [], routeNames: [String] = [], routeHit: [V4] = [], enteredRoute: [V4] = []
@@ -73,7 +74,7 @@ struct Journey {
             Journey.hitPulse.append((m, ProcessInfo.processInfo.systemUptime, -1))
             marksHit.append(m)
             let n = marks.filter { isHit($0) }.count
-            if n == marks.count && marks.count >= 2 && routePts.count < 2 {
+            if n == marks.count && marks.count >= 2 && routePts.count < 2 && !lapByRoute {
                 // 1 周：チェックをリセットして次の周へ（今いる目印は、離れてまた入った時に数える）
                 lap += 1; marksHit = []; polesHit = []
                 if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }   // 跡も新しい周から
@@ -93,7 +94,7 @@ struct Journey {
             Journey.hitPulse.append((m, ProcessInfo.processInfo.systemUptime, -1))
             routeHit.append(m)
             let n = routePts.filter { isRouteHit($0) }.count, name = i < routeNames.count ? routeNames[i] : "道の点 \(i + 1)"
-            if n == routePts.count && routePts.count >= 2 {
+            if n == routePts.count && routePts.count >= 2 && !lapByRoute {
                 lap += 1; routeHit = []; polesHit = []
                 if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }
                 say("チェック！ \(name) を通過。\(lap - 1) 周！ チェックポイントをリセットして \(lap) 周目へ")
@@ -114,7 +115,7 @@ struct Journey {
             if k >= 2 { say("チェック！ \(MapRenderer.poleName(m))を通過（極 \(polesHit.count)/8）") }
         }
         // 目印が 2 つより少ない時は、8 つの極が周回のチェックポイント
-        if marks.count < 2 && routePts.count < 2 && (lapPoles.count >= 2 ? lapPoles.allSatisfy { polesHit.contains($0) } : polesHit.count >= FIXED.count) {
+        if !lapByRoute && marks.count < 2 && routePts.count < 2 && (lapPoles.count >= 2 ? lapPoles.allSatisfy { polesHit.contains($0) } : polesHit.count >= FIXED.count) {
             lap += 1; polesHit = []
             if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }
             say(lapPoles.count >= 2 ? "道の極を全部通った！ \(lap - 1) 周。チェックポイントをリセットして \(lap) 周目へ" : "8 つの極を全部通った！ \(lap - 1) 周。チェックポイントをリセットして \(lap) 周目へ")
@@ -122,6 +123,12 @@ struct Journey {
         lastP = p
         if !Journey.hitPulse.isEmpty { let now = ProcessInfo.processInfo.systemUptime; Journey.hitPulse.removeAll { now - $0.t > 2 } }
         prevS = dS; prevN = dN; wasW = w
+    }
+
+    /// 自分の道の 1 周の終わり：最後の場所を過ぎて、最初の場所へ戻り始めた時。チェックと跡をリセットして次の周へ
+    mutating func endLap(_ p: V4) {
+        lap += 1; marksHit = []; polesHit = []; routeHit = []
+        if Journey.lapClearsTrail { trail = [p]; trail2 = [w2.p]; foot = []; foot2 = [] }
     }
 
     /// 縦横無尽：ゆっくりした波（周期のちがう sin の和）で、方位の回る速さと仰角の目標を決め、なめらかに追いかける
@@ -196,7 +203,7 @@ enum Store {
     /// 今いる所・向き・目印（snapshot の set 以外）を当てる。同期で Supabase から読んだ時にも使う
     static func applyPosition(_ r: Renderer, _ d: [String: Any]) {
         if let p = v4(d["p"]), let rr = v4(d["r"]), let u = v4(d["u"]), let f = v4(d["f"]) {
-            var w = Walker(p: nrm(p), r: rr, u: u, f: f); orthoFrame(&w); r.cam.w = w
+            var w = Walker(p: nrm(p), r: rr, u: u, f: f); orthoFrame(&w); repairFrame(&w); r.cam.w = w
         }
         if let az = d["az"] as? Double { r.cam.az = az }
         if let el = d["el"] as? Double { r.cam.el = el }

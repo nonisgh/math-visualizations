@@ -242,6 +242,11 @@ final class Renderer: NSObject, MTKViewDelegate {
         walking = false; roaming = false; pathMode = .none; turboPrev = nil; turboHolding = false; rewinding = false; padVel = .zero
         say?(was ? "完全停止（Y）" : "止まっている（Y）")
     }
+    /// 動画の書き出しが始まった時：走るのを全部止める（裏で走り続けないように。知らせは出さない）
+    private var goodCam: Camera? = nil
+    func stopForExport() {
+        walking = false; roaming = false; pathMode = .none; turboPrev = nil; turboHolding = false; rewinding = false; padVel = .zero
+    }
     /// 自動走行をやめる（コントローラーの B）
     func stopAuto() {
         guard pathMode != .none else { return }
@@ -271,6 +276,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         didSet {
             if pathMode != .custom && !journey.routePts.isEmpty { journey.routePts = []; journey.routeNames = []; journey.routeHit = []; journey.enteredRoute = [] }
             if pathMode != .custom && !journey.lapPoles.isEmpty { journey.lapPoles = [] }
+            if pathMode != .custom { journey.lapByRoute = false }
         }   // 自分の道をやめたら、道の点のチェックポイントもおしまい
     }
     var path = PathWalk()
@@ -709,6 +715,13 @@ final class Renderer: NSObject, MTKViewDelegate {
         step(dt); frameCount += 1
     }
     func step(_ dt: Double) {
+        // 安全装置：体の向きが計算できない値になったら、最後の正常な所へ戻して止まる（地図・景色・保存がみんな止まるので）
+        func ok(_ v: V4) -> Bool { (v.x + v.y + v.z + v.w).isFinite }
+        if ok(cam.w.p) && ok(cam.w.f) && ok(cam.w.r) && ok(cam.w.u) { goodCam = cam }
+        else {
+            if let g = goodCam { cam = g } else { repairFrame(&cam.w) }
+            pathMode = .none; walking = false; roaming = false; say?("道の計算が壊れたので、直前の場所で止めました")
+        }
         // 残す軌跡：x·π より古い所は消す（点は 0.02 おき）。S² の仲間の軌跡も同じ数だけ
         if set.trailKeep > 0 {
             let maxN = max(2, Int(set.trailKeep * Double.pi / 0.02))
@@ -1130,6 +1143,18 @@ final class Renderer: NSObject, MTKViewDelegate {
         if i < journey.markKinds.count { journey.markKinds[i] = k }
     }
 
+    // 確かめ用：S3_CAM_LOG のファイルへ、2 秒ごとに今の向きと見え方の設定を足す（景色がおかしい時に、同じ場面を画面の外で描き直すため）
+    static let camLog = ProcessInfo.processInfo.environment["S3_CAM_LOG"]
+    private var camLogT = 0.0
+    private func writeCamLog(_ w: Int, _ h: Int) {
+        guard let path = Renderer.camLog else { return }
+        func f(_ v: V4) -> String { String(format: "%.4f,%.4f,%.4f,%.4f", v.x, v.y, v.z, v.w) }
+        let c = cam.w, t = String(format: "%.1f", Date().timeIntervalSince1970)
+        let line = "\(t) p \(f(c.p)) f \(f(c.f)) r \(f(c.r)) u \(f(c.u)) az \(cam.az) el \(cam.el) uniL \(set.uniL) fog \(set.fog) fade \(set.fade) fov \(set.fov) maxD \(set.maxD) space \(set.space) shell \(set.shell) solid \(set.shellSolid) bare \(set.shellBare) range \(set.shellRange) op \(set.shellOp) cine \(set.cine) bloom \(set.bloom) expo \(set.expo) stars \(set.stars) quiet \(set.quiet) scale \(set.scale) sceneScale \(sceneScale) idle \(idle) skip \(skipEncode) shut \(HyperLabState.walkShut) path \(pathMode) size \(w)x\(h)\n"
+        guard let d = line.data(using: .utf8) else { return }
+        if let h = FileHandle(forWritingAtPath: path) { _ = try? h.seekToEnd(); try? h.write(contentsOf: d); try? h.close() } else { FileManager.default.createFile(atPath: path, contents: d) }
+    }
+
     // ---- MTKViewDelegate ----
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) { drawSize = size }
 
@@ -1137,6 +1162,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         let now = CACurrentMediaTime(); gapRun = max(gapRun, (now - lastT) * 1000); let dt = min(0.05, now - lastT); lastT = now; drawT = now
         step(dt)
         let w = Int(view.drawableSize.width), h = Int(view.drawableSize.height)
+        if Renderer.camLog != nil, now - camLogT > 2 { camLogT = now; writeCamLog(w, h) }
         // 4D 球アナロジーで「さんぽの窓は止める」：真っ黒を 1 回だけ出して、あとは描かずにコマだけ進める（景色の画面・ダイブが描き直すように）
         if HyperLabState.walkShut {
             if blackSize != view.drawableSize, let rpd = view.currentRenderPassDescriptor, let d = view.currentDrawable, let cb = queue.makeCommandBuffer() {

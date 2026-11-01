@@ -46,9 +46,28 @@ final class VideoExport: ObservableObject {
     // 書き出しのレイアウト：0 ダイブ画面だけ（左上に小さくガラスの窓の地図）・1 超球の窓のレイアウト（左上 地図・左下 さんぽの景色・残りに大きくダイブ画面。仕切りは超球の窓と同じ比率）
     @Published var layout = UserDefaults.standard.integer(forKey: "s3walk.export.layout") { didSet { UserDefaults.standard.set(layout, forKey: "s3walk.export.layout") } }
     // ダイブしていなくても、書き出しはダイブ（三人称）で描く。カメラ（オートカメラ・ショーカメラ）は書き出しの中で動かす
+    // ダイブイン：動画の始めに 6 秒、超球の全体から走る所へ寄っていく。走り出しは寄り切る 2 秒前からゆっくり（速さがつながる）。音はその間、風の音がだんだん大きくなる
+    @Published var diveIn = UserDefaults.standard.bool(forKey: "s3walk.export.diveIn") { didSet { UserDefaults.standard.set(diveIn, forKey: "s3walk.export.diveIn") } }
+    private static let introFrames = 360, introEase = 120
+    private var introN = 0
+    /// 書き出しのコマ i が、記録の何コマ目か（ダイブインの間は止まっていて、少しずつ動き出す）
+    private func recFrame(_ i: Int) -> Double {
+        guard introN > 0 else { return Double(i) }
+        let T = Double(Self.introEase), st0 = introN - Self.introEase
+        if gen != nil { return Double(Self.genFI + max(0, i - st0)) }    // 決まった道から作る時：はじめの待ちを飛ばす（道には走り出しのゆっくりが入っている）
+        if i <= st0 { return 0 }
+        if i < introN { let u = Double(i - st0); return u * u / (2 * T) }
+        return Double(i - introN) + T / 2
+    }
+    /// 音を後ろへずらす秒数（ダイブインの分）
+    private var audioD: Double { introN == 0 ? 0 : gen != nil ? Double(introN - Self.introEase - Self.genFI) / 60 : Double(introN - Self.introEase / 2) / 60 }
+    /// ダイブインの風の音の長さ（秒）
+    private var introSec: Double { gen != nil ? Double(introN - Self.introEase) / 60 + 0.7 : audioD }   // 道から作る時は、走りの音が立ち上がるまで少し重ねる
+    private var introCount = 0                                           // 音の並びの、はじめのダイブインの音の数
     @Published var forceDive = UserDefaults.standard.object(forKey: "s3walk.export.forceDive") as? Bool ?? true { didSet { UserDefaults.standard.set(forceDive, forKey: "s3walk.export.forceDive") } }
     @Published var message: String? = nil
     // 画面の上の文字も描き込む（窓の見出し・走行中の座標・周回・角度の読み・さんぽの景色の極）
+    @Published var heavy = UserDefaults.standard.object(forKey: "s3walk.export.heavy") as? Bool ?? false { didSet { UserDefaults.standard.set(heavy, forKey: "s3walk.export.heavy") } }   // 書き出しはヘビーモードで描く
     @Published var withText = UserDefaults.standard.object(forKey: "s3walk.export.text") as? Bool ?? true { didSet { UserDefaults.standard.set(withText, forKey: "s3walk.export.text") } }
     // 決まった道から作る：道（PathMode の番号。7 は自分の道 genRoute）と長さ（秒）
     @Published var genPath = UserDefaults.standard.object(forKey: "s3walk.export.genPath") as? Int ?? PathMode.tour.rawValue { didSet { UserDefaults.standard.set(genPath, forKey: "s3walk.export.genPath") } }
@@ -58,7 +77,7 @@ final class VideoExport: ObservableObject {
     private(set) var gen: Renderer? = nil
     private var genTpl: RecFrame? = nil, genCs: SIMD4<Double>? = nil, genSpd = 0.0, genFreed = 0
     // 決まった道から作る時の音：画面に出さずに作る音（超球の窓の音と同じ作り方）と、その時の速さ・曲がり・チェックポイント
-    private var genSnd: HyperSound? = nil, genAFmt: AVAudioFormat? = nil, gsVol = 0.7, gsPos: SIMD4<Double>? = nil, gsFwd: SIMD4<Double>? = nil
+    private var genSnd: HyperSound? = nil, genAFmt: AVAudioFormat? = nil, gsVol = 0.7, gsPlace = 0.7, gsLayerOn = false, gsBass = 1.0, gsRough = 1.0, gsSwing = 0.0, gsPass = PolePass(), gsLayer: Int? = nil, gsPos: SIMD4<Double>? = nil, gsFwd: SIMD4<Double>? = nil
     private var gsTurn = 0.0, gsSpeed = 0.0, gsWobT = -9.0, gsIceT = -9.0, genHits: [(p: V4, t: Double, pole: Int)] = []
     /// 決まった道から作る時の超球の向き（自動で回す・自分を追う・切り口の往復を、超球の窓と同じく 1/60 秒ずつ進める）
     private var genSt: HyperLabState? = nil, genLW = LapWatch(), genLapN = 1
@@ -233,6 +252,7 @@ final class VideoExport: ObservableObject {
         note = note0
         live.st.saveIfChanged()                                             // 今の設定を覚えてから、書き出し用の状態を同じ設定で作る
         let s2 = HyperLabState()
+        s2.heavy = heavy || live.st.heavy || CommandLine.arguments.contains("--heavy")
         guard let r = HyperLabRenderer(side: .right, state: s2, view: nil) else { message = note + "書き出しの準備ができませんでした"; return }
         let u: URL
         #if os(macOS)
@@ -273,22 +293,50 @@ final class VideoExport: ObservableObject {
         if force { s2.diveOn = true; s2.diveThird = true; s2.diveT = 1; s2.thirdK = 1; s2.diveFade = 0 }
         var c: CVMetalTextureCache?; CVMetalTextureCacheCreate(nil, nil, r.device, nil, &c); cache = c
         let t0 = frames[0].t, t1 = frames[frames.count - 1].t
-        nOut = gen != nil ? genOut : max(1, Int((t1 - t0) * 60)); iOut = 0; fadeNow = gen == nil && recFade; if fadeNow { genOut = nOut }; jRec = 0; trail = []; appliedTo = -1; aIdx = 0; inFlight = 0; failed = false
-        let al = aq.sync { audio }, makingSound = gen != nil && genSnd != nil; wq.sync { aList = al; audioDone = false; aLive = makingSound }                  // 記録した音（書き出し中は、書く糸の上だけで使う）
+        nOut = gen != nil ? genOut : max(1, Int((t1 - t0) * 60)); iOut = 0; fadeNow = gen == nil && recFade; if fadeNow { genOut = nOut }
+        introN = diveIn ? Self.introFrames : 0; if introN > 0 { nOut += gen != nil ? introN - Self.introEase - Self.genFI : introN - Self.introEase / 2 }
+        jRec = 0; trail = []; appliedTo = -1; aIdx = 0; inFlight = 0; failed = false
+        let al = aq.sync { audio }, makingSound = gen != nil && genSnd != nil; var intro: [(AVAudioPCMBuffer, Double)] = []                       // ダイブインの間の音：寄っていくのに合わせて、風の音がだんだん大きくなる
+        if introN > 0, let fmt = gen != nil ? genAFmt : audioFormat {
+            let n: AVAudioFrameCount = 4096, step = Double(n) / fmt.sampleRate, cnt = Int(introSec / step), snd = HyperSound()   // 一度に作れるのは 4096 標本まで
+            snd.spatial = live.st.soundSpatial
+            let sf = snd.startOffline(rate: fmt.sampleRate), same = sf?.channelCount == fmt.channelCount && sf?.isInterleaved == fmt.isInterleaved
+            for i in 0...cnt {
+                let rest = Int((introSec * fmt.sampleRate).rounded()) - i * Int(n), len = min(Int(n), rest)   // 最後のひと切れで長さをぴったりに（走りの音とすき間を作らない）
+                if len <= 0 { break }
+                let p = Double(i) / Double(max(1, cnt)), ta = max(0, min(1, Double(cnt - i) * step / 0.3))   // 終わりの 0.3 秒で、走りの音へ渡す
+                var b: AVAudioPCMBuffer? = nil
+                if same {
+                    snd.update(speed: 0.15 + 0.6 * p, zoom: p * p, volume: live.st.soundVol * min(1, p * 2.5) * ta)
+                    snd.tune(height: 0, place: 0, bass: live.st.soundBass, rough: live.st.soundRough)
+                    b = snd.renderOffline(len)
+                }
+                if b == nil, let z = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: n) {   // 作れない時は無音（音と絵は交互に書く決まりなので、無音も渡す）
+                    z.frameLength = AVAudioFrameCount(len)
+                    for c in 0..<Int(fmt.channelCount) { if let d = z.floatChannelData?[fmt.isInterleaved ? 0 : c] { memset(d, 0, Int(n) * MemoryLayout<Float>.size * (fmt.isInterleaved ? Int(fmt.channelCount) : 1)) } }
+                    b = z
+                }
+                if let b { intro.append((b, t0 - audioD + Double(i) * step)) }
+            }
+            snd.stop()
+        }
+        introCount = intro.count
+        wq.sync { aList = intro + al; audioDone = false; aLive = makingSound }                  // 記録した音（書き出し中は、書く糸の上だけで使う）
         r.walkOverride = { [weak self] in self?.curWalk ?? HyperLabState.Walk(trail: [], pos: SIMD4(0, 0, 0, 1)) }
-        progress = 0; rendering = true
-        DispatchQueue.main.async { self.step() }
+        progress = 0; canceling = false; rendering = true
+        DispatchQueue.main.async { HyperLabState.walkRendererGet?()?.stopForExport(); self.step() }   // 書き出しが始まったら、走るのを止める
     }
     private var curWalk = HyperLabState.Walk(trail: [], pos: SIMD4(0, 0, 0, 1)), busySince = 0.0
 
     /// 1 コマ描いて、次へ（アプリが止まらないように、1 コマずつ順に）
     private func step() {
         guard rendering, let r = r2, let s2 = st2, let cache, let ad = adaptor, let vi = vIn else { return }
+        if canceling { abortRender(); return }
         if iOut >= nOut || wq.sync(execute: { failed }) { finishRender(); return }
         let busyNow = wq.sync { inFlight >= 3 || !vi.isReadyForMoreMediaData }
         if busyNow {
             // 待っている間も、音を少し先まで渡す（絵と音は交互に書く決まりなので、音が来ないと絵も受け取ってもらえない）
-            if gen != nil && frames.count < iOut + 600 { for _ in 0..<6 { genFrame() } }   // 決まった道から作る時：待っている間に先へ歩いて、音を作り足す
+            if gen != nil && Double(frames.count) < recFrame(iOut) + 600 { for _ in 0..<6 { genFrame() } }   // 決まった道から作る時：待っている間に先へ歩いて、音を作り足す
             if busySince == 0 { busySince = CACurrentMediaTime() }
             let waited = CACurrentMediaTime() - busySince
             feedAudio(upTo: Double(iOut) / 60 + 1.0 + waited)                // 待つほど先まで渡す（4K は絵が重くて、受け取りが遅れることがある）
@@ -310,8 +358,8 @@ final class VideoExport: ObservableObject {
         }
         busySince = 0
         guard let pool = ad.pixelBufferPool else { DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { self.step() }; return }
-        if gen != nil { while frames.count < iOut + 40 { genFrame() } }   // 0.6 秒先まで歩いておく（音を絵より先に渡すため）
-        let t0 = frames[0].t, tq = t0 + Double(iOut) / 60
+        if gen != nil { while Double(frames.count) < recFrame(iOut) + 40 && frames.count < genOut { genFrame() } }   // 0.6 秒先まで歩いておく（音を絵より先に渡すため）
+        let t0 = frames[0].t, tq = t0 + recFrame(iOut) / 60
         while jRec + 1 < frames.count - 1 && frames[jRec + 1].t <= tq { jRec += 1 }
         // 跡：記録をたどって、ふえた分を足す
         while appliedTo < jRec + 1 && appliedTo + 1 < frames.count {
@@ -327,6 +375,7 @@ final class VideoExport: ObservableObject {
             s2.diveOn = true; s2.diveT = 1; s2.thirdK = 1; s2.diveFade = 0
             s2.chaseDistS = s2.chaseDist; s2.chasePitchS = s2.chasePitch; s2.chaseYawS = s2.chaseYaw
         }
+        if iOut < introN { let u = Double(iOut) / Double(introN); s2.diveT = min(s2.diveT, pow(u, 2.2)); s2.diveFade = 0 }   // ダイブイン：超球の全体から、加速しながら寄っていく（寄り切る時にブレーキをかけない）
         var w = a.walk
         func nl(_ x: SIMD4<Double>, _ y: SIMD4<Double>) -> SIMD4<Double> { let m = x + (y - x) * k, l = simd_length(m); return l > 1e-9 ? m / l : y }
         w.pos = nl(a.walk.pos, b.walk.pos); w.fwd = nl(a.walk.fwd, b.walk.fwd); w.vR = nl(a.walk.vR, b.walk.vR); w.vU = nl(a.walk.vU, b.walk.vU); w.vL = nl(a.walk.vL, b.walk.vL)
@@ -334,7 +383,7 @@ final class VideoExport: ObservableObject {
         w.dist = a.walk.dist + (b.walk.dist - a.walk.dist) * k; w.fov = a.walk.fov + (b.walk.fov - a.walk.fov) * k
         w.trail = Array(trail.prefix(max(0, trail.count - a.trailTrim)))
         curWalk = w
-        r.clockOverride = tq; r.domOverride = a.dom + (b.dom - a.dom) * k
+        r.clockOverride = t0 + Double(iOut) / 60; r.domOverride = a.dom + (b.dom - a.dom) * k
         if force { r.autoCamForTest(1.0 / 60) }
         // 描く
         var pb: CVPixelBuffer?; CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb)
@@ -359,7 +408,7 @@ final class VideoExport: ObservableObject {
             }
         }
         cb.commit()
-        feedAudio(upTo: tq - t0 + 0.25)
+        feedAudio(upTo: Double(iOut) / 60 + 0.25)
         iOut += 1
         if iOut % 6 == 0 { progress = Double(iOut) / Double(nOut) }
         DispatchQueue.main.async { self.step() }
@@ -369,21 +418,23 @@ final class VideoExport: ObservableObject {
         // 決まった道から作る時：当たったチェックポイントの光は、裏のさんぽの記録で（描く間だけ差しかえる。時刻は今の時計に合わせる）
         var keep: [(p: V4, t: Double, pole: Int)]? = nil
         if gen != nil {
-            let up = ProcessInfo.processInfo.systemUptime, tq = Double(iOut) / 60
+            let up = ProcessInfo.processInfo.systemUptime, tq = recFrame(iOut) / 60
             keep = Journey.hitPulse; genHits.removeAll { tq - $0.t > 3 }
             Journey.hitPulse = genHits.filter { $0.t <= tq }.map { ($0.p, up - (tq - $0.t), $0.pole) }
         }
         defer { if let k = keep { Journey.hitPulse = k } }
         guard drawLayout0(r, cb, dst, rec) else { return false }
         if withText { drawHUD(r, cb, dst, rec) }
-        if gen != nil || fadeNow, let g = glass { let b = genBright(iOut); if b < 0.999 { g.fade(cb, dst, 1 - b) } }   // 決まった道から作る時：フェードイン・アウト
+        if gen != nil || fadeNow || introN > 0, let g = glass { let b = videoBright(iOut); if b < 0.999 { g.fade(cb, dst, 1 - b) } }   // 決まった道から作る時：フェードイン・アウト
         return true
     }
+    /// 窓の仕切りの太さ（窓の幅 2048 の 5）を、書き出しの幅に合わせて
+    private var splitGap: Int { max(2, outW / 400) }
     private func drawLayout0(_ r: HyperLabRenderer, _ cb: MTLCommandBuffer, _ dst: MTLTexture, _ rec: RecFrame) -> Bool {
         if lay == 0 { return r.renderExport(cb, into: dst, w: outW, h: outH, withMap: withMap) }
-        // 超球の窓のレイアウト：左の列（幅は仕切りの比率）の上に地図、下にさんぽの景色、右の残りに大きくダイブ画面。すき間は黒
+        // 超球の窓のレイアウト：左の列（幅は仕切りの比率）の上に地図、下にさんぽの景色、右の残りに大きくダイブ画面。すき間は窓の仕切りと同じ色
         guard let s2 = st2, let g = glass else { return false }
-        let gap = max(2, outW / 480)
+        let gap = splitGap
         let lw = max(64, min(outW - 64, Int(Double(outW) * s2.splitX))), th = max(64, min(outH - 64, Int(Double(outH) * s2.splitAt(s2.splitK))))
         let rw = outW - lw - gap, bh = outH - th - gap
         g.clear(cb, dst)
@@ -395,10 +446,10 @@ final class VideoExport: ObservableObject {
         return true
     }
     /// 書き出しの絵の上の文字：画面と同じ見た目・同じ割合の大きさで（画面の点 → 書き出しの画素は、右の画面の高さの比）
-    private var hud: ExportHUD? = nil, hudCoordT = -9.0, hudLapT = -9.0, hudAngT = -9.0, hudCoords = "", hudLap = "", hudAngles = "", hudP: SIMD4<Double>? = nil, hudSpd = 0.0
+    private var hud: ExportHUD? = nil, hudCoordT = -9.0, hudLapT = -9.0, hudAngT = -9.0, hudCoords = "", hudLap = "", hudAngles = "", hudP: SIMD4<Double>? = nil, hudSpd = 0.0, hudPass = PassCaption(), hudNote = 0.0
     private func drawHUD(_ r: HyperLabRenderer, _ cb: MTLCommandBuffer, _ dst: MTLTexture, _ rec: RecFrame) {
         guard let s2 = st2, let g = glass else { return }
-        if hud == nil || hud!.w != outW || hud!.h != outH { hud = ExportHUD(r.device, outW, outH); hudCoordT = -9; hudLapT = -9; hudAngT = -9; hudP = nil; hudSpd = 0 }
+        if hud == nil || hud!.w != outW || hud!.h != outH { hud = ExportHUD(r.device, outW, outH); hudCoordT = -9; hudLapT = -9; hudAngT = -9; hudP = nil; hudSpd = 0; hudPass = PassCaption(); hudNote = 0 }
         guard let hud else { return }
         let tq = Double(iOut) / 60, w = curWalk, en = s2.poleEN
         // 走行中の座標（1 秒に 10 回）・周回と角度の読み（1 秒に 2 回）：超球の窓の updateLive と同じ
@@ -427,14 +478,14 @@ final class VideoExport: ObservableObject {
         hud.begin()
         var dive = CGRect(x: 0, y: 0, width: outW, height: outH)
         if lay == 1 {
-            let gap = max(2, outW / 480)
+            let gap = splitGap
             let lw = max(64, min(outW - 64, Int(Double(outW) * s2.splitX)))
             dive = CGRect(x: lw + gap, y: 0, width: outW - lw - gap, height: outH)
         }
         // 文字の大きさ：画面の右の窓の幅と、動画の中のダイブ画面の幅の比（窓の幅に対して、画面と同じ大きさ。動画は 16:9 で高さの比は使えない）
         let k = dive.width / CGFloat(max(200, HyperLabRenderer.liveRightW)), ks = k * CGFloat(s2.uiScale)
         if lay == 1 {
-            let gap = max(2, outW / 480)
+            let gap = splitGap
             let lw = max(64, min(outW - 64, Int(Double(outW) * s2.splitX))), th = max(64, min(outH - 64, Int(Double(outH) * s2.splitAt(s2.splitK))))
             let map = CGRect(x: 0, y: 0, width: lw, height: th), walk = CGRect(x: 0, y: th + gap, width: lw, height: outH - th - gap)
             // さんぽの景色の極（色の点と名前。さんぽの窓と同じ）。カメラは記録したさんぽのカメラ
@@ -448,16 +499,33 @@ final class VideoExport: ObservableObject {
                 hud.poles(ls, in: walk, k: k, serif: pen)
             }
             hud.caption("自分地図\n自分が真ん中\n進む向きが上", in: map, k: k)
-            hud.caption(two ? "Y-W 地図\nw の高さで回る\n赤と紫が重なる" : "【さんぽの景色】今いる所から見た S³（歩くのはさんぽの窓・コントローラーで）", in: walk, k: k)
+            // 赤玉・紫玉の解説：上の地図の下に
+            hudNote += ((s2.noteOn && (force || s2.diveT > 0.3) && acos(min(1, abs(w.pos.w))) < 0.75 ? 1 : 0) - hudNote) * 0.06
+            if hudNote > 0.01 {
+                let u = map.width / 620
+                hud.box(HLNoteLabel.text, font: ExportHUD.font(map.width * 0.042, .semibold, name: PassCaption.fontName), color: ExportHUD.rgb(0.93, 0.9, 1, hudNote), x: map.minX + 8 * u, y: map.maxY - 8 * u,
+                        padH: 12 * u, padV: 7 * u, lineGap: 3 * u, bg: ExportHUD.rgb(0, 0, 0, 0.55 * hudNote), radius: 8 * u, alignBottom: true)
+            }
+            hud.caption(two ? s2.ovCaption : "【さんぽの景色】今いる所から見た S³（歩くのはさんぽの窓・コントローラーで）", in: walk, k: k)
             hud.caption("【観察側】4D の超球（球殻を積む）　ドラッグで見る向き", in: dive, k: k)
         }
         // 走行中の座標（左上）・周回（右上）・角度の読み（左下）。ダイブ画面だけで左上に地図がある時は、座標は地図の下へ
         var cy = dive.minY + 40 * ks
         if lay == 0 && withMap { cy = max(cy, CGFloat(outW / 60 + outH / 4) + 12 * ks) }
+        var passY = cy
         if !hudCoords.isEmpty {
-            hud.box(hudCoords, font: ExportHUD.font(10.5 * ks, .medium, mono: true), color: ExportHUD.rgb(0.62, 0.92, 1.0), x: dive.minX + 12 * ks, y: cy,
+            let sz = hud.box(hudCoords, font: ExportHUD.font(10.5 * ks, .medium, mono: true), color: ExportHUD.rgb(0.62, 0.92, 1.0), x: dive.minX + 12 * ks, y: cy,
                     padH: 9 * ks, padV: 6 * ks, lineGap: 2 * ks, bg: ExportHUD.rgb(0, 0, 0, 0.42), stroke: ExportHUD.rgb(0.4, 0.85, 1.0, 0.35), strokeW: ks, radius: 6 * ks,
                     glow: ExportHUD.rgb(0.3, 0.8, 1.0, 0.7), glowR: 3 * ks)
+            passY = cy + sz.height + 8 * ks
+        }
+        // 極の通過のテロップ：スマホで見ても読める大きさ（画面の高さの 3.6%）
+        let pc = hudPass.update(w.pos, tq)
+        if s2.passOn && pc.a > 0.01 && iOut >= introN {                      // ダイブインの間は走り出していないので、通過は出さない
+            let u = dive.height / 1080, a = pc.a, c = pc.col, tc = PassCaption.textCol(c)
+            func col(_ x: Double) -> CGColor { ExportHUD.rgb(Double(c.x), Double(c.y), Double(c.z), x) }
+            hud.box(pc.text, font: ExportHUD.font(dive.height * 0.036, .semibold, name: PassCaption.fontName), color: ExportHUD.rgb(Double(tc.x), Double(tc.y), Double(tc.z), a), x: dive.minX + 12 * ks, y: passY,
+                    padH: 16 * u, padV: 8 * u, bg: ExportHUD.rgb(Double(c.x) * 0.2, Double(c.y) * 0.2, Double(c.z) * 0.2, 0.56 * a), stroke: col(0.9 * a), strokeW: 2 * u, radius: 9 * u, glow: col(0.8 * a), glowR: 8 * u)
         }
         if !hudLap.isEmpty {
             hud.box(hudLap, font: ExportHUD.font(14 * ks, .semibold, serif: true), color: ExportHUD.rgb(0.85, 1.0, 0.75), x: dive.maxX - 12 * ks, y: dive.minY + 40 * ks,
@@ -497,14 +565,15 @@ final class VideoExport: ObservableObject {
         guard let ai = aIn, let t0 = audioT0 else { return }
         while aIdx < aList.count, ai.isReadyForMoreMediaData {
             let (b, t) = aList[aIdx]
-            if t - t0 > tRel { break }
+            let tv = t - t0 + audioD                                        // 動画の中の時刻
+            if tv > tRel { break }
             aIdx += 1
-            if t < t0 { continue }
+            if tv < 0 || (aIdx > introCount && tv < introSec) { continue }  // ダイブインの音と重なる所は、はじめの走りの音を飛ばす
             if fadeNow, let d = b.floatChannelData {                       // 自動の記録：音も絵と一緒にフェード
-                let g = genBright(Int((t - t0) * 60)), inter = b.format.isInterleaved, ch = Int(b.format.channelCount), n = Int(b.frameLength) * (inter ? ch : 1)
+                let g = introN > 0 ? genTail(max(0, Int((t - t0) * 60))) : genBright(max(0, Int((t - t0) * 60))), inter = b.format.isInterleaved, ch = Int(b.format.channelCount), n = Int(b.frameLength) * (inter ? ch : 1)
                 if g < 0.999 { for c in 0..<(inter ? 1 : ch) { for i in 0..<n { d[c][i] *= g } } }
             }
-            if let sb = Self.sampleBuffer(b, CMTime(seconds: t - t0, preferredTimescale: CMTimeScale(b.format.sampleRate))) { ai.append(sb) }
+            if let sb = Self.sampleBuffer(b, CMTime(seconds: tv, preferredTimescale: CMTimeScale(b.format.sampleRate))) { ai.append(sb) }
         }
         // 記録した音を全部渡したら、音はおしまいと知らせる（そうしないと、音の先の絵を待たせてしまう）
         if aIdx >= aList.count && !audioDone && !aLive { print("音の終わり：\(aIdx) 個・絵 \(iOut)"); audioDone = true; ai.markAsFinished() }
@@ -523,11 +592,31 @@ final class VideoExport: ObservableObject {
             wr.finishWriting {
                 let ok = wr.status == .completed && ok0, err = wr.error?.localizedDescription ?? ""
                 DispatchQueue.main.async {
-                    self.writer = nil; self.vIn = nil; self.aIn = nil; self.adaptor = nil; self.r2 = nil; self.st2 = nil
-                    self.frames = []; self.lastRaw = []; self.aq.sync { self.audio = [] }; self.gen = nil; self.fadeNow = false; self.recFade = false; self.genTpl = nil; self.genSt = nil; self.genSnd?.stop(); self.genSnd = nil; self.genHits = []
-                    self.rendering = false; self.progress = 1
+                    self.clearRender(); self.progress = 1
                     self.saved(ok, err, n, u, note)
                 }
+            }
+        }
+    }
+    /// 書き出しの後かたづけ
+    private func clearRender() {
+        writer = nil; vIn = nil; aIn = nil; adaptor = nil; r2 = nil; st2 = nil
+        frames = []; lastRaw = []; aq.sync { audio = [] }; gen = nil; fadeNow = false; recFade = false; genTpl = nil; genSt = nil; genSnd?.stop(); genSnd = nil; genHits = []
+        rendering = false
+    }
+    /// 書き出しを中止する：次のコマの前で止めて、途中までの動画は残さない
+    private var canceling = false
+    func cancelRender() { if rendering { canceling = true } }
+    private func abortRender() {
+        if wq.sync(execute: { inFlight }) > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { self.abortRender() }; return }
+        wq.async {
+            self.aLive = false; self.audioDone = true
+            self.writer?.cancelWriting()
+            let u = self.url
+            DispatchQueue.main.async {
+                if let u { try? FileManager.default.removeItem(at: u) }       // この書き出しで作り始めたファイルだけ
+                self.clearRender(); self.canceling = false; self.progress = 0
+                self.message = "書き出しを中止しました"
             }
         }
     }
@@ -662,9 +751,9 @@ final class VideoExport: ObservableObject {
         let gs = HyperLabState(); gs.zw = live.st.zw; gs.pitch = live.st.pitch; gs.roll = live.st.roll; gs.yaw = live.st.yaw; gs.cutPos = live.st.cutPos
         gs.auto = live.st.auto; gs.followOn = live.st.followOn; gs.followSlack = live.st.followSlack; gs.followSpeed = live.st.followSpeed; gs.followHeading = live.st.followHeading; gs.followDrift = live.st.followDrift
         gs.cutOn = live.st.cutOn; gs.cutSweep = live.st.cutSweep; gs.cutKind = live.st.cutKind; genSt = gs
-        genSnd = nil; genAFmt = nil; gsPos = nil; gsFwd = nil; gsTurn = 0; gsSpeed = 0; gsWobT = -9; gsIceT = -9; genHits = []
+        genSnd = nil; genAFmt = nil; gsPos = nil; gsPass = PolePass(); gsFwd = nil; gsTurn = 0; gsSpeed = 0; gsWobT = -9; gsIceT = -9; genHits = []
         if live.st.soundOn {                                                // 音：超球の窓で音を入れている時は、同じ音を作って入れる
-            let snd = HyperSound(); snd.spatial = live.st.soundSpatial; gsVol = live.st.soundVol
+            let snd = HyperSound(); snd.spatial = live.st.soundSpatial; gsVol = live.st.soundVol; gsPlace = live.st.soundPlace; gsLayerOn = live.st.soundLayer; gsBass = live.st.soundBass; gsRough = live.st.soundRough
             if let f = snd.startOffline() { genSnd = snd; genAFmt = f }
         }
         genFrame(); genFrame()
@@ -674,6 +763,16 @@ final class VideoExport: ObservableObject {
     private func genBright(_ i: Int) -> Float {
         func ss(_ x: Double) -> Double { let u = max(0, min(1, x)); return u * u * (3 - 2 * u) }
         return Float(ss(Double(i) / Double(Self.genFI)) * ss(Double(genOut - 1 - i) / Double(Self.genFO)))
+    }
+    /// 記録のコマ i の音の大きさ（フェードアウトだけ。ダイブインの時は、はじめの音を弱めない）
+    private func genTail(_ i: Int) -> Float {
+        let u = max(0, min(1, Double(genOut - 1 - i) / Double(Self.genFO)))
+        return Float(u * u * (3 - 2 * u))
+    }
+    /// 動画のコマ i の明るさ（ダイブインの時は、始めのフェードインが超球の全体になる）
+    private func videoBright(_ i: Int) -> Float {
+        func ss(_ x: Double) -> Double { let u = max(0, min(1, x)); return u * u * (3 - 2 * u) }
+        return Float(ss(Double(i) / Double(Self.genFI)) * ss(Double(nOut - 1 - i) / Double(Self.genFO)))
     }
     /// 裏のさんぽを 1/60 秒進めて、1 コマ分を覚える
     private func genFrame() {
@@ -716,18 +815,24 @@ final class VideoExport: ObservableObject {
         if let p0 = gsPos { let d = simd_length(w.pos - p0); sp = d > 0.5 ? 0 : d / dt }
         gsPos = w.pos
         let hd = w.head ?? w.fwd
-        if let f0 = gsFwd, simd_length(w.vR) > 0.5 { let df = hd - f0; tr = simd_length(df) > 0.5 ? 0 : simd_dot(df, w.vR) / dt }
+        var sw = 0.0
+        if let f0 = gsFwd, simd_length(w.vR) > 0.5 { let df = hd - f0; tr = simd_length(df) > 0.5 ? 0 : simd_dot(df, w.vR) / dt; sw = simd_length(df) > 0.5 ? 0 : simd_length(df) / dt }
         gsFwd = hd
-        gsTurn += (tr - gsTurn) * (1 - exp(-dt * 4)); gsSpeed += (sp - gsSpeed) * (1 - exp(-dt * 6))
+        gsSwing += (sw - gsSwing) * (1 - exp(-dt * 6)); gsTurn += (tr - gsTurn) * (1 - exp(-dt * 4)); gsSpeed += (sp - gsSpeed) * (1 - exp(-dt * 6))
         let trn = max(-1, min(1, gsTurn / 1.2)), spd01 = min(1, (gsSpeed / 1.4).squareRoot())
         let zoom = HyperLabRenderer.diveEase(forceDive ? 1 : (st2?.diveT ?? 1)).1
         if t - gsWobT > 1.2 && spd01 > 0.25 && (abs(trn) > 0.55 || Double.random(in: 0..<1) < dt * 0.12 * spd01) { snd.shellPass(); gsWobT = t }
         if zoom > 0.5 && t - gsIceT > 1.8 && spd01 > 0.3 && abs(trn) > 0.25 && Double.random(in: 0..<1) < dt * 0.9 * abs(trn) { snd.icePop(); gsIceT = t }
-        snd.update(speed: spd01, zoom: zoom, turn: trn, near: st2?.cometNear ?? 0.5, volume: gsVol * Double(genBright(frames.count)))   // 音もフェードイン・アウト
+        snd.update(speed: spd01, zoom: zoom, turn: trn, swing: gsSwing / 1.2, near: st2?.cometNear ?? 0.5, volume: gsVol * Double(genBright(frames.count)))   // 音もフェードイン・アウト
+        snd.tune(height: w.pos.w, place: gsPlace, bass: gsBass, rough: gsRough)
+        let ly = HyperLabRenderer.layerIndex(w.pos.w, st2?.layers ?? 10)
+        if let l0 = gsLayer, l0 != ly, spd01 > 0.1, gsLayerOn { snd.layerPass() }
+        gsLayer = ly
         var d = st2?.cometDir ?? SIMD3<Double>(0, 0, -1); d.x -= 0.7 * trn                 // 彗星の方向から（少し前のコマの向き）
         let dl = simd_length(d); if dl > 1e-6 { d /= dl }
         snd.setPosition(SIMD3<Float>(d * 1.5))
-        for h in hits { snd.chime(pole: h.pole) }
+        for h in hits where h.pole < 0 { snd.chime(pole: h.pole) }            // 目印のチリン
+        if let k = gsPass.update(w.pos) { snd.chime(pole: k) }                  // 極のチリン：テロップと同じ瞬間に
         guard let b = snd.renderOffline(Int((fmt.sampleRate * dt).rounded())) else { return nil }
         if rendering { wq.async { self.aList.append((b, t)) } } else { aq.sync { audio.append((b, t)) } }   // 書き出しが始まる前の分は、始める時に渡す
         let bc = snd.beatClock()
@@ -806,7 +911,7 @@ final class VideoExport: ObservableObject {
         if CommandLine.arguments.contains("--cur0") { st.cursor = 0; st.ovCursor = 0 }
         if CommandLine.arguments.contains("--glintlog") { HyperLabRenderer.glintLog = true }
         if let i = CommandLine.arguments.firstIndex(of: "--quality") { ex.quality = Int(CommandLine.arguments[i + 1]) ?? 1 }
-        ex.uhd = CommandLine.arguments.contains("--4k"); ex.layout = 1; ex.forceDive = true; ex.genPath = PathMode.tour.rawValue; ex.genSeconds = seconds
+        ex.diveIn = CommandLine.arguments.contains("--divein"); ex.uhd = CommandLine.arguments.contains("--4k"); ex.layout = 1; ex.forceDive = true; ex.genPath = PathMode.tour.rawValue; ex.genSeconds = seconds
         if !userset { wr.set.routeStart = CommandLine.arguments.contains("--slow") ? 1 : CommandLine.arguments.contains("--4k") ? 1.5 : 6 }
         for (m, n) in [(PathMode.tour, "極めぐり"), (.spiral, "螺旋"), (.ring, "回る輪"), (.half, "半周"), (.cube, "超立方体"), (.cell24, "二十四胞体")] {
             ex.genPath = m.rawValue
@@ -852,6 +957,7 @@ final class VideoExport: ObservableObject {
             print("1 回目：\(ex.lastURL?.path ?? "なし")")
         }
         ex.exportRoute()
+        if CommandLine.arguments.contains("--cancel") { DispatchQueue.main.asyncAfter(deadline: .now() + 4) { ex.cancelRender() } }   // 確かめ：書き出しを途中で中止
         let limit = Date().addingTimeInterval(600)
         while ex.rendering && Date() < limit { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
         print("1 周：\(ex.genOut) コマ（フェードイン \(genFI)・アウト \(genFO)）")
@@ -986,10 +1092,10 @@ final class InsetGlass {
         e.setScissorRect(MTLScissorRect(x: x, y: y, width: w, height: h))
         e.setFragmentTexture(src, index: 0); e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3); e.endEncoding()
     }
-    /// dst を黒で塗る（レイアウトのすき間）
+    /// dst を窓の仕切りの色で塗る（レイアウトのすき間）
     func clear(_ cb: MTLCommandBuffer, _ dst: MTLTexture) {
         let rp = MTLRenderPassDescriptor(); rp.colorAttachments[0].texture = dst; rp.colorAttachments[0].loadAction = .clear
-        rp.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1); rp.colorAttachments[0].storeAction = .store
+        rp.colorAttachments[0].clearColor = MTLClearColor(red: 0.12, green: 0.16, blue: 0.23, alpha: 1); rp.colorAttachments[0].storeAction = .store
         cb.makeRenderCommandEncoder(descriptor: rp)?.endEncoding()
     }
     /// src（小さな地図の絵）を、dst の (x, y) から w×h の所へガラスのように重ねる
@@ -1006,10 +1112,25 @@ final class InsetGlass {
     }
 }
 
-/// 動画を作るボタン：🎬 動画を作る（記録）／ ■ 止めて書き出す（記録している間は赤く、経った時間）／ 書き出し中は進み具合
+/// 動画を作るボタン：🎬 動画を作る（記録）／ ■ 止めて書き出す（記録している間は赤く、経った時間）／ 書き出し中は進み具合と中止
 struct ExportButton: View {
     @ObservedObject var ex = VideoExport.shared
+    @State private var askCancel = false
     var body: some View {
+        HStack(spacing: 6) {
+            mainButton
+            if ex.rendering {
+                Button(role: .destructive) { askCancel = true } label: { Label("中止", systemImage: "xmark.circle") }
+                    .font(.caption)
+                    .help("書き出しをやめる。途中までの動画は残らない")
+                    .alert("書き出しを中止しますか？", isPresented: $askCancel) {
+                        Button("中止する", role: .destructive) { ex.cancelRender() }
+                        Button("続ける", role: .cancel) { }
+                    } message: { Text("途中までの動画は残りません") }
+            }
+        }
+    }
+    private var mainButton: some View {
         Button { ex.toggle() } label: {
             if ex.recording {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
@@ -1078,6 +1199,8 @@ struct RecordPanelButton: View {
                 Text("動画を作る（記録 → 書き出し）").font(.headline)
                 Text("走っている間は動きと音だけを覚え、止めたあとで 60 コマ・最高の細かさで描き直します。").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack { ExportButton(); Spacer() }
+                Toggle("ダイブイン（超球の全体から寄って走り出す）", isOn: $ex.diveIn).disabled(ex.recording || ex.rendering)
+                    .help("動画の始めに 6 秒、超球の全体からフェードインして、走る所へ寄っていく。寄り切る時に走り出しがつながる。動画はそのぶん長くなる")
                 Toggle("走り出しで始めて、止まったら黒く消して終わる", isOn: $ex.autoRec).disabled(ex.recording || ex.rendering || ex.armed)
                     .help("「動画を作る」を押すと待機する。走り出したら記録を始めてフェードイン（1.5 秒）、止まったらフェードアウト（2 秒）して、真っ黒になった所で記録が止まり、描き直しに進む。音も一緒にフェードする")
                 HStack {
@@ -1103,6 +1226,7 @@ struct RecordPanelButton: View {
                     .pickerStyle(.segmented).disabled(ex.recording || ex.rendering)
                 Toggle("ダイブしていなくても、ダイブで描く", isOn: $ex.forceDive).disabled(ex.recording || ex.rendering)
                     .help("書き出しはいつも三人称のダイブで描く（記録の間ダイブしていなくてもよい）。カメラ（オートカメラ・ショーカメラ）は書き出しの中で動かす")
+                Toggle("ヘビーモードで描く（殻を細かく。書き出しに時間がかかる）", isOn: $ex.heavy).disabled(ex.recording || ex.rendering)
                 Toggle("画面の文字も入れる（座標・周回・極の名前・見出し）", isOn: $ex.withText).disabled(ex.recording || ex.rendering)
                     .help("超球の窓の上に出ている文字（走行中の座標・周回・角度の読み・窓の見出し）と、さんぽの景色の極の点と名前を、画面と同じ見た目で動画にも描き込む")
                 Toggle("左上に小さく地図（ダイブ画面だけの時）", isOn: $ex.withMap).disabled(ex.recording || ex.rendering || ex.layout != 0)

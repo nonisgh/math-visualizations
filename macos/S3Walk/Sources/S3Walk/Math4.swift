@@ -23,6 +23,20 @@ func orthoFrame(_ X: inout Walker) {
     X.r = r; X.u = u; X.f = f
 }
 
+/// 体の枠が計算できない値（NaN など）になっていたら、今の点から作り直す。点も壊れていたらアナ極へ
+func repairFrame(_ X: inout Walker) {
+    func ok(_ v: V4) -> Bool { (v.x + v.y + v.z + v.w).isFinite }
+    if !ok(X.p) { X = Walker(p: V4(0, 0, 0, 1), r: V4(0, 1, 0, 0), u: V4(0, 0, 1, 0), f: V4(1, 0, 0, 0)); return }
+    guard !(ok(X.r) && ok(X.u) && ok(X.f)) else { return }
+    var got: [V4] = []
+    for e in [V4(0, 1, 0, 0), V4(0, 0, 1, 0), V4(1, 0, 0, 0), V4(0, 0, 0, 1)] {
+        var t = e - X.p * dot4(e, X.p); for o in got { t -= o * dot4(t, o) }
+        if got.count < 3 && simd_length(t) > 0.1 { got.append(nrm(t)) }
+    }
+    X.r = got[0]; X.u = got[1]; X.f = got[2]
+    if simd_double4x4(rows: [X.r, X.u, X.f, X.p]).determinant < 0 { X.r = -X.r }
+}
+
 /// 大円に沿って s だけ進む。体の枠は平行移動（進む向き d の成分だけが、進んだ先の d へ回る）
 func moveAlong(_ X: inout Walker, _ d: V4, _ s: Double) {
     let c = cos(s), sn = sin(s)

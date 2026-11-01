@@ -23,6 +23,8 @@ struct CustomRoute: Codable, Equatable, Identifiable {
     var id = UUID()
     var name: String
     var pts: [RoutePoint]
+    var flow: Bool? = nil              // true：つなぎ方の設定によらず、いつも素通り（セットの道）
+    var breaks: [Int]? = nil           // セットの道：組み合わせた道の切れ目（その道の最後の点の番号）。ここを過ぎたらチャイムを鳴らして線をリセット
 }
 
 /// 道の一覧と、選んでいる道（UserDefaults に保存）
@@ -90,6 +92,13 @@ final class RouteStore: ObservableObject {
         if l < 1e-9 { return [0, 0, 0, 1] }
         q = q.map { $0 / l }; return q
     }
+    /// セット：いくつかの道を順につないだ 1 本の道を作って選ぶ（同じ名前のセットは作り直す）。止まらないように、いつも素通りで歩く
+    @discardableResult func addSet(_ name: String, _ pts: [RoutePoint], breaks: [Int]) -> CustomRoute {
+        var rt = CustomRoute(name: name, pts: pts, flow: true, breaks: breaks)
+        if let i = routes.firstIndex(where: { $0.name == name }) { rt.id = routes[i].id; routes[i] = rt } else { routes.append(rt) }
+        sel = rt.id
+        return rt
+    }
     /// ランダムな点 n 個（1〜16）の新しい道を作って選ぶ
     @discardableResult func addRandom(_ n: Int) -> CustomRoute {
         let n = max(1, min(RouteStore.maxPts, n))
@@ -149,6 +158,8 @@ struct CoordInput {
 struct CRWalk {
     var pts: [V4] = [], names: [String] = [], title = ""
     var routeID: UUID? = nil               // 歩いている道（パネルで、今向かっている点を光らせる）
+    var lapAt = -1                         // 最後に巡る場所（pts の番号。寄り道は除く）。ここを過ぎたら 1 周
+    var lapBreaks: [Int] = []              // セットの道の切れ目（pts の番号）。周と同じように区切って、チャイムを鳴らす
     var src: [Int] = []                    // pts の点が、道の何番目の点か（続けて同じ点を 1 つにまとめた分ずれる）
     /// 今向かっている点（pts の番号）。ターンの途中は、もう次の点へ向かっている
     var heading: Int { run?.nt ?? to }
@@ -215,6 +226,12 @@ extension Renderer {
     ///   寄り道の点はチェックポイントにしない（チェックと周回は極で数える）
     func startTourFlow(show: Bool = false) {
         resetNorth()
+        startCustom(CustomRoute(name: Renderer.tourFlowTitle, pts: Renderer.tourPoints(show: show)), flow: true, checkpoints: !show)
+        say?(show ? "極めぐり（ショー）：極と極の間でくねっと寄り道しながら、8 つの極をぴったり踏んで巡回"
+                  : "極めぐり（極を踏む）：8 つの極を、前もって回り込みながらぴったり踏んで、止まらずに巡回")
+    }
+    /// 極めぐりの点の並び（アナ極から。show は寄り道つき）
+    static func tourPoints(show: Bool) -> [RoutePoint] {
         let order = [0, 2, 4, 6, 1, 3, 5, 7]
         var pts: [RoutePoint] = []
         func ax(_ k: Int) -> Int { k / 2 == 0 ? 3 : k / 2 == 1 ? 0 : k / 2 == 2 ? 1 : 2 }   // 極の番号 → 軸（アナ・カタ w、東・西 x、北・南 y、天・地 z）
@@ -228,13 +245,12 @@ extension Renderer {
                 var m = (0..<4).map { (q[$0] + q2[$0]) / 2.0.squareRoot() * cos(o) }
                 m[side] += sgn * sin(o)
                 let l = (m.map { $0 * $0 }.reduce(0, +)).squareRoot()
-                pts.append(RoutePoint(p: m.map { $0 / l }, name: "寄り道"))
+                pts.append(RoutePoint(p: m.map { $0 / l }, name: Renderer.detourName))
             }
         }
-        startCustom(CustomRoute(name: Renderer.tourFlowTitle, pts: pts), flow: true, checkpoints: !show)
-        say?(show ? "極めぐり（ショー）：極と極の間でくねっと寄り道しながら、8 つの極をぴったり踏んで巡回"
-                  : "極めぐり（極を踏む）：8 つの極を、前もって回り込みながらぴったり踏んで、止まらずに巡回")
+        return pts
     }
+    static let detourName = "寄り道"
     func startCustom(_ route: CustomRoute, flow: Bool = false, checkpoints: Bool = true) {
         var pts: [V4] = [], names: [String] = [], src: [Int] = []
         for (k, q) in route.pts.enumerated() where q.p.count == 4 {
@@ -247,20 +263,23 @@ extension Renderer {
         pathSpeed = max(0.1, set.routeStart); pathMode = .custom   // 出発の速さ（パネルの「出発の速さ」）
         cr = CRWalk(pts: pts, names: names, title: route.name, once: pts.count == 1)
         cr.routeID = route.id; cr.src = src
+        cr.lapAt = pts.count >= 2 ? (names.lastIndex { $0 != Renderer.detourName } ?? pts.count - 1) : -1
+        cr.lapBreaks = (route.breaks ?? []).compactMap { src.firstIndex(of: $0) }
+        journey.lapByRoute = pts.count >= 2
         // 道の点をチェックポイントに（極・目印と同じ所は、そちらで数えるので除く）。周回は道の点で数える（2 つ以上の時）
         var cp: [V4] = [], cn: [String] = []
-        for (k, p) in pts.enumerated() where !FIXED.contains(where: { dot4($0.c, p) > cos(0.002) }) && !journey.marks.contains(where: { dot4($0, p) > cos(0.002) }) { cp.append(p); cn.append(names[k]) }
+        for (k, p) in pts.enumerated() where names[k] != Renderer.detourName && !FIXED.contains(where: { dot4($0.c, p) > cos(0.002) }) && !journey.marks.contains(where: { dot4($0, p) > cos(0.002) }) { cp.append(p); cn.append(names[k]) }
         if !checkpoints { cp = []; cn = [] }
         journey.routePts = cp; journey.routeNames = cn; journey.routeHit = []; journey.enteredRoute = []
         journey.lapPoles = FIXED.indices.filter { k in pts.contains { dot4(FIXED[k].c, $0) > cos(0.002) } }   // 道が通る極（極だけの道も、これを全部通って 1 周）
-        if (set.routeFlow || flow) && pts.count >= 2 { startFlow(); return }
+        if (set.routeFlow || flow || route.flow == true) && pts.count >= 2 { startFlow(); return }
         let dist = acos(clamp1(dot4(cam.w.p, pts[0])))
         if dist < 0.003 {
             if cr.once { pathMode = .none; say?("もう \(names[0]) にいる"); return }
             setLeg(from: pts[0], to: 1, arrival: cam.lookFrame().L)
         } else { setLeg(from: cam.w.p, to: 0, arrival: cam.lookFrame().L) }
         let n = pts.count
-        say?("自分の道「\(route.name)」：" + (n == 1 ? "\(names[0]) へ行って止まる" : n == 2 ? (set.routeSmart ? "\(names[0]) と \(names[1]) を通る大円をぐるっと回る（ループ）" : "\(names[0]) と \(names[1]) を往復") : "\(n) 点を ①→…→\(RouteStore.nums[n - 1])→① と巡回") + "（" + (set.turnSharp ? "直角" : "スムーズ") + "）")
+        say?("自分の道「\(route.name)」：" + (n == 1 ? "\(names[0]) へ行って止まる" : n == 2 ? (set.routeSmart ? "\(names[0]) と \(names[1]) を通る大円をぐるっと回る（ループ）" : "\(names[0]) と \(names[1]) を往復") : "\(n) 点を ①→…→\(RouteStore.nums[(n - 1) % 16])→① と巡回") + "（" + (set.turnSharp ? "直角" : "スムーズ") + "）")
     }
     // ---- 素通り ----
     /// 点 P での、向き d（P に直交）を P に接する向きにそろえる
@@ -357,8 +376,15 @@ extension Renderer {
     private func passed(_ i: Int) {
         guard i != cr.flowPassed else { return }
         cr.flowPassed = i
+        if i == cr.lapAt || cr.lapBreaks.contains(i) { lapDone() }
         let n = cr.pts.count, j = (i + 1) % n
         say?("\(RouteStore.nums[i % 16]) \(cr.names[i]) を素通り → \(RouteStore.nums[j % 16]) \(cr.names[j])へ")
+    }
+    /// 最後の場所を過ぎた：次の周へ
+    private func lapDone() {
+        journey.endLap(cam.w.p)
+        if !cr.lapBreaks.isEmpty { Journey.hitPulse.append((cam.w.p, ProcessInfo.processInfo.systemUptime, -1)) }   // セットの道が切りかわる時はチャイム
+        say?("\(journey.lap - 1) 周！ \(journey.lap) 周目へ")
     }
     /// A から B への道（向き b と長さ）。ちょうど反対側（距離 π）へは、どの向きでも着くので、ウェブ版と同じく選ぶ：
     ///   軸と軸のまん中の向き（途中で極を踏まない）のうち、その次の点 T2 と直交するもの（反対側で 90° に曲がれる）で、来た向き a にいちばん近いもの
@@ -413,7 +439,13 @@ extension Renderer {
             self?.say?(m)
         }
         let dd = nrm(p0 * -sin(s3) + d * cos(s3))
-        func g(_ v: V4, _ others: [V4]) -> V4 { var t = v - qp * dot4(v, qp); for o in others { t -= o * dot4(t, o) }; return nrm(t) }
+        // 向きを今の点と残りの向きに直交させる。もとの向きが進む向きと平行で何も残らない時（体の右の方へ曲がる時など）は、別の軸から作る
+        func g(_ v: V4, _ others: [V4]) -> V4 {
+            func cut(_ a: V4) -> V4 { var t = a - qp * dot4(a, qp); for o in others { t -= o * dot4(t, o) }; return t }
+            let t = cut(v); if simd_length(t) > 1e-6 { return nrm(t) }
+            let e: [V4] = [V4(1, 0, 0, 0), V4(0, 1, 0, 0), V4(0, 0, 1, 0), V4(0, 0, 0, 1)]
+            return nrm(e.map(cut).max { simd_length($0) < simd_length($1) } ?? v)
+        }
         cam.w.f = dd; cam.w.r = g(cam.w.r, [cam.w.f]); cam.w.u = g(cam.w.u, [cam.w.f, cam.w.r])
         cam.az = 0; cam.el = 0
     }
@@ -458,7 +490,7 @@ extension Renderer {
                 cr.run = tu; return
             }
             tu.f = f; crGo(v4(TurnGeo.fromFlat(vn(tu.Q), tu.E, TurnGeo.at(tu.h, f))))
-            if f >= 1 { cr.P = tu.Q; cr.b = tu.nb; cr.len = tu.nlen; cr.to = tu.nt; cr.s = tu.L; cr.run = nil; cr.plan = nil } else { cr.run = tu }
+            if f >= 1 { let was = cr.to; cr.P = tu.Q; cr.b = tu.nb; cr.len = tu.nlen; cr.to = tu.nt; cr.s = tu.L; cr.run = nil; cr.plan = nil; if was == cr.lapAt || cr.lapBreaks.contains(was) { lapDone() } } else { cr.run = tu }
             return
         }
         cr.s += ds
@@ -491,6 +523,8 @@ struct CustomRoutePanel: View {
     @FocusState private var focus: Int?
     @AppStorage("s3walk.coord.simple") private var simple = true   // 簡易入力：2 → 0.2、35 → 0.35、-999 → −0.999（ウェブ版と同じ）
     @AppStorage("s3walk.random.n") private var randN = 6               // ランダムな道の点の数（1〜16）
+    @State private var setList: [String] = ["sel", "show"]             // セットの中身（sel 今の道・show 極めぐりショー・flow 極を踏む・r:ID 自分の道）
+    @State private var setPick = "show"
     @AppStorage("s3walk.random.marks") private var randMarks = true    // ランダムな点を目印にも置く（光る・通るとチェック）
     static let axisNames = ["x", "y", "z", "w"]
     /// 蛍光ペンの黄緑（今向かっている点）
@@ -518,6 +552,24 @@ struct CustomRoutePanel: View {
                 Button("新しい道") { store.add() }
                 Button("この道を消す") { store.remove() }.disabled(store.routes.count <= 1 && (store.routes.first?.pts.isEmpty ?? true))
             }
+            // セット：いくつかの道を順に連続で歩く（1 本の道につないで保存する。書き出しの「決まった道から作る」にも出る）
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text("セット").font(.caption)
+                    Picker("足す道", selection: $setPick) {
+                        Text("極めぐり（ショー）").tag("show"); Text("極めぐり（極を踏む）").tag("flow")
+                        ForEach(store.routes.filter { !$0.pts.isEmpty && $0.flow != true }) { Text($0.name).tag("r:" + $0.id.uuidString) }
+                    }.pickerStyle(.menu).labelsHidden().fixedSize()
+                    Button("足す") { setList.append(setPick) }
+                    Button("空にする") { setList = [] }.disabled(setList.isEmpty)
+                }
+                Text(setList.isEmpty ? "道を足してください" : setList.map(setName).joined(separator: " → ")).font(.caption).foregroundStyle(Space.slate).fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    Button("作る") { makeSet(walk: false) }.disabled(setList.isEmpty).help("順につないだ 1 本の道を作って保存する（まだ歩かない）")
+                    Button("作って歩く") { makeSet(walk: true) }.disabled(setList.isEmpty).help("順につないだ 1 本の道を作って、すぐ歩き出す。つなぎ目で止まらないよう、いつも素通りで歩く")
+                }
+            }
+            .controlSize(.small).buttonStyle(.bordered)
             // ランダムな点の道：S³ の上に一様にばらまいた点を n 個（1〜16）。目印にも置くと、光って・通るとチェックが付く
             HStack(spacing: 6) {
                 Text("ランダムな点").font(.caption)
@@ -540,7 +592,7 @@ struct CustomRoutePanel: View {
                         ForEach(Array(pts.enumerated()), id: \.element.id) { k, q in
                             let on = k == target
                             HStack(spacing: 6) {
-                                Text(RouteStore.nums[k]).foregroundStyle(on ? CustomRoutePanel.marker : Space.sky)
+                                Text(k < 16 ? RouteStore.nums[k] : "\(k + 1)").foregroundStyle(on ? CustomRoutePanel.marker : Space.sky)
                                 Text(q.name).lineLimit(1).foregroundStyle(on ? CustomRoutePanel.marker : Color.primary).fontWeight(on ? .bold : .regular)
                                 Text(String(format: "(%.2f, %.2f, %.2f, %.2f)", q.p[0], q.p[1], q.p[2], q.p[3])).font(.system(size: 10, design: .monospaced))
                                     .foregroundStyle(on ? CustomRoutePanel.marker.opacity(0.85) : Space.slate).lineLimit(1)
@@ -619,6 +671,24 @@ struct CustomRoutePanel: View {
         .onChange(of: focus) { old, _ in if let a = old { commit(a); syncTexts() } }
     }
 
+    /// セットの 1 つの名前と点
+    private func setRoute(_ k: String) -> CustomRoute? { store.routes.first { k == "sel" ? $0.id == store.sel : "r:" + $0.id.uuidString == k } }
+    private func setName(_ k: String) -> String { k == "show" ? "極めぐりショー" : k == "flow" ? "極めぐり" : setRoute(k)?.name ?? "？" }
+    /// セットを作る。walk なら、すぐ歩き出す
+    func makeSet(walk: Bool) {
+        let r = model.r
+        var pts: [RoutePoint] = [], ends: [Int] = []
+        for k in setList {
+            let part = k == "show" ? Renderer.tourPoints(show: true) : k == "flow" ? Renderer.tourPoints(show: false) : setRoute(k)?.pts ?? []
+            if let e = part.lastIndex(where: { $0.name != Renderer.detourName }) { ends.append(pts.count + e) }   // 道の切れ目：その道で最後に巡る場所
+            pts += part
+        }
+        guard !pts.isEmpty else { return }
+        let rt = store.addSet("セット：" + setList.map(setName).joined(separator: " → "), pts, breaks: ends)
+        if walk { r.startCustom(rt) }
+        r.say?("「\(rt.name)」を作った" + (walk ? "。歩き出す" : ""))
+        model.changed()
+    }
     /// ランダムな点の道を作る（目印にも置く時は、その点に目印を置く）。walk なら、すぐ歩き出す
     func makeRandom(walk: Bool) {
         let r = model.r, rt = store.addRandom(randN)

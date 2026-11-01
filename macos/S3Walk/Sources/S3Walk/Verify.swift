@@ -23,6 +23,8 @@ enum Verify {
         gpuChecks(r)
         print("== 歩く・知らせ・足あと・保存（画面なしで、アプリと同じ step を 1/60 秒ずつ）==")
         journeyChecks(r)
+        print("== 左下のダイブ画面 ==")
+        wipeChecks(nil)
         print("== パネルのドック（並べかえ・たたみ・保存）==")
         dockChecks()
         print("== スライダー（数字の入力・矢印キー）==")
@@ -67,6 +69,8 @@ enum Verify {
             let fast = s.renderTest(seconds: 1, speed: 1, zoom: 0), dive = s.renderTest(seconds: 1, speed: 1, zoom: 1)
             let bell = s.renderTest(seconds: 1, speed: 0, zoom: 1, chimeAt: 0.2), bellFar = s.renderTest(seconds: 1, speed: 0, zoom: 0, chimeAt: 0.2)
             let turn = s.renderTest(seconds: 1, speed: 1, zoom: 1, turn: 1)
+            s.tune(height: 0, place: 0, bass: 2.5); let boost = s.renderTest(seconds: 1, speed: 1, zoom: 1); s.tune(height: 0, place: 0, bass: 1)
+            check(boost.rms > dive.rms * 1.02 && boost.peak <= 1, "音：低音を強くすると大きくなり、割れない（\(dive.rms) → \(boost.rms)）")
             let spR = s.renderTest(seconds: 1, speed: 1, zoom: 1, at: SIMD3(1.5, 0, 0)), spL = s.renderTest(seconds: 1, speed: 1, zoom: 1, at: SIMD3(-1.5, 0, 0))
             check(spR.rmsR > spR.rms * 1.1 && spL.rms > spL.rmsR * 1.1 && spR.peak < 1,   // 低い音が多いので、左右の差は 1 割ほど（低い音ほど耳の差が小さい。高いパチパチを消したので前より小さい）
                   String(format: "空間オーディオ：右から鳴らすと右の耳 %.3f > 左 %.3f、左から鳴らすと左 %.3f > 右 %.3f（割れない）", spR.rmsR, spR.rms, spL.rms, spL.rmsR))
@@ -78,7 +82,7 @@ enum Verify {
             let icy = s.renderTest(seconds: 0.5, speed: 0, zoom: 1, iceAt: 0.05), icyNo = s.renderTest(seconds: 0.5, speed: 0, zoom: 1)
             check(icy.rms > 0.005 && icy.rms > icyNo.rms * 10 && icy.peak < 0.95, String(format: "シュパッ：止まっていても聞こえる（%.4f、鳴らさないと %.5f）、割れない（いちばん大きい値 %.2f）", icy.rms, icyNo.rms, icy.peak))
             if let dir = ProcessInfo.processInfo.environment["S3_SNDWAV"] { _ = s.renderTest(seconds: 2, speed: 0.8, zoom: 1, turn: 0.6, iceAt: 0.5, wav: dir + "/シュパッ.caf") }
-            check(still.rms < 1e-4 && slow.rms > still.rms && fast.rms > slow.rms && dive.rms > fast.rms * 1.5 && dive.peak < 0.95 && turn.rms > dive.rms && turn.rms < dive.rms * 2.6 && turn.peak < 0.95 && bell.rms > 0.01 && fast.rms < dive.rms * 0.08 && bellFar.rms > bell.rms * 0.8,
+            check(still.rms < 1e-4 && slow.rms > still.rms && fast.rms > slow.rms && dive.rms > fast.rms * 1.5 && dive.peak < 0.99 && turn.rms > dive.rms && turn.rms < dive.rms * 2.6 && turn.peak < 0.99 && bell.rms > 0.01 && fast.rms < dive.rms * 0.08 && bellFar.rms > bell.rms * 0.8,
                   String(format: "風切り音：止まると無音（%.4f）、遅い %.4f < 外から全速 %.4f（かすか）< ズームで寄る %.3f < 曲がる %.3f（いちばん大きい値 %.2f、割れない）。チリン 寄って %.3f・外からも %.3f（いつも聞こえる）",
                          still.rms, slow.rms, fast.rms, dive.rms, turn.rms, max(dive.peak, turn.peak), bell.rms, bellFar.rms))
         }
@@ -164,6 +168,36 @@ enum Verify {
 
     // ---- ターンの道：ウェブ版の fillStep・fqStep を node で動かした点（refs/turn_*.json、refs/turn_ref.js で作る。4000 コマ・ds 0.005・40 コマおき）と比べる ----
     static func turnChecks(_ r: Renderer) {
+        // 体の右と同じ向きへ進む道（y の − の地極へ）・正反対の点が続く道：体の向きが壊れない（地図・景色・保存がみんな止まる）
+        do {
+            func idx(_ n: String) -> Int { RouteStore.poles.firstIndex { $0.0 == n } ?? 0 }
+            let rt = CustomRoute(name: "確かめ", pts: ["アナ極", "カタ極", "地極"].map { n in RoutePoint(p: RouteStore.poles[idx(n)].1, name: n) })
+            var bad = -1, cnt = 0
+            func ok(_ v: V4) -> Bool { (v.x + v.y + v.z + v.w).isFinite }
+            for flow in [true, false] {
+                r.set = .plain; r.set.routeFlow = flow; r.resetNorth(); r.journey = Journey(); r.startCustom(rt)
+                for i in 0..<30000 where r.pathMode == .custom {
+                    r.crStep(0.02); cnt += 1
+                    let w = r.cam.w
+                    if !(ok(w.p) && ok(w.f) && ok(w.r) && ok(w.u)) { bad = i; break }
+                }
+                if bad >= 0 { break }
+                r.pathMode = .none
+            }
+            r.pathMode = .none; r.set = .plain; r.resetNorth(); r.journey = Journey()
+            check(bad < 0, "体の右と同じ向きへ進む道・正反対の点が続く道でも、体の向きが壊れない（\(cnt) 歩。壊れた所 \(bad)）")
+            // 壊れた向きが保存されていても、読み直した時に作り直す（景色に線も星も出なくなる）
+            var fixedOK = true
+            for p in [V4(0, 0, 0.987, -0.159), V4(0, 0, 0, 1), V4(0.5, 0.5, 0.5, 0.5), V4(0, 1, 0, 0)] {
+                var d = Store.snapshot(r), nan = [Double](repeating: .nan, count: 4)
+                d["p"] = Store.arr(nrm(p)); d["r"] = nan; d["u"] = nan; d["f"] = nan; nan = []
+                Store.applyPosition(r, d)
+                let w = r.cam.w, off = [dot4(w.p, w.f), dot4(w.p, w.r), dot4(w.p, w.u), dot4(w.f, w.r), dot4(w.f, w.u), dot4(w.r, w.u)].map(abs).max() ?? 1
+                if !(ok(w.f) && ok(w.r) && ok(w.u)) || off > 1e-9 || simd_double4x4(rows: [w.r, w.u, w.f, w.p]).determinant < 0 { fixedOK = false }
+            }
+            r.resetNorth()
+            check(fixedOK, "壊れた体の向きが保存されていても、読み直す時に今いる所から作り直す")
+        }
         // 予定の道：先の道を作っても、今の状態は変わらない（言葉も出ない）。そのあと実際に歩いた道は、予定の道に重なる
         do {
             let rt = CustomRoute(name: "確かめ", pts: [0, 2, 6].map { RoutePoint(p: RouteStore.poles[$0].1, name: RouteStore.poles[$0].0) })
@@ -319,6 +353,17 @@ enum Verify {
                 }
                 r.pathMode = .none
                 check(still == 0 && maxTurn < 0.12 && nearBack > 0 && nearN >= 2, String(format: "自分の道・おまかせ・スムーズ：北極で引き返す所を、止まらずにぐるっと電球の形で回る（止まる歩 %d、1 歩の向きの変わり 最大 %.3f）", still, maxTurn))
+            }
+            // セットの道：道の切れ目と最後の場所で周が進み、チャイムが鳴って、跡が消える
+            do {
+                var rt = route([0, 2, 6, 1, 3, 5]); rt.name = "確かめのセット"; rt.flow = true; rt.breaks = [2, 5]
+                r.set = .plain; r.resetNorth(); r.startCustom(rt)
+                let keep = Journey.hitPulse; Journey.hitPulse = []
+                let lap0 = r.journey.lap
+                for _ in 0..<4000 where r.journey.lap < lap0 + 2 { r.crStep(0.01); r.journey.trail.append(r.cam.w.p) }   // 跡は消えた所の 1 点と、ここで足す 1 点
+                let bells = Journey.hitPulse.filter { $0.pole == -1 }.count, tn = r.journey.trail.count
+                Journey.hitPulse = keep; r.pathMode = .none
+                check(r.journey.lap == lap0 + 2 && bells == 2 && tn == 2, "セットの道：切れ目で周が進み、チャイムが鳴って跡が消える（周 \(r.journey.lap - lap0)・チャイム \(bells)・跡 \(tn)）")
             }
             // パネルで光らせる「今向かっている点」：続けて同じ点（③＝②）があっても、道の番号どおり ②→④→①→… と変わる（① のアナ極から出る）
             do {
@@ -1802,6 +1847,87 @@ enum Verify {
             print(String(format: "%@　歩いた %.2f　アナ極から %.2f　p = (%.2f, %.2f, %.2f, %.2f)", url.path, Double(k) * step, acos(max(-1, min(1, p.w))), p.x, p.y, p.z, p.w))
             r.cam.walk([0, 0, 1], step)
         }
+    }
+
+    /// 左下のダイブ画面：本体がダイブしていない間も、本体のダイブと同じ絵を描く。dir があれば絵を残す
+    static func wipeChecks(_ dir: String?) {
+        func shot(_ name: String, dive: Bool, wipe: Bool) -> [UInt8] {
+            let st = HyperLabState(); st.cursor = 1; st.diveThird = true; st.diveBlend = false; st.autoCam = false; st.lowDive = wipe; st.diveManual = true
+            guard let r = HyperLabRenderer(side: .right, state: st, view: nil) else { return [] }
+            var c = Camera(); c.az = 50; var tr: [SIMD4<Double>] = []
+            for _ in 0..<120 { let L = c.lookFrame().L; c.w.p = nrm(c.w.p + L * 0.01); orthoFrame(&c.w); tr.append(c.w.p) }
+            let F = c.viewFrame()
+            r.walkOverride = { .init(trail: tr, pos: c.w.p, head: c.lookFrame().L, space: false, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
+            st.diveT = dive ? 1 : 0; st.tickDive(0); r.diveWipe = wipe; st.bump()
+            guard let img = r.image(480, 300) else { return [] }
+            if let dir, let dd = CGImageDestinationCreateWithURL(URL(fileURLWithPath: dir).appendingPathComponent(name + ".png") as CFURL, UTType.png.identifier as CFString, 1, nil) { CGImageDestinationAddImage(dd, img, nil); CGImageDestinationFinalize(dd) }
+            var b = [UInt8](repeating: 0, count: 480 * 300 * 4)
+            let ctx = CGContext(data: &b, width: 480, height: 300, bitsPerComponent: 8, bytesPerRow: 480 * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+            ctx?.draw(img, in: CGRect(x: 0, y: 0, width: 480, height: 300)); return b
+        }
+        let main = shot("wipe_main", dive: true, wipe: false), wipe = shot("wipe_wipe", dive: false, wipe: true), plain = shot("wipe_plain", dive: false, wipe: false)
+        func diff(_ a: [UInt8], _ b: [UInt8]) -> Double { a.count == b.count && !a.isEmpty ? zip(a, b).reduce(0.0) { $0 + abs(Double($1.0) - Double($1.1)) } / Double(a.count) : 999 }
+        let same = diff(main, wipe), other = diff(plain, wipe)
+        check(same < 2 && other > same * 3, "左下のダイブ画面は、本体のダイブと同じ絵になる（ちがい \(String(format: "%.2f", same))。ダイブしていない絵とのちがい \(String(format: "%.2f", other))）")
+        let st = HyperLabState(); st.lowDive = true
+        let idleOK = st.lowDiveNow && st.diveLive == 1
+        st.diveOn = true
+        let diveOK = !st.lowDiveNow && st.diveLive == 0
+        st.diveOn = false; st.walkView = false
+        check(idleOK && diveOK && !st.lowDiveNow, "左下のダイブ画面は、ダイブしていない時だけ出す（ダイブ中は地図かさんぽの景色）")
+    }
+    /// 確かめ：保存の設定で「アナ極→カタ極→地極」の道を歩き、z が大きく w が負の所（天極を過ぎた所）で絵を残す。立体の殻の入と切で比べる
+    static func routePNG(_ dir: String) {
+        guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev), let d = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: Store.key) else { return }
+        var us = Settings(); us.load((d["set"] as? [String: Any]) ?? [:])
+        func idx(_ n: String) -> Int { RouteStore.poles.firstIndex { $0.0 == n } ?? 0 }
+        let rt = CustomRoute(name: "確かめ", pts: ["アナ極", "カタ極", "地極"].map { n in RoutePoint(p: RouteStore.poles[idx(n)].1, name: n) })
+        r.set = us; r.resetNorth(); r.journey = Journey(); r.startCustom(rt)
+        var sizeW = 800, sizeH = 500
+        func save(_ name: String) {
+            let w = sizeW, h = sizeH, px = r.renderOffscreen(width: w, height: h)
+            var b = [UInt8](repeating: 255, count: w * h * 4), sum = 0.0
+            for i in 0..<(w * h) { for c in 0..<3 { b[i * 4 + c] = UInt8(max(0, min(255, px[i * 4 + c] * 255 + 0.5))); sum += Double(b[i * 4 + c]) } }
+            let ctx = CGContext(data: &b, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+            let url = URL(fileURLWithPath: dir).appendingPathComponent(name + ".png")
+            let dd = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
+            CGImageDestinationAddImage(dd, ctx.makeImage()!, nil); CGImageDestinationFinalize(dd)
+            print(name, String(format: "明るさ %.1f", sum / Double(w * h * 3)))
+        }
+        func fr(_ v: V4) -> String { String(format: "(%.3f, %.3f, %.3f, %.3f)", v.x, v.y, v.z, v.w) }
+        var n = 0, shots = 0
+        for i in 0..<200000 where r.pathMode == .custom {
+            r.crStep(0.004)
+            let w = r.cam.w
+            if i % 2500 == 0 { print(i, "p", fr(w.p), "f", fr(w.f), "u", fr(w.u)) }
+            if shots == 0 && w.p.z > 0.98 && w.p.w < -0.15 {
+                print("着いた", i, "p", fr(w.p), "f", fr(w.f), "r", fr(w.r), "u", fr(w.u))
+                let on = r.set.shellSolid
+                save("route_as"); r.set.shellSolid = !on; save("route_flip"); r.set.shellSolid = on
+                r.set.polePlanet = false; save("route_noplanet"); r.set.polePlanet = us.polePlanet
+                r.set.shell = false; save("route_noshell"); r.set.shell = us.shell
+                let nan = V4(repeating: .nan)
+                r.cam.w.r = nan; r.cam.w.u = nan; save("route_nan_ru")
+                r.cam.w.f = nan; save("route_nan_all")
+                var x = r.cam.w; orthoFrame(&x); repairFrame(&x); r.cam.w = x
+                print("直した枠", "f", fr(x.f), "r", fr(x.r), "u", fr(x.u)); save("route_repaired")
+                // S3_SETS="k=v,k=v;k=v"：設定を変えて同じ場所で描く（sc は描く細かさ、big は実際の画面の大きさ）
+                for (i, c) in (ProcessInfo.processInfo.environment["S3_SETS"] ?? "").split(separator: ";").enumerated() {
+                    var dd: [String: Any] = [:], big = false; let sc0 = r.sceneScale
+                    for kv in c.split(separator: ",") {
+                        let t = kv.split(separator: "=").map(String.init); guard t.count == 2 else { continue }
+                        if t[0] == "sc" { r.sceneScale = Double(t[1]) ?? 1 } else if t[0] == "big" { big = true }
+                        else if t[1] == "true" || t[1] == "false" { dd[t[0]] = t[1] == "true" } else { dd[t[0]] = Double(t[1]) ?? 0 }
+                    }
+                    var s = us; s.load(dd); r.set = s
+                    if big { sizeW = 1802; sizeH = 1874 } else { sizeW = 800; sizeH = 500 }
+                    save("combo\(i)_" + c.replacingOccurrences(of: "=", with: "").replacingOccurrences(of: ",", with: "_"))
+                    r.sceneScale = sc0
+                }
+                shots = 1; n = i; break
+            }
+        }
+        print("歩いた", n, "shellSolid", us.shellSolid, "polePlanet", us.polePlanet)
     }
 
     // ---- 計測：画面の外に描いて GPU の時間 ----

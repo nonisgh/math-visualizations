@@ -24,6 +24,8 @@ struct Main {
         if args.contains("--webcmp") { if let d = MTLCreateSystemDefaultDevice(), let r = Renderer(device: d) { exit(Verify.webcmp(r) ? 0 : 1) }; exit(1) }
         if let i = args.firstIndex(of: "--png"), i + 1 < args.count { Verify.png(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--walkpng"), i + 1 < args.count { Verify.walkPNG(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--wipepng"), i + 1 < args.count { Verify.wipeChecks(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--routepng"), i + 1 < args.count { Verify.routePNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--mapuser"), i + 1 < args.count { Verify.mapUserPNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--bigflip"), i + 1 < args.count { Verify.bigFlip(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--thumbs"), i + 1 < args.count { Verify.thumbs(args[i + 1]); exit(0) }
@@ -278,6 +280,7 @@ final class AppModel: ObservableObject {
         guard now - lastSaveT > 3 else { return }
         lastSaveT = now
         let snap = Store.snapshot(r)
+        guard JSONSerialization.isValidJSONObject(snap) else { return }   // 計算できない値が混ざっていたら保存しない（前の保存を守る。落とさない）
         let key = (try? JSONSerialization.data(withJSONObject: snap, options: [.sortedKeys])).map { String(decoding: $0, as: UTF8.self) } ?? ""
         if key != lastSaved { lastSaved = key; UserDefaults.standard.set(snap, forKey: Store.key) }
         saveMapViews()
@@ -559,7 +562,7 @@ struct AxisLengths: View {
                                 .onExitCommand { editing = nil }
                         } else {
                             // 10% より短い時は小数 1 桁まで（X-W 1° なら w は sin 1° ＝ 1.7%。整数に丸めると 2% に見えてしまう）
-                            Text(L[i] < 0.1 && L[i] > 0.0005 ? String(format: "%.1f%%", L[i] * 100) : "\(Int((L[i] * 100).rounded()))%").monospacedDigit().foregroundStyle(.white.opacity(0.85))
+                            Text(!L[i].isFinite ? "—" : L[i] < 0.1 && L[i] > 0.0005 ? String(format: "%.1f%%", L[i] * 100) : "\(Int((L[i] * 100).rounded()))%").monospacedDigit().foregroundStyle(.white.opacity(0.85))
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     guard canEdit else { model?.say("自分中心の時は、軸の長さは決められない（ふつうの見方で）"); return }
