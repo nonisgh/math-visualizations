@@ -24,9 +24,11 @@ final class VideoExport: ObservableObject {
         var layers: Int, lzw: Int, version: Int
         var diveOn: Bool, dragging: Bool, padHolding: Bool
         var walkCam: Camera?                                            // さんぽの景色のカメラ（書き出しで、さんぽの景色もこのカメラで描き直す）
+        var first = false                                               // 景色の場所を一人称のダイブ画面にしていた
+        var both = false, swap = false                                  // 「両方」でダイブ画面を出していた・上下を入れかえていた
         init(t: Double, dom: Double, walk: HyperLabState.Walk, rawTrail: [SIMD4<Double>], f: [Double], cometDir: SIMD3<Double>, showFrame: SIMD2<Double>,
-             layers: Int, lzw: Int, version: Int, diveOn: Bool, dragging: Bool, padHolding: Bool, walkCam: Camera?) {
-            self.walkCam = walkCam
+             layers: Int, lzw: Int, version: Int, diveOn: Bool, dragging: Bool, padHolding: Bool, walkCam: Camera?, both: Bool = false, swap: Bool = false, first: Bool = false) {
+            self.walkCam = walkCam; self.both = both; self.swap = swap; self.first = first
             self.t = t; self.dom = dom; var w = walk; trailTrim = max(0, rawTrail.count - walk.trail.count); w.trail = []; self.walk = w
             self.f = f; self.cometDir = cometDir; self.showFrame = showFrame; self.layers = layers; self.lzw = lzw; self.version = version
             self.diveOn = diveOn; self.dragging = dragging; self.padHolding = padHolding
@@ -77,6 +79,7 @@ final class VideoExport: ObservableObject {
     private(set) var gen: Renderer? = nil
     private var genTpl: RecFrame? = nil, genCs: SIMD4<Double>? = nil, genSpd = 0.0, genFreed = 0
     // 決まった道から作る時の音：画面に出さずに作る音（超球の窓の音と同じ作り方）と、その時の速さ・曲がり・チェックポイント
+    private var gsRush = 0.0, gsAim = 0.0
     private var genSnd: HyperSound? = nil, genAFmt: AVAudioFormat? = nil, gsVol = 0.7, gsPlace = 0.7, gsLayerOn = false, gsBass = 1.0, gsRough = 1.0, gsSwing = 0.0, gsPass = PolePass(), gsLayer: Int? = nil, gsPos: SIMD4<Double>? = nil, gsFwd: SIMD4<Double>? = nil
     private var gsTurn = 0.0, gsSpeed = 0.0, gsWobT = -9.0, gsIceT = -9.0, genHits: [(p: V4, t: Double, pole: Int)] = []
     /// 決まった道から作る時の超球の向き（自動で回す・自分を追う・切り口の往復を、超球の窓と同じく 1/60 秒ずつ進める）
@@ -253,6 +256,7 @@ final class VideoExport: ObservableObject {
         live.st.saveIfChanged()                                             // 今の設定を覚えてから、書き出し用の状態を同じ設定で作る
         let s2 = HyperLabState()
         s2.heavy = heavy || live.st.heavy || CommandLine.arguments.contains("--heavy")
+        if CommandLine.arguments.contains("--both") { s2.lowView = 2; s2.lowSwap = CommandLine.arguments.contains("--swap") }
         guard let r = HyperLabRenderer(side: .right, state: s2, view: nil) else { message = note + "書き出しの準備ができませんでした"; return }
         let u: URL
         #if os(macOS)
@@ -308,7 +312,7 @@ final class VideoExport: ObservableObject {
                 var b: AVAudioPCMBuffer? = nil
                 if same {
                     snd.update(speed: 0.15 + 0.6 * p, zoom: p * p, volume: live.st.soundVol * min(1, p * 2.5) * ta)
-                    snd.tune(height: 0, place: 0, bass: live.st.soundBass, rough: live.st.soundRough)
+                    snd.tune(height: 0, place: 0, bass: live.st.soundBass, rough: live.st.soundRough, phones: live.st.soundPhones)
                     b = snd.renderOffline(len)
                 }
                 if b == nil, let z = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: n) {   // 作れない時は無音（音と絵は交互に書く決まりなので、無音も渡す）
@@ -369,7 +373,13 @@ final class VideoExport: ObservableObject {
         }
         let a = frames[jRec], b = frames[min(frames.count - 1, jRec + 1)]
         let k = b.t > a.t ? max(0, min(1, (tq - a.t) / (b.t - a.t))) : 0
-        apply(s2, a, b, k, camera: !force)
+        let genWipe = gen != nil && !force && s2.lowView == 2 && s2.walkView && a.f[0] == 0      // 決まった道は記録したカメラがないので、ダイブ画面のカメラは書き出しの中で動かす
+        apply(s2, a, b, k, camera: !force && !genWipe)
+        s2.exWipeNow = genWipe
+        if genWipe {
+            s2.diveOn = false; s2.diveT = 0; s2.diveFade = 0; s2.thirdK = s2.diveThird ? 1 : 0
+            s2.chaseDistS = s2.chaseDist; s2.chasePitchS = s2.chasePitch; s2.chaseYawS = s2.chaseYaw
+        }
         if force {
             // ダイブしていなくても三人称のダイブで。カメラ（オートカメラ・ショーカメラ）は、書き出しの中で 1/60 秒ずつ動かす
             s2.diveOn = true; s2.diveT = 1; s2.thirdK = 1; s2.diveFade = 0
@@ -384,7 +394,7 @@ final class VideoExport: ObservableObject {
         w.trail = Array(trail.prefix(max(0, trail.count - a.trailTrim)))
         curWalk = w
         r.clockOverride = t0 + Double(iOut) / 60; r.domOverride = a.dom + (b.dom - a.dom) * k
-        if force { r.autoCamForTest(1.0 / 60) }
+        if force || genWipe { r.autoCamForTest(1.0 / 60) }
         // 描く
         var pb: CVPixelBuffer?; CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb)
         var cvt: CVMetalTexture?
@@ -430,6 +440,16 @@ final class VideoExport: ObservableObject {
     }
     /// 窓の仕切りの太さ（窓の幅 2048 の 5）を、書き出しの幅に合わせて
     private var splitGap: Int { max(2, outW / 400) }
+    /// 超球の窓のレイアウトで、地図の場所にダイブ画面を出すコマか（「両方」で、ダイブしていない）
+    private func wipeHere(_ s2: HyperLabState, _ rec: RecFrame) -> Bool { !force && s2.lowView == 2 && s2.walkView && s2.diveT == 0 && (gen != nil || rec.both) }
+    /// そのコマで、景色の場所を一人称のダイブ画面にするか
+    private func firstHere(_ s2: HyperLabState, _ rec: RecFrame) -> Bool { !force && s2.diveT == 0 && (gen != nil ? s2.lowFirst : rec.first) }
+    /// さんぽの景色、または一人称のダイブ画面の絵
+    private func sceneTexture(_ r: HyperLabRenderer, _ cb: MTLCommandBuffer, _ s2: HyperLabState, _ rec: RecFrame, _ w: Int, _ h: Int) -> MTLTexture? {
+        firstHere(s2, rec) ? r.wipeTexture(cb, w, h, first: true) : r.walkSceneTexture(cb, w, h, cam: rec.walkCam)
+    }
+    /// そのコマで、上にさんぽの景色・下にダイブ画面にするか
+    private func swapHere(_ s2: HyperLabState, _ rec: RecFrame) -> Bool { wipeHere(s2, rec) && (gen != nil ? s2.lowSwap : rec.swap) }
     private func drawLayout0(_ r: HyperLabRenderer, _ cb: MTLCommandBuffer, _ dst: MTLTexture, _ rec: RecFrame) -> Bool {
         if lay == 0 { return r.renderExport(cb, into: dst, w: outW, h: outH, withMap: withMap) }
         // 超球の窓のレイアウト：左の列（幅は仕切りの比率）の上に地図、下にさんぽの景色、右の残りに大きくダイブ画面。すき間は窓の仕切りと同じ色
@@ -439,10 +459,16 @@ final class VideoExport: ObservableObject {
         let rw = outW - lw - gap, bh = outH - th - gap
         g.clear(cb, dst)
         if let dive = r.paneTexture(rw, outH), r.renderExport(cb, into: dive, w: rw, h: outH, withMap: false) { g.copy(cb, dive, into: dst, x: lw + gap, y: 0, w: rw, h: outH) }
+        if wipeHere(s2, rec) {                                             // 両方：左の列にダイブ画面とさんぽの景色
+            let sw = swapHere(s2, rec), lowY = th + gap
+            if let d = r.wipeTexture(cb, lw, sw ? bh : th) { g.copy(cb, d, into: dst, x: 0, y: sw ? lowY : 0, w: lw, h: sw ? bh : th) }
+            if let walk = sceneTexture(r, cb, s2, rec, lw, sw ? th : bh) { g.copy(cb, walk, into: dst, x: 0, y: sw ? 0 : lowY, w: lw, h: sw ? th : bh) }
+            return true
+        }
         if let map = r.overviewTexture(cb, lw, th) { g.copy(cb, map, into: dst, x: 0, y: 0, w: lw, h: th) }
         if s2.map2 && (force || s2.diveT > 0) {                            // 地図 2 枚：左下はY-W 地図
             if let m2 = r.overviewTexture(cb, lw, bh, motion: true) { g.copy(cb, m2, into: dst, x: 0, y: th + gap, w: lw, h: bh) }
-        } else if let walk = r.walkSceneTexture(cb, lw, bh, cam: rec.walkCam) { g.copy(cb, walk, into: dst, x: 0, y: th + gap, w: lw, h: bh) }
+        } else if let walk = sceneTexture(r, cb, s2, rec, lw, bh) { g.copy(cb, walk, into: dst, x: 0, y: th + gap, w: lw, h: bh) }
         return true
     }
     /// 書き出しの絵の上の文字：画面と同じ見た目・同じ割合の大きさで（画面の点 → 書き出しの画素は、右の画面の高さの比）
@@ -487,10 +513,11 @@ final class VideoExport: ObservableObject {
         if lay == 1 {
             let gap = splitGap
             let lw = max(64, min(outW - 64, Int(Double(outW) * s2.splitX))), th = max(64, min(outH - 64, Int(Double(outH) * s2.splitAt(s2.splitK))))
-            let map = CGRect(x: 0, y: 0, width: lw, height: th), walk = CGRect(x: 0, y: th + gap, width: lw, height: outH - th - gap)
+            var map = CGRect(x: 0, y: 0, width: lw, height: th), walk = CGRect(x: 0, y: th + gap, width: lw, height: outH - th - gap)
+            if swapHere(s2, rec) { swap(&map, &walk) }                     // 「両方」の上下入れかえ：map の場所がダイブ画面
             // さんぽの景色の極（色の点と名前。さんぽの窓と同じ）。カメラは記録したさんぽのカメラ
             let two = s2.map2 && (force || s2.diveT > 0)
-            if !two, let wr = gen ?? HyperLabState.walkRendererGet?() {
+            if !two, !firstHere(s2, rec), let wr = gen ?? HyperLabState.walkRendererGet?() {
                 let saved = wr.cam; if let c = rec.walkCam { wr.cam = c }
                 var ls = wr.poleLabels(aspect: Double(walk.width / max(1, walk.height)))
                 wr.cam = saved
@@ -498,7 +525,7 @@ final class VideoExport: ObservableObject {
                 if pen { for i in ls.indices { ls[i].name = MapRenderer.poleNameToEN(ls[i].name) } }
                 hud.poles(ls, in: walk, k: k, serif: pen)
             }
-            hud.caption("自分地図\n自分が真ん中\n進む向きが上", in: map, k: k)
+            hud.caption(wipeHere(s2, rec) ? "【ダイブ画面】今いる所のまわり" : "自分地図\n自分が真ん中\n進む向きが上", in: map, k: k)
             // 赤玉・紫玉の解説：上の地図の下に
             hudNote += ((s2.noteOn && (force || s2.diveT > 0.3) && acos(min(1, abs(w.pos.w))) < 0.75 ? 1 : 0) - hudNote) * 0.06
             if hudNote > 0.01 {
@@ -506,7 +533,7 @@ final class VideoExport: ObservableObject {
                 hud.box(HLNoteLabel.text, font: ExportHUD.font(map.width * 0.042, .semibold, name: PassCaption.fontName), color: ExportHUD.rgb(0.93, 0.9, 1, hudNote), x: map.minX + 8 * u, y: map.maxY - 8 * u,
                         padH: 12 * u, padV: 7 * u, lineGap: 3 * u, bg: ExportHUD.rgb(0, 0, 0, 0.55 * hudNote), radius: 8 * u, alignBottom: true)
             }
-            hud.caption(two ? s2.ovCaption : "【さんぽの景色】今いる所から見た S³（歩くのはさんぽの窓・コントローラーで）", in: walk, k: k)
+            hud.caption(two ? s2.ovCaption : firstHere(s2, rec) ? "【ダイブ 1 人称】自分の目で見る" : "【さんぽの景色】今いる所から見た S³（歩くのはさんぽの窓・コントローラーで）", in: walk, k: k)
             hud.caption("【観察側】4D の超球（球殻を積む）　ドラッグで見る向き", in: dive, k: k)
         }
         // 走行中の座標（左上）・周回（右上）・角度の読み（左下）。ダイブ画面だけで左上に地図がある時は、座標は地図の下へ
@@ -824,7 +851,10 @@ final class VideoExport: ObservableObject {
         if t - gsWobT > 1.2 && spd01 > 0.25 && (abs(trn) > 0.55 || Double.random(in: 0..<1) < dt * 0.12 * spd01) { snd.shellPass(); gsWobT = t }
         if zoom > 0.5 && t - gsIceT > 1.8 && spd01 > 0.3 && abs(trn) > 0.25 && Double.random(in: 0..<1) < dt * 0.9 * abs(trn) { snd.icePop(); gsIceT = t }
         snd.update(speed: spd01, zoom: zoom, turn: trn, swing: gsSwing / 1.2, near: st2?.cometNear ?? 0.5, volume: gsVol * Double(genBright(frames.count)))   // 音もフェードイン・アウト
-        snd.tune(height: w.pos.w, place: gsPlace, bass: gsBass, rough: gsRough)
+        let aim = HyperSound.poleAim(w.pos, w.head ?? w.fwd)
+        gsAim += (aim - gsAim) * (1 - exp(-dt * 3))
+        gsRush = HyperSound.rushStep(gsRush, swing: gsSwing / 1.2, speed: spd01, aim: gsAim, dt: dt)
+        snd.tune(height: w.pos.w, place: gsPlace, bass: gsBass, rough: gsRough, phones: st2?.soundPhones ?? false, rush: gsRush * (0.75 + 0.5 * gsAim) * (st2?.soundRush ?? 1))
         let ly = HyperLabRenderer.layerIndex(w.pos.w, st2?.layers ?? 10)
         if let l0 = gsLayer, l0 != ly, spd01 > 0.1, gsLayerOn { snd.layerPass() }
         gsLayer = ly
@@ -911,7 +941,7 @@ final class VideoExport: ObservableObject {
         if CommandLine.arguments.contains("--cur0") { st.cursor = 0; st.ovCursor = 0 }
         if CommandLine.arguments.contains("--glintlog") { HyperLabRenderer.glintLog = true }
         if let i = CommandLine.arguments.firstIndex(of: "--quality") { ex.quality = Int(CommandLine.arguments[i + 1]) ?? 1 }
-        ex.diveIn = CommandLine.arguments.contains("--divein"); ex.uhd = CommandLine.arguments.contains("--4k"); ex.layout = 1; ex.forceDive = true; ex.genPath = PathMode.tour.rawValue; ex.genSeconds = seconds
+        ex.diveIn = CommandLine.arguments.contains("--divein"); ex.uhd = CommandLine.arguments.contains("--4k"); ex.layout = 1; ex.forceDive = !CommandLine.arguments.contains("--both"); ex.genPath = PathMode.tour.rawValue; ex.genSeconds = seconds
         if !userset { wr.set.routeStart = CommandLine.arguments.contains("--slow") ? 1 : CommandLine.arguments.contains("--4k") ? 1.5 : 6 }
         for (m, n) in [(PathMode.tour, "極めぐり"), (.spiral, "螺旋"), (.ring, "回る輪"), (.half, "半周"), (.cube, "超立方体"), (.cell24, "二十四胞体")] {
             ex.genPath = m.rawValue

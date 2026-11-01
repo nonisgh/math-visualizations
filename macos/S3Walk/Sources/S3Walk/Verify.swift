@@ -25,6 +25,7 @@ enum Verify {
         journeyChecks(r)
         print("== 左下のダイブ画面 ==")
         wipeChecks(nil)
+        lightChecks(nil)
         print("== パネルのドック（並べかえ・たたみ・保存）==")
         dockChecks()
         print("== スライダー（数字の入力・矢印キー）==")
@@ -71,6 +72,13 @@ enum Verify {
             let turn = s.renderTest(seconds: 1, speed: 1, zoom: 1, turn: 1)
             s.tune(height: 0, place: 0, bass: 2.5); let boost = s.renderTest(seconds: 1, speed: 1, zoom: 1); s.tune(height: 0, place: 0, bass: 1)
             check(boost.rms > dive.rms * 1.02 && boost.peak <= 1, "音：低音を強くすると大きくなり、割れない（\(dive.rms) → \(boost.rms)）")
+            s.tune(height: 0, place: 0, bass: 1, phones: true); let hp = s.renderTest(seconds: 1, speed: 1, zoom: 1); s.tune(height: 0, place: 0, bass: 1)
+            check(hp.rms > dive.rms && hp.peak <= 0.99, "音：ヘッドホン用はガラララが強くなり、割れない（\(dive.rms) → \(hp.rms)、山 \(hp.peak)）")
+            s.tune(height: 0, place: 0, bass: 1, rush: 1); let rs = s.renderTest(seconds: 1, speed: 1, zoom: 1); s.tune(height: 0, place: 0, bass: 1)
+            var ru = 0.0; for _ in 0..<420 { ru = HyperSound.rushStep(ru, swing: 0.02, speed: 1, dt: 1.0 / 60) }
+            let ruUp = ru; for _ in 0..<90 { ru = HyperSound.rushStep(ru, swing: 0.5, speed: 1, dt: 1.0 / 60) }
+            let aimOK = HyperSound.poleAim(SIMD4(0, 0, 1, 0), SIMD4(0, 0, 0, 1)) > 0.99 && HyperSound.poleAim(SIMD4(0, 0, 1, 0), SIMD4(1, 0, 0, 0)) < 0.01
+            check(aimOK && rs.rms > dive.rms && rs.peak <= 0.99 && ruUp > 0.85 && ru < 0.05, "音：直線で伸びて、曲がると戻る（\(dive.rms) → \(rs.rms)、山 \(rs.peak)、7 秒で \(String(format: "%.2f", ruUp))、カーブ 1.5 秒で \(String(format: "%.2f", ru))）")
             let spR = s.renderTest(seconds: 1, speed: 1, zoom: 1, at: SIMD3(1.5, 0, 0)), spL = s.renderTest(seconds: 1, speed: 1, zoom: 1, at: SIMD3(-1.5, 0, 0))
             check(spR.rmsR > spR.rms * 1.1 && spL.rms > spL.rmsR * 1.1 && spR.peak < 1,   // 低い音が多いので、左右の差は 1 割ほど（低い音ほど耳の差が小さい。高いパチパチを消したので前より小さい）
                   String(format: "空間オーディオ：右から鳴らすと右の耳 %.3f > 左 %.3f、左から鳴らすと左 %.3f > 右 %.3f（割れない）", spR.rmsR, spR.rms, spL.rms, spL.rmsR))
@@ -1849,16 +1857,56 @@ enum Verify {
         }
     }
 
+    /// 確かめ：疾走の音を、ガラララ（荒さ）の入り切り・空間オーディオの入り切りで音のファイルにする（低音・荒さは保存の設定）
+    static func rattleWav(_ dir: String) {
+        let v = UserDefaults(suiteName: "io.github.nonisgh.s3walk")?.dictionary(forKey: "s3walk.hyperlab.v1") ?? [:]
+        let bass = v["soundBass"] as? Double ?? 1, rough = v["soundRough"] as? Double ?? 1
+        let s = HyperSound()
+        for (name, r) in [("on", rough), ("off", 0.0)] {
+            s.tune(height: 0, place: 0, bass: bass, rough: r)
+            _ = s.renderTest(seconds: 6, speed: 1, zoom: 1, wav: dir + "/stereo_\(name).caf")
+            _ = s.renderTest(seconds: 6, speed: 1, zoom: 1, wav: dir + "/spatial_\(name).caf", at: SIMD3(0, 0, -1.5))
+        }
+        s.tune(height: 0, place: 0, bass: bass, rough: rough, rush: 1.25)
+        _ = s.renderTest(seconds: 6, speed: 1, zoom: 1, wav: dir + "/stereo_rush.caf")
+        s.tune(height: 0, place: 0, bass: bass, rough: rough)
+        _ = s.renderTest(seconds: 6, speed: 1, zoom: 1, turn: 0.8, wav: dir + "/stereo_curve.caf")
+        s.tune(height: 0, place: 0, bass: bass, rough: rough, phones: true)
+        _ = s.renderTest(seconds: 6, speed: 1, zoom: 1, wav: dir + "/stereo_ph.caf")
+        _ = s.renderTest(seconds: 6, speed: 1, zoom: 1, wav: dir + "/spatial_ph.caf", at: SIMD3(0, 0, -1.5))
+        s.tune(height: 0, place: 0, bass: bass, rough: 0, phones: true)
+        _ = s.renderTest(seconds: 6, speed: 1, zoom: 1, wav: dir + "/stereo_phoff.caf")
+        print("低音 \(bass)・荒さ \(rough)")
+    }
+    /// 光の回り込み：アナ極の近くでだけ出る。切っていれば何も変わらない。dir があれば絵を残す
+    static func lightChecks(_ dir: String?) {
+        func shot(_ name: String, _ on: Bool, _ a: Double) -> [UInt8] {
+            let st = HyperLabState(); st.walk = true; st.cursor = 0; st.lightWrap = on; st.pitch = 0.5; st.roll = -0.4; st.viewYaw = 0.4; st.viewPitch = 0.3
+            guard let r = HyperLabRenderer(side: .right, state: st, view: nil) else { return [] }
+            let p = SIMD4(sin(a), 0, 0, cos(a)), f = SIMD4(cos(a), 0, 0, -sin(a))
+            r.walkOverride = { .init(trail: [], pos: p, head: f, space: false, fwd: f, vR: SIMD4(0, 1, 0, 0), vU: SIMD4(0, 0, 1, 0), vL: f, fov: 70) }
+            r.clockOverride = 100; r.domOverride = 1; st.bump()
+            guard let img = r.image(800, 600) else { return [] }
+            if let dir, let dd = CGImageDestinationCreateWithURL(URL(fileURLWithPath: dir).appendingPathComponent(name + ".png") as CFURL, UTType.png.identifier as CFString, 1, nil) { CGImageDestinationAddImage(dd, img, nil); CGImageDestinationFinalize(dd) }
+            var b = [UInt8](repeating: 0, count: 800 * 600 * 4)
+            let ctx = CGContext(data: &b, width: 800, height: 600, bitsPerComponent: 8, bytesPerRow: 800 * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+            ctx?.draw(img, in: CGRect(x: 0, y: 0, width: 800, height: 600)); return b
+        }
+        func diff(_ a: [UInt8], _ b: [UInt8]) -> Double { a.count == b.count && !a.isEmpty ? zip(a, b).reduce(0.0) { $0 + abs(Double($1.0) - Double($1.1)) } / Double(a.count) : 999 }
+        let nearOn = shot("light_on", true, 0.3), nearOff = shot("light_off", false, 0.3), farOn = shot("light_far_on", true, 1.57), farOff = shot("light_far_off", false, 1.57)
+        let dn = diff(nearOn, nearOff), df = diff(farOn, farOff)
+        check(dn > 1 && df < 0.01, "光の回り込みは、極の近くでだけ出る（極の近く \(String(format: "%.2f", dn))・赤道 \(String(format: "%.3f", df))）")
+    }
     /// 左下のダイブ画面：本体がダイブしていない間も、本体のダイブと同じ絵を描く。dir があれば絵を残す
     static func wipeChecks(_ dir: String?) {
-        func shot(_ name: String, dive: Bool, wipe: Bool) -> [UInt8] {
-            let st = HyperLabState(); st.cursor = 1; st.diveThird = true; st.diveBlend = false; st.autoCam = false; st.lowDive = wipe; st.diveManual = true
+        func shot(_ name: String, dive: Bool, wipe: Bool, first: Bool = false) -> [UInt8] {
+            let st = HyperLabState(); st.cursor = 1; st.diveThird = !(first && dive); st.diveBlend = false; st.autoCam = false; st.lowView = wipe ? 1 : 0; st.diveManual = true
             guard let r = HyperLabRenderer(side: .right, state: st, view: nil) else { return [] }
             var c = Camera(); c.az = 50; var tr: [SIMD4<Double>] = []
             for _ in 0..<120 { let L = c.lookFrame().L; c.w.p = nrm(c.w.p + L * 0.01); orthoFrame(&c.w); tr.append(c.w.p) }
             let F = c.viewFrame()
             r.walkOverride = { .init(trail: tr, pos: c.w.p, head: c.lookFrame().L, space: false, fwd: c.w.f, vR: F.R, vU: F.U, vL: F.L, fov: 70) }
-            st.diveT = dive ? 1 : 0; st.tickDive(0); r.diveWipe = wipe; st.bump()
+            st.diveT = dive ? 1 : 0; st.tickDive(0); r.diveWipe = wipe; r.wipeFirst = first && wipe; st.bump()
             guard let img = r.image(480, 300) else { return [] }
             if let dir, let dd = CGImageDestinationCreateWithURL(URL(fileURLWithPath: dir).appendingPathComponent(name + ".png") as CFURL, UTType.png.identifier as CFString, 1, nil) { CGImageDestinationAddImage(dd, img, nil); CGImageDestinationFinalize(dd) }
             var b = [UInt8](repeating: 0, count: 480 * 300 * 4)
@@ -1868,13 +1916,29 @@ enum Verify {
         let main = shot("wipe_main", dive: true, wipe: false), wipe = shot("wipe_wipe", dive: false, wipe: true), plain = shot("wipe_plain", dive: false, wipe: false)
         func diff(_ a: [UInt8], _ b: [UInt8]) -> Double { a.count == b.count && !a.isEmpty ? zip(a, b).reduce(0.0) { $0 + abs(Double($1.0) - Double($1.1)) } / Double(a.count) : 999 }
         let same = diff(main, wipe), other = diff(plain, wipe)
+        let main1 = shot("wipe_main1", dive: true, wipe: false, first: true), wipe1 = shot("wipe_first", dive: false, wipe: true, first: true)
+        check(diff(main1, wipe1) < 2 && diff(wipe, wipe1) > 3, "一人称のダイブ画面の窓は、三人称の設定によらず本体の一人称と同じ絵になる（ちがい \(String(format: "%.2f", diff(main1, wipe1)))）")
         check(same < 2 && other > same * 3, "左下のダイブ画面は、本体のダイブと同じ絵になる（ちがい \(String(format: "%.2f", same))。ダイブしていない絵とのちがい \(String(format: "%.2f", other))）")
-        let st = HyperLabState(); st.lowDive = true
-        let idleOK = st.lowDiveNow && st.diveLive == 1
-        st.diveOn = true
-        let diveOK = !st.lowDiveNow && st.diveLive == 0
-        st.diveOn = false; st.walkView = false
-        check(idleOK && diveOK && !st.lowDiveNow, "左下のダイブ画面は、ダイブしていない時だけ出す（ダイブ中は地図かさんぽの景色）")
+        var nowOK = true
+        for v in [1, 2] {
+            let st = HyperLabState(); st.lowView = v
+            func on() -> Bool { v == 1 ? st.lowDiveNow : st.lowBothNow }
+            let idleOK = on() && st.diveLive == 1
+            st.diveOn = true
+            let diveOK = !on() && st.diveLive == 0
+            st.diveOn = false; st.walkView = false
+            if !(idleOK && diveOK && !on()) { nowOK = false }
+        }
+        check(nowOK, "ダイブ画面（1 枚・両方）は、ダイブしていない時だけ出す（ダイブ中は地図かさんぽの景色）")
+        // 受け持ち（歩く計算・音）はいつも 1 つの画面だけ。両方の時は 3D の球が消えるので、ダイブ画面が代わる
+        var ownOK = true
+        let st = HyperLabState(); st.lowView = 2
+        if let main = HyperLabRenderer(side: .right, state: st, view: nil), let wipe = HyperLabRenderer(side: .right, state: st, view: nil), let low = HyperLabRenderer(side: .right, state: st, view: nil) {
+            wipe.diveWipe = true; wipe.wipeMain = true; low.diveWipe = true
+            st.show3D = true; if main.ownerForTest || !wipe.ownerForTest || low.ownerForTest { ownOK = false }
+            st.show3D = false; if !main.ownerForTest || wipe.ownerForTest || low.ownerForTest { ownOK = false }
+        } else { ownOK = false }
+        check(ownOK, "両方の時も、歩く計算と音を受け持つ画面は 1 つだけ")
     }
     /// 確かめ：保存の設定で「アナ極→カタ極→地極」の道を歩き、z が大きく w が負の所（天極を過ぎた所）で絵を残す。立体の殻の入と切で比べる
     static func routePNG(_ dir: String) {

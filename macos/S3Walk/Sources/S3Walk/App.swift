@@ -24,7 +24,8 @@ struct Main {
         if args.contains("--webcmp") { if let d = MTLCreateSystemDefaultDevice(), let r = Renderer(device: d) { exit(Verify.webcmp(r) ? 0 : 1) }; exit(1) }
         if let i = args.firstIndex(of: "--png"), i + 1 < args.count { Verify.png(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--walkpng"), i + 1 < args.count { Verify.walkPNG(args[i + 1]); exit(0) }
-        if let i = args.firstIndex(of: "--wipepng"), i + 1 < args.count { Verify.wipeChecks(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--rattlewav"), i + 1 < args.count { Verify.rattleWav(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--wipepng"), i + 1 < args.count { Verify.wipeChecks(args[i + 1]); Verify.lightChecks(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--routepng"), i + 1 < args.count { Verify.routePNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--mapuser"), i + 1 < args.count { Verify.mapUserPNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--bigflip"), i + 1 < args.count { Verify.bigFlip(args[i + 1]); exit(0) }
@@ -54,6 +55,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)                 // 素の実行ファイルから起動しても、Dock とメニューのあるアプリに
         NSApp.appearance = NSAppearance(named: .darkAqua)   // いつもダーク（景色の暗い空になじむように。メニュー・浮いた地図の窓も）
         NSApp.activate(ignoringOtherApps: true)
+        openHyperFirst(0)
+    }
+    /// 起動したら超球の窓を前に（さんぽの窓ができて、歩く仕組みがつながってから。さんぽの窓は後ろに残す）
+    private func openHyperFirst(_ n: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [self] in
+            if HyperLabState.walkRendererGet?() != nil && HyperLabWindow.walkWindow != nil || n > 40 { HyperLabWindow.open(); NSApp.activate(ignoringOtherApps: true) } else { openHyperFirst(n + 1) }
+        }
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }
 }
@@ -91,6 +99,7 @@ final class AppModel: ObservableObject {
         self.r = r
         Store.restore(r)
         HyperLabState.walkSource = { [unowned r] in r.hyperWalk() }   // 超球の試作に、歩いた跡・今いる所・目印を
+        HyperLabState.mainBar = { [unowned self] st in AnyView(MainBarRow(model: self, st: st)) }
         r.say = { [weak self] m in DispatchQueue.main.async { self?.say(m) } }
         r.onPad = { [weak self] k in self?.pad(k) }
         restoreMapMode()
@@ -320,7 +329,7 @@ struct S3WalkApp: App {
             }
             // 試作（Metal で描き直しているもの）
             CommandMenu("試作") {
-                Button("超球アナロジー（Metal 版）") { HyperLabWindow.open() }.keyboardShortcut("j", modifiers: [.command, .shift])
+                Button("超球 ⇄ さんぽの窓") { HyperLabWindow.flip() }.keyboardShortcut("j", modifiers: [.command, .shift])
                 Button("次元おりがみ（光で描く）") { ProtoWindows.open("tess", "次元おりがみ（光で描く試作）", TessLabView()) }.keyboardShortcut("k", modifiers: [.command, .shift])
                 Button("次元おりがみ（ネイティブ版・移植の第 1 歩）") { ProtoWindows.open("origami", "次元おりがみ（ネイティブ版）", OrigamiView()) }.keyboardShortcut("o", modifiers: [.command, .shift])
             }
@@ -657,6 +666,29 @@ struct OneMap: View {
             }
             .padding(8).padding(.top, topInset)
         }
+    }
+}
+
+/// 超球の窓の上の段：さんぽの窓のツールバーと同じ操作。パッドと設定は超球の窓のものを開く（地図の並びはさんぽの窓だけなので出さない）
+struct MainBarRow: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var st: HyperLabState
+    var body: some View {
+        HStack(spacing: 10) {
+            Toggle(isOn: model.rb(\.walking)) { Image(systemName: "figure.walk") }.help("歩き続ける" + Keymap.shared.hint(.walk))
+            Toggle(isOn: model.rb(\.roaming)) { Image(systemName: "wind") }.help("縦横無尽：向きがゆっくり変わりながら歩く" + Keymap.shared.hint(.roam))
+            Button { model.r.addMark(); model.changed() } label: { Image(systemName: "mappin.and.ellipse") }.help("ここに目印を置く" + Keymap.shared.hint(.mark))
+            Button { model.r.resetNorth(); model.say("アナ極に戻った"); model.changed() } label: { Image(systemName: "house") }.help("アナ極へ戻る" + Keymap.shared.hint(.home))
+            Spacer()
+            Toggle(isOn: model.b(\.quiet)) { Image(systemName: "leaf") }.help("静かモード（ファンを回さない）：景色は 30 fps・描く細かさを下げる。画質は後回し")
+            Button { WebLabWindows.shared.open("hypersphere_beta", title: WebLab.hypersphereTitle) } label: { Image(systemName: "circle.circle") }
+                .help("超球（3D リング球 ↔ 4D 超球、2 次元とのアナロジー）を別の窓で開く")
+            Toggle(isOn: $st.padOn) { Image(systemName: "gamecontroller") }.help("画面のゲームパッド（コントローラーと同じボタン）")
+            Toggle(isOn: $st.walkPanelOn) { Image(systemName: "sidebar.right") }.help("さんぽの設定")
+        }
+        .toggleStyle(.button).buttonStyle(.bordered).controlSize(.small).labelsHidden()
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(Color(red: 0.06, green: 0.09, blue: 0.16))
     }
 }
 

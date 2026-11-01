@@ -30,7 +30,7 @@ final class MobileModel: ObservableObject {
     @Published var showPanel = false
     @Published var showWeb = false                 // ウェブ版の数学アプリの一覧（シート）
     @Published var askProto = false                // 試作を選ぶ
-    @Published var proto: String? = ProcessInfo.processInfo.arguments.contains("--hyper") ? "hyper" : nil   // 開いている試作（hyper・tess）。--hyper で起動すると超球アナロジーを開いて始まる（確かめ用）
+    @Published var proto: String? = "hyper"   // 開いている試作（起動は超球から。hyper・tess）。--hyper で起動すると超球アナロジーを開いて始まる（確かめ用）
     @Published var mapMode: MapMode = .docked
     @Published var hudText = ""
     /// 画面のゲームパッド（景色の下の方に出す）
@@ -49,6 +49,7 @@ final class MobileModel: ObservableObject {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { fatalError("Metal が使えない") }
         self.r = r
         HyperLabState.walkSource = { [unowned r] in r.hyperWalk() }   // 超球の試作に、歩いた跡・今いる所・目印を
+        HyperLabState.mainBar = { [unowned self] st in AnyView(MobileMainBar(model: self, st: st)) }
         if UserDefaults.standard.dictionary(forKey: Store.key) == nil { MobileModel.macLook(r) }   // 初めて開いた時は Mac 版の見え方で
         Store.restore(r)
         r.set.gamepad = true                                   // 指のスティックもコントローラーと同じ入れ方で

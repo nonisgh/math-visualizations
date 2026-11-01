@@ -4,6 +4,27 @@ import SwiftUI
 import MetalKit
 import UIKit
 
+/// 超球の画面の上の段：Mac の超球の窓の上の段と同じ操作（右上の × をよける）
+struct MobileMainBar: View {
+    @ObservedObject var model: MobileModel
+    @ObservedObject var st: HyperLabState
+    var body: some View {
+        HStack(spacing: 10) {
+            Toggle(isOn: model.rb(\.walking)) { Image(systemName: "figure.walk") }
+            Toggle(isOn: model.rb(\.roaming)) { Image(systemName: "wind") }
+            Button { model.r.addMark() } label: { Image(systemName: "mappin.and.ellipse") }
+            Button { model.r.resetNorth(); model.say("アナ極に戻った") } label: { Image(systemName: "house") }
+            Spacer()
+            Toggle(isOn: model.b(\.quiet)) { Image(systemName: "leaf") }
+            Toggle(isOn: $st.padOn) { Image(systemName: "gamecontroller") }
+            Toggle(isOn: $st.walkPanelOn) { Image(systemName: "sidebar.right") }
+        }
+        .toggleStyle(.button).buttonStyle(.bordered).controlSize(.small).labelsHidden()
+        .padding(.leading, 10).padding(.trailing, 58).padding(.vertical, 5)
+        .background(Color(red: 0.06, green: 0.09, blue: 0.16))
+    }
+}
+
 struct MobileRoot: View {
     @ObservedObject var model: MobileModel
     var body: some View {
