@@ -25,7 +25,7 @@ struct Main {
         if let i = args.firstIndex(of: "--png"), i + 1 < args.count { Verify.png(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--walkpng"), i + 1 < args.count { Verify.walkPNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--rattlewav"), i + 1 < args.count { Verify.rattleWav(args[i + 1]); exit(0) }
-        if let i = args.firstIndex(of: "--wipepng"), i + 1 < args.count { Verify.wipeChecks(args[i + 1]); Verify.lightChecks(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--wipepng"), i + 1 < args.count { Verify.wipeChecks(args[i + 1]); Verify.lightChecks(args[i + 1]); Verify.wmapChecks(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--routepng"), i + 1 < args.count { Verify.routePNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--mapuser"), i + 1 < args.count { Verify.mapUserPNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--bigflip"), i + 1 < args.count { Verify.bigFlip(args[i + 1]); exit(0) }

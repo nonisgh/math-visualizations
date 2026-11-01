@@ -26,6 +26,7 @@ enum Verify {
         print("== 左下のダイブ画面 ==")
         wipeChecks(nil)
         lightChecks(nil)
+        wmapChecks(nil)
         print("== パネルのドック（並べかえ・たたみ・保存）==")
         dockChecks()
         print("== スライダー（数字の入力・矢印キー）==")
@@ -1877,6 +1878,27 @@ enum Verify {
         s.tune(height: 0, place: 0, bass: bass, rough: 0, phones: true)
         _ = s.renderTest(seconds: 6, speed: 1, zoom: 1, wav: dir + "/stereo_phoff.caf")
         print("低音 \(bass)・荒さ \(rough)")
+    }
+    /// W 消失地図の切り方：5 通りとも絵が変わる。dir があれば絵を残す
+    static func wmapChecks(_ dir: String?) {
+        func shot(_ fx: Int) -> [UInt8] {
+            let st = HyperLabState(); st.walk = true; st.cursor = 0; st.ovView = 3; st.ovFx = fx; st.ovShow = true; st.ovTilt = false; st.diveT = 1; st.diveOn = true; st.diveManual = true
+            guard let r = HyperLabRenderer(side: .right, state: st, view: nil) else { return [] }
+            r.overview = true; r.ovMotion = true
+            let a = 0.9, p = SIMD4(sin(a), 0, 0, cos(a)), f = SIMD4(cos(a), 0, 0, -sin(a))
+            r.walkOverride = { .init(trail: [], pos: p, head: f, space: false, fwd: f, vR: SIMD4(0, 1, 0, 0), vU: SIMD4(0, 0, 1, 0), vL: f, fov: 70) }
+            r.domOverride = 1; st.bump()
+            var img: CGImage? = nil
+            for k in 0..<45 { r.clockOverride = 1000 + Double(k) * 0.1; img = r.image(420, 420) }
+            guard let img else { return [] }
+            if let dir, let dd = CGImageDestinationCreateWithURL(URL(fileURLWithPath: dir).appendingPathComponent("wmap\(fx).png") as CFURL, UTType.png.identifier as CFString, 1, nil) { CGImageDestinationAddImage(dd, img, nil); CGImageDestinationFinalize(dd) }
+            var b = [UInt8](repeating: 0, count: 420 * 420 * 4)
+            let ctx = CGContext(data: &b, width: 420, height: 420, bitsPerComponent: 8, bytesPerRow: 420 * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+            ctx?.draw(img, in: CGRect(x: 0, y: 0, width: 420, height: 420)); return b
+        }
+        func diff(_ a: [UInt8], _ b: [UInt8]) -> Double { a.count == b.count && !a.isEmpty ? zip(a, b).reduce(0.0) { $0 + abs(Double($1.0) - Double($1.1)) } / Double(a.count) : 0 }
+        let half = shot(1), ds = [2, 3, 4, 5].map { diff(half, shot($0)) }
+        check(ds.allSatisfy { $0 > 0.3 }, "W 消失地図の切り方は 5 通りとも絵が変わる（半分とのちがい \(ds.map { String(format: "%.1f", $0) }.joined(separator: "・"))）")
     }
     /// 光の回り込み：アナ極の近くでだけ出る。切っていれば何も変わらない。dir があれば絵を残す
     static func lightChecks(_ dir: String?) {

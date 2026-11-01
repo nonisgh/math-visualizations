@@ -153,6 +153,7 @@ final class HyperLabState: ObservableObject {
     @Published var cursor = 1                                         // 今いる所の印：0 さんぽ（青緑と白の三重の輪）・1 彗星（光で描く。コマと、ぼけた尾）・2 線の彗星（前の形）・3 巨大彗星・4 大彗星（光の玉の中に彗星。巨大はさらに大きく。ダイブで寄るとふつう）
     @Published var panelTab = 0                                       // パネルのタブ
     @Published var ovFlip = false                                     // 下の地図の w の頭とケツを入れかえる
+    @Published var ovFx = 0                                           // W 消失地図の切り方：0 おまかせ・1 半分・2 くさび・3 玉ねぎ・4 ポリゴン・5 回る断面
     @Published var ovZoom = false                                     // W 消失地図の真ん中へ寄る
     @Published var ovTilt = true                                      // W 消失地図で、ときどき 4D を少し傾けて、赤と紫が離れて見えるようにする
     @Published var overlapGlow = false                                // 地図で赤玉と紫玉が重なる時の光の円（ふだんは切って、殻をそのまま見せる）
@@ -349,7 +350,7 @@ final class HyperLabState: ObservableObject {
          "layers": layers, "mode": mode, "camW": camW, "hemi": hemi, "gloss": gloss, "glare": glare, "lzw": lzw,
          "cutOn": cutOn, "cutRef": cutRef, "cutAngDeg": cutAngDeg, "cutWDeg": cutWDeg, "cutKind": cutKind, "planeDir": planeDir, "cutPos": cutPos, "cut4Axis": cut4Axis, "cutSweep": cutSweep,
          "axes": axes, "axPlus": axPlus, "axThin": axThin, "walk": walk, "marksOn": marksOn, "polesMode": polesMode,
-         "spaceMode": spaceMode, "starsPct": starsPct, "layersLink": layersLink, "walkView": walkView, "lowView": lowView, "lowSwap": lowSwap, "lightWrap": lightWrap, "mainBarOn": mainBarOn, "lowFirst": lowFirst, "order": order,
+         "spaceMode": spaceMode, "starsPct": starsPct, "layersLink": layersLink, "walkView": walkView, "lowView": lowView, "lowSwap": lowSwap, "lightWrap": lightWrap, "ovFx": ovFx, "mainBarOn": mainBarOn, "lowFirst": lowFirst, "order": order,
          "followOn": followOn, "followSlack": followSlack, "followSpeed": followSpeed, "followHeading": followHeading, "followDrift": followDrift,
          "diveBlend": diveBlend, "soundPhones": soundPhones, "soundRush": soundRush, "quality": quality, "adaptive": adaptive, "wireW": wireW, "soundPlace": soundPlace, "passOn": passOn, "noteOn": noteOn, "soundLayer": soundLayer, "soundBass": soundBass, "soundRough": soundRough, "wireT": wireT, "wireAuto": wireAuto, "panelTab": panelTab, "ovView": ovView, "ovShuffle": ovShuffle, "overlapGlow": overlapGlow, "ovTilt": ovTilt, "ovZoom": ovZoom, "ovFlip": ovFlip, "shakeK": shakeK, "holeOn": holeOn, "wireWMap": wireWMap, "cursor": cursor, "naviCenter": naviCenter, "map2": map2, "ovShow": ovShow, "glareAuto2": glareAuto, "shutWalk": shutWalk, "shutAuto": shutAuto, "walkMenu": walkMenu, "walkPanelOn": walkPanelOn, "walkPanelSel": walkPanelSel, "axesDive": axesDive, "wipeLow": wipeLow, "hyperQ": hyperQ, "heavy": heavy, "planOn": planOn, "railOn": railOn, "planMark": planMark, "planShell": planShell, "planLong": planLong, "planDense": planDense, "opMode": opMode, "spinMode": spinMode, "showMode": showMode, "spinAmp": spinAmp, "spinLen": spinLen, "shellMode": shellMode, "splitX": splitX, "splitY": splitY, "diveThird": diveThird, "chaseDist": chaseDist, "chasePitch": chasePitch, "chaseYaw": chaseYaw, "autoCam": autoCam, "camShow": camShow, "padCam": padCam, "padCamStick": padCamStick, "diveOverview": diveOverview, "ovCursor": ovCursor, "depth4": depth4, "depth4K": depth4K, "depth4On": depth4On, "symGlow": symGlow, "trailW": trailW, "trailCol": trailCol, "poleEN": poleEN, "coordOn": coordOn, "panelHidden": panelHidden, "padOn": padOn, "clearAhead": clearAhead, "show3D": show3D, "lapClear": lapClear, "uiScale": uiScale, "soundOn": soundOn, "soundVol": soundVol, "soundSpatial": soundSpatial, "starDepth": starDepth]
     }
@@ -362,7 +363,7 @@ final class HyperLabState: ObservableObject {
         int("layers", &layers); int("mode", &mode); dbl("camW", &camW); int("hemi", &hemi); dbl("gloss", &gloss); bol("glare", &glare); int("lzw", &lzw)
         bol("cutOn", &cutOn); int("cutRef", &cutRef); dbl("cutAngDeg", &cutAngDeg); dbl("cutWDeg", &cutWDeg); int("cutKind", &cutKind); int("planeDir", &planeDir); dbl("cutPos", &cutPos); int("cut4Axis", &cut4Axis); bol("cutSweep", &cutSweep)
         bol("axes", &axes); bol("axPlus", &axPlus); bol("axThin", &axThin); bol("walk", &walk); bol("marksOn", &marksOn); int("polesMode", &polesMode)
-        int("spaceMode", &spaceMode); dbl("starsPct", &starsPct); bol("layersLink", &layersLink); bol("walkView", &walkView); int("lowView", &lowView); bol("lowSwap", &lowSwap); bol("lightWrap", &lightWrap); bol("mainBarOn", &mainBarOn); bol("lowFirst", &lowFirst)
+        int("spaceMode", &spaceMode); dbl("starsPct", &starsPct); bol("layersLink", &layersLink); bol("walkView", &walkView); int("lowView", &lowView); bol("lowSwap", &lowSwap); bol("lightWrap", &lightWrap); int("ovFx", &ovFx); bol("mainBarOn", &mainBarOn); bol("lowFirst", &lowFirst)
         if let o = d["order"] as? [Int], o.count == 3, Set(o) == [0, 1, 2] { order = o }
         bol("followOn", &followOn); dbl("followSlack", &followSlack); dbl("followSpeed", &followSpeed); bol("followHeading", &followHeading); dbl("followDrift", &followDrift)
         bol("diveBlend", &diveBlend); bol("soundPhones", &soundPhones); dbl("soundRush", &soundRush); int("quality", &quality); bol("adaptive", &adaptive); dbl("wireW", &wireW); dbl("soundPlace", &soundPlace); bol("passOn", &passOn); bol("noteOn", &noteOn); bol("soundLayer", &soundLayer); dbl("soundBass", &soundBass); dbl("soundRough", &soundRough); dbl("wireT", &wireT); bol("wireAuto", &wireAuto); int("panelTab", &panelTab); int("ovView", &ovView); bol("ovShuffle", &ovShuffle); bol("overlapGlow", &overlapGlow); bol("ovTilt", &ovTilt); bol("ovZoom", &ovZoom); bol("ovFlip", &ovFlip); dbl("shakeK", &shakeK); bol("holeOn", &holeOn); dbl("wireWMap", &wireWMap); int("cursor", &cursor); bol("naviCenter", &naviCenter); bol("map2", &map2); bol("ovShow", &ovShow); bol("glareAuto2", &glareAuto); bol("shutWalk", &shutWalk); bol("shutAuto", &shutAuto); bol("walkMenu", &walkMenu); bol("walkPanelOn", &walkPanelOn); int("walkPanelSel", &walkPanelSel); bol("axesDive", &axesDive); bol("wipeLow", &wipeLow); int("hyperQ", &hyperQ); bol("heavy", &heavy); bol("planOn", &planOn); bol("railOn", &railOn); int("planMark", &planMark); bol("planShell", &planShell); bol("planLong", &planLong); bol("planDense", &planDense); bol("opMode", &opMode); int("showMode", &showMode); int("spinMode", &spinMode); if ![0, 5, 6].contains(spinMode) { spinMode = 0 }; dbl("spinAmp", &spinAmp); dbl("spinLen", &spinLen); int("shellMode", &shellMode); dbl("splitX", &splitX); dbl("splitY", &splitY); bol("diveThird", &diveThird); dbl("chaseDist", &chaseDist); dbl("chasePitch", &chasePitch); dbl("chaseYaw", &chaseYaw); bol("autoCam", &autoCam); bol("camShow", &camShow); bol("padCam", &padCam); int("padCamStick", &padCamStick); bol("diveOverview", &diveOverview); int("ovCursor", &ovCursor); int("depth4", &depth4); dbl("depth4K", &depth4K); bol("depth4On", &depth4On); bol("symGlow", &symGlow); dbl("trailW", &trailW); int("trailCol", &trailCol); bol("poleEN", &poleEN); bol("coordOn", &coordOn); bol("panelHidden", &panelHidden); bol("padOn", &padOn); bol("clearAhead", &clearAhead); bol("show3D", &show3D); bol("lapClear", &lapClear); bol("soundOn", &soundOn); dbl("soundVol", &soundVol); bol("soundSpatial", &soundSpatial); dbl("starDepth", &starDepth); dbl("uiScale", &uiScale); uiScale = min(2, max(0.75, uiScale))
@@ -772,7 +773,7 @@ struct HLVert { var p: SIMD4<Float>; var n: SIMD4<Float>; var c: SIMD4<Float> }
 /// 描く時の定数：key・rim は照り返しライトの向き（カメラについて回る）、camR・camU はカメラの右・上（グレアの帯）、g は（光沢・グレア・光を当てる・未使用）
 /// 右の殻の毎コマの定数（シェーダーの HR）
 struct HLRight { var m4 = matrix_identity_float4x4; var q = SIMD4<Float>(1, 1, 3.8, 1.55); var r = SIMD4<Float>(1.35, 48, 0, 0); var d = SIMD4<Float>(0.6, 0, 0, 0); var e = SIMD4<Float>(0, 0, 0, 0); var s = SIMD4<Float>(0, 0, 0, 0); var t = SIMD4<Float>(0, 0, 0, 0); var f = SIMD4<Float>(0, 0, 0, 0)
-    var a0 = SIMD4<Float>(0, 0, 0, 0), a1 = SIMD4<Float>(0, 0, 0, 0), a2 = SIMD4<Float>(0, 0, 0, 0), a3 = SIMD4<Float>(0, 0, 0, 0), n = SIMD4<Float>(0, 0, 0, 0), v = SIMD4<Float>(0, 0, 0, 0), ey = SIMD4<Float>(0, 0, 1, 0), fd = SIMD4<Float>(0, 0, 0, 0) }   // a0〜a3：予定の道の矢印の明かり（S³ の点。強さは t.w）   // f：進む向き（S³ の接する向き。ヘッドライト）   // s：自分のいる所（S³ の点）、t.x：その近くを濃くする強さ（下の HR と同じ）
+    var a0 = SIMD4<Float>(0, 0, 0, 0), a1 = SIMD4<Float>(0, 0, 0, 0), a2 = SIMD4<Float>(0, 0, 0, 0), a3 = SIMD4<Float>(0, 0, 0, 0), n = SIMD4<Float>(0, 0, 0, 0), v = SIMD4<Float>(0, 0, 0, 0), ey = SIMD4<Float>(0, 0, 1, 0), fd = SIMD4<Float>(0, 0, 0, 0), ms = SIMD4<Float>(1, 0, 0, 0) }   // a0〜a3：予定の道の矢印の明かり（S³ の点。強さは t.w）   // f：進む向き（S³ の接する向き。ヘッドライト）   // s：自分のいる所（S³ の点）、t.x：その近くを濃くする強さ（下の HR と同じ）
 /// 名前の札の頂点（位置・文字の絵の座標）
 struct HLLabelVert { var p: SIMD4<Float>; var uv: SIMD4<Float> }
 struct HLCometVert { var p: SIMD4<Float>; var q: SIMD4<Float>; var c = SIMD4<Float>(1, 1, 1, 1) }
@@ -822,7 +823,7 @@ vertex O ringv(uint vid [[vertex_id]], uint iid [[instance_id]], const device fl
 }
 // 右の殻（GPU で 4D の回転・遠近）：元の点（層ごとに緯度 × 経度の 4D の点）は 1 度だけ送り、回す行列だけを毎コマ渡す。
 //   法線はとなりの点を同じように写して求める。4D の裏側（4D の視点から見て奥の半分）は暗く・くすませる（ウェブ版の「裏側を暗く」）
-struct HR { float4x4 m4; float4 q; float4 r; float4 d; float4 e; float4 s; float4 t; float4 f; float4 a0; float4 a1; float4 a2; float4 a3; float4 n; float4 v; float4 ey; float4 fd; };   // v：地図の殻の立体感（x 強さ・yzw 光の向き）、ey：xyz は地図ではカメラの向き・ダイブではカメラの場所、w は升の大きさ。fd：遠くの線と殻を消す（x 強さ・y 始まり・z 終わりの距離）   // a0〜a3：矢印の明かり   // f：進む向き（ヘッドライト）   // s：自分のいる所（S³ の点）、t.x：その近くの殻・網目を濃くする強さ（selfK）
+struct HR { float4x4 m4; float4 q; float4 r; float4 d; float4 e; float4 s; float4 t; float4 f; float4 a0; float4 a1; float4 a2; float4 a3; float4 n; float4 v; float4 ey; float4 fd; float4 ms; };   // v：地図の殻の立体感（x 強さ・yzw 光の向き）、ey：xyz は地図ではカメラの向き・ダイブではカメラの場所、w は升の大きさ。fd：遠くの線と殻を消す（x 強さ・y 始まり・z 終わりの距離）   // a0〜a3：矢印の明かり   // f：進む向き（ヘッドライト）   // s：自分のいる所（S³ の点）、t.x：その近くの殻・網目を濃くする強さ（selfK）
 // 自分のいる所の近さ（0〜1）：S³ の上の角度で 0.15 以内は 1、0.6 で 0 へ（殻が自分のそばを通り過ぎる時に浮かぶ）
 // ヘッドライト（h.t.y）：自分のいる所から S³ の上で遠いほど暗く（0.35 で 1、1.6 で 0.4 倍）。ダイブの景色の時だけ
 inline float headK(float4 b, constant HR& h) {
@@ -890,6 +891,9 @@ vertex O hrv(uint vid [[vertex_id]], const device float4* base [[buffer(0)]], co
     // 面の 1 組目の頂点（k）が、その升の値を決める（flat）。線で囲まれた升ごとに抜くかどうか決める
     o.hole = 0.0;
     if (h.n.w > 0.0 && holeRad(P, h) < 0.42 * h.n.w + 0.35) { uint S = uint(h.ey.w), ci = min(i - i % S, M - S), cj = min(j - j % S, M - S); if (cellIn(base, o0, ci, cj, S, M1, h)) o.hole = 1.0; }
+    // W 消失地図の演出：h.ms.x は殻ごとの濃さ（玉ねぎ）、h.ms.y は升をばらばらに抜く割合（ポリゴン）、h.ms.z は抜き方の種
+    if (h.ms.y > 0.0) { uint S = max(1u, M / 10), ci = i - i % S, cj = j - j % S; if (fract(sin(dot(float2(ci, cj) + h.ms.z, float2(12.9898, 78.233))) * 43758.5453) < h.ms.y) o.hole = 1.0; }
+    o.c.a *= h.ms.x;
     o.c.a *= ballK(b, h) * coreK(b, h);                                                           // 反射・斜めの濃さ・ふちも一緒に透かす（どれも不透明さを足すので、いちばんあとで。ふちだけ残らない）
     return o;
 }
@@ -929,6 +933,7 @@ inline void hshade(uint vid, const device float4* base, constant HR& h, const de
     float sk = selfK(b, h), ak = arrowK(b, h); la *= 1.0 + 1.3 * sk + 0.8 * ak; col = col * (1.0 + 0.4 * sk) * max(headK(b, h), 0.7 + 0.3 * ak) + float3(1.0, 0.78, 0.35) * 0.18 * ak;   // 自分の近くの網目：少し強く（離れるほど元に）。遠くはヘッドライトで暗く
     c = float4((col + (gray - col) * (h.d.y * bk)) * (1.0 - h.d.z * bk), h.q.y * la * (1.0 - 0.5 * hz) / (1.0 + 3.5 * bl) * ballK(base[vid], h)); ph = float(j) / float(M) * 2.0 * M_PI_F;   // 網目の裏側：灰色へ寄せる割合 d.y・暗くする割合 d.z
     if (h.v.x > 0.0) { float near = clamp(dot(P, h.ey.xyz) / (h.r.x * h.q.w), -1.0, 1.0); c.rgb *= mix(1.0, 0.8 + 0.3 * near, h.v.x); c.a *= mix(1.0, 0.7 + 0.45 * near, h.v.x); }   // 地図の網目も、手前ほど明るく・濃く
+    c.a *= h.ms.x;
     if (h.fd.x > 0.0) c.a *= 1.0 - h.fd.x * smoothstep(h.fd.y, h.fd.z, distance(P, h.ey.xyz)) * (1.0 - poleKeep(base[vid], h));   // ダイブ画面の網目は近くだけ残す（遠くの線が重なると奥行きがわからなくなる）
 }
 vertex WO hrwv(uint vid [[vertex_id]], uint iid [[instance_id]], const device float4* base [[buffer(0)]], constant U& u [[buffer(1)]], constant HR& h [[buffer(2)]],
@@ -1619,6 +1624,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     // ---- 右：球殻の超球（4D → 3D）----
     /// 4D の回転（ウェブ版の mkSteps と同じ順）：Z-W → X-Y（面内）→ Y-W（前後）→ X-W（左右、向きは逆）
     /// 地図の構図（全体像だけの向き）：ダイブの間、w 軸を縦にして球層を水平に見せる（玉の重なりは上の地図の役目）
+    private var ovFxNow = -1, ovOnionK = 0.0, ovPolyK = 0.0, ovSpinK = 0.0, ovFxSeed: Float = 0   // W 消失地図の演出：今の切り方・玉ねぎ・ポリゴン・回る断面の効き
     private var ovM: simd_double4x4? = nil, ovBase: simd_double4x4? = nil, ovTiltT0 = -1.0, ovLast = -9.0, ovCutK = 0.0, ovCutLast = -99.0, ovPeekT = -1.0
     private var ovLogT = -9.0
     private var ovZoomK = 1.0, ovShufT = 0.0, ovWedgeT = -1.0, ovWedgeK = 0.0, ovWedgeLast = -99.0, ovPitch = 0.0, ovPitchV = 0.0, ovViewYaw = 0.0, ovYawV = 0.0, ovBall = 0.0
@@ -1653,14 +1659,19 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             if Self.glintLog { print(String(format: "くさび %.1f 秒 %@", now, w.fwd.w > 0 ? "上り" : "下り")) }
         }
         if ovWedgeT >= 0 && now - ovWedgeT > 8 { ovWedgeT = -1 }
-        ovWedgeK += ((ovWedgeT >= 0 ? 1 : 0) - ovWedgeK) * (1 - exp(-dt * 1.2))
+        // W 消失地図の切り方：おまかせは 11 秒ごとに順に。0 半分・1 くさび・2 玉ねぎ・3 ポリゴン・4 回る断面
+        let fx = !nested ? -1 : st.ovFx == 0 ? Int(now / 11) % 5 : st.ovFx - 1
+        if fx != ovFxNow { ovFxNow = fx; if fx == 3 { ovFxSeed = Float.random(in: 0..<100) } }
+        let fxRate = 1 - exp(-dt * 1.5)
+        ovOnionK += ((fx == 2 ? 1 : 0) - ovOnionK) * fxRate; ovPolyK += ((fx == 3 ? 1 : 0) - ovPolyK) * fxRate; ovSpinK += ((fx == 4 ? 1 : 0) - ovSpinK) * fxRate
+        ovWedgeK += ((ovWedgeT >= 0 || fx == 1 ? 1 : 0) - ovWedgeK) * (1 - exp(-dt * 1.2))
         if ovWedgeK < 0.002 { ovWedgeK = 0 }
         if !nested && ovPeekT < 0 && ovWedgeT < 0 && ovWedgeK < 0.05 && rr < 0.5 && climb < 0.35 && now - ovCutLast > 30 {
             ovPeekT = now; ovCutLast = now
             if Self.glintLog { print(String(format: "中の断面 %.1f 秒 中心から %.2f", now, rr)) }
         }
         if ovPeekT >= 0 && now - ovPeekT > 3 { ovPeekT = -1 }
-        var open = nested ? 0.97 : 0.0
+        var open = fx == 0 || fx == 4 ? 0.97 : 0.0
         if ovPeekT >= 0 {
             let depth = simd_dot(walkPlace(w.pos).0, camBasis().3) / (Self.R * Self.SCALE * 1.15)
             open = max(0.2, min(0.75, 0.9 - depth))
@@ -2568,8 +2579,16 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             e.setRenderPipelineState(rPipe); e.setVertexBuffer(rb, offset: 0, index: 0); e.setVertexBuffer(rc, offset: 0, index: 3)
             // 4 方向レインボー・軸の色：面を全部先に描いてから、線をまとめて描く（線が奥行きを書くので、層ごとに交互に描くと、あとの面が線の所だけ抜けて黒い筋になる）
             let multiFam = (st.shellModeNow == 1 || st.shellModeNow == 2) && shellFams(left: false).count > 1   // 4 方向レインボー・軸の色（4 軸）
+            // W 消失地図の玉ねぎ：外の殻から順に透明にして、波が内へ行って戻る（真ん中の殻は残す）
+            hg.ms = SIMD4(1, Float(0.72 * ovPolyK), ovFxSeed, 0); hl.ms = SIMD4(1, 0, 0, 0)
+            func shellK(_ r: (g: Range<Int>, l: Range<Int>, c: SIMD4<Double>, e: SIMD4<Double>)) -> Float {
+                guard overview, ovOnionK > 0.002 else { return 1 }
+                let rn = simd_length(walkPlace(r.e).0 - walkPlace(r.c).0) / (Self.R * Self.SCALE), f = 0.6 + 0.35 * cos(nowT * 0.8)
+                return Float(1 - ovOnionK * 0.96 * smoothstep(f - 0.1, f + 0.1, rn))
+            }
             func drawFaces(_ r: (g: Range<Int>, l: Range<Int>, c: SIMD4<Double>, e: SIMD4<Double>)) {
                 if solidA > 0 && !r.g.isEmpty {
+                    hg.ms.x = shellK(r)
                     e.setDepthStencilState(depthRead)
                     e.setVertexBytes(&ug, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&ug, length: MemoryLayout<HLUni>.stride, index: 1)
                     e.setVertexBytes(&hg, length: MemoryLayout<HLRight>.stride, index: 2)
@@ -2578,6 +2597,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             }
             func drawWires(_ r: (g: Range<Int>, l: Range<Int>, c: SIMD4<Double>, e: SIMD4<Double>)) {
                 if wireA > 0 && !r.l.isEmpty {
+                    hl.ms.x = shellK(r)
                     // 網目は太さのある帯で（1 画素の線は細すぎて色が薄く見える）。宇宙の時は足し合わせて光らせる（さんぽの景色の線のように）
                     // 4 方向レインボー・宇宙でダイブ中：線は奥行きを書かない（書くと、あとから描く星屑が線の所だけ隠れて、暗い筋になる）。
                     //   外から見る時は書く（書かないと、奥の線まで全部重なって白く飛ぶ）
@@ -2598,7 +2618,9 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                     let c = walkPlace(r.c).0, rho = simd_length(walkPlace(r.e).0 - c)
                     return abs(simd_length(eye - c) - rho)
                 }
-                for r in ranges.map({ ($0, gap($0)) }).sorted(by: { $0.1 > $1.1 }).map({ $0.0 }) { drawFaces(r); drawWires(r) }
+                // W 消失地図で手前を切った時は、お椀の内側を見ることになるので、外の殻（いちばん奥）から順に重ねる
+                let bowl = overview && st.ovView == 3 && max(ovCutK, ovWedgeK) > 0.3
+                for r in ranges.map({ ($0, gap($0)) }).sorted(by: { bowl ? $0.1 < $1.1 : $0.1 > $1.1 }).map({ $0.0 }) { drawFaces(r); drawWires(r) }
             }
             u.halo = .zero
             drawStars(e, u, hg)
@@ -3006,14 +3028,15 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     /// 平面で切る：平面の向きと位置を定数へ（左右とも。くさびは右だけ、別に）。画面に固定は手前・右・上、物体に固定は x・y・z（左は球と一緒に傾く）
     private func planeCut(_ u: inout HLUni) {
         if overview && ovWedgeK > 0.005 && ovWedgeK >= ovCutK {           // 見せ場：地球の断面図のように、YZ の面ともう 1 枚の面で、カメラの側を 90° 開く
-            let (c, t) = ovWedgeAxes(), h = Double.pi / 4 * ovWedgeK     // 閉じた所から、c を中心に開いていく
+            let cb0 = camBasis(), (c, t) = st.ovView == 3 ? (cb0.3, cb0.1) : ovWedgeAxes(), h = Double.pi / 4 * ovWedgeK     // 閉じた所から、c を中心に開いていく（W はカメラの正面を開く）
             let n1: SIMD3<Double> = c * sin(h) - t * cos(h), n2: SIMD3<Double> = c * sin(h) + t * cos(h)
             u.cut = SIMD4(4, Float(n2.x), Float(n2.y), Float(n2.z)); u.cutN = SIMD4(SIMD3<Float>(n1), 0)
             return
         }
         if overview && ovCutK > 0.001 {                                   // 地図の断面のカット：手前の半分を、カメラに向いた平面で切る
-            let rad = Self.R * Self.SCALE * 1.15
-            u.cut = SIMD4(3, 0, 0, 0); u.cutN = SIMD4(SIMD3<Float>(simd_normalize(camBasis().3)), Float((1 - ovCutK) * rad))
+            let rad = Self.R * Self.SCALE * 1.15, cb0 = camBasis(), a = nowT * 0.45, sw = 0.75 * ovSpinK         // 回る断面：切る面がカメラの正面のまわりをゆっくり回る
+            let cn: SIMD3<Double> = cb0.3 * cos(sw) + (cb0.1 * cos(a) + cb0.2 * sin(a)) * sin(sw)
+            u.cut = SIMD4(3, 0, 0, 0); u.cutN = SIMD4(SIMD3<Float>(simd_normalize(cn)), Float((1 - ovCutK) * rad))
             return
         }
         guard st.cutOn && st.cutKind == 1 else { return }
@@ -4674,6 +4697,14 @@ struct HyperLabView: View {
                         }.buttonStyle(.plain)
                     }
                     if st.ovView == 3 {
+                        Menu {
+                            Picker("切り方", selection: $st.ovFx) {
+                                Text("おまかせ").tag(0); Text("半分に切る").tag(1); Text("くさびで開く").tag(2); Text("玉ねぎむき").tag(3); Text("ポリゴン崩し").tag(4); Text("回る断面").tag(5)
+                            }
+                        } label: {
+                            Image(systemName: "scissors").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(red: 1, green: 0.8, blue: 0.55))
+                                .frame(width: 26, height: 20).background(Color.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 5))
+                        }.buttonStyle(.plain).menuIndicator(.hidden).fixedSize().help("W 消失地図の切り方。おまかせは 11 秒ごとに順に切りかわる")
                         Button { st.ovZoom.toggle() } label: {
                             Image(systemName: st.ovZoom ? "minus.magnifyingglass" : "plus.magnifyingglass").font(.system(size: 11, weight: .semibold)).foregroundStyle(st.ovZoom ? Color(red: 1, green: 0.75, blue: 0.85) : Color.white.opacity(0.75))
                                 .frame(width: 26, height: 20).background(st.ovZoom ? Color.white.opacity(0.2) : Color.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 5))
