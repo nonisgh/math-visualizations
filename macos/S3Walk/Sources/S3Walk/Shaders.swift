@@ -632,7 +632,7 @@ inline bool shNext(thread ShIt& it, constant float4* sh, constant Uni& u, thread
     while (!it.end && it.ph < 11) {
         int m = it.m0 + it.ph; bool d = gmod(float(m), 2.0) < 0.5;
         if (float(m) * PI - it.s0 > u.shCut) { it.end = true; return false; }
-        while (it.k < nTot && it.k < 41) {
+        while (it.k < nTot && it.k < 121) {
             int kk = it.k; it.k++;
             int ii = d ? kk : nTot - 1 - kk;
             if (SHSTRIDE > 1 && ((n - 1 - (ii < n ? ii : 2 * n - 2 - ii)) % SHSTRIDE) != 0) continue;   // 軸色の時は殻を間引く（赤道の殻は残す）
@@ -675,14 +675,10 @@ inline NebRay nebPrep(float4 p0, float4 v, constant float4* nb) {
     return r;
 }
 struct Neb { float3 e; float a; };                                      // 光る色（道のりあたり）・吸う割合（道のりあたり）
-inline Neb nebAt(float4 q, float ct, float st, thread const NebRay& r, constant float4* nb, texture3d<float> nz) {
+// 濃さ dens・色の和 e の所の、すじ・ふさ・ちりの模様（超立方体の部屋の星雲も、同じ模様で）
+inline Neb nebMat(float4 q, float dens, float3 e, texture3d<float> nz) {
     constexpr sampler sm(filter::linear, address::repeat);
-    float4 x0 = (1.0 - (r.A0 * ct + r.B0 * st)) * r.i0, x1 = (1.0 - (r.A1 * ct + r.B1 * st)) * r.i1;   // 8 つのかたまりまでの距離²／σ²（数えないかたまりは i ＝ 0 → 下で消す）
-    float4 g0 = select(float4(0.0), exp(-x0), r.i0 > 0.0), g1 = select(float4(0.0), exp(-x1), r.i1 > 0.0);
-    float dens = g0.x + g0.y + g0.z + g0.w + g1.x + g1.y + g1.z + g1.w;
-    Neb o; o.e = float3(0.0); o.a = 0.0;
-    if (dens < 0.015) return o;
-    float3 e = nb[1].rgb * g0.x + nb[3].rgb * g0.y + nb[5].rgb * g0.z + nb[7].rgb * g0.w + nb[9].rgb * g1.x + nb[11].rgb * g1.y + nb[13].rgb * g1.z + nb[15].rgb * g1.w;
+    Neb o;
     float3 P = q.xyz * 1.7 + q.w * float3(1.31, -0.73, 0.97);
     float4 nn = nz.sample(sm, P * 0.3);                                 // 1 回で 3 つの模様（r：大きなふさ、g：細かいすじ、b：ちり）
     float n1 = nn.r, n2 = nn.g, n3 = nn.b;
@@ -695,6 +691,15 @@ inline Neb nebAt(float4 q, float ct, float st, thread const NebRay& r, constant 
     o.e = hot * pow(dd, 1.2) * (2.2 + 4.0 * n2 * n2);
     o.a = dd * 0.3 + dens * dust * (1.0 - wisp * 0.6) * 1.8;
     return o;
+}
+inline Neb nebAt(float4 q, float ct, float st, thread const NebRay& r, constant float4* nb, texture3d<float> nz) {
+    float4 x0 = (1.0 - (r.A0 * ct + r.B0 * st)) * r.i0, x1 = (1.0 - (r.A1 * ct + r.B1 * st)) * r.i1;   // 8 つのかたまりまでの距離²／σ²（数えないかたまりは i ＝ 0 → 下で消す）
+    float4 g0 = select(float4(0.0), exp(-x0), r.i0 > 0.0), g1 = select(float4(0.0), exp(-x1), r.i1 > 0.0);
+    float dens = g0.x + g0.y + g0.z + g0.w + g1.x + g1.y + g1.z + g1.w;
+    Neb o; o.e = float3(0.0); o.a = 0.0;
+    if (dens < 0.015) return o;
+    float3 e = nb[1].rgb * g0.x + nb[3].rgb * g0.y + nb[5].rgb * g0.z + nb[7].rgb * g0.w + nb[9].rgb * g1.x + nb[11].rgb * g1.y + nb[13].rgb * g1.z + nb[15].rgb * g1.w;
+    return nebMat(q, dens, e, nz);
 }
 // 道のり t0 〜 t1 の間の星雲を、手前から重ねる（col・T を更新）。jit：画素ごとのずらし（刻みの縞を目立たせない）
 inline void nebSeg(float t0, float t1, float4 p0, float4 v, thread const NebRay& nr, float jit, constant float4* nb, texture3d<float> nz, constant Uni& u, thread float3& col, thread float& T, thread float3& nacc, float w) {
@@ -846,7 +851,7 @@ inline float4 sceneMain(VOut in, constant Uni& u, constant Mk* mk, constant floa
         for (int ph = 0; ph < 11 && !end && !done; ph++) {
             int m = m0 + ph; bool dec = gmod(float(m), 2.0) < 0.5;
             if (float(m) * PI - s0 > u.shCut) break;
-            for (int k = 0; k < 41; k++) {
+            for (int k = 0; k < 121; k++) {
                 if (k >= nTot) break;
                 int i = dec ? k : nTot - 1 - k;
                 float wc = sh[i].x;

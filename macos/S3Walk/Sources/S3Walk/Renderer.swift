@@ -113,6 +113,13 @@ struct Settings {
     var shAxX = true, shAxY = true, shAxZ = true, shAxW = true   // 軸の色の時に、どの軸の殻を出すか
     var uniL = 0.0              // 宇宙の大きさ：S³ の半径 R ＝ 10^uniL（1〜1000 倍。ウェブ版の uniL）。場所は角度のまま、歩く速さ・目印の見かけは 1/R、距離・もやは R 倍。殻の網目の太さは変わらない
     var uniR: Double { pow(10, max(0, min(3, uniL))) }
+    var uniSpeed = false        // 速さを宇宙に合わせる：宇宙を ×17（log₁₀ R ＝ 1.24）より大きくしても、1 周にかかる時間はその時のまま（速さを R に合わせて上げる）。景色の細かさだけ広くなる
+    static let uniSpeedR = pow(10.0, 1.24)
+    /// 進む角度を決める宇宙の大きさ：速さを宇宙に合わせる時は ×17 で頭打ち（それより大きい宇宙でも、進む角度は ×17 の時と同じ）
+    var moveR: Double { uniSpeed ? min(uniR, Settings.uniSpeedR) : uniR }
+    var shellUni = false        // 殻を宇宙に合わせる（実験）：宇宙が ×17 より大きい分だけ球層の殻を増やす（層数 × R ÷ 17。最大 61）。殻と殻の間がスカスカにならない
+    /// 実際に描く殻の数：殻を宇宙に合わせる時は R に比例して増やす（地図は 21 まで）
+    var shellNEff: Int { shellUni ? min(61, Int((Double(shellN) * max(1, uniR / Settings.uniSpeedR)).rounded())) : shellN }
     var nebula = true           // 宇宙の時、S³ に浮かぶ星雲（色のついたガス）
     var nebK = 1.0              // 星雲の濃さ
     var cine = true             // 映画のような光：明るさを切らずに描き（HDR）、あふれる光（ブルーム）を足し、色を締める（トーンマップ）。false でウェブ版と同じ絵
@@ -173,7 +180,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     private(set) var padRun = 1.0
     /// 最後に歩いた向きと時刻（地図の黄色の円すいが、歩いている間はこの向きを指す。ウェブ版の W.lastDir）
     var lastDir: V4?, lastDirT = 0.0
-    var railCache: (key: String, pts: [V4]) = ("", [])                  // 先に描く道（railPath。道を変えた時だけ作り直す）
+    var railCache: (key: String, pts: [V4]) = ("", [])                  // 先に描く道（railPath。道を始めた時だけ作り直す）
+    var railGen = 0                                                     // 先に描く道を作り直すたびに進む（同じ点の数でも、別の線だと分かるように）
     var planCache: (frame: Int, pts: [V4]) = (-1, [])   // 決まった道・自分の道の、これから先の道（plannedPath。歩いたコマごとに 1 回だけ作る）
     /// 前を見ている途中（leveling：見回しを 0 へ。levelEl なら仰角も 0 へ）・この向きへ進む途中（headGoing）
     private(set) var leveling = false, levelEl = false, headGoing = false
@@ -260,6 +268,10 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     private var padHold = 0.0, padPushWas = false
     /// 自走（歩き続ける）の速さの倍率・巻き戻し中か・巻き戻しの速さ（左スティックの前後で。アクセル・ブレーキ・巻き戻し）
+    var lastMode = PathMode.none, lastRoute: CustomRoute? = nil, lastFlow = false, lastChk = true   // 道の設定：最後に歩き始めた道（「歩く」「最初から」がこれを使う）
+    var coastOn = false, meriK = 0.0, topK = 1.6                       // ジェットコースター・直線と曲がり角のメリハリ（0 で一定）・直線の上限
+    private(set) var coastM = 1.0, coastA = 0.0, kapS = 0.0            // 速さの倍率（全体の平均が 1）・加速・道の曲がり具合
+    private var shapeM = 1.0, shapeAvg = 1.0, planT = 9.0, lastF: V4?
     var autoSpeed = 1.0; private(set) var rewinding = false, rewindSpeed = 0.0
     private var walkingWas = false, padThrottle = 0.0
     /// A・B の踏み込み（0〜1）：スティックを倒すように、押すとだんだん入り、離すとだんだん抜ける（ボタンで一瞬カクつかないように）
@@ -461,7 +473,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         if Renderer.noCut { u.shCut = Float(set.shellRange) }     // 計測用（打ち切りなしと比べる。S3_NOCUT=1）
         u.shMin = Float(shellMinTheta)                              // いちばん内側の殻（極の玉より外に。ウェブ版の shellMinTheta）
         u.shellLum = Float(set.shellLum); u.gridSt = Float(set.grand ? Double.pi / 36 : Double.pi / 12)
-        u.shellN = Int32(max(2, min(21, set.shellN))); u.shell = set.shell ? 1 : 0
+        u.shellN = Int32(max(2, min(61, set.shellNEff))); u.shell = set.shell ? 1 : 0
         u.shellSolid = set.shellSolid ? 1 : 0; u.shellBare = set.shellBare ? 1 : 0; u.eq = set.eq ? 1 : 0
         u.passes = Int32(set.passes) | Int32(max(8, min(60, set.shCap)) << 8); u.orient = set.orient ? 1 : 0; u.lite = set.lite ? 1 : 0; u.webTies = set.webTies ? 1 : 0
         u.glow = Float(set.glow); u.edr = Float(edrBoost)
@@ -481,7 +493,7 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     /// 殻の表：i 番目の殻の w の値（±cos θ）と色（ウェブ版のシェーダーの shellW・shellCol と同じ式を、1 コマに 1 回だけ）
     func shellTable() -> [SIMD4<Float>] {
-        let n = max(2, min(21, set.shellN)), shMin = shellMinTheta
+        let n = max(2, min(61, set.shellNEff)), shMin = shellMinTheta
         func hsl2rgb(_ h: Double, _ s: Double, _ l: Double) -> SIMD3<Double> {
             func ch(_ o: Double) -> Double { let x = (h * 6 + o).truncatingRemainder(dividingBy: 6); return min(1, max(0, abs((x < 0 ? x + 6 : x) - 3) - 1)) }
             let rgb = SIMD3(ch(0), ch(4), ch(2))
@@ -707,12 +719,49 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // ---- 歩く（ウェブ版の loop の一部）----
     /// さんぽの画面が描かれていない時（iPad で 4D 球アナロジーを全画面で出している時など）に、ほかの画面から歩く計算を進める。
+    ///   さんぽの窓を止めている間（walkShut）も、超球の画面のコマごとにここで進める（別々の時計だと、絵の 1 コマごとの進みが不ぞろいになる）。
     ///   さんぽの画面が描いている間は何もしない（2 重に進めない）
     func driveIfIdle() {
         let now = CACurrentMediaTime()
-        guard now - drawT > 0.12 else { return }
-        let dt = min(0.05, now - lastT); lastT = now
+        guard HyperLabState.walkShut || now - drawT > 0.12 else { return }
+        let dt = min(0.1, now - lastT); lastT = now                        // 重い画面（10 fps まで）でも速さは落とさない
         step(dt); frameCount += 1
+    }
+    /// 速さのメリハリ：設定の速さは全体の平均。直線で上限へ近づき（近いほど加速がゆるむ＝空気の抵抗）、決まった道はカーブの手前で減速する。
+    ///   高さ（コースター）も掛ける。倍率の時間平均を 45 秒ほどで 1 へ戻すので、平均の速さは設定のまま
+    private func shapeSpeed(_ dt: Double) {
+        guard (coastOn || meriK > 0), walking || pathMode != .none, !rewinding, dt > 0 else {
+            coastM += (1 - coastM) * (1 - exp(-dt * 3)); coastA = 0; lastF = nil; shapeM = 1; shapeAvg = 1; kapS = 0; return
+        }
+        if meriK > 0 {
+            if pathMode != .none {
+                planT += dt
+                if planT >= 0.1 {                                          // 先の道の曲がり具合を 1 秒に 10 回見る（走り抜ける 1 秒ぶん先まで）
+                    planT = 0
+                    let pts = plannedPath(), la = 0.9 * set.spd * coastM * pathSpeed / set.moveR * 1.0
+                    var k = 0.0, i = 0, d = 0.0
+                    while i + 8 < pts.count && d <= la {
+                        let a = pts[i + 4] - pts[i], b = pts[i + 8] - pts[i + 4], l = simd_length(a) * simd_length(b)
+                        if l > 1e-12 { let th = acos(max(-1, min(1, dot4(a, b) / l))), c = th / max(1e-6, simd_length(a)); k = max(k, (max(0, c * c - 1)).squareRoot()) }
+                        d += simd_length(a); i += 4
+                    }
+                    kapS = k
+                }
+            } else {
+                let f = cam.w.f
+                if let f0 = lastF {
+                    let d0 = f - f0, df = d0 - cam.w.p * dot4(d0, cam.w.p), ds = max(1e-6, 0.9 * set.spd * coastM * autoSpeed * dt / set.moveR)
+                    kapS += (simd_length(df) / ds - kapS) * (1 - exp(-dt * 6))
+                }
+                lastF = f
+            }
+        }
+        let t = max(0, min(1, (kapS - 0.9) / 1.9)), straight = 1 - t * t * (3 - 2 * t), to = 0.72 + (topK - 0.72) * straight
+        shapeM += (to - shapeM) * (1 - exp(-dt * (to > shapeM ? 0.8 : 2.5)))    // 上限まで約 3.5 秒、減速は約 1 秒
+        let h = coastOn ? (0.2 + 0.9 * (1 - cam.w.p.w)).squareRoot() : 1
+        let raw = max(0.3, min(topK * 1.35, (1 + meriK * (shapeM - 1)) * h))
+        shapeAvg += (raw - shapeAvg) * (1 - exp(-dt / 45))
+        let m0 = coastM; coastM = raw / max(0.3, shapeAvg); coastA = (coastM - m0) / dt
     }
     func step(_ dt: Double) {
         // 安全装置：体の向きが計算できない値になったら、最後の正常な所へ戻して止まる（地図・景色・保存がみんな止まるので）
@@ -731,7 +780,8 @@ final class Renderer: NSObject, MTKViewDelegate {
         game.swapSticks = set.padSwap
         if set.turboHold { turboRelease() }
         if set.gridSpin && set.gridSpinRate != 0 { gridSpinAng = (gridSpinAng + dt * 2 * Double.pi * set.gridSpinRate / 60).truncatingRemainder(dividingBy: 2 * Double.pi) }   // 球層の網目の自転
-        var sp = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR   // 宇宙が大きいほど、同じ速さで進む角度は小さい
+        shapeSpeed(dt)
+        var sp = 0.9 * set.spd * coastM * dt * (shiftFast ? 3 : 1) / set.moveR   // 宇宙が大きいほど、同じ速さで進む角度は小さい（速さを宇宙に合わせる時は ×17 で頭打ち）
         var mv = SIMD3<Double>(0, 0, 0)
         if roaming { journey.roam(&cam, dt, set.roamK) }
         if pathMode != .none {                                   // 決まった道：自動で進む（キーで歩いたらやめる。コントローラーは B でやめる）
@@ -756,7 +806,7 @@ final class Renderer: NSObject, MTKViewDelegate {
                     if abs(cam.hy) < 0.05 && abs(cam.hp) < 0.05 { cam.hy = 0; cam.hp = 0; leveling = false }
                 }
                 cam.clampAngles(free: set.free360)
-                var ds = 0.9 * set.spd * dt * (shiftFast ? 3 : 1) / set.uniR * pathSpeed
+                var ds = 0.9 * set.spd * coastM * dt * (shiftFast ? 3 : 1) / set.moveR * pathSpeed
                 // 速い時も道からはずれないよう、0.02 ずつに分けて進む
                 while ds > 1e-12 && pathMode != .none { let h = min(ds, 0.02); if pathMode == .custom { crStep(h) } else if pathMode.isTurn { turnStep(h) } else { pathStep(h) }; ds -= h }
                 return
@@ -866,7 +916,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             if aLo > 0.02 && brk > 0 { autoSpeed = max(aLo, autoSpeed) }      // 最低速を決めている時は、ブレーキでもそこまで
             sp *= autoSpeed
         } else { rewinding = false }
-        if rewinding { rewindStep(0.9 * set.spd * dt * max(0.3, rewindSpeed) / set.uniR) }
+        if rewinding { rewindStep(0.9 * set.spd * dt * max(0.3, rewindSpeed) / set.moveR) }
         // W（または歩き続ける・縦横無尽）。自動で進んでいる時に左スティックを倒すと、自動の前進はスティックに入れかわる
         //   （手前に倒すと後ろへ。足し合わせると前後が打ち消し合い、残った少しの横の傾きが全速の横歩きになってしまっていた）
         let keyWalk = keys.contains(where: { [13, 1, 0, 2, 12, 14].contains($0) })
@@ -1150,7 +1200,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         guard let path = Renderer.camLog else { return }
         func f(_ v: V4) -> String { String(format: "%.4f,%.4f,%.4f,%.4f", v.x, v.y, v.z, v.w) }
         let c = cam.w, t = String(format: "%.1f", Date().timeIntervalSince1970)
-        let line = "\(t) p \(f(c.p)) f \(f(c.f)) r \(f(c.r)) u \(f(c.u)) az \(cam.az) el \(cam.el) uniL \(set.uniL) fog \(set.fog) fade \(set.fade) fov \(set.fov) maxD \(set.maxD) space \(set.space) shell \(set.shell) solid \(set.shellSolid) bare \(set.shellBare) range \(set.shellRange) op \(set.shellOp) cine \(set.cine) bloom \(set.bloom) expo \(set.expo) stars \(set.stars) quiet \(set.quiet) scale \(set.scale) sceneScale \(sceneScale) idle \(idle) skip \(skipEncode) shut \(HyperLabState.walkShut) path \(pathMode) size \(w)x\(h)\n"
+        let line = "\(t) coast \(coastM) kap \(kapS) p \(f(c.p)) f \(f(c.f)) r \(f(c.r)) u \(f(c.u)) az \(cam.az) el \(cam.el) uniL \(set.uniL) fog \(set.fog) fade \(set.fade) fov \(set.fov) maxD \(set.maxD) space \(set.space) shell \(set.shell) solid \(set.shellSolid) bare \(set.shellBare) range \(set.shellRange) op \(set.shellOp) cine \(set.cine) bloom \(set.bloom) expo \(set.expo) stars \(set.stars) quiet \(set.quiet) scale \(set.scale) sceneScale \(sceneScale) idle \(idle) skip \(skipEncode) shut \(HyperLabState.walkShut) path \(pathMode) size \(w)x\(h)\n"
         guard let d = line.data(using: .utf8) else { return }
         if let h = FileHandle(forWritingAtPath: path) { _ = try? h.seekToEnd(); try? h.write(contentsOf: d); try? h.close() } else { FileManager.default.createFile(atPath: path, contents: d) }
     }
@@ -1159,8 +1209,11 @@ final class Renderer: NSObject, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) { drawSize = size }
 
     func draw(in view: MTKView) {
-        let now = CACurrentMediaTime(); gapRun = max(gapRun, (now - lastT) * 1000); let dt = min(0.05, now - lastT); lastT = now; drawT = now
-        step(dt)
+        let now = CACurrentMediaTime(); gapRun = max(gapRun, (now - lastT) * 1000); drawT = now
+        if !HyperLabState.walkShut || now - lastT > 0.12 {                 // さんぽの窓を止めている間は driveIfIdle が進める（超球の画面も止まっていたら、ここで）
+            let dt = min(HyperLabState.walkShut ? 0.2 : 0.05, now - lastT); lastT = now
+            step(dt)
+        }
         let w = Int(view.drawableSize.width), h = Int(view.drawableSize.height)
         if Renderer.camLog != nil, now - camLogT > 2 { camLogT = now; writeCamLog(w, h) }
         // 4D 球アナロジーで「さんぽの窓は止める」：真っ黒を 1 回だけ出して、あとは描かずにコマだけ進める（景色の画面・ダイブが描き直すように）

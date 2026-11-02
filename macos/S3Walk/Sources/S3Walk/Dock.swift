@@ -662,6 +662,9 @@ struct PanelContent: View {
                 if r.set.lens != 2 { row("視野角", \.fov, 30, r.set.lens == 1 ? 360 : 150, "%.0f°") }
                 row("光の距離", \.maxD, 1, 6.4)
                 row("宇宙の大きさ（log₁₀ R）", \.uniL, 0, 3)
+                Toggle("速さを宇宙に合わせる（×17 より大きくしても 1 周の時間はそのまま。景色の細かさだけ広く）", isOn: model.b(\.uniSpeed))
+                Toggle("殻を宇宙に合わせる（実験：×17 より大きい分だけ球層を増やす。層数 × R ÷ 17、最大 61。超球の窓も 61 まで、地図は 21 まで）", isOn: model.b(\.shellUni))
+                if r.set.shellUni && r.set.shellNEff != r.set.shellN { note("いまの殻の数：\(r.set.shellNEff)（さんぽ）・\(min(21, r.set.shellNEff))（地図）") }
                 if r.set.uniL > 0.01 { note(String(format: "半径 ×%@・1 周 2πR ≈ %.0f。場所は角度のまま、同じ速さで進む角度は 1/R、目印は 1/R に小さく見え、もやは決まった距離でかかる。殻の網目の太さは変わらない（ウェブ版と同じ）", r.set.uniR < 10 ? String(format: "%.1f", r.set.uniR) : String(format: "%.0f", r.set.uniR), 2 * Double.pi * r.set.uniR)) }
                 row("もや", \.fog, 0, 0.6)
                 if !r.set.space { row("もやの明るさ", \.hazeK, 0, 1) }

@@ -44,6 +44,7 @@ struct PathWalk {
 extension Renderer {
     /// 決まった道を歩き始める（アナ極から）
     func startPath(_ m: PathMode) {
+        lastMode = m; lastRoute = nil; railCache.key = ""
         pathSpeed = max(0.1, set.routeStart)                 // 出発の速さ（パネルの「出発の速さ」）
         if m == .tour && (set.tourFlow || set.tourShow) { startTourFlow(show: set.tourShow); return }   // 極めぐり「極を踏む」「ショー」
         if m.isTurn { startTurn(m); return }
@@ -95,10 +96,10 @@ extension Renderer {
 extension Renderer {
     /// 決まった道・自分の道（巡回）の、これから先の道（S³ の上の点。今いる所から ahead の長さまで、every おき）。
     ///   歩く仕組みをそのまま、こっそり先まで進めて調べる（言葉・震え・チェックの光は出さず、終わったら全部元に戻す）。歩いたコマごとに 1 回だけ作る
-    /// 先に描く道（レール）：今の道の 1 周ぶん。重いので道を変えた時だけ作って覚える（歩いている本体は動かさない）
+    /// 先に描く道（レール）：今の道の 1 周ぶん。重いので、道を始めた時と、素通りの入りが終わった時だけ作って覚える（歩いている本体は動かさない）
     func railPath() -> [V4] {
         guard pathMode != .none else { return [] }
-        let key = "\(pathMode.rawValue) \(cr.routeID?.uuidString ?? "") \(cr.title) \(cr.pts.count) \(cr.flow != nil) \(set.tourFlow) \(set.tourShow)"
+        let key = "\(pathMode.rawValue) \(cr.routeID?.uuidString ?? "") \(cr.title) \(cr.pts.count) \(cr.flow != nil) \(cr.flowIn != nil) \(set.tourFlow) \(set.tourShow)"
         if railCache.key == key { return railCache.pts }
         let s0 = (cam, journey, cr, turn, path, pathMode, lastDir, lastDirT), pulse = Journey.hitPulse, sy = say, hap = set.haptics
         say = nil; set.haptics = false
@@ -112,7 +113,7 @@ extension Renderer {
         (cam, journey, cr, turn, path, pathMode, lastDir, lastDirT) = s0
         Journey.hitPulse = pulse; say = sy; set.haptics = hap
         let stride = max(1, raw.count / 3000), out = Swift.stride(from: 0, to: raw.count, by: stride).map { raw[$0] } + [raw[raw.count - 1]]   // 多い時は間引く
-        railCache = (key, out)
+        railCache = (key, out); railGen &+= 1
         return out
     }
     func plannedPath(ahead: Double = 2.6, every: Double = 0.02) -> [V4] {

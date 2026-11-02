@@ -27,6 +27,13 @@ enum Verify {
         wipeChecks(nil)
         lightChecks(nil)
         wmapChecks(nil)
+        do {
+            var s = Settings(); s.uniL = 2
+            let r0 = s.moveR; s.uniSpeed = true; let r1 = s.moveR; s.uniL = 1; let r2 = s.moveR; s.uniL = 1.24; let r3 = s.moveR
+            var t = Settings(); t.shellN = 11; t.uniL = 2; let e0 = t.shellNEff; t.shellUni = true; let e1 = t.shellNEff; t.uniL = 1; let e2 = t.shellNEff; t.uniL = 3; let e3 = t.shellNEff
+            check(e0 == 11 && e1 == 61 && e2 == 11 && e3 == 61, "殻を宇宙に合わせる：×100 で 11 × 100 ÷ 17 ≒ 63 → 61 で頭打ち、×10 はそのまま（\(e0)・\(e1)・\(e2)・\(e3)）")
+            check(r0 == 100 && abs(r1 - Settings.uniSpeedR) < 1e-9 && r2 == 10 && abs(r3 - Settings.uniSpeedR) < 1e-9, "速さを宇宙に合わせる：×100 でも進む角度は ×17 の時のまま、×10 はそのまま（\(String(format: "%.1f・%.1f・%.1f・%.1f", r0, r1, r2, r3))）")
+        }
         print("== パネルのドック（並べかえ・たたみ・保存）==")
         dockChecks()
         print("== スライダー（数字の入力・矢印キー）==")
@@ -71,15 +78,84 @@ enum Verify {
             let fast = s.renderTest(seconds: 1, speed: 1, zoom: 0), dive = s.renderTest(seconds: 1, speed: 1, zoom: 1)
             let bell = s.renderTest(seconds: 1, speed: 0, zoom: 1, chimeAt: 0.2), bellFar = s.renderTest(seconds: 1, speed: 0, zoom: 0, chimeAt: 0.2)
             let turn = s.renderTest(seconds: 1, speed: 1, zoom: 1, turn: 1)
+            let wind = s.renderTest(seconds: 1, speed: 0.75, zoom: 1)
+            check(bell.peak > wind.rms * 1.2, String(format: "音：チャイムの山が走る音の大きさより上にある（チャイム %.2f・走る音 %.2f）", bell.peak, wind.rms))
+            let farFull = s.renderTest(seconds: 1, speed: 0.7, zoom: 1), farSoft = s.renderTest(seconds: 1, speed: 0.7, zoom: 1, fade: 0.2), farOld = s.renderTest(seconds: 1, speed: 0.7, zoom: 0)
+            check(farSoft.rms > farOld.rms * 1.5 && farSoft.rms < farFull.rms * 0.6, "ダイブの外の走る音は、ダイブより小さく、今までの外の音より聞こえる（ダイブ \(String(format: "%.3f", farFull.rms))・外 \(String(format: "%.3f", farSoft.rms))・今まで \(String(format: "%.3f", farOld.rms))）")
             s.tune(height: 0, place: 0, bass: 2.5); let boost = s.renderTest(seconds: 1, speed: 1, zoom: 1); s.tune(height: 0, place: 0, bass: 1)
             check(boost.rms > dive.rms * 1.02 && boost.peak <= 1, "音：低音を強くすると大きくなり、割れない（\(dive.rms) → \(boost.rms)）")
-            s.tune(height: 0, place: 0, bass: 1, phones: true); let hp = s.renderTest(seconds: 1, speed: 1, zoom: 1); s.tune(height: 0, place: 0, bass: 1)
-            check(hp.rms > dive.rms && hp.peak <= 0.99, "音：ヘッドホン用はガラララが強くなり、割れない（\(dive.rms) → \(hp.rms)、山 \(hp.peak)）")
+            s.tune(height: 0, place: 0, bass: 1, phones: true); let hp = s.renderTest(seconds: 1, speed: 1, zoom: 1), hp7 = s.renderTest(seconds: 1, speed: 0.7, zoom: 1)
+            s.tune(height: 0, place: 0, bass: 1, rough: 0, phones: true); let hp0 = s.renderTest(seconds: 1, speed: 0.7, zoom: 1); s.tune(height: 0, place: 0, bass: 1)
+            check(abs(hp7.rms - hp0.rms) > 0.001 && hp.peak <= 0.99, "音：ヘッドホン用はガラララが鳴り、割れない（なし \(hp0.rms) → あり \(hp7.rms)、最高速の山 \(hp.peak)）")
             s.tune(height: 0, place: 0, bass: 1, rush: 1); let rs = s.renderTest(seconds: 1, speed: 1, zoom: 1); s.tune(height: 0, place: 0, bass: 1)
             var ru = 0.0; for _ in 0..<420 { ru = HyperSound.rushStep(ru, swing: 0.02, speed: 1, dt: 1.0 / 60) }
             let ruUp = ru; for _ in 0..<90 { ru = HyperSound.rushStep(ru, swing: 0.5, speed: 1, dt: 1.0 / 60) }
             let aimOK = HyperSound.poleAim(SIMD4(0, 0, 1, 0), SIMD4(0, 0, 0, 1)) > 0.99 && HyperSound.poleAim(SIMD4(0, 0, 1, 0), SIMD4(1, 0, 0, 0)) < 0.01
             check(aimOK && rs.rms > dive.rms && rs.peak <= 0.99 && ruUp > 0.85 && ru < 0.05, "音：直線で伸びて、曲がると戻る（\(dive.rms) → \(rs.rms)、山 \(rs.peak)、7 秒で \(String(format: "%.2f", ruUp))、カーブ 1.5 秒で \(String(format: "%.2f", ru))）")
+            do {   // 空気：ナビエ・ストークスの渦とコースター
+                let ar = AirSim(); var ls: [Float] = []
+                for i in 0..<600 { ar.tick(speed: 0.6, cross: 0); if i >= 240 { ls.append(ar.lift) } }
+                let me = ls.reduce(0, +) / Float(ls.count); var zc = 0
+                for i in 1..<ls.count where (ls[i - 1] - me) * (ls[i] - me) < 0 { zc += 1 }
+                let al = AirSim(); var lp: Float = 0, ln: Float = 0
+                for _ in 0..<420 { al.tick(speed: 0.6, cross: 0.6); lp += al.lift }; for _ in 0..<420 { al.tick(speed: 0.6, cross: -0.6); ln += al.lift }
+                var hiM = 0.0, loM = 0.0, peak = 0.0, sum = 0.0, n = 0.0
+                if let cr = Renderer(device: MTLCreateSystemDefaultDevice()!) {
+                    cr.resetNorth(); cr.walking = true; cr.autoSpeed = 1; cr.coastOn = true
+                    for _ in 0..<300 { cr.cam.w.p = SIMD4(0, 0, 0, 1); cr.step(1.0 / 60) }; hiM = cr.coastM
+                    for _ in 0..<300 { cr.cam.w.p = SIMD4(0, 0, 0, -1); cr.step(1.0 / 60) }; loM = cr.coastM
+                    cr.coastOn = false; cr.meriK = 1; cr.topK = 1.6; cr.resetNorth(); cr.walking = true; cr.autoSpeed = 1; for _ in 0..<60 { cr.step(1.0 / 60) }
+                    for i in 0..<21600 { cr.step(1.0 / 60); peak = max(peak, cr.coastM); if i > 7200 { sum += cr.coastM; n += 1 } }   // まっすぐ 6 分
+                }
+                check(zc >= 6 && lp > 0 && ln < 0 && hiM < 0.6 && loM > 1.1 && peak < 1.6 && abs(sum / max(1, n) - 1) < 0.12, "空気：カルマン渦で揚力がゆれ（\(zc / 2) 往復）、横風の向きで力が変わる。コースターはアナ極で ×\(String(format: "%.2f", hiM))・カタ極で ×\(String(format: "%.2f", loM))。直線の最高は ×\(String(format: "%.2f", peak))で上がり続けず、平均 ×\(String(format: "%.2f", sum / max(1, n)))")
+            }
+            do {   // らくらく書き出し：周の道のりを測る
+                let ex = VideoExport.shared, kp = ex.genPath, set0 = Settings()
+                ex.genPath = PathMode.tour.rawValue
+                let l1 = MTLCreateSystemDefaultDevice().map { ex.lapDistance($0, set0).0 ?? 0 } ?? 0
+                ex.genPath = kp
+                let mg = EasyExport.merged([[0.1, 0.3], [0.5, 0.7]], 0.25, 0.55), mg2 = EasyExport.merged([[0.1, 0.3]], 0.6, 1)
+                check(mg == [[0.1, 0.7]] && mg2 == [[0.1, 0.3], [0.6, 1]], "らくらく書き出し：ダイブの区間は重なるとまとまり、離れていれば別の区間のまま")
+                let rm = EasyExport.removed([[0, 1]], 0.3, 0.5), rm2 = EasyExport.removed(rm, 0.7, 0.8), rm3 = EasyExport.removed([[0.35, 0.45], [0.6, 0.8]], 0.3, 0.5)
+                let fl = EasyExport.flipped([[0.1, 0.3], [0.6, 1]], at: 0.2), fl2 = EasyExport.flipped([[0.1, 0.3], [0.6, 1]], at: 0.4), fl3 = EasyExport.flipped([], at: 0.4)
+                check(rm == [[0, 0.3], [0.5, 1]] && rm2 == [[0, 0.3], [0.5, 0.7], [0.8, 1]] && rm3 == [[0.6, 0.8]], "らくらく書き出し：ダイブなしを塗ると、ダイブの区間が分かれて何か所でも入る")
+                check(fl == [[0.6, 1]] && fl2 == [[0.1, 1]] && fl3 == [[0, 1]], "らくらく書き出し：バーを押すと、その区間の色が反対になる")
+                check(l1 > 3, "らくらく書き出し：1 周の道のりを測れる（\(String(format: "%.2f", l1))）。小数の周はこの道のりで止める")
+            }
+            do {   // 道の保存と呼び出し
+                var ok = false
+                if let cr = Renderer(device: MTLCreateSystemDefaultDevice()!) {
+                    cr.startTourFlow(show: true)
+                    let rt = cr.savableRoute, one = rt.map { RouteStore.merged([], name: "朝の道", $0) }, two = one.flatMap { o in rt.map { RouteStore.merged(o.routes, name: "朝の道", $0) } }
+                    let three = two.flatMap { o in rt.map { RouteStore.merged(o.routes, name: "夜の道", $0) } }
+                    let data = (try? JSONEncoder().encode(three?.routes ?? [])) ?? Data(), back = (try? JSONDecoder().decode([CustomRoute].self, from: data)) ?? []
+                    if let s = one?.saved { cr.stopWalking(); cr.pickRoute(s); cr.walkFromHere() }
+                    ok = rt?.flow == true && two?.routes.count == 1 && two?.saved.id == one?.saved.id && back.count == 2 && back[0].flow == true && cr.pathMode == .custom && cr.cr.title == "朝の道"
+                }
+                check(ok, "道の保存：今の道を名前で保存（同じ名前は入れかえ、別の名前は足す）。保存の形で戻せて、呼び出して歩ける")
+            }
+            do {   // さんぽの歩く・停止・最初から
+                var ok = false, gap = 9.0
+                if let cr = Renderer(device: MTLCreateSystemDefaultDevice()!) {
+                    cr.startTourFlow(show: true); for _ in 0..<600 { cr.step(1.0 / 60) }
+                    cr.stopWalking(); let stopped = cr.pathMode == .none, here = cr.cam.w.p, lap0 = cr.journey.lap
+                    cr.walkFromHere(); cr.step(1.0 / 60); gap = acos(max(-1, min(1, dot4(here, cr.cam.w.p))))
+                    let walked = cr.pathMode == .custom && cr.lastRoute?.pts.first?.p == Renderer.tourPoints(show: true).first?.p
+                    for _ in 0..<120 { cr.step(1.0 / 60) }
+                    cr.restartRoute(); let atStart = cr.cam.w.p.w > 0.999 && cr.pathMode == .custom && cr.journey.lap == 1
+                    ok = stopped && walked && gap < 0.05 && atStart && lap0 >= 1
+                }
+                check(ok, "さんぽ：停止で止まり、歩くでその場から道を作り直し（飛び \(String(format: "%.3f", gap))）、最初からで ① に戻る")
+            }
+            do {   // 極のドップラー：アナ極へ近づくと高く前から、離れると低く後ろから。カタ星は前後が反対
+                let ed = sin(0.3), ec = cos(0.3), R = SIMD4<Double>(1, 0, 0, 0), U = SIMD4<Double>(0, 1, 0, 0)
+                let pA = SIMD4<Double>(0, 0, ed, ec), hIn = SIMD4<Double>(0, 0, -ec, ed)
+                let inA = HyperSound.flyPass(pA, head: hIn, right: R, up: U, feel: 1), outA = HyperSound.flyPass(pA, head: -hIn, right: R, up: U, feel: 1)
+                let pK = SIMD4<Double>(0, 0, ed, -ec), hK = SIMD4<Double>(0, 0, -ec, -ed), inK = HyperSound.flyPass(pK, head: hK, right: R, up: U, feel: 1)
+                let far = HyperSound.flyPass(SIMD4(0.70710678, 0, 0, 0.70710678), head: SIMD4(-0.7, 0, 0.7, 0), right: R, up: U, feel: 1)
+                let quiet = s.renderTest(seconds: 1, speed: 0.5, zoom: 1), loud = s.renderTest(seconds: 1, speed: 0.5, zoom: 1, fly: 1.5)
+                check(inA.hz > outA.hz * 1.5 && inA.at.z < 0 && outA.at.z > 0 && inK.at.z > 0 && inK.amp > 0.5 && far.amp < 0.01 && loud.rms > quiet.rms && loud.peak <= 1.2, "星の音：アナ極へ近づくと高く前から（\(Int(inA.hz)) Hz）、離れると低く後ろから（\(Int(outA.hz)) Hz）、カタ星は近づく時に後ろから、遠いと鳴らず、割れない（山 \(loud.peak)）")
+            }
             let spR = s.renderTest(seconds: 1, speed: 1, zoom: 1, at: SIMD3(1.5, 0, 0)), spL = s.renderTest(seconds: 1, speed: 1, zoom: 1, at: SIMD3(-1.5, 0, 0))
             check(spR.rmsR > spR.rms * 1.1 && spL.rms > spL.rmsR * 1.1 && spR.peak < 1,   // 低い音が多いので、左右の差は 1 割ほど（低い音ほど耳の差が小さい。高いパチパチを消したので前より小さい）
                   String(format: "空間オーディオ：右から鳴らすと右の耳 %.3f > 左 %.3f、左から鳴らすと左 %.3f > 右 %.3f（割れない）", spR.rmsR, spR.rms, spL.rms, spL.rmsR))
@@ -206,6 +282,172 @@ enum Verify {
             }
             r.resetNorth()
             check(fixedOK, "壊れた体の向きが保存されていても、読み直す時に今いる所から作り直す")
+        }
+        // 切りかえの順番：左をすばやく黒くする → 右の画面が変わる → 左の中身を入れかえて出す。ぱっと切りかえる時も左は黒を通る
+        do {
+            let s0 = HyperLabState(), dt = 1.0 / 60; s0.diveOn = true
+            func order() -> Bool {
+                let z0 = s0.diveT, p0 = s0.paneDive
+                func run(_ n: Int) { for _ in 0..<n { s0.tickDive(dt) } }
+                let now = s0.paneBlack                                     // 押した瞬間から黒
+                run(5)
+                let first = now && s0.paneCover > 0 && s0.diveT == z0
+                run(10)
+                let black = s0.paneCover == 1, wait = s0.paneDive == p0
+                run(30)
+                let zoom = s0.diveT != z0, dark = s0.paneCover == 1 && s0.paneDive == p0
+                var n = 0
+                while s0.diveT != (s0.diveOn ? 1 : 0) && n < 400 { run(1); n += 1 }
+                run(3)
+                let swapped = s0.paneDive != p0 && s0.paneCover == 1
+                run(40)
+                return first && black && wait && zoom && dark && swapped && s0.paneCover == 0 && !s0.paneBusy
+            }
+            let inOK = order()
+            s0.diveOn = false
+            let outOK = order()
+            func cut(_ on: Bool) -> Bool {                                 // ぱっと切りかえる：右はすぐ変わり、左は黒を通って入れかわる
+                let c = HyperLabState(); c.diveOn = !on; c.diveT = on ? 0 : 1; c.paneDive = !on
+                c.diveOn = on; c.diveT = on ? 1 : 0
+                let now = c.paneBlack
+                for _ in 0..<5 { c.tickDive(dt) }
+                let early = c.paneCover > 0 && c.paneCover < 1 && c.paneDive != on
+                var k = 0, black = false
+                while c.paneDive != on && k < 60 { c.tickDive(dt); black = c.paneCover == 1; k += 1 }
+                for _ in 0..<40 { c.tickDive(dt) }
+                return now && early && black && c.paneDive == on && c.paneCover == 0 && !c.paneBusy
+            }
+            let m = HyperLabState(); m.diveManual = true; m.diveOn = true; m.diveT = 0.6; m.tickDive(dt)   // スライダーを手で動かす間は、黒くしない
+            check(inOK && outOK && cut(true) && cut(false) && m.paneDive && m.paneCover == 0, "切りかえの順番：左をすばやく黒くする → 右の画面が変わる → 左の中身を入れかえて出す。入る時も出る時も同じ。ぱっと切りかえる時も左は黒を通る。スライダーを手で動かす時は、すぐ変わる")
+            let sz = HyperLabState(); sz.diveManual = true; sz.thirdK = 1; sz.showFrame = SIMD2(0.3, 0.2); sz.showRoll = 0.3
+            if let r = HyperLabRenderer(side: .right, state: sz, view: nil) {  // ズームの始まりと終わりで、カメラのずらしと傾きが飛ばない
+                sz.diveT = 0; let a = r.camBasis(); sz.diveT = 0.002; let b = r.camBasis()
+                check(simd_distance(a.0, b.0) < 0.01 && simd_distance(a.1, b.1) < 0.01, String(format: "ズームの端でカメラが飛ばない：ショーカメラの構図があっても %.4f", simd_distance(a.0, b.0)))
+            }
+            do {   // 渦の歌：流体の渦で音色が変わり、速いほど大きく、割れない
+                let ar = AirSim(); var r0: [Float] = [], r1: [Float] = []
+                for i in 0..<420 { ar.tick(speed: 0.7, cross: 0); if i == 360 { r0 = ar.ring() }; if i == 419 { r1 = ar.ring() } }
+                let moved = zip(r0, r1).map { abs($0 - $1) }.reduce(0, +) / 64
+                let snd = HyperSound.shared; snd.setScan(r1); snd.tune(height: 0, place: 0, bass: 1, song: 1, wind: 0)
+                let a = snd.renderTest(seconds: 1, speed: 0.4, zoom: 1), b = snd.renderTest(seconds: 1, speed: 0.8, zoom: 1, wav: ProcessInfo.processInfo.environment["S3_SONG_WAV"])
+                snd.tune(height: 0, place: 0, bass: 1, rush: 1, song: 1, wind: 0.5); let c = snd.renderTest(seconds: 1, speed: 0.8, zoom: 1); snd.tune(height: 0, place: 0, bass: 1)
+                check(moved > 0.05 && b.rms > a.rms * 1.2 && b.rms > 0.1 && c.peak <= 1, String(format: "渦の歌：渦で波形が動き（%.2f）、速いほど大きい（%.3f → %.3f）、風と直線を足しても山 %.2f で割れない", moved, a.rms, b.rms, c.peak))
+            }
+            do {   // 線路の音：かすかに鳴る
+                let snd = HyperSound.shared; snd.tune(height: 0, place: 0, bass: 1, rail: 1); snd.railTick()
+                let r = snd.renderTest(seconds: 0.3, speed: 0, zoom: 1); snd.tune(height: 0, place: 0, bass: 1)
+                check(r.peak > 0.02 && r.peak < 0.2, String(format: "線路の音：矢印を通るとかすかに鳴る（山 %.3f）", r.peak))
+            }
+            do {   // シースルー：左の絵の右端が、右の窓の左端のすぐ隣、反転する時は右の窓の右端のすぐ隣
+                let c0 = HyperLabRenderer.seeClipX(rw: 800, lw: 600, gap: 6, flip: false), c1 = HyperLabRenderer.seeClipX(rw: 800, lw: 600, gap: 6, flip: true)
+                let e = 1 + 2 * 6.0 / 800, w = 2 * 600.0 / 800
+                check(abs(c0.a * -e + c0.b - 1) < 1e-9 && abs(c0.a * (-e - w) + c0.b + 1) < 1e-9 && abs(c1.a * e + c1.b + 1) < 1e-9 && abs(c1.a * (e + w) + c1.b - 1) < 1e-9, "シースルー：左の絵は仕切りをはさんで右の窓の隣につながる（反転の時も）")
+                let sq = HyperLabState(); sq.seeThrough = true; sq.diveOn = true
+                var seen = false, swappedDark = false
+                for _ in 0..<500 { sq.tickDive(1.0 / 60); seen = seen || sq.paneSee; if sq.paneDive && sq.paneCover == 1 { swappedDark = true } }
+                check(seen && swappedDark && sq.paneDive && !sq.paneSee && sq.paneSeeA == 0 && !sq.paneBusy, "シースルー：変形の間だけ透かして、終わったら地図へ入れかえる")
+            }
+            do {   // 向きから作る道：方位・仰角の決まりと、アナの体の向きがそろう
+                func near(_ a: [Double], _ b: [Double]) -> Bool { zip(a, b).allSatisfy { abs($0 - $1) < 1e-9 } }
+                var c = Camera(); c.az = 30; c.el = 0
+                let l = c.lookFrame().L, d30 = RouteStore.dirPoint(az: 30, el: 0)
+                check(near(RouteStore.dirPoint(az: 0, el: 0), [1, 0, 0, 0]) && near(RouteStore.dirPoint(az: 90, el: 0), [0, 1, 0, 0]) && near(RouteStore.dirPoint(az: 45, el: -90), [0, 0, -1, 0]) && near(d30, [l[0], l[1], l[2], l[3]]), "向きから作る道：方位 0 が東、90 が北、仰角 −90 が地。アナの体の向きと同じ決まり")
+            }
+            do {   // 丸い大円のプリセット：どれも直交する 2 本の軸の面で、反対の点を通る 1 周
+                var ok = RouteStore.circles.count == 6
+                for c in RouteStore.circles {
+                    let p = c.1.map { RouteStore.poles[$0].1 }
+                    func dot(_ a: [Double], _ b: [Double]) -> Double { zip(a, b).map { $0 * $1 }.reduce(0, +) }
+                    ok = ok && dot(p[0], p[1]) == 0 && dot(p[0], p[2]) == -1 && dot(p[1], p[3]) == -1 && dot(p[2], p[3]) == 0
+                }
+                check(ok, "丸い大円のプリセット：6 本とも直交する軸の面を 1 周する")
+                let fs = RouteStore.fullSet.map { RouteStore.poles[$0].1 }
+                var legs = true
+                for k in 0..<fs.count {
+                    let a = fs[k], b = fs[(k + 1) % fs.count]
+                    var d = 0.0
+                    for j in 0..<4 { d += a[j] * b[j] }
+                    if d != 0 { legs = false }
+                }
+                check(fs.count == 27 && fs.count <= RouteStore.maxPts && legs, "大円フルセット：6 本を 27 点で 1 周ずつ、どの区間も 90°")
+            }
+            do {   // 超球デモ：真正面で始まり、赤玉を表へ出して、真正面へ戻る
+                let p0 = HyperLabState.demoPose(0), p1 = HyperLabState.demoPose(24), p2 = HyperLabState.demoPose(HyperLabState.demoLen - 2), k = HyperLabState.demoKeys
+                var inc = true; for i in 1..<k.count where k[i][0] <= k[i - 1][0] { inc = false }
+                check(inc && p0[0] == 0 && p0[1] == 0 && abs(p1[0] + 90) < 1e-9 && p2[0] == 0 && p2[1] == 0 && HyperLabState.demoLen > 55 && HyperLabState.demoLen < 80, "超球デモ：真正面から赤玉を表へ出して、真正面へ戻る（約 1 分強）")
+            }
+            do {   // 超球（試作）：殻の広がり 2π²r³ を足すと超球の体積 π²/2。殻は 10 枚、最後の 0.1 まで
+                var sum = 0.0; let n = 20000
+                for i in 0..<n { let r = (Double(i) + 0.5) / Double(n); sum += 2 * .pi * .pi * r * r * r / Double(n) }
+                var w = 0.0
+                for i in 0..<n { let t = -1 + 2 * (Double(i) + 0.5) / Double(n); w += 4.0 / 3 * .pi * pow(1 - t * t, 1.5) * 2 / Double(n) }
+                let s = HyperLabState(); s.fillA = 0; let c = s.fillShells(); s.fillA = 1
+                check(abs(sum - HyperLabState.fillVolume(0)) < 1e-6 && abs(w - HyperLabState.fillVolume(0)) < 1e-5 && abs(HyperLabState.fillVolume(0.5) / HyperLabState.fillVolume(0) - 0.9375) < 1e-12 && c.count == 10 && s.fillShells().count == 1, String(format: "超球の積分：超球面の積み重ねも輪切りも π²/2（%.5f・%.5f）", sum, w))
+            }
+            do {   // 超立方体の 8 部屋：まっすぐ 4 部屋で元の所へ。辺のまわりは 3 部屋で、向きが 90° ずれる。部屋の中心は 8 つの極
+                var c = TWFrame.start; let c0 = c, n = TWFrame.move(&c, c.f, 8)
+                func near(_ a: SIMD4<Double>, _ b: SIMD4<Double>) -> Bool { simd_length(a - b) < 1e-9 }
+                let ring = n == 4 && near(c.p, c0.p) && near(c.f, c0.f) && near(c.u, c0.u) && near(c.r, c0.r)
+                var e = TWFrame(p: [0.5, 0.5, 0, 1], r: [0, -1, 0, 0], u: [0, 0, 1, 0], f: [1, 0, 0, 0], a: 3, s: 1)
+                var seen = [e.room], cross = 0
+                for d in [SIMD4<Double>(1, 0, 0, 0), [0, 1, 0, 0], [0, 0, 0, 1]] { cross += TWFrame.move(&e, d, 1); seen.append(e.room) }
+                let edge = cross == 3 && near(e.p, [0.5, 0.5, 0, 1]) && near(e.f, [0, 1, 0, 0]) && near(e.u, [0, 0, 1, 0]) && Set(seen).count == 3
+                let poles = (0..<4).allSatisfy { a in [1.0, -1.0].allSatisfy { s in FIXED[TWFrame(p: .zero, r: .zero, u: .zero, f: .zero, a: a, s: s).room].c[a] == s } }
+                var w = TWFrame.start, sane = true
+                for i in 0..<400 { let t = Double(i); w.turn(0.7 + sin(t), 0.4 * cos(t * 0.7)); _ = TWFrame.move(&w, w.f, 0.37); let q = [w.r, w.u, w.f]; for x in q { sane = sane && abs(simd_length(x) - 1) < 1e-9 && abs(x[w.a]) < 1e-9 }; sane = sane && abs(simd_dot(w.r, w.f)) < 1e-9 && abs(w.p[w.a] - w.s) < 1e-12 && max(abs(w.p.x), abs(w.p.y), abs(w.p.z), abs(w.p.w)) <= 1 + 1e-12 }
+                check(ring && edge && poles && sane, "超立方体の 8 部屋：まっすぐ 4 部屋で元の所・辺のまわりは 3 部屋で向きが 90° ずれる・部屋の中心は 8 つの極")
+            }
+            let g1 = HyperLabRenderer.arrowGap(ecd: 1, showK: 1, m0: 1), g2 = HyperLabRenderer.arrowGap(ecd: 3.4, showK: 3.4, m0: 1)
+            check(abs(g1 - g2) < 1e-9, "矢印の間隔：ショーカメラが引いても広がらない")
+            var z = 0.0, z35 = 0.0
+            for i in 0..<42 { z = HyperLabRenderer.soundFollow(z, to: 1, dt); if i == 20 { z35 = z } }
+            check(z35 > 0.5 && z35 < 0.9 && z > 0.95 && z < 1, String(format: "音のリゾルブ：ぱっと切りかえても 0.35 秒で %.2f、0.7 秒で %.2f と徐々に変わる", z35, z))
+        }
+        // 動画の時間のならし：走っている間に 0.2 秒止まっても、動画では止まらない
+        do {
+            func d(_ t: Double) -> Double { t < 5 ? t : t < 5.2 ? 5 : t - 0.2 }
+            func s(_ t: Double) -> Double { d(VideoExport.smoothTime(t, t0: 0, t1: 10, d)) }
+            var low = 9.0, raw = 9.0
+            for i in 0..<120 { let t = 4.4 + Double(i) / 60; low = min(low, (s(t + 1.0 / 60) - s(t)) * 60); raw = min(raw, (d(t + 1.0 / 60) - d(t)) * 60) }
+            check(raw < 0.01 && low > 0.45 && abs(VideoExport.smoothTime(2, t0: 0, t1: 10, d) - 2) < 1e-3, String(format: "動画の時間のならし：0.2 秒止まった所でも、いちばん遅くて %.2f 倍で進む。ふつうの所の時刻は変わらない", low))
+        }
+        // 地図の窓：ダイブの入り口（ズームがまだ小さい）から地図の見え方。ふつうの超球の絵にならない
+        do {
+            let s0 = HyperLabState()
+            if let ov = HyperLabRenderer(side: .right, state: s0, view: nil) {
+                ov.overview = true; ov.clockOverride = 100
+                s0.diveOn = true; s0.diveT = 0
+                let enter = ov.ovLive
+                s0.diveOn = false; s0.diveT = 0.05
+                let leave = ov.ovLive
+                s0.diveT = 0; ov.clockOverride = 200
+                check(enter && leave && !ov.ovLive, "地図の窓：ダイブに入った瞬間から出るまで地図の見え方（全部の窓が同じ絵にならない）")
+            }
+        }
+        // 先に描く道：反対側の 2 点の道は、走り直すたびに大円が変わる。線はいつも今の道に重なり、素通りの入りが終わると入りの切れ端が消える
+        do {
+            let rt = CustomRoute(name: "確かめ", pts: [0, 1].map { RoutePoint(p: RouteStore.poles[$0].1, name: RouteStore.poles[$0].0) })
+            func off(_ rail: [V4]) -> Double {
+                var worst = 0.0
+                r.planCache = (-1, []); for q in r.plannedPath(ahead: 2.0) { worst = max(worst, rail.map { simd_distance($0, q) }.min() ?? 9) }
+                return worst
+            }
+            r.set = .plain; r.resetNorth(); r.startCustom(rt, flow: true)
+            let g0 = r.railGen, r1 = r.railPath()
+            r.cam.w.f = V4(0, 1, 0, 0); r.cam.w.r = V4(1, 0, 0, 0); r.cam.w.u = V4(0, 0, 1, 0); r.cam.az = 0; r.cam.el = 0
+            r.cam.w.p = nrm(V4(0.6, 0, 0, 0.8)); orthoFrame(&r.cam.w)
+            r.startCustom(rt, flow: true)
+            let g1 = r.railGen, r2 = r.railPath(), o2 = off(r2), entering = r.cr.flowIn != nil
+            var n = 0
+            while r.cr.flowIn != nil && n < 2000 { r.crStep(0.02); n += 1 }
+            r.crStep(0.02)
+            let r3 = r.railPath(), o3 = off(r3)
+            let stub = r3.map { acos(max(-1, min(1, dot4($0, r2[0])))) }.min() ?? 0
+            let g2 = r.railGen
+            _ = r.railPath(); let g3 = r.railGen
+            check(r1.count > 100 && g0 + 1 <= g1 && o2 < 0.03 && entering && o3 < 0.03 && stub > 0.2 && g2 > g1 && g3 == g2,
+                  String(format: "先に描く道：走り直すと作り直して今の道に重なる（ずれ %.4f）。入りが終わると切れ端が消え（%.2f 離れる）今の道のまま（ずれ %.4f）、毎コマは作らない", o2, stub, o3))
+            r.pathMode = .none
         }
         // 予定の道：先の道を作っても、今の状態は変わらない（言葉も出ない）。そのあと実際に歩いた道は、予定の道に重なる
         do {
@@ -774,11 +1016,11 @@ enum Verify {
             st.pullLayers(); let a = st.layers
             walkN = 15; st.pullLayers(); let b = st.layers
             st.setLayers(7); let c = walkN
-            st.setLayers(30); let d = (st.layers, walkN)
+            st.setLayers(70); let d = (st.layers, walkN)
             st.layersLink = false; st.setLayers(30); let e = (st.layers, walkN)
             HyperLabState.walkShells = keep
-            check(a == 11 && b == 15 && c == 7 && d == (21, 21) && e == (30, 21),
-                  "球層の数の連動：さんぽ 11 → こちら \(a)、さんぽ 15 → \(b)、こちらで 7 → さんぽ \(c)、30 → どちらも \(d.0)（3〜21）。切ると別々（こちら \(e.0)・さんぽ \(e.1)）")
+            check(a == 11 && b == 15 && c == 7 && d == (61, 61) && e == (30, 61),
+                  "球層の数の連動：さんぽ 11 → こちら \(a)、さんぽ 15 → \(b)、こちらで 7 → さんぽ \(c)、70 → どちらも \(d.0)（3〜61）。切ると別々（こちら \(e.0)・さんぽ \(e.1)）")
         }
         // 4D 球アナロジーの「自分を追う」：遊び 0° は真ん中へ（進む向きも上へ）、遊び 90° は遊びの中では動かさず、外（奥）へ行くと 90° まで連れ戻す
         do {
@@ -800,6 +1042,19 @@ enum Verify {
             HyperLabState.walkSource = keep
             // 進む向きを上へ向けるのは面内（X-Y）の回転だけなので、画面の奥行きの成分を除いた分まで（いちばん上を向いた時の値と比べる）
             let fv = st.rot4(fw), best = (fv.x * fv.x + fv.y * fv.y).squareRoot()
+            // 自分を追う（xyz のみ）：4D の角度は動かず、カメラが自分の向きへ回る。遊びの中は動かない。3D 回転は休む。xyzw とは同時に入らない
+            do {
+                let me = nrm(SIMD4<Double>(0.5, 0.3, -0.6, 0.2)), dir = simd_normalize(SIMD3(me.x, me.y, me.z))
+                HyperLabState.walkSource = { .init(trail: [], pos: me) }
+                let s = HyperLabState(); s.followXYZ = true; s.followSlack = 0; s.followDrift = 0; s.spin3D = true; s.pitch = 0; s.roll = 0; s.yaw = 0; s.zw = 0
+                for _ in 0..<600 { s.tick(1.0 / 60); s.tickFollow(1.0 / 60) }
+                let eye = SIMD3(sin(s.viewYaw) * cos(s.viewPitch), sin(s.viewPitch), cos(s.viewYaw) * cos(s.viewPitch)), hit = simd_dot(eye, dir)
+                let s2 = HyperLabState(); s2.followXYZ = true; s2.followSlack = 170; s2.followDrift = 0
+                for _ in 0..<60 { s2.tickFollow(1.0 / 60) }
+                let s3 = HyperLabState(); s3.followOn = true; s3.followXYZ = true; let only = !s3.followOn && s3.followXYZ; s3.followOn = true; let back = s3.followOn && !s3.followXYZ
+                check(hit > 0.995 && s.pitch == 0 && s.roll == 0 && s.zw == 0 && s2.viewYaw == 0 && s2.viewPitch == 0 && only && back, "自分を追う（xyz のみ）：カメラが自分の向きへ回り（\(String(format: "%.3f", hit))）、4D の角度は動かず、遊びの中は止まり、xyzw とは同時に入らない")
+                HyperLabState.walkSource = keep
+            }
             check(c0 > 0.995 && up > best - 0.03 && still && abs(th - 90) < 3 && drift > 0.3 && drift < 15,
                   String(format: "自分を追う：遊び 0° で真ん中へ（正面 %.3f・進む向きの上 %.2f／できる限り %.2f）、遊び 90° は中では動かさず、奥からは %.1f° まで戻す。ゆるく回すと遊びの中でも 1 秒で %.1f° 寄る", c0, up, best, th, drift))
         }
@@ -1700,6 +1955,7 @@ enum Verify {
             ("軸色の球層（w だけ）", { s, c in s.shAxis = true; s.shAxX = false; s.shAxY = false; s.shAxZ = false; c.walk([0, 0, 1], 0.5) }),
             ("軸色の球層・立体（x・y・z・w）", { s, c in s.shAxis = true; s.shellSolid = true; c.walk([0, 0, 1], 0.5) }),
             ("宇宙の大きさ ×10：深海・球層", { s, c in s = Settings(); s.uniL = 1; c.walk([0, 0, 1], 0.05) }),
+            ("宇宙の大きさ ×100：深海・殻を宇宙に合わせる（61 殻）", { s, c in s = Settings(); s.uniL = 2; s.shellUni = true; c.walk([0, 0, 1], 0.05) }),
             ("宇宙の大きさ ×100：宇宙・球層・星雲", { s, c in s = Settings(); s.space = true; s.uniL = 2; aimNeb(&c, 0) }),
             ("宇宙の大きさ ×100：深海・目印の線", { s, c in s = Settings(); s.uniL = 2; c.walk([0, 0, 1], 0.3) }),
             ("宇宙の大きさ ×100：宇宙・目印の線", { s, c in s = Settings(); s.space = true; s.uniL = 2; s.nebula = false; c.walk([0, 0, 1], 0.3) }),
@@ -1881,24 +2137,28 @@ enum Verify {
     }
     /// W 消失地図の切り方：5 通りとも絵が変わる。dir があれば絵を残す
     static func wmapChecks(_ dir: String?) {
-        func shot(_ fx: Int) -> [UInt8] {
-            let st = HyperLabState(); st.walk = true; st.cursor = 0; st.ovView = 3; st.ovFx = fx; st.ovShow = true; st.ovTilt = false; st.diveT = 1; st.diveOn = true; st.diveManual = true
+        // fx 0 おまかせ：手前をいつも切って中を見せ、later 秒待つと、ほかの地図と同じ見せ場のくさびが 90° 開く
+        func shot(_ fx: Int, later: Double = 0) -> [UInt8] {
+            let st = HyperLabState(); st.walk = true; st.cursor = 0; st.ovView = 3; st.ovFx = fx; st.ovShow = true; st.diveT = 1; st.diveOn = true; st.diveManual = true
             guard let r = HyperLabRenderer(side: .right, state: st, view: nil) else { return [] }
             r.overview = true; r.ovMotion = true
             let a = 0.9, p = SIMD4(sin(a), 0, 0, cos(a)), f = SIMD4(cos(a), 0, 0, -sin(a))
             r.walkOverride = { .init(trail: [], pos: p, head: f, space: false, fwd: f, vR: SIMD4(0, 1, 0, 0), vU: SIMD4(0, 0, 1, 0), vL: f, fov: 70) }
             r.domOverride = 1; st.bump()
             var img: CGImage? = nil
-            for k in 0..<45 { r.clockOverride = 1000 + Double(k) * 0.1; img = r.image(420, 420) }
+            for k in 0..<45 { r.clockOverride = 1000 + later + Double(k) * 0.1; if k == 0 && later > 0 { r.clockOverride = 1000; _ = r.image(420, 420); r.clockOverride = 1000 + later }; img = r.image(420, 420) }
             guard let img else { return [] }
-            if let dir, let dd = CGImageDestinationCreateWithURL(URL(fileURLWithPath: dir).appendingPathComponent("wmap\(fx).png") as CFURL, UTType.png.identifier as CFString, 1, nil) { CGImageDestinationAddImage(dd, img, nil); CGImageDestinationFinalize(dd) }
+            if let dir, let dd = CGImageDestinationCreateWithURL(URL(fileURLWithPath: dir).appendingPathComponent("wmap\(fx)_\(Int(later)).png") as CFURL, UTType.png.identifier as CFString, 1, nil) { CGImageDestinationAddImage(dd, img, nil); CGImageDestinationFinalize(dd) }
             var b = [UInt8](repeating: 0, count: 420 * 420 * 4)
             let ctx = CGContext(data: &b, width: 420, height: 420, bitsPerComponent: 8, bytesPerRow: 420 * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
             ctx?.draw(img, in: CGRect(x: 0, y: 0, width: 420, height: 420)); return b
         }
         func diff(_ a: [UInt8], _ b: [UInt8]) -> Double { a.count == b.count && !a.isEmpty ? zip(a, b).reduce(0.0) { $0 + abs(Double($1.0) - Double($1.1)) } / Double(a.count) : 0 }
         let half = shot(1), ds = [2, 3, 4, 5].map { diff(half, shot($0)) }
-        check(ds.allSatisfy { $0 > 0.3 }, "W 消失地図の切り方は 5 通りとも絵が変わる（半分とのちがい \(ds.map { String(format: "%.1f", $0) }.joined(separator: "・"))）")
+        check(ds.allSatisfy { $0 > 0.3 }, "W 消失地図の手で選ぶ切り方は 5 通りとも絵が変わる（半分とのちがい \(ds.map { String(format: "%.1f", $0) }.joined(separator: "・"))）")
+        let auto0 = shot(0), auto1 = shot(0, later: 46), spin = shot(0, later: 12), cut = diff(auto0, half), open = diff(auto0, auto1), turn = diff(auto0, spin)
+        check(cut < 0.3 && open > 0.3, "W 消失地図のおまかせは、はじめから手前を切って中を見せ、上り下りの見せ場でくさびが開く（半分と \(String(format: "%.1f", cut))・開く \(String(format: "%.1f", open))）")
+        check(turn > 0.3, "W 消失地図のおまかせは、定まって 6 秒たつとゆっくり回る（ちがい \(String(format: "%.1f", turn))）")
     }
     /// 光の回り込み：アナ極の近くでだけ出る。切っていれば何も変わらない。dir があれば絵を残す
     static func lightChecks(_ dir: String?) {

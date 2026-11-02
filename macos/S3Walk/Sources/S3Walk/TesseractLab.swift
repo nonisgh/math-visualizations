@@ -610,3 +610,404 @@ enum ProtoWindows {
     }
 }
 #endif
+
+// 超立方体の 8 部屋を歩く（試作）：超立方体の表面（立方体 8 個がつながった 3 次元の世界）の中に入る。
+//   どの点も 4 次元の座標のまま持つ。部屋 (a, s) は a 番目の座標が s（±1）の立方体。部屋の中はまっすぐで、壁 (b, sb) に着いたら、a・b の平面で 90° 折れて隣の部屋へ。
+//   辺には 3 部屋しか集まらないので、空間の曲がりは全部、辺に集まっている。部屋の中心は 8 つの極の向き（球面さんぽと同じ並び）。
+//   星雲と星は球面さんぽの宇宙そのもの：超立方体の点を長さ 1 にした S³ の点で、同じ星雲・同じ星を引く
+struct TWFrame {
+    var p, r, u, f: SIMD4<Double>
+    var a: Int, s: Double
+    static let start = TWFrame(p: [0, 0.42, 0.30, 1], r: [0, -1, 0, 0], u: [0, 0, 1, 0], f: [1, 0, 0, 0], a: 3, s: 1)
+    /// 部屋の番号（FIXED と同じ順：アナ・カタ・東・西・北・南・天・地）
+    var room: Int { ((a + 1) & 3) * 2 + (s > 0 ? 0 : 1) }
+    /// 部屋 (a, s) から壁 (b, sb) を抜ける：a・b の平面の 90° の回転
+    static func fold(_ v: SIMD4<Double>, _ a: Int, _ s: Double, _ b: Int, _ sb: Double) -> SIMD4<Double> {
+        var w = v; w[b] = s * sb * v[a]; w[a] = -s * sb * v[b]; return w
+    }
+    /// 向き dir へ距離 d だけ進む。向きの枠も一緒に折れる。通った壁の数を返す
+    static func move(_ c: inout TWFrame, _ dir: SIMD4<Double>, _ d: Double) -> Int {
+        var v = dir, left = d, n = 0
+        while left > 0 {
+            var t = left, b = -1
+            for i in 0..<4 where i != c.a && abs(v[i]) > 1e-12 {
+                let ti = max(0, ((v[i] > 0 ? 1 : -1) - c.p[i]) / v[i])
+                if ti < t { t = ti; b = i }
+            }
+            c.p += v * t; left -= t
+            if b < 0 { break }
+            let sb: Double = v[b] > 0 ? 1 : -1
+            v = fold(v, c.a, c.s, b, sb); c.r = fold(c.r, c.a, c.s, b, sb); c.u = fold(c.u, c.a, c.s, b, sb); c.f = fold(c.f, c.a, c.s, b, sb)
+            c.p[b] = sb; c.a = b; c.s = sb; n += 1
+        }
+        return n
+    }
+    /// 向きを変える（右へ yaw・上へ pitch）。長さと直交を整える
+    mutating func turn(_ yaw: Double, _ pitch: Double) {
+        (f, r) = (f * cos(yaw) + r * sin(yaw), r * cos(yaw) - f * sin(yaw))
+        (f, u) = (f * cos(pitch) + u * sin(pitch), u * cos(pitch) - f * sin(pitch))
+        f[a] = 0; f = simd_normalize(f); u[a] = 0; u -= f * simd_dot(u, f); u = simd_normalize(u)
+        r[a] = 0; r -= f * simd_dot(r, f) + u * simd_dot(r, u); r = simd_normalize(r)
+    }
+}
+
+final class TessWalkState: ObservableObject {
+    @Published var room = TWFrame.start.room
+    @Published var crossed = 0
+    @Published var walking = false
+    @Published var wallK = 1.0
+    @Published var speed = 0.9
+    @Published var fovDeg = 70.0
+    @Published var stars = true
+    @Published var nebula = true
+    @Published var planets = true
+    var c = TWFrame.start
+    var keys: Set<UInt16> = []
+    let game = GameInput()
+    func reset() { c = .start; room = c.room; crossed = 0; walking = false }
+    func look(_ dx: Double, _ dy: Double) { c.turn(-dx * 0.004, dy * 0.004) }
+    func tick(_ dt: Double, active: Bool) {
+        var mv = SIMD3<Double>.zero, yaw = 0.0, pitch = 0.0, fast = false
+        if active {
+            func on(_ k: UInt16) -> Double { keys.contains(k) ? 1 : 0 }
+            mv = SIMD3(on(2) - on(0), on(14) - on(12), on(13) - on(1))   // W A S D・Q（下）E（上）
+            yaw = (on(124) - on(123)) * 1.4; pitch = (on(126) - on(125)) * 1.1
+            fast = keys.contains(56)                                      // ⇧ で速く
+            let g = game.read(); mv += g.move; yaw += g.look.x * 1.6; pitch += g.look.y * 1.2; fast = fast || g.fast
+        }
+        if walking { mv.z = max(mv.z, 1) }
+        if yaw != 0 || pitch != 0 { c.turn(yaw * dt, pitch * dt) }
+        let d = c.r * mv.x + c.u * mv.y + c.f * mv.z, l = simd_length(d)
+        if l > 1e-6 {
+            let n = TWFrame.move(&c, d / l, min(l, 1.5) * speed * (fast ? 3 : 1) * dt)
+            if n > 0 { crossed += n; room = c.room }
+        }
+    }
+}
+
+struct TWUni { var P, R, U, F, c0, c1, c2: SIMD4<Float> }
+
+/// 中の景色：光の道を 4 次元の座標のまま進めて、壁で折る。球面さんぽの景色のシェーダーのあとにつなげて組み立てる（星雲の模様 nebMat などを使う）
+let twShader = #"""
+
+struct TWU { float4 P, R, U, F, c0, c1, c2; };   // c0：画面の幅・高さ・tanF・1 画素の角度、c1：壁の濃さ・透け・星雲・星、c2：惑星・天の川・部屋の軸 a・部屋の向き s
+struct TWStar { float4 p, c; };                  // p.xyz：部屋の中の位置、p.w：明るさ、c：色
+constant int TWAX[4][3] = { {1, 2, 3}, {0, 2, 3}, {0, 1, 3}, {0, 1, 2} };
+constant float3 TWAXC[4] = { float3(1.0, 0.365, 0.424), float3(0.239, 0.863, 0.518), float3(0.337, 0.659, 1.0), float3(0.690, 0.486, 1.0) };   // 辺の色（x・y・z・w）
+inline int twRoom(int a, float s) { return ((a + 1) & 3) * 2 + (s > 0.0 ? 0 : 1); }
+// 部屋の中の星雲と天の川：道のり 0 〜 L を手前から重ねる。S³ の点 q ＝ normalize(点) で、球面さんぽと同じ星雲を引く
+inline void twNeb(float4 p, float4 v, float L, uint mask, float jit, constant float4* nb, texture3d<float> nz, constant TWU& u, thread float3& col, thread float& T, float fd) {
+    int n = clamp(int(ceil(L / 0.45)), 1, 4); float ds = L / float(n);
+    for (int i = 0; i < n; i++) {
+        float4 q = normalize(p + v * ((float(i) + jit) * ds));
+        float f1 = 1.0 - q.y * q.y - q.z * q.z;                         // 天の川：大円 y・z のまわりの淡い光
+        float a2 = (q.x + q.y) * 0.7071, b2 = (q.z - q.w) * 0.7071, f2 = 1.0 - a2 * a2 - b2 * b2;
+        col += T * fd * ds * u.c2.y * (exp(-f1 / 0.0256) * float3(0.42, 0.46, 0.62) + exp(-f2 / 0.09) * float3(0.30, 0.08, 0.26)) * 0.22;
+        if (u.c1.z <= 0.0 || mask == 0) continue;
+        float dens = 0.0; float3 e = float3(0.0);
+        for (int k = 0; k < NEBN; k++) {
+            if (((mask >> k) & 1u) == 0) continue;
+            float sg = nb[2 * k + 1].w, g = exp(-(1.0 - dot(q, nb[2 * k])) / (sg * sg));
+            dens += g; e += nb[2 * k + 1].rgb * g;
+        }
+        if (dens < 0.015) continue;
+        Neb m = nebMat(q, dens, e, nz);
+        col += T * m.e * (u.c1.z * ds * fd * 0.8); T *= exp(-m.a * u.c1.z * ds * 0.8);
+    }
+}
+// 部屋の中の星：部屋を 8×8×8 のますに分けて、光の道が通るますの星だけを調べる
+inline void twStars(float4 p, float4 v, float L, float tot, int a, int rm, constant TWStar* st, constant TWU& u, thread float3& col, float T) {
+    float3 o = float3(p[TWAX[a][0]], p[TWAX[a][1]], p[TWAX[a][2]]), d = float3(v[TWAX[a][0]], v[TWAX[a][1]], v[TWAX[a][2]]);
+    int3 c = clamp(int3(floor((o + 1.0) * 4.0)), int3(0), int3(7));
+    float3 sg = sign(d), ad = max(abs(d), float3(1e-6)), dt = 0.25 / ad;
+    float3 tn = ((float3(c) + step(float3(0.0), d)) * 0.25 - 1.0 - o) * sg / ad;
+    tn = max(tn, float3(0.0));
+    for (int k = 0; k < 24; k++) {
+        int id = rm * 512 + c.x + 8 * c.y + 64 * c.z; float b0 = st[id].p.w;
+        if (b0 > 0.0) {
+            float3 w = st[id].p.xyz - o; float tc = dot(w, d);
+            if (tc > 0.0 && tc < L) {
+                float dist = tot + tc, r2 = dot(w, w) - tc * tc, rr = max(u.c0.w * dist * 0.8, 0.0022);
+                col += T * st[id].c.rgb * (b0 * u.c1.w * min(1.4, 1.6 / (dist * dist * 0.2 + 0.2)) * exp(-r2 / (rr * rr)) * exp(-dist * u.c1.y * 0.5));
+            }
+        }
+        int m = tn.x < tn.y ? (tn.x < tn.z ? 0 : 2) : (tn.y < tn.z ? 1 : 2);
+        if (tn[m] > L) break;
+        tn[m] += dt[m]; c[m] += int(sg[m]);
+        if (c[m] < 0 || c[m] > 7) break;
+    }
+}
+inline float twBall(float4 p, float4 v, float4 c, float r) {            // 玉（4 次元の球と光の道の当たり）。当たらなければ −1
+    float4 oc = p - c; float b = dot(oc, v), h = b * b - dot(oc, oc) + r * r;
+    return h > 0.0 ? -b - sqrt(h) : -1.0;
+}
+fragment float4 twf(VOut in [[stage_in]], constant TWU& u [[buffer(0)]], constant float4* rm [[buffer(1)]], constant TWStar* st [[buffer(2)]], constant float4* nb [[buffer(3)]], texture3d<float> nz [[texture(0)]]) {
+    constexpr sampler sn(filter::linear, address::repeat);
+    float2 nn = in.pos.xy / u.c0.xy * 2.0 - 1.0; nn.y = -nn.y;
+    float4 p = u.P, v = normalize(u.F + u.R * nn.x * u.c0.z * u.c0.x / u.c0.y + u.U * nn.y * u.c0.z);
+    int a = int(u.c2.z); float s = u.c2.w, tot = 0.0, T = 1.0, jit = ign(in.pos.xy);
+    float3 col = float3(0.0), dir0 = float3(dot(v, u.R), dot(v, u.U), -dot(v, u.F));
+    const float4 L4 = float4(0.5, 0.5, 0.5, 0.5);
+    for (int seg = 0; seg < 10 && T > 0.02; seg++) {
+        // 次の壁
+        float tw = 1e9; int b = -1;
+        for (int i = 0; i < 4; i++) {
+            if (i == a || abs(v[i]) < 1e-6) continue;
+            float ti = max(0.0, ((v[i] > 0.0 ? 1.0 : -1.0) - p[i]) / v[i]);
+            if (ti < tw) { tw = ti; b = i; }
+        }
+        if (b < 0) break;
+        // 部屋の中の玉：部屋の中心の惑星と、自分
+        float tObj = 1e9; float3 obj = float3(0.0); int r = twRoom(a, s);
+        if (u.c2.x > 0.5) {
+            float4 c = float4(0.0); c[a] = s;
+            float t = twBall(p, v, c, 0.2);
+            if (t > 0.0 && t < tw) {
+                float4 n = (p + v * t - c) / 0.2, l = L4; l[a] = 0.0; l = normalize(l);
+                float3 pc = rm[r].rgb * (0.72 + 0.56 * nz.sample(sn, n.xyz * 0.4 + n.w * 0.3 + float3(float(r) * 0.17)).r);
+                float rim = pow(1.0 + dot(n, v), 3.0);
+                tObj = t; obj = pc * (0.28 + 0.8 * max(0.0, dot(n, l))) + rm[r].rgb * rim * 0.9;
+            }
+        }
+        {
+            float t = twBall(p, v, u.P, 0.13);
+            if (t > 0.0 && t < tObj && t < tw && tot + t > 0.25) {
+                float4 n = (p + v * t - u.P) / 0.13; float k = dot(n, u.F);
+                float3 body = k > 0.0 ? float3(1.0, 0.55, 0.15) : float3(0.25, 0.55, 1.0);   // 顔はだいだい、背中は青
+                tObj = t; obj = mix(body * (0.5 + 0.7 * max(0.0, dot(n, u.U) * 0.5 + 0.5)), float3(1.0), 1.0 - ss(0.04, 0.09, abs(k)));
+            }
+        }
+        float L = min(tw, tObj), fd = exp(-tot * u.c1.y);
+        if (seg < 4 && u.c1.w > 0.0) twStars(p, v, L, tot, a, r, st, u, col, T);
+        twNeb(p, v, L, uint(rm[r].w), jit, nb, nz, u, col, T, fd);
+        col += T * fd * rm[r].rgb * (1.0 - exp(-L * 0.012));            // 部屋の色の淡いもや
+        T *= exp(-L * u.c1.y); tot += L;
+        if (tObj < tw) { col += T * obj; T = 0.0; break; }
+        // 壁：うすい色の板・ふちは辺の向きの軸の色
+        float4 h = p + v * tw; float sb = v[b] > 0.0 ? 1.0 : -1.0, ci = max(abs(v[b]), 0.12);
+        int cx = -1, dx = -1;
+        for (int i = 0; i < 4; i++) { if (i == a || i == b) continue; if (cx < 0) cx = i; else dx = i; }
+        float xc = abs(h[cx]), xd = abs(h[dx]), e = 1.0 - max(xc, xd), foot = u.c0.w * tot / ci;
+        float3 ec = TWAXC[xc > xd ? dx : cx];
+        float lw = max(foot * 1.1, 0.004), line = 1.0 - ss(lw * 0.5, lw * 1.5, e), glow = exp(-e / 0.05);
+        float fres = pow(1.0 - abs(v[b]), 3.0), al = clamp(u.c1.x * (0.02 + 0.3 * fres), 0.0, 1.0);
+        float3 wc = (rm[r].rgb + rm[twRoom(b, sb)].rgb) * 0.5;
+        col += T * (wc * al * 0.7 + ec * (line * 1.5 + glow * 0.12) * exp(-tot * 0.22));
+        T *= (1.0 - al) * (1.0 - line * 0.7);
+        // 折れて隣の部屋へ
+        p = h; v[a] = -s * sb * v[b]; v[b] = 0.0; p[b] = sb; a = b; s = sb;
+    }
+    col += T * bgc(dir0, 1);
+    col = 1.0 - exp(-col * 1.25);
+    return float4(pow(col, float3(0.9)), 1.0);
+}
+"""#
+
+final class TessWalkRenderer: NSObject, MTKViewDelegate {
+    let st: TessWalkState, device: MTLDevice, queue: MTLCommandQueue
+    private var pipe: MTLRenderPipelineState!
+    private var lastT = CACurrentMediaTime()
+    private let noise: MTLTexture?, roomBuf: MTLBuffer, starBuf: MTLBuffer
+    /// 部屋の色と、その部屋に届く星雲のかたまり（ビット）
+    static func rooms() -> [SIMD4<Float>] {
+        let nb = Renderer.nebBlobs
+        return (0..<8).map { k in
+            let a = (0..<4).first { FIXED[k].c[$0] != 0 }!, ax = (0..<4).filter { $0 != a }; var mask = 0
+            for b in 0..<8 {
+                let c = SIMD4<Double>(nb[2 * b]), sg = Double(nb[2 * b + 1].w); var reach = false
+                for i in 0...8 { for j in 0...8 { for l in 0...8 {
+                    var p = FIXED[k].c; p[ax[0]] = Double(i) / 4 - 1; p[ax[1]] = Double(j) / 4 - 1; p[ax[2]] = Double(l) / 4 - 1
+                    if exp(-(1 - simd_dot(simd_normalize(p), c)) / (sg * sg)) > 0.015 { reach = true }
+                } } }
+                if reach { mask |= 1 << b }
+            }
+            return SIMD4(MapRenderer.poleDotCol(k), Float(mask))
+        }
+    }
+    /// 球面さんぽの星を、部屋のますに分ける（1 ますに、いちばん明るい星を 1 つ）
+    static func starCells() -> [SIMD4<Float>] {
+        var out = [SIMD4<Float>](repeating: .zero, count: 8 * 512 * 2)
+        for s in Renderer.starList {
+            let q = SIMD4<Double>(s.p), m = max(abs(q.x), abs(q.y), abs(q.z), abs(q.w)), a = (0..<4).first { abs(q[$0]) == m }!
+            let r = TWFrame(p: .zero, r: .zero, u: .zero, f: .zero, a: a, s: q[a] > 0 ? 1 : -1).room
+            let ax = (0..<4).filter { $0 != a }, l = SIMD3(q[ax[0]] / m, q[ax[1]] / m, q[ax[2]] / m)
+            let i = (0..<3).map { min(7, Int((l[$0] + 1) * 4)) }, id = (r * 512 + i[0] + 8 * i[1] + 64 * i[2]) * 2
+            if s.c.w > out[id].w { out[id] = SIMD4(SIMD3<Float>(l), s.c.w); out[id + 1] = s.c }
+        }
+        return out
+    }
+    init?(state: TessWalkState, device d: MTLDevice) {
+        guard let q = d.makeCommandQueue(), let lib = try? d.makeLibrary(source: shaderSource + twShader, options: nil) else { return nil }
+        let rm = Self.rooms(), sc = Self.starCells()
+        guard let rb = d.makeBuffer(bytes: rm, length: MemoryLayout<SIMD4<Float>>.stride * rm.count), let sb = d.makeBuffer(bytes: sc, length: MemoryLayout<SIMD4<Float>>.stride * sc.count) else { return nil }
+        st = state; device = d; queue = q; roomBuf = rb; starBuf = sb
+        noise = (HyperLabState.walkRendererGet?() ?? Renderer(device: d))?.noise3D
+        super.init()
+        let p = MTLRenderPipelineDescriptor()
+        p.vertexFunction = lib.makeFunction(name: "vmain"); p.fragmentFunction = lib.makeFunction(name: "twf"); p.colorAttachments[0].pixelFormat = .bgra8Unorm
+        guard let ps = try? d.makeRenderPipelineState(descriptor: p) else { return nil }
+        pipe = ps
+    }
+    func encode(_ cb: MTLCommandBuffer, _ rpd: MTLRenderPassDescriptor, _ w: Int, _ h: Int) {
+        guard let e = cb.makeRenderCommandEncoder(descriptor: rpd) else { return }
+        let c = st.c, tanF = tan(st.fovDeg * Double.pi / 360)
+        var u = TWUni(P: SIMD4<Float>(c.p), R: SIMD4<Float>(c.r), U: SIMD4<Float>(c.u), F: SIMD4<Float>(c.f),
+                      c0: SIMD4(Float(w), Float(h), Float(tanF), Float(2 * tanF / Double(max(1, h)))),
+                      c1: SIMD4(Float(st.wallK), 0.14, st.nebula ? 1 : 0, st.stars ? 1 : 0),
+                      c2: SIMD4(st.planets ? 1 : 0, 1, Float(c.a), Float(c.s)))
+        e.setRenderPipelineState(pipe)
+        e.setFragmentBytes(&u, length: MemoryLayout<TWUni>.stride, index: 0)
+        e.setFragmentBuffer(roomBuf, offset: 0, index: 1)
+        e.setFragmentBuffer(starBuf, offset: 0, index: 2)
+        e.setFragmentBytes(Renderer.nebBlobs, length: MemoryLayout<SIMD4<Float>>.stride * Renderer.nebBlobs.count, index: 3)
+        e.setFragmentTexture(noise, index: 0)
+        e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        e.endEncoding()
+    }
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+    func draw(in view: MTKView) {
+        let now = CACurrentMediaTime(), dt = min(0.05, now - lastT); lastT = now
+        #if os(macOS)
+        st.tick(dt, active: view.window?.isKeyWindow == true)
+        let px = view.window?.backingScaleFactor ?? 2
+        #else
+        st.tick(dt, active: true)
+        let px = view.contentScaleFactor
+        #endif
+        // 描く細かさは画面の 7 割（光を折りながら飛ばすので、画素の数がそのまま重さになる）
+        let target = CGSize(width: max(1, (view.bounds.width * px * 0.7).rounded()), height: max(1, (view.bounds.height * px * 0.7).rounded()))
+        if view.drawableSize != target { view.drawableSize = target }
+        guard let rpd = view.currentRenderPassDescriptor, let dr = view.currentDrawable, let cb = queue.makeCommandBuffer() else { return }
+        encode(cb, rpd, Int(view.drawableSize.width), Int(view.drawableSize.height))
+        cb.present(dr); cb.commit()
+    }
+    #if os(macOS)
+    /// 確かめ用：いくつかの場所の絵と、窓の大きさでの重さ
+    static func png(_ dir: String) {
+        guard let d = MTLCreateSystemDefaultDevice() else { return }
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let st = TessWalkState(); guard let r = TessWalkRenderer(state: st, device: d) else { print("組み立てに失敗"); return }
+        func tex(_ w: Int, _ h: Int) -> MTLTexture {
+            let t = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: w, height: h, mipmapped: false); t.usage = [.renderTarget, .shaderRead]; t.storageMode = .managed
+            return d.makeTexture(descriptor: t)!
+        }
+        func render(_ t: MTLTexture, _ w: Int, _ h: Int) {
+            let rpd = MTLRenderPassDescriptor(); rpd.colorAttachments[0].texture = t; rpd.colorAttachments[0].loadAction = .dontCare; rpd.colorAttachments[0].storeAction = .store
+            let cb = r.queue.makeCommandBuffer()!; r.encode(cb, rpd, w, h)
+            let bl = cb.makeBlitCommandEncoder()!; bl.synchronize(resource: t); bl.endEncoding()
+            cb.commit(); cb.waitUntilCompleted()
+        }
+        var scenes: [(String, () -> Void)] = [
+            ("1_出発", {}),
+            ("2_真横", { st.c.turn(1.3, 0.1) }),
+            ("3_辺を見る", { _ = TWFrame.move(&st.c, simd_normalize(st.c.f + st.c.r), 0.7); st.c.turn(0.55, -0.1) }),
+            ("4_中心から", { st.c = TWFrame(p: [0, 0, 0, 1], r: [0, -1, 0, 0], u: [0, 0, 1, 0], f: [1, 0, 0, 0], a: 3, s: 1); st.planets = false }),
+        ]
+        scenes.append(("5_前へ6", { _ = TWFrame.move(&st.c, st.c.f, 6) }))
+        for (n, f) in scenes {
+            st.c = .start; st.planets = true; f()
+            let w = 1600, h = 1000, t = tex(w, h); render(t, w, h)
+            var px = [UInt8](repeating: 0, count: w * h * 4)
+            t.getBytes(&px, bytesPerRow: w * 4, from: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0)
+            let cs = CGColorSpace(name: CGColorSpace.sRGB)!, ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: cs, bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
+            let u = URL(fileURLWithPath: dir).appendingPathComponent(n + ".png") as CFURL
+            if let dd = CGImageDestinationCreateWithURL(u, "public.png" as CFString, 1, nil) { CGImageDestinationAddImage(dd, ctx.makeImage()!, nil); CGImageDestinationFinalize(dd) }
+            print(n, "部屋", st.c.room)
+        }
+        st.c = .start; let t = tex(2640, 1680), t0 = CACurrentMediaTime()
+        for _ in 0..<30 { render(t, 2640, 1680) }
+        print(String(format: "2640×1680：1 コマ %.1f ミリ秒", (CACurrentMediaTime() - t0) / 30 * 1000))
+        let t2 = tex(1848, 1176), t1 = CACurrentMediaTime()
+        for _ in 0..<30 { render(t2, 1848, 1176) }
+        print(String(format: "1848×1176（7 割）：1 コマ %.1f ミリ秒", (CACurrentMediaTime() - t1) / 30 * 1000))
+    }
+    #endif
+}
+
+#if os(macOS)
+struct TessWalkPane: NSViewRepresentable {
+    let st: TessWalkState
+    final class Holder { var r: TessWalkRenderer?; var monitor: Any?; deinit { if let monitor { NSEvent.removeMonitor(monitor) } } }
+    func makeCoordinator() -> Holder { Holder() }
+    func makeNSView(context: Context) -> MTKView {
+        let v = MTKView(), d = MTLCreateSystemDefaultDevice()
+        v.device = d; v.colorPixelFormat = .bgra8Unorm; v.preferredFramesPerSecond = 60; v.autoResizeDrawable = false
+        if let d { context.coordinator.r = TessWalkRenderer(state: st, device: d) }
+        v.delegate = context.coordinator.r
+        // この窓が前の時のキー（文字を打っている時と ⌘・⌃ 付きは除く）
+        context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { [weak v, st] e in
+            guard let w = v?.window, w.isKeyWindow, !(w.firstResponder is NSText) else { return e }
+            if e.type == .flagsChanged { if e.modifierFlags.contains(.shift) { st.keys.insert(56) } else { st.keys.remove(56) }; return e }
+            if e.modifierFlags.contains(.command) || e.modifierFlags.contains(.control) { st.keys.removeAll(); return e }
+            if e.type == .keyDown { if e.keyCode == 49 { if !e.isARepeat { st.walking.toggle() } } else { st.keys.insert(e.keyCode) } } else { st.keys.remove(e.keyCode) }
+            return nil
+        }
+        return v
+    }
+    func updateNSView(_ v: MTKView, context: Context) {}
+}
+#else
+struct TessWalkPane: UIViewRepresentable {
+    let st: TessWalkState
+    final class Holder { var r: TessWalkRenderer? }
+    func makeCoordinator() -> Holder { Holder() }
+    func makeUIView(context: Context) -> MTKView {
+        let v = MTKView(), d = MTLCreateSystemDefaultDevice()
+        v.device = d; v.colorPixelFormat = .bgra8Unorm; v.preferredFramesPerSecond = 60; v.autoResizeDrawable = false
+        if let d { context.coordinator.r = TessWalkRenderer(state: st, device: d) }
+        v.delegate = context.coordinator.r
+        return v
+    }
+    func updateUIView(_ v: MTKView, context: Context) {}
+}
+#endif
+
+struct TessWalkView: View {
+    @StateObject private var st = TessWalkState()
+    @State private var last: CGSize = .zero
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                TessWalkPane(st: st)
+                    .gesture(DragGesture(minimumDistance: 1).onChanged { g in
+                        st.look(Double(g.translation.width - last.width), Double(g.translation.height - last.height)); last = g.translation
+                    }.onEnded { _ in last = .zero })
+                roomChips.padding(10).allowsHitTesting(false)
+            }
+            controls
+        }
+        .background(Color.black).preferredColorScheme(.dark)
+    }
+    /// 8 部屋の札：今いる部屋は明るく、向かいの部屋（壁でつながっていない 1 部屋）には「向かい」
+    var roomChips: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<8, id: \.self) { k in
+                let col = MapRenderer.poleDotCol(k), now = k == st.room, opp = k == st.room ^ 1
+                VStack(spacing: 1) {
+                    Text(String(MapRenderer.poleName(FIXED[k]).dropLast())).font(.system(size: 12, weight: now ? .bold : .regular))
+                    Text(opp ? "向かい" : now ? "ここ" : " ").font(.system(size: 9))
+                }
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Color(red: Double(col.x), green: Double(col.y), blue: Double(col.z)).opacity(now ? 0.75 : opp ? 0.1 : 0.28), in: RoundedRectangle(cornerRadius: 7))
+                .overlay(RoundedRectangle(cornerRadius: 7).stroke(.white.opacity(now ? 0.9 : 0)))
+            }
+            Text("通った壁 \(st.crossed) 枚").font(.system(size: 11).monospacedDigit()).padding(.leading, 6)
+        }
+    }
+    var controls: some View {
+        HStack(spacing: 12) {
+            Button(st.walking ? "■ 止まる" : "▶ まっすぐ進む") { st.walking.toggle() }
+            Button("出発点へ") { st.reset() }
+            Toggle("星", isOn: $st.stars); Toggle("星雲", isOn: $st.nebula); Toggle("惑星", isOn: $st.planets)
+            slider("壁の濃さ", $st.wallK, 0, 3); slider("速さ", $st.speed, 0.2, 3); slider("視野", $st.fovDeg, 40, 120)
+            Spacer()
+            #if os(macOS)
+            Text("W A S D 歩く・Q E 下上・矢印とドラッグ 向き・⇧ 速く・スペース まっすぐ").font(.caption).foregroundStyle(.secondary)
+            #endif
+        }
+        .padding(10).background(Color(red: 0.04, green: 0.06, blue: 0.11)).controlSize(.small)
+    }
+    func slider(_ name: String, _ v: Binding<Double>, _ lo: Double, _ hi: Double) -> some View {
+        HStack(spacing: 4) { Text(name).font(.caption); Slider(value: v, in: lo...hi).frame(width: 90) }
+    }
+}

@@ -31,6 +31,7 @@ struct Main {
         if let i = args.firstIndex(of: "--bigflip"), i + 1 < args.count { Verify.bigFlip(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--thumbs"), i + 1 < args.count { Verify.thumbs(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--hyperpng"), i + 1 < args.count { Verify.hyperPNG(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--twpng"), i + 1 < args.count { TessWalkRenderer.png(args[i + 1]); exit(0) }
         if args.contains("--exporttest") && args.contains("--arm") { let u = VideoExport.selfTestArm(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
         if args.contains("--exporttest") && args.contains("--route") { let u = VideoExport.selfTestRoute(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
         if args.contains("--exporttest") && args.contains("--ring") { let u = VideoExport.selfTestRing(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
@@ -125,7 +126,7 @@ final class AppModel: ObservableObject {
             return AnyView(PanelContent(model: self, id: ids[i]).spaceControls())
         }
         HyperLabState.walkRendererGet = { [weak r = self.r] in r }   // 4D 球アナロジーの「さんぽの景色」の画面が、同じ Renderer で描く
-        HyperLabState.walkShells = (get: { [unowned self] in self.r.set.shellN }, set: { [weak self] n in self?.r.set.shellN = n; self?.changed() })
+        HyperLabState.walkShells = (get: { [unowned self] in self.r.set.shellNEff }, set: { [weak self] n in self?.r.set.shellN = n; self?.changed() })
     }
     /// 同期（Supabase、NativeSync.swift）：共通の状態（と地図の向き）に、Mac の画面の構成（パネルの並び・浮いた窓・地図の置き方・パネル・表示・ゲームパッド・
     ///   窓の大きさと場所・浮いた地図の窓・静かモードとコントローラーで歩く）を足す。Mac が 2 台あれば、レイアウトもそろう（窓は、その画面に収まるように）
@@ -332,6 +333,7 @@ struct S3WalkApp: App {
                 Button("超球 ⇄ さんぽの窓") { HyperLabWindow.flip() }.keyboardShortcut("j", modifiers: [.command, .shift])
                 Button("次元おりがみ（光で描く）") { ProtoWindows.open("tess", "次元おりがみ（光で描く試作）", TessLabView()) }.keyboardShortcut("k", modifiers: [.command, .shift])
                 Button("次元おりがみ（ネイティブ版・移植の第 1 歩）") { ProtoWindows.open("origami", "次元おりがみ（ネイティブ版）", OrigamiView()) }.keyboardShortcut("o", modifiers: [.command, .shift])
+                Button("超立方体の 8 部屋を歩く") { ProtoWindows.open("tesswalk", "超立方体の 8 部屋を歩く（試作）", TessWalkView()) }.keyboardShortcut("u", modifiers: [.command, .shift])
             }
             CommandMenu("録画") { RecordMenuItem() }
             CommandMenu("数学") {

@@ -64,10 +64,11 @@ struct MobileRoot: View {
             Button("超球アナロジー（Metal 版）") { model.proto = "hyper" }
             Button("次元おりがみ（光で描く）") { model.proto = "tess" }
             Button("次元おりがみ（ネイティブ版）") { model.proto = "origami" }
+            Button("超立方体の 8 部屋を歩く") { model.proto = "tesswalk" }
         }
         .fullScreenCover(isPresented: Binding(get: { model.proto != nil }, set: { if !$0 { model.proto = nil } })) {
             ZStack(alignment: .topTrailing) {
-                if model.proto == "tess" { TessLabView() } else if model.proto == "origami" { OrigamiView() } else { HyperLabView() }
+                if model.proto == "tess" { TessLabView() } else if model.proto == "origami" { OrigamiView() } else if model.proto == "tesswalk" { TessWalkView() } else { HyperLabView() }
                 Button { model.proto = nil } label: { Image(systemName: "xmark.circle.fill").font(.title).foregroundStyle(.white.opacity(0.8)) }.padding(14)
             }
         }

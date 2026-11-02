@@ -429,7 +429,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     /// 加え合わせで描く線：球層の殻・赤道の網目・軽い線。全体の時は写し方が変わった時だけ作り直す
     private func staticLines(_ R: [V4]) -> [Seg] {
         let s = world.set, c = config
-        let n = max(2, min(21, s.shellN))
+        let n = max(2, min(21, s.shellNEff))
         var out: [Seg] = []
         if s.shell && c.range != 0 {                              // 今いる所・写る所：歩くたびに作り直す
             let W = world.cam.w.p, shells = shellSet(n), sfk = shellFk.squareRoot()
