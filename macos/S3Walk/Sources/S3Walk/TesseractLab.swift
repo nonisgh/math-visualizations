@@ -76,6 +76,7 @@ struct TLUni {
     var rim = SIMD4<Float>(0, 0, 0, 0)    // 縁の光の色・管の映り込み
     var L3 = SIMD4<Float>(0, 0, 0, 0)     // やわらかな照明・紺一色の背景・ふちの光・three.js の光（次元おりがみ）
     var S0 = SIMD4<Float>(0, 0, 0, 0), S1 = SIMD4<Float>(0, 0, 0, 0), S2 = SIMD4<Float>(0, 0, 0, 0), S3 = SIMD4<Float>(0, 0, 0, 0)
+    var X = SIMD4<Float>(0, 0, 0, 0)     // 宇宙の背景（次元おりがみのネイティブ版）：x 混ぜる量（0 なら使わない。背景の絵は texture(0)）
 }
 struct TLQuad { var a, b, c, d, n, col: SIMD4<Float>; var m = SIMD4<Float>(0, 0, 0, 0) }   // 4 つの角・法線（w は平面の位置）・色（w はふちの光）・m.x 板の濃さ（0 なら質感の値）
 struct TLRod { var a, b, col: SIMD4<Float> }             // 両はし（a.w は太さ）・色（w は明るさ）
@@ -84,7 +85,7 @@ struct TLBall { var p, col: SIMD4<Float> }               // 中心（w は半径
 let tlShader = """
 #include <metal_stdlib>
 using namespace metal;
-struct U { float4 eye, R, U, F; float4x4 M; float4 p, q, cnt, L0, L1, L2, rim, L3, S0, S1, S2, S3; };   // S：次元おりがみの光（S0 照り返し・強さ・ざらつきの倍率・グレア、S1 鮮やかさ・映り込み・金属っぽさ・ざらつき、S2 主光・S3 逆光の位置）
+struct U { float4 eye, R, U, F; float4x4 M; float4 p, q, cnt, L0, L1, L2, rim, L3, S0, S1, S2, S3, X; };   // S：次元おりがみの光（S0 照り返し・強さ・ざらつきの倍率・グレア、S1 鮮やかさ・映り込み・金属っぽさ・ざらつき、S2 主光・S3 逆光の位置）
 struct Quad { float4 a, b, c, d, n, col, m; };   // m.x 板の濃さ（0 なら質感の値）
 struct Rod { float4 a, b, col; };
 struct Ball { float4 p, col; };
@@ -225,11 +226,13 @@ inline float2 segDist(float3 o, float3 d, float3 a, float3 b) {                /
     float3 q = a + ba * h; t = max(0.0, dot(q - o, d));
     return float2(length(o + d * t - q), t);
 }
-fragment float4 tlf(O in [[stage_in]], constant U& u [[buffer(0)]], const device Quad* Q [[buffer(1)]], const device Rod* RD [[buffer(2)]], const device Ball* BL [[buffer(3)]]) {
+fragment float4 tlf(O in [[stage_in]], constant U& u [[buffer(0)]], const device Quad* Q [[buffer(1)]], const device Rod* RD [[buffer(2)]], const device Ball* BL [[buffer(3)]], texture2d<float> spt [[texture(0)]]) {
     float2 nn = in.uv * 2.0 - 1.0;
     float3 o = u.eye.xyz, d = normalize(u.F.xyz + u.R.xyz * nn.x * u.p.x * u.p.y + u.U.xyz * nn.y * u.p.x);
     float3 bg = mix(float3(0.010, 0.016, 0.040), float3(0.035, 0.045, 0.10), 0.5 + 0.5 * d.z);
     if (u.L3.y > 0.5) bg = mix(float3(0.020, 0.031, 0.086), float3(0.010, 0.014, 0.040), clamp(length(nn) * 0.7, 0.0, 1.0));   // 次元おりがみの紺（真ん中が少し明るい）
+    // 宇宙の背景（星雲と星。別に描いておいた絵）を、組み立て具合などに合わせて混ぜる
+    if (u.X.x > 0.001) { constexpr sampler sm(filter::linear, address::clamp_to_edge); bg = mix(bg, spt.sample(sm, float2(in.uv.x, 1.0 - in.uv.y)).rgb, u.X.x); }
     bool add = u.L2.y > 0.5, lines = u.L2.w > 0.5, right = u.q.y > 0.5, slice = u.q.w > 0.5;
     float s = u.p.z;
     // ---- 1. 不透明：管と玉（いちばん手前） ----

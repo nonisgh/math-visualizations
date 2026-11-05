@@ -1,6 +1,6 @@
 // 画面のゲームパッド：コントローラー（Switch の Pro コントローラーの並び）と同じスティックとボタンを、景色の下の方に出す。押すとコントローラーと同じ働き。
 //   見出しの ⌄ でたたむ（見出しだけになる。⌃ でひらく。たたんだかは覚えておく）。
-//   本体（すき間）をドラッグで動かせる。L・R・ZL・ZR・L3 は 2 回続けて押すと押したまま（黄色の枠。もう一度押すと離す）：マウスでも「ZL を押しながら右スティック」ができる。
+//   本体（すき間）をドラッグで動かせる。L・R・ZL・ZR・L3 は 2 回続けて押すと押したまま（黄色の枠。もう一度押すと離す）：マウスでも「ZL（内へ泳ぐ）を押しながら歩く」ができる。
 //   大きさは見出しの虫めがね（−・＋）か、ピンチ（2 本指でつまむ・トラックパッドでも）で 0.5〜2 倍。大きさは覚えておく。
 //   Mac 版と iPad・iPhone 版の両方で使う（GameInput の vLeft・vRight・vPress へ入れる）
 import SwiftUI
@@ -62,7 +62,7 @@ struct VirtualPad: View {
     /// ひらいている時の中身：肩のボタン・スティック・十字・A B X Y
     @ViewBuilder var body2: some View {
             HStack(spacing: 8) {
-                key("ZL", "ZL", "見回しだけ", w: 54, h: 26)
+                key("ZL", "ZL", "内へ", w: 54, h: 26)
                 key("L", "L", "下へ", w: 54, h: 26)
                 Spacer(minLength: 12)
                 key("options", "−", "地図", w: 40, h: 28)                // 指で押しやすいよう、ほかの肩のボタンに近い大きさ
@@ -70,12 +70,12 @@ struct VirtualPad: View {
                 key("menu", "＋", "設定", w: 40, h: 28)
                 Spacer(minLength: 12)
                 key("R", "R", "上へ", w: 54, h: 26)
-                key("ZR", "ZR", "速く", w: 54, h: 26)
+                key("ZR", "ZR", "外へ", w: 54, h: 26)
             }
             HStack(alignment: .top, spacing: 18) {
                 VStack(spacing: 8) {
                     stick(left: true)
-                    HStack(spacing: 6) { key("L3", "L3", game.swapSticks ? "前を見る" : "跡を消す", w: 38, h: 24) }
+                    HStack(spacing: 6) { key("L3", "L3", game.swapSticks ? "見回し" : "前を見る", w: 38, h: 24) }
                 }
                 dpad.padding(.top, 70)
                 Spacer(minLength: 10)
@@ -84,7 +84,7 @@ struct VirtualPad: View {
                 }
                 VStack(spacing: 8) {
                     stick(left: false).padding(.top, 70)
-                    key("R3", "R3", game.swapSticks ? "跡を消す" : "前を見る", w: 38, h: 24)
+                    key("R3", "R3", game.swapSticks ? "前を見る" : "見回し", w: 38, h: 24)
                 }
             }
             Text("L・R・ZL・ZR・L3 は 2 回押すと押したまま（黄色の枠、もう一度で離す）").font(.system(size: 9)).foregroundStyle(Space.slate)
@@ -107,7 +107,7 @@ struct VirtualPad: View {
 
     func zoom(_ k: Double) { withAnimation(.easeOut(duration: 0.12)) { scale = min(2, max(0.5, scale * k)) } }
 
-    // ---- 十字（上下：殻の見える距離・速さ、右：ターボ）----
+    // ---- 十字（上：ダイブ、下：ダイブをやめる、左：ドリル、右：目印）----
     var dpad: some View {
         VStack(spacing: 2) {
             key("up", "▲", nil, w: 32, h: 30, round: false)
@@ -117,7 +117,7 @@ struct VirtualPad: View {
                 key("right", "▶", nil, w: 32, h: 30, round: false)
             }
             key("down", "▼", nil, w: 32, h: 30, round: false)
-            Text("↑ ターボ　↓ ターボ切　→ 切りかえ").font(.system(size: 9)).foregroundStyle(Space.slate).fixedSize()
+            Text("↑ ダイブ　↓ やめる　← ドリル　→ 目印").font(.system(size: 9)).foregroundStyle(Space.slate).fixedSize()
         }
     }
     // ---- A・B・X・Y（任天堂の並び：上 X・左 Y・右 A・下 B）----

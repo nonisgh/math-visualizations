@@ -49,6 +49,11 @@ final class MobileModel: ObservableObject {
         guard let dev = MTLCreateSystemDefaultDevice(), let r = Renderer(device: dev) else { fatalError("Metal が使えない") }
         self.r = r
         HyperLabState.walkSource = { [unowned r] in r.hyperWalk() }   // 超球の試作に、歩いた跡・今いる所・目印を
+        HyperLabState.worldRSink = { [unowned r] v in r.set.stageR = v }   // 超球の窓で選んだ R の世界を、さんぽの宇宙の大きさに（Mac 版と同じ）
+        HyperLabState.drillSink = { [unowned r] e in r.drillEvent(e) }    // ドリル：0 掘り始め・1 中心を抜ける・2 着いた
+        HyperLabState.tourWalkSink = { [unowned r] a in r.tourWalk(a) }   // D の字めぐり：地表を半周歩く
+        HyperLabState.runPoseSink = { [unowned r] p, f in r.runPose(p, f) }   // 超球ラン：体を超球の窓の道にそって動かす
+        r.onTourArrived = { HyperLabRenderer.liveMain?.st.tourArrived() }
         HyperLabState.mainBar = { [unowned self] st in AnyView(MobileMainBar(model: self, st: st)) }
         if UserDefaults.standard.dictionary(forKey: Store.key) == nil { MobileModel.macLook(r) }   // 初めて開いた時は Mac 版の見え方で
         Store.restore(r)
@@ -164,11 +169,16 @@ final class MobileModel: ObservableObject {
     }
     /// コントローラーのボタン（Mac 版と同じ）
     func pad(_ k: String) {
-        if r.padDuringAuto(k) { changed(); return }                 // 自動走行の間：B 中止・Y 前を見る・十字の上下 ターボ入・切（Renderer）
-        if r.padWalk(k) { changed(); return }                       // A アクセル・B ブレーキ・十字の上 ターボ入・下 ターボ切・右 ターボの切りかえ（Renderer。Mac 版と同じ）
+        if r.padDuringAuto(k) { changed(); return }                 // 自動走行の間：B 中止・Y 完全停止・L3 前を見る・X ターボ（Renderer）
+        if r.padWalk(k) { changed(); return }                       // A アクセル・B ブレーキ・X ターボの切りかえ・Y 自動で走る（Renderer。Mac 版と同じ）
+        // ZL・ZR（L2・R2）は泳ぐ（4 つ目の向き。毎コマ読む）
         switch k {
-        case "R3": r.levelView()
-        case "ZR": break                                          // ZR はふだん「押している間だけ速く」（毎コマ読む）。自動走行の間だけ前を見る
+        case "L3": r.levelView()
+        case "R3": r.lookToggle.toggle(); say(r.lookToggle ? "見回しモード：右スティックで頭だけ回す（R3 でやめる）" : "見回しモードをやめた")
+        case "up": HyperLabState.padAction?("diveOn")                // 十字の上：ダイブ（超球の窓）
+        case "down": HyperLabState.padAction?("diveOff")             // 十字の下：ダイブをやめる
+        case "left": HyperLabState.padAction?("drill")               // 十字の左：ドリル
+        case "right": r.addMark(); say("ここに目印を置いた")             // 十字の右：目印
         case "menu": showPanel.toggle(); say(showPanel ? "設定を開いた（＋）" : "設定を閉じた（＋）")
         case "options":                                       // −：地図を隠す・前の置き方（すみ・並べる）で出す
             if mapMode == .hidden { setMap(lastShownMap); say(lastShownMap == .corner ? "地図をすみに出した（−）" : "地図を並べた（−）") }

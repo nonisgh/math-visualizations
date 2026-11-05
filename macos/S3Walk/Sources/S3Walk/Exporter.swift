@@ -28,6 +28,8 @@ final class VideoExport: ObservableObject {
         var both = false, swap = false                                  // 「両方」でダイブ画面を出していた・上下を入れかえていた
         var pane = false                                                // 左の窓がダイブの時の中身（地図）だった
         var ball = false                                                // 左上の窓に 3D の球を出していた
+        var run: [Double] = []                                          // ダイブ画面の超球ラン：金色の線の点（x・y・z・w × 数）。空なら線なし
+        var tun: [Double] = []                                          // トンネル：彗星の場所（断面の 3 つ）・断面の向き（12）・穴（半径・向き 3・開き × 数）。空ならトンネルでない
         init(t: Double, dom: Double, walk: HyperLabState.Walk, rawTrail: [SIMD4<Double>], f: [Double], cometDir: SIMD3<Double>, showFrame: SIMD2<Double>,
              layers: Int, lzw: Int, version: Int, diveOn: Bool, dragging: Bool, padHolding: Bool, walkCam: Camera?, both: Bool = false, swap: Bool = false, first: Bool = false, pane: Bool = false, ball: Bool = false) {
             self.walkCam = walkCam; self.both = both; self.swap = swap; self.first = first; self.pane = pane; self.ball = ball
@@ -157,6 +159,10 @@ final class VideoExport: ObservableObject {
     }
 
     // ---- ① 記録 ----
+    /// 止めるタイマー（分。0 はなし）：書き出しの記録も、画面の録画も、時間が来たら止める（止め忘れても大丈夫なように）
+    @Published var stopMin = UserDefaults.standard.object(forKey: "s3walk.export.stopMin") as? Int ?? 0 { didSet { UserDefaults.standard.set(stopMin, forKey: "s3walk.export.stopMin") } }
+    /// 記録を止める秒数（タイマーなしでも 20 分で止める）
+    static func stopLimit(_ min: Int) -> Double { min > 0 ? Double(min) * 60 : 20 * 60 }
     func startRecording() {
         guard !recording, !rendering else { return }
         frames = []; lastRaw = []; aq.sync { audio = []; aClock = nil }
@@ -165,7 +171,7 @@ final class VideoExport: ObservableObject {
         started = Date(); recording = true
         watch = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             guard let self else { return }
-            if Date().timeIntervalSince(self.started) > 20 * 60 { self.stopRecording(note: "記録は 20 分までなので、ここで止めました。\n") }
+            if Date().timeIntervalSince(self.started) > Self.stopLimit(self.stopMin) { self.stopRecording(note: self.stopMin > 0 ? "タイマー（\(self.stopMin) 分）で止めて、書き出しました。\n" : "記録は 20 分までなので、ここで止めました。\n") }
         }
     }
     /// 1 コマ分を覚える（右の超球の画面が描くたびに呼ぶ）。跡はふえた分だけ
@@ -314,6 +320,9 @@ final class VideoExport: ObservableObject {
         if liveRun && aq.sync(execute: { audio.isEmpty }) { audioFormat = nil }   // 音が出ていない時は、音なしの動画に（音を待ち続けないように）
         live.st.saveIfChanged()                                             // 今の設定を覚えてから、書き出し用の状態を同じ設定で作る
         let s2 = HyperLabState()
+        s2.noSink = true                                                   // 書き出しの再生で、さんぽの窓の R の世界を変えない
+        s2.diveSpin = live.st.diveSpin; s2.expandOn = live.st.expandOn; s2.stageView = live.st.stageView; s2.stageOnly = live.st.stageOnly
+        s2.rOnly = live.st.rOnly; s2.rOnlyR = live.st.rOnlyR                // ダイブの回り方・拡張のステージ・この R だけ（書き出し始めの設定）
         genBall = live.st.show3D
         s2.heavy = heavy || live.st.heavy || CommandLine.arguments.contains("--heavy")
         if CommandLine.arguments.contains("--both") { s2.lowView = 2; s2.lowSwap = CommandLine.arguments.contains("--swap") }
@@ -728,7 +737,7 @@ final class VideoExport: ObservableObject {
             hud.meter(s2.meterM, s2.coastG, top: s2.topK, cx: dive.midX, y: dive.maxY - 40 * ks, k: ks)
         }
         // 極の通過のテロップ：スマホで見ても読める大きさ（画面の高さの 3.6%）
-        let pc = hudPass.update(w.pos, tq)
+        let pc = hudPass.update(w.pos, tq, r: s2.worldR)
         if s2.passOn && pc.a > 0.01 && iOut >= introN {                      // ダイブインの間は走り出していないので、通過は出さない
             let u = dive.height / 1080, a = pc.a, c = pc.col, tc = PassCaption.textCol(c)
             func col(_ x: Double) -> CGColor { ExportHUD.rgb(Double(c.x), Double(c.y), Double(c.z), x) }
@@ -764,6 +773,25 @@ final class VideoExport: ObservableObject {
         s.cometSpd = v[14]; s.cometNear = v[15]
         s.zw = v[16]; s.pitch = v[17]; s.roll = v[18]; s.yaw = v[19]; s.viewYaw = v[20]; s.viewPitch = v[21]; s.viewDist = v[22]; s.camW = v[23]
         s.cutPos = v[24]; s.cutPhi = v[25]; s.airLift = v[26]; s.coastG = v[27]; s.meterM = v[28]; s.paneCover = v[29]; s.paneSeeB = v.count > 31 ? v[30] : 0; s.paneSeeA = v.count > 31 ? v[31] : 0; s.demoGlass = v.count > 32 ? v[32] : 1; s.fillOn = v.count > 33 && v[33] >= 0; s.fillA = v.count > 33 ? max(0, v[33]) : 1
+        if v.count > 40 {                                                  // 詰める数・内側の球層・内核の演出・R の世界・ドリル（書き出しは急がないので、自動の内側の球層は R ＝ 1 の層の数まで全部）
+            s.noSink = true; s.fillAuto = false
+            s.fillCount = Int(v[34].rounded()); s.fillLayers = b.f[35] < 0 || a.f[35] < 0 ? max(2, s.layers) : Int(v[35].rounded())
+            s.chaosOn = v[36] > 0.5; s.worldR = v[37]; s.drillOn = false; s.drillK = v[38]; s.drillS = v[39]; s.drillR0 = v[40]
+        }
+        if a.tun.count >= 15 {                                             // トンネル：記録した彗星の場所・断面・穴（場所だけ次のコマとの間をなめらかに）
+            let t = a.tun, u = b.tun.count >= 15 ? b.tun : a.tun
+            let base = TunnelBase(a: SIMD4(t[3], t[4], t[5], t[6]), b: SIMD4(t[7], t[8], t[9], t[10]), c: SIMD4(t[11], t[12], t[13], t[14]))
+            func at(_ q: [Double], _ i: Int) -> SIMD4<Double> { base.c * q[i] + base.a * q[i + 1] + base.b * q[i + 2] }
+            let xa = at(t, 0), xb = at(u, 0), jump = simd_length(xb - xa) > 0.3
+            s.tunForce = true; s.tunBase = base; s.tunOverride = jump ? xa : xa + (xb - xa) * k
+            var hs: [TunnelHole] = []; var i = 15
+            while i + 4 < t.count { let d = SIMD4(t[i + 1], t[i + 2], t[i + 3], 0); hs.append(TunnelHole(r: t[i], dir: base.c * d.x + base.a * d.y + base.b * d.z, open: t[i + 4])); i += 5 }
+            s.tunHoles = hs
+        } else { s.tunForce = nil; s.tunOverride = nil }
+        if a.run.count >= 8 {                                              // ダイブ画面の超球ラン：記録した金色の線
+            let q = a.run; s.runLine = true
+            s.runPathOverride = stride(from: 0, to: q.count - 3, by: 4).map { SIMD4(q[$0], q[$0 + 1], q[$0 + 2], q[$0 + 3]) }
+        } else { s.runLine = false; s.runPathOverride = nil }
         s.cometDir = a.cometDir + (b.cometDir - a.cometDir) * k
         if s.layers != a.layers { s.layers = a.layers }; if s.lzw != a.lzw { s.lzw = a.lzw }
         s.version = a.version; if camera { s.diveOn = a.diveOn; s.diveDragging = a.dragging }; s.padHolding = a.padHolding
@@ -998,10 +1026,8 @@ final class VideoExport: ObservableObject {
         gen = sim; genTpl = tpl; genCs = nil; genSpd = 0; genFreed = 0; appliedTo = -1; genLW = LapWatch(); genLapN = 1
         frames = []; lastRaw = []; aq.sync { audio = [] }
         live.st.saveIfChanged()
-        let gs = HyperLabState(); gs.zw = live.st.zw; gs.pitch = live.st.pitch; gs.roll = live.st.roll; gs.yaw = live.st.yaw; gs.cutPos = live.st.cutPos
+        let gs = HyperLabState(); gs.copyMotion(from: live.st); genSt = gs
         sim.coastOn = live.st.coaster; sim.meriK = live.st.meriK; sim.topK = live.st.topK; gsAir = AirSim()
-        gs.auto = live.st.auto; gs.spin3D = live.st.spin3D; gs.viewYaw = live.st.viewYaw; gs.viewPitch = live.st.viewPitch; gs.followOn = live.st.followOn; gs.followXYZ = live.st.followXYZ; gs.followSlack = live.st.followSlack; gs.followSpeed = live.st.followSpeed; gs.followHeading = live.st.followHeading; gs.followDrift = live.st.followDrift
-        gs.cutOn = live.st.cutOn; gs.cutSweep = live.st.cutSweep; gs.cutKind = live.st.cutKind; genSt = gs
         genSnd = nil; genAFmt = nil; gsPos = nil; gsPass = PolePass(); gsFwd = nil; gsTurn = 0; gsSpeed = 0; gsWobT = -9; gsIceT = -9; genHits = []
         if live.st.soundOn {                                                // 音：超球の窓で音を入れている時は、同じ音を作って入れる
             let snd = HyperSound(); snd.spatial = live.st.soundSpatial; gsVol = live.st.soundVol; gsPlace = live.st.soundPlace; gsLayerOn = live.st.soundLayer; gsRailK = live.st.soundRail; gsSong = live.st.soundSong; gsWind = live.st.soundWind; gsBass = live.st.soundBass; gsRough = live.st.soundRough
@@ -1466,7 +1492,7 @@ struct ExportButton: View {
             if ex.recording {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     let s = Int(Date().timeIntervalSince(ex.started))
-                    Label(String(format: "止めて書き出す %d:%02d", s / 60, s % 60), systemImage: "stop.circle.fill").foregroundStyle(.red)
+                    Label(String(format: "止めて書き出す %d:%02d", s / 60, s % 60) + (ex.stopMin > 0 ? String(format: "（あと %d:%02d）", max(0, ex.stopMin * 60 - s) / 60, max(0, ex.stopMin * 60 - s) % 60) : ""), systemImage: "stop.circle.fill").foregroundStyle(.red)
                 }
             } else if ex.rendering {
                 Label(String(format: "書き出し中 %.0f%%", ex.progress * 100), systemImage: "hourglass")
@@ -1730,6 +1756,8 @@ struct RecordPanelButton: View {
                 Text("動画を作る（記録 → 書き出し）").font(.headline)
                 Text("走っている間は動きと音だけを覚え、止めたあとで 60 コマ・最高の細かさで描き直します。").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack { ExportButton(); Spacer() }
+                Picker("止めるタイマー", selection: $ex.stopMin) { Text("なし").tag(0); ForEach([1, 2, 3, 5, 10, 15, 20], id: \.self) { Text("\($0) 分").tag($0) } }
+                    .frame(maxWidth: 200).help("「動画を作る」と画面の録画を、この時間で自動で止める（書き出しは止めたあと、いつも通り描き直す）。なしでも記録は 20 分で止まる")
                 Toggle("ダイブイン（超球の全体から寄って走り出す）", isOn: $ex.diveIn).disabled(ex.recording || ex.rendering)
                     .help("動画の始めに 6 秒、超球の全体からフェードインして、走る所へ寄っていく。寄り切る時に走り出しがつながる。動画はそのぶん長くなる")
                 Toggle("走り出しで始めて、止まったら黒く消して終わる", isOn: $ex.autoRec).disabled(ex.recording || ex.rendering || ex.armed)

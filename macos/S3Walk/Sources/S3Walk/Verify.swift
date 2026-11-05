@@ -122,6 +122,16 @@ enum Verify {
                 check(fl == [[0.6, 1]] && fl2 == [[0.1, 1]] && fl3 == [[0, 1]], "らくらく書き出し：バーを押すと、その区間の色が反対になる")
                 check(l1 > 3, "らくらく書き出し：1 周の道のりを測れる（\(String(format: "%.2f", l1))）。小数の周はこの道のりで止める")
             }
+            do {   // R の世界を滑らかに降りる
+                let sg = HyperLabState(); sg.noSink = true; sg.worldR = 0.6; sg.glideDir = -1
+                var last = 0.6, maxStep = 0.0, up = true, t = 0.0
+                while t < 30 { sg.tickGlide(1.0 / 60); maxStep = max(maxStep, last - sg.worldR); if sg.worldR > last + 1e-12 { up = false }; last = sg.worldR; t += 1.0 / 60 }
+                let landed = sg.worldR == 0.05 && sg.glideDir == 0
+                sg.glideDir = 1; for _ in 0..<120 { sg.tickGlide(1.0 / 60) }; sg.glideDir = 0; for _ in 0..<300 { sg.tickGlide(1.0 / 60) }
+                let stopped = sg.worldR > 0.05 && sg.worldR < 0.2 && sg.glideV == 0
+                check(landed && up && maxStep <= HyperLabState.glideMax / 60 * 1.01 && stopped, "R の世界：▼ でなめらかに降りて R 0.05 に着地し（1 コマの最大 \(String(format: "%.4f", maxStep))）、▲ で上り、■ ですっと止まる（R \(String(format: "%.3f", sg.worldR))・着地 \(landed)・止まった \(stopped)）")
+            }
+            check(VideoExport.stopLimit(0) == 1200 && VideoExport.stopLimit(3) == 180, "止めるタイマー：3 分で 180 秒、なしなら 20 分で止める")
             do {   // 道の保存と呼び出し
                 var ok = false
                 if let cr = Renderer(device: MTLCreateSystemDefaultDevice()!) {
@@ -202,7 +212,9 @@ enum Verify {
                 turn = true; run(0.3); let l1 = simd_length(o.0), b1 = abs(o.1), h1 = o.2
                 run(2.0); let l2 = simd_length(o.0), b2 = abs(o.1)
                 turn = false; run(2.5); let l3 = simd_length(o.0), b3 = abs(o.1), h3 = o.2
-                check(s0 < 1e-6 && l1 > 0.12 && b1 < b2 * 0.45 && b2 > 0.25 && l3 < 0.02 && b3 < b2 * 0.2 && h0 < 1e-6 && h1 > 0.5 && h3 < 0.02,
+                let okA: Bool = s0 < 1e-6 && l1 > 0.12 && b1 < b2 * 0.45 && b2 > 0.25
+                let okB: Bool = l3 < 0.02 && b3 < b2 * 0.2 && h0 < 1e-6 && h1 > 0.5 && h3 < 0.02
+                check(okA && okB,
                       String(format: "追いかけ：まっすぐは真ん中（%.3f）。曲がると 0.3 秒で彗星が先へ %.2f 流れ（傾きはまだ %.2f rad）、2 秒で傾き %.2f rad、まっすぐに戻ると %.3f・%.3f へ。頭のゆがみ まっすぐ %.3f → 曲がって %.2f → 戻って %.3f", s0, l1, b1, b2, l3, b3, h0, h1, h3))
             }
         }
@@ -396,6 +408,151 @@ enum Verify {
                 var w = TWFrame.start, sane = true
                 for i in 0..<400 { let t = Double(i); w.turn(0.7 + sin(t), 0.4 * cos(t * 0.7)); _ = TWFrame.move(&w, w.f, 0.37); let q = [w.r, w.u, w.f]; for x in q { sane = sane && abs(simd_length(x) - 1) < 1e-9 && abs(x[w.a]) < 1e-9 }; sane = sane && abs(simd_dot(w.r, w.f)) < 1e-9 && abs(w.p[w.a] - w.s) < 1e-12 && max(abs(w.p.x), abs(w.p.y), abs(w.p.z), abs(w.p.w)) <= 1 + 1e-12 }
                 check(ring && edge && poles && sane, "超立方体の 8 部屋：まっすぐ 4 部屋で元の所・辺のまわりは 3 部屋で向きが 90° ずれる・部屋の中心は 8 つの極")
+            }
+            do {   // 設定の保存の表：キーは重ならず、覚えた値を読み直すと同じになる（保存と読み込みが同じ表から作られている）
+                let names = HyperLabState.savedKeys.map { k -> String in switch k { case .d(let n, _), .i(let n, _), .b(let n, _): return n } }
+                let a = HyperLabState(); a.layers = 23; a.camW = 4.4; a.poleEN = true; a.rot2XY = -12; a.shotCurve = false; a.uiScale = 1.25; a.spinMode = 5; a.order = [2, 0, 1]
+                let b = HyperLabState(); b.apply(a.snapshot)
+                let sa = a.snapshot, sb = b.snapshot, same = sa.keys.sorted() == sb.keys.sorted() && sa.keys.allSatisfy { "\(sa[$0]!)" == "\(sb[$0]!)" }
+                check(Set(names).count == names.count && sa.count == names.count + 1 && same && b.layers == 23 && b.order == [2, 0, 1], "設定の保存：\(names.count + 1) 個のキーが重ならず、覚えた値を読み直すと同じ")
+            }
+            do {   // 超球面拡張：ステージの半径・ブラックホールは自分のステージの S³ の上、出口は 1 つ下の S³ の上・詰めると拡張はどちらか一方
+                let R = HyperLabState.stageR, B = HyperLabState.blackHoles
+                let onShell = B.indices.allSatisfy { k in abs(simd_length(B[k] * R[k]) - R[k]) < 1e-12 && (k + 1 >= R.count || abs(simd_length(B[k] * R[k + 1]) - R[k + 1]) < 1e-12) }
+                let s = HyperLabState(); s.toggleFill(); s.expandOn = true; s.stageView = 2
+                let sh = s.expandShells(), one = !s.fillOn
+                s.stageOnly = true; let solo = s.expandShells(); s.stageOnly = false
+                s.toggleFill(); let other = s.fillOn && !s.expandOn
+                let sf = HyperLabState(); sf.toggleFill(); sf.fillA = 0; let n10 = sf.fillShells().count; sf.fillCount = 20; let n20 = sf.fillShells().map { $0.r }
+                check(n10 == 10 && n20.count == 20 && abs(n20[1] - 0.95) < 1e-12 && abs(n20[19] - 0.05) < 1e-12, "詰める数：ふつう 10 枚、20 枚にすると 1, 0.95, … 0.05 の等しい間隔")
+                check(R == [1, 0.8, 0.6, 0.4, 0.2] && B.count == R.count && onShell && one && other && sh.map { $0.r } == R && sh[2].k == 1 && sh[0].k < 1 && solo.count == 1 && solo[0].r == 0.6 && solo[0].k == 1, "超球面拡張：5 つのステージ・入口は自分のステージ、出口は 1 つ下のステージの上・詰めるとどちらか一方・ほかのステージを消すと光らせるステージだけ")
+            }
+            do {   // ナイフ：画面の点から殻の経度を読む（4D で回していても）・引いて広げる・付いてくる・殻の外は読まない
+                let st = HyperLabState(); st.pitch = 0.3; st.roll = -0.4; st.viewYaw = 0.5; st.viewPitch = 0.3
+                if let r = HyperLabRenderer(side: .right, state: st, view: nil), r.image(400, 300) != nil, let ks = r.knifeShell() {
+                    let sz = CGSize(width: 400, height: 300), m = r.knifeMVP, eye = r.camBasis().0, ctr = r.walkPlace(ks.c).0
+                    func scr(_ th: Double, _ ph: Double) -> (pt: CGPoint, front: Bool) {   // front：はっきり手前を向いている所（ふちの近くは除く）
+                        let p = r.walkPlace(HyperLabRenderer.knifePoint(ks.c, ks.r, th, ph)).0, q = m * SIMD4(SIMD3<Float>(p), 1)
+                        return (CGPoint(x: (Double(q.x / q.w) * 0.5 + 0.5) * 400, y: (0.5 - Double(q.y / q.w) * 0.5) * 300), simd_dot(simd_normalize(p - ctr), simd_normalize(eye - p)) > 0.35)
+                    }
+                    func dang(_ a: Double, _ b: Double) -> Double { var d = a - b; d -= 2 * .pi * floor((d + .pi) / (2 * .pi)); return abs(d) }
+                    var errs: [Double] = []
+                    for k in 0..<24 { let ph = Double(k) / 24 * 2 * .pi, s = scr(1.3, ph); if s.front, let l = r.knifePick(s.pt, m, sz) { errs.append(dang(l, ph)) } }
+                    var a = 0.0
+                    for j in 0..<72 { let x = Double(j) / 72 * 2 * .pi; if scr(1.4, x).front && scr(1.4, x + 0.35).front && scr(1.4, x + 0.7).front { a = x; break } }
+                    func drag(_ to: Double) { st.knifeStart = scr(1.4, a).pt; st.knifePtr = st.knifeStart; st.knifeDown = true; r.knifeStep(m, sz)
+                        for t in 1...10 { st.knifePtr = scr(1.4, a + (to - a) * Double(t) / 10).pt; r.knifeStep(m, sz) }; st.knifeDown = false; r.knifeStep(m, sz) }
+                    st.knifeOn = true; drag(a + 0.7)
+                    let openOK = st.cutOn && st.cutRef == 2 && dang(st.cutPhi, a + 0.35) < 0.02 && abs(st.cutWDeg - 0.7 * 180 / .pi) < 1.5, w0 = st.cutWDeg
+                    st.knifeMove = true; drag(a + 0.7)
+                    let moveOK = dang(st.cutPhi, a + 0.7) < 0.02 && st.cutWDeg == w0
+                    let outside = r.knifePick(CGPoint(x: 2, y: 2), m, sz) == nil
+                    check(errs.count >= 5 && (errs.max() ?? 1) < 0.02 && openOK && moveOK && outside,
+                          String(format: "ナイフ：画面の点から殻の経度を読む（%d 点・ずれ最大 %.2f°）・引いて広げる（真ん中 %.1f°・幅 %.1f°）・付いてくる・殻の外は読まない", errs.count, (errs.max() ?? 0) * 180 / .pi, st.cutPhi * 180 / .pi, w0))
+                } else { check(false, "ナイフ：確かめの絵が描けない") }
+            }
+            do {   // R の世界：さんぽの宇宙の大きさに R をかける（速さ・目印の見かけは 1/R）。宇宙の大きさの設定とは別。0.05 より小さくしない・さんぽへ知らせる
+                var s = Settings(); s.stageR = 0.2; s.uniL = 1
+                let st = HyperLabState(), old = HyperLabState.worldRSink; var got = -1.0
+                HyperLabState.worldRSink = { got = $0 }; st.worldR = 0; let low = st.worldR; st.worldR = 0.4; HyperLabState.worldRSink = old
+                var pc = PassCaption(); let cap = pc.update(SIMD4(0, 0, 1, 0), 1, r: 0.2).text
+                let tags = [MapRenderer.worldTag(1), MapRenderer.worldTag(0.2), MapRenderer.worldTag(0.45), MapRenderer.worldTag(0.453)]
+                check(tags == ["", "R0.2", "R0.45", "R0.453"] && cap.contains("R0.2 通過"), "R の世界の札：R ＝ 1 は付けない・R0.2・R0.45・R0.453（1000 分の 1 まで）、通過の知らせ「\(cap)」")
+                do {   // 書き出しの記録：詰める数・内側の球層・内核の演出・R の世界・ドリルを、1 コマごとに覚える
+                    let sr = HyperLabState(); sr.noSink = true; sr.fillOn = true; sr.fillCount = 20; sr.fillAuto = false; sr.fillLayers = 7; sr.chaosOn = true; sr.worldR = 0.4
+                    if let r = HyperLabRenderer(side: .right, state: sr, view: nil) {
+                        r.walkOverride = { HyperLabState.Walk(trail: [], pos: SIMD4(0, 0, 0, 1)) }
+                        let f = r.recordFrame()?.f ?? []
+                        check(f.count == 41 && f[34] == 20 && f[35] == 7 && f[36] == 1 && abs(f[37] - 0.4) < 1e-12, "書き出しの記録：詰める数 20・内側の球層 7・内核の演出・R の世界 0.4 を 1 コマごとに覚える（\(f.count) 個）")
+                    } else { check(false, "書き出しの記録：確かめの状態が作れない") }
+                }
+                do {   // ドリル：R0 → 0.05 → R0、知らせは 掘り始め・中心を抜ける・着いた の順に 1 回ずつ
+                    let sd = HyperLabState(), oldD = HyperLabState.drillSink, oldW = HyperLabState.worldRSink
+                    var ev: [Int] = [], minR = 9.0, n = 0
+                    HyperLabState.drillSink = { ev.append($0) }; HyperLabState.worldRSink = { minR = min(minR, $0); n += 1 }
+                    sd.worldR = 0.6; sd.startDrill()
+                    for _ in 0..<Int((HyperLabState.drillLen + 1.5) * 60) { sd.tickDrill(1.0 / 60) }
+                    HyperLabState.drillSink = oldD; HyperLabState.worldRSink = oldW
+                    check(ev == [0, 1, 2] && minR == 0.05 && sd.worldR == 0.6 && !sd.drillOn && sd.drillK == 0 && n > 100,
+                          String(format: "ドリル：R 0.6 → いちばん小さく %.2f → 0.6 に戻る・知らせ %@・R が %d 回なめらかに変わる", minR, ev.map(String.init).joined(separator: "→"), n))
+                }
+                check(abs(s.uniR - 2) < 1e-9 && abs(s.uniBase - 10) < 1e-9 && abs(s.moveR - 2) < 1e-9 && low == 0.05 && got == 0.4,
+                      String(format: "R の世界：宇宙 ×10 で R ＝ 0.2 なら半径 %.2f（進む角度 1/R）・R ＝ 0 は %.2f で止める・さんぽへ %.2f を知らせる", s.uniR, low, got))
+            }
+            check(FIXED.map(MapRenderer.poleAxis) == ["+w", "−w", "+x", "−x", "+y", "−y", "+z", "−z"], "極の札の軸：アナ極 +w・カタ極 −w・東極 +x・西極 −x・北極 +y・南極 −y・天極 +z・地極 −z")
+            do {   // 2 重回転：X-Y と Z-W を同時に回す。傾きはそのままで、超球そのものが回る
+                func spun(_ a: Double, _ b: Double, _ sec: Double) -> HyperLabState { let s = HyperLabState(); s.pitch = 0.6; s.roll = 0.3; s.rot2On = true; s.rot2XY = a; s.rot2ZW = b; for _ in 0..<Int(sec * 100) { s.tick(0.01) }; return s }
+                let c = spun(30, 30, 1), ang = 30.0 * .pi / 180
+                let moved = abs(c.yaw - ang) < 1e-9 && abs(c.zw - ang) < 1e-9 && c.pitch == 0.6 && c.roll == 0.3
+                let pts: [SIMD4<Double>] = [[1, 0, 0, 0], [0, 0, 1, 0], [0.6, 0, 0.8, 0], [0.5, 0.5, 0.5, 0.5], [0.1, -0.7, 0.7, 0.1]].map { simd_normalize($0) }
+                func arc(_ s: HyperLabState, _ p: SIMD4<Double>) -> Double {   // 傾きのない時の、回った前と後の角
+                    let z = SIMD4<Double>(s.zw, s.yaw, 0, 0); return acos(max(-1, min(1, simd_dot(p, s.rot4(p, z)))))
+                }
+                let same = pts.allSatisfy { abs(arc(c, $0) - ang) < 1e-9 }                 // クリフォード回転：全部の点が同じ角
+                let g = spun(30, 60, 1), noneFixed = pts.allSatisfy { arc(g, $0) > ang - 1e-9 }   // 動かない点がない（動く角は遅い方以上）
+                let f = spun(30, 0, 1), fixed = arc(f, [0, 0, 1, 0]) < 1e-9 && abs(arc(f, [1, 0, 0, 0]) - ang) < 1e-9   // 片方が 0 なら、その面の円は動かない
+                var rings = true                                                        // 2 つの円は形が動かず、円の上をすべるだけ
+                for t in stride(from: 0.0, to: 6.28, by: 0.7) {
+                    let q = HyperLabState(); q.pitch = 0.6; q.roll = 0.3
+                    let a0 = c.rot4(SIMD4(cos(t), sin(t), 0, 0)), a1 = q.rot4(SIMD4(cos(t + ang), sin(t + ang), 0, 0))
+                    let b0 = c.rot4(SIMD4(0, 0, cos(t), sin(t))), b1 = q.rot4(SIMD4(0, 0, cos(t + ang), sin(t + ang)))
+                    rings = rings && simd_length(a0 - a1) < 1e-9 && simd_length(b0 - b1) < 1e-9
+                }
+                let x = HyperLabState(); x.rot2On = true; x.auto = true; let one = !x.rot2On; x.rot2On = true; let two = !x.auto; x.followOn = true; let three = !x.rot2On
+                let o = HyperLabState(); o.pitch = 0.4; o.roll = -0.2; o.yaw = 0.7; o.rot2ZW = 0; o.rot2ZWOnly = true
+                for _ in 0..<100 { o.tick(0.01) }
+                let zwOnly = o.rot2On && abs(o.zw - ang) < 1e-9 && abs(o.yaw - 0.7) < 1e-9 && o.pitch == 0.4 && o.roll == -0.2
+                o.rot2ZWOnly = false; let off = !o.rot2On; o.rot2Both = true; let back = o.rot2On && !o.rot2ZWOnly && o.rot2XY == 30
+                let sw = HyperLabState(); sw.yaw = 0.3; sw.zw = 0.2; sw.pitch = 0.5; sw.rot2XY = 30; sw.rot2ZW = 60; sw.rot2Amp = 60; sw.rot2Swing = true; sw.rot2On = true
+                var smooth = true, py = sw.yaw, pz = sw.zw
+                for _ in 0..<300 { sw.tick(0.01); smooth = smooth && abs(sw.yaw - py) < 0.02 && abs(sw.zw - pz) < 0.02; py = sw.yaw; pz = sw.zw }   // 3 秒：飛ばずに動く
+                let peak = abs(sw.yaw - (0.3 + .pi / 3)) < 1e-6 && abs(sw.zw - 0.2) < 1e-6 && sw.pitch == 0.5       // 面内は 1/4 往復で端、Z-W は半往復で真ん中
+                for _ in 0..<900 { sw.tick(0.01) }
+                let home = abs(sw.yaw - 0.3) < 1e-6 && abs(sw.zw - 0.2) < 1e-6                                   // 12 秒で 1 往復して元へ
+                let hz = HyperLabState(); hz.rot2Swing = true; hz.rot2ZWOnly = true; hz.yaw = 0.7; for _ in 0..<50 { hz.tick(0.01) }
+                let hand = abs(hz.yaw - 0.7) < 1e-12 && abs(hz.zw) > 0.05                                          // Z-W だけ：面内は手のまま
+                check(smooth && peak && home && hand, "ゆらす（単振動）：飛ばずに動く・1/4 往復で端・1 往復で元へ・止めた面は手で動かせる")
+                check(zwOnly && off && back, "Z-W 回転だけ：Z-W だけが進み、前後・左右・面内はそのまま・2 重回転へ戻せる")
+                check(moved && same && noneFixed && fixed && rings && one && two && three, "2 重回転：傾きはそのまま・同じ速さなら全部の点が同じ角・動かない点なし・片方 0 で円が止まる・2 つの円は形が動かない")
+            }
+            do {   // 視点切りかえ：左下の地図と同じ向き。Y 消失は w が上、X 消失は w が右、Z 消失は w が手前。回している角度は触らない
+                let b = HyperLabState()
+                func wAxis(_ n: String) -> SIMD4<Double> { let s = HyperLabState.shotList.first { $0.name == n }!; return b.rot4(SIMD4(0, 0, 0, 1), SIMD4(s.zw * .pi / 180, 0, s.pitch * .pi / 180, s.roll * .pi / 180)) }
+                let want: [(String, SIMD4<Double>)] = [("W 消失", [0, 0, 0, 1]), ("W 消失・反転", [0, 0, 0, -1]), ("Y 消失", [0, 1, 0, 0]), ("Y 消失・反転", [0, -1, 0, 0]), ("X 消失", [1, 0, 0, 0]), ("X 消失・反転", [-1, 0, 0, 0]), ("Z 消失", [0, 0, 1, 0]), ("Z 消失・反転", [0, 0, -1, 0])]
+                let axes = want.allSatisfy { simd_length(wAxis($0.0) - $0.1) < 1e-9 }
+                let s = HyperLabState(); s.shotCurve = false; s.shotEvery = 0.5; s.shotEase = 0; s.shotCam = false; s.viewYaw = 0.2; s.viewPitch = 0.1; s.followOn = true; s.shotOn = true
+                var seen: Set<String> = [], last = "", exact = !s.followOn, fam = true
+                for _ in 0..<2000 {
+                    s.tick(0.05)
+                    if s.shotName != last {
+                        if let e = HyperLabState.shotList.first(where: { $0.name == s.shotName }) {
+                            for (a, b) in [(s.pitch, e.pitch), (s.roll, e.roll), (s.zw, e.zw)] { exact = exact && abs(HyperLabState.norm(a - b * .pi / 180)) < 1e-9 }
+                        } else { exact = false }
+                        fam = fam && s.shotName.first != last.first; last = s.shotName; seen.insert(last)
+                    }
+                }
+                let camKept = abs(s.viewYaw - 0.2) < 1e-9 && abs(s.viewPitch - 0.1) < 1e-9
+                let r = HyperLabState(); r.rot2On = true; r.rot2XY = 30; r.rot2ZW = 30; r.shotCurve = false; r.shotEvery = 0.4; r.shotEase = 0.1; r.shotOn = true
+                var noZ = true; for _ in 0..<300 { r.tick(0.01); noZ = noZ && !r.shotName.hasPrefix("Z") }
+                let turning = abs(r.yaw - .pi / 2) < 1e-9 && abs(r.zw - .pi / 2) < 1e-9
+                // カーブ：飛ばずに流れて、間隔ごとに見え方をちょうど通る。3D 回転を入れている間は 3D のカメラに触らない
+                let cv = HyperLabState(); cv.shotCurve = true; cv.shotCurveEvery = 1; cv.shotCam = true; cv.shotOn = true
+                var flow = true, through = true, prev = [cv.pitch, cv.roll, cv.zw, cv.viewYaw], lastN = "", hits = 0
+                for _ in 0..<1000 {
+                    let before = cv.shotName; cv.tick(0.01)
+                    let now = [cv.pitch, cv.roll, cv.zw, cv.viewYaw]
+                    for k in 0..<4 { flow = flow && abs(HyperLabState.norm(now[k] - prev[k])) < 0.08 }; prev = now
+                    if before != cv.shotName && !before.isEmpty, let e = HyperLabState.shotList.first(where: { "→ " + $0.name == before }) {   // 前の行き先をちょうど通った
+                        hits += 1
+                        for (a, b) in [(cv.pitch, e.pitch), (cv.roll, e.roll), (cv.zw, e.zw)] { through = through && abs(HyperLabState.norm(a - b * .pi / 180)) < 0.05 }
+                    }
+                    lastN = cv.shotName
+                }
+                let sp = HyperLabState(); sp.shotCurve = true; sp.spin3D = true; sp.shotOn = true; sp.viewYaw = 0
+                for _ in 0..<100 { sp.tick(0.01) }
+                let spinKept = abs(sp.viewYaw - 0.3) < 1e-9 && !lastN.isEmpty
+                check(flow && through && hits >= 8 && spinKept, "視点切りかえ（カーブ）：飛ばずに流れる・間隔ごとに見え方を通る・3D 回転はそのまま")
+                check(axes && exact && fam && seen.count >= 8 && camKept && noZ && turning, "視点切りかえ：地図と同じ向き・同じ軸は続かない・回している X-Y と Z-W はそのまま進む（Z-W 回転中は Z 消失なし）")
             }
             let g1 = HyperLabRenderer.arrowGap(ecd: 1, showK: 1, m0: 1), g2 = HyperLabRenderer.arrowGap(ecd: 3.4, showK: 3.4, m0: 1)
             check(abs(g1 - g2) < 1e-9, "矢印の間隔：ショーカメラが引いても広がらない")
@@ -911,13 +1068,13 @@ enum Verify {
             r.game.fake = (SIMD3(0.8, 0, 0), SIMD2(1, 0), false, false, false); for _ in 0..<30 { r.step(1.0 / 120) }
             let hy = r.cam.hy, still2 = r.pathMode == .tour
             let xUsed = r.padDuringAuto("X"), roam = r.roaming
-            _ = r.padDuringAuto("ZR"); r.game.fake = (.zero, .zero, false, false, false); for _ in 0..<150 { r.step(1.0 / 120) }
+            _ = r.padDuringAuto("L3"); r.game.fake = (.zero, .zero, false, false, false); for _ in 0..<150 { r.step(1.0 / 120) }
             let back = abs(r.cam.hy)
             let bUsed = r.padDuringAuto("B"), stopped = r.pathMode == .none, msg = said
             let after = r.padDuringAuto("B")
             r.game.fake = nil; r.game.fakeDpad = nil; r.say = say0; r.set.gamepad = false
             check(abs(sp - 2) < 0.03 && still && hy > 10 && still2 && xUsed && !roam && back < 0.05 && bUsed && stopped && msg.contains("中止") && !after,
-                  String(format: "自動走行中：左スティックの前で ×%.2f（極めぐりのまま）、右スティックで見回し %.0f°（道のまま）、X は効かない、Y で前へ戻す、B で中止「%@」", sp, hy, msg))
+                  String(format: "自動走行中：左スティックの前で ×%.2f（極めぐりのまま）、右スティックで見回し %.0f°（道のまま）、X は効かない、L3 で前へ戻す、B で中止「%@」", sp, hy, msg))
             r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = false
         }
         // 目印ごとの模型：選んだ模型で置ける・ランダムは前の目印と違う種類・1 つずつ消すと並びがそろったまま・保存して戻すと同じ・地図の小さな絵ができる
@@ -1058,7 +1215,7 @@ enum Verify {
             check(c0 > 0.995 && up > best - 0.03 && still && abs(th - 90) < 3 && drift > 0.3 && drift < 15,
                   String(format: "自分を追う：遊び 0° で真ん中へ（正面 %.3f・進む向きの上 %.2f／できる限り %.2f）、遊び 90° は中では動かさず、奥からは %.1f° まで戻す。ゆるく回すと遊びの中でも 1 秒で %.1f° 寄る", c0, up, best, th, drift))
         }
-        // 手で走る時（A・B）は、左スティックが向きの操作（右へ倒すと右へ曲がり、前へ倒すと上を向く。速さは変えない）。自動の時は今までどおりアクセル
+        // 手で走る時（A・B）も、左スティックはいつも進む：前でアクセル、横は横へ（向きは変えない）。自動の時も前で加速
         do {
             r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.walking = false; r.step(1.0 / 120)
             r.game.fake = (.zero, .zero, false, false, false); r.game.fakeHeld = []; _ = r.padWalk("A"); r.game.fakeHeld = ["A"]
@@ -1070,8 +1227,8 @@ enum Verify {
             let az1 = r.cam.az; r.game.fake = (SIMD3(0, 0, 1), .zero, false, false, false); let s2 = r.autoSpeed; for _ in 0..<60 { r.step(1.0 / 120) }
             let autoAcc = r.autoSpeed > s2 + 0.05 && abs(r.cam.az - az1) < 1e-9
             r.game.fakeHeld = nil; r.game.fake = nil; r.walking = false; r.set.gamepad = false; r.step(1.0 / 120)
-            check(manual && turned > 10 && up > 5 && s1 < s0 && autoAcc,
-                  String(format: "手で走る時は左スティックで向き：右へ %.0f°・上へ %.0f°（速さは ×%.2f → ×%.2f、ゆるやかに減るだけ）、自動の時は前で加速", turned, up, s0, s1))
+            check(manual && abs(turned) < 1e-9 && abs(up) < 1e-9 && s1 > s0 && autoAcc,
+                  String(format: "手で走る時も左スティックはいつも進む：向きは変えない（右へ %.0f°・上へ %.0f°）、前でアクセル ×%.2f → ×%.2f、自動の時も前で加速", turned, up, s0, s1))
             r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.set.cruise = 1
         }
         // 手で走る（A）時の最高速は、自動（Y）の半分
@@ -1087,9 +1244,110 @@ enum Verify {
         do {
             let g = GameInput(); var got: [String] = []; g.onButton = { got.append($0) }
             g.swapSticks = true; g.vLeft = SIMD2(0, 1); g.vRight = SIMD2(0, -1)
-            let a = g.read(); g.vPress("L3", true); g.vPress("L3", false); g.vPress("R3", true); let push = g.read().push; g.vClear()
+            let a = g.read(); g.vPress("L3", true); g.vPress("L3", false); g.vPress("R3", true); g.vClear()
             g.swapSticks = false; g.vLeft = SIMD2(0, 1); let b = g.read(); g.vClear()
-            check(a.look.y == 1 && a.move.z == -1 && got == ["R3"] && push && b.move.z == 1 && b.look.y == 0, "左右のスティックの入れかえ：左で向き・右で歩く、L3 は前を見る（R3 の働き）・R3 は跡を消す（L3）。切ると元どおり")
+            check(a.look.y == 1 && a.move.z == -1 && got == ["R3", "L3"] && b.move.z == 1 && b.look.y == 0, "左右のスティックの入れかえ：左で向き・右で歩く、L3 は見回しモード（R3 の働き）・R3 は前を見る（L3 の働き）。切ると元どおり")
+        }
+        // ドリルの極の表記：北極（+y）から掘ると、中心を抜けるまでは北極、抜けたら南極。もう一度掘ると、抜けたら北極へ戻る
+        do {
+            let oldD = HyperLabState.drillSink, oldW = HyperLabState.worldRSink, say0 = r.say
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = false
+            r.cam.w = Walker(p: [0, 1, 0, 0], r: [1, 0, 0, 0], u: [0, 0, 1, 0], f: [0, 0, 0, 1])   // 北極（+y）に立つ
+            HyperLabState.drillSink = { r.drillEvent($0) }; HyperLabState.worldRSink = { r.set.stageR = $0 }
+            var msgs: [String] = []; r.say = { msgs.append($0) }
+            func near(_ p: V4) -> String { MapRenderer.poleName(FIXED.min(by: { dot4(p, $0.c) > dot4(p, $1.c) })!) }
+            let sd = HyperLabState(); var log: [String] = [], pc = PassCaption(), t = 0.0
+            func run(_ sec: Double) {
+                for i in 0..<Int(sec * 60) {
+                    sd.tickDrill(1.0 / 60); r.step(1.0 / 60); t += 1.0 / 60
+                    let c = pc.update(r.cam.w.p, t, r: sd.worldR)
+                    if i % 30 == 0 { log.append(String(format: "%.1f秒 y%+.2f R%.2f 近い極 %@ 通過 %@", t, r.cam.w.p.y, sd.worldR, near(r.cam.w.p), c.a > 0.01 ? c.text : "なし")) }
+                }
+            }
+            let before = near(r.cam.w.p); sd.startDrill(); run(1); let early = near(r.cam.w.p); run(HyperLabState.drillLen); let after1 = near(r.cam.w.p)
+            sd.startDrill(); run(1); let early2 = near(r.cam.w.p); run(HyperLabState.drillLen); let after2 = near(r.cam.w.p)
+            print(log.joined(separator: "\n")); print("知らせ：" + msgs.joined(separator: " / "))
+            HyperLabState.drillSink = oldD; HyperLabState.worldRSink = oldW; r.say = say0; r.set = .plain; r.cam = Camera(); r.journey = Journey()
+            check(before == "北極" && early == "北極" && after1 == "南極" && early2 == "南極" && after2 == "北極",
+                  "ドリルの極：北極から掘ると、掘り始めは\(early)・抜けると\(after1)・もう一度掘ると始めは\(early2)・抜けると\(after2)")
+        }
+        // ドリルの決まった道：D の字めぐり（ドリルでカタへ → 地表を半周歩いてアナへ → またドリル）・往復ドリル（カタで止まって、またアナへ）
+        do {
+            let oldD = HyperLabState.drillSink, oldW = HyperLabState.worldRSink, oldT = HyperLabState.tourWalkSink, say0 = r.say
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = false; r.say = { _ in }
+            let sd = HyperLabState()
+            HyperLabState.drillSink = { r.drillEvent($0) }; HyperLabState.worldRSink = { r.set.stageR = $0 }; HyperLabState.tourWalkSink = { r.tourWalk($0) }
+            r.onTourArrived = { sd.tourArrived() }
+            func run(_ sec: Double) { for _ in 0..<Int(sec * 60) { sd.tickDrill(1.0 / 60); r.step(1.0 / 60) } }
+            sd.drillTour = 2
+            run(HyperLabState.drillLen + 0.05); let atKata = r.cam.w.p.w < -0.99, walk1 = r.walking   // 着いてすぐ（もう歩き出している）
+            var t = 0.0; while r.walking && t < 30 { run(0.1); t += 0.1 }; let atAna = r.cam.w.p.w > 0.99, walkT = t
+            run(HyperLabState.tourPause + 0.2); let again = sd.drillOn
+            sd.drillTour = 0; run(HyperLabState.drillLen + 1)
+            r.cam = Camera(); r.journey = Journey(); sd.drillTour = 1
+            run(HyperLabState.drillLen + 0.3); let k1 = r.cam.w.p.w < -0.999, still = !sd.drillOn && !r.walking
+            run(HyperLabState.tourPause + HyperLabState.drillLen + 0.3); let back = r.cam.w.p.w > 0.999
+            sd.drillTour = 0; run(HyperLabState.drillLen + 1)
+            HyperLabState.drillSink = oldD; HyperLabState.worldRSink = oldW; HyperLabState.tourWalkSink = oldT; r.onTourArrived = nil; r.say = say0
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = false
+            check(atKata && walk1 && atAna && again && k1 && still && back,
+                  String(format: "ドリルの道：D の字めぐりはドリルでカタへ・そのまま半周歩いて（%.1f 秒）アナへ・止まってまたドリル。往復ドリルはカタで止まり、またアナへ", walkT))
+        }
+        // 超球ラン（B トンネル）：表面すれすれ → 殻と殻のすき間を 4 つ → 中心を抜けて → 反対側へ脱出。さんぽの体もいっしょに動く
+        do {
+            let oldD = HyperLabState.drillSink, oldW = HyperLabState.worldRSink, oldP = HyperLabState.runPoseSink, oldS = HyperLabState.walkSource, say0 = r.say
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = false; r.say = { _ in }
+            HyperLabState.drillSink = { r.drillEvent($0) }; HyperLabState.worldRSink = { r.set.stageR = $0 }; HyperLabState.runPoseSink = { r.runPose($0, $1) }
+            HyperLabState.walkSource = { HyperLabState.Walk(trail: [], pos: r.cam.w.p, fwd: r.cam.w.f, vR: r.cam.w.r, vU: r.cam.w.u, vL: r.cam.w.f) }
+            let sd = HyperLabState()
+            sd.runOn = true
+            let len = sd.hrun.length, holes = sd.hrun.holes.count, n = Int(len * 60)
+            var minR = 9.0, follow = true, gapsOK = true, hold = r.drillHold, maxStep = 0.0, prevX: SIMD4<Double>? = nil
+            let stage = HyperLabState.stageR
+            for i in 0..<(n - 2) {
+                sd.tickRun(1.0 / 60); sd.tickDrill(1.0 / 60); r.step(1.0 / 60)
+                let s = sd.hrun.at(sd.runT), x = s.p * s.rho
+                minR = min(minR, s.rho)
+                if simd_length(r.cam.w.p - s.p) > 1e-6 { follow = false }
+                if let px = prevX { maxStep = max(maxStep, simd_length(x - px)) }; prevX = x
+                // 殻を通る所はいつも穴の中（穴の真ん中から殻にそって 0.13 より近い）
+                for rs in stage where abs(s.rho - rs) < 0.004 {
+                    if !sd.tunHoles.contains(where: { abs($0.r - rs) < 1e-6 && simd_length($0.dir * rs - x) < 0.13 && $0.open > 0.5 }) { gapsOK = false; print(String(format: "  穴の外で殻を通った：%.2f 秒 R %.3f", Double(i) / 60, rs)) }
+                }
+            }
+            let end = sd.hrun.at(sd.runT), flips = sd.runFlips
+            let mir = r.mirrored
+            // ダイブ画面で見る（トンネルでない）：自分でダイブして、殻がうっすら出て、金色の線は中心のそばを切れずに通る
+            let tp = sd.runPathPoints(), tGap = zip(tp, tp.dropFirst()).map { simd_length($1 - $0) }.max() ?? 9
+            let tMin = tp.map { simd_length($0) }.min() ?? 9, dove = sd.diveOn && !sd.tunnelNow && sd.drillK > 0.99 && sd.runLine
+            print(String(format: "  ダイブ画面のラン：線の点 %d・点の間のいちばん大きい所 %.3f・中心にいちばん近い所 %.3f", tp.count, tGap, tMin))
+            sd.runOn = false; let released = !r.drillHold
+            HyperLabState.drillSink = oldD; HyperLabState.worldRSink = oldW; HyperLabState.runPoseSink = oldP; HyperLabState.walkSource = oldS; r.say = say0
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); r.walking = false
+            print(String(format: "  ラン 1 回り %.1f 秒・穴 %d・いちばん深い R %.4f・1 コマの最大の動き %.4f・最後の R %.3f", len, holes, minR, maxStep, end.rho))
+            check(hold && follow && gapsOK && holes == 2 * stage.count && minR < 0.01 && flips == 1 && !mir && released && end.rho > HyperRun.top - 0.01 && maxStep < 0.03 && dove && tp.count > 50 && tGap < 0.08,
+                  String(format: "超球ラン：表面すれすれ → 殻のすき間 4 つ → 中心を抜けて脱出（1 回り %.1f 秒、穴 %d 個、殻は穴の中だけ通る）。さんぽの体もいっしょに動き、止めると歩ける。ダイブ画面で、通った道を金色の線で見られる", len, holes))
+        }
+        // 鏡の世界：体を回さずに抜けると鏡写し（もう一度で元へ）。ふつうのドリル（宙返り）は鏡写しにならない
+        do {
+            r.set = .plain; r.cam = Camera(); r.journey = Journey(); let say0 = r.say; r.say = { _ in }
+            let m0 = r.mirrored; r.drillEvent(1); let m1 = r.mirrored; r.drillEvent(3); let m2 = r.mirrored, atS = abs(r.cam.w.p.w - 1) < 1e-9
+            r.drillEvent(3); let m3 = r.mirrored; r.say = say0; r.cam = Camera()
+            check(!m0 && !m1 && m2 && !m3 && atS, "鏡の世界：ふつうのドリルは鏡写しにならず、鏡の世界のドリルで鏡写しに、もう一度抜けると元の向きに")
+        }
+        // 泳ぐ：ZL（L2）・Page Down で内へ、ZR（R2）・Page Up で外へ。R は 0.05〜1 の間をなめらかに、超球の窓へも知らせる
+        do {
+            let old = HyperLabState.worldRFromWalk; var sent = -1.0; HyperLabState.worldRFromWalk = { sent = $0 }
+            r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.walking = false
+            r.game.fake = (.zero, .zero, false, false, false); r.game.fakeSwim = -1
+            for _ in 0..<120 { r.step(1.0 / 120) }; let in1 = r.set.stageK
+            for _ in 0..<600 { r.step(1.0 / 120) }; let floorR = r.set.stageK
+            r.game.fakeSwim = 0.5; for _ in 0..<120 { r.step(1.0 / 120) }; let out1 = r.set.stageK
+            r.game.fakeSwim = 0; r.keys = [116]; for _ in 0..<600 { r.step(1.0 / 120) }; let top = r.set.stageK; r.keys = []
+            let sentOK = abs(sent - top) < 1e-12
+            r.game.fakeSwim = nil; r.game.fake = nil; r.set.gamepad = false; HyperLabState.worldRFromWalk = old; r.set = .plain
+            check(abs(in1 - (1 - Renderer.swimSpeed)) < 1e-6 && floorR == 0.05 && abs(out1 - (0.05 + 0.5 * Renderer.swimSpeed)) < 1e-6 && top == 1 && sentOK,
+                  String(format: "泳ぐ：ZL いっぱいで 1 秒に R %.2f → %.2f、0.05 で止まる、ZR を半分で 1 秒 %.3f、Page Up で 1 まで戻り、超球の窓へも知らせる", 1.0, in1, out1))
         }
         // 同期：静かモード・コントローラーで歩くは種類の端末ごと（共通には入れない）、今いる所は上げない、地図の向きは行って戻る
         do {
@@ -1101,12 +1359,12 @@ enum Verify {
                   && abs(ms[0].yaw - 1.1) < 1e-12 && abs(ms[0].dist - 7) < 1e-12 && ms[0].target == [0.1, 0.2, 0.3] && NativeSync.uiKey == "ui_mac",
                   "同期：静かモード・コントローラーで歩くは Mac どうしだけ、描く細かさはそろえない、地図の向きは書き出して戻せる")
         }
-        // 歩き続ける時のボタン：A を 1 秒で約 2.2 倍、十字の上 ターボ・下 ターボ切（元の速さへ）、B を押し続けるとブレーキで止まる
+        // 歩き続ける時のボタン：A を 1 秒で約 2.2 倍、ターボ・ターボ切（元の速さへ）、B を押し続けるとブレーキで止まる
         do {
             r.set = .plain; r.set.gamepad = true; r.cam = Camera(); r.journey = Journey(); r.walking = true; r.game.fake = (.zero, .zero, false, false, false)
             let sr = r.set.shellRange
             r.game.fakeHeld = []; r.step(1.0 / 120); r.game.fakeHeld = ["A"]; for _ in 0..<120 { r.step(1.0 / 120) }; let up = r.autoSpeed
-            r.game.fakeHeld = []; _ = r.padWalk("up"); r.step(1.0 / 120); let tb = r.autoSpeed; _ = r.padWalk("down"); r.step(1.0 / 120); let back = r.autoSpeed
+            r.game.fakeHeld = []; r.turboOn(); r.step(1.0 / 120); let tb = r.autoSpeed; r.turboOff(); r.step(1.0 / 120); let back = r.autoSpeed
             let s0 = r.autoSpeed; r.game.fakeHeld = ["B"]; for _ in 0..<12 { r.step(1.0 / 120) }; let soft = (s0 - r.autoSpeed) / s0   // 押し始め 0.1 秒はやわらかく
             for _ in 0..<600 { r.step(1.0 / 120) }; let stopped = !r.walking
             r.game.fakeHeld = []; _ = r.padWalk("Y"); r.step(1.0 / 120); let yAuto = r.walking && r.autoCruise
@@ -1118,7 +1376,7 @@ enum Verify {
             r.game.fakeHeld = nil; r.game.fake = nil; r.walking = false; r.set.gamepad = false; r.step(1.0 / 120)
             check(abs(up - 1.71) < 0.05 && abs(tb - r.set.autoMax) < 1e-9 && abs(back - up) < 0.01 && stopped && soft < 0.12 && yAuto && abs(xT - r.set.autoMax) < 1e-9 && ySoft && ystop
                   && carUp > 0.45 && coast < carUp && coast > carUp * 0.8 && coastStop && r.set.shellRange == sr,
-                  String(format: "歩き続ける時のボタン：A を 1 秒で ×%.2f、十字の上でターボ ×%.0f・下で ×%.2f、B は押し始めやわらか（0.1 秒で %.1f%%）・押し続けると止まる、Y で自動の開始・なめらかに停止、X でターボ。A で走り出すと ×%.2f、離して 1 秒で ×%.2f（急に止まらない）", up, tb, back, soft * 100, carUp, coast))
+                  String(format: "歩き続ける時のボタン：A を 1 秒で ×%.2f、ターボ ×%.0f・ターボ切で ×%.2f、B は押し始めやわらか（0.1 秒で %.1f%%）・押し続けると止まる、Y で自動の開始・なめらかに停止、X でターボ。A で走り出すと ×%.2f、離して 1 秒で ×%.2f（急に止まらない）", up, tb, back, soft * 100, carUp, coast))
             r.set = .plain; r.cam = Camera(); r.journey = Journey()
         }
         // ターボ：止まっていたら最高速で歩き始め、もう一度で元の速さに。決まった道では道の速さを最高速に
@@ -1266,10 +1524,8 @@ enum Verify {
         _ = padRun([0, 0, -0.6], 1)
         let backDot = dot4(r.cam.w.p, L0), base = 0.9 * r.set.spd
         let vHalf = padRun([0, 0, 0.6], 3), vFull = padRun([0, 0, 1], 3), vBack = padRun([0, 0, -1], 3), nTrail = r.journey.trail.count
-        for i in 0..<3 { r.game.fake = (.zero, .zero, false, i == 1, false); r.step(1.0 / 120) }
-        let cleared = nTrail > 10 && r.journey.trail.count <= 1 && r.journey.foot.isEmpty && r.journey.trail2.count <= 1
-        check(backDot < -0.1 && abs(vHalf / base - 0.6) < 0.02 && abs(vFull / base - 2.5) < 0.05 && abs(vBack / base - 2.5) < 0.05 && cleared,
-              String(format: "コントローラー：手前に倒すと後ろへ（前との内積 %.2f）。速さ 6 割倒し ×%.2f・倒しきり ×%.2f・後ろへ倒しきり ×%.2f。L3 で軌跡を消す（%d 点 → %d 点）", backDot, vHalf / base, vFull / base, vBack / base, nTrail, r.journey.trail.count))
+        check(backDot < -0.1 && abs(vHalf / base - 0.6) < 0.02 && abs(vFull / base - 2.5) < 0.05 && abs(vBack / base - 2.5) < 0.05 && nTrail > 10,
+              String(format: "コントローラー：手前に倒すと後ろへ（前との内積 %.2f）。速さ 6 割倒し ×%.2f・倒しきり ×%.2f・後ろへ倒しきり ×%.2f（軌跡 %d 点。L3 は前を見るに引っ越したので、軌跡は消さない）", backDot, vHalf / base, vFull / base, vBack / base, nTrail))
         // 歩き続けている時に手前へ倒す（少し横に傾いていても）：ブレーキのあと、横へ流れず後ろへ（軌跡の巻き戻し）
         r.cam = Camera(); r.journey = Journey(); r.walking = true
         for i in 0..<210 { r.game.fake = (i < 120 ? .zero : [0.04, 0, -1], .zero, false, false, false); r.step(1.0 / 120) }   // 0.4 秒ほどでブレーキが効いて止まり、そのあと巻き戻し
@@ -1475,7 +1731,7 @@ enum Verify {
         // 大きさを変えて測る時：S3_BENCH="幅,高さ"（画素）
         let bsz = (ProcessInfo.processInfo.environment["S3_BENCH"] ?? "").split(separator: ",").compactMap { Int($0) }
         let bw = bsz.count == 2 ? bsz[0] : 1600, bh = bsz.count == 2 ? bsz[1] : 2000
-        for (name, setup) in [("ふつう", { (s: HyperLabState) in }), ("光沢 0・座標軸なし・跡なし", { (s: HyperLabState) in s.gloss = 0; s.axes = false; s.walk = false; s.marksOn = false }), ("宇宙", { (s: HyperLabState) in s.spaceMode = 1 })] as [(String, (HyperLabState) -> Void)] {
+        for (name, setup) in [("ふつう", { (s: HyperLabState) in }), ("光沢 0・座標軸なし・跡なし", { (s: HyperLabState) in s.gloss = 0; s.axes = false; s.walk = false; s.marksOn = false }), ("宇宙", { (s: HyperLabState) in s.spaceMode = 1 }), ("詰める・内側 4 層", { (s: HyperLabState) in s.fillOn = true; s.fillA = 0; s.fillLayers = 4 }), ("詰める・内側 11 層", { (s: HyperLabState) in s.fillOn = true; s.fillA = 0; s.fillLayers = 11 })] as [(String, (HyperLabState) -> Void)] {
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); setup(st)
                 guard let r = HyperLabRenderer(side: side, state: st, view: nil) else { continue }
@@ -1716,13 +1972,43 @@ enum Verify {
     /// 超球（Metal 版の試作）の絵：光沢なし・あり、左（リングの球）と右（球殻の超球）
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        for (name, gloss, glare, mode) in [("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
+        for (name, gloss, glare, mode) in [("ポリゴン・傾き", 1.0, true, 0), ("拡張A", 1.0, true, 0), ("拡張C", 1.0, true, 0), ("拡張C・ほかを消す", 1.0, true, 0), ("ポリゴン・正面", 1.0, true, 0), ("ポリゴン・上から", 1.0, true, 0), ("ポリゴン・4D回転", 1.0, true, 0), ("ナイフ", 1.0, true, 0), ("R0.6の世界・歩いた跡", 1.0, true, 0), ("このRだけ0.4", 1.0, true, 0), ("ダイブ0.50・R0.4", 1.0, true, 0), ("ダイブ1.00・R0.4・三人称", 1.0, true, 0), ("ダイブ0.45・くるくる", 1.0, true, 0), ("ダイブ1.00・くるくる・三人称", 1.0, true, 0), ("ドリル途中・歩いた跡", 1.0, true, 0), ("ダイブ0.45・ドリル途中", 1.0, true, 0), ("内核・R0.3の世界・歩いた跡", 1.0, true, 0), ("内核・ドリル途中・歩いた跡", 1.0, true, 0), ("北極からドリル", 1.0, true, 0), ("北極からドリル・ダイブ0.45", 1.0, true, 0), ("トンネル・すれすれ", 1.0, true, 0), ("トンネル・すき間", 1.0, true, 0), ("トンネル・すき間の奥", 1.0, true, 0), ("トンネル・炉", 1.0, true, 0), ("トンネル・脱出", 1.0, true, 0), ("トンネル・脱出のあと", 1.0, true, 0), ("トンネル・ドリル", 1.0, true, 0), ("ランをダイブで・すき間", 1.0, true, 0), ("ランをダイブで・すき間の奥", 1.0, true, 0), ("ランをダイブで・炉", 1.0, true, 0), ("ランをダイブで・脱出", 1.0, true, 0), ("詰める・内側4層", 1.0, true, 0), ("詰める・内側11層", 1.0, true, 0), ("詰める20枚・自動", 1.0, true, 0), ("視点X", 1.0, true, 0), ("視点Z", 1.0, true, 0), ("2重回転A", 1.0, true, 0), ("2重回転B", 1.0, true, 0), ("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
                                            ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("巨大彗星・歩いた跡", 1.0, true, 0), ("大彗星・歩いた跡", 1.0, true, 0), ("予定の道・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("宇宙・半透明・星の遠近", 1.0, true, 2), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ1.00・予定の道・三人称", 1.0, true, 0), ("ダイブ1.00・予定の道・急カーブ・三人称", 1.0, true, 0), ("ダイブ0.00・予定の道・急カーブ", 1.0, true, 0), ("ダイブ0.00・予定の道", 1.0, true, 0), ("ダイブ1.00・巨大彗星・三人称", 1.0, true, 0), ("ダイブ1.00・右へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・上へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・三人称", 1.0, true, 0), ("ダイブ0.80・南へ・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("ダイブ0.60・4方向", 1.0, true, 0), ("ダイブ1.00・4方向・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・4方向・三人称", 1.0, true, 0), ("ダイブ0.60・軸の色", 1.0, true, 0), ("球層・軸の色・宇宙", 1.0, true, 0), ("ダイブ0.60・4方向・深海", 1.0, true, 0), ("球層・4方向・深海", 1.0, true, 0), ("球層・4方向・宇宙", 1.0, true, 0), ("球層・4方向・宇宙・天の川の中心", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
+            if let o = ProcessInfo.processInfo.environment["S3_PNG_ONLY"], !name.contains(o) { continue }   // 名前にこの文字を含む場面だけ
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
+                if (name.hasPrefix("トンネル") || name.hasPrefix("ランをダイブで")) && side == .left { continue }
                 st.viewYaw = 0.5; st.viewPitch = 0.3
                 if name.hasPrefix("正面") { st.pitch = 0.0203; st.roll = -0.0962; st.viewYaw = 0; st.viewPitch = 0; st.leftDist = 5.56; st.viewDist = 7.5 }   // ウェブ版の今の画面と同じ向き・大きさ
                 switch name {
+                case "ポリゴン・傾き": st.cutOn = true; st.cutRef = 2; st.polyArm = 1; st.cutWDeg = 104; st.pitch = -1.757; st.roll = -2.647; st.viewYaw = 0.87; st.viewPitch = 1.277
+                case "拡張A": st.expandOn = true; st.stageView = 0
+                case "拡張C": st.expandOn = true; st.stageView = 2
+                case "拡張C・ほかを消す": st.expandOn = true; st.stageView = 2; st.stageOnly = true
+                case "ポリゴン・上から":                                    // すいかの 4 分の 1 切り：上から見下ろして押すと、y のまわりの 90° だけ欠けて、ほかの皮ははがれない
+                    st.cutOn = true; st.cutRef = 2; st.polyArm = 1; st.cutWDeg = 90; st.pitch = 0; st.roll = 0; st.viewYaw = 0.4; st.viewPitch = 1.3
+                case "ポリゴン・正面":                                      // 2026-11-03 のユーザーの画面：W 消失の正面から斜めに見て、ポリゴンカット 100°
+                    st.cutOn = true; st.cutRef = 2; st.polyArm = 1; st.cutWDeg = 100; st.pitch = 0; st.roll = 0; st.viewYaw = -1.341656; st.viewPitch = 0.30925
+                case "R0.6の世界・歩いた跡": st.worldR = 0.6                      // R の世界：彗星・跡・目印は R ＝ 0.6 の S³ の上、外の超球はうっすら
+                case "このRだけ0.4": st.rOnly = true; st.rOnlyR = 0.4
+                case "ダイブ0.50・R0.4", "ダイブ1.00・R0.4・三人称": st.worldR = 0.4
+                case "ダイブ0.45・くるくる", "ダイブ1.00・くるくる・三人称": st.diveSpin = 1           // くるくる：途中は 4 次元を回っている途中、寄り切るとふつうと同じ
+                case "詰める・内側4層": st.fillOn = true; st.fillA = 0; st.fillLayers = 4      // 超球を詰める：10 枚の超球面を全部（内側の球層の数を変えて）
+                case "詰める・内側11層": st.fillOn = true; st.fillA = 0; st.fillLayers = 11
+                case "詰める20枚・自動": st.fillOn = true; st.fillA = 0; st.fillCount = 20       // 詰める数を 20 枚に（内側の球層はふつうの 4）
+                case "北極からドリル", "北極からドリル・ダイブ0.45":             // 北極（+y）から掘って 3 割（R0.6）：彗星は北極の真下、札が北極と南極のどちらの近くに見えるか
+                    st.poleEN = true; st.polesMode = 2; st.drillOn = true; st.drillR0 = 1; st.drillU = 0.33; st.drillS = 0.4; st.drillK = 1; st.worldR = 0.6
+                    if name.hasSuffix("ダイブ0.45") { st.diveT = 0.45; st.spaceMode = 1 }
+                case "内核・R0.3の世界・歩いた跡": st.chaosOn = true; st.worldR = 0.3        // 内核の演出：R ＝ 0.3 の殻は焼けた鉄の色・ゆらぐ網目
+                case "内核・ドリル途中・歩いた跡": st.chaosOn = true; st.drillOn = true; st.drillR0 = 0.8; st.drillU = 0.4; st.drillS = 0.704; st.drillK = 1; st.worldR = 0.8 * (1 - 0.704)
+                case "ドリル途中・歩いた跡", "ダイブ0.45・ドリル途中":             // ドリル：R 0.8 から中心へ 7 割ほど掘った所（金色の穴の線・ステージの殻がうっすら）
+                    st.drillOn = true; st.drillR0 = 0.8; st.drillU = 0.4; st.drillS = 0.704; st.drillK = 1; st.worldR = 0.8 * (1 - 0.704)             // R の世界でダイブ：その S³ の自分の所へ寄る
+                case "ポリゴン・4D回転":                                    // 2026-11-04 のユーザーの画面：4D で大きく回したあと（前後 −180°）。殻ごとの経度で切るので、どの殻も同じ 1 切れ
+                    st.cutOn = true; st.cutRef = 2; st.polyArm = 1; st.cutWDeg = 90; st.pitch = -.pi; st.roll = 2.81; st.viewYaw = 0.5; st.viewPitch = 0.3
+                case "視点X": st.roll = .pi / 2; st.pitch = 0; st.viewYaw = 0; st.viewPitch = 0; st.axes = true
+                case "視点Z": st.zw = -.pi / 2; st.pitch = 0; st.roll = 0; st.viewYaw = 0; st.viewPitch = 0; st.axes = true
+                case "2重回転A": st.rot2On = true; st.polesMode = 2; st.yaw = 0.3; st.zw = 0.3
+                case "2重回転B": st.rot2On = true; st.polesMode = 2; st.yaw = 1.0; st.zw = 1.0
                 case "ZW影": st.zw = 0.7; st.lzw = 1
                 case "ZW両方": st.zw = 0.7; st.lzw = 2
                 case "断面カット・画面": st.cutOn = true; st.cutRef = 0; st.cutAngDeg = 0; st.cutWDeg = 120
@@ -1795,6 +2081,16 @@ enum Verify {
                     r.walkOverride = { .init(trail: tr, pos: tr.last!, marks: mk, hit: [true, true, true, false], poles: [0, 2], plan: plan) }   // 極はアナ極と東極を通った
                 }
                 st.tickDive(0)                                                   // なめらかに追う値（三人称の割合など）を、今の設定に合わせる
+                if name.hasPrefix("北極からドリル") {                              // 北極に立って、x の向きを見ている
+                    r.walkOverride = { HyperLabState.Walk(trail: [], pos: SIMD4(0, 1, 0, 0), head: SIMD4(1, 0, 0, 0), space: true, fwd: SIMD4(1, 0, 0, 0), vR: SIMD4(0, 0, 1, 0), vU: SIMD4(0, 0, 0, 1), vL: SIMD4(1, 0, 0, 0), fov: 70) }
+                }
+                if name == "ナイフ" && side == .right {                           // ナイフ：左から右へドラッグして切り開いたあと、刃を指したまま
+                    let W = Double(iw), H = Double(ih), p0 = CGPoint(x: W * 0.42, y: H * 0.56), p1 = CGPoint(x: W * 0.6, y: H * 0.5)
+                    r.knifeSizeOverride = CGSize(width: W, height: H); st.knifeOn = true
+                    st.knifeStart = p0; st.knifePtr = p0; st.knifeDown = true; _ = r.image(iw, ih)
+                    for t in 1...6 { let k = Double(t) / 6; st.knifePtr = CGPoint(x: p0.x + (p1.x - p0.x) * k, y: p0.y + (p1.y - p0.y) * k); _ = r.image(iw, ih) }
+                    st.knifeDown = false; st.knifePtr = nil; st.knifeHover = p1
+                }
                 if name.contains("予定の道") && name.hasSuffix("三人称") { st.autoCam = true; _ = r.focusForTest(3) }   // オートカメラの見せ場（前のカーブへ向く）
                 if name.contains("へカーブ") {                                    // 追いかけ：まっすぐ 1 秒のあと、0.4 秒きつく曲がった所（彗星が先へ流れ、カメラはまだ傾ききらない）
                     var c = Camera(); c.az = 50; var tr: [SIMD4<Double>] = [], turn = false
@@ -1817,10 +2113,34 @@ enum Verify {
                     let now = ProcessInfo.processInfo.systemUptime                  // 目印 2 と東極に、たった今当たった
                     Journey.hitPulse = [(mk[1], now - 0.08, -1), (FIXED[2].c, now - 0.08, 2)]
                 }
+                var tunRestore: (() -> Void)? = nil
+                if name.hasPrefix("トンネル") || name.hasPrefix("ランをダイブで") {   // 超球ラン：アナ極から x の向きへ出発して、その場面の時刻まで進める（カメラが追いつくよう、最後の 2 秒は描きながら）
+                    let w0 = HyperLabState.Walk(trail: [], pos: SIMD4(0, 0, 0, 1), space: true, fwd: SIMD4(1, 0, 0, 0), vR: SIMD4(0, 0, 1, 0), vU: SIMD4(0, 1, 0, 0), vL: SIMD4(1, 0, 0, 0), fov: 70)
+                    let oW = HyperLabState.walkSource, oD = HyperLabState.drillSink, oP = HyperLabState.runPoseSink, oR = HyperLabState.worldRSink
+                    let dv = name.hasPrefix("ランをダイブで"); var wcur = w0           // ダイブ画面で見るラン：体もランといっしょに動かす
+                    HyperLabState.walkSource = { wcur }; HyperLabState.drillSink = { _ in }; HyperLabState.worldRSink = { _ in }
+                    HyperLabState.runPoseSink = dv ? { p, f in wcur.pos = p; wcur.fwd = f; wcur.vL = f } : { _, _ in }
+                    if dv { r.walkOverride = { wcur }; st.diveOn = true; st.diveT = 0.45; st.diveManual = true; st.spaceMode = 1 }
+                    tunRestore = { HyperLabState.walkSource = oW; HyperLabState.drillSink = oD; HyperLabState.runPoseSink = oP; HyperLabState.worldRSink = oR }
+                    let ph = HyperRun.phases, tCore = ph.dropLast().map { $0.1 }.reduce(0, +), tGap = ph.prefix(3).map { $0.1 }.reduce(0, +)
+                    let drill = name == "トンネル・ドリル", key = dv ? "トンネル" + name.dropFirst(7) : name
+                    let tEnd: Double = ["トンネル・すれすれ": 2.5, "トンネル・すき間": tGap + 1.5, "トンネル・すき間の奥": tCore - 3.2, "トンネル・炉": tCore - 0.12, "トンネル・脱出": tCore + 0.7, "トンネル・脱出のあと": tCore + 2.2, "トンネル・ドリル": 2.4][key] ?? 1
+                    st.chaosOn = true
+                    st.tunnelView = !dv
+                    if drill { st.startDrill() } else { st.runOn = true }
+                    var t = 0.0
+                    while t < tEnd {
+                        st.tickRun(1.0 / 60); st.tickDrill(1.0 / 60); t += 1.0 / 60
+                        if t > tEnd - 2 { r.clockOverride = 500 + t; _ = r.image(160, 135) }
+                    }
+                    r.clockOverride = 500 + t
+                    print(String(format: "  %@：%.2f 秒 R %.3f 穴 %d（開いた %d）", name, t, st.worldR, st.tunHoles.count, st.tunHoles.filter { $0.open > 0.5 }.count))
+                }
                 guard let img = r.image(iw, ih) else { continue }
                 let url = URL(fileURLWithPath: dir).appendingPathComponent("超球_\(name)_\(side == .left ? "左" : "右").png")
                 let d = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
                 CGImageDestinationAddImage(d, img, nil); CGImageDestinationFinalize(d); print(url.path)
+                tunRestore?()
             }
         }
     }

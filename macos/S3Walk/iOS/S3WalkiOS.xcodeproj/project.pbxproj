@@ -26,8 +26,24 @@
 		B03D7934EDCC132E3AB4583B = {isa = PBXBuildFile; fileRef = B2B7F7B0BFD877C798D6EA82; };
 		34C298991127BA3E35343C96 = {isa = PBXBuildFile; fileRef = 5EBDB1BC360DC6E0B5130506; };
 		C37D946ACC5C473DCD40B312 = {isa = PBXBuildFile; fileRef = 330B099344C91EE1594B9AD6; };
+		008DB200E3ADA43CC9530EF8 = {isa = PBXBuildFile; fileRef = DC38D0E8495DA16841B94420; };
+		B8D42F6C3E5A7B9C0D1E2F3A = {isa = PBXBuildFile; fileRef = A7C31E5B2D4F6A8B9C0D1E2F; };
+		BFDB72069A1E332ED4B716B7 = {isa = PBXBuildFile; fileRef = 88DD73B905E537F22E16FACA; };
+		E066042031B9C0917776C6ED = {isa = PBXBuildFile; fileRef = 07577AFF715B2CC16364C635; };
+		FB90F1FB4587612FD52F7012 = {isa = PBXBuildFile; fileRef = FA50BC922C59F7EE686506B3; };
+		EC0C59D5FA47EAD0820FE556 = {isa = PBXBuildFile; fileRef = 9143FF08E59F1D4CDE8BFC4C; };
+		97EEA3B4708434E9AB4A939A = {isa = PBXBuildFile; fileRef = BC1A8D9665000C8899BC7559; };
+		E91898EBA9D4A344B3D087CE = {isa = PBXBuildFile; fileRef = 0D14C5F5A20C9E172FF54C42; };
+		8D7F091987BABF4C77AF8B51 = {isa = PBXBuildFile; fileRef = 2464ED7DAAE94B557E95CBD5; };
+		91D39DF31D7ADAE9C098CBCB = {isa = PBXBuildFile; fileRef = D2118C95F5B1551A82ED6C78; };
+		3F1B178B48979367BF8ABF6A = {isa = PBXBuildFile; fileRef = F8A165C8E088F293AF7F1EF7; };
+		F018F2297833FCC6005B546D = {isa = PBXBuildFile; fileRef = 49EA3084F484FB1338E8FCD0; };
+		56BD244EAE716CF10D2F7565 = {isa = PBXBuildFile; fileRef = FFEE4F2C905209B70609769D; };
+		CD10F045952952EC837FE00E = {isa = PBXBuildFile; fileRef = 1A778A0FFCF49A8EE1681A85; };
+		F5EA65E6E4B3EC39747CD2C8 = {isa = PBXBuildFile; fileRef = 46D2D7FD44C382D7E28BC0F0; };
 		018017F331A5F34C35D7307A = {isa = PBXBuildFile; fileRef = 71157E0343BDDC363491DA39; };
 		CFD60C5E7AF8F99F9EFE8B33 = {isa = PBXBuildFile; fileRef = B0F297DA5DD3A2015A7CC456; };
+		0A51CE0F1A3E4B2C8D9E7F02 = {isa = PBXBuildFile; fileRef = 0A51CE0F1A3E4B2C8D9E7F01; };
 		DEAF61A1DE79116095324F9A = {isa = PBXBuildFile; fileRef = 9B1840ADA6D4B19874866638; };
 		0086208066024A3A65743D5C = {isa = PBXBuildFile; fileRef = 7C93E7CB303EA675908B21BD; };
 		28D7CF31EFD6EC365E0E0D08 = {isa = PBXBuildFile; fileRef = 74E9DFDD0FF38EC91A41333C; };
@@ -58,8 +74,24 @@
 		B2B7F7B0BFD877C798D6EA82 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/SupaConfig.swift"; sourceTree = "<group>"; name = "SupaConfig.swift"; };
 		5EBDB1BC360DC6E0B5130506 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/WebLab.swift"; sourceTree = "<group>"; name = "WebLab.swift"; };
 		330B099344C91EE1594B9AD6 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLab.swift"; sourceTree = "<group>"; name = "HyperLab.swift"; };
+		DC38D0E8495DA16841B94420 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabExpand.swift"; sourceTree = "<group>"; name = "HyperLabExpand.swift"; };
+		A7C31E5B2D4F6A8B9C0D1E2F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabTunnel.swift"; sourceTree = "<group>"; name = "HyperLabTunnel.swift"; };
+		88DD73B905E537F22E16FACA = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabPanel.swift"; sourceTree = "<group>"; name = "HyperLabPanel.swift"; };
+		07577AFF715B2CC16364C635 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabMapsMotion.swift"; sourceTree = "<group>"; name = "HyperLabMapsMotion.swift"; };
+		FA50BC922C59F7EE686506B3 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabCamera.swift"; sourceTree = "<group>"; name = "HyperLabCamera.swift"; };
+		9143FF08E59F1D4CDE8BFC4C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabSoundLink.swift"; sourceTree = "<group>"; name = "HyperLabSoundLink.swift"; };
+		BC1A8D9665000C8899BC7559 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabOffscreen.swift"; sourceTree = "<group>"; name = "HyperLabOffscreen.swift"; };
+		0D14C5F5A20C9E172FF54C42 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabOverlays.swift"; sourceTree = "<group>"; name = "HyperLabOverlays.swift"; };
+		2464ED7DAAE94B557E95CBD5 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabWalkDraw.swift"; sourceTree = "<group>"; name = "HyperLabWalkDraw.swift"; };
+		D2118C95F5B1551A82ED6C78 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabState.swift"; sourceTree = "<group>"; name = "HyperLabState.swift"; };
+		F8A165C8E088F293AF7F1EF7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabMotion.swift"; sourceTree = "<group>"; name = "HyperLabMotion.swift"; };
+		49EA3084F484FB1338E8FCD0 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabParts.swift"; sourceTree = "<group>"; name = "HyperLabParts.swift"; };
+		FFEE4F2C905209B70609769D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabShaders.swift"; sourceTree = "<group>"; name = "HyperLabShaders.swift"; };
+		1A778A0FFCF49A8EE1681A85 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabRenderer.swift"; sourceTree = "<group>"; name = "HyperLabRenderer.swift"; };
+		46D2D7FD44C382D7E28BC0F0 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabPanes.swift"; sourceTree = "<group>"; name = "HyperLabPanes.swift"; };
 		71157E0343BDDC363491DA39 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/TesseractLab.swift"; sourceTree = "<group>"; name = "TesseractLab.swift"; };
 		B0F297DA5DD3A2015A7CC456 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Origami.swift"; sourceTree = "<group>"; name = "Origami.swift"; };
+		0A51CE0F1A3E4B2C8D9E7F01 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/OrigamiSpace.swift"; sourceTree = "<group>"; name = "OrigamiSpace.swift"; };
 		9B1840ADA6D4B19874866638 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperSound.swift"; sourceTree = "<group>"; name = "HyperSound.swift"; };
 		7C93E7CB303EA675908B21BD = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Recorder.swift"; sourceTree = "<group>"; name = "Recorder.swift"; };
 		74E9DFDD0FF38EC91A41333C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Exporter.swift"; sourceTree = "<group>"; name = "Exporter.swift"; };
@@ -94,8 +126,24 @@
 				B2B7F7B0BFD877C798D6EA82,
 				5EBDB1BC360DC6E0B5130506,
 				330B099344C91EE1594B9AD6,
+				DC38D0E8495DA16841B94420,
+				A7C31E5B2D4F6A8B9C0D1E2F,
+				88DD73B905E537F22E16FACA,
+				07577AFF715B2CC16364C635,
+				FA50BC922C59F7EE686506B3,
+				9143FF08E59F1D4CDE8BFC4C,
+				BC1A8D9665000C8899BC7559,
+				0D14C5F5A20C9E172FF54C42,
+				2464ED7DAAE94B557E95CBD5,
+				D2118C95F5B1551A82ED6C78,
+				F8A165C8E088F293AF7F1EF7,
+				49EA3084F484FB1338E8FCD0,
+				FFEE4F2C905209B70609769D,
+				1A778A0FFCF49A8EE1681A85,
+				46D2D7FD44C382D7E28BC0F0,
 				71157E0343BDDC363491DA39,
 				B0F297DA5DD3A2015A7CC456,
+				0A51CE0F1A3E4B2C8D9E7F01,
 				9B1840ADA6D4B19874866638,
 				7C93E7CB303EA675908B21BD,
 				74E9DFDD0FF38EC91A41333C,
@@ -148,8 +196,24 @@
 				B03D7934EDCC132E3AB4583B,
 				34C298991127BA3E35343C96,
 				C37D946ACC5C473DCD40B312,
+				008DB200E3ADA43CC9530EF8,
+				B8D42F6C3E5A7B9C0D1E2F3A,
+				BFDB72069A1E332ED4B716B7,
+				E066042031B9C0917776C6ED,
+				FB90F1FB4587612FD52F7012,
+				EC0C59D5FA47EAD0820FE556,
+				97EEA3B4708434E9AB4A939A,
+				E91898EBA9D4A344B3D087CE,
+				8D7F091987BABF4C77AF8B51,
+				91D39DF31D7ADAE9C098CBCB,
+				3F1B178B48979367BF8ABF6A,
+				F018F2297833FCC6005B546D,
+				56BD244EAE716CF10D2F7565,
+				CD10F045952952EC837FE00E,
+				F5EA65E6E4B3EC39747CD2C8,
 				018017F331A5F34C35D7307A,
 				CFD60C5E7AF8F99F9EFE8B33,
+				0A51CE0F1A3E4B2C8D9E7F02,
 				DEAF61A1DE79116095324F9A,
 				0086208066024A3A65743D5C,
 				28D7CF31EFD6EC365E0E0D08,

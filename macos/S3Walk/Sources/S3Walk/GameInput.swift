@@ -29,11 +29,20 @@ final class GameInput {
 
     /// 画面のゲームパッド（VirtualPad）：スティック（右・上が ＋、−1〜1）と押しているボタン。本物のコントローラーと足し合わせて読む
     var vLeft = SIMD2<Double>(0, 0), vRight = SIMD2<Double>(0, 0), vHeld: Set<String> = []
-    /// 画面のゲームパッドのボタン k を押す・離す（押した時、A・B・X・Y・R3・十字・＋・− はコントローラーと同じく onButton へ）
+    /// 画面のゲームパッドのボタン k を押す・離す（押した時、A・B・X・Y・L3・R3・十字・＋・− はコントローラーと同じく onButton へ）
     func vPress(_ k0: String, _ on: Bool) {
         let k = swapSticks ? (k0 == "L3" ? "R3" : k0 == "R3" ? "L3" : k0) : k0   // 入れかえた時は、押し込みも入れかわる
         if on { vHeld.insert(k) } else { vHeld.remove(k) }
-        if on && ["A", "B", "X", "Y", "R3", "ZR", "up", "down", "right", "menu", "options"].contains(k) { onButton?(k) }
+        if on && ["A", "B", "X", "Y", "L3", "R3", "up", "down", "left", "right", "menu", "options"].contains(k) { onButton?(k) }
+    }
+    /// 確かめる時のにせの泳ぐ入力
+    var fakeSwim: Double? = nil
+    /// 4 つ目の向き（泳ぐ）：ZR（R2）で外へ ＋、ZL（L2）で内へ −。押しこむ深さのまま（−1〜1）。画面のゲームパッドは押している間 ±1
+    func swimAxis() -> Double {
+        if let fakeSwim { return fakeSwim }
+        var s = (vHeld.contains("ZR") ? 1.0 : 0) - (vHeld.contains("ZL") ? 1.0 : 0)
+        for c in GCController.controllers() { if let g = c.extendedGamepad { s += Double(g.rightTrigger.value) - Double(g.leftTrigger.value) } }
+        return abs(s) < 0.06 ? 0 : max(-1, min(1, s))
     }
     func vClear() { vLeft = .zero; vRight = .zero; vHeld = [] }
 
@@ -56,14 +65,13 @@ final class GameInput {
             return k == "A" ? g.buttonA.isPressed : k == "B" ? g.buttonB.isPressed : false
         }
     }
-    /// 十字の右を押している（ターボを押している間だけの時）
-    func dpadRight() -> Bool { vHeld.contains("right") || GCController.controllers().contains { $0.extendedGamepad?.dpad.right.isPressed == true } }
-    /// ターボのボタン（A か十字の右）を押している
-    func turboButtonHeld() -> Bool { vHeld.contains("right") || vHeld.contains("A") || GCController.controllers().contains { g in g.extendedGamepad.map { $0.dpad.right.isPressed || $0.buttonA.isPressed } ?? false } }
+    /// ターボのボタン（A）を押している
+    func turboButtonHeld() -> Bool { vHeld.contains("A") || GCController.controllers().contains { g in g.extendedGamepad.map { $0.buttonA.isPressed } ?? false } }
     /// 毎コマ読む：歩く向き（右・上・前）、向きの変わり（方位・仰角、度／秒）、速く、左スティックを押し込んでいる（L3）、ZL（右スティックで見回しだけ）
     func read() -> (move: SIMD3<Double>, look: SIMD2<Double>, fast: Bool, push: Bool, lookOnly: Bool) {
         if let fake { return fake }
-        var mv = SIMD3<Double>(0, 0, 0), lk = SIMD2<Double>(0, 0), fast = false, push = false, lookOnly = false
+        var mv = SIMD3<Double>(0, 0, 0), lk = SIMD2<Double>(0, 0)
+        let fast = false, push = false, lookOnly = false                   // 速く（ZR）・L3 の押し込み・ZL の見回しは、泳ぐ・前を見る・R3 の見回しモードへ引っ越した
         func dz(_ v: Float) -> Double { let a = Double(v); return abs(a) < 0.15 ? 0 : (a - (a > 0 ? 0.15 : -0.15)) / 0.85 }   // 遊び
         for c in GCController.controllers() {
             if let g = c.extendedGamepad {
@@ -73,13 +81,10 @@ final class GameInput {
                 lk.x += dz(rs.xAxis.value); lk.y += dz(rs.yAxis.value)
                 if g.rightShoulder.isPressed { mv.y += 1 }
                 if g.leftShoulder.isPressed { mv.y -= 1 }
-                if g.rightTrigger.value > 0.5 { fast = true }
-                if lb?.isPressed == true { push = true }
-                if g.leftTrigger.value > 0.5 { lookOnly = true }
+                // ZL・ZR（L2・R2）は 4 つ目の向き（泳ぐ。swimAxis で読む）。L3 前を見る・R3 見回しモードの入り切りは押した時の知らせ
                 edge("A", g.buttonA.isPressed); edge("B", g.buttonB.isPressed); edge("X", g.buttonX.isPressed); edge("Y", g.buttonY.isPressed)
-                edge("R3", rb?.isPressed == true)
-                edge("ZR", g.rightTrigger.value > 0.5)                 // ZR（PlayStation の R2）：自動走行の間は前を見る（ふだんは押している間だけ速く＝ fast）
-                edge("up", g.dpad.up.isPressed); edge("down", g.dpad.down.isPressed); edge("right", g.dpad.right.isPressed); edge("menu", g.buttonMenu.isPressed)
+                edge("L3", lb?.isPressed == true); edge("R3", rb?.isPressed == true)
+                edge("up", g.dpad.up.isPressed); edge("down", g.dpad.down.isPressed); edge("left", g.dpad.left.isPressed); edge("right", g.dpad.right.isPressed); edge("menu", g.buttonMenu.isPressed)
                 edge("options", g.buttonOptions?.isPressed == true)
             } else if let m = c.microGamepad {
                 mv.x += dz(m.dpad.xAxis.value); mv.z += dz(m.dpad.yAxis.value)
@@ -91,9 +96,6 @@ final class GameInput {
         mv.x += vl.x; mv.z += vl.y; lk += vr
         if vHeld.contains("R") { mv.y += 1 }
         if vHeld.contains("L") { mv.y -= 1 }
-        if vHeld.contains("ZR") { fast = true }
-        if vHeld.contains("L3") { push = true }
-        if vHeld.contains("ZL") { lookOnly = true }
         return (mv, lk, fast, push, lookOnly)
     }
     /// スティックだけを読む（ボタンの押した瞬間の知らせは出さない。左・右は手で持った時の左右＝入れかえの設定によらない）

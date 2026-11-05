@@ -106,6 +106,8 @@ extension RecWriter: SCStreamOutput {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 guard let self, self.recording else { return }
+                let m = VideoExport.shared.stopMin
+                if m > 0 && Date().timeIntervalSince(self.started) > Double(m) * 60 { self.stopNote = "タイマー（\(m) 分）で録画を止めました。\n"; self.stop(); return }   // 止めるタイマー
                 let home = URL(fileURLWithPath: NSHomeDirectory())
                 if let free = try? home.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage, free < 5_000_000_000 {
                     self.stopNote = "空きが 5 GB を切ったので、録画を止めました。\n"; self.stop(); return

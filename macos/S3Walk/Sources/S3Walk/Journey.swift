@@ -14,6 +14,7 @@ struct Journey {
     /// チェックポイント：歩いて通った目印（その目印の位置。並びは通った順）。目印のそば（0.12 以内）に外から入った時に記録する
     var marksHit: [V4] = []
     var polesHit: [Int] = []             // 通った極（FIXED の番号。通った順）
+    var worldTag = ""                    // R の世界の札（「 R0.2」。極の通過の知らせにつける。R ＝ 1 の時は空）
     var lapByRoute = false               // 自分の道：周回は道の最後の点を過ぎた時に数える（Renderer の endLap）
     var lapPoles: [Int] = []             // 歩いている自分の道が通る極（2 つ以上あれば、この極を全部通って 1 周。8 つの極を全部通らない道でも周回する）
     /// 自分の道の点（ランダムな点・座標で入れた点など。極・目印と同じ所は除く）も、歩いている間はチェックポイント。routeNames は知らせの名前
@@ -53,11 +54,11 @@ struct Journey {
         if wasW < 0 && w > 0 { say("赤道を通過（アナ極まであと π/2）") }
         // カタ極・アナ極のいちばん近く（距離が減ってから増えに転じた所）を通ったら知らせる
         if let ps = prevS, ps < 0.2, dS > ps, !passedS {
-            say(dS < 0.03 ? "カタ極を通過！ ここはアナ極の反対側（対蹠点）" : String(format: "カタ極のすぐそば（%.2f）を通過。アナ極の反対側", ps))
+            say(dS < 0.03 ? "カタ極\(worldTag)を通過！ ここはアナ極の反対側（対蹠点）" : String(format: "カタ極%@のすぐそば（%.2f）を通過。アナ極の反対側", worldTag, ps))
             passedS = true; passedN = false
         }
         if let pn = prevN, pn < 0.2, dN > pn, !passedN, dist > 1 {
-            say(dN < 0.03 ? "アナ極に戻ってきた！（1 周 = 2π ≈ 6.28）" : String(format: "アナ極のすぐそば（%.2f）まで戻ってきた（1 周 ≈ 6.28）", pn))
+            say(dN < 0.03 ? "アナ極\(worldTag)に戻ってきた！（1 周 = 2π ≈ 6.28）" : String(format: "アナ極%@のすぐそば（%.2f）まで戻ってきた（1 周 ≈ 6.28）", worldTag, pn))
             passedN = true; passedS = false
         }
         // チェックポイント：目印のそばに外から入ったら、通ったと記録して知らせる（置いた所に立っている間は数えない。離れて戻ってきたら数える）
@@ -112,7 +113,7 @@ struct Journey {
             enteredPoles.remove(k)
             Journey.hitPulse.append((m.c, ProcessInfo.processInfo.systemUptime, k))
             polesHit.append(k)
-            if k >= 2 { say("チェック！ \(MapRenderer.poleName(m))を通過（極 \(polesHit.count)/8）") }
+            if k >= 2 { say("チェック！ \(MapRenderer.poleName(m))\(worldTag)を通過（極 \(polesHit.count)/8）") }
         }
         // 目印が 2 つより少ない時は、8 つの極が周回のチェックポイント
         if !lapByRoute && marks.count < 2 && routePts.count < 2 && (lapPoles.count >= 2 ? lapPoles.allSatisfy { polesHit.contains($0) } : polesHit.count >= FIXED.count) {

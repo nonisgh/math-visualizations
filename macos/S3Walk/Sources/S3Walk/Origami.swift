@@ -34,6 +34,10 @@ final class OrigamiState: ObservableObject {
     @Published var envK = 0.35               // 映り込み（スタジオの空と照明）
     @Published var deep = 0.5                // 奥の胞ほど濃く・深い色に
     @Published var inner = 0.5               // 入れ子の内側の面ほど濃く
+    // ---- 宇宙（OrigamiSpace.swift：組み立てるにつれて、紺の背景が星空へ。組み上がった瞬間に光の波）----
+    @Published var spaceMode = 0             // 0 組み立てに合わせる・1 入・2 切
+    @Published var starsPct = 100.0          // 星の数（%）
+    var flashT = 9.0, lastProg = 1.0         // 光の波が出てからの秒・前のコマの組み立て具合（組み上がった瞬間を見つける）
     /// 照り返しライトの時のざらつきの倍率（visual-fx の shineRough：今までの 0.8 倍、広さで −85%〜0.7 まで）
     func roughMul(_ r0: Double) -> Double {
         let b = r0 * 0.8, s = shineSpread
@@ -137,6 +141,9 @@ final class OrigamiState: ObservableObject {
             let sp = dt / 2.4, d = target - progress
             if abs(d) <= sp { progress = target; playing = false } else { progress += d > 0 ? sp : -sp }
         }
+        flashT += dt
+        if lastProg < 0.999 && progress >= 0.999 { flashT = 0 }
+        lastProg = progress
         if var x = xpAnim { x.t += dt; if x.t >= x.total { explodeRaw = x.to; xpAnim = nil } else { xpAnim = x; objectWillChange.send() } }
         if counting {
             if countPhase == 0 { if xpAnim == nil && explodeRaw >= 1 { countPhase = 1; countT = Self.XP_STEP } }
@@ -220,12 +227,17 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
     let device: MTLDevice, queue: MTLCommandQueue
     private var pipe: MTLRenderPipelineState!
     private var lastT = CACurrentMediaTime()
+    let sky: OrigamiSky?                      // 宇宙の背景
 
-    init?(n: Int, state: OrigamiState, view: MTKView) {
-        guard let d = MTLCreateSystemDefaultDevice(), let q = d.makeCommandQueue() else { return nil }
-        self.n = n; st = state; device = d; queue = q
-        super.init()
+    convenience init?(n: Int, state: OrigamiState, view: MTKView) {
+        guard let d = MTLCreateSystemDefaultDevice() else { return nil }
+        self.init(n: n, state: state, device: d)
         view.device = d; view.colorPixelFormat = .bgra8Unorm; view.preferredFramesPerSecond = 60
+    }
+    init?(n: Int, state: OrigamiState, device d: MTLDevice) {
+        guard let q = d.makeCommandQueue() else { return nil }
+        self.n = n; st = state; device = d; queue = q; sky = OrigamiSky(device: d, n: n)
+        super.init()
         let lib = try! d.makeLibrary(source: tlShader, options: nil)
         let p = MTLRenderPipelineDescriptor()
         p.vertexFunction = lib.makeFunction(name: "tlv"); p.fragmentFunction = lib.makeFunction(name: "tlf"); p.colorAttachments[0].pixelFormat = .bgra8Unorm
@@ -262,6 +274,8 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         }
         let dLo = depthOf.min() ?? 0, dSp = max((depthOf.max() ?? 1) - dLo, 1e-6)
         let kD = 2 * st.deep, kI = 3.75 * st.inner
+        // 宇宙：板はうすく（星空が透けて見える）、辺は明るく光る線に。組み上がった瞬間の光で、辺がさらに光る
+        let sk = st.spaceK, fl = st.spaceFlash, plateK = 1 - 0.45 * sk, edgeK = Float(1 + 0.7 * sk + 1.5 * fl)
         func sm(_ x: Double) -> Double { let c = max(0, min(1, x)); return c * c * (3 - 2 * c) }
         for (ci, P) in CV.enumerated() {
             let col0 = OrigamiState.rgb(n == 3 ? OrigamiState.faceCol3[ci] : OrigamiState.cellCol4[ci])
@@ -286,7 +300,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
                 let c = OrigamiState.deepen(OrigamiState.deepen(col0, kD * sm(deepC) * 0.8), tIn)
                 // 濃さは控えめに変える（手前 0.75 倍〜奥 1.3 倍、内側は 1.5 倍まで）。奥・内側は主に色の深さで見せる（暗い背景が透けて見えるガラスのまま）
                 let dens: Double = max(0.3, 1 - 0.25 * kD + 0.55 * kD * deepC)
-                let a: Double = min(0.9, alpha0 * dens * (1 + 0.27 * tIn) * foc.face)
+                let a: Double = min(0.9, alpha0 * dens * (1 + 0.27 * tIn) * foc.face) * plateK
                 return (c, Float(a))
             }
             for p in P { lo = simd_min(lo, SIMD2(p.x, p.y)); hi = simd_max(hi, SIMD2(p.x, p.y)) }
@@ -313,7 +327,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         let dmin = ds.min() ?? 0, dmax = ds.max() ?? 1, sp = max(dmax - dmin, 1e-3)
         func br(_ p: SIMD3<Double>) -> Float { let t = max(0, min(1, (simd_distance(p, eye) - dmin) / sp)), s = t * t * (3 - 2 * t); return Float(0.80 + (0.17 - 0.80) * s) }
         for (a, b, ci) in segs {
-            let k = Float(st.cellFocus(ci, cells.count).edge)
+            let k = Float(st.cellFocus(ci, cells.count).edge) * edgeK
             rods.append(TLRod(a: SIMD4(gpu(a), 0.0), b: SIMD4(gpu(b), 0), col: SIMD4(SIMD3<Float>(0.92, 0.95, 1.0), (br(a) + br(b)) / 2 * 0.75 * k)))
         }
         // 目印：手前の頂点（ふたの胞の ＋…＋）はマゼンタ、奥の頂点（真ん中の胞の −…−）は水色。胞と一緒に離れる
@@ -327,8 +341,16 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
     func draw(in view: MTKView) {
         let now = CACurrentMediaTime(), dt = min(0.05, now - lastT); lastT = now
         if n == 3 { st.tick(dt) }
-        guard let rpd = view.currentRenderPassDescriptor, let dr = view.currentDrawable, let cb = queue.makeCommandBuffer(),
-              let e = cb.makeRenderCommandEncoder(descriptor: rpd) else { return }
+        guard let rpd = view.currentRenderPassDescriptor, let dr = view.currentDrawable, let cb = queue.makeCommandBuffer() else { return }
+        let sz = view.drawableSize
+        encode(cb, rpd, Int(sz.width), Int(sz.height), now: now, dt: dt)
+        cb.present(dr); cb.commit()
+    }
+    /// 1 コマを積む（画面へも、確かめの絵へも）
+    func encode(_ cb: MTLCommandBuffer, _ rpd: MTLRenderPassDescriptor, _ w: Int, _ h: Int, now: Double, dt: Double) {
+        let spaceK = st.spaceK
+        let spTex = spaceK > 0.001 ? sky?.render(cb, w, h, st, now) : nil
+        guard let e = cb.makeRenderCommandEncoder(descriptor: rpd) else { return }
         let i = n == 3 ? 0 : 1
         // カメラ：正面（ウェブ版と同じく、物を回してカメラは回さない）。全体が収まる距離へなめらかに寄る
         let eyeW = SIMD3<Double>(st.center[i].x, st.center[i].y, st.dist[i])
@@ -337,11 +359,11 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         st.dist[i] += (want - st.dist[i]) * k; st.center[i] += (ctr - st.center[i]) * k
         var u = TLUni()
         u.eye = SIMD4(gpu(eyeW), 0); u.R = SIMD4(1, 0, 0, 0); u.U = SIMD4(0, 0, 1, 0); u.F = SIMD4(0, 1, 0, 0)
-        let sz = view.drawableSize
+        let sz = CGSize(width: w, height: h)
         u.p = SIMD4(Float(tan(22.5 * Double.pi / 180)), Float(sz.width / max(1, sz.height)), 0, 1)
         let L = TessLabState.looks[st.look]
         u.q = SIMD4(Float(quads.count), 0, Float(now.truncatingRemainder(dividingBy: 1000)), 0)
-        u.cnt = SIMD4(Float(rods.count), Float(balls.count), Float(2 * tan(22.5 * Double.pi / 180) / max(1, sz.height)), 0.08)   // 細い線（にじみは少し）
+        u.cnt = SIMD4(Float(rods.count), Float(balls.count), Float(2 * tan(22.5 * Double.pi / 180) / max(1, sz.height)), Float(0.08 + 0.22 * spaceK))   // 細い線（にじみは少し。宇宙ではネオンのように）
         u.L0 = SIMD4(L.base, L.fresA, L.fresP, L.rimK); u.L1 = SIMD4(L.lumT, L.lumK, L.env, L.sat)
         u.L2 = SIMD4(L.lift, L.add ? 1 : 0, 0, 1)                         // 辺は細い線（ウェブ版の 1 画素の線）
         u.rim = SIMD4(L.rim, L.rodEnv); u.L3 = SIMD4(L.soft ? 1 : 0, 1, 0, st.look == 0 ? 1 : 0)   // 質感「次元おりがみ」は three.js と同じ光で
@@ -355,15 +377,18 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
             return SIMD4(gpu(T + SIMD3(D * cos(e) * sin(a), D * sin(e), D * cos(e) * cos(a))), 0)
         }
         u.S2 = lightAt(st.shineAz, st.shineEl, 0.762); u.S3 = lightAt(st.shineAz + 168, max(-85, min(85, st.shineEl * 0.7)), 0.886)
+        // 背景の混ぜ方は早めに（星がぽつぽつ灯る具合は、星ごとのしきい値で）
+        u.X = SIMD4(spTex != nil ? Float(min(1, 3 * spaceK)) : 0, Float(st.spaceFlash), 0, 0)
+        if let spTex { e.setFragmentTexture(spTex, index: 0) }
         var qd = quads.isEmpty ? [TLQuad(a: .zero, b: .zero, c: .zero, d: .zero, n: .zero, col: .zero)] : quads, rd = rods, bl = balls
         guard let qb = device.makeBuffer(bytes: &qd, length: MemoryLayout<TLQuad>.stride * qd.count, options: .storageModeShared),
               let rb = device.makeBuffer(bytes: &rd, length: MemoryLayout<TLRod>.stride * max(1, rd.count), options: .storageModeShared),
-              let bb = device.makeBuffer(bytes: &bl, length: MemoryLayout<TLBall>.stride * max(1, bl.count), options: .storageModeShared) else { return }
+              let bb = device.makeBuffer(bytes: &bl, length: MemoryLayout<TLBall>.stride * max(1, bl.count), options: .storageModeShared) else { e.endEncoding(); return }
         e.setRenderPipelineState(pipe)
         e.setFragmentBytes(&u, length: MemoryLayout<TLUni>.stride, index: 0)
         e.setFragmentBuffer(qb, offset: 0, index: 1); e.setFragmentBuffer(rb, offset: 0, index: 2); e.setFragmentBuffer(bb, offset: 0, index: 3)
         e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
-        e.endEncoding(); cb.present(dr); cb.commit()
+        e.endEncoding()
     }
 }
 
@@ -534,6 +559,9 @@ struct OrigamiView: View {
                 Toggle("3D 回転", isOn: $st.spin3).toggleStyle(.button)
                 Button("初期位置") { st.reset() }
                 Picker("質感", selection: $st.look) { ForEach(TessLabState.looks.indices, id: \.self) { Text(TessLabState.looks[$0].name).tag($0) } }.frame(width: 170)
+                Picker("宇宙", selection: $st.spaceMode) { Text("組み立てに合わせる").tag(0); Text("入").tag(1); Text("切").tag(2) }.frame(width: 230)
+                    .help("組み立てるにつれて、紺の背景が星空になる（組み上がった瞬間に光の波）。入はいつも宇宙、切はいつも紺")
+                mini("星の数", $st.starsPct, 5, 100, "%.0f%%").disabled(st.spaceMode == 2)
                 Spacer()
                 Text("次元おりがみのネイティブ版（移植の第 1 歩）").font(.caption).foregroundStyle(.secondary)
             }

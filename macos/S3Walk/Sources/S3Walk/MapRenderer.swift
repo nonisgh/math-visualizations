@@ -173,6 +173,14 @@ final class MapRenderer: NSObject, MTKViewDelegate {
     private var s2Buf: MTLBuffer?, s2Count = 0
     /// 極の名前（ウェブ版の poleName）：アナ極・カタ極・東極・西極・北極・南極・天極・地極
     static func poleName(_ m: Marker) -> String { m.label == "N" ? "アナ極" : m.label == "S" ? "カタ極" : (m.label.split(separator: " ").first.map(String.init) ?? m.label) + "極" }
+    /// 極の軸（アナ極 +w・カタ極 −w・東極 +x など）
+    /// R の世界の札（極の名前・軸のあとにつける。R0.2・R0.45・R0.453 など、1000 分の 1 まで。R ＝ 1 の時は空）
+    static func worldTag(_ r: Double) -> String {
+        guard r < 0.9995 else { return "" }
+        func whole(_ k: Double) -> Bool { abs(r * k - (r * k).rounded()) < 1e-6 }
+        return "R" + String(format: whole(10) ? "%.1f" : whole(100) ? "%.2f" : "%.3f", r)
+    }
+    static func poleAxis(_ m: Marker) -> String { m.label == "N" ? "+w" : m.label == "S" ? "−w" : String(m.label.split(separator: " ").last ?? "") }
     /// 極の英語の名前（4D 球アナロジーの英語モード。短く）：アナ極 Ana・カタ極 Kata・東西南北 East / West / North / South・天 Zenith・地 Nadir
     static func poleNameEN(_ m: Marker) -> String {
         switch m.label.split(separator: " ").first.map(String.init) ?? m.label {
@@ -769,7 +777,7 @@ final class MapRenderer: NSObject, MTKViewDelegate {
         // 1. 玉（奥行きを書く）：8 つの極・足あと・置いた目印・自分
         var bs: [Ball] = []
         let picMode = s.mk == 1, none = s.mk == 3, modelMode = s.mk == 4
-        let mk = max(0.3, pow(s.uniR, -0.35))                    // 宇宙が大きい時、地図の玉は見えなくならないよう 1/R ではなく R^−0.35 で小さく（下限 0.3。ウェブ版の mapK）
+        let mk = max(0.3, pow(s.uniBase, -0.35))                    // 宇宙が大きい時、地図の玉は見えなくならないよう 1/R ではなく R^−0.35 で小さく（下限 0.3。ウェブ版の mapK）
         func ball(_ p: V4, _ r: Double, _ col: SIMD3<Float>, cap: Double = 2.5, pic: String? = nil) -> SIMD3<Float>? {
             guard let (a, _) = map(p, R) else { return nil }
             let k = min(cap, kOf(p, R))

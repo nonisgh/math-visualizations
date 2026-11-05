@@ -32,6 +32,7 @@ struct Main {
         if let i = args.firstIndex(of: "--thumbs"), i + 1 < args.count { Verify.thumbs(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--hyperpng"), i + 1 < args.count { Verify.hyperPNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--twpng"), i + 1 < args.count { TessWalkRenderer.png(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--ogpng"), i + 1 < args.count { OrigamiRenderer.png(args[i + 1]); exit(0) }
         if args.contains("--exporttest") && args.contains("--arm") { let u = VideoExport.selfTestArm(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
         if args.contains("--exporttest") && args.contains("--route") { let u = VideoExport.selfTestRoute(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
         if args.contains("--exporttest") && args.contains("--ring") { let u = VideoExport.selfTestRing(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
@@ -100,6 +101,11 @@ final class AppModel: ObservableObject {
         self.r = r
         Store.restore(r)
         HyperLabState.walkSource = { [unowned r] in r.hyperWalk() }   // 超球の試作に、歩いた跡・今いる所・目印を
+        HyperLabState.worldRSink = { [unowned r] v in r.set.stageR = v }   // 超球の窓で選んだ R の世界を、さんぽの宇宙の大きさに
+        HyperLabState.drillSink = { [unowned r] e in r.drillEvent(e) }    // ドリル：0 掘り始め（歩くのを止める）・1 中心を抜ける（反対側の点へ）・2 着いた
+        HyperLabState.tourWalkSink = { [unowned r] a in r.tourWalk(a) }   // D の字めぐり：地表を半周歩く
+        HyperLabState.runPoseSink = { [unowned r] p, f in r.runPose(p, f) }   // 超球ラン：体を超球の窓の道にそって動かす
+        r.onTourArrived = { HyperLabRenderer.liveMain?.st.tourArrived() }
         HyperLabState.mainBar = { [unowned self] st in AnyView(MainBarRow(model: self, st: st)) }
         r.say = { [weak self] m in DispatchQueue.main.async { self?.say(m) } }
         r.onPad = { [weak self] k in self?.pad(k) }
@@ -231,11 +237,16 @@ final class AppModel: ObservableObject {
     }
     /// コントローラーのボタン
     func pad(_ k: String) {
-        if r.padDuringAuto(k) { changed(); return }                 // 自動走行の間：B 中止・Y 前を見る・十字の上下 ターボ入・切（Renderer）
-        if r.padWalk(k) { changed(); return }                       // A アクセル・B ブレーキ・十字の上 ターボ入・下 ターボ切・右 ターボの切りかえ（Renderer）
+        if r.padDuringAuto(k) { changed(); return }                 // 自動走行の間：B 中止・Y 完全停止・L3 前を見る・X ターボ（Renderer）
+        if r.padWalk(k) { changed(); return }                       // A アクセル・B ブレーキ・X ターボの切りかえ・Y 自動で走る（Renderer）
+        // ZL・ZR（L2・R2）は泳ぐ（4 つ目の向き。毎コマ読む）
         switch k {
-        case "R3": r.levelView()
-        case "ZR": break                                          // ZR はふだん「押している間だけ速く」（毎コマ読む）。自動走行の間だけ前を見る
+        case "L3": r.levelView()
+        case "R3": r.lookToggle.toggle(); say(r.lookToggle ? "見回しモード：右スティックで頭だけ回す（R3 でやめる）" : "見回しモードをやめた")
+        case "up": HyperLabState.padAction?("diveOn")                // 十字の上：ダイブ（超球の窓）
+        case "down": HyperLabState.padAction?("diveOff")             // 十字の下：ダイブをやめる
+        case "left": HyperLabState.padAction?("drill")               // 十字の左：ドリル（中心をまっすぐ通って反対側へ）
+        case "right": r.addMark(); say("ここに目印を置いた")             // 十字の右：目印
         case "menu": showPanel.toggle()
         case "options": toggleMap()
         default: break
@@ -607,7 +618,7 @@ struct OneMap: View {
                 HStack {
                     // ウェブ版の地図の札：S³ の地図はすみれ色、S² の仲間は水色
                     let bc = slot == 2 ? Color(red: 103 / 255, green: 232 / 255, blue: 249 / 255) : Color(red: 216 / 255, green: 180 / 255, blue: 254 / 255)
-                    let uR = model.r.set.uniR, uTxt = uR > 1.05 && slot != 2 ? "・半径 ×" + (uR < 10 ? String(format: "%.1f", uR) : String(format: "%.0f", uR)) : ""
+                    let uR = model.r.set.uniR, uTxt = slot == 2 ? "" : model.r.set.stageK < 0.9995 ? "・いる世界 " + MapRenderer.worldTag(model.r.set.stageK) : uR > 1.05 ? "・半径 ×" + (uR < 10 ? String(format: "%.1f", uR) : String(format: "%.0f", uR)) : ""
                     Text((slot == 0 ? "S³ の地図" : slot == 1 ? "地図 2" : "S² の仲間（同じ操作を球面で）") + uTxt).font(.caption.weight(.bold)).foregroundStyle(bc)
                         .padding(.horizontal, 10).padding(.vertical, 4).background(Space.panel.opacity(0.85), in: RoundedRectangle(cornerRadius: 10))
                         .overlay(RoundedRectangle(cornerRadius: 10).stroke(bc.opacity(0.3)))
@@ -925,7 +936,7 @@ final class WalkView: MTKView {
         applyScale()
         if logFPS { print(String(format: "fps %.1f / %d  最長 %.1f ms  GPU %.2f ms  %d×%d  細かさ %.2f", r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale)); fflush(stdout) }
         let p = r.cam.w.p, fromN = acos(max(-1, min(1, p.w)))
-        let mode = [r.pathMode != .none ? (r.pathMode == .spiral ? "螺旋" : r.pathMode == .ring ? "回る輪" : r.pathMode == .half ? "半周 180° のターン" : r.pathMode == .cube ? "超立方体の辺めぐり" : r.pathMode == .cell24 ? "二十四胞体の辺めぐり" : r.pathMode == .custom ? "自分の道「" + r.cr.title + "」" : "極めぐり") + (abs(r.pathSpeed - 1) > 0.01 ? String(format: " ×%.1f", r.pathSpeed) : "") : r.roaming ? "縦横無尽" : r.rewinding ? String(format: "巻き戻し ×%.1f", max(0.3, r.rewindSpeed)) : r.walking ? (abs(r.autoSpeed - 1) > 0.01 ? String(format: "歩き続ける ×%.1f", r.autoSpeed) : "歩き続ける") : "", r.set.shell ? (r.set.shellSolid ? "球層（立体）" : "球層") : "", r.set.lite ? "軽い線" : ""].filter { !$0.isEmpty }.joined(separator: "・")
+        let mode = [r.pathMode != .none ? (r.pathMode == .spiral ? "螺旋" : r.pathMode == .ring ? "回る輪" : r.pathMode == .half ? "半周 180° のターン" : r.pathMode == .cube ? "超立方体の辺めぐり" : r.pathMode == .cell24 ? "二十四胞体の辺めぐり" : r.pathMode == .custom ? "自分の道「" + r.cr.title + "」" : "極めぐり") + (abs(r.pathSpeed - 1) > 0.01 ? String(format: " ×%.1f", r.pathSpeed) : "") : r.roaming ? "縦横無尽" : r.rewinding ? String(format: "巻き戻し ×%.1f", max(0.3, r.rewindSpeed)) : r.walking ? (abs(r.autoSpeed - 1) > 0.01 ? String(format: "歩き続ける ×%.1f", r.autoSpeed) : "歩き続ける") : "", r.set.shell ? (r.set.shellSolid ? "球層（立体）" : "球層") : "", r.set.lite ? "軽い線" : "", r.mirrored ? "鏡の世界" : ""].filter { !$0.isEmpty }.joined(separator: "・")
         let UR = r.set.uniR, big = UR >= 10, opp = big ? String(format: "πR ≈ %.0f", Double.pi * UR) : String(format: "π ≈ %.2f", Double.pi * UR)
         let s = String(format: "%.0f fps（目標 %d、いちばん長い間 %.0f ms）　GPU %.1f ms/コマ　%d×%d（細かさ %.0f%%%@）\nアナ極から %@（%@ で反対側）　進んだ距離 %@（%.2f 周）\n方位 %.0f°　仰角 %.0f°　見回し %.0f° / %.0f°　%@",
                        r.fps, preferredFramesPerSecond, r.maxGap, r.gpuMs, Int(drawableSize.width), Int(drawableSize.height), r.set.scale * 100, (r.set.autoQ ? "・自動" : "") + (r.idle ? "・止まっているので描き直さない" : ""),
