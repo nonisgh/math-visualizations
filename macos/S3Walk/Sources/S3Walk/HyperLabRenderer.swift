@@ -37,6 +37,9 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     var depthWrite: MTLDepthStencilState!, depthRead: MTLDepthStencilState!, depthAlways: MTLDepthStencilState!
     var tris: [HLVert] = [], glass: [HLVert] = [], lines: [HLVert] = []
     var triBuf: MTLBuffer?, glassBuf: MTLBuffer?, lineBuf: MTLBuffer?
+    var rColW: MTLBuffer?                                              // 網目だけ別の色（正 120 胞体：面と線で組の数がちがう）。ふだんは nil で、面と同じ色
+    var rotGlow: [HLVert] = [], rotGlowBuf: MTLBuffer?                    // その太いにじみ（光る線の 2 重）
+    var rotLines: [HLVert] = [], rotLineBuf: MTLBuffer?                  // 左の球と一緒に回る線（正十二面体・円錐の線。ふつうの線は回らない）
     /// 右：層ごとの範囲（殻の面・その層の線）。ウェブ版（three.js）と同じく、層の順に「面 → 線」と描く
     var ranges: [(g: Range<Int>, l: Range<Int>, c: SIMD4<Double>, e: SIMD4<Double>)] = []   // c：殻の中心、e：殻の上の 1 点（どちらも S³ の半径を 1 とした 4D の点）
     /// 右：元の 4D の点・層の色・つなぎ方（三角形と線の番号）。層数・半球が変わった時だけ作る
@@ -262,17 +265,56 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     /// 左の形（傾きは描く時に GPU で回すので、形は Z-W・層数・半球が変わった時だけ作る）
     func buildLeftForBench() { buildLeft() }
     func buildLeft() {
-        tris = []; glass = []; lines = []; ranges = []; leftRings = []; rings = []
+        tris = []; glass = []; lines = []; ranges = []; leftRings = []; rings = []; rotLines = []; rotGlow = []
         let M = matrix_identity_double3x3, R = Self.R, cs = cos(st.zw)
         let n = max(2, st.layers), tube = n > 31 ? 0.008 : 0.02
         let sn = sin(st.zw), lzw = st.lzw
         let cm = st.coordModel
         func merRings() {                                               // 経度（β）：右の経度面と同じ数だけ、z の両極を通る大きな輪を扇のように（地球儀の経線）
-            let K = n, pal = shellFams(left: true)[0].list.map { $0.col }   // 右の経度面と同じ数（＝層数）
-            for k in 0..<K { rings.append(HLRing(a: SIMD4(Float(R), 0, Float(tube), Float(3 + Double(k) / Double(K) * .pi)), c: SIMD4(pal[k * max(0, pal.count - 1) / max(1, K - 1)], 1))) }
+            let K = n, fl = shellFams(left: true)                         // 右の経度面と同じ数（＝層数）。4 方向・軸の色は x・y の両極を通る輪も（殻の輪と同じ 3 組）
+            for (fk, list) in fl {
+                let pal = list.map { $0.col }, ax = Double(fk == 3 ? 0 : fk == 0 ? 1 : 2)   // シェーダー：a.w ＝ 3 ＋ 4 × 軸（0 z・1 x・2 y）＋ 回す角
+                for k in 0..<K { rings.append(HLRing(a: SIMD4(Float(R), 0, Float(tube), Float(3 + 4 * ax + Double(k) / Double(K) * .pi)), c: SIMD4(pal[k * max(0, pal.count - 1) / max(1, K - 1)], 1))) }
+            }
         }
-        if cm == 1 || cm == 3 {                                          // 経度だけ・円錐だけ（円錐は右だけ。左は参考の球だけ）
+        if cm == 5 {                                                     // 正 120 胞体のなかま：球面の正十二面体（五角形 12 枚）。色は高さ z（＝w の代わり）で殻と同じ虹
+            let wl = shellFams(left: true)[0].list
+            func colAt(_ z: Double) -> SIMD3<Float> { wl.min { abs($0.w - z * R) < abs($1.w - z * R) }?.col ?? SIMD3(1, 1, 1) }
+            for pg in Self.pentagons(dodecaArcs()) {                   // 面：うっすら色のついたガラス（球の上にそって 5 つの三角を細かく）
+                let C = simd_normalize(pg.reduce(SIMD3<Double>(repeating: 0), +)), col = SIMD4(colAt(C.z), 0.16)
+                for k in 0..<5 {
+                    let A = pg[k], B = pg[(k + 1) % 5], N = 4
+                    func pt(_ i: Int, _ j: Int) -> SIMD3<Double> { simd_normalize(C * (1 - Double(i + j) / Double(N)) + A * (Double(i) / Double(N)) + B * (Double(j) / Double(N))) }
+                    for i in 0..<N { for j in 0..<(N - i) {
+                        var tri = [pt(i, j), pt(i + 1, j), pt(i, j + 1)]
+                        if i + j + 1 < N { tri += [pt(i + 1, j), pt(i + 1, j + 1), pt(i, j + 1)] }
+                        for q in tri { glass.append(HLVert(p: SIMD4(SIMD3<Float>(M * (q * R)), 1), n: SIMD4(SIMD3<Float>(M * q), 0), c: col)) }
+                    } }
+                }
+            }
+            for (a, b) in dodecaArcs() {
+                var prev = a
+                for s in 1...12 { let q = simd_normalize(a * (1 - Double(s) / 12) + b * Double(s) / 12); let c = colAt((prev.z + q.z) / 2); addRotLine(M * (prev * R), M * (q * R), SIMD4(simd_mix(c, SIMD3(repeating: 1), SIMD3(repeating: 0.35)), 1)); rotGlow.append(HLVert(p: SIMD4(SIMD3<Float>(M * (prev * R)), 1), n: .zero, c: SIMD4(c, 0.28))); rotGlow.append(HLVert(p: SIMD4(SIMD3<Float>(M * (q * R)), 1), n: .zero, c: SIMD4(c, 0.28))); prev = q }
+            }
+            let eq = (0...96).map { k -> SIMD3<Double> in let a = Double(k) / 96 * 2 * .pi; return SIMD3(R * cos(a), R * sin(a), 0) }
+            for k in 0..<96 { addLine(M * eq[k], M * eq[k + 1], SIMD4(0.58, 0.64, 0.72, 0.18)) }
+            if !st.axes { addLine(M * SIMD3(0, 0, -R * 1.25), M * SIMD3(0, 0, R * 1.25), SIMD4(0.38, 0.65, 0.98, 0.55)) }
+            return
+        }
+        if cm == 1 || cm == 3 {                                          // 経度だけ・円錐だけ
             if cm == 1 { merRings() }
+            if cm == 3 {                                                 // 円錐：w を消して xyz に映した形（とんがり帽子）。ふちの輪と、中心からふちへの線で。色は右の円錐と同じ
+                func hsl(_ h: Double, _ s: Double, _ l: Double) -> SIMD3<Float> {
+                    let c = (1 - abs(2 * l - 1)) * s, hp = (h - floor(h)) * 6, x = c * (1 - abs(hp.truncatingRemainder(dividingBy: 2) - 1)), m = l - c / 2
+                    let (r, g, b): (Double, Double, Double) = hp < 1 ? (c, x, 0) : hp < 2 ? (x, c, 0) : hp < 3 ? (0, c, x) : hp < 4 ? (0, x, c) : hp < 5 ? (x, 0, c) : (c, 0, x)
+                    return SIMD3<Float>(Float(r + m), Float(g + m), Float(b + m))
+                }
+                for j in 0..<n {
+                    let tc = Double(j + 1) * .pi / Double(n + 1), rho = R * sin(tc), h = R * cos(tc), col = hsl(0.12 + 0.6 * Double(j) / Double(n), 0.7, 0.62)
+                    rings.append(HLRing(a: SIMD4(Float(rho), Float(h), Float(tube), 0), c: SIMD4(col, 1)))
+                    for q in 0..<8 { let f = Double(q) / 8 * 2 * .pi; addRotLine(SIMD3(0, 0, 0), M * SIMD3(rho * cos(f), rho * sin(f), h), SIMD4(col, 0.5)) }
+                }
+            }
             let eq = (0...96).map { k -> SIMD3<Double> in let a = Double(k) / 96 * 2 * .pi; return SIMD3(R * cos(a), R * sin(a), 0) }
             for k in 0..<96 { addLine(M * eq[k], M * eq[k + 1], SIMD4(0.58, 0.64, 0.72, 0.18)) }
             if !st.axes { addLine(M * SIMD3(0, 0, -R * 1.25), M * SIMD3(0, 0, R * 1.25), SIMD4(0.38, 0.65, 0.98, 0.55)) }
@@ -312,6 +354,9 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         if !st.axes { addLine(M * SIMD3(0, 0, -R * 1.25), M * SIMD3(0, 0, R * 1.25), SIMD4(0.38, 0.65, 0.98, 0.55)) }   // 座標軸を出す時は、毎コマ drawAxes で
         if cm == 2 || cm == 4 { merRings() }                             // 両方・全部：緯度の輪に経線の輪を重ねる（地球儀の格子）
     }
+    func addRotLine(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD4<Float>) {   // 左の球と一緒に回る線
+        rotLines.append(HLVert(p: SIMD4(SIMD3<Float>(a), 1), n: .zero, c: c)); rotLines.append(HLVert(p: SIMD4(SIMD3<Float>(b), 1), n: .zero, c: c))
+    }
     func addLine(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD4<Float>) {
         lines.append(HLVert(p: SIMD4(SIMD3<Float>(a), 1), n: .zero, c: c)); lines.append(HLVert(p: SIMD4(SIMD3<Float>(b), 1), n: .zero, c: c))
     }
@@ -338,7 +383,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         return v
     }
     func buildRight() {
-        tris = []; glass = []; lines = []; ranges = []
+        tris = []; glass = []; lines = []; ranges = []; rColW = nil
         if st.lonOn { buildRightLon(); return }                         // 経度面（β）は別に作る（緯度の殻の作り方は通らない）
         let n = max(2, st.layers), MESH0 = n > 61 ? 12 : n > 31 ? 16 : 24
         // 網目の線はウェブ版と同じ本数（MESH0）。面と線の曲がりは 2 倍に細かく（輪郭がカクカク・ギザギザしないよう）。4 方向・軸の色は殻が 4 倍なので 2 倍まで
@@ -400,6 +445,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     func buildRightLon() {
         let n = max(2, st.layers), cm = st.coordModel, R = Self.R
         let fams = shellFams(left: false), wl = (fams.first { $0.k == 3 } ?? fams[0]).list
+        if cm == 5 { build120(wl.map { ($0.w, $0.col) }); return }
         typealias Surf = (f: (Double, Double) -> SIMD4<Double>, col: SIMD4<Float>, c: SIMD4<Double>, e: SIMD4<Double>)
         var surfs: [Surf] = []
         func hsl(_ h: Double, _ s: Double, _ l: Double) -> SIMD3<Float> {
@@ -415,14 +461,19 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             }
         }
         if cm == 1 || cm == 2 || cm == 4 {                               // 経度：大きな球面を層数ぶん（縦の線はアナからカタへの経線）
-            let pal = wl.map { $0.col }
-            for k in 0..<n {
-                let ph0 = Double(k) / Double(n) * .pi, a = SIMD4<Double>(cos(ph0), sin(ph0), 0, 0)
-                surfs.append(({ th, ps in
-                    let side: SIMD4<Double> = a * cos(ps) + SIMD4<Double>(0, 0, 1, 0) * sin(ps)
-                    let up: SIMD4<Double> = SIMD4<Double>(0, 0, 0, 1) * cos(th)
-                    return (up + side * sin(th)) * R
-                }, SIMD4(pal[k * max(0, pal.count - 1) / max(1, n - 1)], 1), SIMD4<Double>(repeating: 0), a))
+            // 4 方向レインボー・軸の色：x・y・z・w のそれぞれを極にした経度面を 4 組（殻の 4 方向と同じく、軸 k と w を入れかえる）
+            let lonFams = fams.count > 1 ? fams : [(k: 3, list: wl)], thinL: Float = fams.count > 1 ? (st.shellModeNow == 1 ? 0.45 : 0.6) : 1
+            for (fk, fl) in lonFams {
+                let pal = fl.map { $0.col }
+                func sw(_ v0: SIMD4<Double>) -> SIMD4<Double> { var v = v0; if fk != 3 { let t = v[fk]; v[fk] = v[3]; v[3] = t }; return v }
+                for k in 0..<n {
+                    let ph0 = Double(k) / Double(n) * .pi, a = SIMD4<Double>(cos(ph0), sin(ph0), 0, 0)
+                    surfs.append(({ th, ps in
+                        let side: SIMD4<Double> = a * cos(ps) + SIMD4<Double>(0, 0, 1, 0) * sin(ps)
+                        let up: SIMD4<Double> = SIMD4<Double>(0, 0, 0, 1) * cos(th)
+                        return sw((up + side * sin(th)) * R)
+                    }, SIMD4(pal[k * max(0, pal.count - 1) / max(1, n - 1)], thinL), SIMD4<Double>(repeating: 0), sw(a)))
+                }
             }
         }
         if cm == 3 || cm == 4 {                                          // 円錐：xyz での極角 θ 一定（θ ＝ 90° は z ＝ 0 の大きな球面。ほかはアナ・カタを通るとがった面）
@@ -463,6 +514,158 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         rIdx = idx.isEmpty ? nil : idx.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
         rBaseW = WK == 1 ? rBase : baseW.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
         rIdxW = idxW.isEmpty ? nil : idxW.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
+    }
+    /// 正 120 胞体：1200 本の辺を S³ の上の大円の弧として（8 つに区切って）。網目と同じシェーダーで描くので、4D 回転・遠近・ダイブもそのまま。
+    ///   線の組は 1 本の小さな線分ごとに 4 点（a・b・a・b）：網目のシェーダーは 4 点ごとに 1 つの色を読むので、線分ごとに色をつけられる。色は w の高さで殻と同じ虹
+    func build120(_ pal: [(w: Double, col: SIMD3<Float>)]) {
+        let R = Self.R, S = 8
+        func colAt(_ w: Double) -> SIMD3<Float> { pal.min { abs($0.w - w * R) < abs($1.w - w * R) }?.col ?? SIMD3(1, 1, 1) }
+        // 輪ごとの色：10 部屋の輪 12 本に、色相を 12 等分して 1 色ずつ
+        let cells = Self.cells120, byRing = st.c120Ring && !cells.ring.contains(-1)
+        func ringCol(_ r: Int) -> SIMD3<Float> { Self.hsl(Double((r * 5) % 12) / 12, 0.85, 0.58) }
+        var pts = [SIMD4<Float>](), idxW = [UInt32](), cols = [SIMD4<Float>]()
+        func seg(_ p: SIMD4<Double>, _ q: SIMD4<Double>, _ c: SIMD4<Float>) {
+            let o = UInt32(pts.count), pa = SIMD4<Float>(p * R), pb = SIMD4<Float>(q * R)
+            pts += [pa, pb, pa, pb]; idxW += [o, o + 1]; cols.append(c)
+        }
+        for (a, b) in Cell120.shared.edges {
+            // 輪ごとの時、辺は 3 つの部屋の輪の色を混ぜた、暗めのやわらかい色（輪の色と輪の芯を目立たせる）
+            var lc = SIMD3<Float>(1, 1, 1)
+            if byRing {
+                let m = simd_normalize(a + b)
+                let near = cells.centers.indices.sorted { simd_dot(cells.centers[$0], m) > simd_dot(cells.centers[$1], m) }.prefix(3)
+                let avg = near.map { ringCol(cells.ring[$0]) }.reduce(SIMD3<Float>(repeating: 0), +) / 3
+                lc = avg * 0.4 + SIMD3<Float>(repeating: 0.14)
+            }
+            var prev = a
+            for s in 1...S {
+                let t = Double(s) / Double(S), q = simd_normalize(a * (1 - t) + b * t)
+                seg(prev, q, SIMD4(byRing ? lc : colAt((prev.w + q.w) / 2), 1))
+                prev = q
+            }
+        }
+        // 輪の芯：同じ輪の 10 部屋の中心を通る大円（12 本はたがいに絡み合う。ホップ束）
+        if byRing {
+            for r in 0..<12 {
+                let ids = cells.centers.indices.filter { cells.ring[$0] == r }
+                guard ids.count == 10 else { continue }
+                let p0 = cells.centers[ids[0]], c = ringCol(r)
+                guard let p1 = ids.dropFirst().map({ cells.centers[$0] }).max(by: { simd_dot($0, p0) < simd_dot($1, p0) }) else { continue }
+                let u = simd_normalize(p1 - p0 * simd_dot(p1, p0)), N = 120
+                var prev = p0
+                for k in 1...N {
+                    let th = 2 * Double.pi * Double(k) / Double(N), q = p0 * cos(th) + u * sin(th)
+                    seg(prev, q, SIMD4(c * 1.6, 1)); prev = q
+                }
+            }
+        }
+        // 面：五角形 720 枚を、まん中・辺のまん中・角で 5 つの四角に分け、それぞれ 4 × 4 の升で S³ にそって張る（ハイブリッド・半透明で、うっすら色のついた部屋）
+        let FM = 4, F1 = FM + 1, fper = F1 * F1
+        var fpts = [SIMD4<Float>](), fidx = [UInt32](), fcols = [SIMD4<Float>]()
+        // 輪ごとの時は、面を両側の部屋の分 2 枚にして、それぞれ自分の部屋の中心へ少し縮め、その部屋の輪の色で塗る
+        //   （となりの輪の部屋と色が混ざらず、同じ色の正十二面体が 10 個つながった輪に見える）
+        var faces: [(pg: [SIMD4<Double>], col: SIMD3<Float>)] = []
+        for (fi, pg) in Self.pentagons120.enumerated() {
+            if byRing, fi < cells.faceCells.count {
+                let (c0, c1) = cells.faceCells[fi]
+                for ci in [c0, c1] {
+                    let cc = cells.centers[ci], e = 0.07
+                    faces.append((pg.map { simd_normalize($0 * (1 - e) + cc * e) }, ringCol(cells.ring[ci])))
+                }
+            } else {
+                faces.append((pg, colAt(simd_normalize(pg.reduce(SIMD4<Double>(repeating: 0), +)).w)))
+            }
+        }
+        for (pg, col) in faces {
+            let C = simd_normalize(pg.reduce(SIMD4<Double>(repeating: 0), +))
+            for k in 0..<5 {
+                let V = pg[k], Ea = simd_normalize(pg[(k + 4) % 5] + V), Eb = simd_normalize(V + pg[(k + 1) % 5])
+                let o = UInt32(fpts.count)
+                for i in 0...FM { for j in 0...FM {
+                    let s = Double(i) / Double(FM), t = Double(j) / Double(FM)
+                    let a: SIMD4<Double> = C * ((1 - s) * (1 - t)) + Ea * (s * (1 - t))
+                    let b: SIMD4<Double> = V * (s * t) + Eb * ((1 - s) * t)
+                    fpts.append(SIMD4<Float>(simd_normalize(a + b) * R))
+                } }
+                for i in 0..<FM { for j in 0..<FM { let q = o + UInt32(i * F1 + j), d = UInt32(F1); fidx += [q, q + d, q + d + 1, q, q + d + 1, q + 1] } }
+                fcols.append(SIMD4(col, byRing ? 0.3 : 0.35))
+                _ = fper
+            }
+        }
+        rMesh = FM; rMeshW = 1; rSub = 1
+        ranges = [(0..<fidx.count, 0..<idxW.count, SIMD4<Double>(repeating: 0), SIMD4<Double>(1, 0, 0, 0))]
+        rBase = fpts.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
+        rCol = fcols.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: max(16, $0.count), options: .storageModeShared) }
+        rIdx = fidx.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
+        rBaseW = pts.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
+        rColW = cols.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: max(16, $0.count), options: .storageModeShared) }
+        rIdxW = idxW.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
+    }
+    /// 辺のつながりから五角形を探す（となり合う 5 つの頂点が輪になり、同じ平面にあるもの）。正 120 胞体なら 720 枚、正十二面体なら 12 枚
+    static func pentagons<V: SIMD>(_ edges: [(V, V)]) -> [[V]] where V.Scalar == Double {
+        var vs: [V] = [], keys: [String: Int] = [:], adj: [[Int]] = []
+        func id(_ v: V) -> Int {
+            let k = v.indices.map { String(Int((v[$0] * 1e5).rounded())) }.joined(separator: ",")
+            if let i = keys[k] { return i }
+            keys[k] = vs.count; vs.append(v); adj.append([]); return vs.count - 1
+        }
+        for (a, b) in edges { let i = id(a), j = id(b); if !adj[i].contains(j) { adj[i].append(j); adj[j].append(i) } }
+        func dist(_ a: V, _ b: V) -> Double { var s = 0.0; for k in a.indices { let d = a[k] - b[k]; s += d * d }; return s.squareRoot() }
+        var out: [[V]] = []
+        for a in vs.indices { for b in adj[a] where b > a { for c in adj[b] where c > a && c != a { for d in adj[c] where d > a && d != b { for e in adj[d] where e > a && e != c && e != b && adj[e].contains(a) && b < e {
+            let p = [vs[a], vs[b], vs[c], vs[d], vs[e]]
+            // 正五角形だけ（対角線がみな同じ長さ）：別の輪（部屋をまたぐ 5 本）を除く
+            let dg = [dist(p[0], p[2]), dist(p[1], p[3]), dist(p[2], p[4]), dist(p[3], p[0]), dist(p[4], p[1])]
+            if (dg.max()! - dg.min()!) < 1e-6 { out.append(p) }
+        } } } } }
+        return out
+    }
+    static let pentagons120: [[SIMD4<Double>]] = pentagons(Cell120.shared.edges)
+    /// 正 120 胞体の部屋：中心 120 個と、面ごとの両側の部屋、部屋ごとの輪（10 部屋ずつ 12 本。ホップ束）。
+    ///   面の真ん中から、面に垂直な向きへ両側に 18°（となりの部屋の中心どうしは 36°）進んだ所が、2 つの部屋の中心。
+    ///   輪：部屋の中心を四元数と見て、となりの部屋へ移す左かけ算 q（36° 回す）をくり返すと、10 回でもとに戻る
+    static let cells120: (centers: [SIMD4<Double>], faceCells: [(Int, Int)], ring: [Int]) = {
+        func cross4(_ a: SIMD4<Double>, _ b: SIMD4<Double>, _ c: SIMD4<Double>) -> SIMD4<Double> {
+            func det3(_ r0: SIMD3<Double>, _ r1: SIMD3<Double>, _ r2: SIMD3<Double>) -> Double { simd_dot(r0, simd_cross(r1, r2)) }
+            let x = det3(SIMD3(a.y, a.z, a.w), SIMD3(b.y, b.z, b.w), SIMD3(c.y, c.z, c.w)), y = -det3(SIMD3(a.x, a.z, a.w), SIMD3(b.x, b.z, b.w), SIMD3(c.x, c.z, c.w))
+            let z = det3(SIMD3(a.x, a.y, a.w), SIMD3(b.x, b.y, b.w), SIMD3(c.x, c.y, c.w)), w = -det3(SIMD3(a.x, a.y, a.z), SIMD3(b.x, b.y, b.z), SIMD3(c.x, c.y, c.z))
+            return SIMD4(x, y, z, w)
+        }
+        var centers: [SIMD4<Double>] = [], faceCells: [(Int, Int)] = []
+        func cid(_ p: SIMD4<Double>) -> Int {
+            if let i = centers.firstIndex(where: { simd_dot($0, p) > 1 - 1e-7 }) { return i }
+            centers.append(p); return centers.count - 1
+        }
+        let be = Double.pi / 10
+        for pg in pentagons120 {
+            let c = simd_normalize(pg.reduce(SIMD4<Double>(repeating: 0), +)), n = simd_normalize(cross4(pg[0], pg[1], pg[2]))
+            faceCells.append((cid(simd_normalize(c * cos(be) + n * sin(be))), cid(simd_normalize(c * cos(be) - n * sin(be)))))
+        }
+        func qmul(_ a: SIMD4<Double>, _ b: SIMD4<Double>) -> SIMD4<Double> {      // (x, y, z, w) ＝ (i, j, k, 実部)
+            SIMD4(a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y, a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+                  a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z)
+        }
+        var ring = [Int](repeating: -1, count: centers.count)
+        if centers.count == 120, let c1 = centers.dropFirst().first(where: { abs(acos(max(-1, min(1, simd_dot($0, centers[0])))) - Double.pi / 5) < 1e-4 }) {
+            let q = qmul(c1, SIMD4(-centers[0].x, -centers[0].y, -centers[0].z, centers[0].w))
+            var r = 0
+            for s in centers.indices where ring[s] < 0 {
+                var x = centers[s], k = 0
+                repeat { guard let i = centers.firstIndex(where: { simd_dot($0, x) > 1 - 1e-6 }) else { k = 99; break }; ring[i] = r; x = qmul(q, x); k += 1 } while simd_dot(x, centers[s]) < 1 - 1e-6 && k < 20
+                r += 1
+            }
+        }
+        return (centers, faceCells, ring)
+    }()
+    /// 球面の正十二面体（左の球。正 120 胞体の 1 次元下の仲間：五角形 12 枚で S² を埋める）：頂点 20・辺 30 を、球の上の大円の弧で
+    func dodecaArcs() -> [(SIMD3<Double>, SIMD3<Double>)] {
+        let p = Cell120.PHI, a = 1 / p
+        var V: [SIMD3<Double>] = []
+        for x in [-1.0, 1] { for y in [-1.0, 1] { for z in [-1.0, 1] { V.append([x, y, z]) } } }
+        for s in [-1.0, 1] { for t in [-1.0, 1] { V.append([0, s * p, t * a]); V.append([s * p, t * a, 0]); V.append([s * a, 0, t * p]) } }
+        var E: [(SIMD3<Double>, SIMD3<Double>)] = []
+        for i in 0..<V.count { for j in (i + 1)..<V.count where abs(simd_distance(V[i], V[j]) - 2 / p) < 1e-6 { E.append((simd_normalize(V[i]), simd_normalize(V[j]))) } }
+        return E
     }
     func smoothstep(_ a: Double, _ b: Double, _ x: Double) -> Double { let t = max(0, min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
 
@@ -778,12 +981,12 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             let m = simd_double4x4(columns: (xf(SIMD4(1, 0, 0, 0)), xf(SIMD4(0, 1, 0, 0)), xf(SIMD4(0, 0, 1, 0)), xf(SIMD4(0, 0, 0, 1)))), ob = m.transpose * o
             if hypot(ob.x, ob.z) > 1e-3 { st.cutPhi = atan2(ob.z, -ob.x) }
         }
-        let key = side == .left ? "\(st.zw),\(st.layers),\(st.hemi),\(st.lzw),\(st.axes),\(st.shellModeNow)" + (st.lonOn ? ",lon\(st.coordModel)" : "") : "\(heavyHere),\(st.layers),\(st.hemi),\(st.shellModeNow)" + (st.lonOn ? ",lon\(st.coordModel)" : "")
+        let key = side == .left ? "\(st.zw),\(st.layers),\(st.hemi),\(st.lzw),\(st.axes),\(st.shellModeNow)" + (st.lonOn ? ",lon\(st.coordModel)" : "") : "\(heavyHere),\(st.c120Ring),\(st.layers),\(st.hemi),\(st.shellModeNow)" + (st.lonOn ? ",lon\(st.coordModel)" : "")
         if builtKey != key {
             builtKey = key
             if side == .left { buildLeft() } else { buildRight() }
             func buf(_ a: [HLVert]) -> MTLBuffer? { a.isEmpty ? nil : a.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) } }
-            triBuf = buf(tris); glassBuf = buf(glass); lineBuf = buf(lines)
+            triBuf = buf(tris); glassBuf = buf(glass); lineBuf = buf(lines); rotLineBuf = buf(rotLines); rotGlowBuf = buf(rotGlow)
         }
         let asp = seeAsp ?? Float(sz.width / max(1, sz.height))          // シースルーは右の窓と同じ写し方で、その隣を描く
         var u = HLUni()
@@ -846,7 +1049,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             hg.m4 = simd_float4x4(SIMD4<Float>(m.columns.0), SIMD4<Float>(m.columns.1), SIMD4<Float>(m.columns.2), SIMD4<Float>(m.columns.3)); hl.m4 = hg.m4
             let sp = st.spaceNow
             let demoK = Float(overview ? 1 : st.demoGlass), demoL = 1 + 1.1 * (1 - demoK)   // デモで透かす分、色は明るくして、暗く沈まないように
-            hg.q = SIMD4(demoL, solidA * (sp ? 0.22 : 1) * demoK, Float(effCamW), Float(Self.SCALE)); hl.q = SIMD4(1.4 * demoL, wireA * (sp ? Float(HyperLabState.spaceWire) : 1) * Float(1 - st.wireT) * demoK, Float(effCamW), Float(Self.SCALE))
+            hg.q = SIMD4(demoL, solidA * (sp ? (st.coordModel == 5 ? 0.55 : 0.22) : 1) * demoK, Float(effCamW), Float(Self.SCALE)); hl.q = SIMD4(1.4 * demoL, wireA * (sp ? Float(HyperLabState.spaceWire) : 1) * Float(1 - st.wireT) * demoK, Float(effCamW), Float(Self.SCALE))
             hg.d.x = Float(effClamp); hl.d.x = Float(effClamp)
             hl.d.y = Float(HyperLabState.wireBackGray); hl.d.z = Float(HyperLabState.wireBackDark)   // 宇宙：殻と網目は控えめに（中の星が見えるよう）
             hg.r = SIMD4(Float(Self.R), Float(rMesh), 0, 0); hl.r = SIMD4(Float(Self.R), Float(rMeshW), 0, 0)
@@ -873,6 +1076,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             //   宇宙の時は、網目と殻をもう少し透明に（中の星屑が見えるように）
             if st.shellModeNow == 1 && shellFams(left: false).count > 1 { hl.r.z = sp ? 0.28 : 0.45; if sp { hg.q.y *= 0.7 } }   // 軸の色（4 軸）は色が組ごとに違うので、足し合わせると白く混ざる。網目は前のまま
             //   ダイブで寄るほど、網目と殻をさらに透明に（中の星屑の景色を主役に）
+            if st.coordModel == 5 { hl.r.z = sp ? 0.5 : 0.7 }                // 正 120 胞体：4 方向レインボーと同じ光の線（重なるほど明るく、暗い色も光らせる）
             if hl.r.z > 0 { hg.r.z = 1 }                                     // 殻のふちを少し濃く（hrv）
             else if st.shellModeNow == 0 { hg.t.z = 1 }                       // ふつうのレインボー：斜めから見た殻を濃く（hrv）
             if hl.r.z > 0 && dvT > 0 { let dz = Float(Self.diveEase(dvT).1); hl.r.z *= 1 - 0.35 * dz; hg.q.y *= 1 - 0.15 * dz }
@@ -892,6 +1096,11 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                 let R3 = Float(Self.R * Self.SCALE), dz = Float(Self.diveEase(dvT).1)
                 hg.ey.x = Float(eye.x); hg.ey.y = Float(eye.y); hg.ey.z = Float(eye.z); hl.ey.x = hg.ey.x; hl.ey.y = hg.ey.y; hl.ey.z = hg.ey.z
                 hg.fd = SIMD4(0.75 * dz, 0.5 * R3, 1.6 * R3, 1); hl.fd = hg.fd
+            }
+            if st.coordModel == 5 { hl.fd.x = 0; hl.n.w = 0; hl.r.z = 0.9; if dvT > 0 || overview { hl.q.y = min(0.95, hl.q.y * 2.2) } }                 // 正 120 胞体：辺を細かく区切った短い線なので、ダイブ・地図の「遠くを消す・短い線を薄く・自分のまわりの穴」はかけない（全部消えてしまう）
+            if st.coordModel == 5 && !overview && dvT > 0 && st.walk {         // ダイブ中の部屋の色：自分のまわりの部屋の壁ほど濃く（S³ の上で 0.15〜0.6）、遠くの部屋は淡く
+                let dz = Float(Self.diveEase(dvT).1), k = Float(st.roomTint)
+                hg.t.x = 2.5 * k * dz + hg.t.x * (1 - dz); hg.q.y *= 1 - 0.55 * dz
             }
             // 天の川の淡い光は出さない（暗いのが魅力）。天の川は星の密度で見せる（drawStars）
             var ug = u; ug.g.z = HyperLabState.shellPixelLight ? 1 : 2; ug.g.w = 0   // 殻の光：ふだんは頂点ごと（2）。比べる時は画素ごと（1）
@@ -930,7 +1139,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                     if k == 0 { ug.sa = s; ul.sa = s; ug.sd.x = dk; ul.sd.x = dk } else { ug.sb = s; ul.sb = s; ug.sd.y = dk; ul.sd.y = dk }
                 }
             }
-            var wk = SIMD4<Float>(Float(sz.width), Float(sz.height), Float((overview && st.wireWMap > 0 ? st.wireWMap : st.wireW) * rK * 0.5), 0)   // 線の太さ（画面の点 × 細かさ）。地図は別に変えられる
+            var wk = SIMD4<Float>(Float(sz.width), Float(sz.height), Float((overview && st.wireWMap > 0 ? st.wireWMap : st.wireW) * rK * 0.5 * (st.coordModel == 5 ? 1.6 : 1)), 0)   // 線の太さ（画面の点 × 細かさ）。地図は別に変えられる
             e.setRenderPipelineState(rPipe); e.setVertexBuffer(rb, offset: 0, index: 0); e.setVertexBuffer(rc, offset: 0, index: 3)
             // 4 方向レインボー・軸の色：面を全部先に描いてから、線をまとめて描く（線が奥行きを書くので、層ごとに交互に描くと、あとの面が線の所だけ抜けて黒い筋になる）
             let multiFam = (st.shellModeNow == 1 || st.shellModeNow == 2) && shellFams(left: false).count > 1   // 4 方向レインボー・軸の色（4 軸）
@@ -962,8 +1171,10 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
                     e.setVertexBytes(&ul, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&ul, length: MemoryLayout<HLUni>.stride, index: 1)
                     e.setVertexBytes(&hl, length: MemoryLayout<HLRight>.stride, index: 2)
                     e.setVertexBuffer(rbw, offset: 0, index: 0); e.setVertexBuffer(riw, offset: r.l.lowerBound * 4, index: 4); e.setVertexBytes(&wk, length: 16, index: 5)
+                    if let cw = rColW { e.setVertexBuffer(cw, offset: 0, index: 3) }
                     e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6, instanceCount: r.l.count / 2)
                     e.setRenderPipelineState(rPipe); e.setVertexBuffer(rb, offset: 0, index: 0)
+                    if rColW != nil { e.setVertexBuffer(rc, offset: 0, index: 3) }
                 }
             }
             // 超球（試作）：同じ超球面を半径を変えて外から内へ重ねる（内側の殻は線なしで、層を 3 枚に 1 枚に間引いて軽く）
@@ -1045,6 +1256,22 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             e.setVertexBuffer(b, offset: 0, index: 0); e.setVertexBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&u, length: MemoryLayout<HLUni>.stride, index: 1)
             e.setVertexBytes(&k, length: 16, index: 5)
             e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6, instanceCount: lines.count / 2)
+        }
+        if let b = rotGlowBuf, side == .left {                          // 光る線のにじみ（太く・淡く）
+            var ur = u; ur.mvp = u.mvp * u.model; ur.g.z = 0
+            var k = SIMD4<Float>(Float(sz.width), Float(sz.height), Float(st.wireW * 2 * rK * 0.5 * 5), 0)
+            e.setRenderPipelineState(segPipe); e.setDepthStencilState(depthRead)
+            e.setVertexBuffer(b, offset: 0, index: 0); e.setVertexBytes(&ur, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&ur, length: MemoryLayout<HLUni>.stride, index: 1)
+            e.setVertexBytes(&k, length: 16, index: 5)
+            e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6, instanceCount: rotGlow.count / 2)
+        }
+        if let b = rotLineBuf, side == .left {                          // 左の球と一緒に回る線：回す行列をかけてから写す
+            var ur = u; ur.mvp = u.mvp * u.model; ur.g.z = 0
+            var k = SIMD4<Float>(Float(sz.width), Float(sz.height), Float(st.wireW * 2 * rK * 0.5 * (rotGlow.isEmpty ? 1 : 2)), 0)
+            e.setRenderPipelineState(segPipe); e.setDepthStencilState(depthRead)
+            e.setVertexBuffer(b, offset: 0, index: 0); e.setVertexBytes(&ur, length: MemoryLayout<HLUni>.stride, index: 1); e.setFragmentBytes(&ur, length: MemoryLayout<HLUni>.stride, index: 1)
+            e.setVertexBytes(&k, length: 16, index: 5)
+            e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6, instanceCount: rotLines.count / 2)
         }
         drawAxes3(e, u)
         if st.cutOn && st.cutKind == 2 { drawSlicePlane2(e, u) }

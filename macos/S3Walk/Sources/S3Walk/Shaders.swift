@@ -945,6 +945,46 @@ fragment float4 fstar(SOut in [[stage_in]], float2 pc [[point_coord]], constant 
     return float4(min(c, float3(u.edr)), 0.0);                          // 明るい星は EDR の画面で 1 より明るく
 }
 
+// ---- 120 胞体の部屋の辺（光る線）：線分の両はしを星と同じ写し方で画面へ（近回りと遠回りの 2 つの像）。画素ごとに光の道をたどる管より、ずっと軽い ----
+//   近い辺ほど太く（S³ の上で、半径 r の管は距離 d で角度 r／sin d に見える）、遠いほどもやで淡く。芯は白く、まわりはにじむ
+struct ROut { float4 pos [[position]]; float3 col; float side; float hw; };
+inline bool s3uv(float4 q, constant StarU& u, bool far, thread float2& uv, thread float& d) {
+    float c = clamp(dot(q, u.P), -1.0, 1.0); float4 w = q - c * u.P; float l = length(w);
+    if (l < 1e-5) return false;
+    w /= l; d = acos(c); if (far) { w = -w; d = 2.0 * PI - d; }
+    if (d > u.maxD) return false;
+    float3 dir = float3(dot(w, u.R), dot(w, u.U), -dot(w, u.F));
+    float asp = u.res.x / u.res.y;
+    if (u.lens == 0) { if (dir.z > -1e-3) return false; uv = float2(dir.x / (-dir.z) / (u.tanF * asp), dir.y / (-dir.z) / u.tanF); }
+    else if (u.lens == 1) {
+        float ang = acos(clamp(-dir.z, -1.0, 1.0)), r2 = length(dir.xy), rr = ang / (u.fovY * 0.5);
+        float2 d2 = r2 > 1e-6 ? dir.xy / r2 : float2(0.0); uv = float2(d2.x * rr / asp, d2.y * rr);
+    } else { uv = float2(atan2(dir.x, -dir.z) / PI, asin(clamp(dir.y, -1.0, 1.0)) / (PI * 0.5)); }
+    return true;
+}
+vertex ROut vroom(uint vid [[vertex_id]], uint iid [[instance_id]], constant float4* sg [[buffer(0)]], constant StarU& u [[buffer(1)]]) {
+    ROut o; o.pos = float4(3.0, 3.0, 0.0, 1.0); o.col = float3(0.0); o.side = 0.0; o.hw = 1.0;
+    uint s = (iid >> 1) * 3u; bool far = (iid & 1u) == 1u;
+    float2 ua, ub; float da, db;
+    if (!s3uv(sg[s], u, far, ua, da) || !s3uv(sg[s + 1u], u, far, ub, db)) return o;
+    float2 hf = u.res * 0.5, pa = ua * hf, pb = ub * hf, dd = pb - pa; float L = length(dd);
+    if (L > u.res.y * 0.35) return o;                                  // 画面の端をまたいで飛ぶ線分（360° レンズの継ぎ目など）は描かない
+    float2 dr = L > 1e-4 ? dd / L : float2(1.0, 0.0), n = float2(-dr.y, dr.x);
+    int corner = vid == 0 ? 0 : vid == 1 ? 1 : vid == 2 ? 2 : vid == 3 ? 2 : vid == 4 ? 1 : 3;
+    bool atB = corner >= 2; float side = (corner == 1 || corner == 3) ? 1.0 : -1.0, dist = atB ? db : da;
+    float ang = 0.007 / max(sin(dist), 0.06);
+    float hw = clamp(ang * u.res.y / max(u.fovY, 0.3), 0.6, 9.0) * u.px + 1.4 * u.px;   // 管の太さ＋にじみ
+    float2 p = (atB ? pb : pa) + n * side * hw + dr * (atB ? 1.0 : -1.0) * hw * 0.5;
+    o.pos = float4(p / hf, 0.0, 1.0);
+    float fk = exp(-dist * max(0.9, u.fog * 2.0)) * (far ? 0.3 : 1.0);   // 遠い辺ほどはっきり淡く（重なっても白く飛ばない）。反対回りの像はさらに淡く
+    o.col = sg[s + 2u].rgb * fk * u.lum; o.side = side * hw; o.hw = hw;
+    return o;
+}
+fragment float4 froom(ROut in [[stage_in]]) {
+    float x = abs(in.side) / max(in.hw, 1e-3), core = exp(-x * x * 14.0), halo = exp(-x * x * 3.5) * 0.18;
+    return float4(in.col * (core * 0.9 + halo), 0.0);
+}
+
 // ---- 光の仕上げ（映画のような光）：景色を明るさを切らずに持ち（HDR）、あふれる光（ブルーム）を足し、色を締める（トーンマップ）----
 //   ブルーム：半分ずつ小さくしながら明るい所を集め（13 点、Jimenez 2014）、大きくしながら足し戻す（3×3 のテント）
 struct PostU { float2 src; float2 dst; float thr, knee, inten, expo; float head, grain, vign, time; int first, ppad0, ppad1, ppad2; };

@@ -653,7 +653,8 @@ struct PanelContent: View {
                 Toggle("軽い線：緯度経度の殻" + km.hint(.lite), isOn: model.b(\.lite))
                 Toggle("赤道の膜" + km.hint(.eq), isOn: model.b(\.eq))
                 Toggle("経線・赤道の輪（管）", isOn: model.b(\.circ))
-                Toggle("120 胞体の部屋の辺（管・重い）", isOn: model.b(\.room))
+                Toggle("120 胞体の部屋の辺", isOn: model.b(\.room))
+                Toggle("　光る線で描く（軽い。切ると前の管・とても重い）", isOn: model.b(\.roomLines)).disabled(!model.r.set.room)
                 Picker("レンズ", selection: Binding(get: { r.set.lens }, set: { v in
                     r.set.lens = v
                     if v == 1 && r.set.fov < 150 { r.set.fov = 180 }       // ウェブ版と同じ：魚眼にしたら 180°、ふつうに戻したら 110° まで

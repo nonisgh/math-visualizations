@@ -69,9 +69,10 @@ struct RI { float4 a; float4 c; };                            // a：ρ・h・�
 vertex O ringv(uint vid [[vertex_id]], uint iid [[instance_id]], const device float4* m [[buffer(0)]], constant U& u [[buffer(1)]], const device RI* ri [[buffer(2)]]) {
     float4 q = m[vid]; RI r = ri[iid];
     float3 n = float3(q.z * q.x, q.z * q.y, q.w), p = float3(r.a.x * q.x, r.a.x * q.y, r.a.y) + n * r.a.z;
-    if (r.a.w > 2.5) {                                                   // 経度（β）：z の両極を通る大きな輪。xy の輪を立てて（xz へ）、z のまわりに a.w − 3 だけ回す
-        float ph = r.a.w - 3.0, cp = cos(ph), sp = sin(ph); float3 p1 = float3(p.x, -p.z, p.y), n1 = float3(n.x, -n.z, n.y);
+    if (r.a.w > 2.5) {                                                   // 経度（β）：z の両極を通る大きな輪。xy の輪を立てて（xz へ）、z のまわりに回す。a.w − 3 ＝ 4 × 軸（0 z・1 x・2 y）＋ 回す角
+        float t = r.a.w - 3.0, ax = floor(t / 4.0), ph = t - 4.0 * ax, cp = cos(ph), sp = sin(ph); float3 p1 = float3(p.x, -p.z, p.y), n1 = float3(n.x, -n.z, n.y);
         p = float3(cp * p1.x - sp * p1.y, sp * p1.x + cp * p1.y, p1.z); n = float3(cp * n1.x - sp * n1.y, sp * n1.x + cp * n1.y, n1.z);
+        if (ax > 1.5) { p = p.xzy; n = n.xzy; } else if (ax > 0.5) { p = p.zxy; n = n.zxy; }   // 殻の輪と同じ入れかえ：y・x の両極を通る輪
     } else if (r.a.w > 1.5) { p = p.xzy; n = n.xzy; } else if (r.a.w > 0.5) { p = p.zxy; n = n.zxy; }   // 4 方向・軸の色：y・x の軸のまわりの輪
     O o; o.hole = 0.0; float4 w = u.model * float4(p, 1.0); o.pos = u.mvp * w; o.wp = w.xyz; o.n = (u.model * float4(n, 0.0)).xyz; o.c = r.c; o.ph = 0.0; return o;
 }

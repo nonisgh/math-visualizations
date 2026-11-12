@@ -157,9 +157,15 @@ extension HyperLabView {
                         .help("入れると、球層の数を球面さんぽと同じにする。さんぽで増やす・減らすとこちらも、こちらで変えるとさんぽも変わる（3〜21）")
                 Picker("", selection: Binding(get: { st.mode }, set: { st.mode = $0; st.bump() })) { Text("ハイブリッド").tag(0); Text("ワイヤー").tag(1); Text("半透明").tag(2) }
                     .pickerStyle(.segmented).frame(width: 240).labelsHidden()
-                Picker("", selection: Binding(get: { st.coordModel }, set: { st.coordModel = $0; st.bump() })) { Text("緯度").tag(0); Text("経度β").tag(1); Text("両方β").tag(2); Text("円錐β").tag(3); Text("全部β").tag(4) }
-                    .pickerStyle(.segmented).frame(width: 280).labelsHidden()
-                    .help("超球の座標の面：緯度（w 一定の殻。今まで通り）・経度（アナ極・カタ極を通る大きな球面）・両方（地球儀の格子）・円錐（xyz での極角が一定の面）・全部（座標の 3 つの家族）。左の球も一緒に切りかわる（円錐は右だけ）")
+                Picker("", selection: Binding(get: { st.coordModel }, set: { st.coordModel = $0; st.bump() })) { Text("緯度").tag(0); Text("経度β").tag(1); Text("両方β").tag(2); Text("円錐β").tag(3); Text("全部β").tag(4); Text("120胞体").tag(5) }
+                    .pickerStyle(.segmented).frame(width: 340).labelsHidden()
+                    .help("超球の座標の面：緯度（w 一定の殻。今まで通り）・経度（アナ極・カタ極を通る大きな球面）・両方（地球儀の格子）・円錐（xyz での極角が一定の面）・全部（座標の 3 つの家族）・正 120 胞体（正十二面体 120 個で超球面を埋める。左は五角形 12 枚の球面の正十二面体）。左の球も一緒に切りかわる")
+                if st.coordModel == 5 {
+                    Toggle("輪ごとの色", isOn: Binding(get: { st.c120Ring }, set: { st.c120Ring = $0; st.bump() }))
+                        .help("10 部屋が 1 本の輪につながり、12 本の輪で超球面を埋めつくす（ホップ束）。輪ごとに色を変え、輪の芯の大円も描く。切ると高さ w の虹色")
+                    slider("ダイブの部屋の色", Binding(get: { st.roomTint }, set: { st.roomTint = $0 }), 0, 3, fmt: "×%.1f").frame(width: 170)
+                        .help("正 120 胞体でダイブした時、自分のまわりの部屋の壁の色の濃さ（遠くの部屋は淡いまま）。0 で色を足さない")
+                }
                 Picker("", selection: Binding(get: { st.hemi }, set: { st.hemi = $0; st.bump() })) { Text("全球").tag(0); Text("北").tag(1); Text("南").tag(2) }
                     .pickerStyle(.segmented).frame(width: 140).labelsHidden()
                 Picker("球層", selection: Binding(get: { st.shellMode }, set: { st.shellMode = $0; st.bump() })) {

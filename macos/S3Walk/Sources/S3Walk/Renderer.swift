@@ -88,7 +88,8 @@ struct Settings {
     var ghostBack = false       // 遠回りの像を、絵の裏から見た形に（左右を鏡に）
     var lens = 0                // 0 ふつう・1 魚眼・2 360°
     var circ = false            // 管：経線（x・y・z と w の大円）と赤道の輪（ウェブ版の既定は OFF。重い）
-    var room = false            // 管：120 胞体の部屋の辺（いちばん重い）
+    var room = false            // 120 胞体の部屋の辺
+    var roomLines = true        // 部屋の辺を光る線で描く（軽い）。切ると前の管（画素ごとに光の道をたどる。いちばん重い）
     var lineCrisp = false       // 線の見え方：やわらか（標準。殻の上で決まった角度の太さで、近い線ほど太く遠近感が出る）／くっきり（網目の線と玉のふちを画面で lineW 画素）
     var lineW = 1.8             // くっきりの時の網目の線の太さ（画素）
     var glow = 0.4              // 光る線：線のまわりのにじみ（0 でウェブ版と同じ絵）
@@ -490,7 +491,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         if !set.shAxis && set.rainbow4 { u.shAx = 15 | 16 }          // 4 方向レインボー：x・y・z・w の 4 組の殻を、レインボーの色で
         u.neb = set.space && set.nebula && set.nebK > 0 ? 1 : 0; u.nebK = Float(set.nebK); u.nebStep = 0.08
         if set.cine { u.edr = max(u.edr, 1.2) }                    // 映画のような光：線の芯は白より少し明るく（色の締めで丸め、あふれる光にもなる）
-        u.circ = set.circ ? 1 : 0; u.room = set.room ? 1 : 0; u.lineW = set.lineCrisp ? Float(set.lineW) : 0; u.solidWire = Float(set.solidWire)
+        u.circ = set.circ ? 1 : 0; u.room = set.room && !set.roomLines ? 1 : 0; u.lineW = set.lineCrisp ? Float(set.lineW) : 0; u.solidWire = Float(set.solidWire)
         u.pixAng = Float((set.lens == 2 ? Double.pi : fov * d2r) / Double(max(1, height)))
         return u
     }
@@ -656,6 +657,14 @@ final class Renderer: NSObject, MTKViewDelegate {
         enc.setFragmentBytes(Renderer.nebBlobs, length: MemoryLayout<SIMD4<Float>>.stride * Renderer.nebBlobs.count, index: 4)
         enc.setFragmentTexture(noise3D, index: 1)
         enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        if set.room && set.roomLines, let rb = roomSegBuf {             // 120 胞体の部屋の辺：光る線（近回りと遠回りの 2 つの像）。星と同じ写し方
+            var ru = StarU(P: u.P, R: u.R, U: u.U, F: u.F, res: u.res, tanF: u.tanF, fovY: u.fovY, lens: u.lens, fog: Float(set.fog),
+                           lum: 1, maxD: u.maxD, edr: 1, px: max(1, Float(h) / 1000))
+            enc.setRenderPipelineState(roomPipeline(fmt, split: split))
+            enc.setVertexBuffer(rb, offset: 0, index: 0)
+            enc.setVertexBytes(&ru, length: MemoryLayout<StarU>.stride, index: 1)
+            enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6, instanceCount: Renderer.roomSegs.count / 3 * 2)
+        }
         if stars && set.space && set.stars > 0, let sb = starBuf {    // 星：景色の透けて残った所（アルファ）にだけ足す
             var su = StarU(P: u.P, R: u.R, U: u.U, F: u.F, res: u.res, tanF: u.tanF, fovY: u.fovY, lens: u.lens, fog: Float(set.fog),   // 星は遠くの光：宇宙の大きさでもやを濃くしない
                           
@@ -681,6 +690,36 @@ final class Renderer: NSObject, MTKViewDelegate {
         d.colorAttachments[0].pixelFormat = .rgba16Float; d.colorAttachments[1].pixelFormat = .rgba16Float
         let p = try! device.makeRenderPipelineState(descriptor: d)
         pipesV[key] = p; return p
+    }
+    /// 120 胞体の部屋の辺：辺 1200 本を 6 つに区切った線分（a・b・色）。色は w の高さの虹（アナ側が赤、カタ側が紫。超球の窓の 120 胞体と同じ並び）
+    static let roomSegs: [SIMD4<Float>] = {
+        func hue(_ h: Double) -> SIMD3<Double> { let f: (Double) -> Double = { k in 0.5 + 0.5 * cos(2 * .pi * (h + k / 3)) }; return SIMD3<Double>(f(0), f(1), f(2)) }
+        var out: [SIMD4<Float>] = []
+        for (a, b) in Cell120.shared.edges {
+            var prev = a
+            for s in 1...6 {
+                let t = Double(s) / 6
+                let q: SIMD4<Double> = simd_normalize(a * (1 - t) + b * t)
+                let w: Double = (prev.w + q.w) / 2, h: Double = 0.02 + 0.72 * (1 - w) / 2
+                let base: SIMD3<Double> = hue(h)
+                let c: SIMD3<Double> = simd_mix(base, SIMD3<Double>(repeating: 1), SIMD3<Double>(repeating: 0.1))
+                out += [SIMD4<Float>(prev), SIMD4<Float>(q), SIMD4<Float>(SIMD3<Float>(c), 1)]; prev = q
+            }
+        }
+        return out
+    }()
+    lazy var roomSegBuf: MTLBuffer? = { let s = Renderer.roomSegs; return device.makeBuffer(bytes: s, length: MemoryLayout<SIMD4<Float>>.stride * s.count) }()
+    private var roomPipes: [String: MTLRenderPipelineState] = [:]
+    func roomPipeline(_ fmt: MTLPixelFormat, split: Bool) -> MTLRenderPipelineState {
+        let key = "\(fmt.rawValue)-\(split)"
+        if let p = roomPipes[key] { return p }
+        let d = MTLRenderPipelineDescriptor()
+        d.vertexFunction = library.makeFunction(name: "vroom"); d.fragmentFunction = library.makeFunction(name: "froom")
+        let c = d.colorAttachments[0]!; c.pixelFormat = split ? .rgba16Float : fmt; c.isBlendingEnabled = true; c.writeMask = [.red, .green, .blue]
+        c.rgbBlendOperation = .add; c.sourceRGBBlendFactor = .one; c.destinationRGBBlendFactor = .one   // 光：足し合わせる
+        if split { d.colorAttachments[1].pixelFormat = .rgba16Float; d.colorAttachments[1].writeMask = [] }
+        let p = try! device.makeRenderPipelineState(descriptor: d)
+        roomPipes[key] = p; return p
     }
     static let starList = Renderer.makeStars(Renderer.starN)          // 星の並び（S³ の決まった点。目印を星に置く時にも使う）
     lazy var starBuf: MTLBuffer? = { let s = Renderer.starList; return device.makeBuffer(bytes: s, length: MemoryLayout<StarGPU>.stride * s.count) }()

@@ -25,8 +25,10 @@ final class HyperLabState: ObservableObject {
     @Published var rot2XY = 30.0                                      // X-Y の面の速さ（度／秒）
     @Published var rot2ZW = 30.0                                      // Z-W の面の速さ（度／秒）
     @Published var rot2Rings = true                                   // 2 つの円を出す
-    @Published var coordModel = 0                                    // 超球の座標の面：0 緯度（w 一定の殻）・1 経度（アナ・カタを通る大きな球面）・2 両方・3 円錐（xyz での極角が一定の面）・4 全部（β。ウェブ版と同じ）
-    var lonOn: Bool { coordModel != 0 }                               // 緯度だけの時は、今までの殻の作り方
+    @Published var coordModel = 0                                    // 超球の座標の面：0 緯度（w 一定の殻）・1 経度（アナ・カタを通る大きな球面）・2 両方・3 円錐（xyz での極角が一定の面）・4 全部（β。ウェブ版と同じ）・5 正 120 胞体（正十二面体 120 個で S³ を埋める）
+    var lonOn: Bool { coordModel != 0 }
+    @Published var c120Ring = true                                   // 正 120 胞体を 10 部屋の輪ごとの色で塗る（切ると高さ w の虹色）
+    @Published var roomTint = 1.0                                     // 正 120 胞体のダイブ中の部屋の色の濃さ（自分のまわりの壁）                               // 緯度だけの時は、今までの殻の作り方
     @Published var mode = 0                                          // 0 ハイブリッド・1 ワイヤー・2 半透明
     @Published var camW = 3.8                                         // 4D の遠近（視点は +w 側の camW の所）
     @Published var hemi = 0                                           // 0 全球・1 北・2 南
@@ -473,7 +475,7 @@ final class HyperLabState: ObservableObject {
         .d("leftDist", \.leftDist), .i("layers", \.layers), .i("mode", \.mode), .d("camW", \.camW), .i("hemi", \.hemi), .d("gloss", \.gloss), .b("glare", \.glare),
         .i("lzw", \.lzw), .b("cutOn", \.cutOn), .i("cutRef", \.cutRef), .d("cutAngDeg", \.cutAngDeg), .d("cutWDeg", \.cutWDeg), .i("cutKind", \.cutKind),
         .i("planeDir", \.planeDir), .d("cutPos", \.cutPos), .i("cut4Axis", \.cut4Axis), .b("cutSweep", \.cutSweep), .b("axes", \.axes), .b("axPlus", \.axPlus),
-        .b("axThin", \.axThin), .i("coordModel", \.coordModel), .b("walk", \.walk), .b("marksOn", \.marksOn), .i("polesMode", \.polesMode), .i("spaceMode", \.spaceMode), .d("starsPct", \.starsPct),
+        .b("axThin", \.axThin), .i("coordModel", \.coordModel), .d("roomTint", \.roomTint), .b("c120Ring", \.c120Ring), .b("walk", \.walk), .b("marksOn", \.marksOn), .i("polesMode", \.polesMode), .i("spaceMode", \.spaceMode), .d("starsPct", \.starsPct),
         .b("spin3Dview", \.spin3D), .b("layersLink", \.layersLink), .b("walkView", \.walkView), .i("lowView", \.lowView), .b("lowSwap", \.lowSwap), .b("superMap", \.superMap), .i("runTurn", \.runTurn), .b("superMap3D", \.superMap3D), .b("superSpin", \.superSpin), .b("superLink", \.superLink),
         .b("lightWrap", \.lightWrap), .i("ovFx2", \.ovFx), .b("mainBarOn", \.mainBarOn), .b("lowFirst", \.lowFirst), .b("followOn", \.followOn),
         .b("followXYZ", \.followXYZ), .d("followSlack", \.followSlack), .d("followSpeed", \.followSpeed), .b("followHeading", \.followHeading),
