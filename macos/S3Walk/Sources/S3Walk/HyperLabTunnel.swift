@@ -14,13 +14,25 @@ struct TunnelHole { var r: Double; var dir: SIMD4<Double>; var open = 0.0; var g
 final class HyperRun {
     struct Sample { var p: SIMD4<Double>; var l: SIMD4<Double>; var rho: Double; var flips: Int }
     static let V = 0.8                                                // 前へ進む速さ（R ＝ 1 の半径を 1 として、毎秒）
-    static let top = 1.06                                             // 表面すれすれの高さ（外の殻のすぐ外）
+    static let top = 1.0                                              // 表面すれすれの高さ：R は 1 まで（超球の外へは出ない）。トンネルの絵では少し浮かせて描く（tunnelPos）
     static let hz = 240.0                                             // 道を作るこまかさ（1 秒に何点）
     static let coreSpeed = 1.2                                        // 中心を抜ける速さ
     private(set) var samples: [Sample] = []
     private(set) var holes: [(r: Double, dir: SIMD4<Double>)] = []
     private(set) var flipT: [Double] = []                             // 中心を抜けた時刻
     var length: Double { Double(max(0, samples.count - 1)) / Self.hz }
+    // 曲がり方：0 まっすぐ（1 つの面の中）・1 左右に曲がる（a・b・c の 3D の中だけ）・2 4D にも曲がる（c と d の間をゆっくり回る向きへ）
+    var turnMode = 0
+    var turnA = SIMD4<Double>(0, 0, 0, 1), turnB = SIMD4<Double>(1, 0, 0, 0), turnC = SIMD4<Double>(0, 1, 0, 0), turnD = SIMD4<Double>(0, 0, 1, 0)
+    static let turnK = 0.55                                           // 曲がる速さ（前の向きが 1 秒に回る角度。いちばん強い所で）
+    /// 曲がる向きの土台：トンネルの断面の a・b・c と、4 つめの向き d（a・b・c に直角）
+    func setTurn(_ mode: Int, _ base: TunnelBase) {
+        turnMode = mode; turnA = base.a; turnB = base.b; turnC = base.c
+        for cand: SIMD4<Double> in [SIMD4(1, 0, 0, 0), SIMD4(0, 1, 0, 0), SIMD4(0, 0, 1, 0), SIMD4(0, 0, 0, 1)] {
+            var v = cand; for q in [base.a, base.b, base.c] { v -= q * simd_dot(v, q) }
+            if simd_length(v) > 0.3 { turnD = simd_normalize(v); break }
+        }
+    }
     enum Phase { case skim(Double), drop(Double, Double), plunge(Double), escape(Double) }
     /// 1 回りの段取り（秒）。すき間はステージの殻のまん中
     static var phases: [(Phase, Double)] {
@@ -38,8 +50,9 @@ final class HyperRun {
         var flips = 0, prevRho = Self.top
         samples = [Sample(p: p, l: l, rho: Self.top, flips: 0)]; holes = []; flipT = []
         let dt = 1 / Self.hz, stage = HyperLabState.stageR
-        var t0 = 0.0
-        for (ph, dur) in Self.phases {
+        var t0 = 0.0, prevN: SIMD4<Double>? = nil
+        func in3(_ v: SIMD4<Double>) -> SIMD4<Double> { turnA * simd_dot(v, turnA) + turnB * simd_dot(v, turnB) + turnC * simd_dot(v, turnC) }   // a・b・c の 3D へ写す（数値のずれを直す）
+        for (pi, (ph, dur)) in Self.phases.enumerated() {
             let n = max(1, Int((dur * Self.hz).rounded()))
             for i in 1...n {
                 let x = Double(i) / Double(n)
@@ -53,8 +66,23 @@ final class HyperRun {
                 if case .escape = ph, i == 1 { p = -p; flips += 1; flipT.append(t0) }      // 中心を抜けた：反対側の点へ（さんぽの体も 180° 宙返り）
                 let a = vf * dt / max(rho, 0.05), ca = cos(a), sa = sin(a)
                 let np = p * ca + l * sa; l = l * ca - p * sa; p = simd_normalize(np); l = simd_normalize(l - p * simd_dot(l, p))
+                // 曲がる：前の向き l を、p・l に直角な向き n へ少し回す（段ごとに右・左と強さが変わる。前へ進まない間は曲がらない）
+                if turnMode > 0 && vf > 1e-6 {
+                    let tNow = t0 + Double(i) / Self.hz, ph4 = 0.7 * tNow
+                    let wants: [SIMD4<Double>] = turnMode == 1 ? [turnC, turnA, turnB] : [turnC * cos(ph4) + turnD * sin(ph4), turnD, turnC, turnA, turnB]
+                    var n = SIMD4<Double>.zero
+                    for w in wants { var v = w - p * simd_dot(w, p); v -= l * simd_dot(v, l); if simd_length(v) > 0.2 { n = simd_normalize(v); break } }
+                    if simd_length(n) > 0.5 {
+                        if turnMode == 1, let o = prevN, simd_dot(n, o) < 0 { n = -n }   // 3D の中では曲がる向きは 1 本だけ：向きをそろえる
+                        prevN = n
+                        let tw = Self.turnK * (vf / Self.V) * dt * sin(Double(pi) * 1.3 + 1)
+                        l = simd_normalize(l * cos(tw) + n * sin(tw))
+                    }
+                    if turnMode == 1 { p = simd_normalize(in3(p)); l = in3(l) }
+                    l = simd_normalize(l - p * simd_dot(l, p))
+                }
                 for r in stage {                                     // 殻を通る所に穴（降りる時は上から、脱出は下から）
-                    if (prevRho > r && rho <= r) || (prevRho < r && rho >= r) { holes.append((r, p)) }
+                    if (prevRho >= r && rho < r) || (prevRho < r && rho >= r) { holes.append((r, p)) }   // 降りる時は R ちょうど（地表 R1 の上）から下へ出た所も
                 }
                 prevRho = rho
                 samples.append(Sample(p: p, l: l, rho: rho, flips: flips))
@@ -98,7 +126,7 @@ extension HyperLabState {
         if drillOn { runOn = false; return }
         drillTour = 0; glideDir = 0
         let b = Self.tunnelBase(w)
-        tunBase = b; hrun.build(p0: b.a, l0: b.b); runT = 0; runGen = 0; runFlips = 0
+        tunBase = b; hrun.setTurn(runTurn, b); hrun.build(p0: b.a, l0: b.b); runT = 0; runGen = 0; runFlips = 0
         tunHoles = hrun.holes.map { TunnelHole(r: $0.r, dir: $0.dir, gen: 0) }
         Self.drillSink?(0)                                            // さんぽの体は自分では歩かない（ランが動かす）
         runLine = true; runClock = 0; runTrail = []
@@ -124,6 +152,7 @@ extension HyperLabState {
         if runT >= hrun.length {                                       // 1 回り終わった：着いた所から次の回りへ（前の回りの穴は少しずつ閉じる）
             let end = hrun.at(hrun.length)
             runT -= hrun.length; runGen += 1; runFlips -= end.flips
+            hrun.turnMode = runTurn                                     // 曲がり方を変えた時は、次の回りから
             hrun.build(p0: end.p, l0: end.l)
             tunHoles = tunHoles.filter { $0.gen >= runGen - 1 } + hrun.holes.map { TunnelHole(r: $0.r, dir: $0.dir, gen: runGen) }
         }
@@ -158,7 +187,10 @@ extension HyperLabState {
     /// 今の彗星の 4D の場所（トンネルの世界で）。ラン・ドリル・ドリルの道の歩き
     func tunnelPos() -> SIMD4<Double>? {
         if tunForce != nil { return tunOverride }
-        if runOn { let s = hrun.at(runT); return s.p * s.rho }
+        if runOn {                                                    // ラン：地表（R1）を飛ぶ間は、絵の中だけ殻のすぐ外（＋0.06）に浮かせる（網目にめりこんで見えないように）。R0.92 より下はそのまま
+            let s = hrun.at(runT)
+            return s.p * (s.rho + 0.06 * max(0, min(1, (s.rho - 0.92) / 0.08)))
+        }
         guard tunnelView, let w = Self.walkSource?() else { return nil }
         func lift(_ r: Double) -> Double { r + 0.04 * max(0, min(1, (r - 0.85) / 0.15)) }   // 地表を歩く時は、外の殻のすぐ上（すれすれ）に
         if drillOn || drillK > 0.01 {

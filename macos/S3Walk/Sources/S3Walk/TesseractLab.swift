@@ -76,7 +76,8 @@ struct TLUni {
     var rim = SIMD4<Float>(0, 0, 0, 0)    // 縁の光の色・管の映り込み
     var L3 = SIMD4<Float>(0, 0, 0, 0)     // やわらかな照明・紺一色の背景・ふちの光・three.js の光（次元おりがみ）
     var S0 = SIMD4<Float>(0, 0, 0, 0), S1 = SIMD4<Float>(0, 0, 0, 0), S2 = SIMD4<Float>(0, 0, 0, 0), S3 = SIMD4<Float>(0, 0, 0, 0)
-    var X = SIMD4<Float>(0, 0, 0, 0)     // 宇宙の背景（次元おりがみのネイティブ版）：x 混ぜる量（0 なら使わない。背景の絵は texture(0)）
+    var X = SIMD4<Float>(0, 0, 0, 0)     // 宇宙（次元おりがみのネイティブ版）：x 背景に混ぜる量（0 なら使わない。背景の絵は texture(0)）・y 光の波・z 面の光の網目の強さ・w 網目の升の数
+    var B0 = SIMD4<Float>(0, 0, 0, 0), B1 = SIMD4<Float>(0, 0, 0, 0)   // 形ぜんぶを囲む箱（最小・最大。B1.w が 1 の時だけ使う）：箱に当たらない画素は面と辺を調べない
 }
 struct TLQuad { var a, b, c, d, n, col: SIMD4<Float>; var m = SIMD4<Float>(0, 0, 0, 0) }   // 4 つの角・法線（w は平面の位置）・色（w はふちの光）・m.x 板の濃さ（0 なら質感の値）
 struct TLRod { var a, b, col: SIMD4<Float> }             // 両はし（a.w は太さ）・色（w は明るさ）
@@ -85,7 +86,7 @@ struct TLBall { var p, col: SIMD4<Float> }               // 中心（w は半径
 let tlShader = """
 #include <metal_stdlib>
 using namespace metal;
-struct U { float4 eye, R, U, F; float4x4 M; float4 p, q, cnt, L0, L1, L2, rim, L3, S0, S1, S2, S3, X; };   // S：次元おりがみの光（S0 照り返し・強さ・ざらつきの倍率・グレア、S1 鮮やかさ・映り込み・金属っぽさ・ざらつき、S2 主光・S3 逆光の位置）
+struct U { float4 eye, R, U, F; float4x4 M; float4 p, q, cnt, L0, L1, L2, rim, L3, S0, S1, S2, S3, X, B0, B1; };   // S：次元おりがみの光（S0 照り返し・強さ・ざらつきの倍率・グレア、S1 鮮やかさ・映り込み・金属っぽさ・ざらつき、S2 主光・S3 逆光の位置）
 struct Quad { float4 a, b, c, d, n, col, m; };   // m.x 板の濃さ（0 なら質感の値）
 struct Rod { float4 a, b, col; };
 struct Ball { float4 p, col; };
@@ -219,6 +220,21 @@ inline float capsule(float3 ro, float3 rd, float3 pa, float3 pb, float ra) {   /
     }
     return -1.0;
 }
+inline float cr2(float2 a, float2 b) { return a.x * b.y - a.y * b.x; }
+// 四角形 a・b・c・d（平面の上の 2D）の中の点 p の位置（u・v は 0〜1。台形にゆがんだ面でも、辺に沿った升になる）
+inline float2 invBilinear(float2 p, float2 a, float2 b, float2 c, float2 d) {
+    float2 e = b - a, f = d - a, g = a - b + c - d, h = p - a;
+    float k2 = cr2(g, f), k1 = cr2(e, f) + cr2(h, g), k0 = cr2(h, e);
+    float v;
+    if (abs(k2) < 1e-5) v = -k0 / k1;
+    else {
+        float w = k1 * k1 - 4.0 * k0 * k2; if (w < 0.0) return float2(-1.0);
+        w = sqrt(w); v = (-k1 - w) * 0.5 / k2;
+        if (v < -0.01 || v > 1.01) v = (-k1 + w) * 0.5 / k2;
+    }
+    float2 q = e + g * v; float u = abs(q.x) > abs(q.y) ? (h.x - f.x * v) / q.x : (h.y - f.y * v) / q.y;
+    return float2(u, v);
+}
 inline float2 segDist(float3 o, float3 d, float3 a, float3 b) {                // 光る線：光の道と線分のいちばん近い所（距離・t）
     float3 ba = b - a, oa = o - a; float bb = dot(ba, ba), bd = dot(ba, d), od = dot(oa, d), ob = dot(oa, ba);
     float den = bb - bd * bd; float h = den > 1e-6 ? clamp((ob - od * bd) / den, 0.0, 1.0) : 0.0;
@@ -234,11 +250,17 @@ fragment float4 tlf(O in [[stage_in]], constant U& u [[buffer(0)]], const device
     // 宇宙の背景（星雲と星。別に描いておいた絵）を、組み立て具合などに合わせて混ぜる
     if (u.X.x > 0.001) { constexpr sampler sm(filter::linear, address::clamp_to_edge); bg = mix(bg, spt.sample(sm, float2(in.uv.x, 1.0 - in.uv.y)).rgb, u.X.x); }
     bool add = u.L2.y > 0.5, lines = u.L2.w > 0.5, right = u.q.y > 0.5, slice = u.q.w > 0.5;
+    // 形ぜんぶを囲む箱に光の道が当たらなければ、面・辺・玉は調べない（背景だけ）
+    bool inBox = true;
+    if (u.B1.w > 0.5) {
+        float3 iv = 1.0 / d, t0 = (u.B0.xyz - o) * iv, t1 = (u.B1.xyz - o) * iv, tn = min(t0, t1), tf = max(t0, t1);
+        inBox = min(min(tf.x, tf.y), tf.z) >= max(max(max(tn.x, tn.y), tn.z), 0.0);
+    }
     float s = u.p.z;
     // ---- 1. 不透明：管と玉（いちばん手前） ----
     float tOp = 1e9; float3 opCol = float3(0.0);
     {
-        int nr = lines ? 0 : int(u.cnt.x), nb = int(u.cnt.y);
+        int nr = lines || !inBox ? 0 : int(u.cnt.x), nb = inBox ? int(u.cnt.y) : 0;
         for (int i = 0; i < nr; i++) {
             float t = capsule(o, d, RD[i].a.xyz, RD[i].b.xyz, RD[i].a.w);
             if (t > 0.0 && t < tOp) {
@@ -256,7 +278,7 @@ fragment float4 tlf(O in [[stage_in]], constant U& u [[buffer(0)]], const device
     }
     // ---- 2. 透明な板：光の道に当たった順に並べて、手前から重ねる ----
     float th[20]; int ih[20]; int nh = 0;
-    int nq = int(u.q.x);
+    int nq = inBox ? int(u.q.x) : 0;
     for (int i = 0; i < nq; i++) {
         float3 n = Q[i].n.xyz; float dn = dot(n, d); if (abs(dn) < 1e-6) continue;
         float t = (Q[i].n.w - dot(n, o)) / dn; if (t <= 1e-4 || t >= tOp) continue;
@@ -330,6 +352,21 @@ fragment float4 tlf(O in [[stage_in]], constant U& u [[buffer(0)]], const device
             for (int j = 0; j < 4; j++) { float3 a = C4[j], b = C4[(j + 1) & 3], ba = b - a; float hh = clamp(dot(P - a, ba) / dot(ba, ba), 0.0, 1.0); e = min(e, length(P - a - ba * hh)); }
             float ek = (1.0 - smoothstep(0.012, 0.045, e)) * Q[i].col.w;
             g = u.L3.w > 0.5 ? stdShade(Q[i].col.rgb, Q[i].m.x, Q[i].n.xyz, d, P, u) : plate(Q[i].col.rgb, Q[i].n.xyz, d, P, ek, u, Q[i].m.x > 0.0 ? Q[i].m.x : -1.0); k2++;
+            // 宇宙：面に光の網目（超球の窓の球殻の網目と同じ雰囲気）。升は面の辺に沿って、斜めから見るところほど濃く
+            if (u.X.z > 0.001 && !add) {
+                float3 ex = normalize(C4[1] - C4[0]), ey = cross(Q[i].n.xyz, ex);
+                float2 a2 = float2(0.0), b2 = float2(dot(C4[1] - C4[0], ex), dot(C4[1] - C4[0], ey)), c2 = float2(dot(C4[2] - C4[0], ex), dot(C4[2] - C4[0], ey)), d2 = float2(dot(C4[3] - C4[0], ex), dot(C4[3] - C4[0], ey)), p2 = float2(dot(P - C4[0], ex), dot(P - C4[0], ey));
+                float2 uv = invBilinear(p2, a2, b2, c2, d2);
+                if (all(uv >= -0.01) && all(uv <= 1.01)) {
+                    float N = u.X.w, side = max(length(b2), length(d2)) / N;                 // 升の 1 辺（だいたい）
+                    float wd = max(u.cnt.z * tq * 0.8, 0.004) / max(side, 1e-4);           // 線の太さ（升に対して。1 画素ほど）
+                    float2 gq = abs(fract(uv * N + 0.5) - 0.5);
+                    float ln = 1.0 - smoothstep(wd * 0.5, wd * 1.6, min(gq.x, gq.y));
+                    float glow = exp(-min(gq.x, gq.y) * min(gq.x, gq.y) / (wd * wd * 9.0)) * 0.25;
+                    float slant = 0.45 + 0.9 * (1.0 - abs(dot(Q[i].n.xyz, d)));
+                    acc += T * mix(Q[i].col.rgb * 1.5, float3(0.85, 0.92, 1.0), 0.4) * (ln + glow) * slant * u.X.z * 0.55;
+                }
+            }
         }
         else break;
         if (add) acc += g.rgb * g.a * 1.4; else { acc += T * g.a * g.rgb; T *= 1.0 - g.a; }
@@ -337,7 +374,7 @@ fragment float4 tlf(O in [[stage_in]], constant U& u [[buffer(0)]], const device
     if (tOp < 1e9) acc += (add ? 1.0 : T) * opCol; else acc += (add ? 1.0 : T) * bg;
     // ---- 光る線（辺をネオンの線で。管の代わり） ----
     if (lines) {
-        int nr = int(u.cnt.x); float3 glow = float3(0.0);
+        int nr = inBox ? int(u.cnt.x) : 0; float3 glow = float3(0.0);
         for (int i = 0; i < nr; i++) {
             float2 h = segDist(o, d, RD[i].a.xyz, RD[i].b.xyz);
             float r = max(RD[i].a.w, h.y * u.cnt.z * 0.75);              // 細い線は画面で 1.5 画素ほどより細くしない（cnt.z：1 画素の角度）

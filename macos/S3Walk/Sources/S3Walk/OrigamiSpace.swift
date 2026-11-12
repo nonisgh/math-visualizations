@@ -1,4 +1,6 @@
-// 次元おりがみ（ネイティブ版）の宇宙：展開図を組み立てていくと、紺の背景がだんだん星空になる。組み上がった瞬間に光の波が広がる。
+// 次元おりがみ（ネイティブ版）の宇宙：組み立てていくと、箱が「超球の窓の球殻の宇宙モード」の雰囲気になる。組み上がった瞬間に光の波が広がる。
+//   箱の宇宙：面はうすいガラスに、面に光の網目（tlf。ふだんは切）、胞の中に星屑（右は 8 つの立方体の胞、左は 6 枚の正方形の面に。折る・離すと一緒に動く）。
+//   背景も宇宙にする時（「背景も宇宙」）は、下の星空と星雲を背景に混ぜる。
 //   星は「大きな超立方体（左は大きな立方体）の表面」に散らばった点。形と同じ回転で回すので、W 回転すると星空も 4 次元に回る。
 //     見える向き：回したあとの xyz の向き（遠い空）。超立方体の星は w の手前（＋）ほど明るく大きく、奥（−）ほど暗く小さい。
 //     天の川：大きな超立方体の 32 本の辺（立方体は 12 本）のまわりの細かい星くず。組み立ての最後のほうで灯る。
@@ -8,9 +10,10 @@ import SwiftUI
 import MetalKit
 
 struct OGStar { var p, c, k: SIMD4<Float> }               // p：4D の位置、c：色・明るさ、k：灯るしきい値・種類（0 星・1 星くず・2 淡い光の雲）・またたきの位相
+struct OGDust { var p, c: SIMD4<Float> }                 // p：景色の位置・またたきの位相、c：色・明るさ
 struct OGSkyU {
     var M = matrix_identity_float4x4                        // 星の回転（形と同じ）
-    var a = SIMD4<Float>(0, 0, 0, 0)                        // 空の tan（縦の半分）・横÷縦・宇宙の量・時刻
+    var a = SIMD4<Float>(0, 0, 0, 0)                        // 空の tan（縦の半分）・横÷縦・宇宙の量・時刻（星屑の時は M の列 0 がカメラの位置）
     var b = SIMD4<Float>(0, 0, 0, 0)                        // 1 画素（縦の 2÷高さ）・使わない・4D なら 1・星の大きさの倍率
     var f = SIMD4<Float>(0, 0, 0, 0)                        // 光の強さ（1 → 0）・光の波の進み（0 → 1）
 }
@@ -28,16 +31,11 @@ extension OrigamiState {
     /// 組み上がった瞬間の光の波の進み（0 → 1。出していない時は nil）
     var spaceFlashT: Double? { spaceMode == 2 || flashT >= Self.FLASH_DUR ? nil : flashT / Self.FLASH_DUR }
     var spaceFlash: Double { spaceFlashT.map { 1 - $0 } ?? 0 }
-    /// 星の回転（形と同じ順。左は X-Z → Y-Z → X-Y、右は X-W → Y-W → Z-W → X-Y → X-Z → Y-Z。遠近は使わない）
+    /// 星の回転（形と同じ。手で回した分も。遠近は使わない）
     func skyRot(_ n: Int) -> simd_float4x4 {
-        let rs: [(Int, Int, Double)] = n == 4 ? [(0, 3, ax), (1, 3, ay), (2, 3, zw), (0, 1, xy), (0, 2, xz), (1, 2, yz)] : [(0, 2, ax), (1, 2, ay), (0, 1, xy)]
-        var cols: [SIMD4<Float>] = []
-        for i in 0..<4 {
-            var v = [0.0, 0, 0, 0]; v[i] = 1
-            if i < n { for (a, b, t) in rs { Self.rot(&v, a, b, t) } }
-            cols.append(SIMD4(Float(v[0]), Float(v[1]), Float(v[2]), Float(v[3])))
-        }
-        return simd_float4x4(cols[0], cols[1], cols[2], cols[3])
+        let m = n == 4 ? m4 : rxy * l3
+        func f(_ c: SIMD4<Double>) -> SIMD4<Float> { SIMD4<Float>(Float(c.x), Float(c.y), Float(c.z), Float(c.w)) }
+        return simd_float4x4(f(m.columns.0), f(m.columns.1), f(m.columns.2), n == 4 ? f(m.columns.3) : SIMD4(0, 0, 0, 1))
     }
 }
 
@@ -88,6 +86,17 @@ fragment float4 skf(SO in [[stage_in]], constant SU& u [[buffer(1)]]) {
     float t = u.a.w, w = 1.0 + 0.3 * (0.6 * sin(t * (1.7 + 2.3 * fract(in.ph * 0.37)) + in.ph) + 0.3 * sin(t * 5.3 + in.ph * 2.1));   // またたき（星ごとに速さと位相をずらす）
     return float4(in.c.rgb * a * max(0.0, w), 1.0);
 }
+// 胞の中の星屑：景色の位置を、カメラ（M の列 0 の位置から −z を見る・y が上）の画面へ。近いほど大きく
+struct Dust { float4 p, c; };
+vertex SO dsv(uint vid [[vertex_id]], uint iid [[instance_id]], const device Dust* D [[buffer(0)]], constant SU& u [[buffer(1)]]) {
+    Dust s = D[iid]; float3 r = s.p.xyz - u.M[0].xyz;
+    SO o; o.q = CO[vid]; o.ph = s.p.w; o.c = s.c; o.pos = float4(3.0, 3.0, 0.0, 1.0);
+    float z = -r.z; if (z < 0.1 || s.c.a <= 0.001) return o;
+    float2 sc = float2(r.x / (z * u.a.x * u.a.y), r.y / (z * u.a.x));
+    float px = (1.3 + 1.6 * s.c.a) * u.b.w * clamp(7.0 / z, 0.6, 2.0);
+    o.pos = float4(sc + CO[vid] * px * u.b.x * float2(1.0 / u.a.y, 1.0), 0.0, 1.0);
+    return o;
+}
 // 組み上がった瞬間の光の波：真ん中から輪が広がり、真ん中がふわっと光る
 fragment float4 ogfl(QO in [[stage_in]], constant SU& u [[buffer(0)]]) {
     float t = u.f.y, k = 1.0 - t;
@@ -103,7 +112,7 @@ fragment float4 ogfl(QO in [[stage_in]], constant SU& u [[buffer(0)]]) {
 final class OrigamiSky {
     let n: Int
     private let device: MTLDevice
-    private let nebPipe, copyPipe, starPipe, flashPipe: MTLRenderPipelineState
+    private let nebPipe, copyPipe, starPipe, flashPipe, dustPipe: MTLRenderPipelineState
     private let stars: MTLBuffer, count: Int
     private var neb: MTLTexture?, out: MTLTexture?
 
@@ -118,8 +127,9 @@ final class OrigamiSky {
             }
             return try? d.makeRenderPipelineState(descriptor: p)
         }
-        guard let a = pipe("ogq", "ogneb", add: false), let b = pipe("ogq", "ogcp", add: false), let c = pipe("skv", "skf", add: true), let e = pipe("ogq", "ogfl", add: true) else { return nil }
-        nebPipe = a; copyPipe = b; starPipe = c; flashPipe = e
+        guard let a = pipe("ogq", "ogneb", add: false), let b = pipe("ogq", "ogcp", add: false), let c = pipe("skv", "skf", add: true), let e = pipe("ogq", "ogfl", add: true),
+              let g = pipe("dsv", "skf", add: true) else { return nil }
+        nebPipe = a; copyPipe = b; starPipe = c; flashPipe = e; dustPipe = g
         let list = Self.makeStars(n)
         guard let buf = list.withUnsafeBytes({ d.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }) else { return nil }
         stars = buf; count = list.count; device = d; self.n = n
@@ -157,6 +167,56 @@ final class OrigamiSky {
         }
         for i in stride(from: out.count - 1, to: 0, by: -1) { out.swapAt(i, min(i, Int(rnd() * Float(i + 1)))) }
         return out
+    }
+
+    /// 胞の中の星屑の種：どの胞か・胞の中の位置（決まった軸は ±1、ほかは −0.92〜0.92）・灯るしきい値・明るさ・またたきの位相
+    struct DustSeed { let cell: Int; let p: [Double]; let thr, bright, ph: Float }
+    static func makeDust(_ n: Int) -> [DustSeed] {
+        var seed: UInt64 = n == 4 ? 0xD057_4D : 0xD057_3D
+        func rnd() -> Float { seed = seed &* 6364136223846793005 &+ 1442695040888963407; return Float(seed >> 40) / Float(1 << 24) }
+        let cells = OrigamiState.cells(n)
+        var out: [DustSeed] = []
+        for _ in 0..<(n == 4 ? 260 : 220) {
+            for (ci, cell) in cells.enumerated() {
+                let (fa, fv) = OrigamiState.fixed(cell, n)
+                var p = (0..<n).map { _ in Double(rnd() * 1.84 - 0.92) }; p[fa] = fv
+                out.append(DustSeed(cell: ci, p: p, thr: rnd() * 0.85, bright: 0.25 + 0.75 * rnd() * rnd(), ph: rnd() * 40))
+            }
+        }
+        return out
+    }
+    lazy var dustSeeds = Self.makeDust(n)
+    /// 星屑を描く（形の絵のあとに、足し合わせで。透けたガラスの中に光る点）。off：胞を離した量、eye：カメラの位置（景色の座標）
+    func drawDust(_ e: MTLRenderCommandEncoder, _ st: OrigamiState, _ off: [SIMD3<Double>], eye: SIMD3<Double>, tanF: Double, w: Int, h: Int, now: Double) {
+        let sk = Float(st.spaceK), fl = Float(st.spaceFlash)
+        guard sk > 0.001 else { return }
+        let cells = OrigamiState.cells(n), use = max(1, Int(Double(dustSeeds.count) * max(5, min(100, st.starsPct)) / 100))
+        let cols = n == 3 ? OrigamiState.faceCol3 : OrigamiState.cellCol4
+        var list: [OGDust] = []; list.reserveCapacity(use)
+        for d in dustSeeds.prefix(use) {
+            let on = max(0, min(1, (sk - d.thr * 0.9) / 0.1)); if on <= 0 { continue }
+            let (q, k) = st.place(st.fold(cells[d.cell], d.p, n), n)
+            let pos = q + (d.cell < off.count ? off[d.cell] : .zero)
+            let kb = Float(n == 4 ? max(0.45, min(1.6, k)) : 1)                   // 4D の遠近：手前の胞ほど明るく
+            let col = simd_mix(OrigamiState.rgb(cols[d.cell]), SIMD3<Float>(0.9, 0.95, 1.0), SIMD3(repeating: 0.55))
+            list.append(OGDust(p: SIMD4(Float(pos.x), Float(pos.y), Float(pos.z), d.ph), c: SIMD4(col, d.bright * on * kb * (1 + 1.5 * fl))))
+        }
+        guard !list.isEmpty, let buf = list.withUnsafeBytes({ device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }) else { return }
+        var u = OGSkyU()
+        u.M.columns.0 = SIMD4(Float(eye.x), Float(eye.y), Float(eye.z), 1)
+        u.a = SIMD4(Float(tanF), Float(Double(w) / Double(max(1, h))), sk, Float(now.truncatingRemainder(dividingBy: 1000)))
+        u.b = SIMD4(2 / Float(max(1, h)), 0, n == 4 ? 1 : 0, Float(max(1, Double(h) / 900)))
+        e.setRenderPipelineState(dustPipe); e.setVertexBuffer(buf, offset: 0, index: 0)
+        e.setVertexBytes(&u, length: MemoryLayout<OGSkyU>.stride, index: 1); e.setFragmentBytes(&u, length: MemoryLayout<OGSkyU>.stride, index: 1)
+        e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6, instanceCount: list.count)
+    }
+
+    /// 組み上がった瞬間の光の波を、画面へ直接（背景を宇宙にしていない時。足し合わせで）
+    func drawFlash(_ e: MTLRenderCommandEncoder, _ st: OrigamiState, w: Int, h: Int) {
+        guard let t = st.spaceFlashT else { return }
+        var u = OGSkyU(); u.a = SIMD4(0.9, Float(Double(w) / Double(max(1, h))), 0, 0); u.f = SIMD4(Float(1 - t), Float(t), 0, 0)
+        e.setRenderPipelineState(flashPipe); e.setFragmentBytes(&u, length: MemoryLayout<OGSkyU>.stride, index: 0)
+        e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
     }
 
     private func tex(_ old: MTLTexture?, _ w: Int, _ h: Int) -> MTLTexture? {
@@ -224,11 +284,14 @@ extension OrigamiRenderer {
             ("5_光の波", { $0.progress = 1; $0.flashT = 0.5 }),
             ("6_W回転", { $0.progress = 1; $0.ax = 0.8; $0.ay = 0.5 }),
             ("7_宇宙切", { $0.progress = 1; $0.spaceMode = 2 }),
+            ("7b_背景も宇宙", { $0.progress = 1; $0.bgSpace = true }),
+            ("7c_分解", { $0.progress = 1; $0.explodeRaw = 1 }),
+            ("7d_面の網目", { $0.progress = 1; $0.meshOn = true }),
             ("8_宇宙入・展開図", { $0.progress = 0; $0.spaceMode = 1 }),
             ("9_プラケース", { $0.progress = 1; $0.look = 1 }),
         ]
         for (name, f) in scenes {
-            st.reset(); st.xz = 0.55; st.yz = -0.4; st.look = 0; st.spaceMode = 0; st.flashT = 9; f(st)
+            st.reset(); st.xz = 0.55; st.yz = -0.4; st.look = 0; st.spaceMode = 0; st.bgSpace = false; st.meshOn = false; st.explodeRaw = 0; st.flashT = 9; f(st)
             for _ in 0..<3 { render(r3, t3); render(r4, t4) }
             let W = w * 2 + 4
             var px = [UInt8](repeating: 0, count: W * h * 4)
@@ -242,10 +305,44 @@ extension OrigamiRenderer {
             if let dd = CGImageDestinationCreateWithURL(u, "public.png" as CFString, 1, nil) { CGImageDestinationAddImage(dd, ctx.makeImage()!, nil); CGImageDestinationFinalize(dd) }
             print(name, String(format: "宇宙 %.2f・光 %.2f", st.spaceK, st.spaceFlash))
         }
+        // NDGeom（ウェブ版 nd-geom の Swift 版）と、今の次元おりがみの式が同じか（5 次元へ広げる土台）
+        do {
+            let s2 = OrigamiState(); s2.reset(); s2.ax = 0.7; s2.ay = -0.4; s2.zw = 0.3; s2.xy = 0.2; s2.xz = 0.5; s2.yz = -0.3; s2.updateMats()
+            let net = NDGeom.CubeNet(n: 4)
+            let pj = NDGeom.Projector(n: 4, w: s2.camW, R: NDGeom.rotation(4, [(0, 3, s2.ax), (1, 3, s2.ay), (2, 3, s2.zw), (0, 1, s2.xy), (0, 2, s2.xz), (1, 2, s2.yz)]))
+            var worst = 0.0, cnt = 0
+            for f in [0.0, 0.3, 0.7, 1.0] {
+                s2.progress = f
+                let V = net.place(f)
+                for (ci, C) in net.cells.enumerated() {
+                    let oc: OrigamiState.Cell = C.kind == .center ? .center : C.kind == .cap ? .cap : .arm(C.axis, C.sign)
+                    for v in 0..<net.nl {
+                        let a = pj.project(V[ci * net.nl + v]).0, b = s2.place(s2.fold(oc, net.base(ci, v), 4), 4).0
+                        worst = max(worst, simd_distance(a, b)); cnt += 1
+                    }
+                }
+            }
+            print(String(format: "NDGeom と次元おりがみの式のちがい（%d 点の最大）：%.2e", cnt, worst))
+            let n5 = NDGeom.CubeNet(n: 5)
+            print("5 次元の展開図：胞 \(n5.cells.count)・辺 \(n5.edges.count)・正方形 \(n5.squares.count)")
+        }
         st.reset(); st.progress = 1; st.flashT = 9
         let t0 = CACurrentMediaTime()
         for _ in 0..<30 { render(r4, t4) }
         print(String(format: "右 %d×%d：1 コマ %.1f ミリ秒", w, h, (CACurrentMediaTime() - t0) / 30 * 1000))
+        // 大きな画面（Retina の大きな窓の右半分くらい）
+        let W2 = 1800, H2 = 1720, d2 = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: W2, height: H2, mipmapped: false)
+        d2.usage = [.renderTarget, .shaderRead]; d2.storageMode = .private
+        if let big = d.makeTexture(descriptor: d2) {
+            for (name, r) in [("左", r3), ("右", r4)] {
+                let t1 = CACurrentMediaTime()
+                for _ in 0..<20 {
+                    let rpd = MTLRenderPassDescriptor(); rpd.colorAttachments[0].texture = big; rpd.colorAttachments[0].loadAction = .dontCare; rpd.colorAttachments[0].storeAction = .store
+                    let cb = r.queue.makeCommandBuffer()!; r.encode(cb, rpd, W2, H2, now: 12.3, dt: 0.3); cb.commit(); cb.waitUntilCompleted()
+                }
+                print(String(format: "%@ %d×%d：1 コマ %.1f ミリ秒", name, W2, H2, (CACurrentMediaTime() - t1) / 20 * 1000))
+            }
+        }
     }
 }
 #endif

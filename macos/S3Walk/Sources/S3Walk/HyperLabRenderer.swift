@@ -266,6 +266,18 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         let M = matrix_identity_double3x3, R = Self.R, cs = cos(st.zw)
         let n = max(2, st.layers), tube = n > 31 ? 0.008 : 0.02
         let sn = sin(st.zw), lzw = st.lzw
+        let cm = st.coordModel
+        func merRings() {                                               // 経度（β）：右の経度面と同じ数だけ、z の両極を通る大きな輪を扇のように（地球儀の経線）
+            let K = n, pal = shellFams(left: true)[0].list.map { $0.col }   // 右の経度面と同じ数（＝層数）
+            for k in 0..<K { rings.append(HLRing(a: SIMD4(Float(R), 0, Float(tube), Float(3 + Double(k) / Double(K) * .pi)), c: SIMD4(pal[k * max(0, pal.count - 1) / max(1, K - 1)], 1))) }
+        }
+        if cm == 1 || cm == 3 {                                          // 経度だけ・円錐だけ（円錐は右だけ。左は参考の球だけ）
+            if cm == 1 { merRings() }
+            let eq = (0...96).map { k -> SIMD3<Double> in let a = Double(k) / 96 * 2 * .pi; return SIMD3(R * cos(a), R * sin(a), 0) }
+            for k in 0..<96 { addLine(M * eq[k], M * eq[k + 1], SIMD4(0.58, 0.64, 0.72, 0.18)) }
+            if !st.axes { addLine(M * SIMD3(0, 0, -R * 1.25), M * SIMD3(0, 0, R * 1.25), SIMD4(0.38, 0.65, 0.98, 0.55)) }
+            return
+        }
         for (k, list) in shellFams(left: true) where k != 3 {          // x・y の軸のまわりの輪（Z-W は w の組だけに効かせる）
             for (r, w, col) in list { rings.append(HLRing(a: SIMD4(Float(r), Float(w), Float(tube), k == 0 ? 1 : 2), c: SIMD4(col, 1))) }
         }
@@ -298,6 +310,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         let eq = (0...96).map { k -> SIMD3<Double> in let a = Double(k) / 96 * 2 * .pi; return SIMD3(R * cos(a), R * sin(a), 0) }
         for k in 0..<96 { addLine(M * eq[k], M * eq[k + 1], SIMD4(0.58, 0.64, 0.72, 0.18)) }
         if !st.axes { addLine(M * SIMD3(0, 0, -R * 1.25), M * SIMD3(0, 0, R * 1.25), SIMD4(0.38, 0.65, 0.98, 0.55)) }   // 座標軸を出す時は、毎コマ drawAxes で
+        if cm == 2 || cm == 4 { merRings() }                             // 両方・全部：緯度の輪に経線の輪を重ねる（地球儀の格子）
     }
     func addLine(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD4<Float>) {
         lines.append(HLVert(p: SIMD4(SIMD3<Float>(a), 1), n: .zero, c: c)); lines.append(HLVert(p: SIMD4(SIMD3<Float>(b), 1), n: .zero, c: c))
@@ -326,6 +339,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
     }
     func buildRight() {
         tris = []; glass = []; lines = []; ranges = []
+        if st.lonOn { buildRightLon(); return }                         // 経度面（β）は別に作る（緯度の殻の作り方は通らない）
         let n = max(2, st.layers), MESH0 = n > 61 ? 12 : n > 31 ? 16 : 24
         // 網目の線はウェブ版と同じ本数（MESH0）。面と線の曲がりは 2 倍に細かく（輪郭がカクカク・ギザギザしないよう）。4 方向・軸の色は殻が 4 倍なので 2 倍まで
         let SUB = (shellFams(left: false).count > 1 ? 2 : 4) * (heavyHere ? 2 : 1), M = MESH0 * SUB, M1 = M + 1, per = M1 * M1   // 光を頂点で計算するので、網目は 4 倍に細かく（照り返しがなめらか）
@@ -374,6 +388,76 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
         // 赤の殻（アナ星の入っている殻とその外）だけ濃く：外の橙・黄の殻が重なっても、赤が赤く見えるように
         let cols = L.map { SIMD4<Float>($0.col, four ? thin * Float(0.2 + 1.7 * poleK($0.w)) : thin * (fams.count != 1 ? 1 : $0.w / Self.R > 0.97 ? 2.4 : $0.w / Self.R > 0.9 ? 1.5 : 1)) }
         if four { ranges = ranges.indices.sorted { poleK(L[$0].w) < poleK(L[$1].w) }.map { ranges[$0] } }
+        rBase = base.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
+        rCol = cols.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: max(16, $0.count), options: .storageModeShared) }
+        rIdx = idx.isEmpty ? nil : idx.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
+        rBaseW = WK == 1 ? rBase : baseW.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
+        rIdxW = idxW.isEmpty ? nil : idxW.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
+    }
+    /// 座標の面（β。ウェブ版の 3D モデルと同じ）：緯度（w 一定の殻）・経度（アナ極・カタ極を通る大きな球面。a・z・w の張る球面を φ ＝ 0〜180° に並べる。
+    ///   1 枚が反対向きの経度面 2 枚ぶん）・円錐（xyz での極角 θ が一定の面。アナ・カタを通る）を、選んだ組み合わせで。
+    ///   格子は殻と同じ形なので、殻と同じシェーダーで描ける。枚数が多い時は網目を粗く（全部で 3 倍になるので）
+    func buildRightLon() {
+        let n = max(2, st.layers), cm = st.coordModel, R = Self.R
+        let fams = shellFams(left: false), wl = (fams.first { $0.k == 3 } ?? fams[0]).list
+        typealias Surf = (f: (Double, Double) -> SIMD4<Double>, col: SIMD4<Float>, c: SIMD4<Double>, e: SIMD4<Double>)
+        var surfs: [Surf] = []
+        func hsl(_ h: Double, _ s: Double, _ l: Double) -> SIMD3<Float> {
+            let c = (1 - abs(2 * l - 1)) * s, hp = (h - floor(h)) * 6, x = c * (1 - abs(hp.truncatingRemainder(dividingBy: 2) - 1)), m = l - c / 2
+            let (r, g, b): (Double, Double, Double) = hp < 1 ? (c, x, 0) : hp < 2 ? (x, c, 0) : hp < 3 ? (0, c, x) : hp < 4 ? (0, x, c) : hp < 5 ? (x, 0, c) : (c, 0, x)
+            return SIMD3<Float>(Float(r + m), Float(g + m), Float(b + m))
+        }
+        if cm == 2 || cm == 4 {                                          // 緯度：今の殻と同じ形・色
+            for (r, w, col) in wl {
+                let a: Float = w / R > 0.97 ? 2.4 : w / R > 0.9 ? 1.5 : 1
+                surfs.append(({ th, ph in SIMD4(-r * sin(th) * cos(ph), r * cos(th), r * sin(th) * sin(ph), w) }, SIMD4(col, a),
+                              SIMD4(0, 0, 0, w / R), SIMD4(r / R, 0, 0, w / R)))
+            }
+        }
+        if cm == 1 || cm == 2 || cm == 4 {                               // 経度：大きな球面を層数ぶん（縦の線はアナからカタへの経線）
+            let pal = wl.map { $0.col }
+            for k in 0..<n {
+                let ph0 = Double(k) / Double(n) * .pi, a = SIMD4<Double>(cos(ph0), sin(ph0), 0, 0)
+                surfs.append(({ th, ps in
+                    let side: SIMD4<Double> = a * cos(ps) + SIMD4<Double>(0, 0, 1, 0) * sin(ps)
+                    let up: SIMD4<Double> = SIMD4<Double>(0, 0, 0, 1) * cos(th)
+                    return (up + side * sin(th)) * R
+                }, SIMD4(pal[k * max(0, pal.count - 1) / max(1, n - 1)], 1), SIMD4<Double>(repeating: 0), a))
+            }
+        }
+        if cm == 3 || cm == 4 {                                          // 円錐：xyz での極角 θ 一定（θ ＝ 90° は z ＝ 0 の大きな球面。ほかはアナ・カタを通るとがった面）
+            for j in 0..<n {
+                let tc = Double(j + 1) * .pi / Double(n + 1), st0 = sin(tc), ct0 = cos(tc)
+                surfs.append(({ ch, ph in
+                    let dir: SIMD4<Double> = SIMD4<Double>(st0 * cos(ph), st0 * sin(ph), ct0, 0)
+                    return (dir * sin(ch) + SIMD4<Double>(0, 0, 0, 1) * cos(ch)) * R
+                }, SIMD4(hsl(0.12 + 0.6 * Double(j) / Double(n), 0.7, 0.62), 1), SIMD4<Double>(repeating: 0), SIMD4(st0, 0, ct0, 0)))
+            }
+        }
+        let T = surfs.count, SUB = 4 * (heavyHere ? 2 : 1), M = (T > 31 ? 12 : T > 15 ? 16 : 24) * SUB, M1 = M + 1, per = M1 * M1   // 枚数が多い時は網目を粗く（緯度の殻と同じ考え）
+        rMesh = M; rSub = SUB
+        func points(_ M: Int) -> [SIMD4<Float>] {
+            var out = [SIMD4<Float>](); out.reserveCapacity(T * (M + 1) * (M + 1))
+            for sf in surfs { for i in 0...M { let th = Double(i) / Double(M) * .pi; for j in 0...M { out.append(SIMD4<Float>(sf.f(th, Double(j) / Double(M) * 2 * .pi))) } } }
+            return out
+        }
+        let base = points(M)
+        let WK = overview || heavyHere ? 1 : 2, WM = M * WK, W1 = WM + 1, WS = SUB * WK
+        let baseW = WK == 1 ? base : points(WM)
+        rMeshW = WM
+        var idx = [UInt32](), idxW = [UInt32]()
+        for k in 0..<T {
+            let o = UInt32(k * per), g0 = idx.count
+            for i in 0..<M { for j in 0..<M {
+                let q = UInt32(i * M1 + j) + o, d = UInt32(M1)
+                idx += [q, q + d, q + d + 1, q, q + d + 1, q + 1]
+            } }
+            let oW = UInt32(k * W1 * W1), l0 = idxW.count
+            for i in stride(from: 0, through: WM, by: WS) { for j in 0..<WM { let q = UInt32(i * W1 + j) + oW; idxW += [q, q + 1] } }
+            for j in stride(from: 0, to: WM, by: WS) { for i in 0..<WM { let q = UInt32(i * W1 + j) + oW; idxW += [q, q + UInt32(W1)] } }
+            ranges.append((g0..<idx.count, l0..<idxW.count, surfs[k].c, surfs[k].e))
+        }
+        let cols = surfs.map { $0.col }
         rBase = base.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
         rCol = cols.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: max(16, $0.count), options: .storageModeShared) }
         rIdx = idx.isEmpty ? nil : idx.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: .storageModeShared) }
@@ -694,7 +778,7 @@ final class HyperLabRenderer: NSObject, MTKViewDelegate {
             let m = simd_double4x4(columns: (xf(SIMD4(1, 0, 0, 0)), xf(SIMD4(0, 1, 0, 0)), xf(SIMD4(0, 0, 1, 0)), xf(SIMD4(0, 0, 0, 1)))), ob = m.transpose * o
             if hypot(ob.x, ob.z) > 1e-3 { st.cutPhi = atan2(ob.z, -ob.x) }
         }
-        let key = side == .left ? "\(st.zw),\(st.layers),\(st.hemi),\(st.lzw),\(st.axes),\(st.shellModeNow)" : "\(heavyHere),\(st.layers),\(st.hemi),\(st.shellModeNow)"
+        let key = side == .left ? "\(st.zw),\(st.layers),\(st.hemi),\(st.lzw),\(st.axes),\(st.shellModeNow)" + (st.lonOn ? ",lon\(st.coordModel)" : "") : "\(heavyHere),\(st.layers),\(st.hemi),\(st.shellModeNow)" + (st.lonOn ? ",lon\(st.coordModel)" : "")
         if builtKey != key {
             builtKey = key
             if side == .left { buildLeft() } else { buildRight() }

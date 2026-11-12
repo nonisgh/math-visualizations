@@ -34,9 +34,13 @@ final class OrigamiState: ObservableObject {
     @Published var envK = 0.35               // 映り込み（スタジオの空と照明）
     @Published var deep = 0.5                // 奥の胞ほど濃く・深い色に
     @Published var inner = 0.5               // 入れ子の内側の面ほど濃く
-    // ---- 宇宙（OrigamiSpace.swift：組み立てるにつれて、紺の背景が星空へ。組み上がった瞬間に光の波）----
+    // ---- 宇宙（OrigamiSpace.swift：組み立てるにつれて、箱が宇宙モードの雰囲気に。組み上がった瞬間に光の波）----
     @Published var spaceMode = 0             // 0 組み立てに合わせる・1 入・2 切
     @Published var starsPct = 100.0          // 星の数（%）
+    @Published var bgSpace = false           // 背景も宇宙に（星空と星雲）。ふだんは紺のまま
+    @Published var meshOn = false            // 面の光の網目（ふだんは出さない）
+    @Published var gridN = 6.0               // 面の光の網目：1 辺の升の数
+    @Published var paneStill = [false, false] // 左・右の絵が止まっている（ゆっくり描く。軸と札の絵も止める）
     var flashT = 9.0, lastProg = 1.0         // 光の波が出てからの秒・前のコマの組み立て具合（組み上がった瞬間を見つける）
     /// 照り返しライトの時のざらつきの倍率（visual-fx の shineRough：今までの 0.8 倍、広さで −85%〜0.7 まで）
     func roughMul(_ r0: Double) -> Double {
@@ -52,7 +56,75 @@ final class OrigamiState: ObservableObject {
     var zoom = [1.0, 1.0], dist = [9.0, 9.0], center = [SIMD2<Double>(0, 0), SIMD2<Double>(0, 0)]   // 見る所（形の真ん中へなめらかに寄る）
     static let half = 0.9
 
-    func reset() { ax = 0; ay = 0; zw = 0; xy = 0; xz = 0; yz = 0; zoom = [1, 1] }
+    func reset() {
+        ax = 0; ay = 0; zw = 0; xy = 0; xz = 0; yz = 0; zoom = [1, 1]
+        xyManualOff = 0; pend = [0, 0, 0, 0, 0]; vel = [0, 0, 0, 0, 0]; updateMats()
+    }
+
+    // ---- 手で回す（ウェブ版 hypercube.html と同じ回し方。ドラッグになめらかについていき、離すと少しすべって止まる）----
+    //   左の窓のドラッグ：X-W・Y-W（左は X-Z・Y-Z）の角度に足す。Z-W で裏返っている間（cos < 0）は向きを逆に（見た目の前後が逆になるので）
+    //   右の窓のドラッグ：つかんだ形を、画面の縦の軸（左右ドラッグ）・横の軸（上下ドラッグ）のまわりに回し、X-Y → X-Z → Y-Z の 3 つの角度に分け直す（ウェブ版の turn3D）。
+    //     右へドラッグ＝手前の面が右へ、下へドラッグ＝手前の面が下へ。手で回して生まれた X-Y は左の立方体には伝えない（xyManualOff）。⇧＋横ドラッグ：Z-W
+    var xyManualOff = 0.0                     // 右を手で回して生まれた X-Y の分（左の立方体は無視する）
+    var rotRev = 0.0                          // 手で回した回数（止まっているかの判定に）
+    var dragging = false
+    enum DragCh: Int { case l4x, l4y, zw, r3x, r3y }
+    var pend = [0.0, 0, 0, 0, 0], vel = [0.0, 0, 0, 0, 0]   // まだ回していない分・すべる速さ（ラジアン／秒）
+    func drag(_ ch: DragCh, _ d: Double) { pend[ch.rawValue] += d; dragging = true }
+    func tickDrag(_ dt: Double) {
+        guard dt > 0 else { return }
+        let follow = 1 - exp(-dt * 25), decay = exp(-dt * 2.8)
+        for c in 0..<5 {
+            var step = pend[c] * follow; pend[c] -= step
+            if dragging { vel[c] = vel[c] * 0.7 + max(-6, min(6, step / dt)) * 0.3 }
+            else { step += vel[c] * dt; vel[c] *= decay; if abs(vel[c]) < 0.02 { vel[c] = 0 } }
+            if abs(step) > 1e-9 { applyStep(c, step) }
+        }
+    }
+    static func wrapPi(_ a: Double) -> Double { var x = (a + .pi).truncatingRemainder(dividingBy: 2 * .pi); if x < 0 { x += 2 * .pi }; return x - .pi }
+    /// 向き R ＝ Y-Z(γ)・X-Z(β)・X-Y(α) を 3 つの角度に分け直す（ウェブ版の decomposeRot3D）。解は 2 通りあるので、今の角度に近いほう（数字が飛ばない）
+    static func decompose(_ m: simd_double4x4, _ prev: [Double]) -> [Double] {
+        func R(_ i: Int, _ j: Int) -> Double { m[j][i] }                       // 行 i・列 j
+        let b0 = asin(max(-1, min(1, -R(0, 2)))), cb = cos(b0)
+        var a0: Double, g0: Double
+        if abs(cb) > 1e-6 { a0 = atan2(-R(0, 1), R(0, 0)); g0 = atan2(-R(1, 2), R(2, 2)) }
+        else { a0 = prev[0]; g0 = -R(0, 2) > 0 ? a0 - atan2(R(1, 0), R(1, 1)) : atan2(R(1, 0), R(1, 1)) - a0 }
+        let s1 = [a0, b0, g0], s2 = [a0 + .pi, .pi - b0, g0 + .pi]
+        func dist(_ v: [Double]) -> Double { zip(v, prev).reduce(0) { $0 + abs(wrapPi($1.0 - $1.1)) } }
+        return (dist(s1) <= dist(s2) ? s1 : s2).map(wrapPi)
+    }
+    /// 右：画面の縦の軸まわりに h（右へ＝手前の面が右へ）、横の軸まわりに v（下へ＝手前の面が下へ）回す（ウェブ版の turn3D）
+    func turn3D(_ h: Double, _ v: Double) {
+        let q = Self.R(2, 0, h) * Self.R(2, 1, -v)
+        let prev = [xy, xz, yz], r = Self.decompose(q * c3, prev)
+        xy = r[0]; xz = r[1]; yz = r[2]
+        xyManualOff = Self.wrapPi(xyManualOff + Self.wrapPi(xy - prev[0]))
+    }
+    func applyStep(_ c: Int, _ t: Double) {
+        let flip: Double = cos(zw) < 0 ? -1 : 1
+        switch DragCh(rawValue: c)! {
+        case .l4x: ax = Self.wrapPi(ax + t * flip)
+        case .l4y: ay = Self.wrapPi(ay + t * flip)
+        case .zw: zw = Self.wrapPi(zw + t)
+        case .r3x: updateMats(); turn3D(t, 0)
+        case .r3y: updateMats(); turn3D(0, t)
+        }
+        rotRev += 1; updateMats()
+    }
+    // 回転の行列（毎コマ 1 回作って使い回す）
+    private(set) var m4 = matrix_identity_double4x4, r4a = matrix_identity_double4x4, c3 = matrix_identity_double4x4, l3 = matrix_identity_double4x4, rxy = matrix_identity_double4x4
+    static func R(_ i: Int, _ j: Int, _ t: Double) -> simd_double4x4 {
+        var m = matrix_identity_double4x4
+        m[i][i] = cos(t); m[j][j] = cos(t); m[i][j] = sin(t); m[j][i] = -sin(t)   // 列 i が (cos, sin)：e_i → cos e_i ＋ sin e_j
+        return m
+    }
+    func updateMats() {
+        rxy = Self.R(0, 1, xy - xyManualOff)                                         // 左の立方体の X-Y（右を手で回した分は除く）
+        c3 = Self.R(1, 2, yz) * Self.R(0, 2, xz) * Self.R(0, 1, xy)                 // X-Y → X-Z → Y-Z（w はそのまま）
+        r4a = Self.R(2, 3, zw) * Self.R(1, 3, ay) * Self.R(0, 3, ax)                // X-W → Y-W → Z-W
+        m4 = c3 * r4a
+        l3 = Self.R(1, 2, ay) * Self.R(0, 2, ax)                                     // 左：X-Z → Y-Z
+    }
 
     // ---- 分解（くっついた ⇔ バラバラ。ウェブ版の applyExplode・xpCellE・数える）----
     @Published var explodeRaw = 0.0          // スライダー（0 くっついた・1 全部バラバラ）
@@ -123,14 +195,14 @@ final class OrigamiState: ObservableObject {
         switch Self.cells(n)[i] { case .center: q[n - 1] = -1; case .cap: q[n - 1] = 1; case .arm(let a, let s): q[a] = s }
         var o: SIMD3<Double>
         if n == 3 {
-            Self.rot(&q, 0, 2, ax); Self.rot(&q, 1, 2, ay)
-            o = SIMD3(1, 0, 0) * q[0] + SIMD3(0, 1, 0) * q[1] + EF * q[2]
-            var v = [o.x * d, o.y * d, o.z * d]; Self.rot(&v, 0, 1, xy); return SIMD3(v[0], v[1], v[2])   // 左は X-Y だけ
+            let r = l3 * SIMD4(q[0], q[1], q[2], 0)
+            o = SIMD3(1, 0, 0) * r.x + SIMD3(0, 1, 0) * r.y + EF * r.z
+            let v = rxy * SIMD4(o * d, 0); return SIMD3(v.x, v.y, v.z)                // 左は X-Y だけ
         }
-        Self.rot(&q, 0, 3, ax); Self.rot(&q, 1, 3, ay); Self.rot(&q, 2, 3, zw)
-        o = SIMD3(1, 0, 0) * q[0] + SIMD3(0, 1, 0) * q[1] + EZ * q[2] + EF * q[3]
-        var v = [o.x * d, o.y * d, o.z * d]; Self.rot(&v, 0, 1, xy); Self.rot(&v, 0, 2, xz); Self.rot(&v, 1, 2, yz)
-        return SIMD3(v[0], v[1], v[2])
+        let r = r4a * SIMD4(q[0], q[1], q[2], q[3])
+        o = SIMD3(1, 0, 0) * r.x + SIMD3(0, 1, 0) * r.y + EZ * r.z + EF * r.w
+        let v = c3 * SIMD4(o * d, 0)
+        return SIMD3(v.x, v.y, v.z)
     }
     static let shortNames = [["−Z（中心）", "+Y", "−Y", "+X", "−X", "+Z（蓋）"], ["−W（中心）", "+Y", "−Y", "+X", "−X", "+Z", "−Z", "+W（蓋）"]]
     static let longNames = [["中央面", "上面", "下面", "右面", "左面", "最上蓋"], ["中央固定核胞", "上ヒンジ胞", "下ヒンジ胞", "右ヒンジ胞", "左ヒンジ胞", "前ヒンジ胞", "後ヒンジ胞", "連鎖頂点胞"]]
@@ -153,6 +225,7 @@ final class OrigamiState: ObservableObject {
                 else if countPhase == 2 && countT > 3 { endCount() }
             }
         }
+        tickDrag(dt)
         if spinW { ax += 0.45 * dt; ay += 0.3 * dt }
         if spin3 { xz += 0.4 * dt; yz += 0.25 * dt }
     }
@@ -195,25 +268,24 @@ final class OrigamiState: ObservableObject {
     }
     /// 3 次元（左の立方体）：X-Z → Y-Z →（Z-W の遠近）→ X-Y。返り値は見かけの縮み
     func place3(_ p: [Double]) -> (SIMD3<Double>, Double) {
-        var v = p
-        Self.rot(&v, 0, 2, ax); Self.rot(&v, 1, 2, ay)
+        var v = l3 * SIMD4(p[0], p[1], p[2], 0)                              // X-Z → Y-Z
         var k = 1.0
         if zw != 0 {                                                     // Z-W：z の分が 4 次元へ逃げ、右と同じ遠近で縮む
-            let w = v[2] * sin(zw), D = camW, wc = max(-D + 0.5, min(D - 0.5, w)); k = 1 / (1 - wc / D)
-            v[0] *= k; v[1] *= k; v[2] = v[2] * cos(zw) * k
+            let w = v.z * sin(zw), D = camW, wc = max(-D + 0.5, min(D - 0.5, w)); k = 1 / (1 - wc / D)
+            v.x *= k; v.y *= k; v.z = v.z * cos(zw) * k
         }
-        Self.rot(&v, 0, 1, xy)
-        return (SIMD3(v[0], v[1], v[2]), k)
+        v = rxy * v
+        return (SIMD3(v.x, v.y, v.z), k)
     }
     /// 4 次元（右の超立方体）：X-W → Y-W → Z-W → X-Y → X-Z → Y-Z、w を遠近で
     func place4(_ p: [Double]) -> (SIMD3<Double>, Double) {
-        var v = p
-        for (i, j, a) in [(0, 3, ax), (1, 3, ay), (2, 3, zw), (0, 1, xy), (0, 2, xz), (1, 2, yz)] { Self.rot(&v, i, j, a) }
-        let D = camW, w = max(-D + 0.5, min(D - 0.5, v[3])), k = 1 / (1 - w / D)
-        return (SIMD3(v[0] * k, v[1] * k, v[2] * k), k)
+        let v = m4 * SIMD4(p[0], p[1], p[2], p[3])
+        let D = camW, w = max(-D + 0.5, min(D - 0.5, v.w)), k = 1 / (1 - w / D)
+        return (SIMD3(v.x * k, v.y * k, v.z * k), k)
     }
     func place(_ p: [Double], _ n: Int) -> (SIMD3<Double>, Double) { n == 3 ? place3(p) : place4(p) }
 
+    static let axisCol: [SIMD3<Float>] = [[1.0, 0.365, 0.424], [0.239, 0.863, 0.518], [0.337, 0.659, 1.0], [0.690, 0.486, 1.0]]   // 座標軸 x・y・z・w（TessAxes と同じ）
     static let faceCol3: [UInt32] = [0x0284c7, 0x10b981, 0x10b981, 0xf43f5e, 0xf43f5e, 0x0284c7]
     static let cellCol4: [UInt32] = [0x9333ea, 0x10b981, 0x10b981, 0xf43f5e, 0xf43f5e, 0x38bdf8, 0x38bdf8, 0x9333ea]
     static func rgb(_ h: UInt32) -> SIMD3<Float> { SIMD3(Float((h >> 16) & 255) / 255, Float((h >> 8) & 255) / 255, Float(h & 255) / 255) }
@@ -227,7 +299,8 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
     let device: MTLDevice, queue: MTLCommandQueue
     private var pipe: MTLRenderPipelineState!
     private var lastT = CACurrentMediaTime()
-    let sky: OrigamiSky?                      // 宇宙の背景
+    let sky: OrigamiSky?                      // 宇宙（背景と星屑）
+    var lastOff: [SIMD3<Double>] = []         // 胞を離した量（星屑も一緒に動かす）
 
     convenience init?(n: Int, state: OrigamiState, view: MTKView) {
         guard let d = MTLCreateSystemDefaultDevice() else { return nil }
@@ -260,7 +333,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
             CV.append(pk.map(\.0)); KV.append(pk.map(\.1)); FREE.append(free)
         }
         // 2. 分解：胞を離す（中心の胞は動かない）
-        let off = st.explodeOffsets(CV, n)
+        let off = st.explodeOffsets(CV, n); lastOff = off
         for i in CV.indices { for k in CV[i].indices { CV[i][k] += off[i] } }
         st.labels[di] = CV.map { vs in vs.reduce(SIMD3<Double>(0, 0, 0), +) / Double(vs.count) }   // 番号の札の位置（離したあとの胞の中心）
         // 面の濃さ：展開図ほど濃く（ウェブ版の netOpacity：0.30 → 0.85）
@@ -274,8 +347,8 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         }
         let dLo = depthOf.min() ?? 0, dSp = max((depthOf.max() ?? 1) - dLo, 1e-6)
         let kD = 2 * st.deep, kI = 3.75 * st.inner
-        // 宇宙：板はうすく（星空が透けて見える）、辺は明るく光る線に。組み上がった瞬間の光で、辺がさらに光る
-        let sk = st.spaceK, fl = st.spaceFlash, plateK = 1 - 0.45 * sk, edgeK = Float(1 + 0.7 * sk + 1.5 * fl)
+        // 宇宙：板はうすいガラスに（球殻の宇宙モードと同じくらい）、辺は明るく光る線に。組み上がった瞬間の光で、辺がさらに光る
+        let sk = st.spaceK, fl = st.spaceFlash, plateK = 1 - 0.72 * sk, edgeK = Float(1 + 0.7 * sk + 1.5 * fl)
         func sm(_ x: Double) -> Double { let c = max(0, min(1, x)); return c * c * (3 - 2 * c) }
         for (ci, P) in CV.enumerated() {
             let col0 = OrigamiState.rgb(n == 3 ? OrigamiState.faceCol3[ci] : OrigamiState.cellCol4[ci])
@@ -326,9 +399,24 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         let ds = segs.flatMap { [simd_distance($0.0, eye), simd_distance($0.1, eye)] }
         let dmin = ds.min() ?? 0, dmax = ds.max() ?? 1, sp = max(dmax - dmin, 1e-3)
         func br(_ p: SIMD3<Double>) -> Float { let t = max(0, min(1, (simd_distance(p, eye) - dmin) / sp)), s = t * t * (3 - 2 * t); return Float(0.80 + (0.17 - 0.80) * s) }
+        // 組み上がると、となりの胞の辺がぴったり重なる（超立方体は 96 本 → 32 本）。重なった辺は 1 本にまとめて、明るさは足す（見た目は同じで、調べる本数が減る）
+        struct SegKey: Hashable { let a, b: SIMD3<Int> }
+        func q(_ p: SIMD3<Double>) -> SIMD3<Int> { SIMD3(Int((p.x * 1e4).rounded()), Int((p.y * 1e4).rounded()), Int((p.z * 1e4).rounded())) }
+        var seen: [SegKey: Int] = [:]
         for (a, b, ci) in segs {
-            let k = Float(st.cellFocus(ci, cells.count).edge) * edgeK
-            rods.append(TLRod(a: SIMD4(gpu(a), 0.0), b: SIMD4(gpu(b), 0), col: SIMD4(SIMD3<Float>(0.92, 0.95, 1.0), (br(a) + br(b)) / 2 * 0.75 * k)))
+            let k = Float(st.cellFocus(ci, cells.count).edge) * edgeK, bright = (br(a) + br(b)) / 2 * 0.75 * k
+            let qa = q(a), qb = q(b), key = (qa.x, qa.y, qa.z) < (qb.x, qb.y, qb.z) ? SegKey(a: qa, b: qb) : SegKey(a: qb, b: qa)
+            if let j = seen[key] { rods[j].col.w += bright; continue }
+            seen[key] = rods.count
+            rods.append(TLRod(a: SIMD4(gpu(a), 0.0), b: SIMD4(gpu(b), 0), col: SIMD4(SIMD3<Float>(0.92, 0.95, 1.0), bright)))
+        }
+        // 座標軸（ウェブ版の X/Y/Z/W の軸：長さ 1.8 × 1.35、同じ回転と遠近）：形と同じコマで、光る線と先の玉（名前は OrigamiAxes）
+        let o0 = st.place([Double](repeating: 0, count: n), n).0, AL = 1.8 * 1.35
+        for ax in 0..<n {
+            var e = [Double](repeating: 0, count: n); e[ax] = AL
+            let b = st.place(e, n).0, col = OrigamiState.axisCol[ax]
+            if simd_distance(b, o0) > 1e-3 { rods.append(TLRod(a: SIMD4(gpu(o0), 0), b: SIMD4(gpu(b), 0), col: SIMD4(col, 0.8))) }
+            balls.append(TLBall(p: SIMD4(gpu(b), 0.035), col: SIMD4(col, 2)))
         }
         // 目印：手前の頂点（ふたの胞の ＋…＋）はマゼンタ、奥の頂点（真ん中の胞の −…−）は水色。胞と一緒に離れる
         let near = st.place(st.fold(.cap, [Double](repeating: 1, count: n), n), n).0 + off[cells.count - 1]
@@ -338,18 +426,47 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         return (quads, rods, balls, rMax, c)
     }
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+    // ---- 軽くする：止まっている時はゆっくり（1 秒に 10 回）、動いている時は少し粗く（7.5 割の細かさで描いて拡大）----
+    private var lastSig: [Double] = [], movedT = 0.0, drawnT = 0.0, drawnSize = CGSize.zero
+    static let stillAfter = 0.6, stillFPS = 10.0, moveScale = 0.75
+    /// 見た目に関わる値の組（前のコマと同じなら止まっている）
+    func drawSig() -> [Double] {
+        let i = n == 3 ? 0 : 1
+        return [st.progress, st.ax, st.ay, st.zw, st.xy, st.xz, st.yz, st.camW, Double(st.look), st.shine ? 1 : 0, st.shineK, st.shineSpread, st.shineAz, st.shineEl,
+                st.glare, st.vivid, st.envK, st.deep, st.inner, st.explodeE, st.xpDistK, st.counting ? 1 : 0, Double(st.countIdx), Double(st.countPhase), st.spaceFlash,
+                Double(st.spaceMode), st.bgSpace ? 1 : 0, st.starsPct, st.meshOn ? 1 : 0, st.gridN.rounded(), st.zoom[i], st.dist[i], st.center[i].x, st.center[i].y, st.rotRev]
+    }
+    /// 描く画素の数（画面の細かさ × k）。画面には拡大して出す
+    static func fit(_ view: MTKView, _ k: Double) {
+        #if os(macOS)
+        let bs = view.window?.backingScaleFactor ?? 2
+        #else
+        let bs = view.window?.screen.scale ?? UIScreen.main.scale
+        #endif
+        let want = CGSize(width: max(8, (view.bounds.width * bs * k).rounded()), height: max(8, (view.bounds.height * bs * k).rounded()))
+        if view.autoResizeDrawable { view.autoResizeDrawable = false }
+        if view.drawableSize != want { view.drawableSize = want }
+    }
     func draw(in view: MTKView) {
         let now = CACurrentMediaTime(), dt = min(0.05, now - lastT); lastT = now
         if n == 3 { st.tick(dt) }
+        let sig = drawSig()
+        if sig.count != lastSig.count || zip(sig, lastSig).contains(where: { abs($0 - $1) > 1e-5 }) { lastSig = sig; movedT = now }
+        let still = now - movedT > Self.stillAfter, pi = n == 3 ? 0 : 1
+        if st.paneStill[pi] != still { st.paneStill[pi] = still }
+        Self.fit(view, still ? 1 : Self.moveScale)
+        if still && view.drawableSize == drawnSize && now - drawnT < 1 / Self.stillFPS { return }
         guard let rpd = view.currentRenderPassDescriptor, let dr = view.currentDrawable, let cb = queue.makeCommandBuffer() else { return }
         let sz = view.drawableSize
         encode(cb, rpd, Int(sz.width), Int(sz.height), now: now, dt: dt)
         cb.present(dr); cb.commit()
+        drawnT = now; drawnSize = sz
     }
     /// 1 コマを積む（画面へも、確かめの絵へも）
     func encode(_ cb: MTLCommandBuffer, _ rpd: MTLRenderPassDescriptor, _ w: Int, _ h: Int, now: Double, dt: Double) {
+        st.updateMats()
         let spaceK = st.spaceK
-        let spTex = spaceK > 0.001 ? sky?.render(cb, w, h, st, now) : nil
+        let spTex = spaceK > 0.001 && st.bgSpace ? sky?.render(cb, w, h, st, now) : nil
         guard let e = cb.makeRenderCommandEncoder(descriptor: rpd) else { return }
         let i = n == 3 ? 0 : 1
         // カメラ：正面（ウェブ版と同じく、物を回してカメラは回さない）。全体が収まる距離へなめらかに寄る
@@ -378,7 +495,13 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         }
         u.S2 = lightAt(st.shineAz, st.shineEl, 0.762); u.S3 = lightAt(st.shineAz + 168, max(-85, min(85, st.shineEl * 0.7)), 0.886)
         // 背景の混ぜ方は早めに（星がぽつぽつ灯る具合は、星ごとのしきい値で）
-        u.X = SIMD4(spTex != nil ? Float(min(1, 3 * spaceK)) : 0, Float(st.spaceFlash), 0, 0)
+        u.X = SIMD4(spTex != nil ? Float(min(1, 3 * spaceK)) : 0, Float(st.spaceFlash), st.meshOn ? Float(spaceK) : 0, Float(st.gridN.rounded()))
+        // 形ぜんぶを囲む箱（面・辺・玉。光る線のにじみの分だけ少し大きく）
+        var bLo = SIMD3<Float>(repeating: 1e9), bHi = SIMD3<Float>(repeating: -1e9)
+        for q in quads { for c in [q.a, q.b, q.c, q.d] { bLo = simd_min(bLo, SIMD3(c.x, c.y, c.z)); bHi = simd_max(bHi, SIMD3(c.x, c.y, c.z)) } }
+        for r in rods { for c in [r.a, r.b] { bLo = simd_min(bLo, SIMD3(c.x, c.y, c.z)); bHi = simd_max(bHi, SIMD3(c.x, c.y, c.z)) } }
+        for b in balls { let p = SIMD3(b.p.x, b.p.y, b.p.z); bLo = simd_min(bLo, p - b.p.w); bHi = simd_max(bHi, p + b.p.w) }
+        if bLo.x <= bHi.x { u.B0 = SIMD4(bLo - 0.08, 0); u.B1 = SIMD4(bHi + 0.08, 1) }
         if let spTex { e.setFragmentTexture(spTex, index: 0) }
         var qd = quads.isEmpty ? [TLQuad(a: .zero, b: .zero, c: .zero, d: .zero, n: .zero, col: .zero)] : quads, rd = rods, bl = balls
         guard let qb = device.makeBuffer(bytes: &qd, length: MemoryLayout<TLQuad>.stride * qd.count, options: .storageModeShared),
@@ -388,6 +511,8 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         e.setFragmentBytes(&u, length: MemoryLayout<TLUni>.stride, index: 0)
         e.setFragmentBuffer(qb, offset: 0, index: 1); e.setFragmentBuffer(rb, offset: 0, index: 2); e.setFragmentBuffer(bb, offset: 0, index: 3)
         e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        sky?.drawDust(e, st, lastOff, eye: eyeW, tanF: tan(22.5 * Double.pi / 180), w: w, h: h, now: now)
+        if spTex == nil { sky?.drawFlash(e, st, w: w, h: h) }
         e.endEncoding()
     }
 }
@@ -410,11 +535,11 @@ struct OrigamiPane: UIViewRepresentable {
 }
 #endif
 
-/// 座標軸（ウェブ版の X/Y/Z/W の軸：長さ 1.8 × 1.35、同じ回転と遠近）と、数式の斜体の名前
+/// 座標軸の名前（数式の斜体。軸の線は Metal で描く）
 struct OrigamiAxes: View {
     let n: Int; @ObservedObject var st: OrigamiState
     var body: some View {
-        TimelineView(.animation) { _ in
+        TimelineView(.animation(minimumInterval: nil, paused: st.paneStill[n == 3 ? 0 : 1])) { _ in
             Canvas { ctx, size in
                 let i = n == 3 ? 0 : 1, dist = st.dist[i], c = st.center[i], tanF = tan(22.5 * Double.pi / 180), asp = Double(size.width / max(1, size.height))
                 func scr(_ p: SIMD3<Double>) -> CGPoint? {
@@ -426,16 +551,9 @@ struct OrigamiAxes: View {
                 for ax in 0..<n {
                     var e = [Double](repeating: 0, count: n); e[ax] = L
                     guard let b = scr(st.place(e, n).0) else { continue }
+                    // 軸の線と先の玉は Metal で形と同じコマに描く（ここは名前だけ）
                     let col = TessAxes.cols[ax]
-                    var line = Path(); line.move(to: o); line.addLine(to: b)
-                    ctx.stroke(line, with: .color(col.opacity(0.8)), lineWidth: 1.1)
                     let dx = b.x - o.x, dy = b.y - o.y, l = max(1, hypot(dx, dy)), ux = dx / l, uy = dy / l
-                    if l < 6 { ctx.fill(Path(ellipseIn: CGRect(x: o.x - 3, y: o.y - 3, width: 6, height: 6)), with: .color(col)) }   // 0° の w は真ん中の 1 点に（w の方から見ている）
-                    else {
-                        var head = Path(); head.move(to: CGPoint(x: b.x + ux * 9, y: b.y + uy * 9))
-                        head.addLine(to: CGPoint(x: b.x - uy * 5, y: b.y + ux * 5)); head.addLine(to: CGPoint(x: b.x + uy * 5, y: b.y - ux * 5)); head.closeSubpath()
-                        ctx.fill(head, with: .color(col))
-                    }
                     ctx.draw(Text(TessAxes.names[ax]).font(.custom("KaTeX_Math-Italic", size: 26)).foregroundColor(col), at: CGPoint(x: b.x + ux * 24, y: b.y + uy * 24 - (l < 6 ? 18 : 0)))
                 }
             }
@@ -448,7 +566,7 @@ struct OrigamiLabels: View {
     let n: Int; @ObservedObject var st: OrigamiState
     var pi: Int { n == 3 ? 0 : 1 }
     var body: some View {
-        TimelineView(.animation) { _ in
+        TimelineView(.animation(minimumInterval: nil, paused: st.paneStill[pi])) { _ in
             ZStack(alignment: .top) {
                 if st.explodeE > 0.01 || st.counting { Canvas { ctx, size in draw(ctx, size) } }
                 badge
@@ -529,10 +647,10 @@ struct OrigamiView: View {
                     #else
                     let shift = false
                     #endif
-                    if shift { st.zw += Double(dd.width) * 0.01 }
-                    else if n == 3 { st.ax += Double(dd.width) * 0.01; st.ay += Double(dd.height) * 0.01 }   // 左：X-W・Y-W（左は X-Z・Y-Z）
-                    else { st.xz += Double(dd.width) * 0.01; st.yz += Double(dd.height) * 0.01 }            // 右：3D の回転
-                }.onEnded { _ in last = .zero })
+                    if shift { st.drag(.zw, Double(dd.width) * 0.01) }
+                    else if n == 3 { st.drag(.l4x, Double(dd.width) * 0.01); st.drag(.l4y, Double(dd.height) * 0.01) }   // 左：X-W・Y-W（左は X-Z・Y-Z）
+                    else { st.drag(.r3x, Double(dd.width) * 0.01); st.drag(.r3y, Double(dd.height) * 0.01) }            // 右：画面の縦・横の軸のまわりに形を回す
+                }.onEnded { _ in last = .zero; st.dragging = false })
                 .simultaneousGesture(MagnificationGesture().onChanged { k in
                     if pinch0 == nil { pinch0 = st.zoom[i] }
                     st.zoom[i] = max(0.3, min(5, pinch0! * Double(k)))
@@ -560,8 +678,11 @@ struct OrigamiView: View {
                 Button("初期位置") { st.reset() }
                 Picker("質感", selection: $st.look) { ForEach(TessLabState.looks.indices, id: \.self) { Text(TessLabState.looks[$0].name).tag($0) } }.frame(width: 170)
                 Picker("宇宙", selection: $st.spaceMode) { Text("組み立てに合わせる").tag(0); Text("入").tag(1); Text("切").tag(2) }.frame(width: 230)
-                    .help("組み立てるにつれて、紺の背景が星空になる（組み上がった瞬間に光の波）。入はいつも宇宙、切はいつも紺")
+                    .help("組み立てるにつれて、箱が宇宙モードに（うすいガラス・面の光の網目・胞の中の星屑。組み上がった瞬間に光の波）。入はいつも、切はいつもの見た目")
                 mini("星の数", $st.starsPct, 5, 100, "%.0f%%").disabled(st.spaceMode == 2)
+                Toggle("面の網目", isOn: $st.meshOn).disabled(st.spaceMode == 2)
+                mini("網目", $st.gridN, 2, 16, "%.0f 升").disabled(st.spaceMode == 2 || !st.meshOn)
+                Toggle("背景も宇宙", isOn: $st.bgSpace).disabled(st.spaceMode == 2)
                 Spacer()
                 Text("次元おりがみのネイティブ版（移植の第 1 歩）").font(.caption).foregroundStyle(.secondary)
             }

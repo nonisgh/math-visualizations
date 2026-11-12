@@ -157,6 +157,9 @@ extension HyperLabView {
                         .help("入れると、球層の数を球面さんぽと同じにする。さんぽで増やす・減らすとこちらも、こちらで変えるとさんぽも変わる（3〜21）")
                 Picker("", selection: Binding(get: { st.mode }, set: { st.mode = $0; st.bump() })) { Text("ハイブリッド").tag(0); Text("ワイヤー").tag(1); Text("半透明").tag(2) }
                     .pickerStyle(.segmented).frame(width: 240).labelsHidden()
+                Picker("", selection: Binding(get: { st.coordModel }, set: { st.coordModel = $0; st.bump() })) { Text("緯度").tag(0); Text("経度β").tag(1); Text("両方β").tag(2); Text("円錐β").tag(3); Text("全部β").tag(4) }
+                    .pickerStyle(.segmented).frame(width: 280).labelsHidden()
+                    .help("超球の座標の面：緯度（w 一定の殻。今まで通り）・経度（アナ極・カタ極を通る大きな球面）・両方（地球儀の格子）・円錐（xyz での極角が一定の面）・全部（座標の 3 つの家族）。左の球も一緒に切りかわる（円錐は右だけ）")
                 Picker("", selection: Binding(get: { st.hemi }, set: { st.hemi = $0; st.bump() })) { Text("全球").tag(0); Text("北").tag(1); Text("南").tag(2) }
                     .pickerStyle(.segmented).frame(width: 140).labelsHidden()
                 Picker("球層", selection: Binding(get: { st.shellMode }, set: { st.shellMode = $0; st.bump() })) {
@@ -525,8 +528,17 @@ extension HyperLabView {
                     Toggle("トンネルで見る（ラン・ドリル）", isOn: $st.tunnelView).toggleStyle(.switch).font(.caption).fixedSize()
                         .help("ドリル・往復ドリル・D の字めぐりも、超球ランと同じトンネル（自分を通る 4D の断面）で見る。通る殻に穴があく")
                 }
+                Picker("ランの曲がり方", selection: $st.runTurn) { Text("まっすぐ").tag(0); Text("左右に曲がる").tag(1); Text("4D にも曲がる").tag(2) }
+                    .pickerStyle(.segmented).frame(width: 330).font(.caption)
+                    .help("まっすぐ：1 つの面の中の平らなうずまき。左右に曲がる：トンネルの 3D（上下・前後・左右）の中だけで右へ左へ曲がって、立体のうずまきに（トンネル・3D の断面マップで全部見える）。4D にも曲がる：4 つめの向きへも曲がるので、トンネルや断面マップの外へはみ出す所がある。走っている間に変えると、次の回りから")
                 Toggle("鏡の世界", isOn: $st.drillMirror).toggleStyle(.switch).font(.caption).fixedSize()
                     .help("ドリルで中心を抜ける時に、体を回さずに（体の向きのまま）つきぬける。反対側では、世界に対して自分が鏡写しになって、さんぽの景色の右と左が入れかわる。もう一度抜けると元にもどる。切っている時は、4 次元で 180° 宙返りして抜けるので鏡写しにならない")
+                HStack(spacing: 10) {
+                Toggle("スーパーマップ", isOn: $st.superMap).toggleStyle(.switch).font(.caption).fixedSize()
+                    .help("超球の中のどこにいるかを、4 つの小さな窓で同時に見せる（左下）。断面マップ（自分の道をふくむ面で切った超球）・S³ の地図（どの向きか。真ん中がアナ極）・深さのものさし（R の動き）・4 本の首（x y z w）。今の地図はそのまま")
+                Toggle("3D（左の列に 2 つ）", isOn: $st.superMap3D).toggleStyle(.switch).font(.caption).fixedSize()
+                    .help("窓の左の列に、3D の断面マップ（殻は入れ子の球）と 3D の S³ の地図を縦に 2 つ。宇宙の背景で、ドラッグで回せる。深さのものさしと 4 本の首は、右下に小さく")
+                }
                 Toggle("内核の演出", isOn: $st.chaosOn).toggleStyle(.switch).font(.caption).fixedSize()
                     .help("R が小さい殻ほど、地球の内核のように焼けた鉄の色（明るさはそのまま）・かげろうのようにゆらぐ網目・脈打つ明るさに。R の世界・ドリル・この R だけ・拡張のステージで効く")
                 Toggle("この R だけ表示", isOn: $st.rOnly).toggleStyle(.switch).font(.caption).fixedSize()

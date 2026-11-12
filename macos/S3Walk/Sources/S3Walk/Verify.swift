@@ -1311,7 +1311,7 @@ enum Verify {
                 if simd_length(r.cam.w.p - s.p) > 1e-6 { follow = false }
                 if let px = prevX { maxStep = max(maxStep, simd_length(x - px)) }; prevX = x
                 // 殻を通る所はいつも穴の中（穴の真ん中から殻にそって 0.13 より近い）
-                for rs in stage where abs(s.rho - rs) < 0.004 {
+                for rs in stage where abs(s.rho - rs) < 0.004 && !(rs >= HyperRun.top - 1e-9 && s.rho >= rs - 1e-9) {   // 地表（R1）の上を飛ぶ間は通っていない。内へ入った時だけ調べる
                     if !sd.tunHoles.contains(where: { abs($0.r - rs) < 1e-6 && simd_length($0.dir * rs - x) < 0.13 && $0.open > 0.5 }) { gapsOK = false; print(String(format: "  穴の外で殻を通った：%.2f 秒 R %.3f", Double(i) / 60, rs)) }
                 }
             }
@@ -1327,6 +1327,28 @@ enum Verify {
             print(String(format: "  ラン 1 回り %.1f 秒・穴 %d・いちばん深い R %.4f・1 コマの最大の動き %.4f・最後の R %.3f", len, holes, minR, maxStep, end.rho))
             check(hold && follow && gapsOK && holes == 2 * stage.count && minR < 0.01 && flips == 1 && !mir && released && end.rho > HyperRun.top - 0.01 && maxStep < 0.03 && dove && tp.count > 50 && tGap < 0.08,
                   String(format: "超球ラン：表面すれすれ → 殻のすき間 4 つ → 中心を抜けて脱出（1 回り %.1f 秒、穴 %d 個、殻は穴の中だけ通る）。さんぽの体もいっしょに動き、止めると歩ける。ダイブ画面で、通った道を金色の線で見られる", len, holes))
+        }
+        // 超球ランの曲がり方：まっすぐは a・b の面の中、左右は a・b・c の 3D の中だけ（面からは出る）、4D は 3D からも出る。どれも穴は 10 個
+        do {
+            let base = TunnelBase(a: SIMD4(0, 0, 0, 1), b: SIMD4(1, 0, 0, 0), c: SIMD4(0, 1, 0, 0))
+            var ok = true, note: [String] = []
+            for mode in 0...2 {
+                let h = HyperRun(); h.setTurn(mode, base); h.build(p0: base.a, l0: base.b)
+                var offAB = 0.0, off3 = 0.0
+                for sm in h.samples {
+                    let x = sm.p, ab = x - base.a * simd_dot(x, base.a) - base.b * simd_dot(x, base.b)
+                    offAB = max(offAB, simd_length(ab)); off3 = max(off3, simd_length(ab - base.c * simd_dot(x, base.c)))
+                }
+                note.append(String(format: "%d：面から %.3f・3D から %.3f・穴 %d", mode, offAB, off3, h.holes.count))
+                let holesOK = h.holes.count == 2 * HyperLabState.stageR.count
+                switch mode {
+                case 0: ok = ok && holesOK && offAB < 1e-6
+                case 1: ok = ok && holesOK && offAB > 0.2 && off3 < 1e-6
+                default: ok = ok && holesOK && off3 > 0.1
+                }
+            }
+            print("  ランの曲がり方 " + note.joined(separator: "　"))
+            check(ok, "超球ランの曲がり方：まっすぐは 1 つの面の中、左右に曲がるはトンネルの 3D の中だけで立体のうずまき、4D にも曲がるは 3D の外へも出る（どれも穴は 10 個）")
         }
         // 鏡の世界：体を回さずに抜けると鏡写し（もう一度で元へ）。ふつうのドリル（宙返り）は鏡写しにならない
         do {
@@ -1973,7 +1995,7 @@ enum Verify {
     static func hyperPNG(_ dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         for (name, gloss, glare, mode) in [("ポリゴン・傾き", 1.0, true, 0), ("拡張A", 1.0, true, 0), ("拡張C", 1.0, true, 0), ("拡張C・ほかを消す", 1.0, true, 0), ("ポリゴン・正面", 1.0, true, 0), ("ポリゴン・上から", 1.0, true, 0), ("ポリゴン・4D回転", 1.0, true, 0), ("ナイフ", 1.0, true, 0), ("R0.6の世界・歩いた跡", 1.0, true, 0), ("このRだけ0.4", 1.0, true, 0), ("ダイブ0.50・R0.4", 1.0, true, 0), ("ダイブ1.00・R0.4・三人称", 1.0, true, 0), ("ダイブ0.45・くるくる", 1.0, true, 0), ("ダイブ1.00・くるくる・三人称", 1.0, true, 0), ("ドリル途中・歩いた跡", 1.0, true, 0), ("ダイブ0.45・ドリル途中", 1.0, true, 0), ("内核・R0.3の世界・歩いた跡", 1.0, true, 0), ("内核・ドリル途中・歩いた跡", 1.0, true, 0), ("北極からドリル", 1.0, true, 0), ("北極からドリル・ダイブ0.45", 1.0, true, 0), ("トンネル・すれすれ", 1.0, true, 0), ("トンネル・すき間", 1.0, true, 0), ("トンネル・すき間の奥", 1.0, true, 0), ("トンネル・炉", 1.0, true, 0), ("トンネル・脱出", 1.0, true, 0), ("トンネル・脱出のあと", 1.0, true, 0), ("トンネル・ドリル", 1.0, true, 0), ("ランをダイブで・すき間", 1.0, true, 0), ("ランをダイブで・すき間の奥", 1.0, true, 0), ("ランをダイブで・炉", 1.0, true, 0), ("ランをダイブで・脱出", 1.0, true, 0), ("詰める・内側4層", 1.0, true, 0), ("詰める・内側11層", 1.0, true, 0), ("詰める20枚・自動", 1.0, true, 0), ("視点X", 1.0, true, 0), ("視点Z", 1.0, true, 0), ("2重回転A", 1.0, true, 0), ("2重回転B", 1.0, true, 0), ("光沢なし", 0.0, false, 0), ("光沢", 1.0, false, 0), ("光沢とグレア", 1.0, true, 0), ("光沢とグレア・半透明", 1.0, true, 2),
-                                           ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("巨大彗星・歩いた跡", 1.0, true, 0), ("大彗星・歩いた跡", 1.0, true, 0), ("予定の道・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("宇宙・半透明・星の遠近", 1.0, true, 2), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ1.00・予定の道・三人称", 1.0, true, 0), ("ダイブ1.00・予定の道・急カーブ・三人称", 1.0, true, 0), ("ダイブ0.00・予定の道・急カーブ", 1.0, true, 0), ("ダイブ0.00・予定の道", 1.0, true, 0), ("ダイブ1.00・巨大彗星・三人称", 1.0, true, 0), ("ダイブ1.00・右へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・上へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・三人称", 1.0, true, 0), ("ダイブ0.80・南へ・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("ダイブ0.60・4方向", 1.0, true, 0), ("ダイブ1.00・4方向・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・4方向・三人称", 1.0, true, 0), ("ダイブ0.60・軸の色", 1.0, true, 0), ("球層・軸の色・宇宙", 1.0, true, 0), ("ダイブ0.60・4方向・深海", 1.0, true, 0), ("球層・4方向・深海", 1.0, true, 0), ("球層・4方向・宇宙", 1.0, true, 0), ("球層・4方向・宇宙・天の川の中心", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
+                                           ("経度面・ハイブリッド", 1.0, true, 0), ("経度面・ワイヤー", 1.0, true, 1), ("経度面・半透明", 1.0, true, 2), ("経度面・4D回転", 1.0, true, 0), ("経度面・両方", 1.0, true, 0), ("経度面・円錐", 1.0, true, 0), ("経度面・全部", 1.0, true, 0), ("正面・光沢なし", 0.0, false, 0), ("正面・光沢とグレア", 1.0, true, 0), ("光沢とグレア・歩いた跡", 1.0, true, 0), ("彗星・歩いた跡", 1.0, true, 0), ("巨大彗星・歩いた跡", 1.0, true, 0), ("大彗星・歩いた跡", 1.0, true, 0), ("予定の道・歩いた跡", 1.0, true, 0), ("線の彗星・歩いた跡", 1.0, true, 0), ("極・前の丸・歩いた跡", 1.0, true, 0), ("跡・白い光・歩いた跡", 1.0, true, 0), ("極・英語・歩いた跡", 1.0, true, 0), ("同じ道・前方を消す", 1.0, true, 0), ("極・通った札・歩いた跡", 1.0, true, 0), ("光る瞬間", 1.0, true, 0), ("光る瞬間・軸の色", 1.0, true, 0), ("同じ道・消さない", 1.0, true, 0), ("跡・軸の色・宇宙・歩いた跡", 1.0, true, 0), ("極・光・宇宙・歩いた跡", 1.0, true, 0), ("4D遠近・かすみ", 1.0, true, 0), ("4D遠近・ぼかし・ワイヤー", 0.0, false, 1), ("4D遠近・両方", 1.0, true, 0), ("4D遠近・両方・宇宙", 1.0, true, 0), ("彗星・宇宙・歩いた跡", 1.0, true, 0), ("さんぽ印・歩いた跡", 1.0, true, 0), ("ZW影", 1.0, true, 0), ("ZW両方", 1.0, true, 0), ("断面カット・画面", 1.0, true, 0), ("断面カット・物体", 1.0, true, 0), ("ポリゴンカット", 1.0, true, 0), ("座標軸・プラスのみ", 1.0, true, 0), ("座標軸・立体", 1.0, true, 0), ("宇宙", 1.0, true, 0), ("宇宙・正面", 1.0, true, 0), ("宇宙・半透明・星の遠近", 1.0, true, 2), ("平面・手前", 1.0, true, 0), ("平面・x", 1.0, true, 0), ("4D切断", 1.0, true, 0), ("4D切断・宇宙", 1.0, true, 0), ("4D切断x・正面", 1.0, true, 0), ("4D切断x", 1.0, true, 0), ("ワイヤー", 0.0, false, 1), ("ワイヤー・宇宙", 1.0, true, 1), ("ハイブリッド・宇宙", 1.0, true, 0), ("ダイブ0.2", 1.0, true, 0), ("ダイブ0.45", 1.0, true, 0), ("ダイブ0.60", 1.0, true, 0), ("ダイブ0.70", 1.0, true, 0), ("ダイブ0.75", 1.0, true, 0), ("ダイブ0.50・三人称", 1.0, true, 0), ("ダイブ0.65・三人称", 1.0, true, 0), ("ダイブ0.80・三人称", 1.0, true, 0), ("ダイブ0.65", 1.0, true, 0), ("ダイブ0.8", 1.0, true, 0), ("ダイブ0.9", 1.0, true, 0), ("ダイブ0.65・軸なし", 1.0, true, 0), ("ダイブ1.00・三人称", 1.0, true, 0), ("ダイブ1.00・予定の道・三人称", 1.0, true, 0), ("ダイブ1.00・予定の道・急カーブ・三人称", 1.0, true, 0), ("ダイブ0.00・予定の道・急カーブ", 1.0, true, 0), ("ダイブ0.00・予定の道", 1.0, true, 0), ("ダイブ1.00・巨大彗星・三人称", 1.0, true, 0), ("ダイブ1.00・右へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・上へカーブ・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・三人称", 1.0, true, 0), ("ダイブ0.80・南へ・三人称", 1.0, true, 0), ("ダイブ0.60・三人称", 1.0, true, 0), ("球層・4方向", 1.0, true, 0), ("ダイブ0.60・4方向", 1.0, true, 0), ("ダイブ1.00・4方向・三人称", 1.0, true, 0), ("ダイブ1.00・南へ・4方向・三人称", 1.0, true, 0), ("ダイブ0.60・軸の色", 1.0, true, 0), ("球層・軸の色・宇宙", 1.0, true, 0), ("ダイブ0.60・4方向・深海", 1.0, true, 0), ("球層・4方向・深海", 1.0, true, 0), ("球層・4方向・宇宙", 1.0, true, 0), ("球層・4方向・宇宙・天の川の中心", 1.0, true, 0), ("球層・軸の色", 1.0, true, 0), ("球層・軸の色・ワイヤー", 0.0, false, 1)] {
             if let o = ProcessInfo.processInfo.environment["S3_PNG_ONLY"], !name.contains(o) { continue }   // 名前にこの文字を含む場面だけ
             for side in [HyperLabRenderer.Side.left, .right] {
                 let st = HyperLabState(); st.pitch = 0.55; st.roll = -0.35; st.gloss = gloss; st.glare = glare; st.mode = mode
@@ -1982,6 +2004,11 @@ enum Verify {
                 if name.hasPrefix("正面") { st.pitch = 0.0203; st.roll = -0.0962; st.viewYaw = 0; st.viewPitch = 0; st.leftDist = 5.56; st.viewDist = 7.5 }   // ウェブ版の今の画面と同じ向き・大きさ
                 switch name {
                 case "ポリゴン・傾き": st.cutOn = true; st.cutRef = 2; st.polyArm = 1; st.cutWDeg = 104; st.pitch = -1.757; st.roll = -2.647; st.viewYaw = 0.87; st.viewPitch = 1.277
+                case "経度面・ハイブリッド", "経度面・ワイヤー", "経度面・半透明": st.coordModel = 1
+                case "経度面・両方": st.coordModel = 2
+                case "経度面・円錐": st.coordModel = 3
+                case "経度面・全部": st.coordModel = 4
+                case "経度面・4D回転": st.coordModel = 1; st.zw = 0.9; st.yaw = 0.5
                 case "拡張A": st.expandOn = true; st.stageView = 0
                 case "拡張C": st.expandOn = true; st.stageView = 2
                 case "拡張C・ほかを消す": st.expandOn = true; st.stageView = 2; st.stageOnly = true

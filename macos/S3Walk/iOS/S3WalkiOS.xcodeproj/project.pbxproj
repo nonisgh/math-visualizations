@@ -28,6 +28,8 @@
 		C37D946ACC5C473DCD40B312 = {isa = PBXBuildFile; fileRef = 330B099344C91EE1594B9AD6; };
 		008DB200E3ADA43CC9530EF8 = {isa = PBXBuildFile; fileRef = DC38D0E8495DA16841B94420; };
 		B8D42F6C3E5A7B9C0D1E2F3A = {isa = PBXBuildFile; fileRef = A7C31E5B2D4F6A8B9C0D1E2F; };
+		6B2C3D4E5F60718293A4B5C6 = {isa = PBXBuildFile; fileRef = 5A1B2C3D4E5F60718293A4B5; };
+		8D4E5F60718293A4B5C6D7E8 = {isa = PBXBuildFile; fileRef = 7C3D4E5F60718293A4B5C6D7; };
 		BFDB72069A1E332ED4B716B7 = {isa = PBXBuildFile; fileRef = 88DD73B905E537F22E16FACA; };
 		E066042031B9C0917776C6ED = {isa = PBXBuildFile; fileRef = 07577AFF715B2CC16364C635; };
 		FB90F1FB4587612FD52F7012 = {isa = PBXBuildFile; fileRef = FA50BC922C59F7EE686506B3; };
@@ -44,6 +46,7 @@
 		018017F331A5F34C35D7307A = {isa = PBXBuildFile; fileRef = 71157E0343BDDC363491DA39; };
 		CFD60C5E7AF8F99F9EFE8B33 = {isa = PBXBuildFile; fileRef = B0F297DA5DD3A2015A7CC456; };
 		0A51CE0F1A3E4B2C8D9E7F02 = {isa = PBXBuildFile; fileRef = 0A51CE0F1A3E4B2C8D9E7F01; };
+		0A51CE0F1A3E4B2C8D9E7F04 = {isa = PBXBuildFile; fileRef = 0A51CE0F1A3E4B2C8D9E7F03; };
 		DEAF61A1DE79116095324F9A = {isa = PBXBuildFile; fileRef = 9B1840ADA6D4B19874866638; };
 		0086208066024A3A65743D5C = {isa = PBXBuildFile; fileRef = 7C93E7CB303EA675908B21BD; };
 		28D7CF31EFD6EC365E0E0D08 = {isa = PBXBuildFile; fileRef = 74E9DFDD0FF38EC91A41333C; };
@@ -76,6 +79,8 @@
 		330B099344C91EE1594B9AD6 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLab.swift"; sourceTree = "<group>"; name = "HyperLab.swift"; };
 		DC38D0E8495DA16841B94420 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabExpand.swift"; sourceTree = "<group>"; name = "HyperLabExpand.swift"; };
 		A7C31E5B2D4F6A8B9C0D1E2F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabTunnel.swift"; sourceTree = "<group>"; name = "HyperLabTunnel.swift"; };
+		5A1B2C3D4E5F60718293A4B5 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabSuperMap.swift"; sourceTree = "<group>"; name = "HyperLabSuperMap.swift"; };
+		7C3D4E5F60718293A4B5C6D7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabSuper3D.swift"; sourceTree = "<group>"; name = "HyperLabSuper3D.swift"; };
 		88DD73B905E537F22E16FACA = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabPanel.swift"; sourceTree = "<group>"; name = "HyperLabPanel.swift"; };
 		07577AFF715B2CC16364C635 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabMapsMotion.swift"; sourceTree = "<group>"; name = "HyperLabMapsMotion.swift"; };
 		FA50BC922C59F7EE686506B3 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperLabCamera.swift"; sourceTree = "<group>"; name = "HyperLabCamera.swift"; };
@@ -92,6 +97,7 @@
 		71157E0343BDDC363491DA39 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/TesseractLab.swift"; sourceTree = "<group>"; name = "TesseractLab.swift"; };
 		B0F297DA5DD3A2015A7CC456 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Origami.swift"; sourceTree = "<group>"; name = "Origami.swift"; };
 		0A51CE0F1A3E4B2C8D9E7F01 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/OrigamiSpace.swift"; sourceTree = "<group>"; name = "OrigamiSpace.swift"; };
+		0A51CE0F1A3E4B2C8D9E7F03 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/NDGeom.swift"; sourceTree = "<group>"; name = "NDGeom.swift"; };
 		9B1840ADA6D4B19874866638 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/HyperSound.swift"; sourceTree = "<group>"; name = "HyperSound.swift"; };
 		7C93E7CB303EA675908B21BD = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Recorder.swift"; sourceTree = "<group>"; name = "Recorder.swift"; };
 		74E9DFDD0FF38EC91A41333C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/S3Walk/Exporter.swift"; sourceTree = "<group>"; name = "Exporter.swift"; };
@@ -128,6 +134,8 @@
 				330B099344C91EE1594B9AD6,
 				DC38D0E8495DA16841B94420,
 				A7C31E5B2D4F6A8B9C0D1E2F,
+				5A1B2C3D4E5F60718293A4B5,
+				7C3D4E5F60718293A4B5C6D7,
 				88DD73B905E537F22E16FACA,
 				07577AFF715B2CC16364C635,
 				FA50BC922C59F7EE686506B3,
@@ -144,6 +152,7 @@
 				71157E0343BDDC363491DA39,
 				B0F297DA5DD3A2015A7CC456,
 				0A51CE0F1A3E4B2C8D9E7F01,
+				0A51CE0F1A3E4B2C8D9E7F03,
 				9B1840ADA6D4B19874866638,
 				7C93E7CB303EA675908B21BD,
 				74E9DFDD0FF38EC91A41333C,
@@ -198,6 +207,8 @@
 				C37D946ACC5C473DCD40B312,
 				008DB200E3ADA43CC9530EF8,
 				B8D42F6C3E5A7B9C0D1E2F3A,
+				6B2C3D4E5F60718293A4B5C6,
+				8D4E5F60718293A4B5C6D7E8,
 				BFDB72069A1E332ED4B716B7,
 				E066042031B9C0917776C6ED,
 				FB90F1FB4587612FD52F7012,
@@ -214,6 +225,7 @@
 				018017F331A5F34C35D7307A,
 				CFD60C5E7AF8F99F9EFE8B33,
 				0A51CE0F1A3E4B2C8D9E7F02,
+				0A51CE0F1A3E4B2C8D9E7F04,
 				DEAF61A1DE79116095324F9A,
 				0086208066024A3A65743D5C,
 				28D7CF31EFD6EC365E0E0D08,

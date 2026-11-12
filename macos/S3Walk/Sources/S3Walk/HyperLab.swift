@@ -23,6 +23,15 @@ struct HyperLabView: View {
                 let W = max(1, g.size.width), H = max(1, g.size.height), bar: CGFloat = 5
                 let lw: CGFloat = min(W - 140, max(140, W * CGFloat(st.splitX))), th: CGFloat = min(H - bar - 90, max(90, (H - bar) * CGFloat(st.splitAt(sk))))
                 HStack(spacing: 0) {
+                    if st.superMap3D {                                     // スーパーマップ 3D：左の列に 3D の断面マップと 3D の S³ の地図、右に 4D の超球
+                        VStack(spacing: 0) {
+                            HLSuper3DPane(st: st, kind: 0).frame(height: th)
+                            HLSplitBar(vertical: false, onDrag: { y in st.splitY = min(0.9, max(0.1, Double(y / H))) }, onReset: { st.splitY = 0.5 })
+                            HLSuper3DPane(st: st, kind: 1)
+                        }.frame(width: lw)
+                        HLSplitBar(vertical: true, onDrag: { x in st.splitX = min(0.9, max(0.1, Double(x / W))) }, onReset: { st.splitX = 0.5 })
+                        fadeSlot(2)
+                    } else {
                     if items.count == 1 { fadeSlot(items[0]) }              // 4D の超球だけ
                     else if items.count == 3 {
                         VStack(spacing: 0) {
@@ -35,10 +44,18 @@ struct HyperLabView: View {
                         HLSplitBar(vertical: true, onDrag: { x in st.splitX = min(0.9, max(0.1, Double(x / W))) }, onReset: { st.splitX = 0.5 })
                         fadeSlot(items[items.count - 1])
                     }
+                    }
                 }
             } }
             .coordinateSpace(name: "hlsplit")
             .background(Color(red: 0.12, green: 0.16, blue: 0.23))
+            // スーパーマップ（左下に浮かぶ。オプション）
+            .overlay(alignment: .bottomLeading) {
+                if st.superMap && !st.superMap3D { HLSuperMap(st: st, scale: CGFloat(st.uiScale) * 0.9) { st.superMap = false }.padding(10) }
+            }
+            .overlay(alignment: .bottomTrailing) {                          // 3D の時：ものさしと 4 本の首だけ、右下に小さく
+                if st.superMap3D { HLSuperMap(st: st, scale: CGFloat(st.uiScale) * 0.8, compact: true) { st.superMap3D = false }.padding(10) }
+            }
             // 画面のゲームパッド（下の真ん中。パネルを隠していても出す）
             .overlay(alignment: .bottom) {
                 if st.padOn, let r = HyperLabState.walkRendererGet?() {

@@ -33,6 +33,7 @@ struct Main {
         if let i = args.firstIndex(of: "--hyperpng"), i + 1 < args.count { Verify.hyperPNG(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--twpng"), i + 1 < args.count { TessWalkRenderer.png(args[i + 1]); exit(0) }
         if let i = args.firstIndex(of: "--ogpng"), i + 1 < args.count { OrigamiRenderer.png(args[i + 1]); exit(0) }
+        if let i = args.firstIndex(of: "--superpng"), i + 1 < args.count { MainActor.assumeIsolated { HLSuperMap.png(args[i + 1]) }; exit(0) }
         if args.contains("--exporttest") && args.contains("--arm") { let u = VideoExport.selfTestArm(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
         if args.contains("--exporttest") && args.contains("--route") { let u = VideoExport.selfTestRoute(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
         if args.contains("--exporttest") && args.contains("--ring") { let u = VideoExport.selfTestRing(); print(u.map { "できた：\($0.path)" } ?? "だめでした"); exit(u == nil ? 1 : 0) }
