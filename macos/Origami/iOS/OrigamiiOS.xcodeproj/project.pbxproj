@@ -1,0 +1,188 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+		76F71432D5B110ABFE716C46 = {isa = PBXBuildFile; fileRef = E5DADCC6B5B6BBE0FAE934C1; };
+		D9ACE24E549C324E9A2705B9 = {isa = PBXBuildFile; fileRef = D56915D7C6AD32DB69D02D70; };
+		AA7B2A761E988C129693A27B = {isa = PBXBuildFile; fileRef = 357032B52F75EAFF132006E4; };
+		402BB3B25A2DC169AA113D96 = {isa = PBXBuildFile; fileRef = 9B06C70F39DD9CBEF36F21CF; };
+		644938924845EB09207B64DD = {isa = PBXBuildFile; fileRef = D11ACE58F2D42C3642232FF5; };
+		5D6DD4DCD22DE9C2F843A2FA = {isa = PBXBuildFile; fileRef = 744E79E4E7321E158764EB04; };
+		F54E0114925970751474D172 = {isa = PBXBuildFile; fileRef = 748D173FBA63EA37971F8DE9; };
+		47E056D6BA7F8C4106C58B34 = {isa = PBXBuildFile; fileRef = 12D9973F43697FC5AD11596D; };
+		EDA8672A7027931BF1911271 = {isa = PBXBuildFile; fileRef = EB325148D29B9D88C68C5B67; };
+		E53DC4B6CC0B3DDD8DDCC2A0 = {isa = PBXBuildFile; fileRef = 043C747A9D3BB5EC5E8579F0; };
+		5DD335535EC8B5EF9D782C63 = {isa = PBXBuildFile; fileRef = 3663A03030596A3249F7B08C; };
+		8BD52F55B37B7D00202724C8 = {isa = PBXBuildFile; fileRef = 793AA28A9F664E434A852545; };
+		3450175394D34E2418C77B3A = {isa = PBXBuildFile; fileRef = 3C5DA5F115688C09295BCBA7; };
+		E4E8AFBB8EBA79B8E292CB4F = {isa = PBXBuildFile; fileRef = 9B3688CA2A4B768B544AC4F1; };
+		B379C5167569523FE070C808 = {isa = PBXBuildFile; fileRef = A3EDB0DA50D5FFC945CCACE4; };
+		3B4BC9B94E3264BCBFE074CC = {isa = PBXBuildFile; fileRef = AD18ED4CFB2D1A84E9B01E6C; };
+		79925C3844B450DDCE518841 = {isa = PBXBuildFile; fileRef = 234787D5F12547E16F5ABE0B; };
+		457898953598737473C994FE = {isa = PBXBuildFile; fileRef = 70A04DCF041E5D3713CBF1B2; };
+		300878320DB1CB6F75372474 = {isa = PBXBuildFile; fileRef = F9DB60521FB2C096D79B4207; };
+		2D236DCAB299670750262A4A = {isa = PBXBuildFile; fileRef = 479036C37A14E942FBB367AE; };
+		68DF82BD88C3676DF2F78EF0 = {isa = PBXBuildFile; fileRef = D63059A6F4A82170FCD6E665; };
+		ECC1C8F72EAC73CA94D7592E = {isa = PBXBuildFile; fileRef = 4FB2A1B2E2341710F59ACF10; };
+		121B2F4179DFD18DB91D6010 = {isa = PBXBuildFile; fileRef = 42D35BC73752536E532BE199; };
+		E5DADCC6B5B6BBE0FAE934C1 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/NDGeom.swift"; sourceTree = "<group>"; name = "NDGeom.swift"; };
+		D56915D7C6AD32DB69D02D70 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiGlass.swift"; sourceTree = "<group>"; name = "OrigamiGlass.swift"; };
+		357032B52F75EAFF132006E4 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/Origami.swift"; sourceTree = "<group>"; name = "Origami.swift"; };
+		9B06C70F39DD9CBEF36F21CF = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiSpace.swift"; sourceTree = "<group>"; name = "OrigamiSpace.swift"; };
+		D11ACE58F2D42C3642232FF5 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiUI.swift"; sourceTree = "<group>"; name = "OrigamiUI.swift"; };
+		744E79E4E7321E158764EB04 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiPlay.swift"; sourceTree = "<group>"; name = "OrigamiPlay.swift"; };
+		748D173FBA63EA37971F8DE9 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiRaster.swift"; sourceTree = "<group>"; name = "OrigamiRaster.swift"; };
+		12D9973F43697FC5AD11596D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiKeys.swift"; sourceTree = "<group>"; name = "OrigamiKeys.swift"; };
+		EB325148D29B9D88C68C5B67 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiSettings.swift"; sourceTree = "<group>"; name = "OrigamiSettings.swift"; };
+		043C747A9D3BB5EC5E8579F0 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiPalette.swift"; sourceTree = "<group>"; name = "OrigamiPalette.swift"; };
+		3663A03030596A3249F7B08C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiNets.swift"; sourceTree = "<group>"; name = "OrigamiNets.swift"; };
+		793AA28A9F664E434A852545 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiNetAtlas.swift"; sourceTree = "<group>"; name = "OrigamiNetAtlas.swift"; };
+		3C5DA5F115688C09295BCBA7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiPoints.swift"; sourceTree = "<group>"; name = "OrigamiPoints.swift"; };
+		9B3688CA2A4B768B544AC4F1 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiSection.swift"; sourceTree = "<group>"; name = "OrigamiSection.swift"; };
+		A3EDB0DA50D5FFC945CCACE4 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiIntegral.swift"; sourceTree = "<group>"; name = "OrigamiIntegral.swift"; };
+		AD18ED4CFB2D1A84E9B01E6C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiWater.swift"; sourceTree = "<group>"; name = "OrigamiWater.swift"; };
+		234787D5F12547E16F5ABE0B = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiIntShapes.swift"; sourceTree = "<group>"; name = "OrigamiIntShapes.swift"; };
+		70A04DCF041E5D3713CBF1B2 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiInSphere.swift"; sourceTree = "<group>"; name = "OrigamiInSphere.swift"; };
+		F9DB60521FB2C096D79B4207 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiDice.swift"; sourceTree = "<group>"; name = "OrigamiDice.swift"; };
+		479036C37A14E942FBB367AE = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiAsmPose.swift"; sourceTree = "<group>"; name = "OrigamiAsmPose.swift"; };
+		D63059A6F4A82170FCD6E665 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OrigamiiOSApp.swift"; sourceTree = "<group>"; name = "OrigamiiOSApp.swift"; };
+		4FB2A1B2E2341710F59ACF10 = {isa = PBXFileReference; lastKnownFileType = file; path = "../Fonts/KaTeX_Math-Italic.ttf"; sourceTree = "<group>"; name = "KaTeX_Math-Italic.ttf"; };
+		42D35BC73752536E532BE199 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets.xcassets"; sourceTree = "<group>"; };
+		D2A57DC1D883FD21FB995169 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "OrigamiiOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		DAF6AA633395B1B76148E35B = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (
+			); runOnlyForDeploymentPostprocessing = 0; };
+		DB0F6F37EBEB6EA094891243 = {isa = PBXGroup; children = (
+				E5DADCC6B5B6BBE0FAE934C1,
+				D56915D7C6AD32DB69D02D70,
+				357032B52F75EAFF132006E4,
+				9B06C70F39DD9CBEF36F21CF,
+				D11ACE58F2D42C3642232FF5,
+				744E79E4E7321E158764EB04,
+				748D173FBA63EA37971F8DE9,
+				12D9973F43697FC5AD11596D,
+				EB325148D29B9D88C68C5B67,
+				043C747A9D3BB5EC5E8579F0,
+				3663A03030596A3249F7B08C,
+				793AA28A9F664E434A852545,
+				3C5DA5F115688C09295BCBA7,
+				9B3688CA2A4B768B544AC4F1,
+				A3EDB0DA50D5FFC945CCACE4,
+				AD18ED4CFB2D1A84E9B01E6C,
+				234787D5F12547E16F5ABE0B,
+				70A04DCF041E5D3713CBF1B2,
+				F9DB60521FB2C096D79B4207,
+				479036C37A14E942FBB367AE,
+				D63059A6F4A82170FCD6E665,
+				4FB2A1B2E2341710F59ACF10,
+				42D35BC73752536E532BE199,
+				86024CAD1E83101D97359D73,
+			); sourceTree = "<group>"; };
+		86024CAD1E83101D97359D73 = {isa = PBXGroup; children = (
+				D2A57DC1D883FD21FB995169,
+			); name = Products; sourceTree = "<group>"; };
+		42AEFBAE01D2DFD981F7DA7D = {isa = PBXNativeTarget; buildConfigurationList = 0C42E992F8137C5B02B02528; buildPhases = (
+				0F78FE532035D122ED352DBA,
+				DAF6AA633395B1B76148E35B,
+				943E4BBD9B51C81965501BA3,
+			); buildRules = (
+			); dependencies = (
+			); name = OrigamiiOS; productName = OrigamiiOS; productReference = D2A57DC1D883FD21FB995169; productType = "com.apple.product-type.application"; };
+		46F86FAA6BBF9AC94A7E4595 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2600; LastUpgradeCheck = 2600; }; buildConfigurationList = D21051CA55C4951578649475; compatibilityVersion = "Xcode 14.0"; developmentRegion = ja; hasScannedForEncodings = 0; knownRegions = (ja, en, Base, ); mainGroup = DB0F6F37EBEB6EA094891243; productRefGroup = 86024CAD1E83101D97359D73; projectDirPath = ""; projectRoot = ""; targets = (
+				42AEFBAE01D2DFD981F7DA7D,
+			); };
+		943E4BBD9B51C81965501BA3 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (
+				ECC1C8F72EAC73CA94D7592E,
+				121B2F4179DFD18DB91D6010,
+			); runOnlyForDeploymentPostprocessing = 0; };
+		0F78FE532035D122ED352DBA = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
+				76F71432D5B110ABFE716C46,
+				D9ACE24E549C324E9A2705B9,
+				AA7B2A761E988C129693A27B,
+				402BB3B25A2DC169AA113D96,
+				644938924845EB09207B64DD,
+				5D6DD4DCD22DE9C2F843A2FA,
+				F54E0114925970751474D172,
+				47E056D6BA7F8C4106C58B34,
+				EDA8672A7027931BF1911271,
+				E53DC4B6CC0B3DDD8DDCC2A0,
+				5DD335535EC8B5EF9D782C63,
+				8BD52F55B37B7D00202724C8,
+				3450175394D34E2418C77B3A,
+				E4E8AFBB8EBA79B8E292CB4F,
+				B379C5167569523FE070C808,
+				3B4BC9B94E3264BCBFE074CC,
+				79925C3844B450DDCE518841,
+				457898953598737473C994FE,
+				300878320DB1CB6F75372474,
+				2D236DCAB299670750262A4A,
+				68DF82BD88C3676DF2F78EF0,
+			); runOnlyForDeploymentPostprocessing = 0; };
+		13BC9EF2D3AA0E5CDD9FB529 = {isa = XCBuildConfiguration; buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			}; name = Debug; };
+		E1A08347EB474B2DD7669033 = {isa = XCBuildConfiguration; buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			}; name = Release; };
+		EACD6A27D34CB40AF181B70F = {isa = XCBuildConfiguration; buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BM7MT3MWYF;
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "次元おりがみ";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.nonisgh.origami.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			}; name = Debug; };
+		44340146C46784F0D7118E72 = {isa = XCBuildConfiguration; buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BM7MT3MWYF;
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "次元おりがみ";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.nonisgh.origami.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			}; name = Release; };
+		D21051CA55C4951578649475 = {isa = XCConfigurationList; buildConfigurations = (
+				13BC9EF2D3AA0E5CDD9FB529,
+				E1A08347EB474B2DD7669033,
+			); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		0C42E992F8137C5B02B02528 = {isa = XCConfigurationList; buildConfigurations = (
+				EACD6A27D34CB40AF181B70F,
+				44340146C46784F0D7118E72,
+			); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595;
+}

@@ -1,0 +1,4 @@
+.build/
+Origami.app/
+xcuserdata/
+.DS_Store
