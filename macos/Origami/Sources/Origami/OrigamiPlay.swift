@@ -18,7 +18,7 @@ struct AnglePreset: Codable, Identifiable, Equatable {
         guard let d = UserDefaults.standard.data(forKey: key), let a = try? JSONDecoder().decode([AnglePreset].self, from: d) else { return [] }
         return a
     }
-    static func save(_ a: [AnglePreset]) { if let d = try? JSONEncoder().encode(a) { UserDefaults.standard.set(d, forKey: key) } }
+    static func save(_ a: [AnglePreset]) { guard !SaveGuard.off else { return }; if let d = try? JSONEncoder().encode(a) { UserDefaults.standard.set(d, forKey: key) } }
 }
 
 /// 保存した角度の往復（停留点・1 区間の秒数・往復かぐるっとか・動き方）
@@ -37,7 +37,7 @@ struct PingPongPreset: Codable, Identifiable, Equatable {
         guard let d = UserDefaults.standard.data(forKey: key), let a = try? JSONDecoder().decode([PingPongPreset].self, from: d) else { return [] }
         return a
     }
-    static func save(_ a: [PingPongPreset]) { if let d = try? JSONEncoder().encode(a) { UserDefaults.standard.set(d, forKey: key) } }
+    static func save(_ a: [PingPongPreset]) { guard !SaveGuard.off else { return }; if let d = try? JSONEncoder().encode(a) { UserDefaults.standard.set(d, forKey: key) } }
     var summary: String { String(format: "%d 点・%.1f 秒・", stops.count, sec) + (cycle ? "ぐるっと" : "往復") + "・" + (OrigamiState.ppEases.first { $0.0 == ease }?.1 ?? ease) }
 }
 
@@ -76,7 +76,7 @@ extension OrigamiState {
         stopSpins(); stopPP(); cycling = false; presetPar = nil; xyManualOff = 0
         let to = deg.map { $0 * .pi / 180 }
         let turned = to[0..<3].contains { abs(Self.wrapPi($0)) > 0.02 }
-        tween = (angles6, to, 0, 1.2, projBlend, !perspMode && turned ? 1 : 0)
+        tween = (angles6, to, 0, 1.2, projBlend, !perspMode ? 1 : 0)
     }
 
     // ---- 角度のプリセット ----
@@ -137,7 +137,7 @@ extension OrigamiState {
         var seq = Array(0..<n)
         if !(ppCycle && n > 2) { for i in stride(from: n - 2, through: 1, by: -1) { seq.append(i) } }   // 往復：端で折り返す（2 つなら A→B→A）
         pp = PingPong(from: cur, A: zip(a, cur).map { $1 + Self.wrapPi($0 - $1) }, pts: pts, seq: seq, legSec: max(0.1, ppSec),
-                      intro: atStart ? 0 : 0.8, pj0: projBlend, pj1: !perspMode && turned ? 1 : 0, off0: xyManualOff, once: once)
+                      intro: atStart ? 0 : 0.8, pj0: projBlend, pj1: !perspMode ? 1 : 0, off0: xyManualOff, once: once)
         ppRunning = true
     }
     func stopPP() {

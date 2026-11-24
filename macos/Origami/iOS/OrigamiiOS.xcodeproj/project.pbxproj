@@ -21,10 +21,20 @@
 		E4E8AFBB8EBA79B8E292CB4F = {isa = PBXBuildFile; fileRef = 9B3688CA2A4B768B544AC4F1; };
 		B379C5167569523FE070C808 = {isa = PBXBuildFile; fileRef = A3EDB0DA50D5FFC945CCACE4; };
 		3B4BC9B94E3264BCBFE074CC = {isa = PBXBuildFile; fileRef = AD18ED4CFB2D1A84E9B01E6C; };
+		B2E1F2A1C2D3E4F5A6B7C9A5 = {isa = PBXBuildFile; fileRef = A1D0F1A0B1C2D3E4F5A6B7F4; };
+		B2E1F2A1C2D3E4F5A6B7C8F3 = {isa = PBXBuildFile; fileRef = A1D0F1A0B1C2D3E4F5A6B7E2; };
+		B2E1F2A1C2D3E4F5A6B7C8E1 = {isa = PBXBuildFile; fileRef = A1D0F1A0B1C2D3E4F5A6B7D0; };
+		B2E1F2A1C2D3E4F5A6B7C8D9 = {isa = PBXBuildFile; fileRef = A1D0F1A0B1C2D3E4F5A6B7C8; };
 		79925C3844B450DDCE518841 = {isa = PBXBuildFile; fileRef = 234787D5F12547E16F5ABE0B; };
 		457898953598737473C994FE = {isa = PBXBuildFile; fileRef = 70A04DCF041E5D3713CBF1B2; };
 		300878320DB1CB6F75372474 = {isa = PBXBuildFile; fileRef = F9DB60521FB2C096D79B4207; };
 		2D236DCAB299670750262A4A = {isa = PBXBuildFile; fileRef = 479036C37A14E942FBB367AE; };
+		0E918BA25FAD51E7FED67665 = {isa = PBXBuildFile; fileRef = 96DE82EB5E77F1E5EB1CE1D2; };
+		91D9986EC48FEC69E49C1974 = {isa = PBXBuildFile; fileRef = 00DEDFC7596FCB7849F5626D; };
+		959EF6E02D54F48A89E2CDEC = {isa = PBXBuildFile; fileRef = D96EF340E1BC61E8644F2535; };
+		F405423DF92A7D4FABECC74A = {isa = PBXBuildFile; fileRef = 3B363E1CFFDA000421B0456A; };
+		4D94DA10DA807009474F7C07 = {isa = PBXBuildFile; fileRef = 9342EA21C0FC004B8C2BA1BA; };
+		1B1F23ADA6C65AE169EDF83B = {isa = PBXBuildFile; fileRef = F73B59D1329B7A6ECFCB993E; };
 		68DF82BD88C3676DF2F78EF0 = {isa = PBXBuildFile; fileRef = D63059A6F4A82170FCD6E665; };
 		ECC1C8F72EAC73CA94D7592E = {isa = PBXBuildFile; fileRef = 4FB2A1B2E2341710F59ACF10; };
 		121B2F4179DFD18DB91D6010 = {isa = PBXBuildFile; fileRef = 42D35BC73752536E532BE199; };
@@ -44,10 +54,20 @@
 		9B3688CA2A4B768B544AC4F1 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiSection.swift"; sourceTree = "<group>"; name = "OrigamiSection.swift"; };
 		A3EDB0DA50D5FFC945CCACE4 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiIntegral.swift"; sourceTree = "<group>"; name = "OrigamiIntegral.swift"; };
 		AD18ED4CFB2D1A84E9B01E6C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiWater.swift"; sourceTree = "<group>"; name = "OrigamiWater.swift"; };
+		A1D0F1A0B1C2D3E4F5A6B7F4 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiBalls.swift"; sourceTree = "<group>"; name = "OrigamiBalls.swift"; };
+		A1D0F1A0B1C2D3E4F5A6B7E2 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiNS4.swift"; sourceTree = "<group>"; name = "OrigamiNS4.swift"; };
+		A1D0F1A0B1C2D3E4F5A6B7D0 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiDrain.swift"; sourceTree = "<group>"; name = "OrigamiDrain.swift"; };
+		A1D0F1A0B1C2D3E4F5A6B7C8 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiLid.swift"; sourceTree = "<group>"; name = "OrigamiLid.swift"; };
 		234787D5F12547E16F5ABE0B = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiIntShapes.swift"; sourceTree = "<group>"; name = "OrigamiIntShapes.swift"; };
 		70A04DCF041E5D3713CBF1B2 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiInSphere.swift"; sourceTree = "<group>"; name = "OrigamiInSphere.swift"; };
 		F9DB60521FB2C096D79B4207 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiDice.swift"; sourceTree = "<group>"; name = "OrigamiDice.swift"; };
 		479036C37A14E942FBB367AE = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiAsmPose.swift"; sourceTree = "<group>"; name = "OrigamiAsmPose.swift"; };
+		96DE82EB5E77F1E5EB1CE1D2 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiCloud.swift"; sourceTree = "<group>"; name = "OrigamiCloud.swift"; };
+		00DEDFC7596FCB7849F5626D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiMagnet.swift"; sourceTree = "<group>"; name = "OrigamiMagnet.swift"; };
+		D96EF340E1BC61E8644F2535 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/Origami5D.swift"; sourceTree = "<group>"; name = "Origami5D.swift"; };
+		3B363E1CFFDA000421B0456A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiInSphere5.swift"; sourceTree = "<group>"; name = "OrigamiInSphere5.swift"; };
+		9342EA21C0FC004B8C2BA1BA = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiNet5.swift"; sourceTree = "<group>"; name = "OrigamiNet5.swift"; };
+		F73B59D1329B7A6ECFCB993E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Sources/Origami/OrigamiNet5Data.swift"; sourceTree = "<group>"; name = "OrigamiNet5Data.swift"; };
 		D63059A6F4A82170FCD6E665 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OrigamiiOSApp.swift"; sourceTree = "<group>"; name = "OrigamiiOSApp.swift"; };
 		4FB2A1B2E2341710F59ACF10 = {isa = PBXFileReference; lastKnownFileType = file; path = "../Fonts/KaTeX_Math-Italic.ttf"; sourceTree = "<group>"; name = "KaTeX_Math-Italic.ttf"; };
 		42D35BC73752536E532BE199 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets.xcassets"; sourceTree = "<group>"; };
@@ -71,10 +91,20 @@
 				9B3688CA2A4B768B544AC4F1,
 				A3EDB0DA50D5FFC945CCACE4,
 				AD18ED4CFB2D1A84E9B01E6C,
+				A1D0F1A0B1C2D3E4F5A6B7F4,
+				A1D0F1A0B1C2D3E4F5A6B7E2,
+				A1D0F1A0B1C2D3E4F5A6B7D0,
+				A1D0F1A0B1C2D3E4F5A6B7C8,
 				234787D5F12547E16F5ABE0B,
 				70A04DCF041E5D3713CBF1B2,
 				F9DB60521FB2C096D79B4207,
 				479036C37A14E942FBB367AE,
+				96DE82EB5E77F1E5EB1CE1D2,
+				00DEDFC7596FCB7849F5626D,
+				D96EF340E1BC61E8644F2535,
+				3B363E1CFFDA000421B0456A,
+				9342EA21C0FC004B8C2BA1BA,
+				F73B59D1329B7A6ECFCB993E,
 				D63059A6F4A82170FCD6E665,
 				4FB2A1B2E2341710F59ACF10,
 				42D35BC73752536E532BE199,
@@ -114,10 +144,20 @@
 				E4E8AFBB8EBA79B8E292CB4F,
 				B379C5167569523FE070C808,
 				3B4BC9B94E3264BCBFE074CC,
+				B2E1F2A1C2D3E4F5A6B7C9A5,
+				B2E1F2A1C2D3E4F5A6B7C8F3,
+				B2E1F2A1C2D3E4F5A6B7C8E1,
+				B2E1F2A1C2D3E4F5A6B7C8D9,
 				79925C3844B450DDCE518841,
 				457898953598737473C994FE,
 				300878320DB1CB6F75372474,
 				2D236DCAB299670750262A4A,
+				0E918BA25FAD51E7FED67665,
+				91D9986EC48FEC69E49C1974,
+				959EF6E02D54F48A89E2CDEC,
+				F405423DF92A7D4FABECC74A,
+				4D94DA10DA807009474F7C07,
+				1B1F23ADA6C65AE169EDF83B,
 				68DF82BD88C3676DF2F78EF0,
 			); runOnlyForDeploymentPostprocessing = 0; };
 		13BC9EF2D3AA0E5CDD9FB529 = {isa = XCBuildConfiguration; buildSettings = {
@@ -153,7 +193,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.github.nonisgh.origami.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = app.nonisapps.origami.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			}; name = Debug; };
@@ -171,7 +211,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.github.nonisgh.origami.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = app.nonisapps.origami.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			}; name = Release; };

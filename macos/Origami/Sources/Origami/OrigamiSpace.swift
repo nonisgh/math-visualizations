@@ -258,12 +258,19 @@ final class OrigamiSky {
 
 #if os(macOS)
 extension OrigamiRenderer {
+    /// 確かめ：OGSET="mul4=0,glass4=0" で、見た目のつまみを上書き
+    static func applyOGSET(_ st: OrigamiState) {
+        guard let kv = ProcessInfo.processInfo.environment["OGSET"] else { return }
+        let keys: [String: ReferenceWritableKeyPath<OrigamiState, Double>] = ["mul4": \.mul4, "glow4": \.glow4, "glass4": \.glass4, "reflSelf": \.reflSelf, "squash4": \.squash4, "slant3": \.slant3, "netMul": \.netMul, "netSolid": \.netSolid, "fantasy": \.fantasy, "stripK": \.stripK, "softMul": \.softMul, "smartLine": \.smartLine, "lineTint": \.lineTint, "deep": \.deep, "inner": \.inner, "depth3": \.depth3]
+        for p in kv.split(separator: ",") { let q = p.split(separator: "="); if q.count == 2, let k = keys[String(q[0])], let v = Double(q[1]) { st[keyPath: k] = v } }
+    }
     /// 確かめの絵（--ogpng 出力先）：左の立方体と右の超立方体を並べた 1 枚を、組み立て具合ごとに
     static func png(_ dir: String) {
         guard let d = MTLCreateSystemDefaultDevice() else { return }
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let st = OrigamiState()
-        guard let r3 = OrigamiRenderer(n: 3, state: st, device: d), let r4 = OrigamiRenderer(n: 4, state: st, device: d) else { print("組み立てに失敗"); return }
+        guard let r3 = OrigamiRenderer(n: 3, state: st, device: d), let r4 = OrigamiRenderer(n: 4, state: st, device: d),
+              let r4L = OrigamiRenderer(n: 4, state: st, device: d), let r5 = OrigamiRenderer(n: 5, state: st, device: d) else { print("組み立てに失敗"); return }
         let w = 900, h = 860
         func tex() -> MTLTexture {
             let t = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: w, height: h, mipmapped: false); t.usage = [.renderTarget, .shaderRead]; t.storageMode = .managed
@@ -276,12 +283,140 @@ extension OrigamiRenderer {
             let bl = cb.makeBlitCommandEncoder()!; bl.synchronize(resource: t); bl.endEncoding()
             cb.commit(); cb.waitUntilCompleted()
         }
+        // 5 次元の見え方のおすすめの角度を、なめらか移動なしで（0 3D展開・1 4D展開）
+        func set5(_ s: OrigamiState, _ k: Int) {
+            let dg = Double.pi / 180
+            s.ax = 0; s.ay = 0; s.zw = 0; s.xy = 15 * dg; s.xz = 30 * dg; s.yz = 20 * dg
+            s.xw5 = k == 1 ? 45 * dg : 0; s.yw5 = k == 1 ? 35.264 * dg : 0; s.zw5 = k == 1 ? 30 * dg : 0; s.wv5 = 0
+            s.presetPar = Double(k); s.projBlend = Double(k); s.updateMats()
+        }
         let scenes: [(String, (OrigamiState) -> Void)] = [
             ("H1_内接球・正面", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.inSphere = true }),
+            ("H3_内接球・レインボー（前の見た目）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.inSphere = true; $0.inSphereColor = 1; $0.inSphereLayers = 6 }),
+            ("H4_内接球・アプリの色・27 枚", { $0.progress = 1; $0.spaceMode = 2; $0.ax = 0.8; $0.ay = 0.5; $0.inSphere = true; $0.inSphereLayers = 14 }),
             ("H2_内接球・W 回転", { $0.progress = 1; $0.spaceMode = 2; $0.ax = 0.8; $0.ay = 0.5; $0.inSphere = true }),
+            ("KT1_内接球の接点・光の輪", { $0.progress = 1; $0.inSphere = true }),
+            ("KT2_内接球の接点・胞の中心の点と重ねる", { $0.progress = 1; $0.inSphere = true; $0.addCellCtrs() }),
+            ("KT3_内接球の接点・胞の色", { $0.progress = 1; $0.inSphere = true; $0.inSphereTouchCol = 1 }),
+            ("SM1_内接球の模様・緯度だけ", { $0.progress = 1; $0.inSphere = true; $0.inSphereLon = false; $0.inSphereCone = false }),
+            ("SM2_内接球の模様・経度だけ", { $0.progress = 1; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereCone = false }),
+            ("SM3_内接球の模様・円錐だけ", { $0.progress = 1; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereLon = false }),
+            ("SM4_内接球の模様・全部", { $0.progress = 1; $0.inSphere = true }),
+            ("LW1_線の太さ 2 倍", { $0.progress = 1; $0.spaceMode = 2; $0.lineWidthSolid = 2 }),
+            ("LW2_線の太さ 2 倍・奥ほど太く", { $0.progress = 1; $0.lineWidthSolid = 2; $0.line4W = 1; $0.line4 = 0 }),
+            ("LW3_線の太さ 2 倍・奥ほど細く・胞の色でなじませる", { $0.progress = 1; $0.spaceMode = 2; $0.lineWidthSolid = 2; $0.line4W = -1; $0.lineTint = 1 }),
+            ("L3a_線の 3D の奥行きなし・太さ 2 倍", { $0.progress = 1; $0.spaceMode = 2; $0.lineWidthSolid = 2; $0.line4W = 0; $0.line4 = 0 }),
+            ("L3b_線の 3D の奥行き 太さ −100%・濃さ 100%", { $0.progress = 1; $0.spaceMode = 2; $0.lineWidthSolid = 2; $0.line4W = 0; $0.line4 = 0; $0.line3W = -1; $0.line3K = 1 }),
+            ("OIL0_今のガラス・3 つ全部", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true }),
+            ("OIL1_油膜 トーン 100%・3 つ全部", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereFilm = true; $0.inSphereTone = 1 }),
+            ("OIL2_油膜 トーン 75%・3 つ全部", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereFilm = true; $0.inSphereTone = 0.75 }),
+            ("OIL3_油膜 トーン 50%・3 つ全部", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereFilm = true; $0.inSphereTone = 0.5 }),
+            ("OIL4_油膜 トーン 75%・緯度だけ", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereFilm = true; $0.inSphereTone = 0.75; $0.inSphereLon = false; $0.inSphereCone = false }),
+            ("OIL5_油膜 トーン 75%・W で回した", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereFilm = true; $0.inSphereTone = 0.75; $0.ax = 0.5; $0.ay = 0.3; $0.updateMats() }),
+            ("AP1_出現 25%・正120胞体", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphere120 = true; $0.inSphereAppear = 0.25 }),
+            ("AP2_出現 50%・正120胞体", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphere120 = true; $0.inSphereAppear = 0.5 }),
+            ("AP3_出現 75%・正120胞体", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphere120 = true; $0.inSphereAppear = 0.75 }),
+            ("AP4_出現 40%・緯度", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphereAppear = 0.4 }),
+            ("AP5_出現 70%・緯度", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphereAppear = 0.7 }),
+            ("AP6_出現 50%・5 次元の正軸体", { $0.dim5 = true; $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphere120 = true; $0.inSphereLat = false; $0.inSphereAppear = 0.5; $0.xw5 = 0.5; $0.yw5 = 0.3; $0.zw5 = 0.2; $0.wv5 = 0.6; $0.ax = 0.3; $0.ay = 0.2; $0.updateMats() }),
+            ("ID0_内接球の遠近なし・正120胞体", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphere120 = true }),
+            ("ID1_内接球の遠近 100%・正120胞体", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphere120 = true; $0.inSphereDepth = 1 }),
+            ("ID2_内接球の遠近 60%・緯度", { $0.progress = 1; $0.spaceMode = 2; $0.inSphere = true; $0.inSphereDepth = 0.6 }),
+            ("ID3_ワイヤー", { $0.progress = 1; $0.spaceMode = 2; $0.wireOnly = true }),
+            ("SH0_立体感なし（あなたの設定に近い）", { $0.progress = 1; $0.spaceMode = 2; $0.depth3 = 0.41; $0.mul4 = 0.5; $0.glow4 = 0.67; $0.glass4 = 0.22; $0.squash4 = 0.56; $0.slant3 = 0.48; $0.reflSelf = 0.33; $0.stripK = 0.13 }),
+            ("SH1_斜めの面の照り返し 50%・奥を色濃く 50%", { $0.progress = 1; $0.spaceMode = 2; $0.depth3 = 0.41; $0.mul4 = 0.5; $0.glow4 = 0.67; $0.glass4 = 0.22; $0.squash4 = 0.56; $0.slant3 = 0.48; $0.reflSelf = 0.33; $0.stripK = 0.13; $0.slantSheen = 0.5; $0.depthDeep = 0.5 }),
+            ("SH2_斜めの面の照り返し 100%", { $0.progress = 1; $0.spaceMode = 2; $0.depth3 = 0.41; $0.mul4 = 0.5; $0.glow4 = 0.67; $0.glass4 = 0.22; $0.squash4 = 0.56; $0.slant3 = 0.48; $0.reflSelf = 0.33; $0.stripK = 0.13; $0.slantSheen = 1 }),
+            ("SH3_奥を色濃く 100%", { $0.progress = 1; $0.spaceMode = 2; $0.depth3 = 0.41; $0.mul4 = 0.5; $0.glow4 = 0.67; $0.glass4 = 0.22; $0.squash4 = 0.56; $0.slant3 = 0.48; $0.reflSelf = 0.33; $0.stripK = 0.13; $0.depthDeep = 1 }),
+            ("SH4_照り返し 50%・奥 50%・W で回した", { $0.progress = 1; $0.spaceMode = 2; $0.depth3 = 0.41; $0.mul4 = 0.5; $0.glow4 = 0.67; $0.glass4 = 0.22; $0.squash4 = 0.56; $0.slant3 = 0.48; $0.reflSelf = 0.33; $0.stripK = 0.13; $0.slantSheen = 0.5; $0.depthDeep = 0.5; $0.ax = 0.5; $0.ay = 0.3; $0.updateMats() }),
+            ("SH5_立体感なし・W で回した", { $0.progress = 1; $0.spaceMode = 2; $0.depth3 = 0.41; $0.mul4 = 0.5; $0.glow4 = 0.67; $0.glass4 = 0.22; $0.squash4 = 0.56; $0.slant3 = 0.48; $0.reflSelf = 0.33; $0.stripK = 0.13; $0.ax = 0.5; $0.ay = 0.3; $0.updateMats() }),
+            ("MU0_4D の奥の乗算なし", { $0.progress = 1; $0.spaceMode = 2; $0.mul4 = 0; $0.glow4 = 0; $0.glass4 = 0; $0.squash4 = 0; $0.slant3 = 0; $0.netMul = 0 }),
+            ("MU1_4D の奥の乗算だけ 100%", { $0.progress = 1; $0.spaceMode = 2; $0.mul4 = 1; $0.glow4 = 0; $0.glass4 = 0; $0.squash4 = 0; $0.slant3 = 0; $0.netMul = 0 }),
+            ("MU2_4D の奥の乗算・ふだんの組み合わせ", { $0.progress = 1; $0.spaceMode = 2 }),
+            ("MU3_4D の奥の乗算だけ 100%・正面", { $0.progress = 1; $0.spaceMode = 2; $0.mul4 = 1; $0.glow4 = 0; $0.glass4 = 0; $0.squash4 = 0; $0.slant3 = 0; $0.netMul = 0; $0.xz = 0.25; $0.yz = -0.2; $0.updateMats() }),
+            ("LW0_ふつう（くらべる用）", { $0.progress = 1; $0.spaceMode = 2 }),
+            ("LW4_画面の色を濃く・太さ 2 倍", { $0.progress = 1; $0.spaceMode = 2; $0.lineWidthSolid = 2; $0.lineTint = 1; $0.lineTintMode = 2 }),
+            ("LW9_重なりの乗算色・太さ 2 倍", { $0.progress = 1; $0.spaceMode = 2; $0.lineWidthSolid = 2; $0.lineTint = 1; $0.lineTintMode = 1 }),
+            ("LW5_画面の色を濃く・ふつうの太さ", { $0.progress = 1; $0.spaceMode = 2; $0.lineTint = 1; $0.lineTintMode = 2 }),
+            ("LW6_展開図は細く・組み上がりは太く（展開図）", { $0.progress = 0; $0.lineWidthNet = 0.6; $0.lineWidthSolid = 2.5 }),
+            ("LW7_内接球・正120胞体・ワイヤー 2 倍", { $0.progress = 1; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphere120 = true; $0.inSphereWireW = 2 }),
+            ("LW8_内接球・正120胞体・ワイヤー 1 倍", { $0.progress = 1; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphere120 = true }),
+            ("SM6_内接球・正120胞体だけ（軸の色）", { $0.progress = 1; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphere120 = true }),
+            ("SM7_内接球・正120胞体＋緯度（胞の色）", { $0.progress = 1; $0.inSphere = true; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphere120 = true; $0.inSphereTouchCol = 1 }),
+            ("SM8_内接球・正120胞体・レインボー・ななめ", { $0.progress = 1; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereLon = false; $0.inSphereCone = false; $0.inSphere120 = true; $0.inSphereColor = 1; $0.ax = 0.75; $0.ay = 0.55; $0.updateMats() }),
+            ("SM5_内接球の模様・なし（接点だけ）", { $0.progress = 1; $0.inSphere = true; $0.inSphereLat = false; $0.inSphereLon = false; $0.inSphereCone = false }),
+            ("AX1_軸の長さ・回さない", { $0.progress = 1; $0.xz = 0; $0.yz = 0; $0.updateMats() }),
+            ("AX2_軸の長さ・X-W ＋0.6", { $0.progress = 1; $0.xz = 0; $0.yz = 0; $0.ax = 0.6; $0.updateMats() }),
+            ("AX3_軸の長さ・X-W −0.6", { $0.progress = 1; $0.xz = 0; $0.yz = 0; $0.ax = -0.6; $0.updateMats() }),
+            ("AX4_軸の長さ・X-Z 0.9（3D の回転）", { $0.progress = 1; $0.xz = 0.9; $0.yz = 0; $0.updateMats() }),
+            ("AU1_おまかせ・ゆがませて組み上がり", { let a = [0.9, -0.6, 0.5, 0.3, 0.6, -0.2]; $0.progress = 1; $0.ax = a[0]; $0.ay = a[1]; $0.zw = a[2]; $0.xy = a[3]; $0.xz = a[4]; $0.yz = a[5]; $0.updateMats() }),
+            ("AU2_おまかせ・いちばん近いまっすぐで開く", { let a = OrigamiState.nearestFlat([0.9, -0.6, 0.5, 0.3, 0.6, -0.2]); $0.progress = 0; $0.ax = a[0]; $0.ay = a[1]; $0.zw = a[2]; $0.xy = a[3]; $0.xz = a[4]; $0.yz = a[5]; $0.updateMats() }),
+            ("AU3_前のまっすぐ・4D だけ 0 で開く", { let a = [0.9, -0.6, 0.5, 0.3, 0.6, -0.2]; $0.progress = 0; $0.ax = 0; $0.ay = 0; $0.zw = 0; $0.xy = a[3]; $0.xz = a[4]; $0.yz = a[5]; $0.updateMats() }),
+            ("MK1_目印・頂点から重なる（同じ大きさ）", { $0.progress = 1; $0.xz = 0.5; $0.yz = -0.4; $0.ax = 0.35; $0.updateMats(); $0.markAlignNow(); $0.markSize = 1.2 }),
+            ("MK2_目印・頂点から重なる（遠近の大きさ）", { $0.progress = 1; $0.xz = 0.5; $0.yz = -0.4; $0.ax = 0.35; $0.updateMats(); $0.markAlignNow(); $0.markSize = 1.2; $0.markSame = false }),
+            ("MK3_目印・重なった光", { $0.progress = 1; $0.xz = 0.5; $0.yz = -0.4; $0.ax = 0.35; $0.updateMats(); $0.markAlignNow(); $0.markSize = 1.2; $0.markFlashT = 0.22 }),
+            // 5 次元 β：左に超立方体・右に 5 次元超立方体（4D展開＝5 次元だけの X-W 45°・Y-W 35.3°・Z-W 30°＋ななめ・平行）
+            ("LT0_線・その胞の色", { $0.progress = 1; $0.ax = 0.5; $0.ay = 0.3; $0.lineTint = 0.55; $0.smartLine = 0.69; $0.lineTintMode = 0; $0.updateMats() }),
+            ("LT1_線・重なりの乗算色", { $0.progress = 1; $0.ax = 0.5; $0.ay = 0.3; $0.lineTint = 0.55; $0.smartLine = 0.69; $0.lineTintMode = 1; $0.updateMats() }),
+            ("LT2_線・重なりの乗算色・つよく", { $0.progress = 1; $0.ax = 0.5; $0.ay = 0.3; $0.lineTint = 1; $0.smartLine = 0; $0.lineTintMode = 1; $0.updateMats() }),
+            ("SW_組み立ての色（OGSWEEP で 0〜1 を 1% ずつ）", { $0.progress = 0.5; $0.ax = 0.5; $0.ay = 0.3; $0.updateMats() }),
+            ("SW95_組み立て 0.95", { $0.progress = 0.95; $0.ax = 0.5; $0.ay = 0.3; $0.updateMats() }),
+            ("SW96_組み立て 0.96", { $0.progress = 0.96; $0.ax = 0.5; $0.ay = 0.3; $0.updateMats() }),
+            ("D5_1_展開図・4D展開", { $0.dim5 = true; $0.progress = 0; set5($0, 1) }),
+            ("D5_2_半分・4D展開", { $0.dim5 = true; $0.progress = 0.5; set5($0, 1) }),
+            ("D5_3_組み上がり・4D展開", { $0.dim5 = true; $0.progress = 1; set5($0, 1) }),
+            ("D5_4_展開図・3D展開", { $0.dim5 = true; $0.progress = 0; set5($0, 0) }),
+            ("D5_5_組み上がり・3D展開", { $0.dim5 = true; $0.progress = 1; set5($0, 0) }),
+            ("D5_6_組み上がり・5 次元で回した", { $0.dim5 = true; $0.progress = 1; $0.xw5 = 0.5; $0.yw5 = 0.3; $0.zw5 = 0.2; $0.wv5 = 0.6; $0.ax = 0.3; $0.ay = 0.2; $0.updateMats() }),
+            ("D5_7_バラした", { $0.dim5 = true; $0.progress = 1; set5($0, 1); $0.explodeRaw = 1 }),
+            ("D5_N1_図鑑 No.1", { $0.dim5 = true; $0.progress = 0; set5($0, 1); $0.net5Step(0) }),
+            ("D5_N2_図鑑 No.5000", { $0.dim5 = true; $0.progress = 0; set5($0, 1); $0.net5No = 1; $0.net5Step(4999) }),
+            ("D5_N3_図鑑 最後", { $0.dim5 = true; $0.progress = 0; set5($0, 1); $0.net5No = 1; $0.net5Step(-1) }),
+            ("D5_N4_階段", { $0.dim5 = true; $0.progress = 0; set5($0, 1); $0.setNet5(OrigamiState.net5Presets[1].1) }),
+            ("D5_N5_ねじれ・半分", { $0.dim5 = true; $0.progress = 0.5; set5($0, 1); $0.setNet5(OrigamiState.net5Presets[2].1) }),
+            ("D5_M1_組み変わりの途中・ダリ→ねじれ", { $0.dim5 = true; $0.progress = 0; set5($0, 1); $0.netAnim = true; $0.switchNet5(OrigamiState.net5Presets[2].1); $0.netMorph?.t = 0.55 }),
+            ("D5_M2_組み変わりの途中・3D展開", { $0.dim5 = true; $0.progress = 0; set5($0, 0); $0.netAnim = true; $0.switchNet5(OrigamiState.net5Presets[3].1); $0.netMorph?.t = 0.6 }),
+            ("D5_11_内接球・正軸体・5 次元で回した", { $0.dim5 = true; $0.progress = 1; $0.inSphere = true; $0.inSphere120 = true; $0.xw5 = 0.5; $0.yw5 = 0.3; $0.zw5 = 0.2; $0.wv5 = 0.6; $0.ax = 0.3; $0.ay = 0.2; $0.updateMats() }),
+            ("D5_12_内接球・正軸体だけ・胞の色", { $0.dim5 = true; $0.progress = 1; $0.inSphere = true; $0.inSphere120 = true; $0.inSphereLat = false; $0.inSphereTouchCol = 1; $0.xw5 = 0.5; $0.yw5 = 0.3; $0.zw5 = 0.2; $0.wv5 = 0.6; $0.ax = 0.3; $0.ay = 0.2; $0.updateMats() }),
+            ("D5_8_内接球・3D展開の向き", { $0.dim5 = true; $0.progress = 1; set5($0, 0); $0.inSphere = true }),
+            ("D5_9_内接球・5 次元で回した", { $0.dim5 = true; $0.progress = 1; $0.inSphere = true; $0.xw5 = 0.5; $0.yw5 = 0.3; $0.zw5 = 0.2; $0.wv5 = 0.6; $0.ax = 0.3; $0.ay = 0.2; $0.xz = 0.55; $0.yz = -0.4; $0.updateMats() }),
+            ("D5_10_内接球・レインボー・胞の色の接点", { $0.dim5 = true; $0.progress = 1; $0.inSphere = true; $0.inSphereColor = 1; $0.inSphereTouchCol = 1; $0.xw5 = 0.5; $0.yw5 = 0.3; $0.wv5 = 0.6; $0.ax = 0.3; $0.ay = 0.2; $0.updateMats() }),
+            ("SP1_内接球・3D 回転（層ごとの差）", { $0.progress = 1; $0.inSphere = true; $0.inSphereSpin = 1; $0.inSphereDiff = 1; $0.inSphereT = 1.6; $0.inSphereColor = 1 }),
+            ("SP2_内接球・二重回転 1：1 とホップの輪", { $0.progress = 1; $0.inSphere = true; $0.inSphereSpin = 2; $0.inSphereT = 0.9; $0.inSphereColor = 1; $0.inSphereCone = false }),
+            ("SP3_内接球・二重回転 1：2", { $0.progress = 1; $0.inSphere = true; $0.inSphereSpin = 2; $0.inSphereRatio = 1; $0.inSphereT = 0.9; $0.inSphereColor = 1; $0.inSphereCone = false; $0.inSphereLon = false }),
+            ("DN1_めりこみ・正面", { $0.progress = 1; $0.inSphere = true; $0.xz = 0; $0.yz = 0; $0.updateMats() }),
+            ("DN2_めりこみ・ななめ", { $0.progress = 1; $0.inSphere = true }),
+            ("DN3_めりこみ・切", { $0.progress = 1; $0.inSphere = true; $0.inSphereDent = false }),
+            ("DN4_めりこみ・正面・ふんわり", { $0.progress = 1; $0.inSphere = true; $0.xz = 0; $0.yz = 0; $0.updateMats(); $0.inSphereDentSharp = false }),
+            ("DN5_めりこみ・ななめ・ふんわり", { $0.progress = 1; $0.inSphere = true; $0.inSphereDentSharp = false }),
+            ("EX1_積分の超球・正確（4D で回した）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 1.0; $0.ay = 0.45; $0.zw = 0.3; $0.intOn = true; $0.intShape = 4; $0.intN = 41; $0.intT = $0.intFilledT; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
+            ("EX2_積分の超球・ぷよぷよ（4D で回した）", { $0.intExact = false; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 1.0; $0.ay = 0.45; $0.zw = 0.3; $0.intOn = true; $0.intShape = 4; $0.intN = 41; $0.intT = $0.intFilledT; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
+            ("KE1_辺の強調・好きな胞（＋X 黄・−Y 緑、奥は切る）", { $0.progress = 1; $0.ehOn = true; $0.ehFarOn = false; $0.ehCells = ["4:px": SIMD3(1, 0.85, 0.1), "4:ny": SIMD3(0.2, 1, 0.3), "3:px": SIMD3(1, 0.85, 0.1), "3:ny": SIMD3(0.2, 1, 0.3)]; $0.ehWidthOther = 4 }),
+            ("KE2_辺の強調・好きな胞・展開図", { $0.progress = 0; $0.ehOn = true; $0.ehCells = ["4:px": SIMD3(1, 0.85, 0.1), "4:nz": SIMD3(1, 0.4, 0.1), "3:px": SIMD3(1, 0.85, 0.1)] }),
+            ("K1_目印・既定（置いた点と並べる）", { $0.progress = 1; $0.userPts = [UPoint(c: [1, -1, 1, 1, 0], color: 0xffd54a, label: "", lock: false)] }),
+            ("K2_目印・色を変えて奥を隠す", { $0.progress = 1; $0.markNear = SIMD3(1, 0.85, 0.1); $0.markFar = SIMD3(0.3, 1, 0.4); $0.markShowFar = false; $0.markSize = 1.2 }),
+            ("K3_目印・重なり（乗算あり）", { $0.progress = 1; $0.xz = -0.7854; $0.yz = 0.6155; $0.updateMats(); $0.markSize = 1.6 }),
+            ("K4_目印・重なり（乗算なし）", { $0.progress = 1; $0.xz = -0.7854; $0.yz = 0.6155; $0.updateMats(); $0.markSize = 1.6; $0.markGlue = false }),
             ("Y9_球柱・X-W を回した（つぶれ）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 1.25; $0.ay = 0.2; $0.intOn = true; $0.intShape = 1; $0.intN = 41; $0.intT = $0.intFilledT; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
             ("YA_内接超球・X-W を回した（つぶれ）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 1.25; $0.ay = 0.2; $0.intOn = true; $0.intShape = 4; $0.intN = 41; $0.intT = $0.intFilledT; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
             ("YB_レインボーボール・X-W を回した（つぶれ）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 1.25; $0.ay = 0.2; $0.intOn = true; $0.intColor = 5; $0.intN = 9; $0.intT = $0.intFilledT; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
+            ("RB1_レインボーボール・w だけ・途中", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.intOn = true; $0.intShape = 0; $0.intColor = 5; $0.intBallSpin = true; $0.intAxes = 8; $0.intN = 41; $0.intT = 3.0; $0.intItems = $0.intUpdate() }),
+            ("RB2_レインボーボール・x と w・途中", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.intOn = true; $0.intShape = 0; $0.intColor = 5; $0.intBallSpin = true; $0.intAxes = 9; $0.intN = 41; $0.intT = 3.0; $0.intItems = $0.intUpdate() }),
+            ("RB5_枠だけ（玉なし）・x と w・途中", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.intOn = true; $0.intShape = 0; $0.intColor = 4; $0.intBallSpin = true; $0.intAxes = 9; $0.intN = 41; $0.intT = 3.0; $0.intItems = $0.intUpdate() }),
+            ("RB6_レインボーボール・x と w・途中・立方体の面なし", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.intOn = true; $0.intShape = 0; $0.intColor = 5; $0.intBallSpin = true; $0.intAxes = 9; $0.intN = 41; $0.intT = 3.0; $0.wireOnly = true; $0.intItems = $0.intUpdate() }),
+            ("RB3_レインボーボール・4 方向・途中", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.intOn = true; $0.intShape = 0; $0.intColor = 5; $0.intBallSpin = true; $0.intAxes = 15; $0.intN = 41; $0.intT = 3.0; $0.intItems = $0.intUpdate() }),
+            ("RB4_レインボーボール・x と w・n69・途中", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.intOn = true; $0.intShape = 0; $0.intColor = 5; $0.intBallSpin = true; $0.intAxes = 9; $0.intN = 69; $0.intT = 4.0; $0.intOutOpp = true; $0.intPace = 1; $0.intItems = $0.intUpdate() }),
+            ("SH5a_形・4 次元の円すい 途中", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intShape = 5; $0.intN = 41; $0.intT = 4.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
+            ("SH5b_形・4 次元の円すい いっぱい", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intShape = 5; $0.intN = 41; $0.intT = 8.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
+            ("SH6a_形・超立方体を角から 途中", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intShape = 6; $0.intN = 41; $0.intT = 4.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
+            ("SH6b_形・超立方体を角から いっぱい", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intShape = 6; $0.intN = 41; $0.intT = 8.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
+            ("SH7a_形・球のドーナツ 途中", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intShape = 7; $0.intN = 41; $0.intT = 4.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
+            ("SH7b_形・球のドーナツ いっぱい", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intShape = 7; $0.intN = 41; $0.intT = 8.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
+            ("IV1_横（x）から・球すい 途中", { $0.progress = 1; $0.spaceMode = 2; $0.intOn = true; $0.intShape = 5; $0.intN = 41; $0.intT = 4.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate(); $0.ax = .pi / 2; $0.ay = 0; $0.zw = 0; $0.xy = 0; $0.xz = 0.35; $0.yz = -0.3; $0.projBlend = 1; $0.updateMats() }),
+            ("IV2_横（y）から・球すい 途中", { $0.progress = 1; $0.spaceMode = 2; $0.intOn = true; $0.intShape = 5; $0.intN = 41; $0.intT = 4.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate(); $0.ax = 0; $0.ay = .pi / 2; $0.zw = 0; $0.xy = 0; $0.xz = 0.45; $0.yz = -0.2; $0.projBlend = 1; $0.updateMats() }),
+            ("IV3_横（x）から・超立方体を角から いっぱい", { $0.progress = 1; $0.spaceMode = 2; $0.intOn = true; $0.intShape = 6; $0.intN = 41; $0.intT = 8.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate(); $0.ax = .pi / 2; $0.ay = 0; $0.zw = 0; $0.xy = 0; $0.xz = 0.35; $0.yz = -0.3; $0.projBlend = 1; $0.updateMats() }),
+            ("IV4_横（y）から・球のドーナツ いっぱい", { $0.progress = 1; $0.spaceMode = 2; $0.intOn = true; $0.intShape = 7; $0.intN = 41; $0.intT = 8.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate(); $0.ax = 0; $0.ay = .pi / 2; $0.zw = 0; $0.xy = 0; $0.xz = 0.45; $0.yz = -0.2; $0.projBlend = 1; $0.updateMats() }),
+            ("SH8a_形・キュービンダー 途中", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intShape = 8; $0.intN = 41; $0.intT = 4.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
+            ("SH8b_形・キュービンダー いっぱい", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intShape = 8; $0.intN = 41; $0.intT = 8.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
             ("Y1_形・球柱", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intShape = 1; $0.intN = 41; $0.intT = 5.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
             ("Y2_形・デュオシリンダー", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intShape = 2; $0.intN = 41; $0.intT = 5.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
             ("Y3_形・タイガー", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intShape = 3; $0.intN = 41; $0.intT = 5.0; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
@@ -293,6 +428,46 @@ extension OrigamiRenderer {
             ("V4_見本・ドラゴンボール", { $0.isPreview = true; $0.progress = 1; $0.spaceMode = 2; $0.showAxes = false; $0.intOn = true; $0.intMethod = 0; $0.intLook = 2; $0.intColor = 3; $0.intBallSpin = false; $0.intItems = [IntItem(t: 0, slot: 0.5, a: 1, fa: 1, fly: false, k: 0)]; $0.xz = 0.5; $0.yz = -0.45; $0.zoom = [1, 1.9]; $0.updateMats() }),
             ("W1_水・注いでいる", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(6.0 * 60) { $0.waterTick(1.0 / 60) } }),
             ("W2_水・いっぱい（揺れ）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(11.5 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("W1o_水・注いでいる（前の図）", { $0.waterReal = false; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(6.0 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("W2o_水・いっぱい（前の図）", { $0.waterReal = false; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(11.5 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("LD1_ふた・入れている（w）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.intOn = true; $0.intShape = 0; $0.intColor = 2; $0.intAxes = 8; $0.intN = 21; $0.intT = 2.0; $0.intItems = $0.intUpdate() }),
+            ("LD2_ふた・閉じかけ（w）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.intOn = true; $0.intShape = 0; $0.intColor = 2; $0.intAxes = 8; $0.intN = 21; let M = $0.intM, ST = $0.intST(M); $0.intT = ST[M - 1] + OrigamiState.intD + 0.25; $0.intItems = $0.intUpdate() }),
+            ("LD3_反対側から出す（−W が開く）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.intOn = true; $0.intShape = 0; $0.intColor = 2; $0.intAxes = 8; $0.intN = 21; $0.intOutOpp = true; let M = $0.intM, ST = $0.intST(M); $0.intT = ST[M - 1] + OrigamiState.intD + $0.intHoldNow + 0.6; $0.intItems = $0.intUpdate() }),
+            ("LD4_何方向も同時（w・x・y）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.intOn = true; $0.intShape = 0; $0.intColor = 4; $0.intAxes = 8 | 1 | 2; $0.intN = 41; $0.intT = 2.0; $0.intItems = $0.intUpdate() }),
+            ("LD5_水・底を開けて抜く", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(14.9 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("LD6_ふた・消す（薄く）", { $0.intLidMode = 2; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.intOn = true; $0.intShape = 0; $0.intColor = 2; $0.intAxes = 8; $0.intN = 21; $0.intT = 2.0; $0.intItems = $0.intUpdate() }),
+            ("DR1_排水口・抜いている（渦）", { $0.drainMode = 1; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(17.0 * 60) { $0.waterTick(1.0 / 60) }; $0.holeDA = $0.holeDTarget; $0.holeVA = $0.waterVent ? 1 : 0 }),
+            ("DR2_工事済み・排水口・抜いている", { $0.drainMode = 1; $0.holesBuilt = true; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(17.0 * 60) { $0.waterTick(1.0 / 60) }; $0.holeDA = $0.holeDTarget; $0.holeVA = $0.waterVent ? 1 : 0 }),
+            ("DR3_開けっぱなし・つり合う水位", { $0.holesBuilt = true; $0.holesOpenSet = true; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(12.0 * 60) { $0.waterTick(1.0 / 60) }; $0.holeDA = $0.holeDTarget; $0.holeVA = $0.waterVent ? 1 : 0 }),
+            ("DR4_通気口なし・ごぼっ", { $0.drainMode = 1; $0.waterVent = false; $0.holesBuilt = true; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(18.0 * 60) { $0.waterTick(1.0 / 60) }; $0.holeDA = $0.holeDTarget; $0.holeVA = $0.waterVent ? 1 : 0 }),
+            ("DR5_工事済み・ふだんの画面", { $0.holesBuilt = true; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.holeVA = 1 }),
+            ("DR6_工事中（ドリル）", { $0.holesBuilt = true; $0.holesBuiltAt = CACurrentMediaTime() - 0.8; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3 }),
+            ("NS1_本物の4D・注いでいる", { $0.drainMode = 0; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(5.0 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("NS2_本物の4D・いっぱい", { $0.drainMode = 0; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(12.0 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("NS3_本物の4D・排水口（渦）", { $0.drainMode = 1; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(17.5 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("NS4_本物の4D・底を全部開けて落ちる", { $0.drainMode = 0; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(15.0 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("NS5_本物の4D・排水口・リアルでない図", { $0.drainMode = 1; $0.waterReal = false; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(17.5 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("FR1_遊ぶ・ふたを下へ傾けてこぼす", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 0.3; $0.ay = 0.2; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterFree = true; $0.waterLidSet = true; $0.waterNSRes = 24; $0.updateMats(); $0.waterFreeFill(0); for n in 0..<150 { $0.ay = 0.2 + 2.6 * Double(n) / 150; $0.updateMats(); $0.waterTick(1.0 / 60) } }),
+            ("FR3_遊ぶ・ななめのジョッキに上から注ぐ", { $0.progress = 1; $0.spaceMode = 2; $0.ax = 0; $0.ay = -0.95; $0.xz = 0.45; $0.yz = -0.25; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterFree = true; $0.waterLidSet = true; $0.waterNSRes = 24; $0.waterPourX = 0; $0.waterPourY = 0; $0.waterPourZ = 0; $0.updateMats(); $0.waterFreeFill(-1); $0.waterPourHold = true; for _ in 0..<240 { $0.waterTick(1.0 / 60) } }),
+            ("FR4_遊ぶ・画面の奥の重力・ためて傾ける", { $0.progress = 1; $0.spaceMode = 2; $0.ax = 0; $0.ay = 0; $0.xz = 0.35; $0.yz = -0.3; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterFree = true; $0.waterGravMode = 0; $0.waterLidSet = true; $0.waterNSRes = 24; $0.tween = nil; $0.updateMats(); $0.waterFreeFill(-1); for n in 0..<330 { $0.waterPourHold = n < 240; if n >= 240 { $0.ay = Double(n - 240) / 90 * 1.4; $0.updateMats() }; $0.waterTick(1.0 / 60) } }),
+            ("SL1_輪切り z・注いでいる", { $0.waterSlice = 3; $0.waterSlicePos = 0.2; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(6.0 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("SL2_輪切り z・排水口で抜く", { $0.waterSlice = 3; $0.waterSlicePos = 0.05; $0.drainMode = 1; $0.waterSwirl = 0.6; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(16.6 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("OUT1_出る水・本物の4D・排水口", { $0.waterNS = true; $0.drainMode = 1; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(16.5 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("OUT2_出る水・浅水・排水口", { $0.waterNS = false; $0.drainMode = 1; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(16.5 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("OUT3_出る水・底を全部（かたまり）", { $0.waterNS = false; $0.drainMode = 0; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(15.2 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("OUT4_出る水・本物の4D・排水口・横から", { $0.waterNS = true; $0.drainMode = 1; $0.progress = 1; $0.spaceMode = 2; $0.ax = .pi / 2; $0.ay = 0; $0.zw = 0; $0.xy = 0; $0.xz = 0.35; $0.yz = -0.3; $0.projBlend = 1; $0.updateMats(); $0.intOn = true; $0.intMethod = 1; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(16.5 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("OUT5_出る水・底を全部・横から", { $0.waterNS = false; $0.drainMode = 0; $0.progress = 1; $0.spaceMode = 2; $0.ax = .pi / 2; $0.ay = 0; $0.zw = 0; $0.xy = 0; $0.xz = 0.35; $0.yz = -0.3; $0.projBlend = 1; $0.updateMats(); $0.intOn = true; $0.intMethod = 1; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(15.2 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("YL1_黄色い線（排水口・横から y）", { $0.waterNS = true; $0.drainMode = 1; $0.progress = 1; $0.spaceMode = 2; $0.ax = 0; $0.ay = .pi / 2; $0.zw = 0; $0.xy = 0; $0.xz = 0.45; $0.yz = -0.2; $0.projBlend = 1; $0.updateMats(); $0.intOn = true; $0.intMethod = 1; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(16.0 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("YL2_黄色い線（排水口・横から y・輪切り z）", { $0.waterNS = true; $0.drainMode = 1; $0.waterSlice = 3; $0.progress = 1; $0.spaceMode = 2; $0.ax = 0; $0.ay = .pi / 2; $0.zw = 0; $0.xy = 0; $0.xz = 0.45; $0.yz = -0.2; $0.projBlend = 1; $0.updateMats(); $0.intOn = true; $0.intMethod = 1; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(16.0 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("BL1_玉を詰める・どんどん", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.updateMats(); $0.intOn = true; $0.intMethod = 2; $0.ballsAuto = true; for _ in 0..<Int(9.0 * 60) { $0.ballsTick(1.0 / 60) } }),
+            ("BL2_玉・角に16個と真ん中", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.updateMats(); $0.intOn = true; $0.intMethod = 2; $0.ballsCorners(); for _ in 0..<60 { $0.ballsTick(1.0 / 60) } }),
+            ("BL3_玉1つ・+x の壁に接する", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.updateMats(); $0.intOn = true; $0.intMethod = 2; $0.ballR = 0.45; $0.balls4.clear(); $0.balls3.clear(); $0.balls4.g = 0; $0.balls3.g = 0; let H = OrigamiState.half, r = 0.45 * H; $0.balls4.r = r; $0.balls3.r = r; $0.balls4.p = [SIMD4(H - r, 0, 0, 0)]; $0.balls4.v = [.zero]; $0.balls4.hue = [0.3]; $0.balls4.rad = [r]; $0.balls3.p = [SIMD4(H - r, 0, 0, 0)]; $0.balls3.v = [.zero]; $0.balls3.hue = [0.3]; $0.balls3.rad = [r] }),
+            ("BL4_玉・重力 画面の下", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.updateMats(); $0.intOn = true; $0.intMethod = 2; $0.ballGravMode = 1; $0.ballsAuto = true; for _ in 0..<Int(8.0 * 60) { $0.ballsTick(1.0 / 60) } }),
+            ("BL5_玉・無重力", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.25; $0.yz = -0.2; $0.ax = 0.5; $0.ay = 0.3; $0.updateMats(); $0.intOn = true; $0.intMethod = 2; $0.ballG = 0; for i in 0..<12 { $0.ballsDropOne(); for _ in 0..<20 { $0.ballsTick(1.0 / 60) }; _ = i } }),
+            ("FR2_遊ぶ・注いでいる", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterFree = true; $0.waterLidSet = true; $0.waterNSRes = 24; $0.updateMats(); $0.waterFreeFill(-0.6); $0.waterPourHold = true; for _ in 0..<120 { $0.waterTick(1.0 / 60) } }),
+            ("W4o_水・いっぱい（4D で回した・前の図）", { $0.waterReal = false; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.3; $0.yz = -0.25; $0.ax = 0.9; $0.ay = 0.4; $0.zw = 0.35; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(11.5 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("W4e_水なし（4D で回した）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.3; $0.yz = -0.25; $0.ax = 0.9; $0.ay = 0.4; $0.zw = 0.35 }),
+            ("W4_水・いっぱい（4D で回した）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0.3; $0.yz = -0.25; $0.ax = 0.9; $0.ay = 0.4; $0.zw = 0.35; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(11.5 * 60) { $0.waterTick(1.0 / 60) } }),
             ("W3_水・底から落ちる", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(15.6 * 60) { $0.waterTick(1.0 / 60) } }),
             ("Q4_積分・4 方向から同時・レインボーボール", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intColor = 5; $0.intN = 32; $0.intAxes = 15; $0.intT = 4.5; $0.intBallSpin = false; $0.intItems = $0.intUpdate() }),
             ("Q1_積分・入れる量 50%（いっぱい）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intColor = 2; $0.intN = 41; $0.intAmount = 0.5; $0.intT = 6; $0.intItems = $0.intUpdate() }),
@@ -442,8 +617,35 @@ extension OrigamiRenderer {
         // 環境変数 OGONLY（名前の頭）で、その場面だけ描く（確かめを速く）
         let only = ProcessInfo.processInfo.environment["OGONLY"]
         for (name, f) in scenes where only.map({ name.hasPrefix($0) }) ?? true {
-            st.reset(); st.xz = 0.55; st.yz = -0.4; st.look = 0; st.spaceMode = 0; st.bgSpace = false; st.meshOn = false; st.explodeRaw = 0; st.flashT = 9; st.projBlend = 0; st.presetPar = nil; st.raster = true; st.depth3 = 1; st.mul4 = 0.6; st.glow4 = 0.3; st.glass4 = 0.8; st.reflSelf = 0.7; st.stripK = 0; st.line4 = 1; st.line4K = 1; st.ehOn = false; st.squash4 = 0.6; st.slant3 = 0.4; st.lineTint = 0; st.pal3 = OrigamiState.palDef3; st.pal4 = OrigamiState.palDef4; st.palComp = false; st.palCompCenter = false; st.axisSyncOn = false; st.netSolid = 1; st.fantasy = 1; st.warmth = 0; st.netMul = 0.5; st.net = OrigamiState.netDali; st.viewProj = 0; st.faceSide = 0; st.userPts = []; st.ptLabels = true; st.ptLeft = true; st.ptSize = 0.55; st.softMul = 0.5; st.smartLine = 0.7; st.pan = [.zero, .zero]; st.secOn = false; st.secPos = 0; st.secInfo = ["", ""]; st.intOn = false; st.intItems = []; st.intLook = 0; st.intPaused = false; st.intFly = true; st.intOutOpp = false; st.intPace = 0; st.intAmount = 1; st.intAxes = 8; st.intMethod = 0; st.isPreview = false; st.showAxes = true; st.intShape = 0; st.inSphere = false; st.netMorph = nil; st.netAnim = true; st.foldMaxStages = 4; st.foldCourse = false; st.courseFromB = false; st.asmPose = 0; st.asmVanish = 3; st.unfPose = 0; st.asmLand = nil; st.asmLastP = -1; st.diceMode = 24; st.diceOneShot = true; st.diceFaces = false; st.diceEyeK = 0; st.diceDim = 0; st.diceRoll = nil; st.diceHold = nil; st.diceFlash = false; f(st)
-            for _ in 0..<3 { render(r3, t3); render(r4, t4) }
+            st.reset(); st.xz = 0.55; st.yz = -0.4; st.look = 0; st.spaceMode = 0; st.bgSpace = false; st.meshOn = false; st.explodeRaw = 0; st.flashT = 9; st.projBlend = 0; st.presetPar = nil; st.raster = true; st.depth3 = 1; st.depthDeep = 0; st.slantSheen = 0; st.line3W = 0; st.line3K = 0; st.mul4 = 0.6; st.glow4 = 0.3; st.glass4 = 0.8; st.reflSelf = 0.7; st.stripK = 0; st.line4 = 1; st.line4K = 1; st.lineWidthNet = 1; st.lineWidthSolid = 1; st.inSphereWireW = 1; st.inSphereDepth = 0; st.inSphereAppear = 1; st.inSphereFilm = false; st.inSphereTone = 0.75; st.line4W = -0.7; st.ehOn = false; st.squash4 = 0.6; st.slant3 = 0.4; st.lineTint = 0; st.pal3 = OrigamiState.palDef3; st.pal4 = OrigamiState.palDef4; st.palComp = false; st.palCompCenter = false; st.axisSyncOn = false; st.netSolid = 1; st.fantasy = 1; st.warmth = 0; st.netMul = 0.5; st.net = OrigamiState.netDali; st.viewProj = 0; st.faceSide = 0; st.userPts = []; st.ptLabels = true; st.ptLeft = true; st.ptSize = 0.55; st.softMul = 0.5; st.smartLine = 0.7; st.pan = [.zero, .zero]; st.secOn = false; st.secPos = 0; st.secInfo = ["", ""]; st.intOn = false; st.intItems = []; st.intLook = 0; st.intPaused = false; st.intFly = true; st.intOutOpp = false; st.intPace = 0; st.intAmount = 1; st.intAxes = 8; st.intMethod = 0; st.isPreview = false; st.showAxes = true; st.intShape = 0; st.inSphere = false; st.inSphereColor = 0; st.inSphereLayers = 10; st.inSphereGlass = true; st.inSphereLon = true; st.inSphereCone = true; st.inSphereLat = true; st.inSphere120 = false; st.inSphereTouch = true; st.inSphereDent = true; st.inSphereDentSharp = true; st.inSphereTouchCol = 0; st.dim5 = false; st.spin5 = false; st.tw5 = nil; st.net5 = OrigamiState.p5Dali; st.net5No = 1; st.lineTintMode = 1; st.intExact = true; st.waterReal = true; st.waterNS = false; st.waterSwirl = 0.3; st.waterVort = 1; st.waterSlice = 0; st.waterSlicePos = 0; st.waterSlosh = 1; st.ballR = 0.38; st.ballsAuto = false; st.ballGravMode = 2; st.ballG = 6; st.balls4.gvec = SIMD4(0, 0, 0, -6); st.balls3.gvec = SIMD4(0, 0, -6, 0); st.balls4.clear(); st.balls3.clear(); st.nsPrevM4 = nil; st.nsLagM4 = nil; st.waterShakeAcc = .zero; st.waterShakeV = .zero; st.waterGDirInit = false; st.waterFree = false; st.waterGravMode = 0; st.waterNSRes = 32; st.waterG = 9.8; st.waterPourRate = 1; st.waterLidSet = true; st.waterBottomSet = false; st.waterPourHold = false; st.intLidMode = 0; st.drainMode = 0; st.holesBuilt = false; st.holesOpenSet = false; st.waterVent = true; st.holesBuiltAt = -1e9; st.waterCyc = 0; st.waterDOpen = 0; st.waterVD = 0; st.holeDA = 0; st.holeVA = 0; st.holeDHL = 0; st.holeVHL = 0; st.intOnce = false; st.intView = 1; st.netMorph = nil; st.netAnim = true; st.foldMaxStages = 4; st.foldCourse = false; st.courseFromB = false; st.unf4 = 1; st.unf3 = 1; st.asm4 = 1; st.asm3 = 1; st.asmAuto = false; st.memUp = nil; st.memDown = nil; st.asmPose = 0; st.asmVanish = 3; st.unfPose = 0; st.asmLand = nil; st.asmLastP = -1; st.diceMode = 24; st.diceOneShot = true; st.diceFaces = false; st.diceEyeK = 0; st.diceDim = 0; st.diceRoll = nil; st.diceHold = nil; st.diceFlash = false; st.markNear = OrigamiState.markNearDef; st.markFar = OrigamiState.markFarDef; st.markSize = 0.65; st.markShowNear = true; st.markShowFar = true; st.markGlue = true; st.ehNearOn = true; st.ehFarOn = true; st.ehCells = [:]; st.ehWidthOther = 3; f(st); if let m = st.netMorph, m.t == 0 { st.netMorph = nil }   // 止め絵：組み変わりは、途中を指定した場面だけ
+            applyOGSET(st)
+            st.colorP = st.progress                                           // 確かめの絵は、色も形と同じ組み立て具合で
+            let (rL, rR) = st.dim5 ? (r4L, r5) : (r3, r4)
+            for _ in 0..<3 { render(rL, t3); render(rR, t4) }
+            if name.hasPrefix("SW_") && ProcessInfo.processInfo.environment["OGSWEEP"] != nil {   // 組み立て途中の色の飛び：超立方体の絵の平均の色
+                var prev: SIMD3<Double>? = nil, out: [String] = []
+                for k in 0...100 {
+                    st.progress = Double(k) / 100; st.colorP = st.progress
+                    for _ in 0..<2 { render(r4, t4) }
+                    var part = [UInt8](repeating: 0, count: w * h * 4)
+                    t4.getBytes(&part, bytesPerRow: w * 4, from: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0)
+                    var m = SIMD3<Double>(0, 0, 0), sat = 0.0, sn = 0.0
+                    for i in stride(from: 0, to: part.count, by: 4) {
+                        let c = SIMD3(Double(part[i + 2]), Double(part[i + 1]), Double(part[i])); m += c
+                        let mx = c.max(), mn = c.min(); if mx > 40 { sat += (mx - mn) / mx; sn += 1 }   // 暗い背景は数えない
+                    }
+                    m /= Double(w * h)
+                    let d = prev.map { simd_length(m - $0) } ?? 0; prev = m
+                    out.append(String(format: "%.2f:%.2f:%.3f", st.progress, d, sn > 0 ? sat / sn : 0))
+                }
+                print("組み立ての色の変わり方（前の 1% との差）：" + out.joined(separator: " "))
+            }
+            if name.hasPrefix("D5_6") {                                          // 5 次元の窓の重さ（形づくり＋GPU を待つまで）
+                let t0 = CACurrentMediaTime(); for _ in 0..<20 { render(r5, t4) }
+                let t1 = CACurrentMediaTime(); for _ in 0..<20 { render(r4L, t3) }
+                print(String(format: "5 次元の窓：1 コマ %.1f ミリ秒（同じ大きさの超立方体 %.1f ミリ秒）", (t1 - t0) * 50, (CACurrentMediaTime() - t1) * 50))
+            }
+            if name.hasPrefix("MK") { st.markAlignNow(); for _ in 0..<2 { render(r3, t3); render(r4, t4) } }   // 目印：カメラの位置が決まってから重なる向きに合わせ直す
             if st.secOn { print("断面（\(name)）：超立方体 \(st.secInfo[1])・立方体 \(st.secInfo[0])") }
             if st.faceSide != 0 { print("見せる胞（\(name)）：立方体 \(st.sideShown[0][0]) / \(st.sideShown[0][1])・超立方体 \(st.sideShown[1][0]) / \(st.sideShown[1][1])") }
             let W = w * 2 + 4
@@ -458,9 +660,61 @@ extension OrigamiRenderer {
             if let dd = CGImageDestinationCreateWithURL(u, "public.png" as CFString, 1, nil) { CGImageDestinationAddImage(dd, ctx.makeImage()!, nil); CGImageDestinationFinalize(dd) }
             print(name, String(format: "宇宙 %.2f・光 %.2f", st.spaceK, st.spaceFlash))
         }
+        // 確かめ（OGMORPH）：展開図のまま、展開図を切りかえた時（組み変わりのアニメ）に、1 コマごとの色の差を記録する
+        if ProcessInfo.processInfo.environment["OGMORPH"] != nil {
+            let s8 = OrigamiState(); s8.progress = 0; s8.target = 0; s8.updateMats(); applyOGSET(s8)
+            if let r8 = OrigamiRenderer(n: 4, state: s8, device: d) {
+                for _ in 0..<5 { s8.tick(1.0 / 60); render(r8, t4) }
+                s8.switchNet(OrigamiState.netPresets[2])
+                var prev: SIMD3<Double>? = nil, out: [(Double, Double)] = []
+                for f in 0..<120 {
+                    s8.tick(1.0 / 60); render(r8, t4)
+                    var part = [UInt8](repeating: 0, count: w * h * 4)
+                    t4.getBytes(&part, bytesPerRow: w * 4, from: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0)
+                    var m = SIMD3<Double>(0, 0, 0)
+                    for i in stride(from: 0, to: part.count, by: 4) { m += SIMD3(Double(part[i + 2]), Double(part[i + 1]), Double(part[i])) }
+                    m /= Double(w * h)
+                    out.append((Double(f) / 60, prev.map { simd_length(m - $0) } ?? 0)); prev = m
+                }
+                let top = out.sorted { $0.1 > $1.1 }.prefix(6).map { String(format: "%.2f秒:%.2f", $0.0, $0.1) }
+                print("展開図の切りかえ：1 コマの色の差の大きい所 " + top.joined(separator: "・") + String(format: "・ふつうの 1 コマ（真ん中）%.2f", out.map(\.1).sorted()[out.count / 2]))
+            }
+        }
+        // 確かめ（OGPLAY）：はじめの状態（展開図）から C を押した時と同じに、1/60 秒ずつ時間を進めて、超立方体の絵の彩度と明るさを記録する
+        if ProcessInfo.processInfo.environment["OGPLAY"] != nil {
+            let s7 = OrigamiState(); s7.progress = 0; s7.target = 0; s7.updateMats(); applyOGSET(s7)
+            if let r7 = OrigamiRenderer(n: 4, state: s7, device: d) {
+                for _ in 0..<5 { s7.tick(1.0 / 60); render(r7, t4) }
+                var out: [String] = [], prevM: SIMD3<Double>? = nil
+                do {   // 押す前（進み 0）の色
+                    render(r7, t4)
+                    var part = [UInt8](repeating: 0, count: w * h * 4)
+                    t4.getBytes(&part, bytesPerRow: w * 4, from: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0)
+                    var mm = SIMD3<Double>(0, 0, 0)
+                    for i in stride(from: 0, to: part.count, by: 4) { mm += SIMD3(Double(part[i + 2]), Double(part[i + 1]), Double(part[i])) }
+                    prevM = mm / Double(w * h)
+                }
+                s7.toggleFold()
+                for f in 0..<240 {
+                    s7.tick(1.0 / 60)
+                    if f % 4 != 0 && f > 12 { continue }
+                    render(r7, t4)
+                    var part = [UInt8](repeating: 0, count: w * h * 4)
+                    t4.getBytes(&part, bytesPerRow: w * 4, from: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0)
+                    var sat = 0.0, sn = 0.0, lum = 0.0, mm = SIMD3<Double>(0, 0, 0)
+                    for i in stride(from: 0, to: part.count, by: 4) {
+                        let c = SIMD3(Double(part[i + 2]), Double(part[i + 1]), Double(part[i])), mx = c.max(), mn = c.min(); mm += c
+                        if mx > 40 { sat += (mx - mn) / mx; sn += 1; lum += mx }
+                    }
+                    mm /= Double(w * h); let dm = prevM.map { simd_length(mm - $0) } ?? 0; prevM = mm
+                    out.append(String(format: "%.2f秒 進み%.3f 彩度%.3f 明るさ%.0f 色の差%.2f", Double(f) / 60, s7.progress, sn > 0 ? sat / sn : 0, sn > 0 ? lum / sn : 0, dm))
+                }
+                print("C で組み上げ：\n" + out.joined(separator: "\n"))
+            }
+        }
         // NDGeom（ウェブ版 nd-geom の Swift 版）と、今の次元おりがみの式が同じか（5 次元へ広げる土台）
         do {
-            let s2 = OrigamiState(); s2.reset(); s2.ax = 0.7; s2.ay = -0.4; s2.zw = 0.3; s2.xy = 0.2; s2.xz = 0.5; s2.yz = -0.3; s2.updateMats()
+            let s2 = OrigamiState(); s2.reset(); s2.asmAuto = false; s2.ax = 0.7; s2.ay = -0.4; s2.zw = 0.3; s2.xy = 0.2; s2.xz = 0.5; s2.yz = -0.3; s2.updateMats()
             let net = NDGeom.CubeNet(n: 4)
             let pj = NDGeom.Projector(n: 4, w: s2.camW, R: NDGeom.rotation(4, [(0, 3, s2.ax), (1, 3, s2.ay), (2, 3, s2.zw), (0, 1, s2.xy), (0, 2, s2.xz), (1, 2, s2.yz)]))
             var worst = 0.0, cnt = 0
@@ -478,10 +732,172 @@ extension OrigamiRenderer {
             print(String(format: "NDGeom と次元おりがみの式のちがい（%d 点の最大）：%.2e", cnt, worst))
             let n5 = NDGeom.CubeNet(n: 5)
             print("5 次元の展開図：胞 \(n5.cells.count)・辺 \(n5.edges.count)・正方形 \(n5.squares.count)")
+            // 5 次元 β：次元おりがみの fold・place5 と、NDGeom（ウェブ版 nd-geom の式）が同じか
+            s2.xw5 = 0.4; s2.yw5 = -0.25; s2.zw5 = 0.6; s2.wv5 = 0.35; s2.updateMats()
+            let pj5 = NDGeom.Projector(n: 5, w: s2.camW, R: NDGeom.rotation(5, [(0, 4, s2.ax), (1, 4, s2.ay), (2, 4, s2.zw), (0, 3, s2.xw5), (1, 3, s2.yw5), (2, 3, s2.zw5), (3, 4, s2.wv5), (0, 1, s2.xy), (0, 2, s2.xz), (1, 2, s2.yz)]))
+            var worst5 = 0.0, cnt5 = 0, per5: [String] = []
+            for f in [0.0, 0.3, 0.7, 1.0] {
+                s2.progress = f; let w0 = worst5; worst5 = 0
+                defer { per5.append(String(format: "%.1f→%.1e", f, worst5)); worst5 = max(w0, worst5) }
+                let V = n5.place(f)
+                for (ci, C) in n5.cells.enumerated() {
+                    let oc: OrigamiState.Cell = C.kind == .center ? .center : C.kind == .cap ? .cap : .arm(C.axis, C.sign)
+                    for v in 0..<n5.nl {
+                        let a = pj5.project(V[ci * n5.nl + v]).0, b = s2.place(s2.fold(oc, n5.base(ci, v), 5), 5).0
+                        worst5 = max(worst5, simd_distance(a, b)); cnt5 += 1
+                    }
+                }
+            }
+            // 組み上がると 10 個 × 16 頂点が 32 頂点に重なるか
+            s2.progress = 1
+            var vset = Set<[Int]>()
+            for cell in OrigamiState.cells(5) {
+                let (fa, fv) = OrigamiState.fixed(cell, 5), free = (0..<5).filter { $0 != fa }
+                for bits in 0..<16 {
+                    var p = [Double](repeating: 0, count: 5); p[fa] = fv
+                    for (k, ax) in free.enumerated() { p[ax] = bits & (1 << k) != 0 ? 1 : -1 }
+                    vset.insert(s2.fold(cell, p, 5).map { Int(($0 * 1000).rounded()) })
+                }
+            }
+            print(String(format: "5 次元 β：NDGeom とのちがい（%d 点の最大）%.2e・組み上がりの頂点 %d 個（32 なら ○）", cnt5, worst5, vset.count))
+            print("  折り具合ごと：" + per5.joined(separator: "・"))
+            // 5 次元の内接球：接点（±e_i × 半分）が、組み上がった 10 個の胞の真ん中と同じ場所か。球面の点が全部の胞の内側（|u_i| ≤ 1）か
+            do {
+                s2.progress = 1; var wc = 0.0
+                for (ci, c) in OrigamiRenderer.cellNormals[2].enumerated() {
+                    var u = [0.0, 0, 0, 0, 0]; u[c.0] = c.1
+                    let a = s2.place(s2.fold(OrigamiState.cells(5)[ci], u, 5), 5).0, b = s2.place5(u.map { $0 * OrigamiState.half }).0
+                    wc = max(wc, simd_distance(a, b))
+                }
+                var seed: UInt64 = 7, out = 0, touch = 0
+                func rnd() -> Double { seed = seed &* 6364136223846793005 &+ 1442695040888963407; return Double(seed >> 11) / Double(1 << 53) }
+                for _ in 0..<20000 {
+                    var u = (0..<5).map { _ in rnd() * 2 - 1 }; let l = sqrt(u.reduce(0) { $0 + $1 * $1 }); u = u.map { $0 / l }
+                    let m = u.map(abs).max()!; if m > 1 + 1e-12 { out += 1 }; if m > 0.999 { touch += 1 }
+                }
+                let vb = 8 * Double.pi * Double.pi / 15
+                // 5 次元の展開図図鑑：表の数・転がして平らにした位置と、アプリの折りたたみ（進み 0）の位置が同じか・見本の番号・組み上がりが 32 頂点か
+                let E = Net5Atlas.entries
+                var flatErr = 0.0, asmOK = 0
+                var rng = SystemRandomNumberGenerator()
+                let picks = [0, E.count - 1] + (0..<40).map { _ in Int.random(in: 0..<E.count, using: &rng) }
+                for i in picks {
+                    let p = E[i].parent; s2.net5 = p
+                    guard let F = Net5Atlas.flat(p) else { flatErr = 99; continue }
+                    s2.progress = 0
+                    let C = (0..<10).map { ci -> [Double] in var u = [0.0, 0, 0, 0, 0]; u[OrigamiRenderer.cellNormals[2][ci].0] = OrigamiRenderer.cellNormals[2][ci].1 * 0; return s2.fold(OrigamiState.cells(5)[ci], u, 5) }
+                    for ci in 0..<10 { for d in 0..<4 { flatErr = max(flatErr, abs(C[ci][d] - C[0][d] - Double(F[ci][d]) * 2 * OrigamiState.half)) }; flatErr = max(flatErr, abs(C[ci][4] - C[0][4])) }
+                    s2.progress = 1
+                    var vs = Set<[Int]>()
+                    for cell in OrigamiState.cells(5) {
+                        let (fa, fv) = OrigamiState.fixed(cell, 5), free = (0..<5).filter { $0 != fa }
+                        for bits in 0..<16 { var q = [Double](repeating: 0, count: 5); q[fa] = fv; for (kk, ax) in free.enumerated() { q[ax] = bits & (1 << kk) != 0 ? 1 : -1 }; vs.insert(s2.fold(cell, q, 5).map { Int(($0 * 1000).rounded()) }) }
+                    }
+                    if vs.count == 32 { asmOK += 1 }
+                }
+                s2.net5 = OrigamiState.p5Dali
+                let pn = OrigamiState.net5Presets.map { (nm, p) in "\(nm) No.\(Net5Atlas.noOf[Net5Atlas.canon(Net5Atlas.mask(p))] ?? 0)\(Net5Atlas.flat(p) == nil ? "（重なる！）" : "")" }
+                print("5 次元の展開図図鑑：\(E.count) 種類・No.1 は長さ \(E[0].longest)・くっつく数 \(E[0].maxDeg)・最後は長さ \(E[E.count - 1].longest)／" + String(format: "平らな位置のずれ（%d 種類）%.1e・組み上がり 32 頂点 %d / %d", picks.count, flatErr, asmOK, picks.count) + "／見本：" + pn.joined(separator: "・"))
+                print(String(format: "5 次元の内接球：接点と胞の真ん中のずれ %.1e・球面の点 20000 個で胞の外 %d 個・壁にほぼ触れる %d 個・体積の割合 %.1f%%", wc, out, touch, vb / 32 * 100))
+            }
+            do {   // 積分の 1 往復：入れて取り出したら止まるか（止まった時は空・一時停止）。くり返しならそのまま次の周へ
+                let s = OrigamiState(); s.reset(); s.progress = 1; s.target = 1; s.intOn = true; s.intShape = 5; s.intN = 21; s.intOnce = true; s.intT = 0
+                let c = s.intCycleT
+                var t = 0.0; while t < c + 3 { s.tick(1.0 / 60); t += 1.0 / 60 }
+                let stopped = s.intPaused && abs(s.intT - c) < 1e-3, emptyNow = s.intUpdate().isEmpty
+                let s2 = OrigamiState(); s2.reset(); s2.progress = 1; s2.target = 1; s2.intOn = true; s2.intShape = 5; s2.intN = 21; s2.intOnce = false; s2.intT = 0
+                t = 0; while t < c + 3 { s2.tick(1.0 / 60); t += 1.0 / 60 }
+                print(String(format: "積分の 1 往復：1 周 %.1f 秒・1 往復で止まった %@・止まった時は空 %@／くり返しは止まらず次の周へ %@", c, stopped ? "○" : "×", emptyNow ? "○" : "×", !s2.intPaused && s2.intT > c ? "○" : "×"))
+            }
+            do {   // 積む形の体積：輪切りの大きさを −1〜1 で数値積分したものが、式の全体の体積と合うか（右 4 次元・左 3 次元）。
+                //   角から切る超立方体は、切り口の多面体の体積（凸包を面ごとに）と、公式の大きさが合うかも
+                var out: [String] = []
+                for (nm, sh) in [("球すい", 5), ("角から", 6), ("球のドーナツ", 7), ("キュービンダー", 8)] {
+                    let r4 = OrigamiState.slInt(sh, -1, 1, left: false) / OrigamiState.slTotal(sh, left: false), r3 = OrigamiState.slInt(sh, -1, 1, left: true) / OrigamiState.slTotal(sh, left: true)
+                    out.append(String(format: "%@ 右 %.4f・左 %.4f", nm, r4, r3))
+                }
+                var worst = 0.0
+                for d in stride(from: -0.95, through: 0.95, by: 0.1) {
+                    let faces = OrigamiRenderer.cornerSlice4(d)
+                    let all = faces.flatMap { $0 }, c = all.reduce(SIMD3<Double>(0, 0, 0), +) / Double(max(1, all.count))
+                    var v = 0.0
+                    for f in faces { for i in 1..<(f.count - 1) { v += abs(simd_dot(f[0] - c, simd_cross(f[i] - c, f[i + 1] - c))) / 6 } }
+                    worst = max(worst, abs(v - OrigamiState.slCubeSlice(4, 2 * d + 2)))
+                }
+                let f0 = OrigamiRenderer.cornerSlice4(0), f9 = OrigamiRenderer.cornerSlice4(0.9)
+                print("積む形の体積（積分 ÷ 式、1 ならぴったり）：" + out.joined(separator: "・") + String(format: "／角から：切り口の多面体と公式のずれ %.1e・まんなかの面 %d 枚（八面体は 8）・はしの面 %d 枚（四面体は 4）", worst, f0.count, f9.count))
+            }
+            do {   // 回したまま組み立て・展開：どのモードでも、回し続けるが止まらず、角度が毎コマ動き続けるか（前は向きを動かす間、角度を上書きして止まって見えた）
+                var lines: [String] = []
+                for (nm, am) in [("表で決める", 0), ("おまかせ 1", 1), ("おまかせ 2", 2)] {
+                    let s = OrigamiState(); s.reset(); s.autoMode = am; s.asmAuto = am != 0; s.progress = 1; s.target = 1; s.updateMats()
+                    s.memUp = nil; s.memDown = [0.3, -0.2, 0.1, 0.5, 0.2, -0.4]
+                    s.toggle6()
+                    var still = 0, frames = 0, prev = s.cur6
+                    for half in 0..<2 {
+                        if half == 0 { s.playUnfold() } else { s.playFold() }
+                        for _ in 0..<150 { s.tick(1.0 / 60); frames += 1; let c = s.cur6; if zip(c, prev).allSatisfy({ abs($0 - $1) < 1e-7 }) { still += 1 }; prev = c }
+                    }
+                    let spinOn = [s.spinX, s.spinY, s.spinZW, s.spinXY, s.spinXZ, s.spinYZ].contains(true)
+                    lines.append("\(nm)：止まったコマ \(still) / \(frames)・最後も回っている \(spinOn ? "○" : "×")")
+                }
+                print("回したまま組み立て・展開：" + lines.joined(separator: "・"))
+                // カクッ（速さが急に変わる）：あなたの設定に近い形（おまかせ 1・6 面とも回す・4D 別々・展開はまっすぐ）で、1 コマごとの角度の進み（速さ）を
+                //   記録し、となりのコマとの速さの差のいちばん大きい所を、回し続ける 1 コマの進み（X-W：0.006 × 144 ／ 60）を 1 として出す
+                for (nm, am) in [("おまかせ 1", 1), ("おまかせ 2", 2), ("表で決める", 0)] {
+                    let s = OrigamiState(); s.reset(); s.autoMode = am; s.asmAuto = am != 0; s.sep4 = true; s.sep3 = false; s.unf4 = 2; s.progress = 1; s.target = 1; s.updateMats()
+                    s.toggle6()
+                    for _ in 0..<30 { s.tick(1.0 / 60) }
+                    var prev = s.cur6, pv: [Double]? = nil, worst = 0.0, wAt = "", stepRef = 0.006 * 144 / 60, log: [String] = [], wI = 0
+                    for half in 0..<2 {
+                        if half == 0 { s.playUnfold() } else { s.playFold() }
+                        for f in 0..<200 {
+                            s.tick(1.0 / 60); let c = s.cur6
+                            let v = (0..<6).map { OrigamiState.wrapPi(c[$0] - prev[$0]) }
+                            log.append(String(format: "%@%d p%.3f 速さ[%@] 回す%@", half == 0 ? "展" : "組", f, s.progress, v.map { String(format: "%+.4f", $0) }.joined(separator: " "), [s.spinX, s.spinY, s.spinZW, s.spinXY, s.spinXZ, s.spinYZ].map { $0 ? "1" : "0" }.joined()))
+                            if let pv { let j = (0..<6).map { abs(v[$0] - pv[$0]) }.max()! / stepRef; if j > worst { worst = j; wI = log.count - 1; wAt = String(format: "%@ %d コマ目・組み具合 %.2f", half == 0 ? "展開" : "組み立て", f, s.progress) } }
+                            pv = v; prev = c
+                        }
+                    }
+                    print(String(format: "カクッ（%@）：となりのコマとの速さの差のいちばん大きい所 %.2f（回し続ける 1 コマ分を 1）", nm, worst) + "・" + wAt)
+                    if ProcessInfo.processInfo.environment["OGKAKU"] != nil { if ProcessInfo.processInfo.environment["OGKAKU"] == "all" && am == 1 { for i in 0..<min(log.count, 260) where i % 2 == 0 || (i > 70 && i < 90) || (i > 195 && i < 215) { print("   ", log[i]) } } else { for i in max(0, wI - 4)...min(log.count - 1, wI + 3) { print("   ", log[i]) } } }
+                }
+            }
+            do {   // 5 次元の組み変わり：はじめは前の展開図・おわりは新しい展開図とぴったり同じか。途中の回転が回転のままか
+                let s9 = OrigamiState(); s9.reset(); s9.dim5 = true; s9.progress = 0; s9.netAnim = true
+                func dif(_ A: [OrigamiState.Aff], _ B: [OrigamiState.Aff]) -> Double {
+                    var m = 0.0
+                    for (a, b) in zip(A, B) { for i in 0..<5 { m = max(m, abs(a.t[i] - b.t[i])); for j in 0..<5 { m = max(m, abs(a.M[i][j] - b.M[i][j])) } } }
+                    return m
+                }
+                var e0 = 0.0, e1 = 0.0, orth = 0.0, frames = 0, moved = 0
+                for (_, p) in OrigamiState.net5Presets.dropFirst() + [(String(""), Net5Atlas.entries[4999].parent)] {
+                    s9.netMorph = nil; s9.net5 = OrigamiState.p5Dali
+                    let A = s9.rawTransforms(OrigamiState.p5Dali, 5), B = s9.rawTransforms(p, 5)
+                    s9.switchNet5(p)
+                    e0 = max(e0, dif(s9.netTransforms(5), A))
+                    moved = max(moved, zip(A, B).filter { dif([$0], [$1]) > 1e-6 }.count)
+                    while s9.netMorph != nil {
+                        s9.netMorphTick(1.0 / 60); frames += 1
+                        if s9.netMorph != nil { for T in s9.netTransforms(5) { for i in 0..<5 { for j in 0..<5 { var d = 0.0; for k in 0..<5 { d += T.M[i][k] * T.M[j][k] }; orth = max(orth, abs(d - (i == j ? 1 : 0))) } } } }
+                        if frames > 10000 { break }
+                    }
+                    e1 = max(e1, dif(s9.netTransforms(5), B))
+                }
+                print(String(format: "5 次元の組み変わり：はじめのずれ %.1e・おわりのずれ %.1e・途中の回転のくずれ %.1e・動く胞 最大 %d 個・%d コマ（4 回）", e0, e1, orth, moved, frames))
+            }
+            do {   // 回転なし・遠近だけで
+                let s3 = OrigamiState(); s3.reset(); s3.asmAuto = false; s3.updateMats()
+                let pj0 = NDGeom.Projector(n: 5, w: s3.camW, R: nil); var wz = 0.0
+                for f in [0.0, 1.0] { s3.progress = f; let V = n5.place(f)
+                    for (ci, C) in n5.cells.enumerated() { let oc: OrigamiState.Cell = C.kind == .center ? .center : C.kind == .cap ? .cap : .arm(C.axis, C.sign)
+                        for v in 0..<n5.nl { wz = max(wz, simd_distance(pj0.project(V[ci * n5.nl + v]).0, s3.place(s3.fold(oc, n5.base(ci, v), 5), 5).0)) } } }
+                print(String(format: "  回転なし：%.2e", wz))
+            }
         }
         // 細い窓（境目を動かした時）でも見切れないか：横 300・縦 860 で、組み上がりと展開図
         do {
-            let s4 = OrigamiState(); s4.reset(); s4.ax = 29 * .pi / 180; s4.ay = 17 * .pi / 180; s4.spaceMode = 2
+            let s4 = OrigamiState(); s4.reset(); s4.asmAuto = false; s4.ax = 29 * .pi / 180; s4.ay = 17 * .pi / 180; s4.spaceMode = 2
             if let rn = OrigamiRenderer(n: 4, state: s4, device: d) {
                 for (name, p) in [("10_細い窓・組み上がり", 1.0), ("11_細い窓・展開図", 0.0)] {
                     s4.progress = p
@@ -504,7 +920,7 @@ extension OrigamiRenderer {
         do {
             let defs = ShortcutStore.actions.map(\.def).filter { !$0.isEmpty }
             let dup = Dictionary(grouping: defs, by: { $0 }).filter { $0.value.count > 1 }.map(\.key)
-            let s5 = OrigamiState(); s5.reset(); let ks = ShortcutStore()
+            let s5 = OrigamiState(); s5.reset(); s5.asmAuto = false; let ks = ShortcutStore()
             ks.keys = Dictionary(uniqueKeysWithValues: ShortcutStore.actions.map { ($0.id, $0.def) })
             ks.action(for: "U")?.run(s5); let unf = s5.playing && s5.target == 0
             ks.action(for: "Enter")?.run(s5); let w3 = s5.allW
@@ -529,7 +945,7 @@ extension OrigamiRenderer {
             let ok2 = sd != nil && abs(e.ax - 0.7) < 1e-4 && abs(e.zw + 1.2) < 1e-4 && abs(e.yz - 0.33) < 1e-4 && e.spinX && e.spinYZ && !e.spinY && abs(e.progress - 0.4) < 1e-4 && abs(e.explodeRaw - 0.6) < 1e-4 && e.loop
             print("画面の状態の保存：もどす \(ok2 ? "○" : "×")")
             // 角度の往復の間も 3D で回せる：往復を始めて X-Z を回し続け、ドラッグもする → 往復は続き、見る向きが回る。止めると見た目を変えずに角度へ入る
-            let g = OrigamiState(); g.reset(); g.ppStops = [[0, 0, 0, 0, 0, 0], [45, 35.26, 30, 0, 0, 0]]; g.startPP(g.ppStops, once: false)
+            let g = OrigamiState(); g.reset(); g.asmAuto = false; g.ppStops = [[0, 0, 0, 0, 0, 0], [45, 35.26, 30, 0, 0, 0]]; g.startPP(g.ppStops, once: false)
             for _ in 0..<60 { g.tick(1.0 / 60) }
             g.spinXZ = true
             for _ in 0..<60 { g.tick(1.0 / 60) }
@@ -540,7 +956,7 @@ extension OrigamiRenderer {
             // プリセット：前の形（lock なし）も読める・往復のプリセットを保存して始める・ロック中は消せない
             let oldJSON = #"[{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"前の","deg":[1,2,3,4,5,6]}]"#.data(using: .utf8)!
             let oldOK = (try? JSONDecoder().decode([AnglePreset].self, from: oldJSON))?.first?.locked == false
-            let h = OrigamiState(); h.reset(); h.ppStops = [[0, 0, 0, 0, 0, 0], [30, 0, 0, 0, 0, 0], [0, 30, 0, 0, 0, 0]]; h.ppSec = 2.5; h.ppPresets = []
+            let h = OrigamiState(); h.reset(); h.asmAuto = false; h.ppStops = [[0, 0, 0, 0, 0, 0], [30, 0, 0, 0, 0, 0], [0, 30, 0, 0, 0, 0]]; h.ppSec = 2.5; h.ppPresets = []
             h.savePPPreset(); h.ppStops = [[0, 0, 0, 0, 0, 0], [90, 0, 0, 0, 0, 0]]
             h.toggleLockPP(0); h.deletePPPreset(h.ppPresets[0]); let kept = h.ppPresets.count == 1
             h.loadPPPreset(h.ppPresets[0], start: true)
@@ -551,8 +967,8 @@ extension OrigamiRenderer {
             var rnOK = 0; for _ in 0..<20 { let r = OrigamiState.randomNet(); if r.name == "でたらめ" && OrigamiState.validNet(r.p4, 4) && OrigamiState.validNet(r.p3, 3) { rnOK += 1 } }
             var asmWorst = 0.0
             for d in OrigamiState.netPresets + [OrigamiState.randomNet(), NetAtlas.all[100].def, NetAtlas.all[260].def] {
-                let q = OrigamiState(); q.reset(); q.net = d; q.progress = 1; q.updateMats()
-                let r0 = OrigamiState(); r0.reset(); r0.progress = 1; r0.updateMats()
+                let q = OrigamiState(); q.reset(); q.asmAuto = false; q.net = d; q.progress = 1; q.updateMats()
+                let r0 = OrigamiState(); r0.reset(); r0.asmAuto = false; r0.progress = 1; r0.updateMats()
                 for (ci, cell) in OrigamiState.cells(4).enumerated() {
                     let (fa, fv) = OrigamiState.fixed(cell, 4); var pp = [Double](repeating: 0.3, count: 4); pp[fa] = fv
                     let a = q.fold(cell, pp, 4), b = r0.fold(cell, pp, 4)
@@ -574,7 +990,7 @@ extension OrigamiRenderer {
             } }
             var farOK = 0
             for c in 0..<8 {
-                let q = OrigamiState(); q.reset(); q.progress = 1; q.diceOneShot = false; q.rollDice(fixed: (c, c % 6))
+                let q = OrigamiState(); q.reset(); q.asmAuto = false; q.progress = 1; q.diceOneShot = false; q.rollDice(fixed: (c, c % 6))
                 for _ in 0..<170 { q.tick(1.0 / 60) }
                 let (a, s0) = OrigamiState.cellNormal(c, 4); var v = SIMD4<Double>(0, 0, 0, 0); v[a] = s0
                 if (q.m4 * v).w < -0.999 && q.diceRoll?.phase == 1 { farOK += 1 }
@@ -582,7 +998,7 @@ extension OrigamiRenderer {
             // 一発：48 通り全部で、止まった時に選んだ胞が 4 次元の手前・選んだ面がまっすぐ手前（＋z に近い）・出た目が記録される
             var oneOK = 0, worstZ = 1.0
             for c in 0..<8 { for fi in 0..<6 {
-                let q = OrigamiState(); q.reset(); q.progress = 1; q.diceOneShot = true; q.xz = 0.35; q.yz = -0.3; q.rollDice(fixed: (c, fi))
+                let q = OrigamiState(); q.reset(); q.asmAuto = false; q.progress = 1; q.diceOneShot = true; q.xz = 0.35; q.yz = -0.3; q.rollDice(fixed: (c, fi))
                 for _ in 0..<235 { q.tick(1.0 / 60) }
                 let (a, s0) = OrigamiState.cellNormal(c, 4), f = OrigamiState.diceFaces(c)[fi]
                 var v = SIMD4<Double>(0, 0, 0, 0); v[a] = s0; var e = SIMD4<Double>(0, 0, 0, 0); e[f.b] = f.t
@@ -593,7 +1009,7 @@ extension OrigamiRenderer {
             // 組み変わり：前の展開図 → 次の展開図の変換が、はじめ・おわりでぴったり・途中も形がくずれない（直交のまま）
             var mEnd = 0.0, mOrth = 0.0, mCnt = 0
             for (k, kk) in stride(from: 0, to: 261, by: 13).enumerated() {
-                let q = OrigamiState(); q.reset(); q.progress = k % 3 == 0 ? 0.4 : 0
+                let q = OrigamiState(); q.reset(); q.asmAuto = false; q.progress = k % 3 == 0 ? 0.4 : 0
                 let n = k % 2 == 0 ? 4 : 3, from = NetAtlas.all[(kk * 7) % 261].def, to = NetAtlas.all[kk].def
                 let A = q.rawTransforms(n == 4 ? from.p4 : from.p3, n), B = q.rawTransforms(n == 4 ? to.p4 : to.p3, n)
                 for i in A.indices {
@@ -613,7 +1029,7 @@ extension OrigamiRenderer {
             for e in NetAtlas.all { let D = OrigamiState.depths(e.def.p4).max() ?? 0; stg[e.longest, default: [:]][D, default: 0] += 1 }
             print("段の数（長さ:深さ×数）：" + stg.keys.sorted().map { L in "\(L):" + stg[L]!.keys.sorted().map { "\($0)段×\(stg[L]![$0]!)" }.joined(separator: ",") }.joined(separator: " "))
             // 多段階：最大の段数で段がまとまるか（深さ 4 の展開図で、最大 1〜4 段のときの深さ 1〜4 の段の番号）
-            let qs = OrigamiState(); qs.reset(); qs.net = NetAtlas.all[250].def
+            let qs = OrigamiState(); qs.reset(); qs.asmAuto = false; qs.net = NetAtlas.all[250].def
             let stTxt = (1...4).map { m -> String in
                 qs.foldMaxStages = m; qs.foldStagger = m > 1
                 // 段の始まりで見分ける：折り角が 0 でなくなる最初の進み
@@ -623,12 +1039,12 @@ extension OrigamiRenderer {
             // 一筆：どの展開図でも、全部のちょうつがいが 1 回ずつ出てくる・組み上がりは同じ超立方体・いちばん先に動くのは はしっこ
             var cOK = 0, cWorst = 0.0, cTip = 0
             for e in stride(from: 0, to: 261, by: 7).map({ NetAtlas.all[$0] }) {
-                let qc = OrigamiState(); qc.reset(); qc.foldCourse = true; qc.net = e.def
+                let qc = OrigamiState(); qc.reset(); qc.asmAuto = false; qc.foldCourse = true; qc.net = e.def
                 let ord = qc.courseOrder(e.def.p4)
                 if Set(ord) == Set(1..<8) && ord.count == 7 { cOK += 1 }
                 qc.progress = 0.03; let firstMoving = (1..<8).filter { qc.courseTheta($0, ord) > 1e-9 }
                 if firstMoving == [ord[0]] { cTip += 1 }
-                qc.progress = 1; qc.updateMats(); let r0 = OrigamiState(); r0.reset(); r0.progress = 1; r0.updateMats()
+                qc.progress = 1; qc.updateMats(); let r0 = OrigamiState(); r0.reset(); r0.asmAuto = false; r0.progress = 1; r0.updateMats()
                 for cell in OrigamiState.cells(4) {
                     let (fa, fv) = OrigamiState.fixed(cell, 4); var pp = [Double](repeating: 0.3, count: 4); pp[fa] = fv
                     cWorst = max(cWorst, zip(qc.fold(cell, pp, 4), r0.fold(cell, pp, 4)).map { abs($0 - $1) }.max() ?? 0)
@@ -637,7 +1053,7 @@ extension OrigamiRenderer {
             // ころころ：転がっている間はゴールの胞が床に止まったまま・転がり終わりと返し始めがつながる・最後はいつもの向き
             var rollStay = 0.0, rollJump = 0.0
             for e in stride(from: 0, to: 261, by: 13).map({ NetAtlas.all[$0] }) {
-                let qc = OrigamiState(); qc.reset(); qc.foldCourse = true; qc.net = e.def
+                let qc = OrigamiState(); qc.reset(); qc.asmAuto = false; qc.foldCourse = true; qc.net = e.def
                 _ = qc.courseOrder(e.def.p4); let r = qc.courseRootCache[qc.courseKey(e.def.p4)] ?? 0
                 qc.progress = 0; let F = qc.rawTransforms(e.def.p4, 4)[r]
                 for t in [0.1, 0.3, 0.5, 0.7, 0.79] {
@@ -661,7 +1077,7 @@ extension OrigamiRenderer {
             }
             var landErr = 0.0, unW = 0.0, landN = 0, vanErr = 0.0
             for pose in [1, 2, 3, 4, 5] { for van in [3, 0, 1, 2] {
-                let q = OrigamiState(); q.reset(); q.progress = 0; q.asmPose = pose; q.asmVanish = van; q.asmFree = [20, -35, 50, 10, 30, -15]; q.unfPose = 1
+                let q = OrigamiState(); q.reset(); q.asmAuto = false; q.poseMemory = false; q.progress = 0; q.asmPose = pose; q.asmVanish = van; q.asmFree = [20, -35, 50, 10, 30, -15]; q.unfPose = 1
                 q.xz = 0.4; q.yz = -0.3; q.updateMats()
                 guard let tg = q.asmTarget() else { continue }
                 q.playFold(); for _ in 0..<300 { q.tick(1.0 / 60) }
@@ -674,17 +1090,17 @@ extension OrigamiRenderer {
             } }
             var unfErr = 0.0
             for up in 1...6 {
-                let q = OrigamiState(); q.reset(); q.progress = 0; q.asmPose = 4; q.asmVanish = 1; q.unfPose = up; q.unfFree = [15, 25, -30, 40, -20, 10]
+                let q = OrigamiState(); q.reset(); q.asmAuto = false; q.poseMemory = false; q.progress = 0; q.asmPose = 4; q.asmVanish = 1; q.unfPose = up; q.unfFree = [15, 25, -30, 40, -20, 10]
                 q.xz = 0.3; q.yz = 0.2; q.updateMats(); q.playFold(); for _ in 0..<300 { q.tick(1.0 / 60) }
                 let want = q.unfTarget()!; q.playUnfold(); for _ in 0..<300 { q.tick(1.0 / 60) }
                 for (a, b) in zip(want, q.cur6) { unfErr = max(unfErr, abs(OrigamiState.wrapPi(a - b))) }
             }
             // 基本にもどす：設定が基本になり、角度が全部 0 へ
-            let qb = OrigamiState(); qb.reset(); qb.asmBasic = nil; qb.progress = 1; qb.asmPose = 4; qb.asmVanish = 0; qb.unfPose = 5; qb.ax = 0.7; qb.yz = 0.4; qb.xz = -0.3; qb.updateMats()
+            let qb = OrigamiState(); qb.reset(); qb.asmAuto = false; qb.asmBasic = nil; qb.progress = 1; qb.asmPose = 4; qb.asmVanish = 0; qb.unfPose = 5; qb.ax = 0.7; qb.yz = 0.4; qb.xz = -0.3; qb.updateMats()
             qb.asmResetBasic(); for _ in 0..<120 { qb.tick(1.0 / 60) }
             // 自分の基本：覚えて、変えて、もどすと、設定も形の向きも覚えた所へ（確かめのあとは消す）
             let keepB = UserDefaults.standard.data(forKey: AsmBasic.key)
-            let qm = OrigamiState(); qm.reset(); qm.progress = 0; qm.asmPose = 3; qm.asmVanish = 2; qm.unfPose = 0; qm.ax = 0.3; qm.xz = 0.8; qm.yz = -0.2; qm.updateMats()
+            let qm = OrigamiState(); qm.reset(); qm.asmAuto = false; qm.progress = 0; qm.asmPose = 3; qm.asmVanish = 2; qm.unfPose = 0; qm.ax = 0.3; qm.xz = 0.8; qm.yz = -0.2; qm.updateMats()
             qm.asmSaveBasic(); let want = qm.cur6
             qm.asmPose = 1; qm.asmVanish = 3; qm.unfPose = 2; qm.ax = -1; qm.xz = 0; qm.updateMats()
             qm.asmResetBasic(); for _ in 0..<120 { qm.tick(1.0 / 60) }
@@ -692,10 +1108,10 @@ extension OrigamiRenderer {
             let myErr = zip(want, qm.cur6).map { abs(OrigamiState.wrapPi($0 - $1)) }.max() ?? 0
             qm.asmFactoryBasic(); for _ in 0..<120 { qm.tick(1.0 / 60) }
             let facOK = qm.asmBasic == nil && qm.asmPose == 0 && qm.unfPose == 0 && (qm.cur6.map { abs(OrigamiState.wrapPi($0)) }.max() ?? 1) < 1e-9
-            if let keepB { UserDefaults.standard.set(keepB, forKey: AsmBasic.key) } else { UserDefaults.standard.removeObject(forKey: AsmBasic.key) }
+            if !SaveGuard.off { if let keepB { UserDefaults.standard.set(keepB, forKey: AsmBasic.key) } else { UserDefaults.standard.removeObject(forKey: AsmBasic.key) } }
             // 状態のプリセット：保存した向き・展開図・組み具合にもどる。そのあとカメラで回すと、その向きのまま往復（組む・開くで回さない）。
             //   「まっすぐ」なら開いた時に 4D の角度だけ 0 に
-            let qr = OrigamiState(); qr.reset(); qr.asmPresets = []; qr.progress = 1; qr.unfPose = 0; qr.netAnim = false
+            let qr = OrigamiState(); qr.reset(); qr.asmAuto = false; qr.poseMemory = false; qr.asmPresets = []; qr.progress = 1; qr.unfPose = 0; qr.netAnim = false
             qr.ax = 2.9; qr.ay = -0.4; qr.zw = 0.3; qr.xy = 2.8; qr.xz = 2.6; qr.yz = -2.7; qr.updateMats(); qr.net = NetAtlas.all[77].def
             let S = qr.cur6; qr.saveSnapshotPreset(); let sp = qr.asmPresets.last!
             qr.ax = 0; qr.ay = 0; qr.zw = 0; qr.xy = 0; qr.xz = 0; qr.yz = 0; qr.net = OrigamiState.netDali; qr.progress = 0; qr.updateMats()
@@ -705,13 +1121,152 @@ extension OrigamiRenderer {
             qr.xz += 0.7; qr.updateMats(); let Rr = qr.cur6
             qr.playUnfold(); for _ in 0..<200 { qr.tick(1.0 / 60) }; qr.playFold(); for _ in 0..<200 { qr.tick(1.0 / 60) }
             var keepErr = 0.0; for k in 0..<6 { keepErr = max(keepErr, abs(OrigamiState.wrapPi(Rr[k] - qr.cur6[k]))) }
-            qr.unfPose = 1; qr.saveSnapshotPreset(); qr.loadAsmPreset(qr.asmPresets.last!); for _ in 0..<70 { qr.tick(1.0 / 60) }
+            qr.unf4 = 2; qr.saveSnapshotPreset(); qr.loadAsmPreset(qr.asmPresets.last!); for _ in 0..<70 { qr.tick(1.0 / 60) }
             qr.playUnfold(); for _ in 0..<200 { qr.tick(1.0 / 60) }
-            let straightOK = abs(qr.ax) < 1e-9 && abs(qr.ay) < 1e-9 && abs(qr.zw) < 1e-9 && abs(OrigamiState.wrapPi(qr.xz - Rr[4])) < 1e-9
+            let straightOK = abs(qr.ax) < 1e-9 && abs(qr.ay) < 1e-9 && abs(qr.zw) < 1e-9          // 4D 別々：開くとまっすぐ（はじめはいちばん近いまっすぐ）
             // リセット：前のプリセットの着地の設定（自由 × 自由）が残っていても、向きを保つにもどる
-            let qz = OrigamiState(); qz.reset(); qz.asmPose = 5; qz.asmFree = [40, 0, 0, 30, 0, 0]; qz.unfPose = 6; qz.resetAll()
+            let qz = OrigamiState(); qz.reset(); qz.asmAuto = false; qz.asmPose = 5; qz.asmFree = [40, 0, 0, 30, 0, 0]; qz.unfPose = 6; qz.resetAll()
             let rzOK = qz.asmPose == 0 && qz.asmVanish == 3 && qz.unfPose == 0 && qz.asmTarget() == nil && qz.unfTarget() == nil
+            // 投影：W の角度 0 のいつもの形でも、平行投影を選ぶと平行に移る（前は何も変わらなかった）
+            let qp = OrigamiState(); qp.reset(); qp.asmAuto = false; qp.progress = 1; qp.perspMode = false; for _ in 0..<60 { qp.tick(1.0 / 60) }
+            let pOn = qp.projBlend; qp.perspMode = true; for _ in 0..<60 { qp.tick(1.0 / 60) }
+            print("投影：角度 0 で平行へ \(String(format: "%.2f", pOn))（1 のはず）・遠近へもどる \(String(format: "%.2f", qp.projBlend))（0 のはず）")
             print("リセットで着地の設定も消える \(rzOK ? "○" : "×")")
+            // おまかせ：いちばん近いまっすぐ。まっすぐなら動かない・ゆがんでいれば 4D は 0 で、tr(Qᵀ A) が単純に 4D を 0 にしたより大きい（近い）・往復
+            var nfStill = 0.0, nfBetter = true, nfFlat = 0.0
+            var rng = SystemRandomNumberGenerator()
+            for t in 0..<40 {
+                let a3 = (0..<3).map { _ in Double.random(in: -3...3, using: &rng) }
+                let f = OrigamiState.nearestFlat([0, 0, 0] + a3)
+                for k in 0..<6 { nfStill = max(nfStill, abs(OrigamiState.wrapPi(f[k] - ([0, 0, 0] + a3)[k]))) }
+                let c = (0..<6).map { _ in Double.random(in: -3...3, using: &rng) } + (t == 0 ? [] : [])
+                let g = OrigamiState.nearestFlat(c), M = OrigamiState.rot6(c)
+                func sc(_ a: [Double]) -> Double { let F = OrigamiState.rot6(a); var s = 0.0; for i in 0..<3 { for j in 0..<3 { s += F[j][i] * M[j][i] } }; return s }
+                nfFlat = max(nfFlat, abs(g[0]), abs(g[1]), abs(g[2]))
+                if sc(g) < sc([0, 0, 0, c[3], c[4], c[5]]) - 1e-9 { nfBetter = false }
+                for _ in 0..<20 { let r = (0..<3).map { _ in Double.random(in: -3...3, using: &rng) }; if sc(g) < sc([0, 0, 0] + r) - 1e-9 { nfBetter = false } }
+            }
+            let qa = OrigamiState(); qa.reset(); qa.asmAuto = true; qa.progress = 1
+            qa.ax = 0.7; qa.ay = -0.4; qa.zw = 0.5; qa.xy = 0.3; qa.xz = 0.6; qa.yz = -0.2; qa.updateMats(); let D0 = qa.cur6, Df = OrigamiState.nearestFlat(D0)
+            qa.playUnfold(); for _ in 0..<220 { qa.tick(1.0 / 60) }
+            var aE1 = 0.0; for k in 0..<6 { aE1 = max(aE1, abs(OrigamiState.wrapPi(Df[k] - qa.cur6[k]))) }
+            qa.playFold(); for _ in 0..<220 { qa.tick(1.0 / 60) }
+            var aE2 = 0.0; for k in 0..<6 { aE2 = max(aE2, abs(OrigamiState.wrapPi(D0[k] - qa.cur6[k]))) }
+            print("おまかせ：まっすぐなら動かない（ずれ \(String(format: "%.1e", nfStill))）・4D の残り \(String(format: "%.1e", nfFlat))・いちばん近い \(nfBetter ? "○" : "×")・開くといちばん近いまっすぐへ（ずれ \(String(format: "%.1e", aE1))）・組むと前に組んだ向きへ（ずれ \(String(format: "%.1e", aE2))）")
+            // おまかせ 1：4D の回し続けるは、開くと 3D に置きかわり（止まらない・4D は 0 のまま）、組むと 4D にもどる。おまかせ 2：今の向きのまま
+            let qsp = OrigamiState(); qsp.reset(); qsp.autoMode = 1; qsp.progress = 1; qsp.ax = 0.5; qsp.zw = 0.3; qsp.xz = 0.4; qsp.updateMats(); qsp.spinX = true
+            qsp.playUnfold(); for _ in 0..<240 { qsp.tick(1.0 / 60) }
+            let sw1 = !qsp.spinX && qsp.spinXZ, flat0 = max(abs(qsp.ax), abs(qsp.ay), abs(qsp.zw)), xzA = qsp.xz
+            for _ in 0..<30 { qsp.tick(1.0 / 60) }; let moving = abs(OrigamiState.wrapPi(qsp.xz - xzA)) > 1e-3 && abs(qsp.ax) < 1e-9
+            qsp.playFold(); for _ in 0..<240 { qsp.tick(1.0 / 60) }
+            let sw2 = qsp.spinX && !qsp.spinXZ
+            let q2 = OrigamiState(); q2.reset(); q2.autoMode = 2; q2.progress = 1; q2.ax = 0.5; q2.zw = 0.3; q2.xz = 0.4; q2.updateMats(); let Z0 = q2.cur6
+            q2.playUnfold(); for _ in 0..<240 { q2.tick(1.0 / 60) }
+            var z2 = 0.0; for k in 0..<6 { z2 = max(z2, abs(OrigamiState.wrapPi(Z0[k] - q2.cur6[k]))) }
+            print("おまかせ 1 の回し続ける：開くと 3D に \(sw1 ? "○" : "×")・4D の残り \(String(format: "%.1e", flat0))・開いたあとも回る \(moving ? "○" : "×")・組むと 4D にもどる \(sw2 ? "○" : "×")／おまかせ 2：開いても今の向き（ずれ \(String(format: "%.1e", z2))）")
+            // 右上の札（3D に出ている軸の長さ）：回し続けると変わるか
+            let qk = OrigamiState(); qk.reset(); qk.asmAuto = false; qk.progress = 1; qk.updateMats()
+            func card(_ q: OrigamiState) -> [Int] {
+                let c = q.m4.columns, cs: [SIMD4<Double>] = [c.0, c.1, c.2, c.3]
+                return cs.map { (v: SIMD4<Double>) -> Int in let l: Double = min(1.0, (v.x * v.x + v.y * v.y + v.z * v.z).squareRoot()); return Int((l * 100).rounded()) }
+            }
+            let cA = card(qk); qk.spinX = true; qk.spinY = true; qk.spinZW = true; qk.spinXY = true; for _ in 0..<90 { qk.tick(1.0 / 60) }; qk.updateMats(); let cB = card(qk)
+            print("右上の札：回す前 \(cA)・4D と 3D を 1.5 秒回したあと \(cB)（ax \(String(format: "%.2f", qk.ax))）")
+            // 積分の超球の輪切り：正確に写しただ円体の上に、輪切りの玉のふちの点（1 つずつ正確に写した点）がのっているか。近道とくらべる
+            do {
+                let sv = (st.m4, st.camW, st.projBlend, st.ax, st.ay, st.zw, st.xy, st.xz, st.yz)
+                var eEx = 0.0, eAp = 0.0
+                var rng2 = SystemRandomNumberGenerator()
+                for _ in 0..<12 {
+                    st.ax = Double.random(in: -1.2...1.2, using: &rng2); st.ay = Double.random(in: -1...1, using: &rng2); st.zw = Double.random(in: -1...1, using: &rng2)
+                    st.xy = Double.random(in: -3...3, using: &rng2); st.xz = Double.random(in: -3...3, using: &rng2); st.yz = Double.random(in: -3...3, using: &rng2)
+                    st.projBlend = 0; st.updateMats()
+                    let pos = Double.random(in: -0.9...0.9, using: &rng2), R = (1 - pos * pos).squareRoot(), Hh = OrigamiState.half
+                    func Pp(_ u: [Double]) -> SIMD3<Double> { st.place(u.map { $0 * Hh } + [pos * Hh], 4).0 }
+                    let C0 = Pp([0, 0, 0]), E0 = [Pp([R, 0, 0]), Pp([0, R, 0]), Pp([0, 0, R])]
+                    let ex = r4.exactBall(SIMD4(0, 0, 0, pos), R, approxC: C0, approxE: E0, spin: 0, alpha: 1), ap = OrigamiRenderer.ellipsoid(C0, E0, spin: 0, alpha: 1)
+                    func err(_ e: IntSphere) -> Double {
+                        let Mx = simd_double3x3(columns: (SIMD3<Double>(Double(e.ax.x), Double(e.ax.y), Double(e.ax.z)), SIMD3<Double>(Double(e.ay.x), Double(e.ay.y), Double(e.ay.z)), SIMD3<Double>(Double(e.az.x), Double(e.az.y), Double(e.az.z)))).inverse
+                        let cc = SIMD3<Double>(Double(e.c.x), Double(e.c.y), Double(e.c.z))
+                        var m = 0.0
+                        for _ in 0..<40 {
+                            var u = SIMD3<Double>(Double.random(in: -1...1, using: &rng2), Double.random(in: -1...1, using: &rng2), Double.random(in: -1...1, using: &rng2)); u = simd_normalize(u) * R
+                            let q = Pp([u.x, u.y, u.z]), g = SIMD3<Double>(q.x, -q.z, q.y)
+                            m = max(m, abs(simd_length(Mx * (g - cc)) - 1))
+                        }
+                        return m
+                    }
+                    eEx = max(eEx, err(ex)); eAp = max(eAp, err(ap))
+                }
+                st.ax = sv.3; st.ay = sv.4; st.zw = sv.5; st.xy = sv.6; st.xz = sv.7; st.yz = sv.8; st.camW = sv.1; st.projBlend = sv.2; st.updateMats()
+                print("積分の超球の輪切り（遠近）：正確に写しただ円体からのずれ \(String(format: "%.1e", eEx))・近道（ぷよぷよ）は \(String(format: "%.2f", eAp))")
+            }
+            // 2 つの向き（おまかせ 1＝4D 別々・3D 共通）：4D でゆがませて組む → 開く（いちばん近いまっすぐ）→ 開いたまま 3D で回す →
+            //   組むと 4D のかたむきがもどり、3D に回した分も持ちこむ → 組んだまま 4D で回す → 開くと開いた時の 4D（0）のまま →
+            //   開いたまま 4D で回す → 組む → 開くと、開いた時の 4D のかたむき（回した分）にもどる
+            func mErr(_ a: simd_double4x4, _ b: simd_double4x4) -> Double { var e = 0.0; for i in 0..<4 { for j in 0..<4 { e = max(e, abs(a[i][j] - b[i][j])) } }; return e }
+            func run(_ q: OrigamiState, _ up: Bool) { if up { q.playFold() } else { q.playUnfold() }; for _ in 0..<240 { q.tick(1.0 / 60) } }
+            let q1 = OrigamiState(); q1.reset(); q1.autoMode = 1; q1.progress = 1
+            q1.ax = 0.6; q1.ay = -0.25; q1.zw = 0.35; q1.xy = 0.2; q1.xz = 0.45; q1.yz = -0.3; q1.updateMats(); let A0 = q1.cur6
+            run(q1, false); let B0 = q1.cur6
+            var t1 = 0.0; for k in 0..<6 { t1 = max(t1, abs(OrigamiState.wrapPi(OrigamiState.nearestFlat(A0)[k] - B0[k]))) }
+            q1.xz += 0.5; q1.updateMats(); let B1 = q1.cur6
+            run(q1, true)
+            let expA = OrigamiState.rot3(B1) * OrigamiState.rot3(B0).transpose * OrigamiState.rot6(A0)   // 3D に回した分を掛けた、組んだ時の向き
+            let t2 = mErr(OrigamiState.rot6(q1.cur6), expA), t2w = max(abs(OrigamiState.wrapPi(q1.ax - A0[0])), abs(OrigamiState.wrapPi(q1.ay - A0[1])), abs(OrigamiState.wrapPi(q1.zw - A0[2])))
+            q1.ax += 0.3; q1.updateMats(); let A1 = q1.cur6
+            run(q1, false)
+            let t3 = max(abs(q1.ax), abs(q1.ay), abs(q1.zw)), t3b = mErr(OrigamiState.rot6(q1.cur6), OrigamiState.rot6(B1))
+            q1.ay += 0.4; q1.updateMats(); let B2 = q1.cur6
+            run(q1, true)
+            let t4 = mErr(OrigamiState.rot6(q1.cur6), OrigamiState.rot6(A1))
+            run(q1, false)
+            let t5 = mErr(OrigamiState.rot6(q1.cur6), OrigamiState.rot6(B2))
+            print("2 つの向き（4D 別々・3D 共通）：はじめはいちばん近いまっすぐ（ずれ \(String(format: "%.1e", t1))）・組むと 4D がもどる（\(String(format: "%.1e", t2w))）・3D に回した分も持ちこむ（\(String(format: "%.1e", t2))）・組んだまま 4D で回しても開くとまっすぐ（4D の残り \(String(format: "%.1e", t3))・開いた時の向き \(String(format: "%.1e", t3b))）・組むと組んだ時の向き（\(String(format: "%.1e", t4))）・開くと開いた時の 4D も往復（\(String(format: "%.1e", t5))）")
+            // 表：3D も別々：開いたまま 3D で回しても、組むと組んだ時の向きそのもの。もう一度開くと、回した展開図の向き
+            let q3 = OrigamiState(); q3.reset(); q3.autoMode = 0; q3.sep4 = true; q3.sep3 = true; q3.progress = 1
+            q3.ax = 0.5; q3.zw = -0.3; q3.xy = 0.3; q3.xz = -0.4; q3.yz = 0.2; q3.updateMats(); let C0 = q3.cur6
+            run(q3, false); q3.yz += 0.6; q3.updateMats(); let D1 = q3.cur6
+            run(q3, true); let u1 = mErr(OrigamiState.rot6(q3.cur6), OrigamiState.rot6(C0))
+            run(q3, false); let u2 = mErr(OrigamiState.rot6(q3.cur6), OrigamiState.rot6(D1))
+            // 表：4D 共通・3D 共通（おまかせ 2 と同じ）＝今の向きのまま
+            q3.sep4 = false; q3.sep3 = false; q3.ax = 0.4; q3.updateMats(); let E0 = q3.cur6
+            run(q3, true); let u3 = mErr(OrigamiState.rot6(q3.cur6), OrigamiState.rot6(E0))
+            print("表で 3D も別々：組むと組んだ時の向き（ずれ \(String(format: "%.1e", u1))）・開くと回した展開図の向き（\(String(format: "%.1e", u2))）／両方共通は今のまま（\(String(format: "%.1e", u3))）")
+            // 目印の磁石：頂点から見る向き（4D でかたむけた形でも）から 1.4° ずらして手を離すと、吸いついてちょうど重なる（4D の角度は変えない）
+            do {
+                var mg: [String] = []
+                for tilt in [[0.0, 0, 0], [0.5, -0.3, 0.25]] {
+                    let q = OrigamiState(); q.reset(); q.progress = 1; q.ax = tilt[0]; q.ay = tilt[1]; q.zw = tilt[2]; q.updateMats()
+                    q.markMagnet = false; q.markTick(0)                                 // まずちょうど重なる向きを作る（磁石と同じ計算を一気に）
+                    let nr = q.place(q.fold(.cap, [1, 1, 1, 1], 4), 4).0, fr = q.place(q.fold(.center, [-1, -1, -1, -1], 4), 4).0, o0 = q.place([0, 0, 0, 0], 4).0
+                    let ev = simd_normalize(SIMD3<Double>(q.center[1].x, q.center[1].y, q.dist[1]) - o0), av = simd_normalize(nr - fr)
+                    let axv = simd_cross(av, ev), Q = simd_double4x4(simd_quatd(angle: acos(min(1, simd_dot(av, ev))), axis: simd_normalize(axv)))
+                    let d = OrigamiState.decompose(Q * OrigamiState.rot3(q.cur6), [q.xy, q.xz, q.yz]); q.xy = d[0]; q.xz = d[1]; q.yz = d[2]; q.updateMats()
+                    q.markTick(0); let a0 = q.markAlign
+                    q.yz += 0.025; q.updateMats(); q.markTick(0); let a1 = q.markAlign
+                    q.markMagnet = true; q.markFlashT = 9; q.dragging = true; for _ in 0..<30 { q.markTick(1.0 / 60) }; let held = q.markAlign
+                    q.dragging = false; for _ in 0..<90 { q.markTick(1.0 / 60) }
+                    let w4 = max(abs(q.ax - tilt[0]), abs(q.ay - tilt[1]), abs(q.zw - tilt[2]))
+                    mg.append("4D \(tilt == [0, 0, 0] ? "なし" : "かたむけ")：始め \(String(format: "%.1e", a0))・ずらす \(String(format: "%.2f", a1 * 180 / .pi))°・つかんでいる間 \(String(format: "%.2f", held * 180 / .pi))°・離すと \(String(format: "%.1e", q.markAlign))・光 \(q.markFlashT < 2 ? "○" : "×")・4D の変化 \(String(format: "%.1e", w4))")
+                }
+                let far = OrigamiState(); far.reset(); far.progress = 1; far.xz = -0.7854 + 0.1; far.yz = 0.6155; far.updateMats(); let fa0 = far.cur6; for _ in 0..<60 { far.markTick(1.0 / 60) }
+                print("目印の磁石：" + mg.joined(separator: "／") + "／5.7° はなれていると動かない \(far.cur6 == fa0 ? "○" : "×")")
+            }
+            // 内接球の回転：模様の点は球の上のまま（半径 1）・逆の回転でもどる・二重回転 1 : 1 は止まる点がない（どの点も同じだけ動く）
+            do {
+                let q = OrigamiState(); q.reset(); q.inSphere = true; q.inSphereT = 0.8
+                var rE = 0.0, iE = 0.0, mv = (9.0, 0.0)
+                for spinM in [1, 2] { q.inSphereSpin = spinM
+                    for _ in 0..<200 {
+                        let v = simd_normalize(SIMD4<Double>(Double.random(in: -1...1), Double.random(in: -1...1), Double.random(in: -1...1), Double.random(in: -1...1)))
+                        let s1 = q.sphereSpun(v, n: 4), b = q.sphereSpun(s1, n: 4, inv: true)
+                        rE = max(rE, abs(simd_length(s1) - 1)); iE = max(iE, simd_length(b - v))
+                        if spinM == 2 { let dd = simd_distance(s1, v); mv = (min(mv.0, dd), max(mv.1, dd)) }
+                    }
+                }
+                print("内接球の回転：半径のずれ \(String(format: "%.1e", rE))・逆でもどる \(String(format: "%.1e", iE))・二重回転 1 : 1 で動いた量 \(String(format: "%.4f", mv.0))〜\(String(format: "%.4f", mv.1))（みな同じ＝止まる点なし）")
+            }
             print("状態のプリセット：もどった向きのずれ \(String(format: "%.1e", sErr))・展開図と組み具合 \(sOK ? "○" : "×")・回したあとの往復で向きを保つ（ずれ \(String(format: "%.1e", keepErr))）・まっすぐなら 4D だけ 0 \(straightOK ? "○" : "×")")
             print("自分の基本：設定 \(myOK ? "○" : "×")・形の向きのずれ \(String(format: "%.1e", myErr))・最初の基本にもどす \(facOK ? "○" : "×")")
             print("基本にもどす：設定 \(qb.asmIsBasic ? "○" : "×")・角度の残り \(String(format: "%.1e", qb.cur6.map { abs(OrigamiState.wrapPi($0)) }.max() ?? 0))")
@@ -770,6 +1325,19 @@ extension OrigamiRenderer {
             s3.reset(); s3.goView(3, animated: true)
             for _ in 0..<(60 * 2) { s3.tick(1.0 / 60) }
             print(String(format: "頂点からへ移行：%.2f・%.2f・%.2f・投影 %.2f（45・35.26・30・1 のはず）", s3.angles6Deg[0], s3.angles6Deg[1], s3.angles6Deg[2], s3.projBlend))
+        }
+        if ProcessInfo.processInfo.environment["OGINSPH"] != nil {          // 確かめ：内接球の形を作る時間（CPU）と、描く時間
+            for (lay, col, lon, sp) in [(6, 1, true, 0), (10, 0, true, 0), (10, 0, false, 0), (14, 0, true, 0), (10, 0, true, 1), (10, 0, true, 2), (10, 1, true, 2)] {
+                st.reset(); st.progress = 1; st.inSphere = true; st.inSphereLayers = lay; st.inSphereColor = col; st.inSphereLon = lon; st.ax = 0.8; st.ay = 0.5; st.updateMats()
+                st.inSphereSpin = sp; st.inSphereT = 0.7
+                var rods: [TLRod] = []; let tg = CACurrentMediaTime(); var nv = 0
+                for _ in 0..<20 { rods = []; nv = r4.inSphereGeometry(&rods, eye: SIMD3(0, 0, 9)).first?.verts.count ?? 0 }
+                let cpu = (CACurrentMediaTime() - tg) / 20 * 1000
+                let tr = CACurrentMediaTime(); for _ in 0..<30 { render(r4, t4) }
+                let lab = (lon ? "・経度面" : "") + (sp == 1 ? "・3D 回転" : sp == 2 ? "・二重回転" : "")
+                print(String(format: "内接球 %d 枚（%@%@）：形 %.1f ミリ秒・三角形の頂点 %d・線 %d・1 コマ全体 %.1f ミリ秒", 2 * lay - 1, col == 0 ? "アプリの色" : "レインボー", lab, cpu, nv, rods.count, (CACurrentMediaTime() - tr) / 30 * 1000))
+            }
+            st.inSphere = false
         }
         st.reset(); st.progress = 1; st.flashT = 9
         let t0 = CACurrentMediaTime()

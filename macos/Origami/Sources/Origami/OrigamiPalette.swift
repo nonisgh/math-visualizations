@@ -12,6 +12,7 @@ extension OrigamiState {
     /// 面・胞の番号 → パレットのどの色か（0 番は中心、最後は蓋）
     static let palSlots3 = ["nz", "py", "ny", "px", "nx", "pz"]
     static let palSlots4 = ["nw", "py", "ny", "px", "nx", "pz", "nz", "pw"]
+    static let palSlots5 = ["nv", "py", "ny", "px", "nx", "pz", "nz", "pw", "nw", "pv"]   // 5 次元 β：±X〜±W は超立方体のパレット、中心と蓋（±V）は琥珀
 
     /// 補色（色相を 180° 回す。明るさと鮮やかさはそのまま＝ウェブ版の compHex と同じ考え）
     static func compHex(_ c: UInt32) -> UInt32 {
@@ -37,7 +38,8 @@ extension OrigamiState {
     }
     /// 面（立方体）・胞（超立方体）の色を、番号の順に
     func cellColors(_ n: Int) -> [UInt32] {
-        let E = effPal(n), S = n == 3 ? Self.palSlots3 : Self.palSlots4
+        var E = effPal(min(n, 4)); let S = n == 3 ? Self.palSlots3 : n == 4 ? Self.palSlots4 : Self.palSlots5
+        if n == 5 { E["nv"] = 0xf59e0b; E["pv"] = 0xf59e0b }
         return S.enumerated().map { i, k in
             if i == 0 && palCompCenter { return Self.compHex(E[S[S.count - 1]] ?? 0x888888) }
             return E[k] ?? 0x888888
@@ -45,7 +47,7 @@ extension OrigamiState {
     }
     /// 座標軸の色（x・y・z・w）。「軸の色を立体に合わせる」なら、その窓の立体の色（＋側か−側）
     func axisColor(_ ax: Int, _ n: Int) -> SIMD3<Float> {
-        guard axisSyncOn else { return Self.axisCol[ax] }
+        guard axisSyncOn, ax < 4 else { return Self.axisCol[min(ax, Self.axisCol.count - 1)] }
         let key = (axisSyncMinus ? "n" : "p") + ["x", "y", "z", "w"][min(ax, 3)]
         return Self.rgb(effPal(n)[key] ?? 0x888888)
     }

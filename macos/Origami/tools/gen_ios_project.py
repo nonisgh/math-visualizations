@@ -3,7 +3,7 @@
 #   球面さんぽの tools/gen_ios_project.py をもとにしたもの
 import os, hashlib
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CORE = ['NDGeom', 'OrigamiGlass', 'Origami', 'OrigamiSpace', 'OrigamiUI', 'OrigamiPlay', 'OrigamiRaster', 'OrigamiKeys', 'OrigamiSettings', 'OrigamiPalette', 'OrigamiNets', 'OrigamiNetAtlas', 'OrigamiPoints', 'OrigamiSection', 'OrigamiIntegral', 'OrigamiWater', 'OrigamiIntShapes', 'OrigamiInSphere', 'OrigamiDice', 'OrigamiAsmPose']
+CORE = ['NDGeom', 'OrigamiGlass', 'Origami', 'OrigamiSpace', 'OrigamiUI', 'OrigamiPlay', 'OrigamiRaster', 'OrigamiKeys', 'OrigamiSettings', 'OrigamiPalette', 'OrigamiNets', 'OrigamiNetAtlas', 'OrigamiPoints', 'OrigamiSection', 'OrigamiIntegral', 'OrigamiWater', 'OrigamiIntShapes', 'OrigamiInSphere', 'OrigamiDice', 'OrigamiAsmPose', 'OrigamiCloud', 'OrigamiMagnet', 'Origami5D', 'OrigamiInSphere5', 'OrigamiNet5', 'OrigamiNet5Data']
 srcs = ['../Sources/Origami/%s.swift' % n for n in CORE] + sorted('%s' % f for f in os.listdir(os.path.join(root, 'iOS')) if f.endswith('.swift'))
 res = ['../Fonts/KaTeX_Math-Italic.ttf', 'Assets.xcassets']
 def oid(s): return hashlib.md5(s.encode()).hexdigest()[:24].upper()
@@ -28,7 +28,7 @@ w('\t\t%s = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel =
 w('\t\t%s = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (\n%s\t\t\t); runOnlyForDeploymentPostprocessing = 0; };\n' % (RB, ''.join('\t\t\t\t%s,\n' % oid('bf' + f) for f in res)))
 w('\t\t%s = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (\n%s\t\t\t); runOnlyForDeploymentPostprocessing = 0; };\n' % (SB, ''.join('\t\t\t\t%s,\n' % oid('bf' + f) for f in srcs)))
 common = {'SDKROOT': 'iphoneos', 'IPHONEOS_DEPLOYMENT_TARGET': '17.0', 'SWIFT_VERSION': '5.0', 'ALWAYS_SEARCH_USER_PATHS': 'NO', 'CLANG_ENABLE_MODULES': 'YES'}
-tgt = {'PRODUCT_NAME': '"$(TARGET_NAME)"', 'PRODUCT_BUNDLE_IDENTIFIER': 'io.github.nonisgh.origami.ios', 'TARGETED_DEVICE_FAMILY': '"1,2"',
+tgt = {'PRODUCT_NAME': '"$(TARGET_NAME)"', 'PRODUCT_BUNDLE_IDENTIFIER': 'app.nonisapps.origami.ios', 'TARGETED_DEVICE_FAMILY': '"1,2"',
        'GENERATE_INFOPLIST_FILE': 'YES', 'INFOPLIST_KEY_CFBundleDisplayName': '"次元おりがみ"', 'INFOPLIST_KEY_UILaunchScreen_Generation': 'YES',
        'INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad': '"UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"',
        'INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone': '"UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"',

@@ -7,7 +7,7 @@ import Foundation
 import simd
 
 /// 組み変わりの途中（前の展開図と、始まってからの時間）
-struct NetMorph { var from: NetDef; var t: Double }
+struct NetMorph { var from: NetDef; var t: Double; var from5: [Int]? = nil }   // from5：5 次元の展開図の組み変わり（前の展開図の親）
 
 /// 展開図（超立方体の木と、立方体の展開図＝アナロジー）
 struct NetDef: Codable, Equatable {
@@ -125,12 +125,15 @@ extension OrigamiState {
     }
     /// 今の折り具合での、胞ごとの変換（組み上がりの位置 → 今の位置）。組み変わりの途中なら、前の展開図から今の展開図へ動いている途中の形
     func netTransforms(_ n: Int) -> [Aff] {
-        let parent = n == 4 ? net.p4 : net.p3
-        if let mo = netMorph { return morphTransforms(n, mo, to: rawTransforms(parent, n)) }
+        let parent = netParent(n)
         let head: [Double] = [Double(n), progress, foldStagger ? Double(foldMaxStages) : 0.0, foldCourse ? (courseFromB ? 2 : 1) : 0]
-        let key: [Double] = head + parent.map { Double($0) }
+        var key: [Double] = head + parent.map { Double($0) }
+        // 組み変わりの途中も、同じコマのあいだは使い回す（fold は点ごとに呼ばれるので、1 コマに何千回。毎回計算し直すと重い）
+        let mo = netMorph.flatMap { n <= 4 || $0.from5 != nil ? $0 : nil }
+        if let mo { key += [-1, mo.t] + (n == 5 ? (mo.from5 ?? []) : n == 4 ? mo.from.p4 : mo.from.p3).map { Double($0) } }
         if let c = netCache[n], c.0 == key { return c.1 }
-        let out = rawTransforms(parent, n)
+        let raw = rawTransforms(parent, n)
+        let out = mo.map { morphTransforms(n, $0, to: raw) } ?? raw
         netCache[n] = (key, out)
         return out
     }
@@ -230,17 +233,30 @@ extension OrigamiState {
             if foldAfter { playFold() }
         }
     }
+    /// 5 次元の展開図を切りかえる（見本・図鑑・でたらめ・番号から。組み変わりアニメが入なら、超立方体と同じく胞が 1 つずつ動く）
+    func switchNet5(_ p: [Int], no: Int? = nil, foldAfter: Bool = false) {
+        let old = net5
+        net5 = p; net5No = no ?? (Net5Atlas.noOf[Net5Atlas.canon(Net5Atlas.mask(p))] ?? 0)
+        guard p != old else { if foldAfter { playFold() }; return }
+        if netAnim && progress < 0.999 && explodeE < 0.01 {
+            netMorph = NetMorph(from: net, t: 0, from5: old)
+            netMorphFoldAfter = foldAfter
+        } else {
+            netMorph = nil
+            if foldAfter { playFold() }
+        }
+    }
     func netMorphTick(_ dt: Double) {
         guard var mo = netMorph else { return }
         mo.t += dt
-        if mo.t >= Self.MORPH_DUR + 7 * Self.MORPH_STAG + 0.05 {
+        if mo.t >= Self.MORPH_DUR + Double(mo.from5 != nil ? 9 : 7) * Self.MORPH_STAG + 0.05 {
             netMorph = nil
             if netMorphFoldAfter { netMorphFoldAfter = false; playFold() }
         } else { netMorph = mo }
     }
     /// 前の展開図（mo.from）から今の展開図（B）へ：動く胞ごとに時間差をつけて
     func morphTransforms(_ n: Int, _ mo: NetMorph, to B: [Aff]) -> [Aff] {
-        let A = rawTransforms(n == 4 ? mo.from.p4 : mo.from.p3, n)
+        let A = rawTransforms(n == 5 ? (mo.from5 ?? netParent(5)) : n == 4 ? mo.from.p4 : mo.from.p3, n)
         guard A.count == B.count else { return B }
         func same(_ a: Aff, _ b: Aff) -> Bool {
             for i in 0..<n { if abs(a.t[i] - b.t[i]) > 1e-6 { return false }; for j in 0..<n where abs(a.M[i][j] - b.M[i][j]) > 1e-6 { return false } }
@@ -263,7 +279,10 @@ extension OrigamiState {
         for i in 0..<n { for j in 0..<n { var s = 0.0; for q in 0..<n { s += B.M[i][q] * A.M[j][q] }; R[i][j] = s } }
         var Rs = Aff.id(n).M
         if abs(R[N][N] - 1) < 1e-6 {
-            if n == 4 {                                                      // 3D の回転：四元数でなめらかに
+            if n == 5 {                                                      // 4D の回転：左と右の四元数に分けて、それぞれなめらかに
+                let r4 = so4Slerp((0..<4).map { i in (0..<4).map { R[i][$0] } }, e)
+                for i in 0..<4 { for j in 0..<4 { Rs[i][j] = r4[i][j] } }
+            } else if n == 4 {                                                      // 3D の回転：四元数でなめらかに
                 let m = simd_double3x3(rows: (0..<3).map { i in SIMD3(R[i][0], R[i][1], R[i][2]) })
                 var q = simd_quatd(m); if q.real < 0 { q = simd_quatd(vector: -q.vector) }
                 let r = simd_double3x3(simd_slerp(simd_quatd(ix: 0, iy: 0, iz: 0, r: 1), q, e))
@@ -286,8 +305,40 @@ extension OrigamiState {
         let d = (0..<n).map { A.t[$0] - cA[$0] }
         for i in 0..<n {
             var s = 0.0; for q in 0..<n { s += Rs[i][q] * d[q] }
-            out.t[i] = s + cA[i] + (cB[i] - cA[i]) * e + (i == N ? MORPH_LIFT * sin(.pi * e) : 0)
+            out.t[i] = s + cA[i] + (cB[i] - cA[i]) * e + (i == N ? (n == 5 ? -MORPH_LIFT : MORPH_LIFT) * sin(.pi * e) : 0)   // 5 次元は v の奥へ（手前へ浮くと、v と w の遠近が重なって大きくふくらむので）
         }
+        return out
+    }
+    /// 4 次元の回転 R（4×4）を、何もしない（e ＝ 0）から R（e ＝ 1）へなめらかに。
+    ///   4D の回転は、左の四元数 a と右の四元数 p で x ↦ a x p と書ける（2 つの「同時に回る面」の組）。a と p を別々に球面補間する。
+    ///   a と p は、R を基底 { x ↦ eᵢ x eⱼ }（16 個、たがいに直交）で展開した係数 Aᵢⱼ ＝ aᵢ pⱼ から取り出す
+    static func so4Slerp(_ R: [[Double]], _ e: Double) -> [[Double]] {
+        func q(_ i: Int) -> simd_quatd { var v = SIMD4<Double>(0, 0, 0, 0); v[i] = 1; return simd_quatd(vector: v) }
+        var A = [[Double]](repeating: [0, 0, 0, 0], count: 4)
+        for i in 0..<4 { for j in 0..<4 {
+            var s = 0.0
+            for k in 0..<4 { let col = (q(i) * q(k) * q(j)).vector; for r in 0..<4 { s += R[r][k] * col[r] } }
+            A[i][j] = s / 4
+        } }
+        func n2(_ r: [Double]) -> Double { r.reduce(0) { $0 + $1 * $1 } }
+        let ri = (0..<4).max { n2(A[$0]) < n2(A[$1]) } ?? 0
+        guard n2(A[ri]) > 1e-12 else { return R }
+        var p = simd_normalize(SIMD4(A[ri][0], A[ri][1], A[ri][2], A[ri][3]))
+        var a = SIMD4<Double>(0, 0, 0, 0)
+        for i in 0..<4 { var t = 0.0; for j in 0..<4 { t += A[i][j] * p[j] }; a[i] = t }
+        a = simd_normalize(a)
+        // (a, p) と (−a, −p) は同じ回転。回す角の合計が小さいほうを
+        if acos(max(-1, min(1, a.w))) + acos(max(-1, min(1, p.w))) > .pi { a = -a; p = -p }
+        func sl(_ v: SIMD4<Double>) -> simd_quatd {
+            let th = acos(max(-1, min(1, v.w)))
+            if th < 1e-9 { return simd_quatd(vector: SIMD4(0, 0, 0, 1)) }
+            var u = SIMD4(v.x, v.y, v.z, 0)
+            u = simd_length(u) > 1e-9 ? simd_normalize(u) : SIMD4(1, 0, 0, 0)
+            return simd_quatd(vector: SIMD4(0, 0, 0, cos(e * th)) + u * sin(e * th))
+        }
+        let ae = sl(a), pe = sl(p)
+        var out = R
+        for k in 0..<4 { let c = (ae * q(k) * pe).vector; for r in 0..<4 { out[r][k] = c[r] } }
         return out
     }
     /// 平らな展開図での胞の真ん中（重なりの確かめ用。±1 の単位の整数）

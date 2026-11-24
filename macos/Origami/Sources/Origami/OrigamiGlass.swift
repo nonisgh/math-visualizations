@@ -5,8 +5,8 @@ import simd
 
 enum Glass {
     /// 座標軸の名前と色（x・y・z・w）
-    static let axisNames = ["x", "y", "z", "w"]
-    static let axisCols: [Color] = [Color(red: 1.0, green: 0.365, blue: 0.424), Color(red: 0.239, green: 0.863, blue: 0.518), Color(red: 0.337, green: 0.659, blue: 1.0), Color(red: 0.690, green: 0.486, blue: 1.0)]
+    static let axisNames = ["x", "y", "z", "w", "v"]
+    static let axisCols: [Color] = [Color(red: 1.0, green: 0.365, blue: 0.424), Color(red: 0.239, green: 0.863, blue: 0.518), Color(red: 0.337, green: 0.659, blue: 1.0), Color(red: 0.690, green: 0.486, blue: 1.0), Color(red: 0.984, green: 0.749, blue: 0.141)]
     struct Look {
         let name: String; let base, fresA, fresP, rimK, lumT, lumK, env, sat, lift: Float; let rim: SIMD3<Float>; var add = false; var rodEnv: Float = 1
         var soft = false        // やわらかな照明（大きな照り返し＝次元おりがみのグレア）。false は角ばった照明の窓（プラケース）

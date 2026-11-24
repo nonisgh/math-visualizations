@@ -9,8 +9,9 @@ mkdir -p $APP/Contents/MacOS $APP/Contents/Resources
 cp .build/release/Origami $APP/Contents/MacOS/Origami
 # 軸の名前の書体（KaTeX の数式用の斜体＝TeX と同じ字形。ウェブ版と同じ。MIT、Fonts/KaTeX-LICENSE.txt）
 cp Fonts/KaTeX_Math-Italic.ttf Fonts/KaTeX-LICENSE.txt $APP/Contents/Resources/
-# アイコン：アプリ自身の超立方体から作る（--icon）。なければ作り、大きさごとの絵を iconutil でまとめる
-if [ ! -f Icon/AppIcon-1024.png ]; then mkdir -p Icon; .build/release/Origami --icon Icon/AppIcon-1024.png >/dev/null; fi
+# アイコン：フラットデザインの絵（tools/make_icon.swift：ダリの十字架の積み木、ふたが折れかけ）。なければ作り、大きさごとの絵を iconutil でまとめる
+#   iPad 用（角まで四角）は iOS/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png。作り直す時は：swift tools/make_icon.swift 出力フォルダ
+if [ ! -f Icon/AppIcon-1024.png ]; then T=$(mktemp -d); swift tools/make_icon.swift $T >/dev/null; mkdir -p Icon; cp $T/AppIcon-mac-1024.png Icon/AppIcon-1024.png; fi
 ICS=$(mktemp -d)/AppIcon.iconset; mkdir -p $ICS
 for s in 16 32 128 256 512; do
   sips -z $s $s Icon/AppIcon-1024.png --out $ICS/icon_${s}x${s}.png >/dev/null
@@ -23,7 +24,7 @@ cat > $APP/Contents/Info.plist <<'PLIST'
 <plist version="1.0"><dict>
   <key>CFBundleName</key><string>次元おりがみ</string>
   <key>CFBundleDisplayName</key><string>次元おりがみ</string>
-  <key>CFBundleIdentifier</key><string>io.github.nonisgh.origami</string>
+  <key>CFBundleIdentifier</key><string>app.nonisapps.origami</string>
   <key>CFBundleExecutable</key><string>Origami</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>

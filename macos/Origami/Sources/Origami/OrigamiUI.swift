@@ -4,6 +4,7 @@
 //     まだ移していない区切りは見出しだけ（「これから移します」）。ネイティブ版だけのもの（質感・光・宇宙）は「見え方」の「視覚効果」に。
 //   キー（Mac）：スペース＝パネルの開け閉め、B＝パネルを左右に
 import SwiftUI
+import simd
 #if os(macOS)
 import AppKit
 #endif
@@ -50,12 +51,14 @@ struct OrigamiView: View {
         .preferredColorScheme(.dark)
         .sheet(isPresented: $ks.show) { ShortcutSheet() }
         .sheet(isPresented: $st.atlasOpen) { NetAtlasSheet(st: st) }
+        .sheet(isPresented: $st.atlas5Open) { NetAtlas5Sheet(st: st) }
         .onAppear { DispatchQueue.global(qos: .utility).async { _ = NetAtlas.built } }   // 図鑑を先に作っておく
         // 保存してあった設定をもどして、変わったら保存する（確かめの時は使わない＝いつも同じ初めの形で測る）
         .onAppear { if !PerfTest.on { st.startSettings() } }
         #if os(macOS)
         .onAppear {
             if PerfTest.on {                                                 // 確かめ：全部を回し続けて、8 秒で結果を出して終わる
+                if ProcessInfo.processInfo.environment["ORIGAMI_USERSET"] != nil { st.loadSettingsReadOnly() }   // 確かめ：使っている人の設定で（読むだけ）
                 st.toggle6(); st.renderScale = PerfTest.scale
                 if let v = ProcessInfo.processInfo.environment["ORIGAMI_ZF"], let z = Double(v) { st.zfAsm = z }   // 確かめ：組み上がりの大きさ
                 if let v = ProcessInfo.processInfo.environment["ORIGAMI_TAB"], let t = Int(v) { st.panelTab = t }   // 確かめ：開いておくタブ
@@ -83,6 +86,49 @@ struct OrigamiView: View {
                     let t0 = CACurrentMediaTime()
                     Timer.scheduledTimer(withTimeInterval: 1.0 / (Double(ProcessInfo.processInfo.environment["ORIGAMI_DRAG"] ?? "") ?? 120), repeats: true) { _ in st.zfAsm = 0.575 + 0.275 * sin((CACurrentMediaTime() - t0) * 2) }
                 }
+                if let v = ProcessInfo.processInfo.environment["ORIGAMI_LOOP"] { if v != "spin" { st.stopSpins() }; st.loop = true }   // 「spin」なら回したまま   // 確かめ：組み立てと展開を行ったり来たり
+                if ProcessInfo.processInfo.environment["ORIGAMI_WHO"] != nil {   // 確かめ：パネル全部の作り直しの知らせを数えて、どこから来たかを出す
+                    var cnt = 0
+                    PerfTest.who = st.objectWillChange.sink { _ in
+                        cnt += 1
+                        if cnt % 50 == 1 { PerfTest.info.append("知らせ \(cnt)：" + Thread.callStackSymbols.dropFirst(7).prefix(5).map { String($0.split(separator: " ", omittingEmptySubsequences: true).dropFirst(3).joined(separator: " ").prefix(160)) }.joined(separator: " | ")) }
+                    }
+                }
+                if let v = ProcessInfo.processInfo.environment["ORIGAMI_INSPH"] { st.inSphere = true; if v == "all" { st.inSphereLat = true; st.inSphereLon = true; st.inSphereCone = true }; if v == "lat" { st.inSphereLat = true; st.inSphereLon = false; st.inSphereCone = false }; if v == "loncone" { st.inSphereLat = false; st.inSphereLon = true; st.inSphereCone = true }; if v == "none" { st.inSphere = false } }   // 「all」なら模様を 3 つとも   // 確かめ：内接球を出して
+                if let v = ProcessInfo.processInfo.environment["ORIGAMI_UIHZ"], let hz = Double(v) { OrigamiState.uiHz = hz }   // 確かめ：パネルの書きかえの回数
+                if ProcessInfo.processInfo.environment["ORIGAMI_SOFT"] != nil { st.inSphereDentSharp = false }   // 確かめ：めりこみをふんわりに
+                if let v = ProcessInfo.processInfo.environment["ORIGAMI_DIM5"] {   // 確かめ：5 次元β で回す（値 v ＝ 4D展開の見え方、それ以外 ＝ 3D展開）
+                    if !st.dim5 { st.toggleDim5() }; if v != "v" { st.view5(0) }; st.spin5 = true
+                }
+                if ProcessInfo.processInfo.environment["ORIGAMI_MORPH"] != nil {   // 確かめ：展開図を 1.6 秒ごとに切りかえ続ける（組み変わりのアニメ）
+                    var k = 0
+                    Timer.scheduledTimer(withTimeInterval: 1.6, repeats: true) { _ in
+                        k += 1; st.netAnim = true
+                        if st.dim5 { st.switchNet5(OrigamiState.net5Presets[k % OrigamiState.net5Presets.count].1) }
+                        else { st.switchNet(OrigamiState.netPresets[k % OrigamiState.netPresets.count]) }
+                        PerfTest.info.append(String(format: "切りかえ %d：組み変わり %@・組み具合 %.2f・バラし %.2f", k, st.netMorph != nil ? "中" : "なし", st.progress, st.explodeE))
+                    }
+                }
+                if ProcessInfo.processInfo.environment["ORIGAMI_BARTEST"] != nil {   // 確かめ：下のバーの回転のボタンを、本物のマウスの知らせで 押す・押す・右クリック・長押し して、結果を記録
+                    st.stopSpins()
+                    func pops() -> Int { NSApp.windows.filter { $0.isVisible && String(describing: type(of: $0)).contains("Popover") }.count }
+                    func ev(_ t: NSEvent.EventType, _ rr: CGRect? = nil) {
+                        guard let w = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil && !String(describing: type(of: $0)).contains("Popover") }) else { return }
+                        let r = rr ?? PerfTest.rotPill, h = w.contentView!.bounds.height
+                        if let e = NSEvent.mouseEvent(with: t, location: NSPoint(x: r.midX, y: h - r.midY), modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: w.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: t == .leftMouseUp || t == .rightMouseUp ? 0 : 1) { NSApp.postEvent(e, atStart: false) }
+                    }
+                    func log(_ s: String) { PerfTest.info.append(String(format: "%@：回っている %@・メニューの窓 %d（ボタン %.0f,%.0f）", s, [st.spinX, st.spinY, st.spinZW, st.spinXY, st.spinXZ, st.spinYZ].contains(true) ? "はい" : "いいえ", pops(), PerfTest.rotPill.midX, PerfTest.rotPill.midY)) }
+                    let q = DispatchQueue.main
+                    q.asyncAfter(deadline: .now() + 2.0) { log("はじめ"); ev(.leftMouseDown); ev(.leftMouseUp) }
+                    q.asyncAfter(deadline: .now() + 2.6) { log("1 回押した"); ev(.leftMouseDown); ev(.leftMouseUp) }
+                    q.asyncAfter(deadline: .now() + 3.2) { log("2 回押した"); ev(.rightMouseDown); ev(.rightMouseUp) }
+                    q.asyncAfter(deadline: .now() + 3.8) { log("右クリック"); NSApp.windows.filter { String(describing: type(of: $0)).contains("Popover") }.forEach { $0.close() } }
+                    q.asyncAfter(deadline: .now() + 4.4) { log("メニューを閉じた"); ev(.leftMouseDown) }
+                    q.asyncAfter(deadline: .now() + 5.2) { ev(.leftMouseUp) }
+                    q.asyncAfter(deadline: .now() + 5.8) { log("長押し（0.8 秒）"); PerfTest.info.append("内接球（ふつうのボタン）押す前：\(st.inSphere)"); ev(.leftMouseDown, PerfTest.sphPill); ev(.leftMouseUp, PerfTest.sphPill) }
+                    q.asyncAfter(deadline: .now() + 6.4) { PerfTest.info.append("内接球 押した後：\(st.inSphere)") }
+                }
+                if let v = ProcessInfo.processInfo.environment["ORIGAMI_P"], let p = Double(v) { st.progress = p; st.target = p }   // 確かめ：組み具合
                 if ProcessInfo.processInfo.environment["ORIGAMI_BIG"] != nil {   // 確かめ：画面いっぱいの窓で
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { if let w = NSApp.windows.first(where: { $0.isVisible }), let sc = w.screen { w.setFrame(sc.visibleFrame, display: true) } }
                 }
@@ -123,8 +169,15 @@ struct OrigamiView: View {
             }
         }
     }
-    var cubePane: some View { pane(3, "立方体（2D 展開図 → 3D）", "折りたたみでできる新しい次元＝z") }
-    var hyperPane: some View { pane(4, "超立方体（3D 展開図 → 4D）", "折りたたみでできる新しい次元＝w").overlay(alignment: .topTrailing) { AxisLenCard(st: st).padding(10) } }
+    // 5 次元 β：左（cubePane の場所）に超立方体、右（hyperPane の場所）に 5 次元超立方体
+    @ViewBuilder var cubePane: some View {
+        if st.dim5 { pane(4, "超立方体（1 つ下の次元のたとえ）", "X-W・Y-W・Z-W は、5 次元の X-V・Y-V・Z-V と同じ角度").overlay(alignment: .topTrailing) { AxisLenCard(st: st).padding(10) } }
+        else { pane(3, "立方体（2D 展開図 → 3D）", "折りたたみでできる新しい次元＝z") }
+    }
+    @ViewBuilder var hyperPane: some View {
+        if st.dim5 { pane(5, "5 次元超立方体 β（4D 展開図 → 5D）", st.drag5Roll ? "折りたたみでできる新しい次元＝v（琥珀）。ドラッグ＝転がす（形はそのまま）" : "折りたたみでできる新しい次元＝v（琥珀）。ドラッグ＝5 次元だけの X-W・Y-W、⇧＝W-V") }
+        else { pane(4, "超立方体（3D 展開図 → 4D）", "折りたたみでできる新しい次元＝w").overlay(alignment: .topTrailing) { AxisLenCard(st: st).padding(10) } }
+    }
     func twoPanes(_ W: CGFloat) -> some View {
         let lw = max(160, min(W - 160, W * st.split))
         return HStack(spacing: 0) {
@@ -143,7 +196,7 @@ struct OrigamiView: View {
         }
     }
     func pane(_ n: Int, _ title: String, _ sub: String) -> some View {
-        let i = n == 3 ? 0 : 1
+        let i = st.wix(n)
         return ZStack(alignment: .topLeading) {
             #if os(macOS)
             // Mac はマウス・つまみを絵の窓（OrigamiMTKView）が直接受ける
@@ -157,8 +210,10 @@ struct OrigamiView: View {
                     #else
                     let shift = false
                     #endif
-                    if shift { st.drag(.zw, Double(dd.width) * 0.01) }
-                    else if n == 3 { st.drag(.l4x, Double(dd.width) * 0.01); st.drag(.l4y, Double(dd.height) * 0.01) }   // 左：X-W・Y-W（左は X-Z・Y-Z）
+                    if n == 5 && st.drag5Roll { st.drag(.r3x, Double(dd.width) * 0.01); st.drag(.r3y, Double(dd.height) * 0.01) }   // 5 次元：転がす（形はゆがまない）
+                    else if n == 5 { if shift { st.drag(.wv5, Double(dd.width) * 0.01) } else { st.drag(.x5, Double(dd.width) * 0.01); st.drag(.y5, Double(dd.height) * 0.01) } }
+                    else if shift { st.drag(.zw, Double(dd.width) * 0.01) }
+                    else if n == 3 || st.dim5 { st.drag(.l4x, Double(dd.width) * 0.01); st.drag(.l4y, Double(dd.height) * 0.01) }   // 左：X-W・Y-W（左は X-Z・Y-Z）
                     else { st.drag(.r3x, Double(dd.width) * 0.01); st.drag(.r3y, Double(dd.height) * 0.01) }            // 右：画面の縦・横の軸のまわりに形を回す
                 }.onEnded { _ in gb.last = .zero; st.dragging = false })
                 .simultaneousGesture(MagnificationGesture().onChanged { k in
@@ -186,21 +241,92 @@ struct OrigamiView: View {
             .padding(10).allowsHitTesting(false)
         }
         .clipped()
+        .id("pane\(n)")                                                   // 5 次元 β の入り切りで、同じ場所の窓の次元が変わったら作り直す
     }
 }
 
 // MARK: - 下の回転バー（ウェブ版の rot-bar）
+//   回し続ける（W(X,Y,Z)・W(X,Y)・3D・全て）は「回転 ▾」の 1 つにまとめて、押すと小さな窓で選ぶ。
+//   同じ形で「表示 ▾」（見せる胞：全部・表だけ・裏だけ）と「分解 ▾」（バラす・くっつける・数える・離し具合）も
 struct OrigamiRotBar: View {
     @ObservedObject var st: OrigamiState
+    @State var openRot = false
+    @State var openSide = false
+    @State var openXp = false
+    @State var open5 = false
+    @State var openSph = false
+    @AppStorage("origami.rotBarLastSpin") var lastSpin = 0     // 回転のボタンを押した時に回す回し方（0 W(X,Y,Z)・1 W(X,Y)・2 3D・3 全て）。メニューで選んだものを覚える
+    /// 回転のボタン：回っていれば止める、止まっていれば前に選んだ回し方で回す
+    func tapSpin() {
+        if anySpin { st.stopSpins(); return }
+        switch lastSpin { case 1: st.toggleW2(); case 2: st.toggle3D(); case 3: st.toggle6(); default: st.toggleWAll() }
+    }
+    /// 今の回し方の名前（ボタンに出す）
+    var rotName: String {
+        if st.allW && st.all3D { return "全て" }
+        if st.allW { return "W(X,Y,Z)" }
+        if st.w2Only { return "W(X,Y)" }
+        if st.all3D { return "3D" }
+        return [st.spinX, st.spinY, st.spinZW, st.spinXY, st.spinXZ, st.spinYZ].contains(true) ? "一部" : "止まっている"
+    }
+    var anySpin: Bool { [st.spinX, st.spinY, st.spinZW, st.spinXY, st.spinXZ, st.spinYZ].contains(true) }
     var body: some View {
         HStack(spacing: 6) {
-            Text("回転").font(.system(size: 11, weight: .bold)).foregroundStyle(UIC.sub).lineLimit(1).fixedSize()
-            pill("W(X,Y,Z)", st.allW, "W の絡む 3 面（X-W・Y-W・Z-W）を回し続ける＝中身がぐりぐり入れかわる 4D の回転") { st.toggleWAll() }
-            pill("W(X,Y)", st.w2Only, "X-W・Y-W の 2 面だけを回し続ける（Z-W は回さない）。立方体も X-Z・Y-Z で一緒に回る") { st.toggleW2() }
-            pill("3D", st.all3D, "X-Y・X-Z・Y-Z（w を含まない 3 面＝ふつうの 3D の回転）を回し続ける。形は変わらず転がる") { st.toggle3D() }
-            pill("全て", st.allW && st.all3D, "6 面すべてを同時に回し続ける") { st.toggle6() }
+            popPill("回転：\(rotName)", anySpin, "回し続ける（もう一度で止める）。回し方（W の 3 面・W の 2 面・3D・全て）はメニューで", $openRot, tap: tapSpin) {
+                Text("回し続ける").font(.system(size: 11, weight: .bold)).foregroundStyle(UIC.sub)
+                pill("W(X,Y,Z)", st.allW, "W の絡む 3 面（X-W・Y-W・Z-W）を回し続ける＝中身がぐりぐり入れかわる 4D の回転") { lastSpin = 0; st.toggleWAll() }
+                pill("W(X,Y)", st.w2Only, "X-W・Y-W の 2 面だけを回し続ける（Z-W は回さない）。立方体も X-Z・Y-Z で一緒に回る") { lastSpin = 1; st.toggleW2() }
+                pill("3D", st.all3D, "X-Y・X-Z・Y-Z（w を含まない 3 面＝ふつうの 3D の回転）を回し続ける。形は変わらず転がる") { lastSpin = 2; st.toggle3D() }
+                pill("全て", st.allW && st.all3D, "6 面すべてを同時に回し続ける") { lastSpin = 3; st.toggle6() }
+                pill("止める", false, "回し続けるのを全部止める（角度はそのまま）") { st.stopSpins() }
+            }
+            .background(GeometryReader { g in Color.clear.onAppear { if PerfTest.on { PerfTest.rotPill = g.frame(in: .global) } } })
+            .onAppear {   // 確かめ：起動して少ししたら回転のメニューを開く（環境変数 ORIGAMI_OPENPOP。iPad のシミュレーターで、メニューが上に出るかを見る）
+                if ProcessInfo.processInfo.environment["ORIGAMI_OPENPOP"] != nil { DispatchQueue.main.asyncAfter(deadline: .now() + 2) { openRot = true } }
+            }
+            popPill("表示：" + ["全部", "表だけ", "裏だけ"][max(0, min(2, st.faceSide))], st.faceSide != 0, "見せる胞（立方体は面）：押すたびに 全部 → 表だけ → 裏だけ。表＝ひとつ上の次元の目から見て表を向いている胞", $openSide, tap: { st.faceSide = (st.faceSide + 1) % 3 }) {
+                Text("見せる胞").font(.system(size: 11, weight: .bold)).foregroundStyle(UIC.sub)
+                pill("全部", st.faceSide == 0, "全部の胞を見せる") { st.faceSide = 0 }
+                pill("表だけ", st.faceSide == 1, "表を向いている胞だけ（超立方体は多くて 4 個、立方体は多くて 3 面）") { st.faceSide = 1 }
+                pill("裏だけ", st.faceSide == 2, "裏を向いている胞だけ") { st.faceSide = 2 }
+            }
+            popPill(st.apart ? "分解：バラバラ" : "分解", st.apart, "押すと 1 つずつの形に分けて離す（バラす）・もう一度でくっつける。数える・時間差・つまみはメニューで", $openXp, tap: { if st.counting { st.endCount() }; st.startXp(st.apart ? 0 : 1) }) {
+                Text("分解").font(.system(size: 11, weight: .bold)).foregroundStyle(UIC.sub)
+                pill(st.apart ? "くっつける" : "バラす", st.apart, "1 つずつの形に分けて離す／元にくっつける") { if st.counting { st.endCount() }; st.startXp(st.apart ? 0 : 1) }
+                pill(st.counting ? "数えるのをやめる" : "数える", st.counting, "バラして、1 個ずつ番号を付けて光らせながら数える") { if st.counting { st.endCount() } else { st.startCount() } }
+                pill("時間差", st.xpStagger, "バラす・くっつける時に、番号の順に少しずつずらす") { st.xpStagger.toggle() }
+                LiveRead(live: st.live) {
+                    Slider(value: Binding(get: { st.xpAnim != nil ? max(0, min(1, st.explodeE)) : st.explodeRaw }, set: { st.xpAnim = nil; if st.counting { st.endCount() }; st.explodeRaw = $0 }), in: 0...1)
+                        .frame(width: 140).help("くっついた ↔ バラバラ")
+                }
+            }
             pill("🎲", st.diceRolling, "超立方体サイコロを振る（⇧0）：①4D でころころ → 奥の胞が決まる ②その胞が飛び出して 3D でころころ → 手前の面が目（24 の目・48 の目は回転タブで）") { st.rollDice() }
-            pill("内接球", st.inSphere, "超立方体にぴったり内接する超球面（8 個の胞の真ん中に接する）を、超球面アプリと同じ「w 一定の球殻を積んだ形」で中に出す。超立方体と一緒に回る（立方体の窓は内接する球の緯度の輪）") { st.inSphere.toggle() }
+            pill("5次元β", st.dim5, "5 次元 β：左に超立方体・右に 5 次元超立方体（10 個の超立方体の展開図を 5 次元で折りたたむ）。もう一度押すと元の立方体と超立方体に") { st.toggleDim5() }
+            if st.dim5 {
+                popPill("5D の見え方", st.spin5, "押すと 5 次元だけの 4 面を回す（もう一度で止める）。見え方のおすすめ（3D展開・4D展開）・展開図はメニューで", $open5, tap: { st.spin5.toggle(); st.tw5 = nil }) {
+                    Text("見え方のおすすめ").font(.system(size: 11, weight: .bold)).foregroundStyle(UIC.sub)
+                    pill("3D展開", false, "10 面とも 0°（w も v も目の方へつぶれる）＋ななめ・遠近：±W の胞が真ん中の手前と奥に重なった、真ん中が太い「3 次元の十字架」") { st.view5(0) }
+                    pill("4D展開", false, "5 次元だけの X-W 45°・Y-W 35.3°・Z-W 30° ＋ななめ・平行投影：w が 3D に出てきて、8 方向の腕が全部見える「4 次元の十字架」") { st.view5(1) }
+                    Text("5 次元だけの面（X-W・Y-W・Z-W・W-V）").font(.system(size: 11, weight: .bold)).foregroundStyle(UIC.sub)
+                    pill("4 面とも回す", st.spin5, "5 次元だけの 4 面を回し続ける（左の超立方体は動かない）") { st.spin5.toggle(); st.tw5 = nil }
+                    pill("4 面とも 0 へ", false, "5 次元だけの 4 面を 0° へもどす") { st.zero5() }
+                    Net5Picker(st: st)
+                    Text("右の窓のドラッグ").font(.system(size: 11, weight: .bold)).foregroundStyle(UIC.sub)
+                    pill("転がす（形はそのまま）", st.drag5Roll, "ふつうの 3D の回転：形をゆがめずに、くるくる回してながめる（3D展開のハンマーの形も、そのままの形で回る）") { st.drag5Roll = true }
+                    pill("5 次元の面（w がせり出す）", !st.drag5Roll, "5 次元だけの X-W・Y-W を回す（⇧ で W-V）。4 次元・5 次元の方向へ回すので、写した形は変わる") { st.drag5Roll = false }
+                    Text("形を変えずに回し続けてながめたい時は、「回転 ▾」の 3D を選ぶと、ゆがまずに回り続けます").font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            popPill("内接球", st.inSphere, "押すと超立方体にぴったり内接する超球面（8 個の胞の真ん中に接する）を出す・消す。模様（緯度・経度・円錐、いくつでも）はメニューで。超立方体と一緒に回る", $openSph, tap: { st.inSphere.toggle() }) {
+                Text("模様（いくつでも）").font(.system(size: 11, weight: .bold)).foregroundStyle(UIC.sub)
+                pill("緯度（球殻）", st.inSphereLat, "w ＝ 一定で切った球殻（超球面アプリと同じ積み重ね）") { st.inSphereLat.toggle(); st.inSphere = true }
+                pill("経度", st.inSphereLon, "経度が一定の面（大円の球の半分）を 8 枚") { st.inSphereLon.toggle(); st.inSphere = true }
+                pill("円錐", st.inSphereCone, "y の軸からの角度 θ が一定の面を 5 枚（真ん中から見ると円錐）") { st.inSphereCone.toggle(); st.inSphere = true }
+                pill(st.dim5 ? "正 120 胞体／正軸体" : "正 120 胞体", st.inSphere120, "正十二面体の部屋 120 個で超球面を埋めた形の、少し太いワイヤー。接点は部屋の真ん中。5 次元 β では正軸体（頂点が 10 個の接点）") { st.inSphere120.toggle(); st.inSphere = true }
+                pill("全部", st.inSphereLat && st.inSphereLon && st.inSphereCone, "緯度・経度・円錐を全部") { st.inSphereLat = true; st.inSphereLon = true; st.inSphereCone = true; st.inSphere = true }
+            }
+                .background(GeometryReader { g in Color.clear.onAppear { if PerfTest.on { PerfTest.sphPill = g.frame(in: .global) } } })
+            pill("ワイヤー", st.wireOnly, "面を描かず、辺の線だけで見せる（⇧M。もう一度でメッシュにもどる＝ M）") { st.wireOnly.toggle() }
             Divider().frame(height: 18)
             pill("補正", false, "z 軸を画面に垂直に立て直す（Z-W・X-Z・Y-Z を 0 に。回転は止めない）") { st.snap() }
             pill("リセット", false, "回転を止めて、全部の角度を 0 に戻した正面の形にする") { st.resetAll() }
@@ -212,22 +338,94 @@ struct OrigamiRotBar: View {
             Divider().frame(height: 18)
             LiveRead(live: st.live) { Text(st.projBlend > 0.5 ? "投影: 平行" : "投影: 遠近").font(.system(size: 11)).foregroundStyle(UIC.sub).lineLimit(1).fixedSize() }
                 .help("今の投影（遠近＝いつも奥行きあり／平行＝W の角度が付いていれば平行投影）")
-            pill(st.perspMode ? "→ 平行投影" : "→ 遠近投影", !st.perspMode, "投影の切りかえ。平行投影＝W の回転・面／辺／頂点から が、きれいな正多角形に。遠近投影＝いつも奥行きあり") { st.perspMode.toggle() }
+            pill(st.perspMode ? "→ 平行投影" : "→ 遠近投影", !st.perspMode, "投影の切りかえ。平行投影＝W の回転・面／辺／頂点から が、きれいな正多角形に（W の角度が 0 のままだと、外と内の立方体がぴったり重なって 1 つの立方体に見える）。遠近投影＝いつも奥行きあり") { st.perspMode.toggle() }
         }
         .padding(.horizontal, 12).padding(.vertical, 7)
         .background(UIC.panel.opacity(0.92), in: Capsule())
         .overlay(Capsule().stroke(UIC.line))
     }
+    /// 押すと tap（動かす／止める）、長押し（Mac は右クリックも）で小さな窓（ポップオーバー）が開くボタン（名前のうしろに ▾）。中は縦に並べる
+    func popPill<C: View>(_ t: String, _ on: Bool, _ help: String, _ open: Binding<Bool>, tap: @escaping () -> Void, @ViewBuilder _ content: @escaping () -> C) -> some View {
+        // 押す：ふつうのボタン（tap）。長押し（0.45 秒）：横で同時に見て、メニューを開く。
+        //   長押しで開いた時は、指を離した時のボタンの押しは無視する（メニューが開いていたら tap しない）。
+        //   （長押しを先に見て、だめならタップ、の組み合わせは Mac でクリックを受けとれなかった）
+        Button { if !open.wrappedValue { tap() } } label: { pillLabel(t + " ▾", on || open.wrappedValue) }
+            .buttonStyle(.plain)
+            .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in open.wrappedValue = true })
+            #if os(macOS)
+            .background(RightClickCatcher { open.wrappedValue = true })
+            .help(help + "（右クリックでメニュー）")
+            #else
+            .help(help + "（長押しでメニュー）")
+            #endif
+            .popover(isPresented: open, arrowEdge: Self.popEdge) {
+                VStack(alignment: .leading, spacing: 6) { content() }
+                    .padding(12).frame(minWidth: 160, alignment: .leading)
+                    .background(UIC.panel)
+                    .preferredColorScheme(.dark)
+                    #if os(iOS)
+                    .presentationCompactAdaptation(.popover)
+                    #endif
+            }
+    }
+    /// 下のバーのメニューは、ボタンの上に出す。arrowEdge の意味が Mac と iPad で逆（Mac：ボタンのどの辺に出すか・iPad：メニューのどの辺に矢印を付けるか）。
+    ///   iPad で .top にすると、メニューがボタンの下（画面の外）に出て選べなかった
+    #if os(iOS)
+    static let popEdge: Edge = .bottom
+    #else
+    static let popEdge: Edge = .top
+    #endif
     func pill(_ t: String, _ on: Bool, _ help: String, _ act: @escaping () -> Void) -> some View {
-        Button(action: act) {
-            Text(t).font(.system(size: 11, weight: .semibold)).foregroundStyle(on ? UIC.cyan : UIC.text)
-                .lineLimit(1).fixedSize()
-                .padding(.horizontal, 9).padding(.vertical, 4)
-                .background(on ? UIC.cyan.opacity(0.18) : Color.white.opacity(0.06), in: Capsule())
-                .overlay(Capsule().stroke(on ? UIC.cyan.opacity(0.8) : UIC.line))
-        }.buttonStyle(.plain).help(help)
+        Button(action: act) { pillLabel(t, on) }.buttonStyle(.plain).help(help)
+    }
+    func pillLabel(_ t: String, _ on: Bool) -> some View {
+        Text(t).font(.system(size: 11, weight: .semibold)).foregroundStyle(on ? UIC.cyan : UIC.text)
+            .lineLimit(1).fixedSize()
+            .padding(.horizontal, 9).padding(.vertical, 4)
+            .background(on ? UIC.cyan.opacity(0.18) : Color.white.opacity(0.06), in: Capsule())
+            .overlay(Capsule().stroke(on ? UIC.cyan.opacity(0.8) : UIC.line))
     }
 }
+
+/// 内接球の模様：緯度（球殻）・経度・円錐。いくつでも同時に選べる（全部も）
+struct InSphereModeRow: View {
+    @ObservedObject var st: OrigamiState
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("模様").font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text)
+            Btn("緯度（球殻）", on: st.inSphereLat) { st.inSphereLat.toggle() }.help("w ＝ 一定で切った球殻を積んだ形（超球面アプリと同じ）。立方体の窓では緯度の輪。枚数は下の「層」で")
+            Btn("経度", on: st.inSphereLon) { st.inSphereLon.toggle() }.help("経度が一定の面（大円の球の半分）を 8 枚。超球面アプリの経度の面と同じ考え")
+            Btn("円錐", on: st.inSphereCone) { st.inSphereCone.toggle() }.help("y の軸からの角度 θ が一定の面を 5 枚（30°〜150°）。真ん中から見ると円錐、超球面の上では両はしの閉じたまゆ玉の形（90° だけ平らな大きな球）")
+            Btn(st.dim5 ? "正 120 胞体／正軸体" : "正 120 胞体", on: st.inSphere120) { st.inSphere120.toggle() }.help("5 次元 β では正軸体（正 32 胞体）：頂点がちょうど 10 個の接点で、正単体の部屋 32 個で 4 次元の球面を埋める（5 次元には正 120 胞体の仲間がない）。" + "正十二面体の部屋 120 個で超球面をすき間なく埋めた形を、少し太いワイヤーで（点 600・辺 1200）。8 つの接点は、ちょうど部屋の真ん中。色はいちばん近い接点の色（「接点の色」の軸の色・胞の色）。立方体の窓は球面の正十二面体")
+            Btn("全部", on: st.inSphereLat && st.inSphereLon && st.inSphereCone) { st.inSphereLat = true; st.inSphereLon = true; st.inSphereCone = true }.help("緯度・経度・円錐を全部出す。3 つそろうと超球面の座標の網がそろう")
+        }
+    }
+}
+
+#if os(macOS)
+/// 右クリックを受ける透明な下じき：その場所で右クリックされたら act（左クリックは上のボタンへそのまま通す）
+struct RightClickCatcher: NSViewRepresentable {
+    let act: () -> Void
+    final class V: NSView {
+        var act: () -> Void = {}
+        private var mon: Any?
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let m = mon { NSEvent.removeMonitor(m); mon = nil }
+            guard window != nil else { return }
+            mon = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { [weak self] e in
+                guard let self, let w = self.window, e.window === w, !self.isHiddenOrHasHiddenAncestor else { return e }
+                if self.bounds.contains(self.convert(e.locationInWindow, from: nil)) { self.act(); return nil }
+                return e
+            }
+        }
+        deinit { if let m = mon { NSEvent.removeMonitor(m) } }
+        override func hitTest(_ p: NSPoint) -> NSView? { nil }                // 左クリックなどは通す
+    }
+    func makeNSView(context: Context) -> V { let v = V(); v.act = act; return v }
+    func updateNSView(_ v: V, context: Context) { v.act = act }
+}
+#endif
 
 // MARK: - 右のパネル（ウェブ版の ui-overlay）
 struct OrigamiPanel: View {
@@ -318,7 +516,8 @@ struct OrigamiPanel: View {
             }
             // 展開図図鑑（261 種類）と、番号の順に 1 つずつ
             HStack(spacing: 6) {
-                Btn("📚 展開図図鑑（261）") { st.atlasOpen = true }.help("超立方体の展開図 261 種類を全部並べた図鑑。押すとその展開図になる")
+                if st.dim5 { Btn("📚 5 次元の図鑑（9694）", on: true) { st.atlas5Open = true }.help("5 次元超立方体の展開図 9,694 種類を全部並べた図鑑（5 次元 β の右の窓）。押すとその展開図になる") }
+                Btn(st.dim5 ? "超立方体の図鑑（261）" : "📚 展開図図鑑（261）") { st.atlasOpen = true }.help("超立方体の展開図 261 種類を全部並べた図鑑。押すとその展開図になる")
                 Btn("◀") { st.switchNet(NetAtlas.step(from: st.net.p4, -1)) }.help("図鑑の 1 つ前の展開図")
                 Text(NetAtlas.number(of: st.net.p4).map { "No.\($0) / \(NetAtlas.count)" } ?? "—").font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(UIC.text)
                 Btn("▶") { st.switchNet(NetAtlas.step(from: st.net.p4, 1)) }.help("図鑑の 1 つ次の展開図")
@@ -339,40 +538,40 @@ struct OrigamiPanel: View {
                 Btn("往復", on: st.loop) { st.toggleLoop() }.help("往復の自動再生")
                 Btn(String(format: "速度: %.1fx", st.speed)) { st.nextSpeed() }.help("再生の速さの切りかえ（0.5・1・1.5・2・3・4 倍）。回し続ける速さにもかかる")
             }
-            // 開いた時：向きを保つ ／ まっすぐ（W 消失の 3D 空間）。次に C を押すと何が起きるか
+            // 折り方：いっしょ／多段階（最大 2〜4 段）／一筆（ころころ）
             HStack(spacing: 6) {
-                Text("開いた時").font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text)
-                Btn("向きを保つ", on: st.unfPose == 0) { st.unfPose = 0 }.help("開いても今の向きのまま")
-                Btn("まっすぐ（ゆがみなし）", on: st.unfPose == 1) { st.unfPose = 1 }.help("開きながら 4 次元のかたむきを取る＝W 消失の 3D 空間に開く（3D の向きは保つ）")
-                if st.unfPose >= 2 { Text("（\(OrigamiState.unfPoseNames[min(6, st.unfPose)])）").font(.caption2).foregroundStyle(UIC.sub) }
+                Text("折り方").font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text)
+                Btn("いっしょ", on: !st.foldStagger && !st.foldCourse) { st.foldStagger = false; st.foldCourse = false }.help("全部のちょうつがいをいっしょに折る")
+                Btn("多段階", on: st.foldStagger && !st.foldCourse) { st.foldStagger = true; st.foldCourse = false; if st.foldMaxStages < 2 { st.foldMaxStages = 4 } }
+                    .help("真ん中に近い段から順に折る（つながりが長い展開図ほど段が多い）")
+                Btn("🌀 一筆", on: st.foldCourse) { st.foldCourse = true }
+                    .help("いちばん長いつながりのはしっこから、ちょうつがいを 1 個ずつ巻いて、ゴールまでころころ転がる。最後に 90° ずつコロンと返っていつもの向きへ")
             }
-            NextCLine(st: st)
-            // 多段階：最大の段数（1＝全部いっしょ）。展開図の深さがこれより多い時は、近い深さをまとめる
-            HStack(spacing: 6) {
-                Text("多段階").font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text)
-                Text("最大").font(.caption2).foregroundStyle(UIC.sub)
-                ForEach(1...4, id: \.self) { k in
-                    let cur = st.foldStagger ? st.foldMaxStages : 1
-                    Btn("\(k) 段", on: cur == k) { st.foldMaxStages = k; st.foldStagger = k > 1 }
-                        .help(k == 1 ? "全部いっしょに折る" : "真ん中に近い段から順に、最大 \(k) 段に分けて折る（展開図の深さがこれより少なければ、その段数のまま）")
-                }
-            }
-            // 一筆（くるくる）
-            HStack(spacing: 6) {
-                Btn("🌀 一筆（くるくる）", on: st.foldCourse) { st.foldCourse.toggle() }
-                    .help("いちばん長いつながりのはしっこから、ちょうつがいを 1 個ずつ順に折る。反対のはし（ゴール）の胞を床に止めて、巻いたかたまりがゴールまでころころ転がっていく。転がり終わると 90° ずつコロンと返って、いつもの真ん中・いつもの向きへ。枝の胞はコースが根元に来た時に折る。入の間は多段階より優先")
-                if st.foldCourse {
+            let D = OrigamiState.depths(st.net.p4).max() ?? 1
+            if st.foldCourse {
+                HStack(spacing: 6) {
+                    Text("出発").font(.caption2).foregroundStyle(UIC.sub)
                     Btn("はし A から", on: !st.courseFromB) { st.courseFromB = false }
                     Btn("はし B から", on: st.courseFromB) { st.courseFromB = true }
                 }
+                Text("一筆：ちょうつがい \(st.net.p4.count - 1) 個を、はしから 1 個ずつ巻いてゴールまで転がる → 最後にコロンと返っていつもの向きへ（開く時は逆再生）").font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
+            } else if st.foldStagger {
+                HStack(spacing: 6) {
+                    Text("最大").font(.caption2).foregroundStyle(UIC.sub)
+                    ForEach(2...4, id: \.self) { k in
+                        Btn("\(k) 段", on: st.foldMaxStages == k) { st.foldMaxStages = k }
+                            .help("最大 \(k) 段に分けて折る（展開図の深さがこれより少なければ、その段数のまま）")
+                    }
+                }
+                Text("この展開図：\(st.foldStages(D)) 段（深さ \(D)）。つながりが長い展開図ほど深い：ダリの十字架は 2、いちばん長い 8 個つながりは 4")
+                    .font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
             }
-            let D = OrigamiState.depths(st.net.p4).max() ?? 1
-            if st.foldCourse { Text("一筆：ちょうつがい \(st.net.p4.count - 1) 個を、はしから 1 個ずつ巻いてゴールまで転がる → 最後にコロンと返っていつもの向きへ（開く時は逆再生）").font(.caption2).foregroundStyle(UIC.sub) }
-            Text("この展開図：\(st.foldStages(D)) 段（深さ \(D)・最大 \(st.foldStagger ? st.foldMaxStages : 1) 段）。つながりが長い展開図ほど深い：ダリの十字架は 2、いちばん長い 8 個つながりは 4")
-                .font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
+            // 組み上げる時・開く時の向き：2 × 2 の表（覚えた形へ ／ まっすぐ）。どちらも切なら、今の向きのまま
+            AsmMatrix(st: st)
+            NextCLine(st: st)
             LiveRead(live: st.live) { NumRow("開く速さ（組み立ての何倍か）", $st.unfoldK, 1...4, "×%.1f", scale: 1) }
         }
-        Sec("組み上がりの向き", "cube.transparent") { AsmPoseSection(st: st) }
+        Sec("向きと記憶", "cube.transparent") { AsmPoseSection(st: st) }
         Sec("分解（どんな形でできているか）", "square.split.2x2") {
             HStack {
                 Text("くっついた").font(.caption2).foregroundStyle(UIC.sub)
@@ -402,6 +601,25 @@ struct OrigamiPanel: View {
                     AngleRow("X-Y", $st.xy, spin: $st.spinXY)
                     AngleRow("X-Z", $st.xz, spin: $st.spinXZ)
                     AngleRow("Y-Z", $st.yz, spin: $st.spinYZ)
+                }
+            }
+        }
+        if st.dim5 {
+            Sec("5 次元 β：5 次元だけの面", "hexagon") {
+                LiveRead(live: st.live) {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("上の X-W・Y-W・Z-W は、5 次元超立方体では X-V・Y-V・Z-V（v＝折りたたみでできた次元）。ここの 4 面は 5 次元超立方体だけが回る（左の超立方体は動かない）。▶ は 4 面いっしょに回す")
+                            .font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
+                        AngleRow("X-W（5 次元）", $st.xw5, spin: $st.spin5)
+                        AngleRow("Y-W（5 次元）", $st.yw5, spin: $st.spin5)
+                        AngleRow("Z-W（5 次元）", $st.zw5, spin: $st.spin5)
+                        AngleRow("W-V", $st.wv5, spin: $st.spin5)
+                        HStack(spacing: 6) {
+                            Btn("3D展開") { st.view5(0) }.help("10 面とも 0°＋ななめ・遠近：真ん中が太い「3 次元の十字架」")
+                            Btn("4D展開") { st.view5(1) }.help("5 次元だけの X-W 45°・Y-W 35.3°・Z-W 30°＋ななめ・平行：8 方向の腕が全部見える「4 次元の十字架」")
+                            Btn("4 面とも 0 へ") { st.zero5() }
+                        }
+                    }
                 }
             }
         }
@@ -506,6 +724,43 @@ struct OrigamiPanel: View {
             }
         }
         Sec("サイコロ（超立方体サイコロ）", "dice") { DiceSection(st: st) }
+        Sec("内接球（超球面）", "circle.circle") {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 6) {
+                    Btn("内接球を出す", on: st.inSphere) { st.inSphere.toggle() }.help("超立方体にぴったり内接する超球面（8 個の胞の真ん中に接する）。回転バーの「内接球」と同じ")
+                    Btn("接点", on: st.inSphereTouch) { st.inSphereTouch.toggle() }.help("超球が胞（立方体の窓は面）に接する点を、光の輪で。超球が触れるのは胞の真ん中の 1 点だけ。色は胞が垂直に立つ軸：x 赤・y 緑・z 青・w 紫（点のタブの「胞の中心 8 個」と同じ。その点を置くと輪の真ん中におさまる）")
+                    Btn("めりこみ", on: st.inSphereDent) { st.inSphereDent.toggle() }.help("写した絵では、超球が奥の胞（立方体）にめりこんで見える（4 次元では真ん中の 1 点で触れているだけ）。そのめりこんで見える所を少し暗く")
+                    Btn("くっきり", on: st.inSphereDentSharp) { st.inSphereDentSharp.toggle() }.disabled(!st.inSphereDent).help("めりこみの境目をくっきり：奥の胞（立方体）の平らな壁のところで、パキッと明るさを分ける。壁は平らなので、横から見ると境目はまっすぐ。切るとふんわりしたグラデーション")
+                    Btn("油膜", on: st.inSphereFilm) { st.inSphereFilm.toggle() }.help("緯度の殻を油の膜（シャボン玉）のように：色（胞の色）はそのまま少し暗い透けた玉で、うしろの立方体が見える。ふちほど、膜の厚みのむらと見る角度で虹色がゆらぐ。トーンは下の「油膜のトーン」で")
+                    Btn("ガラス（反射）", on: st.inSphereGlass) { st.inSphereGlass.toggle() }.help("超立方体と同じようなシースルーのガラスに：まんなかはすけて、ふちほど光を反射して明るく、表に光のつや。切ると前の見え方（ふちほど暗い）")
+                }
+                InSphereModeRow(st: st)
+                LiveRead(live: st.live) { NumRow("油膜のトーン", $st.inSphereTone, 0.3...1, "%.0f%%", scale: 100) }.disabled(!st.inSphereFilm)
+                    .help("油膜の殻の色の強さ。下げると落ち着いた色で、うしろの立方体がよく透ける")
+                LiveRead(live: st.live) { NumRow("遠近（手前を明るく太く）", $st.inSphereDepth, 0...1, "%.0f%%", scale: 100) }
+                    .help("内接球の手前の膜と線は明るく・線は太く、奥はうすく・細く（球の手前の面と奥の面が見分けられる）。0 で今まで通り")
+                LiveRead(live: st.live) { NumRow("ワイヤーの太さ", $st.inSphereWireW, 0.5...4, "%.2f 倍", scale: 1) }
+                    .help("内接球の線（緯度の輪・網目・正 120 胞体・5 次元の正軸体・ホップの輪）の太さ。見え方タブの「線の太さ」とは別に決められる。正 120 胞体・正軸体は、これのさらに 1.6 倍")
+                HStack(spacing: 6) {
+                    Text("色").font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text)
+                    Btn("アプリの色", on: st.inSphereColor == 0) { st.inSphereColor = 0 }.help("超立方体の胞の色に合わせる：球の上の点ごとに、いちばん近い胞（接している胞）の色。パレットを変えると一緒に変わる")
+                    Btn("レインボー", on: st.inSphereColor == 1) { st.inSphereColor = 1 }.help("超球面アプリと同じ層ごとの色（北 紫 → 水色、南 赤 → 緑）")
+                }
+                HStack(spacing: 6) {
+                    Text("接点の色").font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text)
+                    Btn("軸の色", on: st.inSphereTouchCol == 0) { st.inSphereTouchCol = 0 }.help("胞が垂直に立つ軸の色：x 赤・y 緑・z 青・w 紫（＋と−は同じ色）。点のタブの「胞の中心 8 個」と同じ")
+                    Btn("胞の色", on: st.inSphereTouchCol == 1) { st.inSphereTouchCol = 1 }.help("接している胞の色（パレットの色）。＋と−で別の色にできるので、たとえば −w を黄色にしておくと、手前の胞と奥の胞の接点が見分けられる")
+                }.disabled(!st.inSphereTouch)
+                HStack(spacing: 6) {
+                    Text("層").font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text)
+                    ForEach([6, 10, 14], id: \.self) { k in
+                        Btn("\(2 * k - 1) 枚", on: st.inSphereLayers == k) { st.inSphereLayers = k }.help("w ＝ 一定で切った球殻の枚数（北と南と赤道）")
+                    }
+                }
+                InSphereSpinRows(st: st)
+                Text("アプリの色では、球が胞に接する所がその胞の色になり、胞と胞のあいだは色がまざる。4D で回すと、どの胞に近いかが入れかわって色が流れる").font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
+            }
+        }
         Sec("軸の操作", "move.3d") { Later() }
         Sec("説明（立方体と超立方体の対応）", "info.circle") {
             Text("同じ角度を立方体と超立方体に同時にかけています。立方体はただ回るだけ。超立方体は内側の胞と外側の胞が入れかわり、裏返るように見えます。操作は同じで、1 次元ちがうだけです。")
@@ -569,9 +824,23 @@ struct OrigamiPanel: View {
             LiveRead(live: st.live) { NumRow("4D の遠近", $st.camW, 2.5...9, "%.1f", scale: 1) }
             LiveRead(live: st.live) { NumRow("3D の奥を暗く", $st.depth3, 0...1, "%.0f%%", scale: 100) }
                 .help("カメラから遠い所ほど面を暗く（手前 1.25 倍 → 奥 0.6 倍）＝立体感。ウェブ版と同じ。展開図では奥をさらに暗く")
-            Picker("線の 4D の奥行き", selection: $st.line4) { Text("同じ").tag(0); Text("奥ほどうすく").tag(1); Text("奥ほど濃く").tag(2) }
-                .help("超立方体の線を、4 次元の奥行きで変える。奥ほどうすく＝手前の線が太くはっきり、奥は背景に沈む（ウェブ版の濃淡）。奥ほど濃く＝4 次元の奥に何かあるのが線で浮かぶ。1 本の辺の中でもなめらかに変わる")
-            LiveRead(live: st.live) { NumRow("線の 4D の奥行きの強さ", $st.line4K, 0...1, "%.0f%%", scale: 100) }.disabled(st.line4 == 0)
+            LiveRead(live: st.live) { NumRow("3D の奥を色濃く", $st.depthDeep, 0...1, "%.0f%%", scale: 100) }
+                .help("カメラから遠い所ほど、暗くするだけでなく自分の色を掛けて色を深く（3D の投影図らしく、奥へ沈む）。0 で今まで通り")
+            LiveRead(live: st.live) { NumRow("斜めの面の照り返し", $st.slantSheen, 0...1, "%.0f%%", scale: 100) }
+                .help("目から見て斜めに立つ面（4D の遠近で台形になった胞の横の面など）ほど、光の来る向きでふんわり光る。さらさらの質感のまま、面の傾きが見えて立体に。正面を向いた面には出ない。0 で今まで通り")
+            LiveRead(live: st.live) { NumRow("線の太さ（展開図）", $st.lineWidthNet, 0.5...3, "%.2f 倍", scale: 1) }
+                .help("展開図の時の線（辺・軸）の太さの倍率。組み立てる間に、下の「組み上がり」の太さへなめらかに変わる。内接球のワイヤーは内接球の欄で別に")
+            LiveRead(live: st.live) { NumRow("線の太さ（組み上がり）", $st.lineWidthSolid, 0.5...3, "%.2f 倍", scale: 1) }
+                .help("組み上がった時の線の太さの倍率。線を胞の色・画面の色でなじませる時に、太めにすると色がよく見える")
+            Picker("線の 4D の奥行き（濃さ）", selection: $st.line4) { Text("同じ").tag(0); Text("奥ほどうすく").tag(1); Text("奥ほど濃く").tag(2) }
+                .help("超立方体の線の濃さを、4 次元の奥行きで変える。奥ほどうすく＝手前の線がはっきり、奥は背景に沈む（ウェブ版の濃淡）。奥ほど濃く＝4 次元の奥に何かあるのが線で浮かぶ。太さは下の「太さ」で別に。1 本の辺の中でもなめらかに変わる")
+            LiveRead(live: st.live) { NumRow("線の 4D の奥行き（濃さ）の強さ", $st.line4K, 0...1, "%.0f%%", scale: 100) }.disabled(st.line4 == 0)
+            LiveRead(live: st.live) { NumRow("線の 3D の奥行き（太さ）", $st.line3W, -1...1, "%+.0f%%", scale: 100) }
+                .help("線の太さを、画面の奥行き（カメラからの遠さ）で変える。−：奥ほど細く（手前の線が最大 2 倍）・＋：奥ほど太く・0：同じ。面の「3D の奥を暗く」と同じ物差し。1 本の線の中でもなめらかに変わる")
+            LiveRead(live: st.live) { NumRow("線の 3D の奥行き（濃さ）", $st.line3K, 0...1, "%.0f%%", scale: 100) }
+                .help("画面の奥の線ほどうすく（100% で奥の線は 4 分の 1 の濃さ）。手前の線ははっきりのまま。0 で今まで通り")
+            LiveRead(live: st.live) { NumRow("線の 4D の奥行き（太さ）", $st.line4W, -1...1, "%+.0f%%", scale: 100) }
+                .help("超立方体の線の太さを、4 次元の奥行きで変える。−：奥ほど細く（手前の線が最大 2 倍）・＋：奥ほど太く（奥の線が最大 2 倍）・0：同じ太さ。濃さとは別に決められる")
             LiveRead(live: st.live) { NumRow("色温度（青み ↔ 暖かみ）", $st.warmth, -1...1, "%+.0f%%", scale: 100) }
                 .help("画面全体の色を、明るさを変えずに青み（−）↔ 暖かみ（＋）へずらす。写真の色温度と同じ。全体が青みがかって目がつかれる時は ＋ へ")
             LiveRead(live: st.live) { NumRow("ファンタジーの強さ", $st.fantasy, 0...1, "%.0f%%", scale: 100) }
@@ -584,6 +853,8 @@ struct OrigamiPanel: View {
                 .help("線の色を、その辺を持つ胞の色を混ぜた「角」の色に（光の来る側ほど明るく）。形の外の輪郭ははっきり、立体の中を通る線はうすく。0 で今までの線")
             LiveRead(live: st.live) { NumRow("線を胞の色でなじませる", $st.lineTint, 0...1, "%.0f%%", scale: 100) }
                 .help("線をその胞の色に寄せて、乗算で重ねる（ウェブ版の線色「面と同系色（乗算）」）。白い線が浮かず、ガラスのふちの厚みが濃く見えるような線に。0 で今までの白っぽい線")
+            Picker("なじませる色", selection: $st.lineTintMode) { Text("その胞の色").tag(0); Text("重なりの乗算色").tag(1); Text("画面の色を濃く").tag(2) }.pickerStyle(.segmented)
+                .help("画面の色を濃く：線の下に見えている立体の色（赤と紫が重なって見えていれば、その重なった色）をそのまま暗くして線に。どんな重なりでも立体と同じ色合いの濃い線になる。なじませる強さで、ふつうの線とまぜる。重なりの乗算色：組み上がって 2〜3 個の胞が重なる辺を、その胞の色を掛け合わせた色（色つきセロハンを重ねた時の色）に。明るさはそろえて、色合いだけ。「賢く」の線の色も同じ色に")
             LiveRead(live: st.live) { NumRow("つぶれた胞ほど乗算（4D）", $st.squash4, 0...1, "%.0f%%", scale: 100) }
                 .help("4 次元で回して、胞が薄い板のようにつぶれて写っているほど、色を深く掛ける（同じガラスがせまく押しこまれて密度が高い）。W に回すと、つぶれた胞が濃く、ふくらんだ胞が透ける")
             LiveRead(live: st.live) { NumRow("斜めの面ほど乗算（3D）", $st.slant3, 0...1, "%.0f%%", scale: 100) }
@@ -597,7 +868,7 @@ struct OrigamiPanel: View {
             LiveRead(live: st.live) { NumRow("形どうしの映り込み（ツルピカ）", $st.reflSelf, 0...1.5, "%.0f%%", scale: 100) }
                 .help("面がつやのあるガラスのように、まわりの胞や中の立方体を映す（ふちほど強く映る）。形の真ん中から 6 方向を撮った絵を、面が鏡の向きで読む")
             LiveRead(live: st.live) { NumRow("4D の奥を乗算", $st.mul4, 0...1, "%.0f%%", scale: 100) }
-                .help("4 次元の奥行きを頂点ごとに：奥ほど色つきのセロハンのように後ろの色に掛け合わせる（乗算の面は最後に描いて、手前のガラスにも色をかける）。展開図では効かず、組み上がるほど効く")
+                .help("4 次元の奥にある胞ほど、色つきのセロハンのように後ろの色に掛け合わせる。胞ごとに同じ濃さ（いちばん奥の胞 100%・横の歪んだ胞 6 割くらい・手前 0）。いちばん奥の胞は色を濃くして、手前のガラスの上からも深く沈む。展開図では効かず、組み上がるほど効く")
             LiveRead(live: st.live) { NumRow("やわらかい乗算（目にやさしく）", $st.softMul, 0...1, "%.0f%%", scale: 100) }
                 .help("乗算で掛ける色を、少し灰色と白へ寄せてから掛ける。色は分かるまま、重なっても暗く沈みにくい（明るい所との差が小さくなって、目がつかれにくい）。0 で今までの乗算")
             Picker("投影", selection: $st.perspMode) { Text("遠近投影").tag(true); Text("平行投影").tag(false) }
@@ -620,22 +891,48 @@ struct OrigamiPanel: View {
                 .help("画面の細かさの何割で描くか。下げると描く仕事が減って、1 秒 144 コマに届きやすくなる（少しやわらかい絵に）")
         }
         Sec("胞の色（パレット）", "paintpalette") { PaletteEditor(st: st) }
+        Sec("同期（Google でログイン）", "arrow.triangle.2.circlepath") { CloudSection() }
         Sec("お遊び", "gamecontroller") { Later() }
         Sec("24面サイコロ（お遊び）", "die.face.5") { Later() }
     }
 
     // ---- 点 ----
     @ViewBuilder var ptsTab: some View {
-        Sec("手前と奥の辺を色で強調", "highlighter") {
+        Sec("辺を色で強調（手前・奥・好きな胞）", "highlighter") {
             Toggle("強調する", isOn: $st.ehOn)
-            Text("手前＝折りたたみでできた次元の＋側の胞（ふた）、奥＝−側の胞（真ん中）。超立方体なら w の＋と −、立方体なら z の＋と −").font(.caption2).foregroundStyle(UIC.sub)
+            Text("手前＝折りたたみでできた次元の＋側の胞（ふた）、奥＝−側の胞（真ん中）。超立方体なら w の＋と −、立方体なら z の＋と −。下の表で、ほかの胞にも好きな色をつけられます").font(.caption2).foregroundStyle(UIC.sub)
             HStack {
-                ColorPicker("手前", selection: colorBinding($st.ehNear)).disabled(!st.ehOn)
-                ColorPicker("奥", selection: colorBinding($st.ehFar)).disabled(!st.ehOn)
-            }
+                Toggle("", isOn: $st.ehNearOn).labelsHidden().help("手前（ふた）の胞の辺を強調する")
+                ColorPicker("手前", selection: colorBinding($st.ehNear)).disabled(!st.ehNearOn)
+                Spacer(minLength: 8)
+                Toggle("", isOn: $st.ehFarOn).labelsHidden().help("奥（真ん中）の胞の辺を強調する")
+                ColorPicker("奥", selection: colorBinding($st.ehFar)).disabled(!st.ehFarOn)
+            }.disabled(!st.ehOn)
             LiveRead(live: st.live) { NumRow("手前の太さ", $st.ehWidthNear, 1...16, "%.1f 画素", scale: 1) }.disabled(!st.ehOn)
             LiveRead(live: st.live) { NumRow("奥の太さ", $st.ehWidthFar, 1...16, "%.1f 画素", scale: 1) }.disabled(!st.ehOn)
-            Btn("既定に戻す") { st.ehNear = SIMD3(1.0, 0.267, 0.867); st.ehFar = SIMD3(0.2, 0.898, 1.0); st.ehWidthNear = 3; st.ehWidthFar = 3 }
+            EdgeHiCells(st: st).disabled(!st.ehOn)
+            LiveRead(live: st.live) { NumRow("ほかの胞の太さ", $st.ehWidthOther, 1...16, "%.1f 画素", scale: 1) }.disabled(!st.ehOn)
+            Btn("既定に戻す") { st.ehNear = SIMD3(1.0, 0.267, 0.867); st.ehFar = SIMD3(0.2, 0.898, 1.0); st.ehWidthNear = 3; st.ehWidthFar = 3; st.ehWidthOther = 3; st.ehNearOn = true; st.ehFarOn = true; st.ehCells = [:] }
+        }
+        Sec("手前と奥の目印（頂点の玉）", "circle.circle") {
+            Text("手前＝(1, 1, 1, 1)、奥＝(−1, −1, −1, −1) の頂点の玉。立方体の窓の手前・奥も同じ色と大きさ").font(.caption2).foregroundStyle(UIC.sub)
+            HStack {
+                ColorPicker("手前", selection: colorBinding($st.markNear))
+                Btn(st.markShowNear ? "隠す" : "表示") { st.markShowNear.toggle() }
+                Spacer(minLength: 8)
+                ColorPicker("奥", selection: colorBinding($st.markFar))
+                Btn(st.markShowFar ? "隠す" : "表示") { st.markShowFar.toggle() }
+            }
+            LiveRead(live: st.live) { NumRow("大きさ", $st.markSize, 0.3...1.6, "×%.2f", scale: 1) }
+            Toggle("重なった所は色を掛け合わせる（乗算）", isOn: $st.markGlue)
+                .help("手前と奥の玉が画面で重なった所だけ、色を掛け合わせて描く。切ると手前の玉が上に重なるだけ（片方を隠している時は掛け合わせない）")
+            Toggle("同じ大きさに見せる（遠近で大きさを変えない）", isOn: $st.markSame)
+                .help("手前の玉も奥の玉も、画面の上で同じ大きさに。ぴったり重なると、皆既日食のように 1 つの玉になる")
+            Toggle("重なりそうになったら、ぴたっと吸いつく（磁石）", isOn: $st.markMagnet)
+                .help("手前と奥の玉は、4D でどう回しても、写すと真ん中を通る 1 本の直線の上にある。手を離した時にその直線をのぞく向きから 2.5° 以内なら、3D の向きだけを少し回して、ちょうど重なる向きへ吸いつく（4D のかたむきは変えない）")
+            Toggle("ぴったり重なった瞬間に光る", isOn: $st.markFlash)
+                .help("手前と奥の玉がちょうど重なった瞬間に、光の輪が広がる")
+            Btn("既定に戻す（ピンク・水色・×0.65）") { st.markNear = OrigamiState.markNearDef; st.markFar = OrigamiState.markFarDef; st.markSize = 0.65; st.markShowNear = true; st.markShowFar = true; st.markGlue = true; st.markSame = true; st.markMagnet = true; st.markFlash = true }
         }
         Sec("座標を指定して点を置く", "mappin.and.ellipse") { PointAdder(st: st) }
         Sec("頂点のプリセット（16個）", "circle.grid.3x3") { VertexGrid(st: st) }
@@ -842,28 +1139,46 @@ func colorBinding(_ b: Binding<SIMD3<Float>>) -> Binding<Color> {
 /// 3D に出ている軸の長さ（ウェブ版の右上の札）：x・y・z・w の軸が、画面の 3D にどれだけ残っているか（4 本目へ回った分だけ短く）
 struct AxisLenCard: View {
     @ObservedObject var st: OrigamiState
+    static var last = [0, 0, 0, 0]                                         // 確かめ用：最後に出した数（%）
+    /// 4 本の軸が x・y・z に残っている長さ（0〜1）
+    static func lens(_ m: simd_double4x4) -> [Double] {
+        let c = m.columns, cs: [SIMD4<Double>] = [c.0, c.1, c.2, c.3]
+        return cs.map { v in min(1.0, (v.x * v.x + v.y * v.y + v.z * v.z).squareRoot()) }
+    }
     var body: some View {
         // 書きかえは角度の知らせ（1 秒 15 回まで）で。TimelineView(.animation) は間隔をあけても毎コマ画面全体の並べ直しが走って、絵のコマが落ちる
+        //   前は ForEach(0..<4) の中で長さを計算していて、並びが変わらないので行の作り直しが飛ばされ、最初の数のまま止まっていた。
+        //   長さは先に計算して、1 行ずつ値として渡す（値が変われば行も変わる）
         LiveRead(live: st.live) {
+            let vs = Self.lens(st.m4)
+            let _ = { AxisLenCard.last = vs.map { Int(($0 * 100).rounded()) } }()
             VStack(alignment: .leading, spacing: 3) {
                 Text("3D に出ている軸の長さ").font(.system(size: 10, weight: .bold)).foregroundStyle(UIC.text)
-                ForEach(0..<4, id: \.self) { k in
-                    let c = st.m4.columns, col = [c.0, c.1, c.2, c.3][k], v = min(1, sqrt(col.x * col.x + col.y * col.y + col.z * col.z))
-                    HStack(spacing: 5) {
-                        Text(Glass.axisNames[k]).font(.custom("KaTeX_Math-Italic", size: 12)).foregroundStyle(st.axisColorUI(k, 4)).frame(width: 10)
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.white.opacity(0.08)).frame(width: 64, height: 5)
-                            Capsule().fill(st.axisColorUI(k, 4)).frame(width: 64 * v, height: 5)
-                        }
-                        Text(String(format: "%.0f%%", v * 100)).font(.system(size: 9).monospacedDigit()).foregroundStyle(UIC.sub).frame(width: 30, alignment: .trailing)
-                    }
-                }
+                AxisLenRow(name: Glass.axisNames[0], col: st.axisColorUI(0, 4), v: vs[0])
+                AxisLenRow(name: Glass.axisNames[1], col: st.axisColorUI(1, 4), v: vs[1])
+                AxisLenRow(name: Glass.axisNames[2], col: st.axisColorUI(2, 4), v: vs[2])
+                AxisLenRow(name: Glass.axisNames[3], col: st.axisColorUI(3, 4), v: vs[3])
             }
             .padding(.horizontal, 9).padding(.vertical, 6)
             .background(UIC.panel.opacity(0.9), in: RoundedRectangle(cornerRadius: 9))
             .overlay(RoundedRectangle(cornerRadius: 9).stroke(UIC.line))
         }
         .allowsHitTesting(false)
+    }
+}
+
+/// 札の 1 行：軸の名前・棒・%
+struct AxisLenRow: View {
+    let name: String, col: Color, v: Double
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(name).font(.custom("KaTeX_Math-Italic", size: 12)).foregroundStyle(col).frame(width: 10)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.08)).frame(width: 64, height: 5)
+                Capsule().fill(col).frame(width: 64 * v, height: 5)
+            }
+            Text(String(format: "%.0f%%", v * 100)).font(.system(size: 9).monospacedDigit()).foregroundStyle(UIC.sub).frame(width: 30, alignment: .trailing)
+        }
     }
 }
 
@@ -948,4 +1263,171 @@ struct SectionPanel: View {
             }
         }
     }
+}
+
+/// 辺の強調：手前・奥のほかの胞（超立方体）・面（立方体）を選んで、好きな色で。行 ±X〜±Z（±W は手前・奥）、列 4D・3D
+struct EdgeHiCells: View {
+    @ObservedObject var st: OrigamiState
+    static let rows: [(String, String)] = [("px", "+X"), ("nx", "−X"), ("py", "+Y"), ("ny", "−Y"), ("pz", "+Z"), ("nz", "−Z")]
+    func used(_ d: Int, _ k: String) -> Bool { d == 4 || (k != "pz" && k != "nz") }       // 立方体の ±Z の面は手前・奥
+    /// 選んだ時の最初の色：その胞（面）のパレットの色
+    func palCol(_ d: Int, _ k: String) -> SIMD3<Float> { OrigamiState.rgb(st.effPal(d)[k] ?? 0x888888) }
+    func onB(_ key: String, _ d: Int, _ k: String) -> Binding<Bool> {
+        Binding(get: { st.ehCells[key] != nil }, set: { v in st.ehCells[key] = v ? palCol(d, k) : nil })
+    }
+    func colB(_ key: String, _ d: Int, _ k: String) -> Binding<SIMD3<Float>> {
+        Binding(get: { st.ehCells[key] ?? palCol(d, k) }, set: { st.ehCells[key] = $0 })
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 3) {
+                GridRow { Text(""); Text("4D（超立方体の胞）").font(.system(size: 10, weight: .bold)).foregroundStyle(UIC.sub); Text("3D（立方体の面）").font(.system(size: 10, weight: .bold)).foregroundStyle(UIC.sub) }
+                ForEach(Self.rows, id: \.0) { k, L in
+                    GridRow {
+                        Text(L).font(.system(size: 11, weight: .bold)).foregroundStyle(UIC.text)
+                        ForEach([4, 3], id: \.self) { d in
+                            if used(d, k) { cell(d, k) } else { Text("（手前・奥）").font(.system(size: 10)).foregroundStyle(UIC.sub.opacity(0.5)) }
+                        }
+                    }
+                }
+            }
+            HStack {
+                Btn("全部つける（パレットの色）") { for d in [4, 3] { for (k, _) in Self.rows where used(d, k) { st.ehCells["\(d):\(k)"] = palCol(d, k) } } }
+                Btn("全部はずす") { st.ehCells = [:] }
+            }
+        }
+    }
+    func cell(_ d: Int, _ k: String) -> some View {
+        let key = "\(d):\(k)"
+        return HStack(spacing: 4) {
+            Toggle("", isOn: onB(key, d, k)).labelsHidden()
+            ColorPicker("", selection: colorBinding(colB(key, d, k))).labelsHidden().disabled(st.ehCells[key] == nil)
+        }.help("\(d)D の \(k.first == "p" ? "＋" : "−")\(k.last!.uppercased()) の辺を強調する（色は右の見本で）")
+    }
+}
+
+/// 組み上げ・展開の向き：おまかせ 1・2 か、表（4D の角度・3D の角度を、組んだ時の向きと開いた時の向きで別々にするか共通にするか）
+struct AsmMatrix: View {
+    @ObservedObject var st: OrigamiState
+    func row(_ t: String, _ sub: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(t).font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text)
+            Text(sub).font(.system(size: 8)).foregroundStyle(UIC.sub)
+        }
+    }
+    /// 「別々（往復）・共通」の 2 つの丸ボタン
+    func pick(_ v: Binding<Bool>, _ hSep: String, _ hCom: String) -> some View {
+        HStack(spacing: 10) {
+            ForEach([true, false], id: \.self) { k in
+                Button { v.wrappedValue = k } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: v.wrappedValue == k ? "largecircle.fill.circle" : "circle").font(.system(size: 10))
+                        Text(k ? "別々（往復）" : "共通").font(.system(size: 11))
+                    }.foregroundStyle(v.wrappedValue == k ? UIC.cyan : UIC.sub).contentShape(Rectangle())
+                }.buttonStyle(.plain).focusable(false).help(k ? hSep : hCom)
+            }
+        }
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Btn("🪄 おまかせ 1", on: st.autoMode == 1) { st.autoMode = 1 }
+                    .help("ゆがみなし：4D は別々・3D は共通。はじめて開く時は、今の見た目にいちばん近いまっすぐへ。組むと組んだ時の 4D のかたむきへもどる。4D の回し続けるは、開くと 3D に置きかわる")
+                Btn("🪄 おまかせ 2", on: st.autoMode == 2) { st.autoMode = 2 }
+                    .help("ゆがみも：4D も 3D も共通＝開く時も組む時も今の向きのまま（4D のゆがみもそのまま展開図に）")
+                Btn("表で決める", on: st.autoMode == 0) { st.autoMode = 0 }.help("4D・3D の角度を、2 つの向きで別々にするか共通にするか、下の表で決める")
+            }
+            if st.autoMode == 1 {
+                Text("1（ゆがみなし）＝4D 別々・3D 共通：組んだ時の 4D のかたむきと、開いた時の 4D のかたむき（はじめはまっすぐ）を往復。開いている間に 3D で回した分は、組んだ時の向きにも持ちこむ").font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
+            } else if st.autoMode == 2 {
+                Text("2（ゆがみも）＝4D も 3D も共通：開く時も組む時も今の向きのまま。4D で回したゆがみも、そのまま展開図に").font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
+            } else { table }
+            if st.asmPose != 0 || st.asmVanish != 3 || st.unfPose >= 2 {
+                Text("※「向きと記憶」のくわしくで決めた向きが優先されています").font(.caption2).foregroundStyle(.orange)
+            }
+        }
+    }
+    @ViewBuilder var table: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
+                GridRow {
+                    row("4D の角度", "X-W・Y-W・Z-W")
+                    pick($st.sep4, "組んだ時と開いた時で、4D のかたむきを別々に持つ（開いた時は、はじめはいちばん近いまっすぐ）。C で往復すると、それぞれの続きにもどる", "4D のかたむきは今のまま持ちこむ（開くと 4D のゆがみも展開図に）")
+                }
+                GridRow {
+                    row("3D の角度", "X-Y・X-Z・Y-Z")
+                    pick($st.sep3, "組んだ時と開いた時で、3D の見る向きも別々に持つ", "3D の見る向きは共通：開いている間に回した分は、組んだ時の向きにも持ちこむ（逆も同じ）")
+                }
+            }
+            Text("組み上がっている時の向きと、開いている時の向きを別々に持つ。回すと今いる方が変わり、C でもう一方の続きへ").font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+
+/// 内接球の回転の欄：なし・3D（層ごとの速さ）・4D の二重回転（速さの比・ホップの輪）
+struct InSphereSpinRows: View {
+    @ObservedObject var st: OrigamiState
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("回転").font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text)
+                Btn("なし", on: st.inSphereSpin == 0) { st.inSphereSpin = 0 }.help("模様を回さない")
+                Btn("🌍 3D", on: st.inSphereSpin == 1) { st.inSphereSpin = 1 }.help("w ＝ 一定の層ごとに、層の中で y の軸のまわりに回す（地球儀）。赤道の層ほど速くすると、膜がねじれてうずまきに。球はまんまるなので、形と接点は変わらず模様だけが動く")
+                Btn("🌀 4D 二重回転", on: st.inSphereSpin == 2) { st.inSphereSpin = 2 }.help("X-Y の面と Z-W の面を同時に回す。1 : 1 なら止まる点が 1 つもなく、どの点も大円を走り、その道どうしは鎖のようにからみ合う（ホップの輪）。Z-W が回るので、層がかたむいて流れ出す")
+            }
+            if st.inSphereSpin != 0 {
+                LiveRead(live: st.live) { NumRow("速さ", $st.inSphereSpinSpeed, 0.1...3, "×%.1f", scale: 1) }
+                if st.inSphereSpin == 1 {
+                    LiveRead(live: st.live) { NumRow("層ごとの差", $st.inSphereDiff, 0...1, "%.2f", scale: 1) }
+                    Text("0＝全部いっしょ（地球儀）・1＝赤道だけ回って極は止まる（太陽や木星の差動回転のように、膜がねじれる）").font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
+                } else {
+                    HStack(spacing: 6) {
+                        Text("速さの比").font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text)
+                        ForEach(0..<OrigamiState.sphRatios.count, id: \.self) { k in
+                            Btn(OrigamiState.sphRatios[k].name, on: st.inSphereRatio == k) { st.inSphereRatio = k }.help("X-Y の面 : Z-W の面 の回る速さ")
+                        }
+                    }
+                    Btn("🔗 ホップの輪", on: st.inSphereHopf) { st.inSphereHopf.toggle() }.help("模様の上の 9 個の点が 1 周で走る道を、光る輪で（今いる所に小さな玉）。1 : 1 ではどれも大円で、どの 2 本も鎖のようにからみ合う")
+                    Text("3 次元の回転にはかならず止まった軸があるが、4 次元では 2 枚の面を同時に回せる。1 : 1 の時は、止まっている点が 1 つもない").font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
+                }
+                Toggle("経線が接点を通るとチカッと光る", isOn: $st.inSphereFlash)
+                    .help("模様の経線（経度の膜）が、胞に接する点の光の輪を通りすぎる瞬間に、輪が明るく大きくなる。超球が胞に触れているのは、その 1 点だけ")
+            }
+        }
+    }
+}
+
+/// 5 次元の展開図をえらぶ（見本・でたらめ・図鑑の番号）
+struct Net5Picker: View {
+    @ObservedObject var st: OrigamiState
+    var body: some View {
+        let E = Net5Atlas.entries
+        VStack(alignment: .leading, spacing: 6) {
+            Text("展開図（5 次元は全部で \(E.isEmpty ? 9694 : E.count) 種類）").font(.system(size: 11, weight: .bold)).foregroundStyle(UIC.sub)
+            HStack(spacing: 6) {
+                ForEach(OrigamiState.net5Presets, id: \.0) { name, p in
+                    Btn(name, on: st.net5 == p) { st.setNet5(p); show() }.help("超立方体の見本「\(name)」と同じ考えの 5 次元の展開図")
+                }
+            }
+            if !E.isEmpty {
+                HStack(spacing: 6) {
+                    Btn("📚 図鑑") { st.atlas5Open = true }.help("9,694 種類を全部並べた 5 次元の図鑑を開く")
+                    Btn("🎲 でたらめ") { st.net5Random(); show() }.help("9,694 種類から 1 つ、でたらめに")
+                    Btn("◀◀") { st.net5Step(-100); show() }.help("100 番もどる")
+                    Btn("◀") { st.net5Step(-1); show() }.help("前の番号")
+                    Text(st.net5No > 0 ? "No. \(st.net5No) / \(E.count)" : "図鑑の外").font(.system(size: 11, weight: .semibold).monospacedDigit()).frame(minWidth: 92)
+                    Btn("▶") { st.net5Step(1); show() }.help("次の番号")
+                    Btn("▶▶") { st.net5Step(100); show() }.help("100 番すすむ")
+                }
+                if st.net5No > 0 {
+                    let e = E[st.net5No - 1]
+                    Text("いちばん長いつながり \(e.longest) 個・1 つの胞にくっつく数 最大 \(e.maxDeg) 個（番号は、長いつながりの短い順）")
+                        .font(.caption2).foregroundStyle(UIC.sub).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+    /// 組み上がっている時にえらんだら、開いて形を見せる
+    func show() { if st.progress > 0.5 && !st.playing { st.playUnfold() } }
 }

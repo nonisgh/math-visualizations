@@ -23,7 +23,13 @@ final class ShortcutStore: ObservableObject {
         if let d = UserDefaults.standard.dictionary(forKey: Self.key) as? [String: String] { for (a, v) in d where k[a] != nil { k[a] = v } }
         keys = k
     }
-    func save() { UserDefaults.standard.set(keys, forKey: Self.key) }
+    func save() { guard !SaveGuard.off else { return }; UserDefaults.standard.set(keys, forKey: Self.key) }
+    /// 保存から読み直す（同期でほかの機械の分をもらった時）
+    func reload() {
+        var k = Dictionary(uniqueKeysWithValues: Self.actions.map { ($0.id, $0.def) })
+        if let d = UserDefaults.standard.dictionary(forKey: Self.key) as? [String: String] { for (a, v) in d where k[a] != nil { k[a] = v } }
+        if k != keys { keys = k }
+    }
     /// 機能 a にキー v を付ける（ほかの機能に同じキーがあれば外す）
     func assign(_ a: String, _ v: String) {
         for (other, ov) in keys where other != a && ov == v { keys[other] = "" }

@@ -21,11 +21,11 @@ Firebase の大きな部品（SDK）は入れず、インターネットで直�
 2. 「認証情報を作成」→「OAuth クライアント ID」
 3. 「アプリケーションの種類」は **iOS**
    - 名前：`次元おりがみ Mac`
-   - バンドル ID：`io.github.nonisgh.origami`
+   - バンドル ID：`app.nonisapps.origami`
    - 「作成」
 4. もう一度 2〜3 をくり返して、iPad 用も作る
    - 名前：`次元おりがみ iPad`
-   - バンドル ID：`io.github.nonisgh.origami.ios`
+   - バンドル ID：`app.nonisapps.origami.ios`
 5. できた 2 つの **クライアント ID**（`〜.apps.googleusercontent.com` で終わる長い文字）を、たぬおに教えてください
    - iOS の種類のクライアントには「秘密の鍵（クライアント シークレット）」はありません。クライアント ID は人に見せても大丈夫なものです
 

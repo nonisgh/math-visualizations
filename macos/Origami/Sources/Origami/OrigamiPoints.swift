@@ -269,7 +269,7 @@ struct PointList: View {
             Toggle("立方体にも出す（立方体の (x, y, w)）", isOn: $st.ptLeft)
                 .help("立方体にも、対応する位置 (x, y, w) に点を出す（立方体の z は超立方体の w に対応。超立方体の z は超立方体だけの軸）")
             LiveRead(live: st.live) { NumRow("大きさ", $st.ptSize, 0.25...1.2, "×%.2f", scale: 1) }
-            Text("置いた点はアプリの中に自動で保存されます。手前（ピンク）・奥（水色）の目印は別の点で、いつもの大きさのまま").font(.caption2).foregroundStyle(UIC.sub)
+            Text("置いた点はアプリの中に自動で保存されます。手前（ピンク）・奥（水色）の目印は別の点で、色と大きさは上の「手前と奥の目印」で変えられます").font(.caption2).foregroundStyle(UIC.sub)
         }
     }
 }
