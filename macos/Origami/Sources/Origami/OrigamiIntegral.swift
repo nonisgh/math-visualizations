@@ -576,6 +576,8 @@ extension IntegralHUD {
 // ---- 積分のタブ：上から順に決めていけば動く（① 形 → ② 求め方 → ③ 見た目 → ④ 動かす → ⑤ 見え方）----
 struct IntegralTab: View {
     @ObservedObject var st: OrigamiState
+    @AppStorage("waterMoreOpen") var waterMore = false               // 水の「くわしい設定」を開いているか（覚えておく）
+    @AppStorage("waterNoteOpen") var waterNote = false               // 水の「説明」を開いているか
     static let shapeNote: [Int: String] = [
         0: "立方体を w の方向に積む。輪切りはどこでも同じ立方体（体積 8）。w の −1 〜 ＋1 に積むと ∫ 8 dw ＝ 16",
         1: "七色の玉を w の方向に積む（玉 × 線分）。どの段も同じ大きさの玉なので、w の方向から見ると全部ぴったり重なって 1 個の球。左の窓は円を積んだ円柱",
@@ -599,6 +601,19 @@ struct IntegralTab: View {
     ]
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // いちばん上：はじめる・止める（下の設定が長くても、すぐ押せるように）
+            Sec("動かす", "play.circle") {
+                HStack(spacing: 6) {
+                    Btn(st.intOn ? "■ やめる" : "▶ はじめる", on: st.intOn) { st.intOn.toggle(); st.intPaused = false; if st.intOn { st.intT = 0; st.waterT = 0; st.swe.reset(); if st.progress < 0.92 { st.playFold() }; st.intApplyView(st.intView) } }
+                    if !(st.intMethod == 1 && st.waterNS && st.waterFree) {
+                        Btn(st.intMethod == 1 ? (st.intPaused ? "▶ 続ける" : "⏸ 止める") : (st.intPaused ? "▶ 再開" : "⏸ 一時停止"), on: st.intPaused) { st.intPaused.toggle() }.disabled(!st.intOn)
+                            .help(st.intMethod == 1 ? "水：注ぐのを止めて、栓も閉めます（流れが止まる）。水は動き続けるので、水面はだんだん静かになります。▶ 続けると、止めた所から" : "止めて、そのまま見る")
+                        Btn("最初から") { st.intT = 0; st.waterT = 0; st.swe.reset(); st.intPaused = false }.disabled(!st.intOn)
+                    }
+                    Btn("横から") { st.intApplyView(st.intView == 0 ? 1 : st.intView) }
+                        .help("w の向きを横に向けて、輪切りが並ぶ・積み上がる所を横から見る（平行投影）。向きは ④ の「はじめる時の見る向き」で")
+                }
+            }
             Sec("① なにの体積？", "cube") {
                 Picker("形", selection: $st.intShape) { Text("超立方体").tag(0); Text("球柱").tag(1); Text("デュオシリンダー").tag(2); Text("タイガー").tag(3); Text("超球（内接）").tag(4); Text("球すい（4 次元の円すい）").tag(5); Text("超立方体（角から）").tag(6); Text("球のドーナツ").tag(7); Text("キュービンダー").tag(8) }
                     .onChange(of: st.intShape) { _, _ in st.intT = 0 }
@@ -611,56 +626,42 @@ struct IntegralTab: View {
             Sec("② どう足す？", "square.stack.3d.up") {
                 Picker("求め方", selection: $st.intMethod) { Text("輪切りを積む").tag(0); Text("4 次元の水を注ぐ").tag(1); Text("玉を詰める").tag(2) }.pickerStyle(.segmented)
                 if st.intMethod == 1 {
-                    Toggle("リアルな水（映りこみ・屈折・さざ波・キラキラ）", isOn: $st.waterReal).font(.system(size: 11))
+                    // ---- 4 次元の水：よく使うものだけ出して、数字の設定と説明はたたむ ----
+                    Picker("水の見た目", selection: $st.waterReal) { Text("線の図").tag(false); Text("リアル").tag(true) }.pickerStyle(.segmented)
+                        .help("リアル：映りこみ・屈折・さざ波・キラキラ。線の図：前の図のような水（網目つき）")
                     Toggle("本物の 4D の水（ナビエ–ストークス）", isOn: $st.waterNS).font(.system(size: 11))
                         .help("4 次元の箱を 32×32×32×32（約 105 万）のマスに分けて、水の流れを GPU で本当に解きます（速さは 4 成分、水面は水面までの距離で追う）。切ると前の浅水方程式の水")
                     if st.waterNS {
-                        Picker("マスの細かさ", selection: $st.waterNSRes) { Text("おまかせ").tag(0); Text("16⁴").tag(16); Text("24⁴").tag(24); Text("32⁴").tag(32) }.pickerStyle(.segmented)
-                            .help("4D の水のマス：16⁴ ＝ 約 6.6 万（軽い）・24⁴ ＝ 約 33 万・32⁴ ＝ 約 105 万（細かい）。おまかせは 16。変えると水は最初から")
-                        Toggle("遊ぶモード（重力は画面の下・自分で回してこぼす）", isOn: $st.waterFree).font(.system(size: 11))
-                        if st.waterFree {
-                            Picker("重力の向き", selection: $st.waterGravMode) { Text("画面の奥（4D らしい）").tag(0); Text("画面の下").tag(1); Text("+W→−W（箱の −w）").tag(2) }.pickerStyle(.segmented)
-                                .help("画面の奥：重力は w の消失点へ（積分と同じ。外の立方体＝口 → 内の立方体＝底）。見回しても水は傾かず、⌥＋ドラッグで w を傾けた時だけ流れる。画面の下：見慣れた向き（見る向きを変えても水が傾く）。+W→−W：重力はいつも箱の −w（外の立方体の口 → 内の立方体の底。積分と同じ）で、回しても水はいつも底にたまる（こぼれない）")
-                            HStack(spacing: 6) {
-                                Text("💧 押している間 注ぐ").font(.system(size: 12, weight: .semibold))
-                                    .padding(.horizontal, 12).padding(.vertical, 7)
-                                    .background(Color(red: 0.15, green: 0.45, blue: 0.85).opacity(0.85), in: RoundedRectangle(cornerRadius: 9))
-                                    .onLongPressGesture(minimumDuration: 600, maximumDistance: 80, pressing: { st.waterPourHold = $0 }, perform: {})
-                                Btn(st.waterLidSet ? "ふた：開いている" : "ふた：閉じている", on: st.waterLidSet) { st.waterLidSet.toggle() }
-                                Btn(st.waterBottomSet ? (st.drainMode == 1 ? "排水口：開いている" : "底：開いている") : (st.drainMode == 1 ? "排水口：閉じている" : "底：閉じている"), on: st.waterBottomSet) { st.waterBottomSet.toggle() }
-                            }
-                            HStack(spacing: 6) {
-                                Btn("口を上に", on: false) { st.waterFreeView(ay: st.waterFreeAY(0), xz: 0.35, yz: -0.3) }
-                                Btn("ななめ（ジョッキ）", on: false) { st.waterFreeView(ay: st.waterFreeAY(1), xz: 0.45, yz: -0.25) }
-                                Btn("横倒し（こぼれる）", on: false) { st.waterFreeView(ay: st.waterFreeAY(2), xz: 0.35, yz: -0.3) }
-                            }
-                            HStack(spacing: 6) {
-                                Btn("空にする", on: false) { st.waterFreeFill(-1) }
-                                Btn("半分", on: false) { st.waterFreeFill(0) }
-                                Btn("ほぼいっぱい", on: false) { st.waterFreeFill(0.85) }
-                            }
-                            LiveRead(live: st.live) { NumRow("重力 g（m/s²）", $st.waterG, 1...9.8, "%.1f", scale: 1) }
-                            LiveRead(live: st.live) { NumRow("注ぐ勢い", $st.waterPourRate, 0.3...2, "%.1f", scale: 1) }
-                            LiveRead(live: st.live) { NumRow("注ぐ場所 x", $st.waterPourX, -0.8...0.8, "%+.2f", scale: 1) }
-                            LiveRead(live: st.live) { NumRow("注ぐ場所 y", $st.waterPourY, -0.8...0.8, "%+.2f", scale: 1) }
-                            LiveRead(live: st.live) { NumRow("注ぐ場所 z", $st.waterPourZ, -0.8...0.8, "%+.2f", scale: 1) }
-                            Text("マウス：右の窓のドラッグ＝3D に回す、⌥（option）＋ドラッグ＝w を傾ける（X‐W・Y‐W）、⇧＋ドラッグ＝Z‐W。左の窓のドラッグでも w を傾けられます").font(.caption2).foregroundStyle(Color(red: 0.75, green: 0.85, blue: 1))
-                            Text("重力は画面の奥（または下）の決まった 1 つの向き。注ぐ水は重力の逆から まっすぐ落ちてきて、箱のいちばん上の所から入ります（押している間ずっと、たまっていきます）。回転で超立方体を傾けると（4D の回転も）、水は箱の中で 4 次元の「下」へ流れます。ふた（+W）や底（−W）を開けて下に向けると、そこからこぼれ落ちます。").font(.caption2).foregroundStyle(UIC.sub)
-                        }
-                        Picker("輪切り（左の窓に）", selection: $st.waterSlice) { Text("なし").tag(0); Text("x ＝ 一定").tag(1); Text("y ＝ 一定").tag(2); Text("z ＝ 一定").tag(3) }.pickerStyle(.segmented)
-                            .help("4D の水を 1 枚切って、残りの 3 つの向きの 3D の水を左の窓に出します（w は左の窓の上下）。右の窓には切り口の立方体を金色の線で。水面の立方体の内側にできる渦のくぼみも、中から見えます")
-                        if st.waterSlice > 0 {
-                            LiveRead(live: st.live) { NumRow("切る位置", $st.waterSlicePos, -0.95...0.95, "%+.2f", scale: 1) }
-                        }
-                        LiveRead(live: st.live) { NumRow("回した時のちゃぷちゃぷ", $st.waterSlosh, 0...2, "%.1f", scale: 1) }
-                            .help("箱を回すと、水が感じる「下」が少し遅れてついてくるので、水が寄って、止めるとゆれもどります（＋回る箱から見たオイラーの力）。粘りでだんだん静かになります。大きいほど遅れが長い。0 で なし")
-                        LiveRead(live: st.live) { NumRow("渦の強さ（抜く時に残っている回転）", $st.waterSwirl, 0...1, "%.2f", scale: 1) }
-                        LiveRead(live: st.live) { NumRow("渦の強調（消えかけた渦を足し戻す）", $st.waterVort, 0...8, "%.1f", scale: 1) }
-                            .help("渦度の閉じこめ：粗いマスでならされて消えてしまう細い渦を、回る向きに少し力を足して戻します。4 次元では渦は『回る面』（6 成分）。0 で なし")
-                        Text("右の超立方体の水だけが本物の 4D（左の立方体の水は浅水方程式のまま）。8 つの壁の胞の中の水の形を描いています").font(.caption2).foregroundStyle(UIC.sub)
+                        Picker("遊び方", selection: $st.waterFree) { Text("自動（注ぐ → 抜く）").tag(false); Text("手で遊ぶ").tag(true) }.pickerStyle(.segmented)
+                            .help("自動：注いで、いっぱいになったら抜く、をくり返す。手で遊ぶ：重力は画面の下。押している間だけ注いで、自分で回してこぼす（▶ はじめる を押さなくても使えます）")
+                            .onChange(of: st.waterFree) { _, v in if v { st.waterPlayStart() } }
                     }
-                    Picker("抜き方", selection: $st.drainMode) { Text("底を全部").tag(0); Text("排水口").tag(1); Text("交互").tag(2) }.pickerStyle(.segmented)
-                        .help("底を全部：かたまりのまま自由落下。排水口：床の真ん中の小さな立方体の穴から、トリチェリ（√(2g・深さ)）で抜けて渦でくぼむ。4 次元では穴と床の広さの比が 3 乗なので、とてもゆっくり")
+                    if st.waterNS && st.waterFree {
+                        HStack(spacing: 6) {
+                            Text("💧 押している間 注ぐ").font(.system(size: 12, weight: .semibold))
+                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                .background(Color(red: 0.15, green: 0.45, blue: 0.85).opacity(0.85), in: RoundedRectangle(cornerRadius: 9))
+                                .onLongPressGesture(minimumDuration: 600, maximumDistance: 80, pressing: { p in if p { st.waterPlayStart() }; st.waterPourHold = p }, perform: {})
+                            Btn(st.waterLidSet ? "ふた：開いている" : "ふた：閉じている", on: st.waterLidSet) { st.waterLidSet.toggle() }
+                            Btn(st.waterBottomSet ? (st.drainMode == 1 ? "排水口：開いている" : "底：開いている") : (st.drainMode == 1 ? "排水口：閉じている" : "底：閉じている"), on: st.waterBottomSet) { st.waterBottomSet.toggle() }
+                        }
+                        HStack(spacing: 6) {
+                            Text("向き").font(.system(size: 11)).foregroundStyle(UIC.sub)
+                            Btn("口を上に", on: false) { st.waterPlayStart(); st.waterFreeView(ay: st.waterFreeAY(0), xz: 0, yz: 0) }
+                            Btn("ななめ", on: false) { st.waterPlayStart(); st.waterFreeView(ay: st.waterFreeAY(1), xz: 0, yz: 0) }
+                            Btn("横倒し", on: false) { st.waterPlayStart(); st.waterFreeView(ay: st.waterFreeAY(2), xz: 0, yz: 0) }
+                        }
+                        HStack(spacing: 6) {
+                            Text("量").font(.system(size: 11)).foregroundStyle(UIC.sub)
+                            Btn("空", on: false) { st.waterPlayStart(); st.waterFreeFill(-1) }
+                            Btn("半分", on: false) { st.waterPlayStart(); st.waterFreeFill(0) }
+                            Btn("ほぼいっぱい", on: false) { st.waterPlayStart(); st.waterFreeFill(0.85) }
+                        }
+                        Picker("重力の向き", selection: $st.waterGravMode) { Text("画面の奥").tag(0); Text("画面の下").tag(1); Text("+W→−W").tag(2) }.pickerStyle(.segmented)
+                            .help("画面の奥：重力は w の消失点へ（積分と同じ。外の立方体＝口 → 内の立方体＝底）。見回しても水は傾かず、⌥＋ドラッグで w を傾けた時だけ流れる。画面の下：見慣れた向き（見る向きを変えても水が傾く）。+W→−W：重力はいつも箱の −w（外の立方体の口 → 内の立方体の底。積分と同じ）で、回しても水はいつも底にたまる（こぼれない）")
+                    } else {
+                        Picker("抜き方", selection: $st.drainMode) { Text("底を全部").tag(0); Text("排水口").tag(1); Text("交互").tag(2) }.pickerStyle(.segmented)
+                            .help("底を全部：かたまりのまま自由落下。排水口：床の真ん中の小さな立方体の穴から、トリチェリ（√(2g・深さ)）で抜けて渦でくぼむ。4 次元では穴と床の広さの比が 3 乗なので、とてもゆっくり")
                     HStack(spacing: 6) {
                         Btn(st.holesBuilt ? "🔧 穴の工事：済み" : "🔧 穴の工事：まだ", on: st.holesBuilt) {
                             st.holesBuilt.toggle(); st.holesBuiltAt = st.holesBuilt ? CACurrentMediaTime() : -1e9; st.waterDOpen = 0
@@ -670,11 +671,49 @@ struct IntegralTab: View {
                             st.holesOpenSet.toggle(); st.waterT = 0; st.waterDOpen = 0
                         }.opacity(st.holesBuilt ? 1 : 0.4)
                     }
-                    Btn(st.waterVent ? "🌬 通気口：あり" : "🌬 通気口：なし", on: st.waterVent) { st.waterVent.toggle() }
-                    Text("穴の工事：底（−W の胞）の真ん中に排水口、上（+W の胞）に通気口をドリルで開けます（格子のふた付き、ふだんの画面にも残る）。開けっぱなしで注ぐと、入る量＝出る量の水位で止まります。通気口が無いと、空気と入れ替わりながら ごぼっ、ごぼっ と抜けます").font(.caption2).foregroundStyle(UIC.sub)
-                    Text("切ると、前の図のような水（網目つき）").font(.caption2).foregroundStyle(UIC.sub)
-                    Text("ふた +W を開けて 4 次元の水を注ぎます。水位 h が上がり、V(h) ＝ ∫₋₁ʰ 8 dw ＝ 8(h＋1)（連続の積分）。4 次元の水面は 3 次元の立方体で、浅水方程式（ナビエ–ストークスを深さで平均したもの）で揺れます。いっぱいになったら底を全部開けて、かたまりのまま落ちます。ふつうの 3D の水は 4 次元の体積が 0 なので、いくら注いでも満タンにならない").font(.caption2).foregroundStyle(UIC.sub)
-                    Text("泡・油・虹の水はこれから").font(.caption2).foregroundStyle(UIC.sub)
+                        Btn(st.waterVent ? "🌬 通気口：あり" : "🌬 通気口：なし", on: st.waterVent) { st.waterVent.toggle() }
+                        Picker("ふた", selection: $st.intLidMode) { Text("直角に開く").tag(0); Text("開けたまま").tag(1); Text("消す").tag(2); Text("開けない").tag(3) }.pickerStyle(.segmented)
+                            .help("上のふた（+W の胞）を蝶番で 90° 開けて注ぎ、いっぱいで閉じる。底を開けて抜く。左の立方体のふたも連動")
+                    }
+                    DisclosureGroup(isExpanded: $waterMore) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            LiveRead(live: st.live) { NumRow("回した時のちゃぷちゃぷ", $st.waterSlosh, 0...2, "%.1f", scale: 1) }
+                                .help("箱を回したり、ドラッグの手を急に動かす・止めると、水が感じる「下」がずれて、水が寄ってゆれもどります。0 で なし")
+                            LiveRead(live: st.live) { NumRow("渦の強さ（抜く時に残っている回転）", $st.waterSwirl, 0...1, "%.2f", scale: 1) }
+                            if st.waterNS {
+                                LiveRead(live: st.live) { NumRow("粘り（小さいほどさらさら）", $st.waterNu, 0...0.02, "%.3f", scale: 1) }
+                                    .help("動粘性 ν（世界の単位）。小さいほど、さらさら動いて ゆれが長く続きます。前は 0.012。マス目が粗いと、計算でなまる分の見かけの粘りも残ります（速さの運び方を MacCormack にして減らしています）")
+                                LiveRead(live: st.live) { NumRow("渦の強調（消えかけた渦を足し戻す）", $st.waterVort, 0...8, "%.1f", scale: 1) }
+                                    .help("渦度の閉じこめ：粗いマスでならされて消えてしまう細い渦を、回る向きに少し力を足して戻します。4 次元では渦は『回る面』（6 成分）。0 で なし")
+                                Picker("マスの細かさ", selection: $st.waterNSRes) { Text("おまかせ").tag(0); Text("16⁴").tag(16); Text("24⁴").tag(24); Text("32⁴").tag(32) }.pickerStyle(.segmented)
+                                    .help("4D の水のマス：16⁴ ＝ 約 6.6 万（軽い）・24⁴ ＝ 約 33 万・32⁴ ＝ 約 105 万（細かい）。おまかせは 16。変えると水は最初から")
+                                Picker("輪切り（左の窓に）", selection: $st.waterSlice) { Text("なし").tag(0); Text("x ＝ 一定").tag(1); Text("y ＝ 一定").tag(2); Text("z ＝ 一定").tag(3) }.pickerStyle(.segmented)
+                                    .help("4D の水を 1 枚切って、残りの 3 つの向きの 3D の水を左の窓に出します（w は左の窓の上下）。右の窓には切り口の立方体を金色の線で。水面の立方体の内側にできる渦のくぼみも、中から見えます")
+                                if st.waterSlice > 0 {
+                                    LiveRead(live: st.live) { NumRow("切る位置", $st.waterSlicePos, -0.95...0.95, "%+.2f", scale: 1) }
+                                }
+                            }
+                            if st.waterNS && st.waterFree {
+                                LiveRead(live: st.live) { NumRow("重力 g（m/s²）", $st.waterG, 1...9.8, "%.1f", scale: 1) }
+                                LiveRead(live: st.live) { NumRow("注ぐ勢い", $st.waterPourRate, 0.3...2, "%.1f", scale: 1) }
+                                LiveRead(live: st.live) { NumRow("注ぐ場所 x", $st.waterPourX, -0.8...0.8, "%+.2f", scale: 1) }
+                                LiveRead(live: st.live) { NumRow("注ぐ場所 y", $st.waterPourY, -0.8...0.8, "%+.2f", scale: 1) }
+                                LiveRead(live: st.live) { NumRow("注ぐ場所 z", $st.waterPourZ, -0.8...0.8, "%+.2f", scale: 1) }
+                            }
+                        }.padding(.top, 4)
+                    } label: { Text("くわしい設定").font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text) }
+                    DisclosureGroup(isExpanded: $waterNote) {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("ふた +W を開けて 4 次元の水を注ぎます。水位 h が上がり、V(h) ＝ ∫₋₁ʰ 8 dw ＝ 8(h＋1)（連続の積分）。4 次元の水面は 3 次元の立方体で、浅水方程式（ナビエ–ストークスを深さで平均したもの）で揺れます。いっぱいになったら底を全部開けて、かたまりのまま落ちます。ふつうの 3D の水は 4 次元の体積が 0 なので、いくら注いでも満タンにならない").font(.caption2).foregroundStyle(UIC.sub)
+                            if st.waterNS && st.waterFree {
+                                Text("マウス：右の窓のドラッグ＝3D に回す、⌥（option）＋ドラッグ＝w を傾ける（X‐W・Y‐W）、⇧＋ドラッグ＝Z‐W。左の窓のドラッグでも w を傾けられます").font(.caption2).foregroundStyle(Color(red: 0.75, green: 0.85, blue: 1))
+                                Text("重力は画面の奥（または下）の決まった 1 つの向き。注ぐ水は重力の逆から まっすぐ落ちてきて、箱のいちばん上の所から入ります（押している間ずっと、たまっていきます）。回転で超立方体を傾けると（4D の回転も）、水は箱の中で 4 次元の「下」へ流れます。ふた（+W）や底（−W）を開けて下に向けると、そこからこぼれ落ちます。").font(.caption2).foregroundStyle(UIC.sub)
+                            } else {
+                                Text("穴の工事：底（−W の胞）の真ん中に排水口、上（+W の胞）に通気口をドリルで開けます（格子のふた付き、ふだんの画面にも残る）。開けっぱなしで注ぐと、入る量＝出る量の水位で止まります。通気口が無いと、空気と入れ替わりながら ごぼっ、ごぼっ と抜けます").font(.caption2).foregroundStyle(UIC.sub)
+                            }
+                            if st.waterNS { Text("右の超立方体の水だけが本物の 4D（左の立方体の水は浅水方程式のまま）。8 つの壁の胞の中の水の形を描いています").font(.caption2).foregroundStyle(UIC.sub) }
+                        }.padding(.top, 4)
+                    } label: { Text("説明").font(.system(size: 11, weight: .semibold)).foregroundStyle(UIC.text) }
                 } else if st.intMethod == 2 {
                     Text("小さな 4 次元の玉（超球）を上（+W）から 1 つずつ落として、箱に詰めます。重力は +W→−W。玉は壁に 1 点でしか接しないので、角やへりにはすきまが残ります（左の立方体は 3 次元の玉）").font(.caption2).foregroundStyle(UIC.sub)
                     HStack(spacing: 6) {
@@ -734,17 +773,10 @@ struct IntegralTab: View {
                 if st.intPreview { IntegralPreview(st: st).frame(height: 230).clipShape(RoundedRectangle(cornerRadius: 8)) }
             }
             }
-            Sec("④ 動かす", "play.circle") {
-                HStack {
-                    Btn(st.intOn ? "■ やめる" : "▶ はじめる", on: st.intOn) { st.intOn.toggle(); st.intPaused = false; if st.intOn { st.intT = 0; st.waterT = 0; st.swe.reset(); if st.progress < 0.92 { st.playFold() }; st.intApplyView(st.intView) } }
-                    Btn(st.intPaused ? "▶ 再開" : "⏸ 一時停止", on: st.intPaused) { st.intPaused.toggle() }.disabled(!st.intOn)
-                    Btn("最初から") { st.intT = 0; st.waterT = 0; st.swe.reset(); st.intPaused = false }.disabled(!st.intOn)
-                }
+            Sec("④ 動かし方", "slider.horizontal.3") {
                 HStack(spacing: 6) {
                     Btn(st.intOnce ? "1 往復" : "くり返し", on: st.intOnce) { st.intOnce.toggle(); if !st.intOnce && st.intPaused { st.intPaused = false } }
                         .help("押すたびに切りかえ。1 往復：入れて取り出して空になったら止まる（「最初から」でもう一度）。くり返し：ずっとくり返す")
-                    Btn("横から") { st.intApplyView(st.intView == 0 ? 1 : st.intView) }
-                        .help("w の向きを横に向けて、輪切りが並ぶ・積み上がる所を横から見る（平行投影）。向きは下の「はじめる時の見る向き」で")
                 }
                 Picker("はじめる時の見る向き", selection: $st.intView) { Text("そのまま（w から）").tag(0); Text("横（x）").tag(1); Text("横（y）").tag(2) }.pickerStyle(.segmented)
                     .help("▶ はじめる を押した時に、自動でこの向きへ回す。横（x）：輪切りが左右に並ぶ。横（y）：輪切りが下から積み上がる。そのまま：今の向きのまま")
@@ -756,8 +788,10 @@ struct IntegralTab: View {
                 Picker("積む速さ", selection: $st.intPace) { Text("だんだん速く").tag(0); Text("一定").tag(1) }.pickerStyle(.segmented)
                 Picker("取り出し口", selection: $st.intOutOpp) { Text("入れた側から").tag(false); Text("反対側から").tag(true) }.pickerStyle(.segmented)
                 }
+                if st.intMethod != 1 {   // 水の時は ② の「自動」の所に
                 Picker("ふた", selection: $st.intLidMode) { Text("直角に開く").tag(0); Text("開けたまま").tag(1); Text("消す").tag(2); Text("開けない").tag(3) }.pickerStyle(.segmented)
                     .help("入れてくる側の胞（w なら +W）を蝶番で 90° 開けて、いっぱいで閉じる。取り出す前にまた開ける（反対側から出す時は −側）。水は上のふたを開けて注ぎ、底を開けて抜く。左の立方体のふたも連動")
+                }
                 if st.intMethod == 0 {
                 Toggle("外から飛びこむ演出", isOn: $st.intFly)
                 }

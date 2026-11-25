@@ -217,7 +217,11 @@ final class OrigamiState: ObservableObject {
     @Published var waterNSRes = 0                                   // 4D の水のマスの細かさ：0 おまかせ（16）・16・24・32
     // ---- 遊ぶモード（重力は画面の下。自分で回して、開けた所からこぼす。押している間だけ注ぐ）----
     @Published var waterFree = false {                              // 入れた時：ジョッキの口（ふた +W）を真上に向けて、ふたを開ける（水は底にたまり、上から注いだ水が口から入る）
-        didSet { if waterFree && !oldValue { waterLidSet = true; waterFreeView(ay: waterFreeAY(0), xz: 0.35, yz: -0.3) } }
+        didSet {
+            if waterFree && !oldValue { waterLidSet = true; waterFreeView(ay: waterFreeAY(0), xz: 0, yz: 0) }
+            // 切った時：遊ぶモードで足していた 3D の傾き（X‐Z・Y‐Z）を正面に戻す（左の立方体は X‐Z・Y‐Z では回らないので、右だけ斜めに見えていた）
+            if !waterFree && oldValue && (abs(xz) > 1e-4 || abs(yz) > 1e-4) { tween = (cur6, [ax, ay, zw, xy, 0, 0], 0, 1.2, projBlend, projBlend) }
+        }
     }
     @Published var waterGravMode = 2 {                              // 遊ぶモードの重力：0 画面の奥（w の消失点へ。4D らしい）・1 画面の下（見慣れた）・2 箱の −w（+W→−W、積分と同じ。回してもこぼれない）
         didSet { }   // 切りかえても見る向きはそのまま。重力の向きだけが、なめらかに回って変わる（waterFreeTick）
@@ -239,6 +243,14 @@ final class OrigamiState: ObservableObject {
     var waterGDirInit = false
     var waterCanPour: Bool { true }                                  // 遊ぶモード：どの向きでも注げる（箱のいちばん上の面から入る）
     var waterEntry4 = SIMD4<Double>(0, 0, 0, 0)                      // 遊ぶモード：筋が箱に入る所（4D、世界の単位）
+    // 一時停止：注ぐのを止めるだけ（水の計算は続けて、水面が静かになる）
+    var waterPauseT = 0.0                                           // 止めてからの時間（水の筋のしっぽが落ちる）
+    var waterPauseK = 0.0                                           // 止めている度合い（0〜1、なめらかに）：底のふたを閉めて、流れを止める
+    // 遊ぶモードの左の 3D の水（左の立方体の x・y・z）：重力の向き・水面の向き（ばねで追いかけて、ちゃぷちゃぷ）・筋が入る所
+    var waterGDir3 = SIMD3<Double>(0, 0, -1)
+    var waterN3 = SIMD3<Double>(0, 0, 1)
+    var waterN3V = SIMD3<Double>(0, 0, 0)
+    var waterEntry3 = SIMD3<Double>(0, 0, 0)
     @Published var waterSlice = 0                                   // 輪切り：0 なし・1 x・2 y・3 z ＝ 一定で切って、残りの 3D の水を左の窓に（本物の 4D の水の時）
     @Published var waterSlicePos = 0.0                              // 切る位置（−1〜1）
     @Published var waterVort = 1.0                                  // 渦の強調（渦度の閉じこめ ε）：粗いマスで消える細い渦を足し戻す。0 で なし
@@ -246,6 +258,7 @@ final class OrigamiState: ObservableObject {
     var nsPrevM4: simd_double4x4? = nil, nsPrevW = simd_double4x4(0)   // 箱の向きの前のコマ・回る速さ（ちゃぷちゃぷ用）
     var waterShakeAcc = SIMD2<Double>(0, 0), waterShakeV = SIMD2<Double>(0, 0)   // ゆさぶり：このコマにたまったドラッグ量・なめらかにした手の速さ（画面の横・縦）
     var nsLagM4: simd_double4x4? = nil                              // 水が感じる「下」の向き：箱の向きに少し遅れてついてくる（回すと水が傾いて寄り、止めるとゆれもどる）
+    @Published var waterNu = 0.004                                  // 本物の 4D の水の粘り（動粘性、世界の単位）。小さいほどさらさら（前は 0.012）
     @Published var waterSlosh = 1.0                                 // 回した時のちゃぷちゃぷの強さ（1 ＝ 本物どおり）
     var ns4: NS4? = nil, ns4Failed = false, nsVTarget = 0.0, nsPrevT = 0.0, nsPrevPhase = 0
     /// 4D の水のマスの細かさ（おまかせ：16。ユーザーが「いろいろ試したが 16⁴ で十分、これがいちばん軽い」）
@@ -836,7 +849,7 @@ final class OrigamiState: ObservableObject {
             if !intPaused && progress >= 0.92 && explodeE < 0.25 { ballsTick(dt) }
             if !intItems.isEmpty { intItems = [] }
         } else if intOn && intMethod == 1 {                                // 4 次元の水：組み上がっている時だけ時間を進める
-            if !intPaused && progress >= 0.92 && explodeE < 0.25 { waterTick(dt) }
+            if progress >= 0.92 && explodeE < 0.25 { waterTick(dt) }       // 一時停止中も水は動かす（注ぐのを止めるだけ。水面は静かになっていく）
             if !intItems.isEmpty { intItems = [] }
         } else if intOn {                                                  // 積分：組み上がっている時だけ時間を進める
             if !intPaused && progress >= 0.92 && explodeE < 0.25 {

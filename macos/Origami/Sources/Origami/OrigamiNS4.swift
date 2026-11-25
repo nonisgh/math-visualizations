@@ -84,6 +84,30 @@ kernel void advU(device const float* U [[buffer(0)]], device float* UT [[buffer(
     float4 xb = x - p.dt * v / p.dx;
     UT[c * MM + id] = sampleF(U + c * MM, c, xb, p);
 }
+// MacCormack：運んだ速さ（UF）を、こんどは逆向きに運び戻して、もとの値とのずれの半分を足し戻す。
+//   半ラグランジュ（1 回だけ運ぶ）は、マスの間を直線でならすので、それだけで粘りがあるように なまる（マスが粗いほど強い）。これでその分を減らす。
+//   行き過ぎて暴れないように、運んだ元の場所のまわり 16 点の最小・最大の間におさえる
+kernel void macU(device const float* U [[buffer(0)]], device const float* UF [[buffer(1)]], device float* UC [[buffer(2)]], constant P& p [[buffer(3)]], uint id [[thread_position_in_grid]]) {
+    int MM = p.M * p.M * p.M * p.M; if (int(id) >= MM) return;
+    int4 q = dec(id, p.M); int c = p.c; int fi = c * MM + int(id);
+    float f = UF[fi]; UC[fi] = f;
+    if (!inFace(q, c, p.N) || q[c] == 0 || q[c] == p.N) return;
+    float4 x = float4(q) + 0.5; x[c] = float(q[c]);
+    float4 v = velAt(U, x, p);
+    float4 xb = x - p.dt * v / p.dx, xf = x + p.dt * v / p.dx;
+    float back = sampleF(UF + c * MM, c, xf, p);
+    float cor = f + 0.5 * (U[fi] - back);
+    float4 qq = xb - 0.5; qq[c] = xb[c];
+    float4 hi = float4(float(p.N - 1)); hi[c] = float(p.N);
+    qq = clamp(qq, float4(0.0), hi);
+    int4 i0 = int4(floor(qq)); i0 = clamp(i0, int4(0), int4(hi) - 1);
+    float lo = 1e9, up = -1e9;
+    for (int b = 0; b < 16; b++) {
+        int4 o = int4(b & 1, (b >> 1) & 1, (b >> 2) & 1, (b >> 3) & 1);
+        float u0 = U[c * MM + enc(i0 + o, p.M)]; lo = min(lo, u0); up = max(up, u0);
+    }
+    UC[fi] = clamp(cor, lo, up);
+}
 // 水面までの距離 φ を運ぶ（体積を合わせるずれ shift もここで足す）
 kernel void advPhi(device const float* U [[buffer(0)]], device const float* phi [[buffer(1)]], device float* phiT [[buffer(2)]], constant P& p [[buffer(3)]], uint id [[thread_position_in_grid]]) {
     int MM = p.M * p.M * p.M * p.M; if (int(id) >= MM) return;
@@ -338,7 +362,7 @@ final class NS4 {
         dev = d; queue = q; self.N = N; M = N + 1; MM = M * M * M * M; self.H = H
         let lib: MTLLibrary
         do { lib = try d.makeLibrary(source: ns4Shader, options: nil) } catch { print("4D の水のシェーダーを作れなかった：", error); return nil }
-        for n in ["advU", "advPhi", "jet", "force", "visc", "smoothPhi", "vortW", "vortF", "vortAdd", "rhs", "press", "proj", "valid", "extrap", "redist"] {
+        for n in ["advU", "macU", "advPhi", "jet", "force", "visc", "smoothPhi", "vortW", "vortF", "vortAdd", "rhs", "press", "proj", "valid", "extrap", "redist"] {
             guard let f = lib.makeFunction(name: n), let p = try? d.makeComputePipelineState(function: f) else { print("4D の水の計算を作れなかった：", n); return nil }
             ps[n] = p
         }
@@ -392,7 +416,10 @@ final class NS4 {
             e.endEncoding()
         }
         for c in 0..<4 { var p = par; p.c = Int32(c); run("advU", [U, UT], p) }
-        run("advPhi", [U, phi, phiT]); swap(&phi, &phiT); swap(&U, &UT)
+        let mac = par.ex2.y > 0.5                                           // MacCormack（見かけの粘りを減らす）：結果は vF に（このあと渦の強調が上書きするので、借りても大丈夫）
+        if mac { for c in 0..<4 { var p = par; p.c = Int32(c); run("macU", [U, UT, vF], p) } }
+        run("advPhi", [U, phi, phiT]); swap(&phi, &phiT)
+        if mac { swap(&U, &vF) } else { swap(&U, &UT) }
         run("jet", [U, phi])
         var pf = par; pf.shift = 0; pf.swirlOn = 0; run("force", [U], pf)
         if par.nu > 0 { run("visc", [U, UT, phi]); swap(&U, &UT) }

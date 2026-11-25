@@ -17,7 +17,9 @@ final class WaterSWE {
     var e2 = [Float](repeating: 0, count: M * M), vx2 = [Float](repeating: 0, count: (M + 1) * M), vy2 = [Float](repeating: 0, count: M * (M + 1))
     var p2 = [Float](repeating: 0, count: M * M), gj2 = [Float](repeating: 0, count: M * M), gc2 = [Float](repeating: 0, count: M * M)
     var noise: Float = 0
+    var extraDamp: Float = 0                                          // 足す減り方（1/秒）：一時停止中に、水面を早めに静かにする
     init(us: SIMD3<Double>) {
+        rUS = us
         let N = Self.N, M = Self.M
         func cen(_ i: Int, _ n: Int) -> Double { -1 + (Double(i) + 0.5) * 2 / Double(n) }
         for i in 0..<N { for j in 0..<N { for k in 0..<N {
@@ -27,17 +29,89 @@ final class WaterSWE {
         } } }
         for i in 0..<M { for j in 0..<M { let x = cen(i, M), y = cen(j, M); gj2[i * M + j] = Float(exp(-(pow(x - us.x, 2) + pow(y - us.y, 2)) / 0.035)); gc2[i * M + j] = Float(exp(-(x * x + y * y) / 0.02)) } }
     }
+    // ---- 波紋：水の筋が当たる所から広がる細かい波（浅水の格子より細かい、別の薄い層。波の方程式 ∂²ζ/∂t² ＝ c²∇²ζ − γ∂ζ/∂t） ----
+    //   4D の水面は 3 次元なので、波紋は球の殻になって広がる（48³）。左の 3D の水面は 2 次元なので輪（96²）。壁ではね返る
+    static let R3 = 48, R2 = 96, RC = 0.9, RGAM: Float = 0.45, ROMG = 16.0   // RC：波の速さ（−1〜1 の座標で 1 秒に）・RGAM：減り方・ROMG：筋がたたく速さ（波長 ≈ 2πc／ω ≈ 0.35）
+    var rz = [Float](repeating: 0, count: R3 * R3 * R3), rv = [Float](repeating: 0, count: R3 * R3 * R3)
+    var rz2 = [Float](repeating: 0, count: R2 * R2), rv2 = [Float](repeating: 0, count: R2 * R2)
+    var rT: Double = 0, rLive: Double = 0                             // rLive：最後にたたいてからの秒（静かになったら計算を休む）
+    let rUS: SIMD3<Double>
+    func rippleReset() { for i in rz.indices { rz[i] = 0; rv[i] = 0 }; for i in rz2.indices { rz2[i] = 0; rv2[i] = 0 }; rLive = 99 }
+    /// 1 小ステップ：on の間、筋が当たる所を ω でたたく（強さは筋のゆらぎで少し変わる）。壁は鏡（波がはね返る）
+    func rippleStep(_ dt: Float, on: Bool, amp: Float) {
+        rT += Double(dt); rLive = on ? 0 : rLive + Double(dt)
+        guard rLive < 5 else { return }
+        let damp = exp(-(Self.RGAM + extraDamp) * dt), c = Float(Self.RC)
+        let f: Float = on ? amp * Float(sin(Self.ROMG * rT)) * (0.75 + 0.35 * noise) : 0
+        do {   // 4D の水面（3 次元）
+            let N = Self.R3, dx = Float(2) / Float(N), k = c * c / (dx * dx)
+            func cen(_ i: Int) -> Double { -1 + (Double(i) + 0.5) * 2 / Double(N) }
+            let si = Int(((rUS.x + 1) / 2 * Double(N)).rounded(.down)), sj = Int(((rUS.y + 1) / 2 * Double(N)).rounded(.down)), sk = Int(((rUS.z + 1) / 2 * Double(N)).rounded(.down))
+            for i in 0..<N { let im = max(0, i - 1), ip = min(N - 1, i + 1)
+                for j in 0..<N { let jm = max(0, j - 1), jp = min(N - 1, j + 1)
+                    for kk in 0..<N { let km = max(0, kk - 1), kp = min(N - 1, kk + 1)
+                        let n = (i * N + j) * N + kk, z = rz[n]
+                        let lap = rz[(im * N + j) * N + kk] + rz[(ip * N + j) * N + kk] + rz[(i * N + jm) * N + kk] + rz[(i * N + jp) * N + kk] + rz[(i * N + j) * N + km] + rz[(i * N + j) * N + kp] - 6 * z
+                        rv[n] = (rv[n] + dt * k * lap) * damp
+            } } }
+            if f != 0 {
+                for i in max(0, si - 2)...min(N - 1, si + 2) { for j in max(0, sj - 2)...min(N - 1, sj + 2) { for kk in max(0, sk - 2)...min(N - 1, sk + 2) {
+                    let r2 = pow(cen(i) - rUS.x, 2) + pow(cen(j) - rUS.y, 2) + pow(cen(kk) - rUS.z, 2)
+                    rv[(i * N + j) * N + kk] += dt * f * 45 * Float(exp(-r2 / (2 * 0.045 * 0.045)))   // 4D は 3 方向へ広がって薄まるので、強めに
+                } } }
+            }
+            for n in rz.indices { rz[n] += dt * rv[n] }
+        }
+        do {   // 左の 3D の水面（2 次元）
+            let N = Self.R2, dx = Float(2) / Float(N), k = c * c / (dx * dx)
+            func cen(_ i: Int) -> Double { -1 + (Double(i) + 0.5) * 2 / Double(N) }
+            let si = Int(((rUS.x + 1) / 2 * Double(N)).rounded(.down)), sj = Int(((rUS.y + 1) / 2 * Double(N)).rounded(.down))
+            for i in 0..<N { let im = max(0, i - 1), ip = min(N - 1, i + 1)
+                for j in 0..<N { let jm = max(0, j - 1), jp = min(N - 1, j + 1)
+                    let n = i * N + j, lap = rz2[im * N + j] + rz2[ip * N + j] + rz2[i * N + jm] + rz2[i * N + jp] - 4 * rz2[n]
+                    rv2[n] = (rv2[n] + dt * k * lap) * damp
+            } }
+            if f != 0 {
+                for i in max(0, si - 3)...min(N - 1, si + 3) { for j in max(0, sj - 3)...min(N - 1, sj + 3) {
+                    let r2 = pow(cen(i) - rUS.x, 2) + pow(cen(j) - rUS.y, 2)
+                    rv2[i * N + j] += dt * f * 55 * Float(exp(-r2 / (2 * 0.03 * 0.03)))
+                } }
+            }
+            for n in rz2.indices { rz2[n] += dt * rv2[n] }
+        }
+    }
+    /// 波紋の高さ（世界の単位）を点 u（−1〜1）で
+    func rip3(_ u: SIMD3<Double>) -> Double {
+        guard rLive < 5 else { return 0 }
+        let N = Self.R3
+        func f(_ q: Double) -> Double { max(0, min(Double(N) - 1.0001, (q + 1) / 2 * Double(N) - 0.5)) }
+        let fx = f(u.x), fy = f(u.y), fz = f(u.z), i = Int(fx), j = Int(fy), k = Int(fz), a = fx - Double(i), b = fy - Double(j), c = fz - Double(k)
+        let I = min(N - 1, i + 1), J = min(N - 1, j + 1), K = min(N - 1, k + 1)
+        func e(_ x: Int, _ y: Int, _ z: Int) -> Double { Double(rz[(x * N + y) * N + z]) }
+        return ((e(i, j, k) * (1 - c) + e(i, j, K) * c) * (1 - b) + (e(i, J, k) * (1 - c) + e(i, J, K) * c) * b) * (1 - a)
+             + ((e(I, j, k) * (1 - c) + e(I, j, K) * c) * (1 - b) + (e(I, J, k) * (1 - c) + e(I, J, K) * c) * b) * a
+    }
+    func rip2(_ u: SIMD2<Double>) -> Double {
+        guard rLive < 5 else { return 0 }
+        let M = Self.R2
+        func f(_ q: Double) -> Double { max(0, min(Double(M) - 1.0001, (q + 1) / 2 * Double(M) - 0.5)) }
+        let fx = f(u.x), fy = f(u.y), i = Int(fx), j = Int(fy), a = fx - Double(i), b = fy - Double(j), I = min(M - 1, i + 1), J = min(M - 1, j + 1)
+        func e(_ x: Int, _ y: Int) -> Double { Double(rz2[x * M + y]) }
+        return (e(i, j) * (1 - b) + e(i, J) * b) * (1 - a) + (e(I, j) * (1 - b) + e(I, J) * b) * a
+    }
     func reset() {
+        rippleReset()
         for i in eta.indices { eta[i] = 0 }; for i in ux.indices { ux[i] = 0 }; for i in uy.indices { uy[i] = 0 }; for i in uz.indices { uz[i] = 0 }
         for i in e2.indices { e2[i] = 0 }; for i in vx2.indices { vx2[i] = 0 }; for i in vy2.indices { vy2[i] = 0 }; noise = 0
     }
     /// 1 小ステップ：∂u/∂t ＝ −g∇η − ∇p − γu（p＝水の筋が当たる所の圧力）、∂η/∂t ＝ −D∇·u − q（q＝排水口から吸い出す量）。壁は流れが通らない。平均の水位は h が受け持つので η は平均 0
-    func step(_ dt: Float, g: Float, D: Float, jet: Float, H: Float, sink: Float = 0) {
-        let N = Self.N, dx = 2 * H / Float(N), damp = exp(-(Float(Self.GAM) + 3 * Float(Self.NU) / (D * D)) * dt), L = Float(Self.LIM) * H
+    /// ah・ah2：箱から見た見かけの重力の横向きの分（4D の水は x・y・z、左の 3D の水は x・y）。箱を回すと「下」が遅れてついてくるので、水が寄ってゆれる（ちゃぷちゃぷ）
+    func step(_ dt: Float, g: Float, D: Float, jet: Float, H: Float, sink: Float = 0, ah: SIMD3<Float> = .zero, ah2: SIMD2<Float> = .zero) {
+        let N = Self.N, dx = 2 * H / Float(N), damp = exp(-(Float(Self.GAM) + extraDamp + 3 * Float(Self.NU) / (D * D)) * dt), L = Float(Self.LIM) * H
         for n in 0..<p.count { p[n] = jet * gj[n] }
-        for i in 1..<N { for j in 0..<N { for k in 0..<N { let a = ((i - 1) * N + j) * N + k, b = (i * N + j) * N + k; ux[b] = (ux[b] - dt * (g * (eta[b] - eta[a]) + p[b] - p[a]) / dx) * damp } } }
-        for i in 0..<N { for j in 1..<N { for k in 0..<N { let a = (i * N + j - 1) * N + k, b = (i * N + j) * N + k, f = (i * (N + 1) + j) * N + k; uy[f] = (uy[f] - dt * (g * (eta[b] - eta[a]) + p[b] - p[a]) / dx) * damp } } }
-        for i in 0..<N { for j in 0..<N { for k in 1..<N { let a = (i * N + j) * N + k - 1, b = a + 1, f = (i * N + j) * (N + 1) + k; uz[f] = (uz[f] - dt * (g * (eta[b] - eta[a]) + p[b] - p[a]) / dx) * damp } } }
+        for i in 1..<N { for j in 0..<N { for k in 0..<N { let a = ((i - 1) * N + j) * N + k, b = (i * N + j) * N + k; ux[b] = (ux[b] - dt * (g * (eta[b] - eta[a]) + p[b] - p[a]) / dx + dt * ah.x) * damp } } }
+        for i in 0..<N { for j in 1..<N { for k in 0..<N { let a = (i * N + j - 1) * N + k, b = (i * N + j) * N + k, f = (i * (N + 1) + j) * N + k; uy[f] = (uy[f] - dt * (g * (eta[b] - eta[a]) + p[b] - p[a]) / dx + dt * ah.y) * damp } } }
+        for i in 0..<N { for j in 0..<N { for k in 1..<N { let a = (i * N + j) * N + k - 1, b = a + 1, f = (i * N + j) * (N + 1) + k; uz[f] = (uz[f] - dt * (g * (eta[b] - eta[a]) + p[b] - p[a]) / dx + dt * ah.z) * damp } } }
         var sum: Float = 0
         for i in 0..<N { for j in 0..<N { for k in 0..<N {
             let n = (i * N + j) * N + k
@@ -48,8 +122,8 @@ final class WaterSWE {
         // 左の 3D 水（x・y の 2 方向）
         let M = Self.M, d2 = 2 * H / Float(M)
         for n in 0..<p2.count { p2[n] = jet * gj2[n] }
-        for i in 1..<M { for j in 0..<M { let a = (i - 1) * M + j, b = i * M + j; vx2[b] = (vx2[b] - dt * (g * (e2[b] - e2[a]) + p2[b] - p2[a]) / d2) * damp } }
-        for i in 0..<M { for j in 1..<M { let a = i * M + j - 1, b = a + 1, f = i * (M + 1) + j; vy2[f] = (vy2[f] - dt * (g * (e2[b] - e2[a]) + p2[b] - p2[a]) / d2) * damp } }
+        for i in 1..<M { for j in 0..<M { let a = (i - 1) * M + j, b = i * M + j; vx2[b] = (vx2[b] - dt * (g * (e2[b] - e2[a]) + p2[b] - p2[a]) / d2 + dt * ah2.x) * damp } }
+        for i in 0..<M { for j in 1..<M { let a = i * M + j - 1, b = a + 1, f = i * (M + 1) + j; vy2[f] = (vy2[f] - dt * (g * (e2[b] - e2[a]) + p2[b] - p2[a]) / d2 + dt * ah2.y) * damp } }
         var s2: Float = 0
         for i in 0..<M { for j in 0..<M { let n = i * M + j, div = vx2[(i + 1) * M + j] - vx2[n] + vy2[i * (M + 1) + j + 1] - vy2[i * (M + 1) + j]; e2[n] += dt * (-D * div / d2 - sink * gc2[n]); s2 += e2[n] } }
         let m2 = s2 / Float(e2.count); for n in 0..<e2.count { e2[n] = max(-L, min(L, e2[n] - m2)) }
@@ -77,6 +151,8 @@ extension OrigamiState {
     // 秒・重力（世界の長さ／秒²）・水面の細かさ・水の筋の出発点（w ＝ TOP×H）・筋の位置（ウェブ版の WWATER）
     static let wOPEN = 0.8, wPOUR = 10.0, wCLOSE = 0.9, wHOLD = 2.2, wBOPEN = 0.7, wBCLOSE = 0.8, wEMPTY = 0.7, wG = 2.7, wGrid = 8, wTOP = 2.0
     // 排水口：床の立方体の真ん中の小さな立方体（半分の幅 HOLE×H）・開けっぱなしで注ぐ速さ（水位の上がる速さ）・吸い出す強さ・ごぼっの回数（1 秒に）
+    static let wFF = 3.0                                                   // 水が見えない間の早送りの倍率
+    static let wVISIBLE = 0.015                                           // 本物の 4D の水：これより少なければ「もう見えない」（箱の 1.5%）
     static let wHOLE = 0.58, wQOPEN = 0.48, wSINK: Float = 1.6, wGF = 1.4
     static let wUS = SIMD3<Double>(0.3, -0.35, 0.2)
     /// 底を全部開けた時に、満水（深さ 2H）が落ちきるまでの秒（自由落下）
@@ -93,24 +169,30 @@ extension OrigamiState {
     func waterTick(_ dt0: Double) {
         if waterFree && waterNS, let ns = ns4Get() { waterFreeTick(ns, min(0.1, dt0)); return }
         let dt = min(0.1, dt0), H = Self.half
+        // 一時停止：場面の時計（開ける → 注ぐ → 抜く…）だけ止める。注ぐのをやめ、栓も閉めて流れを止める。水の計算（波）は続けるので、水面は静かになっていく
+        // 水が見えない間（栓をする・空・ふたを開ける）は、場面の時計を 3 倍の早送り（待ち時間を短く）
+        let ff = [0, 5, 6].contains(waterPhase) ? Self.wFF : 1.0
+        let paused = intPaused, dtT = paused ? 0 : dt * ff
+        waterPauseT = paused ? waterPauseT + dt : 0
+        waterPauseK = max(0, min(1, waterPauseK + (paused ? dt : -dt) * 2.5))
         let hole = waterHoleNow, hOpen = holesOpen, DR = hole ? Self.wDrainHoleT : Self.wFallT
         // 通気：空気の入り口（通気口か、開いたままの上のふた）が無いと、底から空気と入れ替わりながらしか抜けない（ごぼごぼ、ゆっくり）
         let vented = waterVent || (intLidMode == 1 && hole), DRv = vented ? DR : DR / (hole ? 0.35 : 0.5), GF = Self.wGF
         let t0 = Self.wOPEN, t1 = t0 + Self.wPOUR * (hOpen ? 1.4 : 1), t2 = t1 + Self.wCLOSE, t3 = t2 + Self.wHOLD, t3b = t3 + Self.wBOPEN, t4 = t3b + DRv, t5 = t4 + Self.wBCLOSE, cycle = t5 + Self.wEMPTY
         if hOpen {   // 開けっぱなし：栓が無いので注いでいる間も抜ける。入る量 Q と出る量 a√(2g・深さ)（トリチェリ）がつり合う水位に近づき、止めると抜けきる
-            let r = pow(Self.wHOLE, 3), tt = waterT + dt
-            if tt < dt * 1.5 { waterDOpen = 0 }
+            let r = pow(Self.wHOLE, 3), tt = waterT + dtT
+            if tt < dtT * 1.5 { waterDOpen = 0 }
             let pourNow = tt >= t0 && tt < t1, dd = waterDOpen, outR = r * sqrt(2 * Self.wG * dd) * (vented ? 1 : 0.35)
-            waterDOpen = max(0, min(2 * H, dd + ((pourNow ? Self.wQOPEN : 0) - outR) * dt))   // 水位の式：d′ ＝ Q − a√(2g d)
+            waterDOpen = max(0, min(2 * H, dd + ((pourNow ? Self.wQOPEN : 0) - outR) * dtT))   // 水位の式：d′ ＝ Q − a√(2g d)
             waterHEq = min(1, -1 + pow(Self.wQOPEN / r, 2) / (2 * Self.wG) / H)
             if !pourNow && tt >= t1 && waterDOpen <= 1e-3 {   // 抜けきったら少し置いて、また注ぐ
                 if waterEmptyT == nil { waterEmptyT = tt }
-                if tt - (waterEmptyT ?? tt) > Self.wEMPTY { waterT = -dt; waterEmptyT = nil; waterCyc += 1 }
+                if tt - (waterEmptyT ?? tt) > Self.wEMPTY { waterT = -dtT; waterEmptyT = nil; waterCyc += 1 }
             } else { waterEmptyT = nil }
         }
-        if waterT + dt >= cycle { waterCyc += 1 }
-        waterT = (waterT + dt).truncatingRemainder(dividingBy: cycle); waterTT += dt
-        let t = waterT, pouring = t >= t0 && t < t1
+        if waterT + dtT >= cycle { waterCyc += 1 }
+        waterT = (waterT + dtT).truncatingRemainder(dividingBy: cycle); waterTT += dt
+        let t = waterT, pourT = t >= t0 && t < t1, pouring = pourT && !paused
         var sD = (t - t3b) / DRv
         if !vented && t >= t3b && t < t4 { sD = max(0, min(1, sD - 0.8 / (2 * .pi * GF * DRv) * sin(2 * .pi * GF * (t - t3b)))) }   // ごぼっ、ごぼっ：空気が 1 回入るたびに少し流れる
         let gp = t >= t3b && t < t4 ? Int(floor(GF * (t - t3b) + 0.25)) : -1, glugNow = !vented && gp >= 0 && gp != waterGlugN; waterGlugN = gp
@@ -124,29 +206,36 @@ extension OrigamiState {
         // 流れ出る水の柱（同じ g）：全部開けた時は止まった所から自由落下、排水口からは √(2g・深さ) の速さで出て、さらに g で加速
         let FL = 1.5 * H, v0 = hole ? sqrt(2 * Self.wG * 2 * H) : 0, vEnd = hole ? 0 : Self.wG * DR, tau = t - t3b, tl = t - t4
         func fallD(_ v: Double, _ s: Double) -> Double { v * s + 0.5 * Self.wG * s * s }
-        if t >= t3b && (t < t4 || -H - fallD(vEnd, tl) > -H - FL) {
+        if !paused && t >= t3b && (t < t4 || -H - fallD(vEnd, tl) > -H - FL) {
             waterOut = SIMD2(t < t4 ? -H : -H - fallD(vEnd, tl), -H - min(FL * 1.05, fallD(v0, tau)))
         } else { waterOut = nil }
         if hOpen {   // 開けっぱなし：水位・場面・流れ出る柱を、上の水位の式から（栓は無い）
             let d = waterDOpen
             h = -1 + d / H; phase = t < t0 ? 0 : pouring ? 1 : d > 1e-3 ? 4 : 6
-            blid = 1; waterOut = d > 1e-3 ? SIMD2(-H, -H - FL * 1.05) : nil
+            blid = 1; waterOut = d > 1e-3 && !paused ? SIMD2(-H, -H - FL * 1.05) : nil
         }
+        blid *= 1 - waterPauseK                                            // 止めている間は、底（栓）を閉める
         waterLid = max(0, min(1, lid)); waterBLid = max(0, min(1, blid))
         if abs(waterH - h) > 1e-5 { waterH = h }
         if waterPhase != phase { waterPhase = phase }
         waterPour = t >= t0 ? (pouring ? Self.wTOP * H : t >= t1 ? Self.wTOP * H - 0.5 * Self.wG * (t - t1) * (t - t1) : -9) : -9   // 水の筋の上の端（止めた後のしっぽは g で落ちる）
+        if paused && pourT { waterPour = Self.wTOP * H - 0.5 * Self.wG * waterPauseT * waterPauseT }   // 注ぐ途中で止めた：しっぽが落ちていく
         // 波：浅水方程式（水が無い時は静か。底を全部開けて落ちている間は、見かけの重力 0 なので形はそのまま。通気が無い時は空気の圧力で支えられるので計算する）
-        let flowing = hole && (phase == 4 || (hOpen && phase == 1))
+        let flowing = !paused && hole && (phase == 4 || (hOpen && phase == 1))
+        // 箱から見た見かけの重力：回すと「下」が遅れてついてくる ＋ ドラッグの手の加速度の逆向き（浅水にも、本物の 4D の水にも）
+        let gApp = nsLagGravity(dt) * Self.wG + nsShake(dt)
+        let ahS = SIMD3<Float>(Float(gApp.x), Float(gApp.y), Float(gApp.z)), ahS2 = SIMD2<Float>(Float(gApp.x), Float(gApp.y))
+        swe.extraDamp = Float(0.9 * waterPauseK)                            // 止めている間は、波が 2 秒ほどで おさまるように
         if h <= -0.999 { swe.reset() }
-        else if !(phase == 4 && !hole && vented) {
+        else if paused || !(phase == 4 && !hole && vented) {
             let D = Float(max(0.02, (h + 1) * H)), nSub = min(12, Int(ceil(dt / WaterSWE.DT))), sd = Float(dt) / Float(max(1, nSub))
             for _ in 0..<max(1, nSub) {
                 swe.noise = max(-1, min(1, swe.noise * 0.97 + Float.random(in: -1...1) * 0.35))   // 水の筋の勢いのゆらぎ
                 let jet: Float = pouring && h > -0.98 ? Float(WaterSWE.JET) * (1 + swe.noise) : 0
                 let sink: Float = flowing ? Self.wSINK * Float(min(1, (h + 1) * 2)) * Float(1 + 3 * max(0, waterBurst) / 0.45) : 0   // 開けた瞬間は強く吸い込む
                 if waterBurst > 0 { waterBurst -= Double(sd) }
-                swe.step(sd, g: Float(Self.wG), D: D, jet: jet, H: Float(H), sink: sink)
+                swe.step(sd, g: Float(Self.wG), D: D, jet: jet, H: Float(H), sink: sink, ah: ahS, ah2: ahS2)
+                swe.rippleStep(sd, on: jet > 0 && waterReal, amp: Float(0.9 * H))   // 波紋：筋が水面をたたいている間
             }
         }
         // 開けた瞬間：排水口の所の圧力が急に下がり、真上がぐっとへこむ（へこみは輪になって広がる）
@@ -170,15 +259,15 @@ extension OrigamiState {
             nsPrevT = t
             let vf = ns.lastVol / Vbox, pourOn = pouring && vf < 0.97, Nf = Float(ns.N)
             ns.par.vort = Float(waterVort)
-            ns.par.jetOn = pourOn ? 1 : 0; ns.par.topOpen = 0; ns.par.gvec = SIMD4<Float>(nsLagGravity(dt) * Self.wG + nsShake(dt)); ns.par.jetD = SIMD4(0, 0, 0, -1); ns.par.pad2 = 0
+            ns.par.jetOn = pourOn ? 1 : 0; ns.par.topOpen = 0; ns.par.gvec = SIMD4<Float>(gApp); nsSetThin(ns); ns.par.jetD = SIMD4(0, 0, 0, -1); ns.par.pad2 = 0
             // 入れる所：平均の水位（体積から：V ＝ 8(h＋1)）のすぐ上（2 マス上から 3 マス）。落ちる高さを小さく（天井から落とすと はねすぎる）。
             //   柱の水面を探すと、入れた水が下とつながった時に「水面がそこまで上がった」とまちがえて、入れる所が天井までのぼっていく
             let hAvg = max(-1, min(1, ns.lastVol / (8 * pow(H, 4)) - 1)), l0 = max(0, min(ns.N - 3, Int(((hAvg * H + H) / Double(ns.par.dx)).rounded()) + 1))   // 1 マス上（静かに）
             ns.par.jetC = SIMD4(Float(Self.wUS.x + 1) / 2 * Nf, Float(Self.wUS.y + 1) / 2 * Nf, Float(Self.wUS.z + 1) / 2 * Nf, Float(l0))
             let jr = 0.32, jv = 0.9                                            // 筋の太さ（世界の単位）と速さ：4 次元では筋の切り口も 3 次元の玉なので、太くないとなかなか溜まらない
             ns.par.jetR = Float(jr) / ns.par.dx; ns.par.jetV = Float(jv)
-            ns.par.hole = hole && (phase == 4 || hOpen) ? Float(Self.wHOLE) * Nf / 2 : 0
-            ns.par.open = !hole && phase == 4 ? 1 : 0
+            ns.par.hole = !paused && hole && (phase == 4 || hOpen) ? Float(Self.wHOLE) * Nf / 2 : 0
+            ns.par.open = !paused && !hole && phase == 4 ? 1 : 0
             if phase == 4 && nsPrevPhase != 4 && hole && waterSwirl > 0 { ns.addSwirl(Float(waterSwirl)) }   // 栓を抜いた瞬間：お風呂に残っている小さな回転
             nsPrevPhase = phase
             // 体積の目標：注いでいる間は、注ぐ時間でまっすぐ増やす（V(h) ＝ 8(h＋1) の連続の積分どおり。筋は見た目と波）。
@@ -187,11 +276,16 @@ extension OrigamiState {
             if hOpen && pouring { nsVTarget = ns.lastVol }
             if ns.par.hole > 0 || ns.par.open != 0 { nsVTarget = min(nsVTarget, ns.lastVol) }
             if !pouring && ns.lastVol < 1e-3 { nsVTarget = 0 }
+            // 止めた瞬間に 1 回だけ、目標を今の量に（注ぐ途中で目標だけ先に進んでいた分は捨てる）。そのあとは目標を保つ：
+            //   毎コマ「今の量」に合わせ直すと、計算で少しずつ減る分を戻さなくなって、止めている間に水がだんだん減っていた
+            if paused && waterPauseT <= dt * 1.01 { nsVTarget = min(nsVTarget, ns.lastVol) }
             nsSloshKick(ns, dt)
             ns.tick(dt, target: nsVTarget < 1e-3 || (hOpen && pouring) ? nil : nsVTarget)
             let hN = max(-1, min(1, ns.lastVol / (8 * H4) - 1))
             if abs(waterH - hN) > 1e-5 { waterH = hN }
-            if phase == 4 && vf > 0.003 && waterT > t4 - 0.1 && !hOpen { waterT = t4 - 0.1 }   // 抜けきるまで待つ
+            if phase == 4 && vf > Self.wVISIBLE && waterT > t4 - 0.1 && !hOpen { waterT = t4 - 0.1 }   // 抜けきるまで待つ（見えなくなるまで）
+            // 抜け終わった（栓をする・空）：見えないほどの残り（底の水たまりのうすい膜）は、そこで空にする（最後のちょろちょろを待たない）
+            if (phase == 5 || phase == 6) && !hOpen && ns.lastVol > 0 && vf <= Self.wVISIBLE { ns.reset(level: -1); nsVTarget = 0 }
         }
     }
 }
@@ -223,6 +317,10 @@ extension OrigamiState {
         let fl = simd_length(f); if fl > 8 { f *= 8 / fl }
         return simd_transpose(m4) * f
     }
+    /// 本物の 4D の水のさらさら具合：粘り ν（世界の単位）と、波のブレーキ（ν に合わせて）。速さの運び方は MacCormack（ex2.y ＝ 1：マス目でなまる見かけの粘りを減らす）
+    func nsSetThin(_ ns: NS4) {
+        ns.par.nu = Float(waterNu); ns.par.ex2.x = Float(0.25 + 30 * waterNu); ns.par.ex2.y = 1
+    }
     func nsSloshKick(_ ns: NS4, _ dt: Double) {
         defer { nsPrevM4 = m4 }
         guard let R0 = nsPrevM4, dt > 1e-4 else { nsPrevW = simd_double4x4(0); ns.par.kick = simd_float4x4(0); return }
@@ -238,6 +336,58 @@ extension OrigamiState {
     func waterFreeTick(_ ns: NS4, _ dt: Double) {
         let H = Self.half, Vbox = 16 * pow(H, 4)
         waterT += dt; waterTT += dt
+        let first = !waterGDirInit
+        let gdir = waterFreeGravity(dt)
+        ns.par.gvec = SIMD4<Float>(gdir * waterG + nsShake(dt)); ns.par.vort = Float(waterVort); nsSetThin(ns)
+        waterFreeTick3(dt, first: first)
+        let Nf = Float(ns.N)
+        // 画面の上から注ぐ：筋は重力の向きにまっすぐ落ちてきて、ふた（+W の胞）の「注ぐ場所」から入る。ふたが上を向いていない時は入れない
+        // 入る所：注ぐ場所（x・y・z のずれ）から上（重力の逆）へ、今の水面のすぐ上まで（高い所から落とすと、9.8 で速くなって はねまくる）。
+        //   水面の高さ（上向きの座標 c）：箱の上向きの広がり R ＝ H Σ|up| の中で、たまっている割合ぶん（ななめの時もだいたい）
+        let up = -gdir, base = SIMD4<Double>(waterPourX, waterPourY, waterPourZ, 0) * (0.55 * H)
+        var tMax = 9.0
+        for a in 0..<4 where abs(up[a]) > 1e-6 { tMax = min(tMax, ((up[a] > 0 ? 1 : -1) * 0.78 * H - base[a]) / up[a]) }
+        let R = H * (abs(up.x) + abs(up.y) + abs(up.z) + abs(up.w)), frac = max(0, min(1, ns.lastVol / Vbox))
+        let c = -R + 2 * R * frac, tSurf = c + 0.14 * H - simd_dot(base, up)
+        let E = base + up * max(0, min(tMax, tSurf))
+        waterEntry4 = E
+        let full = ns.lastVol >= 0.88 * Vbox                                // 満タン：これ以上は箱に入れない（口からあふれる）。空気が残っていないと、逆さにしても抜けない
+        // 水を入れるのは、目標の量（押している時間 × 勢い）より遅れている時だけ（入れる所の玉が残りの空気を一気に水に変えて、満タンを越えないように）
+        let hold = waterPourHold && !intPaused                              // 一時停止中は注がない
+        ns.par.jetOn = hold && !full && ns.lastVol < nsVTarget + 0.01 * Vbox ? 1 : 0
+        ns.par.jetD = SIMD4<Float>(gdir); ns.par.pad2 = 1
+        ns.par.jetC = SIMD4<Float>((E / (2 * H) + 0.5) * Double(ns.N))
+        ns.par.jetR = Float(0.24 * (0.7 + 0.3 * waterPourRate)) / ns.par.dx; ns.par.jetV = Float(0.5 * waterPourRate)   // 静かに
+        ns.par.topOpen = waterLidSet ? 1 : 0
+        let holeOn = waterBottomSet && drainMode == 1
+        ns.par.hole = holeOn ? Float(Self.wHOLE) * Nf / 2 : 0
+        ns.par.open = waterBottomSet && !holeOn ? 1 : 0
+        // 体積：押している間は、押している時間の分だけ確かに増やす（勢い × 時間）。開けた所から出ていく間は、減った分を目標に。閉じている時は保つ
+        // 開いた口・底に、水が本当に触れている時だけ「出ていく」とみなす（触れていなければ、計算で少しずつ減る分を戻して、減らない）
+        let n4 = ns.N
+        func touches(_ l: Int) -> Bool {
+            for k in 0..<n4 { for j in 0..<n4 { for i in 0..<n4 where ns.phiAt(i, j, k, l) < 0 { return true } } }
+            return false
+        }
+        let leaking = (waterLidSet && touches(n4 - 1)) || (waterBottomSet && touches(0))
+        // 目標を増やすのは、本当に水を入れている間だけ（満タンで止めた後も増やし続けると、行き場のない水を足し続けて圧力がたまり、流れが暴れる）
+        if hold && !full { nsVTarget = min(0.88 * Vbox, max(nsVTarget, ns.lastVol) + 1.0 * waterPourRate * dt) }
+        else if leaking { nsVTarget = min(nsVTarget, ns.lastVol) }
+        nsVTarget = min(nsVTarget, ns.lastVol + 0.01 * Vbox)                // 目標が実際の量から離れすぎないように
+        nsSloshKick(ns, dt)
+        ns.tick(dt, target: nsVTarget < 1e-3 ? nil : nsVTarget, keepAir: true)
+        let hN = max(-1, min(1, ns.lastVol / (8 * pow(H, 4)) - 1))
+        if abs(waterH - hN) > 1e-5 { waterH = hN }
+        let ph = hold ? 1 : (waterBottomSet && ns.lastVol > 1e-3 ? 4 : (ns.lastVol < 1e-3 ? 6 : 2))
+        if waterPhase != ph { waterPhase = ph }
+        waterPour = hold && waterCanPour ? Self.wTOP * H : -9
+        // ふたの開け閉め（なめらかに）
+        func step(_ x: Double, _ t: Double) -> Double { x + (t > x ? 1 : -1) * min(abs(t - x), dt * 2) }
+        waterLid = step(waterLid, waterLidSet ? 1 : 0); waterBLid = step(waterBLid, waterBottomSet ? 1 : 0)
+        waterOut = nil; _ = Vbox
+    }
+    /// 遊ぶモードの重力の向き（箱の x・y・z・w）。目標へ なめらかに回す（waterGDir に入れて返す）
+    func waterFreeGravity(_ dt: Double) -> SIMD4<Double> {
         // 画面の下（景色の −y）を、箱の向きへ：写す行列の逆向き（回転なので転置）で戻す
         // 重力の向き：画面の奥（景色の −w ＝ w の消失点へ）か、画面の下（景色の −y）。写す行列の逆向き（回転なので転置）で箱の向きへ戻す。
         //   画面の奥の時は、3D の回転（見る向き）では変わらない＝見回しても水は傾かない。w を傾ける回転（X‐W・Y‐W・Z‐W）でだけ傾く
@@ -255,53 +405,51 @@ extension OrigamiState {
             pp /= simd_length(pp)
             gdir = gdir * cos(stepA) + pp * sin(stepA)
         }
-        ns.par.gvec = SIMD4<Float>(gdir * waterG + nsShake(dt)); waterGDir = gdir; ns.par.vort = Float(waterVort)
-        let Nf = Float(ns.N)
-        // 画面の上から注ぐ：筋は重力の向きにまっすぐ落ちてきて、ふた（+W の胞）の「注ぐ場所」から入る。ふたが上を向いていない時は入れない
-        // 入る所：注ぐ場所（x・y・z のずれ）から上（重力の逆）へ、今の水面のすぐ上まで（高い所から落とすと、9.8 で速くなって はねまくる）。
-        //   水面の高さ（上向きの座標 c）：箱の上向きの広がり R ＝ H Σ|up| の中で、たまっている割合ぶん（ななめの時もだいたい）
-        let up = -gdir, base = SIMD4<Double>(waterPourX, waterPourY, waterPourZ, 0) * (0.55 * H)
-        var tMax = 9.0
-        for a in 0..<4 where abs(up[a]) > 1e-6 { tMax = min(tMax, ((up[a] > 0 ? 1 : -1) * 0.78 * H - base[a]) / up[a]) }
-        let R = H * (abs(up.x) + abs(up.y) + abs(up.z) + abs(up.w)), frac = max(0, min(1, ns.lastVol / Vbox))
-        let c = -R + 2 * R * frac, tSurf = c + 0.14 * H - simd_dot(base, up)
-        let E = base + up * max(0, min(tMax, tSurf))
-        waterEntry4 = E
-        let full = ns.lastVol >= 0.88 * Vbox                                // 満タン：これ以上は箱に入れない（口からあふれる）。空気が残っていないと、逆さにしても抜けない
-        // 水を入れるのは、目標の量（押している時間 × 勢い）より遅れている時だけ（入れる所の玉が残りの空気を一気に水に変えて、満タンを越えないように）
-        ns.par.jetOn = waterPourHold && !full && ns.lastVol < nsVTarget + 0.01 * Vbox ? 1 : 0
-        ns.par.jetD = SIMD4<Float>(gdir); ns.par.pad2 = 1
-        ns.par.jetC = SIMD4<Float>((E / (2 * H) + 0.5) * Double(ns.N))
-        ns.par.jetR = Float(0.24 * (0.7 + 0.3 * waterPourRate)) / ns.par.dx; ns.par.jetV = Float(0.5 * waterPourRate)   // 静かに
-        ns.par.topOpen = waterLidSet ? 1 : 0
-        let holeOn = waterBottomSet && drainMode == 1
-        ns.par.hole = holeOn ? Float(Self.wHOLE) * Nf / 2 : 0
-        ns.par.open = waterBottomSet && !holeOn ? 1 : 0
-        // 体積：押している間は、押している時間の分だけ確かに増やす（勢い × 時間）。開けた所から出ていく間は、減った分を目標に。閉じている時は保つ
-        // 開いた口・底に、水が本当に触れている時だけ「出ていく」とみなす（触れていなければ、計算で少しずつ減る分を戻して、減らない）
-        let n4 = ns.N
-        func touches(_ l: Int) -> Bool {
-            for k in 0..<n4 { for j in 0..<n4 { for i in 0..<n4 where ns.phiAt(i, j, k, l) < 0 { return true } } }
-            return false
+        waterGDir = gdir
+        return gdir
+    }
+    /// 遊ぶモードの左の 3D の水：同じ重力の設定を、左の立方体（x・y・z、z が右の w にあたる）の向きで。
+    ///   箱の −w（2）→ 左の −z。画面の奥（0）・画面の下（1）→ 景色の −z・−y を、左の写し方の逆（その場の伸び方の逆行列）で箱の向きへ（玉と同じ）
+    ///   重力は 2.5 rad/s で目標へ回り、水面の向きはその逆向きを ばねで追いかける（少し行き過ぎて ゆれもどる。強さは「ゆれ」の設定）
+    func waterFreeTick3(_ dt: Double, first: Bool) {
+        let H = Self.half
+        var t3 = SIMD3<Double>(0, 0, -1)
+        if waterGravMode != 2 {
+            let o = place3([0, 0, 0]).0, cols = (0..<3).map { a -> SIMD3<Double> in var e = [0.0, 0, 0]; e[a] = 0.1; return (place3(e).0 - o) / 0.1 }
+            let J = simd_double3x3(cols[0], cols[1], cols[2]), want: SIMD3<Double> = waterGravMode == 0 ? SIMD3(0, 0, -1) : SIMD3(0, -1, 0)
+            if abs(J.determinant) > 1e-9 { let v = J.inverse * want; if simd_length(v) > 1e-9 { t3 = simd_normalize(v) } }
         }
-        let leaking = (waterLidSet && touches(n4 - 1)) || (waterBottomSet && touches(0))
-        // 目標を増やすのは、本当に水を入れている間だけ（満タンで止めた後も増やし続けると、行き場のない水を足し続けて圧力がたまり、流れが暴れる）
-        if waterPourHold && !full { nsVTarget = min(0.88 * Vbox, max(nsVTarget, ns.lastVol) + 1.0 * waterPourRate * dt) }
-        else if leaking { nsVTarget = min(nsVTarget, ns.lastVol) }
-        nsVTarget = min(nsVTarget, ns.lastVol + 0.01 * Vbox)                // 目標が実際の量から離れすぎないように
-        nsSloshKick(ns, dt)
-        ns.tick(dt, target: nsVTarget < 1e-3 ? nil : nsVTarget, keepAir: true)
-        let hN = max(-1, min(1, ns.lastVol / (8 * pow(H, 4)) - 1))
-        if abs(waterH - hN) > 1e-5 { waterH = hN }
-        let ph = waterPourHold ? 1 : (waterBottomSet && ns.lastVol > 1e-3 ? 4 : (ns.lastVol < 1e-3 ? 6 : 2))
-        if waterPhase != ph { waterPhase = ph }
-        waterPour = waterPourHold && waterCanPour ? Self.wTOP * H : -9
-        // ふたの開け閉め（なめらかに）
-        func step(_ x: Double, _ t: Double) -> Double { x + (t > x ? 1 : -1) * min(abs(t - x), dt * 2) }
-        waterLid = step(waterLid, waterLidSet ? 1 : 0); waterBLid = step(waterBLid, waterBottomSet ? 1 : 0)
-        waterOut = nil; _ = Vbox
+        if first { waterGDir3 = t3; waterN3 = -t3; waterN3V = .zero }
+        var g = waterGDir3
+        let cs = max(-1, min(1, simd_dot(g, t3))), ang = acos(cs), stepA = 2.5 * dt
+        if ang <= stepA { g = t3 } else {
+            var pp = t3 - g * cs
+            if simd_length(pp) < 1e-6 { for e in [SIMD3<Double>(1, 0, 0), SIMD3<Double>(0, 1, 0)] { let q = e - g * simd_dot(e, g); if simd_length(q) > 0.3 { pp = q; break } } }
+            g = g * cos(stepA) + simd_normalize(pp) * sin(stepA)
+        }
+        waterGDir3 = g
+        // 水面の向き：ばね（1 秒に約 1.1 回ゆれる）。ゆれの設定が大きいほど減りにくい
+        let w0 = 7.0, ze = max(0.18, 1 - 0.8 * waterSlosh), sub = max(1, Int(ceil(dt / 0.02))), h = dt / Double(sub)
+        for _ in 0..<sub {
+            waterN3V += ((-g - waterN3) * (w0 * w0) - waterN3V * (2 * ze * w0)) * h
+            waterN3 += waterN3V * h
+        }
+        let nl = simd_length(waterN3); waterN3 = nl > 1e-9 ? waterN3 / nl : -g
+        // 筋が入る所：注ぐ場所（x・y のずれ）から上（重力の逆）へ、今の水面のすぐ上まで
+        let up = -g, base = SIMD3<Double>(waterPourX, waterPourY, 0) * (0.55 * H)
+        var tMax = 9.0
+        for a in 0..<3 where abs(up[a]) > 1e-6 { tMax = min(tMax, ((up[a] > 0 ? 1 : -1) * 0.78 * H - base[a]) / up[a]) }
+        let tw = tiltWater3(waterN3, (waterH + 1) / 2, H), nu = simd_dot(waterN3, up)
+        let tSurf = nu > 0.2 ? (tw.c + 0.14 * H - simd_dot(waterN3, base)) / nu : tMax
+        waterEntry3 = base + up * max(0, min(tMax, tSurf))
     }
     /// 遊ぶモード：超立方体の向きを変える（Y‐W の角 ay：−90° でふた（+W）が真上、−55° くらいでビールジョッキのようにななめ）。なめらかに回す
+    /// 手で遊ぶ：▶ はじめる を押していなくても、注ぐ・向き・量のボタンで動き出す（組み上がっていなければ組み上げる。見る向きは変えない）
+    func waterPlayStart() {
+        guard !intOn else { if intPaused { intPaused = false }; return }
+        intOn = true; intPaused = false
+        if progress < 0.92 { playFold() }
+    }
     func waterFreeView(ay: Double, xz: Double, yz: Double) {
         cycling = false; stopSpins(); playing = false; loop = false; viewSel = -1
         pend = [0, 0, 0, 0, 0]
@@ -310,6 +458,50 @@ extension OrigamiState {
     }
     /// 遊ぶモード：水を入れ直す（−1 空・0 半分・0.9 ほぼいっぱい）
     func waterFreeFill(_ h: Double) { if let ns = ns4Get() { ns.reset(level: Float(h)); nsVTarget = ns.lastVol; waterH = h } }
+}
+
+/// 3D の立方体 [−H, H]³ を平面 n·p ＝ c で切った下側（n·p ≤ c）＝ 傾いた水。体積が frac（0〜1）になる c と、壁の多角形・水面の多角形。
+///   体積は発散定理で：V ＝ (1/3)(H × 壁の面積の和 ＋ c × 水面の面積)。c は二分法で
+struct TiltWater3 { var c: Double; var walls: [[SIMD3<Double>]]; var cap: [SIMD3<Double>] }
+func tiltWater3(_ n0: SIMD3<Double>, _ frac: Double, _ H: Double) -> TiltWater3 {
+    let nl = simd_length(n0), n = nl > 1e-9 ? n0 / nl : SIMD3<Double>(0, 0, 1)
+    var faces: [[SIMD3<Double>]] = []
+    for ax in 0..<3 { for sg in [-1.0, 1.0] {
+        let a1 = (ax + 1) % 3, a2 = (ax + 2) % 3
+        faces.append([(-1.0, -1.0), (1, -1), (1, 1), (-1, 1)].map { st in var p = SIMD3<Double>(0, 0, 0); p[ax] = sg * H; p[a1] = st.0 * H; p[a2] = st.1 * H; return p })
+    } }
+    func clip(_ poly: [SIMD3<Double>], _ c: Double) -> [SIMD3<Double>] {
+        var out: [SIMD3<Double>] = []
+        for i in 0..<poly.count {
+            let a = poly[i], b = poly[(i + 1) % poly.count], da = simd_dot(n, a) - c, db = simd_dot(n, b) - c
+            if da <= 0 { out.append(a) }
+            if (da < 0) != (db < 0) && abs(da - db) > 1e-12 { out.append(a + (b - a) * (da / (da - db))) }
+        }
+        return out
+    }
+    func area(_ p: [SIMD3<Double>]) -> Double {
+        guard p.count >= 3 else { return 0 }
+        var s = SIMD3<Double>(0, 0, 0); for i in 1..<(p.count - 1) { s += simd_cross(p[i] - p[0], p[i + 1] - p[0]) }
+        return simd_length(s) / 2
+    }
+    func cap(_ c: Double) -> [SIMD3<Double>] {
+        var pts: [SIMD3<Double>] = []
+        for ax in 0..<3 { let a1 = (ax + 1) % 3, a2 = (ax + 2) % 3; for s in [-1.0, 1.0] { for t in [-1.0, 1.0] {
+            var a = SIMD3<Double>(0, 0, 0); a[ax] = -H; a[a1] = s * H; a[a2] = t * H; var b = a; b[ax] = H
+            let da = simd_dot(n, a) - c, db = simd_dot(n, b) - c
+            if (da < 0) != (db < 0) && abs(da - db) > 1e-12 { pts.append(a + (b - a) * (da / (da - db))) }
+        } } }
+        guard pts.count >= 3 else { return [] }
+        let ctr = pts.reduce(SIMD3<Double>(0, 0, 0), +) / Double(pts.count)
+        let hlp: SIMD3<Double> = abs(n.x) < 0.9 ? SIMD3(1, 0, 0) : SIMD3(0, 1, 0), e1 = simd_normalize(simd_cross(n, hlp)), e2 = simd_cross(n, e1)
+        return pts.sorted { atan2(simd_dot($0 - ctr, e2), simd_dot($0 - ctr, e1)) < atan2(simd_dot($1 - ctr, e2), simd_dot($1 - ctr, e1)) }
+    }
+    func vol(_ c: Double) -> Double { (faces.reduce(0) { $0 + H * area(clip($1, c)) } + c * area(cap(c))) / 3 }
+    let R = H * (abs(n.x) + abs(n.y) + abs(n.z)), target = max(0, min(1, frac)) * 8 * H * H * H
+    var lo = -R, hi = R
+    for _ in 0..<36 { let m = (lo + hi) / 2; if vol(m) < target { lo = m } else { hi = m } }
+    let c = (lo + hi) / 2
+    return TiltWater3(c: c, walls: faces.map { clip($0, c) }.filter { $0.count >= 3 }, cap: cap(c))
 }
 
 /// 景色の座標（y が上）を、描く側（z が上）へ
@@ -328,7 +520,7 @@ extension OrigamiRenderer {
         guard k > 0.01, st.intMethod == 1 else { return [] }
         let H = OrigamiState.half, h = st.waterH, d = n - 1, G = OrigamiState.wGrid, k0 = k
         let thin = min(1, (h + 1) * 3)                                   // 水が薄い時は揺れも小さく
-        var tris: [IntVert] = [], wtris: [IntVert] = []
+        var tris: [IntVert] = [], wtris: [IntVert] = [], ptris: [IntVert] = []   // ptris：水面に浮いたつぶ（水の面の後に重ねる）
         let real = st.waterReal
         /// リアルな水の板（3 つの点・面の向きは点の順から。kind：1 水面・0 壁と底）
         func wface(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>, _ kind: Float, _ na: SIMD3<Double>? = nil, _ nb: SIMD3<Double>? = nil, _ nc: SIMD3<Double>? = nil) {
@@ -340,9 +532,47 @@ extension OrigamiRenderer {
         // 排水口のくぼみ：吸い込む流れは中心ほど速く（4D は 3 方向から集まるので 1/r²）、速い所ほど水面が下がる（ベルヌーイ η ＝ −u²/2g ∝ 1/r⁴、真ん中は丸める）
         let vd = st.waterVD, HOLE = OrigamiState.wHOLE, hole = st.waterHoleNow, HR = HOLE * H
         func bern(_ u: [Double]) -> Double { let r = sqrt(u.reduce(0) { $0 + $1 * $1 }); return 0.8 * vd * H / (1 + pow(r / (0.45 * HOLE), 4)) }
+        // 渦（お風呂の渦）：外から入ってきた水の回転は、角運動量が保たれるので真ん中ほど速い（回る速さ v ∝ 1/r）。
+        //   速い所ほど水面が下がる（η ＝ −v²/2g ∝ 1/r²）。芯は丸めて η ＝ −D₀ /(1 ＋ (r/r_c)²)：ろうとの形。
+        //   水が浅くなるほど回転が集まって深くなり、最後は空気の芯が排水口までつながる。
+        //   4D：3D の水面の中で回るので、回る面は x‐y（本物の 4D の水の「渦の強さ」と同じ面）、芯は点ではなく z の線（とい）。排水口から z に離れるほど浅く（とがった細長いへこみ）
+        let vk = min(1, vd / 0.3), depthA = max(0, (h + 1) * H), fillA = depthA / (2 * H)
+        let vortOn = !(st.waterFree && st.waterNS) && vk > 0.01 && h > -0.99
+        let D0 = vortOn ? st.waterSwirl * vk * H * (0.25 + 1.1 * (1 - fillA) * (1 - fillA)) : 0, VRC = 0.28, VLY = 0.45, VT = st.waterTT
+        // 渦の流れで運ばれる水面のさざ波：水面の模様を、渦の流れ（吸いこむ dr/dt ＝ −a/r、回る v ＝ Γ/r）でさかのぼった所から取ってくる。
+        //   τ 秒前にいた所：r₀² ＝ r² ＋ 2aτ、θ₀ ＝ θ − (Γ/2a) ln(r₀²/r²)（水面のつぶと同じ対数らせん）。模様は回りながら中へ引きのばされて、らせんの筋になる。
+        //   τ がずっと増えると巻きすぎるので、ずらした 2 枚を TP 秒ごとに入れかえて重ねる（片方が薄い時に、新しい模様に取りかえる）
+        let FA = 0.07, FG = (0.5 + 0.9 * st.waterSwirl) * 0.6, FTP = 1.8, FAMP = 0.085 * H * vk * min(1, st.waterSwirl / 0.25 + 0.3)
+        func flowRip(_ u: [Double], _ r2: Double) -> Double {
+            guard FAMP > 1e-6, r2 < 1.9 else { return 0 }
+            let r2c = max(r2, 1e-6), th = atan2(u[1], u[0]), zz = d == 3 ? u[2] : 0
+            var s = 0.0, ww = 0.0
+            for layer in 0..<2 {
+                let ph = VT / FTP + 0.5 * Double(layer), cyc = floor(ph), fr = ph - cyc, tau = fr * FTP, w = 1 - abs(2 * fr - 1)
+                let r02 = r2c + 2 * FA * tau, th0 = th - FG / (2 * FA) * log(r02 / r2c), r0 = sqrt(r02)
+                let x0 = r0 * cos(th0), y0 = r0 * sin(th0), sd = cyc * 2.39 + Double(layer) * 5.1
+                // 水面のさざ波の模様：向きのちがう 4 つの波の重ね合わせ（波長 0.3〜0.4。細かすぎると渦が目立たない）
+                var n = 0.0
+                for (i, kv) in [(0, SIMD3(17.0, 7.0, 5.0)), (1, SIMD3(-8.0, 16.0, -6.0)), (2, SIMD3(-14.0, -11.0, 8.0)), (3, SIMD3(5.0, -19.0, -9.0))] {
+                    n += cos(kv.x * x0 + kv.y * y0 + kv.z * zz + sd * Double(i + 1) * 1.7)
+                }
+                s += w * n / 4; ww += w * w
+            }
+            s /= max(0.5, ww).squareRoot()                                    // 2 枚を重ねた時に薄くならないように
+            // 真ん中（ろうとの中）は巻きすぎて細かすぎるので消す。壁の近くも少し弱く
+            let r = sqrt(r2c), env = (1 - exp(-pow(r / 0.13, 2))) * exp(-pow(r / 1.3, 4)) * (d == 3 ? exp(-pow(zz / 0.8, 2)) : 1)
+            return FAMP * env * s
+        }
+        func vortD(_ u: [Double]) -> Double {
+            guard D0 > 1e-5 else { return 0 }
+            let ux = u[0], uy = u[1], r2 = ux * ux + uy * uy, ty = d == 3 ? exp(-(u[2] / VLY) * (u[2] / VLY)) : 1
+            return D0 * ty / (1 + r2 / (VRC * VRC)) + (real ? flowRip(u, r2) : 0)
+        }
         func surfW(_ u: [Double]) -> Double {
             let e = d == 3 ? st.swe.sample3(SIMD3(u[0], u[1], u[2])) : st.swe.sample2(SIMD2(u[0], u[1]))
-            return max(-H, min(H, h * H + thin * e - (vd > 1e-4 ? bern(u) : 0)))
+            // 波紋（リアルな水だけ。細かいので、線の図では描かない）
+            let rp = real ? (d == 3 ? st.swe.rip3(SIMD3(u[0], u[1], u[2])) : st.swe.rip2(SIMD2(u[0], u[1]))) : 0
+            return max(-H, min(H, h * H + thin * (e + rp) - (vd > 1e-4 ? bern(u) : 0) - vortD(u)))
         }
         func rod(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Float>, _ L: Double = 1) { rods.append(TLRod(a: SIMD4(gpuW(a), 0), b: SIMD4(gpuW(b), 0), col: SIMD4(c, Float(L * k / 1.4)))) }
         func face(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>, _ ca: SIMD3<Float>, _ cb: SIMD3<Float>, _ cc: SIMD3<Float>, _ al: Float = -1) {
@@ -421,6 +651,37 @@ extension OrigamiRenderer {
                 let A0 = L(mesh.p[3 * t]), B0 = L(mesh.p[3 * t + 1]), C0 = L(mesh.p[3 * t + 2])
                 if real { wface(A0, B0, C0, mesh.kind[t]) } else { let col = mesh.kind[t] > 0.5 ? Self.liqMen * 0.85 : Self.liqWall; face(A0, B0, C0, col, col, col, Float(0.3 * k0)) }
             }
+        } else if d == 2 && st.waterFree && st.waterNS {
+            // 遊ぶモードの左：重力の向きに合わせて傾いた 3D の水（水面は平面、量は右の 4D の水と同じ割合）
+            let frac = (h + 1) / 2
+            if frac > 0.002 {
+                let tw = tiltWater3(st.waterN3, frac, H)
+                func Q(_ p: SIMD3<Double>) -> SIMD3<Double> { st.place([p.x, p.y, p.z], 3).0 }
+                for poly in tw.walls {
+                    let q = poly.map(Q)
+                    for i in 1..<(q.count - 1) {
+                        if real { wface(q[0], q[i], q[i + 1], 0) } else { face(q[0], q[i], q[i + 1], Self.liqWall, Self.liqWall, Self.liqWall, Float(0.3 * k)) }
+                    }
+                }
+                if tw.cap.count >= 3 {
+                    let q = tw.cap.map(Q), sc = SIMD3<Float>(Float(Self.liqSurf.x), Float(Self.liqSurf.y), Float(Self.liqSurf.z))
+                    for i in 1..<(q.count - 1) {
+                        if real { wface(q[0], q[i], q[i + 1], 1) } else { face(q[0], q[i], q[i + 1], sc, sc, sc, Float(0.3 * k)) }
+                    }
+                    if !real { for i in 0..<q.count { rod(q[i], q[(i + 1) % q.count], Self.liqMen) } }   // 水際の線（リアルな水では描かない：無いほうが水らしい）
+                }
+                // 開けた面（ふた ＋z・底 −z）に水が来ていたら、外へこぼれ落ちる筋（左の重力の向きへ）
+                let g3 = st.waterGDir3, T = st.waterTT
+                for (open, zq) in [(st.waterLidSet, H), (st.waterBottomSet, -H)] where open {
+                    for i in 0..<7 { for j in 0..<7 {
+                        let p = SIMD3<Double>(-H + (Double(i) + 0.5) * 2 * H / 7, -H + (Double(j) + 0.5) * 2 * H / 7, zq)
+                        guard simd_dot(st.waterN3, p) < tw.c - 0.02 * H else { continue }
+                        let hsh = sin(Double(i * 73 + j * 37) + zq) * 43758.5453
+                        let f = (T * 1.6 + hsh - floor(hsh)).truncatingRemainder(dividingBy: 1), s0 = 0.9 * f * f, s1 = 0.9 * min(1, f + 0.12) * min(1, f + 0.12)
+                        rod(Q(p + g3 * s0), Q(p + g3 * s1), Self.liqStream, 0.9 * (1 - f))
+                    } }
+                }
+            }
         } else if h > -0.999 {
             if d == 3 {
                 // 水面の立方体（w ＝ h ＋ 揺れ）：6 面を G×G に分けて。色は頂点ごと（面の向きは隣の点から）
@@ -428,7 +689,7 @@ extension OrigamiRenderer {
                     let a1 = (ax + 1) % 3, a2 = (ax + 2) % 3
                     if real {
                         // リアルな水面：細かく（24×24）、点ごとの面の向きで（なめらかな光）。網目の線は描かない
-                        let G2 = 24
+                        let G2 = 44                                         // 波紋の細かさ（波長 ≈ 0.28）まで出るように
                         func U2(_ i: Int, _ j: Int) -> [Double] { var u = [0.0, 0, 0]; u[ax] = sg; u[a1] = -1 + 2 * Double(i) / Double(G2); u[a2] = -1 + 2 * Double(j) / Double(G2); return u }
                         var V: [[SIMD3<Double>]] = []
                         for i in 0...G2 { V.append((0...G2).map { j in let u = U2(i, j); return P(u, surfW(u)) }) }
@@ -467,14 +728,14 @@ extension OrigamiRenderer {
                     for i in 0..<G {
                         let ua = U(i), ub = U(i + 1), wa = surfW(ua), wb = surfW(ub)
                         let A0 = P(ua, -H), B0 = P(ub, -H), A1 = P(ua, wa), B1 = P(ub, wb)
-                        if real { wface(A0, B0, B1, 0); wface(A0, B1, A1, 0); rod(A1, B1, Self.liqMen, 0.6) }
+                        if real { wface(A0, B0, B1, 0); wface(A0, B1, A1, 0) }   // リアルな水：水際の線は描かない（無いほうが水らしい）
                         else { face(A0, B0, B1, Self.liqWall, Self.liqWall, Self.liqWall); face(A0, B1, A1, Self.liqWall, Self.liqWall, Self.liqWall); rod(A1, B1, Self.liqMen) }
                     }
                 } } }
                 // 角の縦の線（w の方向）と、底の立方体（w ＝ −1）
                 for v in 0..<8 {
                     let u = [v & 1 != 0 ? 1.0 : -1, v & 2 != 0 ? 1.0 : -1, v & 4 != 0 ? 1.0 : -1]
-                    rod(P(u, -H), P(u, surfW(u)), (Self.liqCornB + Self.liqCornT) / 2)
+                    if !real { rod(P(u, -H), P(u, surfW(u)), (Self.liqCornB + Self.liqCornT) / 2) }
                 }
                 if real {
                     for ax in 0..<3 { for sg in [-1.0, 1.0] {
@@ -486,9 +747,11 @@ extension OrigamiRenderer {
                 } else { cubeFaces(-H, Self.liqBot, A, P, &tris) }
             } else {
                 // 3 次元の水：水面は正方形（z ＝ h ＋ 揺れ）
-                let G = real ? 32 : G
+                let G = real ? 72 : G
+                // リアルな水：真ん中ほど細かく（渦のろうとの細い所まで形が出るように）。端は ±1 のまま。端も波紋の波長が出る細かさに
+                func gs(_ i: Int) -> Double { let s = -1 + 2 * Double(i) / Double(G); return real ? s * (0.45 + 0.55 * s * s) : s }
                 var V: [[SIMD3<Double>]] = [], Dd: [[Double]] = []
-                for i in 0...G { var row: [SIMD3<Double>] = [], drow: [Double] = []; for j in 0...G { let u = [-1 + 2 * Double(i) / Double(G), -1 + 2 * Double(j) / Double(G)], w = surfW(u); row.append(P(u, w)); drow.append(w / H - h) }; V.append(row); Dd.append(drow) }
+                for i in 0...G { var row: [SIMD3<Double>] = [], drow: [Double] = []; for j in 0...G { let u = [gs(i), gs(j)], w = surfW(u); row.append(P(u, w)); drow.append(w / H - h) }; V.append(row); Dd.append(drow) }
                 var C: [[SIMD3<Float>]] = []
                 for i in 0...G { var row: [SIMD3<Float>] = []; for j in 0...G {
                     let a = V[min(G, i + 1)][j] - V[max(0, i - 1)][j], b = V[i][min(G, j + 1)] - V[i][max(0, j - 1)]
@@ -511,30 +774,33 @@ extension OrigamiRenderer {
                     for i in 0..<G {
                         let ua = U(i), ub = U(i + 1), wa = surfW(ua), wb = surfW(ub)
                         let A0 = P(ua, -H), B0 = P(ub, -H), A1 = P(ua, wa), B1 = P(ub, wb)
-                        if real { wface(A0, B0, B1, 0); wface(A0, B1, A1, 0); rod(A1, B1, Self.liqMen, 0.6) }
+                        if real { wface(A0, B0, B1, 0); wface(A0, B1, A1, 0) }   // リアルな水：水際の線は描かない（無いほうが水らしい）
                         else { face(A0, B0, B1, Self.liqWall, Self.liqWall, Self.liqWall, Float(0.3 * k)); face(A0, B1, A1, Self.liqWall, Self.liqWall, Self.liqWall, Float(0.3 * k)); rod(A1, B1, Self.liqMen) }
                     }
                 } }
-                for v in 0..<4 { let u = [v & 1 != 0 ? 1.0 : -1, v & 2 != 0 ? 1.0 : -1]; rod(P(u, -H), P(u, surfW(u)), (Self.liqCornB + Self.liqCornT) / 2) }
+                for v in 0..<4 { let u = [v & 1 != 0 ? 1.0 : -1, v & 2 != 0 ? 1.0 : -1]; if !real { rod(P(u, -H), P(u, surfW(u)), (Self.liqCornB + Self.liqCornT) / 2) } }
                 let b0 = P([-1, -1], -H), b1 = P([1, -1], -H), b2 = P([1, 1], -H), b3 = P([-1, 1], -H)
                 if real { wface(b0, b1, b2, 0); wface(b0, b2, b3, 0) }
                 else { face(b0, b1, b2, Self.liqBot, Self.liqBot, Self.liqBot, Float(0.3 * k)); face(b0, b2, b3, Self.liqBot, Self.liqBot, Self.liqBot, Float(0.3 * k)) }
             }
         }
         // 水の筋：ふたの先（w ＝ TOP×H）から水面まで、w の方向に落ちる（止めた後は、しっぽが落ちていく）。粒は g で加速しながら落ちる
-        let us = st.waterFree && nsOn ? SIMD3(st.waterPourX, st.waterPourY, st.waterPourZ) : OrigamiState.wUS, top = st.waterPour
+        // 遊ぶモード（本物の 4D の水）：右も左も、重力の向きに落ちてくる筋（左は左の 3D の重力で）
+        let free = st.waterFree && st.waterNS && (nsOn || d == 2)
+        let us = free ? SIMD3(st.waterPourX, st.waterPourY, st.waterPourZ) : OrigamiState.wUS, top = st.waterPour
         let su: [Double] = d == 3 ? [us.x, us.y, us.z] : [us.x, us.y]
-        let free = st.waterFree && nsOn
         let surfS = free ? H * 0.85 : h > -0.999 ? (nsW.map { min($0.surfaceWorld(SIMD3(us.x, us.y, us.z)), h * H + 0.08 * H) } ?? surfW(su)) : -H   // 本物の 4D：柱の水面と平均の水位の低いほう（入れたばかりの水に止まって見えないように）   // 遊ぶモード：筋はふたの近く（水を入れる所）まで
         if top > surfS && !sliceL {
             let T = st.waterTT
             if real && free {
                 // 遊ぶモード：画面の上から（重力の向きにまっすぐ）落ちてきて、ふた（+W）の注ぐ場所に入る透明な水の柱
-                let g = st.waterGDir, E4 = st.waterEntry4, L = 1.7, MS = 24, K = 12
+                //   左の窓は、左の 3D の重力の向きと入る所で（x・y・z を SIMD4 の前の 3 つに）
+                let g = d == 2 ? SIMD4(st.waterGDir3, 0) : st.waterGDir, E4 = d == 2 ? SIMD4(st.waterEntry3, 0) : st.waterEntry4, L = 1.7, MS = 24, K = 12
+                func PL(_ q: SIMD4<Double>) -> SIMD3<Double> { d == 2 ? st.place([q.x, q.y, q.z], 3).0 : st.place([q.x, q.y, q.z, q.w], 4).0 }
                 var rings: [[(SIMD3<Double>, SIMD3<Double>)]] = []
                 for m in 0...MS {
-                    let f = Double(m) / Double(MS), q = E4 - g * (L * (1 - f)), C = st.place([q.x, q.y, q.z, q.w], 4).0
-                    let q2 = q + g * 0.02, Cn = st.place([q2.x, q2.y, q2.z, q2.w], 4).0, Tg = simd_normalize(Cn - C)
+                    let f = Double(m) / Double(MS), q = E4 - g * (L * (1 - f)), C = PL(q)
+                    let q2 = q + g * 0.02, Cn = PL(q2), Tg = simd_normalize(Cn - C)
                     let v = sqrt(0.36 + 2 * st.waterG * L * f), rr = 0.05 * pow(0.6 / v, 1.0 / 3.0)
                     let hlp: SIMD3<Double> = abs(Tg.x) < 0.9 ? SIMD3(1, 0, 0) : SIMD3(0, 1, 0), N1 = simd_normalize(simd_cross(Tg, hlp)), N2 = simd_cross(Tg, N1)
                     rings.append((0..<K).map { j in let th = 2 * Double.pi * Double(j) / Double(K), nv = N1 * cos(th) + N2 * sin(th); return (C + nv * rr, nv) })
@@ -733,7 +999,8 @@ extension OrigamiRenderer {
                 let a1 = (ax + 1) % 3, a2 = (ax + 2) % 3
                 var A = [0.0, 0, 0], B = [0.0, 0, 0]; A[ax] = -R; B[ax] = R; A[a1] = s1 * R; B[a1] = s1 * R; A[a2] = s2 * R; B[a2] = s2 * R
                 let wa = surfW(A), wb = surfW(B), q0 = P(A, -H), q1 = P(B, -H), q2 = P(B, wb), q3 = P(A, wa)
-                if real { wface(q0, q1, q2, 0); wface(q0, q2, q3, 0) } else { face(q0, q1, q2, cW, cW, cW); face(q0, q2, q3, cW, cW, cW) }
+                if real { continue }                                           // リアルな水：柱は描かない（水面に排水口の口の形が写って見えるので）
+                face(q0, q1, q2, cW, cW, cW); face(q0, q2, q3, cW, cW, cW)
                 rod(q3, q2, cTop, 0.7)
             } } }
             if flowing {
@@ -744,7 +1011,7 @@ extension OrigamiRenderer {
                     if rr * R0 * dl < R * 0.9 { continue }
                     rod(P(D.map { $0 * R0 * rr }, w), P(D.map { $0 * R0 * r2 }, w), cTop, min(1, sF * 4))
                 }
-                for q in 0..<10 {   // 柱の中を穴へ流れ込む水の筋
+                for q in 0..<(real ? 0 : 10) {   // 柱の中を穴へ流れ込む水の筋（リアルな水では描かない）
                     let u = [cos(Double(q) * 2.4) * R * 0.6, sin(Double(q) * 1.7) * R * 0.6, sin(Double(q) * 2.4) * R * 0.6], top = surfW(u), f = (T * 0.9 + Double(q) / 10).truncatingRemainder(dividingBy: 1), w = top - f * (top + H)
                     rod(P(u, w), P(u, max(-H, w - 0.15 * H)), cTop)
                 }
@@ -781,7 +1048,7 @@ extension OrigamiRenderer {
                     face(q[0], q[1], q[2], pc, pc, pc, Float(0.6 * k)); face(q[0], q[2], q[3], pc, pc, pc, Float(0.6 * k))
                 }
             }
-            if vd > 0.01 && h > -0.999 && !nsOn && !sliceL {
+            if vd > 0.01 && h > -0.999 && !nsOn && !sliceL && !real {   // 線の図の渦（リアルな水では、下のろうとの面と、吸いこまれるつぶ）
                 let va = min(1, vd / 0.3), vc = Self.liqVort, wc = surfW(d == 3 ? [0, 0, 0] : [0, 0]), M = 28
                 if d == 3 {
                     let G = 8
@@ -802,6 +1069,63 @@ extension OrigamiRenderer {
                 }
             }
         }
+        if vortOn && real && d == 3 && D0 > 0.01 * H {
+            // 右の窓の渦：4D の水面の真ん中は皮の内側なので見えない。z の 3 か所で水面を切った断面（x‐y × 高さ w）を、透けるろうとの面で描く。
+            //   真ん中（排水口の真上）が深く、z に離れた 2 枚は浅い（とい）。外へ行くほど透明にして、水面にとけこませる
+            let NR = 18, NT = 32, ROUT = 0.78
+            func nrmAt(_ u: [Double]) -> SIMD3<Double> {
+                let e = 0.02
+                func Q(_ dx: Double, _ dy: Double) -> SIMD3<Double> { let v = [u[0] + dx, u[1] + dy, u[2]]; return P(v, surfW(v)) }
+                let nn = simd_cross(Q(e, 0) - Q(-e, 0), Q(0, e) - Q(0, -e)), l = simd_length(nn); return l > 1e-12 ? nn / l : SIMD3(0, 1, 0)
+            }
+            for (zz, al0) in [(0.0, 0.6), (-0.42, 0.3), (0.42, 0.3)] {
+                var V: [[(SIMD3<Double>, SIMD4<Float>, Bool)]] = []
+                for i in 0...NR {
+                    let r = ROUT * pow(Double(i) / Double(NR), 1.7), fa = Float(al0 * vk * k * (1 - pow(r / ROUT, 2)))
+                    V.append((0...NT).map { j in
+                        let th = 2 * .pi * Double(j) / Double(NT), u = [r * cos(th), r * sin(th), zz], w = surfW(u), p = P(u, w)
+                        let c = (surfColor(p, nrmAt(u), w / H - h) + SIMD3<Float>(0.45, 0.8, 1)) * 0.6   // 暗くなりすぎないように、明るい水色を半分まぜる
+                        return (p, SIMD4(c * fa, fa), w <= -H + 1e-3)
+                    })
+                }
+                for i in 0..<NR { for j in 0..<NT {
+                    for tr in [[(i, j), (i + 1, j), (i + 1, j + 1)], [(i, j), (i + 1, j + 1), (i, j + 1)]] {
+                        let vs = tr.map { V[$0.0][$0.1] }
+                        if vs.allSatisfy({ $0.2 }) { continue }                    // 空気の芯が底まで届いた所（排水口への穴）は描かない
+                        for v in vs { tris.append(IntVert(p: SIMD4(gpuW(v.0), 1), c: v.1)) }
+                    }
+                } }
+            }
+        }
+        if vortOn && !sliceL && !real {   // リアルな水では、つぶの帯の代わりに水面のさざ波が渦の流れで運ばれる（flowRip）
+            // 水面に浮いたつぶ（泡・ほこり）：回りながら真ん中へ吸いこまれる。吸いこむ流れ dr/dt ＝ −a/r と、回る速さ v ＝ Γ/r（角運動量が保たれる）から
+            //   r² ＝ r₀² − 2at、θ ＝ θ₀ ＋ (Γ/2a) ln(r₀²/r²)：対数らせん。真ん中に近いほど速く回り、ろうとを下って消える。4D は x‐y で回り、z も排水口へ寄っていく
+            let NP = d == 3 ? 60 : 44, TL = 4.5, RE = 0.07, om0 = 0.5 + 0.9 * st.waterSwirl
+            func hs(_ x: Double) -> Double { let y = sin(x) * 43758.5453; return y - floor(y) }
+            for q in 0..<NP {
+                let qd = Double(q), r0 = 0.92 * (0.6 + 0.4 * hs(qd * 1.37 + 0.2)), th0 = 2 * .pi * hs(qd * 2.71 + 0.5), y0 = (hs(qd * 3.33 + 0.9) * 2 - 1) * 0.85
+                let a = (r0 * r0 - RE * RE) / (2 * TL), Gm = om0 * r0 * r0
+                func at(_ t: Double) -> [Double] {
+                    let r2 = max(RE * RE, r0 * r0 - 2 * a * t), r = sqrt(r2), th = th0 + Gm / (2 * a) * log(r0 * r0 / r2)
+                    return d == 3 ? [r * cos(th), r * sin(th), y0 * r / r0] : [r * cos(th), r * sin(th)]
+                }
+                let t = (T / TL + hs(qd * 5.1 + 0.3)).truncatingRemainder(dividingBy: 1) * TL
+                let r2n = max(RE * RE, r0 * r0 - 2 * a * t), dtS = min(0.35, 1.4 * r2n / Gm)   // 尾の長さ：速く回る所は短い時間ぶん（尾が回る角度をそろえる）
+                let f = t / TL, al = vk * min(1, f * 6) * min(1, (1 - f) * 4)
+                if al < 0.02 { continue }
+                // 通ってきた道を、すける細い帯の尾で（先が濃く、後ろほど透明に）。線（rod）は濃さを変えると暗くなるので、三角形で
+                let NS = 6, wd = (0.006 + 0.005 * hs(qd * 7.7)) * H, ln = 0.45 + 0.75 * hs(qd * 4.3), aq = 0.4 + 0.45 * hs(qd * 9.1)   // つぶごとに太さ・尾の長さ・濃さをばらばらに
+                var pts: [SIMD3<Double>] = []
+                for m in 0...NS { let u = at(max(0, t - ln * dtS * Double(m) / Double(NS))); pts.append(P(u, surfW(u) + 0.03 * H)) }
+                for m in 0..<NS {
+                    let a0 = pts[m], b0 = pts[m + 1], dir = b0 - a0
+                    var sd = simd_cross(dir, eye - a0); let sl = simd_length(sd); if sl < 1e-12 { continue }; sd *= wd / sl
+                    let fa = Float(al * aq * (1 - Double(m) / Double(NS))), fb = Float(al * aq * (1 - Double(m + 1) / Double(NS)))
+                    let ca = SIMD4<Float>(0.9 * fa, 0.97 * fa, fa, fa), cb = SIMD4<Float>(0.9 * fb, 0.97 * fb, fb, fb)
+                    for (q, c) in [(a0 + sd, ca), (a0 - sd, ca), (b0 - sd, cb), (a0 + sd, ca), (b0 - sd, cb), (b0 + sd, cb)] { ptris.append(IntVert(p: SIMD4(gpuW(q), 1), c: c)) }
+                }
+            }
+        }
         if d == 2 && st.waterVent && st.waterPhase == 4 {   // 左：抜いている間は、上ぶたの通気口から空気が入っていく
             for q in 0..<6 {
                 let f = (T * 1.2 + Double(q) / 6).truncatingRemainder(dividingBy: 1), z0 = H + (1 - f) * 0.9 * H, ox = cos(Double(q) * 2.4) * 0.06, oy = sin(Double(q) * 2.4) * 0.06, a = sin(.pi * f) * 0.8
@@ -818,6 +1142,7 @@ extension OrigamiRenderer {
             // 水の値：時刻・（映りこみの絵があるかは描く時に）・深さ（水の厚み 0〜1）・濃さ
             out.append(IntTriBatch(add: false, verts: wtris, water: true, wp: SIMD4<Float>(Float(st.waterTT), 0, Float(0.15 + 0.45 * (h + 1) / 2), Float(k)), ring: ring))
         }
+        if !ptris.isEmpty { out.append(IntTriBatch(add: false, verts: ptris)) }
         return out
     }
     /// 立方体（x・y・z が ±1、w 一定）の 6 面を三角形に

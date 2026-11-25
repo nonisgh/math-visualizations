@@ -242,6 +242,12 @@ final class OrigamiAppDelegate: NSObject, NSApplicationDelegate {
         save(OrigamiPanel(st: st, noScroll: true).frame(width: OrigamiView.panelW, height: 1100), "パネル_\(k + 1)_\(t.0)")
         print(String(format: "  （作るのに %.0f ミリ秒）", (CACurrentMediaTime() - t0) * 1000))
     }
+    // 4 次元の水のパネル（自動・本物の水・手で遊ぶ）：並びの確かめ
+    for (nm, ns, free) in [("水_自動_浅水", false, false), ("水_自動_本物", true, false), ("水_手で遊ぶ", true, true)] {
+        st.intMethod = 1; st.waterNS = ns; st.waterFree = free
+        save(IntegralTab(st: st).padding(8).frame(width: OrigamiView.panelW).background(UIC.bg), "パネル_\(nm)")
+    }
+    st.intMethod = 0; st.waterNS = false; st.waterFree = false
     save(OrigamiRotBar(st: st).padding(8).background(UIC.bg), "回転バー")
     do {   // 展開図図鑑：261 種類の小さな絵を全部（スクロールなしで並べる）と、図鑑の画面
         let cols = st.cellColors(4).map { PaletteEditor.color($0) }

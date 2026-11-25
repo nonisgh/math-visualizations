@@ -427,6 +427,7 @@ extension OrigamiRenderer {
             ("V3_見本・同心球", { $0.isPreview = true; $0.progress = 1; $0.spaceMode = 2; $0.showAxes = false; $0.intOn = true; $0.intMethod = 0; $0.intLook = 2; $0.intColor = 7; $0.intBallSpin = false; $0.intItems = [IntItem(t: 0, slot: 0.5, a: 1, fa: 1, fly: false, k: 0)]; $0.xz = 0.5; $0.yz = -0.45; $0.zoom = [1, 1.9]; $0.updateMats() }),
             ("V4_見本・ドラゴンボール", { $0.isPreview = true; $0.progress = 1; $0.spaceMode = 2; $0.showAxes = false; $0.intOn = true; $0.intMethod = 0; $0.intLook = 2; $0.intColor = 3; $0.intBallSpin = false; $0.intItems = [IntItem(t: 0, slot: 0.5, a: 1, fa: 1, fly: false, k: 0)]; $0.xz = 0.5; $0.yz = -0.45; $0.zoom = [1, 1.9]; $0.updateMats() }),
             ("W1_水・注いでいる", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(6.0 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("RP1_波紋・浅水・注いでいる", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; if let a = ProcessInfo.processInfo.environment["VXA"], let b = ProcessInfo.processInfo.environment["VXB"] { $0.ax = (Double(a) ?? 0) * .pi / 180; $0.ay = (Double(b) ?? 0) * .pi / 180 }; $0.intOn = true; $0.intMethod = 1; $0.waterNS = false; $0.waterFree = false; $0.waterReal = true; $0.drainMode = 0; $0.tween = nil; $0.updateMats(); $0.waterT = 0; $0.swe.reset(); let T = Double(ProcessInfo.processInfo.environment["RPT"] ?? "") ?? 5.0; for _ in 0..<Int(T * 60) { $0.waterTick(1.0 / 60) }; let st = $0; print("波紋の確かめ 3D(4D の水面) 最大", st.swe.rz.map { abs($0) }.max() ?? 0, " 2D 最大", st.swe.rz2.map { abs($0) }.max() ?? 0, " 浅水 η 最大", st.swe.eta.map { abs($0) }.max() ?? 0, " h", st.waterH) }),
             ("W2_水・いっぱい（揺れ）", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(11.5 * 60) { $0.waterTick(1.0 / 60) } }),
             ("W1o_水・注いでいる（前の図）", { $0.waterReal = false; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(6.0 * 60) { $0.waterTick(1.0 / 60) } }),
             ("W2o_水・いっぱい（前の図）", { $0.waterReal = false; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(11.5 * 60) { $0.waterTick(1.0 / 60) } }),
@@ -450,6 +451,109 @@ extension OrigamiRenderer {
             ("FR1_遊ぶ・ふたを下へ傾けてこぼす", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 0.3; $0.ay = 0.2; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterFree = true; $0.waterLidSet = true; $0.waterNSRes = 24; $0.updateMats(); $0.waterFreeFill(0); for n in 0..<150 { $0.ay = 0.2 + 2.6 * Double(n) / 150; $0.updateMats(); $0.waterTick(1.0 / 60) } }),
             ("FR3_遊ぶ・ななめのジョッキに上から注ぐ", { $0.progress = 1; $0.spaceMode = 2; $0.ax = 0; $0.ay = -0.95; $0.xz = 0.45; $0.yz = -0.25; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterFree = true; $0.waterLidSet = true; $0.waterNSRes = 24; $0.waterPourX = 0; $0.waterPourY = 0; $0.waterPourZ = 0; $0.updateMats(); $0.waterFreeFill(-1); $0.waterPourHold = true; for _ in 0..<240 { $0.waterTick(1.0 / 60) } }),
             ("FR4_遊ぶ・画面の奥の重力・ためて傾ける", { $0.progress = 1; $0.spaceMode = 2; $0.ax = 0; $0.ay = 0; $0.xz = 0.35; $0.yz = -0.3; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterFree = true; $0.waterGravMode = 0; $0.waterLidSet = true; $0.waterNSRes = 24; $0.tween = nil; $0.updateMats(); $0.waterFreeFill(-1); for n in 0..<330 { $0.waterPourHold = n < 240; if n >= 240 { $0.ay = Double(n - 240) / 90 * 1.4; $0.updateMats() }; $0.waterTick(1.0 / 60) } }),
+            ("FR5_遊ぶ・画面の下の重力・左も傾く", { $0.progress = 1; $0.ax = 0.55; $0.ay = -0.75; $0.xz = 0.6; $0.yz = -0.45; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterFree = true; $0.waterGravMode = 1; $0.waterLidSet = false; $0.waterNSRes = 16; $0.tween = nil; $0.updateMats(); $0.waterFreeFill(0); for _ in 0..<200 { $0.waterTick(1.0 / 60) } }),
+            ("FR6_遊ぶ・+W→−W・左は z の下", { $0.progress = 1; $0.ax = 0.55; $0.ay = -0.75; $0.xz = 0.6; $0.yz = -0.45; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterFree = true; $0.waterGravMode = 2; $0.waterLidSet = false; $0.waterNSRes = 16; $0.tween = nil; $0.updateMats(); $0.waterFreeFill(0); for _ in 0..<200 { $0.waterTick(1.0 / 60) } }),
+            ("FR7_遊ぶ・画面の奥の重力・左も", { $0.progress = 1; $0.ax = 0.55; $0.ay = -0.75; $0.xz = 0.6; $0.yz = -0.45; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterFree = true; $0.waterGravMode = 0; $0.waterLidSet = false; $0.waterNSRes = 16; $0.tween = nil; $0.updateMats(); $0.waterFreeFill(0); for _ in 0..<200 { $0.waterTick(1.0 / 60) } }),
+            ("ND2_設定どおり・場面の移り", { let E = ProcessInfo.processInfo.environment; $0.progress = 1; $0.ax = 0.5; $0.ay = 0.35; $0.xz = 0; $0.yz = 0; $0.intOn = true; $0.intMethod = 1; $0.waterNS = E["NS"] != "0"; $0.waterNSRes = 16; $0.drainMode = Int(E["DM"] ?? "1") ?? 1; $0.holesBuilt = E["HB"] == "1"; $0.holesOpenSet = E["HO"] == "1"; $0.waterVent = E["VENT"] == "1"; $0.intLidMode = Int(E["LID"] ?? "2") ?? 2; $0.waterFree = false; $0.tween = nil; $0.updateMats()
+                var T = 0.0, last = -1, log: [String] = []
+                let ns = $0.waterNS ? $0.ns4Get() : nil
+                func vol() -> Double { (ns?.lastVol ?? 0) / (16 * pow(0.9, 4)) * 100 }
+                while T < 60 {
+                    $0.waterTick(1.0 / 60); T += 1.0 / 60
+                    let ph = $0.waterPhase
+                    if ph != last { log.append(String(format: "%d@%.1f(V%.0f%% h%.2f)", ph, T, vol(), $0.waterH)); last = ph }
+                    if Int(T * 60) % 180 == 0 { log.append(String(format: "  [%.0f秒 t%.1f V%.1f%% h%.2f out%@ blid%.2f]", T, $0.waterT, vol(), $0.waterH, $0.waterOut == nil ? "なし" : "あり", $0.waterBLid)) }
+                }
+                print("ND2：" + log.joined(separator: " "))
+            }),
+            ("ND3_遊ぶ・底を開けて抜く", { let E = ProcessInfo.processInfo.environment; $0.progress = 1; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.drainMode = Int(E["DM"] ?? "1") ?? 1; $0.waterFree = true; $0.waterGravMode = Int(E["GM"] ?? "1") ?? 1; $0.waterLidSet = true; $0.waterBottomSet = false; $0.tween = nil; $0.ay = $0.waterFreeAY(0); $0.xz = 0; $0.yz = 0; $0.updateMats()
+                guard let ns = $0.ns4Get() else { return }
+                $0.waterFreeFill(0.4); var T = 0.0, log: [String] = []
+                for _ in 0..<60 { $0.waterTick(1.0 / 60) }
+                $0.waterBottomSet = true
+                while T < 60 {
+                    $0.waterTick(1.0 / 60); T += 1.0 / 60
+                    if Int(T * 60) % 120 == 0 { log.append(String(format: "[%.0f秒 V%.2f%% 出%.4f ph%d g(%.2f,%.2f,%.2f,%.2f)]", T, 100 * ns.lastVol / (16 * pow(0.9, 4)), ns.lastOutflow, $0.waterPhase, $0.waterGDir.x, $0.waterGDir.y, $0.waterGDir.z, $0.waterGDir.w)) }
+                }
+                print("ND3：" + log.joined(separator: " "))
+            }),
+            ("VX1_渦・浅水・抜き始め", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; if let a = ProcessInfo.processInfo.environment["VXA"], let b = ProcessInfo.processInfo.environment["VXB"] { $0.ax = (Double(a) ?? 0) * .pi / 180; $0.ay = (Double(b) ?? 0) * .pi / 180 }; if ProcessInfo.processInfo.environment["VXSIDE"] == "1" { $0.ax = .pi / 2; $0.ay = 0; $0.zw = 0; $0.xy = 0; $0.xz = 0.35; $0.yz = -0.3; $0.projBlend = 1 }; $0.intOn = true; $0.intMethod = 1; $0.waterNS = false; $0.waterNSRes = 16; $0.drainMode = 1; $0.waterSwirl = 0.42; $0.waterFree = false; $0.tween = nil; $0.updateMats(); $0.waterT = 0; $0.swe.reset()
+                var n = 0; while n < 60 * 60 && !($0.waterPhase == 4 && $0.waterH < 0.4) { $0.waterTick(1.0 / 60); n += 1 }
+                for _ in 0..<20 { $0.waterTick(1.0 / 60) }; print(String(format: "渦の確かめ：h %.2f  vd %.3f  渦の強さ %.2f", $0.waterH, $0.waterVD, $0.waterSwirl)) }),
+            ("VX2_渦・浅水・浅い", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; if let a = ProcessInfo.processInfo.environment["VXA"], let b = ProcessInfo.processInfo.environment["VXB"] { $0.ax = (Double(a) ?? 0) * .pi / 180; $0.ay = (Double(b) ?? 0) * .pi / 180 }; if ProcessInfo.processInfo.environment["VXSIDE"] == "1" { $0.ax = .pi / 2; $0.ay = 0; $0.zw = 0; $0.xy = 0; $0.xz = 0.35; $0.yz = -0.3; $0.projBlend = 1 }; $0.intOn = true; $0.intMethod = 1; $0.waterNS = false; $0.waterNSRes = 16; $0.drainMode = 1; $0.waterSwirl = 0.42; $0.waterFree = false; $0.tween = nil; $0.updateMats(); $0.waterT = 0; $0.swe.reset()
+                var n = 0; while n < 60 * 60 && !($0.waterPhase == 4 && $0.waterH < -0.6) { $0.waterTick(1.0 / 60); n += 1 }
+                for _ in 0..<20 { $0.waterTick(1.0 / 60) }; print(String(format: "渦の確かめ：h %.2f  vd %.3f  渦の強さ %.2f", $0.waterH, $0.waterVD, $0.waterSwirl)) }),
+            ("VX3_渦・本物の水・半分", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; if let a = ProcessInfo.processInfo.environment["VXA"], let b = ProcessInfo.processInfo.environment["VXB"] { $0.ax = (Double(a) ?? 0) * .pi / 180; $0.ay = (Double(b) ?? 0) * .pi / 180 }; if ProcessInfo.processInfo.environment["VXSIDE"] == "1" { $0.ax = .pi / 2; $0.ay = 0; $0.zw = 0; $0.xy = 0; $0.xz = 0.35; $0.yz = -0.3; $0.projBlend = 1 }; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.drainMode = 1; $0.waterSwirl = 0.42; $0.waterFree = false; $0.tween = nil; $0.updateMats(); $0.waterT = 0; $0.swe.reset()
+                var n = 0; while n < 60 * 60 && !($0.waterPhase == 4 && $0.waterH < 0.0) { $0.waterTick(1.0 / 60); n += 1 }
+                for _ in 0..<20 { $0.waterTick(1.0 / 60) }; print(String(format: "渦の確かめ：h %.2f  vd %.3f  渦の強さ %.2f", $0.waterH, $0.waterVD, $0.waterSwirl)) }),
+            ("VX4_渦・本物の水・浅い", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; if let a = ProcessInfo.processInfo.environment["VXA"], let b = ProcessInfo.processInfo.environment["VXB"] { $0.ax = (Double(a) ?? 0) * .pi / 180; $0.ay = (Double(b) ?? 0) * .pi / 180 }; if ProcessInfo.processInfo.environment["VXSIDE"] == "1" { $0.ax = .pi / 2; $0.ay = 0; $0.zw = 0; $0.xy = 0; $0.xz = 0.35; $0.yz = -0.3; $0.projBlend = 1 }; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.drainMode = 1; $0.waterSwirl = 0.42; $0.waterFree = false; $0.tween = nil; $0.updateMats(); $0.waterT = 0; $0.swe.reset()
+                var n = 0; while n < 60 * 60 && !($0.waterPhase == 4 && $0.waterH < -0.7) { $0.waterTick(1.0 / 60); n += 1 }
+                for _ in 0..<20 { $0.waterTick(1.0 / 60) }; print(String(format: "渦の確かめ：h %.2f  vd %.3f  渦の強さ %.2f", $0.waterH, $0.waterVD, $0.waterSwirl)) }),
+            ("CP1_ちゃぷちゃぷ・浅水", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = false; $0.waterNSRes = 16; $0.drainMode = 1; $0.waterFree = false; $0.tween = nil; $0.updateMats(); $0.waterT = 0; $0.swe.reset()
+                var n = 0; while n < 60 * 40 && !($0.waterPhase == 2) { $0.waterTick(1.0 / 60); n += 1 }
+                let st = $0; func rms() -> Double { var s = 0.0; for e in st.swe.eta { s += Double(e * e) }; return sqrt(s / Double(st.swe.eta.count)) }
+                let r0 = rms()
+                for k in 0..<30 { $0.ay = 17 * .pi / 180 + 1.2 * Double(k) / 30; $0.updateMats(); $0.waterTick(1.0 / 60) }
+                let r1 = rms(); for _ in 0..<12 { $0.waterTick(1.0 / 60) }
+                print(String(format: "ちゃぷちゃぷ：回す前 %.4f → 回した直後 %.4f → 0.2 秒後 %.4f（η の RMS）", r0, r1, rms())) }),
+            ("CP2_ちゃぷちゃぷ・本物の水", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.drainMode = 1; $0.waterFree = false; $0.tween = nil; $0.updateMats(); $0.waterT = 0; $0.swe.reset()
+                var n = 0; while n < 60 * 40 && !($0.waterPhase == 2) { $0.waterTick(1.0 / 60); n += 1 }
+                let st = $0; func rms() -> Double { var s = 0.0; for e in st.swe.eta { s += Double(e * e) }; return sqrt(s / Double(st.swe.eta.count)) }
+                let r0 = rms()
+                for k in 0..<30 { $0.ay = 17 * .pi / 180 + 1.2 * Double(k) / 30; $0.updateMats(); $0.waterTick(1.0 / 60) }
+                let r1 = rms(); for _ in 0..<12 { $0.waterTick(1.0 / 60) }
+                print(String(format: "ちゃぷちゃぷ：回す前 %.4f → 回した直後 %.4f → 0.2 秒後 %.4f（η の RMS）", r0, r1, rms())) }),
+            ("ND1_本物の水・排水口で抜く時間", { $0.progress = 1; $0.ax = 0.5; $0.ay = 0.35; $0.xz = 0; $0.yz = 0; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = Int(ProcessInfo.processInfo.environment["NDRES"] ?? "16") ?? 16; $0.drainMode = 1; $0.waterFree = false; $0.tween = nil; $0.updateMats()
+                var T = 0.0, tPour = -1.0, tOpen = -1.0, tEmpty = -1.0, last = -1, log: [String] = []
+                guard let ns = $0.ns4Get() else { return }
+                while T < 90 {
+                    $0.waterTick(1.0 / 60); T += 1.0 / 60
+                    let ph = $0.waterPhase
+                    if ph != last { log.append(String(format: "%d@%.1f(%.0f%%)", ph, T, 100 * ns.lastVol / (16 * pow(0.9, 4)))); last = ph }
+                    if ph == 1 && tPour < 0 { tPour = T }
+                    if ph == 4 && tOpen < 0 { tOpen = T }
+                    if tOpen > 0 && ph >= 5 && tEmpty < 0 { tEmpty = T }
+                    if tEmpty > 0 && ph == 1 { log.append(String(format: "→ 次に注ぐまで %.1f 秒", T - tEmpty)); break }
+                    if tOpen > 0 && Int(T * 60) % 120 == 0 { log.append(String(format: "  %.0f秒 %.1f%%", T - tOpen, 100 * ns.lastVol / (16 * pow(0.9, 4)))) }
+                }
+                print("排水口：場面の移り " + log.joined(separator: " "))
+                print(String(format: "排水口（%d⁴）：開けてから空になるまで %.1f 秒（浅水の水は %.1f 秒）", ns.N, tEmpty - tOpen, OrigamiState.wDrainHoleT))
+                // 1 歩にかかる本当の時間（画面では 1 歩 最大 1/30 秒しか進めないので、これが 1/30 秒より長いと、水の時間が実際よりゆっくりになる）
+                let c0 = CACurrentMediaTime(); for _ in 0..<30 { $0.waterTick(1.0 / 60) }
+                print(String(format: "排水口（%d⁴）：1 歩 %.1f ミリ秒", ns.N, (CACurrentMediaTime() - c0) / 30 * 1000)) }),
+            ("PZ2_本物の水・注ぐ途中で止めても減らない", { $0.progress = 1; $0.ax = 0.5; $0.ay = 0.35; $0.xz = 0; $0.yz = 0; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.waterFree = false; $0.tween = nil; $0.updateMats()
+                guard let ns = $0.ns4Get() else { return }
+                var n = 0
+                while ($0.waterPhase != 1 || $0.waterH < 0) && n < 60 * 30 { $0.waterTick(1.0 / 60); n += 1 }
+                for _ in 0..<30 { $0.waterTick(1.0 / 60) }
+                $0.intPaused = true
+                for _ in 0..<20 { $0.waterTick(1.0 / 60) }
+                let v0 = ns.lastVol
+                for _ in 0..<(60 * 20) { $0.waterTick(1.0 / 60) }
+                print(String(format: "本物の水：止めて 20 秒で 水の量 %.3f → %.3f（%+.1f%%）", v0, ns.lastVol, 100 * (ns.lastVol - v0) / v0)) }),
+            ("NV4_本物の水・排水口で残り 4%", { $0.progress = 1; $0.ax = 0.5; $0.ay = 0.35; $0.xz = 0; $0.yz = 0; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.drainMode = 1; $0.waterFree = false; $0.tween = nil; $0.updateMats()
+                guard let ns = $0.ns4Get() else { return }
+                var n = 0
+                while n < 60 * 40 && !($0.waterPhase == 4 && ns.lastVol / (16 * pow(0.9, 4)) < 4 * 0.01) { $0.waterTick(1.0 / 60); n += 1 } }),
+            ("NV2_本物の水・排水口で残り 2%", { $0.progress = 1; $0.ax = 0.5; $0.ay = 0.35; $0.xz = 0; $0.yz = 0; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.drainMode = 1; $0.waterFree = false; $0.tween = nil; $0.updateMats()
+                guard let ns = $0.ns4Get() else { return }
+                var n = 0
+                while n < 60 * 40 && !($0.waterPhase == 4 && ns.lastVol / (16 * pow(0.9, 4)) < 2 * 0.01) { $0.waterTick(1.0 / 60); n += 1 } }),
+            ("NV1_本物の水・排水口で残り 1%", { $0.progress = 1; $0.ax = 0.5; $0.ay = 0.35; $0.xz = 0; $0.yz = 0; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.drainMode = 1; $0.waterFree = false; $0.tween = nil; $0.updateMats()
+                guard let ns = $0.ns4Get() else { return }
+                var n = 0
+                while n < 60 * 40 && !($0.waterPhase == 4 && ns.lastVol / (16 * pow(0.9, 4)) < 1 * 0.01) { $0.waterTick(1.0 / 60); n += 1 } }),
+            ("PZ1_一時停止・注ぐ途中で止めて静かに", { $0.progress = 1; $0.ax = 0.5; $0.ay = 0.35; $0.xz = 0; $0.yz = 0; $0.intOn = true; $0.intMethod = 1; $0.waterNS = false; $0.waterFree = false; $0.tween = nil; $0.updateMats()
+                while $0.waterPhase != 1 || $0.waterH < -0.2 { $0.waterTick(1.0 / 60) }
+                func amp(_ s: OrigamiState) -> Float { sqrt(s.swe.eta.reduce(0) { $0 + $1 * $1 } / Float(s.swe.eta.count)) }   // 波の高さ（ならした大きさ）
+                let a0 = amp($0), h0 = $0.waterH, t0 = $0.waterT
+                $0.intPaused = true
+                for _ in 0..<40 { $0.waterTick(1.0 / 60) }
+                let a1 = amp($0)
+                for _ in 0..<200 { $0.waterTick(1.0 / 60) }
+                print(String(format: "一時停止：波の高さ %.4f → %.4f → %.4f（静かになる）・水位 %.3f → %.3f（増えない）・時計 %.2f → %.2f（止まる）・筋のしっぽ %.2f", a0, a1, amp($0), h0, $0.waterH, t0, $0.waterT, $0.waterPour))
+                $0.intPaused = false; $0.waterPauseT = 0
+                $0.intPaused = true; for _ in 0..<20 { $0.waterTick(1.0 / 60) } }),
             ("SL1_輪切り z・注いでいる", { $0.waterSlice = 3; $0.waterSlicePos = 0.2; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(6.0 * 60) { $0.waterTick(1.0 / 60) } }),
             ("SL2_輪切り z・排水口で抜く", { $0.waterSlice = 3; $0.waterSlicePos = 0.05; $0.drainMode = 1; $0.waterSwirl = 0.6; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(16.6 * 60) { $0.waterTick(1.0 / 60) } }),
             ("OUT1_出る水・本物の4D・排水口", { $0.waterNS = true; $0.drainMode = 1; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNSRes = 16; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(16.5 * 60) { $0.waterTick(1.0 / 60) } }),
