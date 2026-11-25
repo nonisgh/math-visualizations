@@ -562,7 +562,7 @@ extension IntegralHUD {
             if n == 4 && st.waterPhase <= 1 {
                 Text("筋は w の向きにまっすぐ落ちる（外の大きい立方体＝ふた ＋W → 内の小さい立方体＝底 −W）。横の胞に重なって見えるのは写しただけで、ぶつかっていない").font(.system(size: 9)).foregroundStyle(Color(red: 0.75, green: 0.85, blue: 1))
             }
-            Text((st.waterPhase == 4 && st.waterHoleNow ? (st.holesOpen ? "排水口が開けっぱなし：入る量＝出る量の水位 h≈\(String(format: "%.2f", st.waterHEq)) に近づく" : st.waterVented ? "排水口から抜ける（トリチェリ：深いほど速く出る）。渦でくぼむ" : "通気口が無い：空気と入れ替わりながら、ごぼっ、ごぼっ") : st.waterPhase == 4 && !st.waterVented ? "通気口が無い：空気の圧力で支えられて、ゆっくり" : st.waterPhase == 3 && st.waterHoleNow ? "排水口の栓を抜く" : phases[max(0, min(6, st.waterPhase))]) + (n == 4 ? "。水面は 3 次元の立方体（浅水方程式で揺れる）" : "。水面は正方形")).font(.system(size: 9)).foregroundStyle(UIC.sub)
+            Text((st.waterPhase == 4 && st.waterHoleNow ? (st.holesOpen ? "排水口が開けっぱなし：入る量＝出る量の水位 h≈\(String(format: "%.2f", st.waterHEq)) に近づく" : st.waterVented ? "排水口から抜ける（トリチェリ：深いほど速く出る）。渦でくぼむ" : "通気口が無い：空気と入れ替わりながら、ごぼっ、ごぼっ") : st.waterPhase == 4 && !st.waterVented ? "通気口が無い：空気の圧力で支えられて、ゆっくり" : st.waterPhase == 3 && st.waterHoleNow ? "排水口の栓を抜く" : st.waterDrainH != nil && st.waterPhase == 2 ? "途中で抜く：ふたを閉めて栓を抜く" : phases[max(0, min(6, st.waterPhase))]) + (n == 4 ? "。水面は 3 次元の立方体（浅水方程式で揺れる）" : "。水面は正方形")).font(.system(size: 9)).foregroundStyle(UIC.sub)
         }
         .foregroundStyle(UIC.text)
         .padding(.horizontal, 14).padding(.vertical, 7)
@@ -663,13 +663,13 @@ struct IntegralTab: View {
                         Picker("抜き方", selection: $st.drainMode) { Text("底を全部").tag(0); Text("排水口").tag(1); Text("交互").tag(2) }.pickerStyle(.segmented)
                             .help("底を全部：かたまりのまま自由落下。排水口：床の真ん中の小さな立方体の穴から、トリチェリ（√(2g・深さ)）で抜けて渦でくぼむ。4 次元では穴と床の広さの比が 3 乗なので、とてもゆっくり")
                     HStack(spacing: 6) {
-                        Btn(st.holesBuilt ? "🔧 穴の工事：済み" : "🔧 穴の工事：まだ", on: st.holesBuilt) {
-                            st.holesBuilt.toggle(); st.holesBuiltAt = st.holesBuilt ? CACurrentMediaTime() : -1e9; st.waterDOpen = 0
-                        }
+                        Btn("🚿 今すぐ抜く", on: false) { st.waterDrainNow() }
+                            .opacity(st.waterCanDrainNow ? 1 : 0.4)
+                            .help("注いでいる途中でも、その水位のまま ふたを閉めて抜きます（抜き方の設定どおり。浅いほど早く空に）")
                         Btn(st.holesOpenSet ? "🕳 排水口：開けっぱなし" : "🕳 排水口：栓をする", on: st.holesOpenSet) {
-                            guard st.holesBuilt else { return }
+                            guard st.drainShown else { return }
                             st.holesOpenSet.toggle(); st.waterT = 0; st.waterDOpen = 0
-                        }.opacity(st.holesBuilt ? 1 : 0.4)
+                        }.opacity(st.drainShown ? 1 : 0.4)
                     }
                         Btn(st.waterVent ? "🌬 通気口：あり" : "🌬 通気口：なし", on: st.waterVent) { st.waterVent.toggle() }
                         Picker("ふた", selection: $st.intLidMode) { Text("直角に開く").tag(0); Text("開けたまま").tag(1); Text("消す").tag(2); Text("開けない").tag(3) }.pickerStyle(.segmented)
@@ -680,6 +680,10 @@ struct IntegralTab: View {
                             LiveRead(live: st.live) { NumRow("回した時のちゃぷちゃぷ", $st.waterSlosh, 0...2, "%.1f", scale: 1) }
                                 .help("箱を回したり、ドラッグの手を急に動かす・止めると、水が感じる「下」がずれて、水が寄ってゆれもどります。0 で なし")
                             LiveRead(live: st.live) { NumRow("渦の強さ（抜く時に残っている回転）", $st.waterSwirl, 0...1, "%.2f", scale: 1) }
+                            if st.drainMode != 0 && !(st.waterNS && st.waterFree) {
+                                LiveRead(live: st.live) { NumRow("排水口の大きさ（底の幅の何倍か）", $st.drainSize, 0.2...0.9, "%.2f", scale: 1) }
+                                    .help("大きいほど早く抜けます。4 次元では穴の広さは 3 次元の体積なので、大きさ 2 倍で 8 倍速く（3 次元のお風呂なら 4 倍）。渦の太さ・ふたの大きさも変わります")
+                            }
                             if st.waterNS {
                                 LiveRead(live: st.live) { NumRow("粘り（小さいほどさらさら）", $st.waterNu, 0...0.02, "%.3f", scale: 1) }
                                     .help("動粘性 ν（世界の単位）。小さいほど、さらさら動いて ゆれが長く続きます。前は 0.012。マス目が粗いと、計算でなまる分の見かけの粘りも残ります（速さの運び方を MacCormack にして減らしています）")
@@ -709,7 +713,7 @@ struct IntegralTab: View {
                                 Text("マウス：右の窓のドラッグ＝3D に回す、⌥（option）＋ドラッグ＝w を傾ける（X‐W・Y‐W）、⇧＋ドラッグ＝Z‐W。左の窓のドラッグでも w を傾けられます").font(.caption2).foregroundStyle(Color(red: 0.75, green: 0.85, blue: 1))
                                 Text("重力は画面の奥（または下）の決まった 1 つの向き。注ぐ水は重力の逆から まっすぐ落ちてきて、箱のいちばん上の所から入ります（押している間ずっと、たまっていきます）。回転で超立方体を傾けると（4D の回転も）、水は箱の中で 4 次元の「下」へ流れます。ふた（+W）や底（−W）を開けて下に向けると、そこからこぼれ落ちます。").font(.caption2).foregroundStyle(UIC.sub)
                             } else {
-                                Text("穴の工事：底（−W の胞）の真ん中に排水口、上（+W の胞）に通気口をドリルで開けます（格子のふた付き、ふだんの画面にも残る）。開けっぱなしで注ぐと、入る量＝出る量の水位で止まります。通気口が無いと、空気と入れ替わりながら ごぼっ、ごぼっ と抜けます").font(.caption2).foregroundStyle(UIC.sub)
+                                Text("抜き方を「排水口」（か「交互」）にすると、底（−W の胞）の真ん中に排水口、上（+W の胞）に通気口が現れます。ふたは蝶番で 90° 開きます。開けっぱなしで注ぐと、入る量＝出る量の水位で止まります。通気口が無いと、空気と入れ替わりながら ごぼっ、ごぼっ と抜けます").font(.caption2).foregroundStyle(UIC.sub)
                             }
                             if st.waterNS { Text("右の超立方体の水だけが本物の 4D（左の立方体の水は浅水方程式のまま）。8 つの壁の胞の中の水の形を描いています").font(.caption2).foregroundStyle(UIC.sub) }
                         }.padding(.top, 4)

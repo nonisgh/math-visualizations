@@ -206,10 +206,8 @@ final class OrigamiState: ObservableObject {
     var waterPour = -9.0                                             // 水の筋の上の端（w）
     // ---- 下水道（ウェブ版の穴の工事・排水口・通気口。OrigamiDrain.swift）----
     @Published var drainMode = 0                                    // 抜き方：0 底を全部開ける・1 小さい排水口（渦）・2 交互
-    @Published var holesBuilt = false                               // 穴の工事：底（−W の胞）に排水口、上（+W の胞）に通気口。ふだんの画面にも付いている
     @Published var holesOpenSet = false                             // 排水口：栓をする（ふつう）／開けっぱなし（工事済みの時だけ）
     @Published var waterVent = true                                 // 通気口：あり＝空気が入ってふつうに抜ける、なし＝ごぼごぼゆっくり
-    var holesBuiltAt = -1e9                                         // 工事を始めた時刻（ドリルで掘る 1.6 秒）
     var waterCyc = 0, waterDOpen = 0.0, waterHEq = 0.0, waterEmptyT: Double? = nil   // 1 回りの数（交互の入れ替え）・開けっぱなしの水の深さ・つり合う水位
     var waterLid = 0.0, waterBLid = 0.0                             // 上のふた・底の栓の開き具合
     var waterVD = 0.0, waterSD = 0.0, waterBurst = 0.0, waterGlugN = -1, waterPrevPhase = 0, waterVented = true   // 渦のくぼみ・抜けた割合・開けた瞬間の吸い込み・ごぼっ
@@ -254,8 +252,11 @@ final class OrigamiState: ObservableObject {
     @Published var waterSlice = 0                                   // 輪切り：0 なし・1 x・2 y・3 z ＝ 一定で切って、残りの 3D の水を左の窓に（本物の 4D の水の時）
     @Published var waterSlicePos = 0.0                              // 切る位置（−1〜1）
     @Published var waterVort = 1.0                                  // 渦の強調（渦度の閉じこめ ε）：粗いマスで消える細い渦を足し戻す。0 で なし
+    var waterDrainH: Double? = nil                                  // 自動モードの「今すぐ抜く」：押した時の水位（nil ＝ いっぱいまで注いでから抜く、ふつう）
+    @Published var drainSize = 0.58                                // 排水口の大きさ（底の幅の何倍か。4D では穴の広さは 3 乗）
     @Published var waterSwirl = 0.3                                 // 排水口を開けた時に残っている回転（x‐y の面）の強さ
     var nsPrevM4: simd_double4x4? = nil, nsPrevW = simd_double4x4(0)   // 箱の向きの前のコマ・回る速さ（ちゃぷちゃぷ用）
+    var waterDragIdle = 99.0                                       // 最後に箱を回すドラッグをしてからの秒（離したら水をおだやかに）
     var waterShakeAcc = SIMD2<Double>(0, 0), waterShakeV = SIMD2<Double>(0, 0)   // ゆさぶり：このコマにたまったドラッグ量・なめらかにした手の速さ（画面の横・縦）
     var nsLagM4: simd_double4x4? = nil                              // 水が感じる「下」の向き：箱の向きに少し遅れてついてくる（回すと水が傾いて寄り、止めるとゆれもどる）
     @Published var waterNu = 0.004                                  // 本物の 4D の水の粘り（動粘性、世界の単位）。小さいほどさらさら（前は 0.012）
@@ -268,7 +269,7 @@ final class OrigamiState: ObservableObject {
         if ns4 == nil && !ns4Failed { ns4 = NS4(N: ns4N); if let s = ns4 { s.reset(level: -1) } else { ns4Failed = true } }
         return ns4
     }
-    var holeDA = 0.0, holeVA = 0.0, holeDHL = 0.0, holeVHL = 0.0, holeLastT = 0.0   // 格子のふたの開き具合（排水口・通気口）と、開け閉めの途中の明るさ
+    var holeDA = 0.0, holeVA = 0.0, holeDHL = 0.0, holeVHL = 0.0, holeLastT = 0.0, holeShow = 0.0   // 格子のふたの開き具合（排水口・通気口）と、開け閉めの途中の明るさ
     lazy var swe = WaterSWE(us: OrigamiState.wUS)
     var intFront = -1.0 { willSet { uiChanged() } }
     var intBack = -1.0 { willSet { uiChanged() } }
@@ -526,6 +527,7 @@ final class OrigamiState: ObservableObject {
         let view3D = pp != nil && (ch == .r3x || ch == .r3y)
         // 4D の水のちゃぷちゃぷ：ドラッグを「コップをゆさぶる手の動き」としてためる（画面の横・縦、ラジアン）
         if ch == .r3x || ch == .l4x { waterShakeAcc.x += d } else if ch == .r3y || ch == .l4y { waterShakeAcc.y += d }
+        waterDragIdle = 0
         dragging = true; if pp != nil && !view3D { stopPP() }; if cycling { cycling = false }; tween = nil
         inTick = true; applyStep(ch.rawValue, d); inTick = false
     }
@@ -956,6 +958,12 @@ final class OrigamiState: ObservableObject {
 final class OrigamiRenderer: NSObject, MTKViewDelegate {
     let n: Int, st: OrigamiState
     let device: MTLDevice, queue: MTLCommandQueue
+    /// 排水口・通気口のふたを、底（0）・上（1）の胞と同じガラスで描くための、その胞の見た目（面ごとの色と濃さ・重ねる順の番号・包む強さ・4D の奥行き）
+    struct HoleLook { var sh: [(SIMD3<Float>, Float)]; var tag, wrap, w, squash: Float }
+    var holeLook: [Int: HoleLook] = [:]
+    /// 底（0）・上（1）の胞の辺の線（色・明るさ・太さ・なじませる印）。排水口と通気口を同じワイヤーで描く
+    var holeEdge: [Int: TLRod] = [:]
+    private var holeCI: [Int: Int] = [:], holeRodIdx: [Int: Int] = [:]
     private var pipe: MTLRenderPipelineState!
     private var lastT = CACurrentMediaTime()
     let sky: OrigamiSky?                      // 宇宙（背景と星屑）
@@ -1111,6 +1119,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         // 見せる胞（表だけ・裏だけ）の濃さ：展開図は表も裏も見えるので全部見せ、組み上がるにつれて（0.45〜0.95）見せない胞をすーっと消す
         var shownCells = 0, sideVis = [Double](repeating: 1, count: CV.count)
         let lidsNow = n <= 4 ? st.lidOpens() : []                           // 積分のふた（OrigamiLid.swift）
+        holeLook = [:]; holeEdge = [:]; holeCI = [:]; holeRodIdx = [:]
         for (ci, P) in CV.enumerated() {
             let col00 = OrigamiState.rgb(pcols[min(ci, pcols.count - 1)])
             //   5 次元：展開図のあいだは色を濃く・あざやかに（同じ色のセロハンが重なる感じ）
@@ -1178,8 +1187,19 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
                     } }
                 }
             }
+            // 排水口・通気口：底（−W、左の窓は −Z）と上の胞の見た目を覚えておく（ふたを同じガラスで描く）。左の窓で口が開いている面は、穴あきで描く（OrigamiDrain.swift）
+            var cutFace = false
+            if n <= 4 && !st.wireOnly {
+                let (fa, fs) = OrigamiState.fixed(cells[ci], n)
+                if fa == n - 1 {
+                    let ws = (0..<(1 << nb)).map { w4(ci, $0) }
+                    holeCI[ci] = fs < 0 ? 0 : 1
+                    holeLook[fs < 0 ? 0 : 1] = HoleLook(sh: (0..<(nb == 3 ? 6 : 1)).map { shade($0) }, tag: cellTag(ci), wrap: wrap4(ci), w: ws.reduce(0, +) / Float(max(1, ws.count)), squash: squash)
+                    cutFace = n == 3 && st.holeCut(top: fs > 0) != nil
+                }
+            }
             // 面：自由な軸のうち 2 本で張る正方形（立方体の胞は 6 枚、正方形の面は 1 枚）
-            for f in (nb == 3 ? [0, 1, 2] : nb == 2 ? [-1] : []) where !st.wireOnly {
+            for f in (nb == 3 ? [0, 1, 2] : nb == 2 ? [-1] : []) where !st.wireOnly && !cutFace {
                 for fsv in (f < 0 ? [0] : [0, 1]) {
                     let (col, alpha) = shade(f < 0 ? 0 : f * 2 + fsv)
                     // 消えている面（積分中の「線だけ」「消す」・見本の小窓）は作らない：濃さ 0 でも、つや・映り込みは足し合わせで残るので
@@ -1273,6 +1293,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
             if bright < 1e-4 { continue }
             let qa = q(a), qb = q(b), key = (qa.x, qa.y, qa.z) < (qb.x, qb.y, qb.z) ? SegKey(a: qa, b: qb) : SegKey(a: qb, b: qa)
             if let j = seen[key] {
+                if let sl = holeCI[ci], hl == nil, !hlRod.contains(j) { holeRodIdx[sl] = j }
                 if let c = hl { rods[j].col = SIMD4(c, bright); rods[j].b.w = hlW; hlRod.insert(j) }
                 else if !hlRod.contains(j) { rods[j].col.w += bright }
                 continue
@@ -1305,8 +1326,10 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
             }
             let fbw = fb * w5
             rods.append(TLRod(a: SIMD4(gpu(a), hl == nil && tintK > 0 && n != 5 ? (st.lineTintMode == 2 ? -20 : -10) : 0), b: SIMD4(gpu(b), hl != nil ? hlW : (fbw < 0.999 ? fbw : 0)), col: SIMD4(hl ?? lc, bright)))
+            if let sl = holeCI[ci], hl == nil { holeRodIdx[sl] = rods.count - 1 }
             rodK.append(segK[si])
         }
+        for (sl, j) in holeRodIdx where j < rods.count { holeEdge[sl] = rods[j] }   // 4D の奥行きで分ける前の値（分ける時は真ん中の 1 本で上書き）
         // 線の 4D の奥行き（超立方体だけ）：辺を 4 つに分けて、それぞれの真ん中の 4D の奥行き（0 いちばん手前 〜 1 いちばん奥）で濃さと太さを変える。
         //   1 本の辺の中でもなめらかに変わる（手前から奥へのびる w の辺がグラデーションに）。展開図のあいだは効かず、折れるほど効く。
         //   line4：濃さ（1 奥ほどうすく・2 奥ほど濃く）。line4W：太さ（− 奥ほど細く＝手前が太い・＋ 奥ほど太く。いちばん太い所で 1 ＋ |line4W| 倍）
@@ -1326,6 +1349,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
                     // a.w：つなぎ目の印（−1 は A 側・−2 は B 側・−3 は両方。のばさない）
                     let joint: Float = (s == 0 ? -2 : s == 3 ? -1 : -3) + (r.a.w < -19.5 ? -20 : r.a.w < -9.5 ? -10 : 0)
                     out.append(TLRod(a: SIMD4(A + (B - A) * u0, joint), b: SIMD4(A + (B - A) * u1, (r.b.w > 0 ? r.b.w : 1) * w4), col: SIMD4(r.col.x, r.col.y, r.col.z, r.col.w * br4)))
+                    if s == 1 { for (sl, jj) in holeRodIdx where jj == j { var e = out[out.count - 1]; e.a.w = r.a.w; holeEdge[sl] = e } }   // 排水口の線は分けないので、つなぎ目の印は元のまま
                 }
             }
             rods = out
@@ -1366,7 +1390,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         if n <= 4 {                                                        // 積分・内接球・サイコロは立方体と超立方体だけ（5 次元 β にはまだ無い）
             intBatches = st.intMethod == 1 ? waterGeometry(&rods, eye: eye) : st.intMethod == 2 ? ballsGeometry(&rods) : integralGeometry(&rods, eye: eye)
             intBatches += lidGeometry(&rods, st.lidOpens())                  // 直角に開くふた
-            intBatches += holesGeometry(&rods)                               // 下水道：工事した穴（OrigamiDrain.swift）
+            intBatches += holesGeometry(&rods, &quads)                      // 排水口と通気口（OrigamiDrain.swift）
             // 内接する超球面（回転バーの「内接球」。超球面アプリと同じ球殻の層）
             let r0s = rods.count, tsp0 = CACurrentMediaTime()
             let sgb = inSphereGeometry(&rods, eye: eye), tdf0 = CACurrentMediaTime()
@@ -1486,7 +1510,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
                 st.glare, st.vivid, st.envK, st.deep, st.inner, st.explodeE, st.xpDistK, st.counting ? 1 : 0, Double(st.countIdx), Double(st.countPhase), st.spaceFlash,
                 Double(st.spaceMode), st.bgSpace ? 1 : 0, st.starsPct, st.meshOn ? 1 : 0, st.gridN.rounded(), st.zoom[i], st.dist[i], st.center[i].x, st.center[i].y, st.pan[i].x, st.pan[i].y, st.rotRev, st.showAxes ? 1 : 0, st.foldStagger ? Double(st.foldMaxStages) : 0, st.foldCourse ? (st.courseFromB ? 2 : 1) : 0, st.projBlend, st.wireOnly ? 1 : 0, st.ehOn ? 1 : 0, st.ehWidthNear, st.ehWidthFar, st.ehWidthOther, (st.ehNearOn ? 1 : 0) + (st.ehFarOn ? 2 : 0), st.ehCells.reduce(0.0) { $0 + Double($1.key.hashValue % 9973) + Double($1.value.x + $1.value.y * 3 + $1.value.z * 7) }, st.markSize, Double(st.markNear.x + st.markNear.y * 2 + st.markNear.z * 4), Double(st.markFar.x + st.markFar.y * 2 + st.markFar.z * 4), (st.markShowNear ? 1 : 0) + (st.markShowFar ? 2 : 0) + (st.markGlue ? 4 : 0),
                 Double(st.ehNear.x + st.ehNear.y * 2 + st.ehNear.z * 4), Double(st.ehFar.x + st.ehFar.y * 2 + st.ehFar.z * 4), st.left3DAll ? 1 : 0, st.raster ? 1 : 0,
-                Double(st.ptRev), st.ptSize, st.ptLabels ? 1 : 0, st.ptLeft ? 1 : 0, st.secOn ? 1 : 0, st.secPos, st.intT, st.intOn ? 1 : 0, Double(st.intColor * 10 + st.intStars), Double(st.intLook), st.intN, st.intAmount, Double(st.intAxes), Double(st.intMethod), st.intMethod == 2 ? Double(st.ballsRev % 100000) + st.ballR : 0, st.waterTT, st.waterReal ? 1 : 0, st.waterNS ? 1 + st.waterSwirl : 0, Double(st.waterSlice) * 10 + st.waterSlicePos, st.waterFree ? 1 : 0, Double(st.waterNSRes), st.waterLidSet ? 1 : 0, st.waterBottomSet ? 1 : 0, Double(st.intLidMode), Double(st.drainMode) + (st.holesBuilt ? 10 : 0) + (st.holesOpenSet ? 100 : 0) + (st.waterVent ? 1000 : 0), st.holesAnimating ? CACurrentMediaTime().truncatingRemainder(dividingBy: 1000) : 0, Double(st.intShape), st.inSphere ? Double(1 + st.inSphereColor * 2 + st.inSphereLayers * 10) : 0, st.inSphereGlass ? 1 : 0, st.inSphereLon ? 1 : 0, st.inSphereCone ? 1 : 0, st.inSphereLat ? 1 : 0, st.inSphere120 ? 1 : 0, st.inSphereTouch ? 1 + Double(st.inSphereTouchCol) : 0, Double(st.lineTintMode), st.lineTint, st.depthDeep, st.slantSheen, st.line3W, st.line3K, st.lineWidthNet, st.lineWidthSolid, st.inSphereWireW, st.inSphereDepth, st.inSphereFilm ? 1 + st.inSphereTone : 0, st.inSphere ? st.inSphereAppear : 0, st.line4W, Double(st.line4), st.line4K, st.inSphereDent ? (st.inSphereDentSharp ? 2 : 1) : 0, st.inSphere && st.inSphereSpin != 0 ? st.inSphereT + Double(st.inSphereSpin * 100 + st.inSphereRatio * 10) + st.inSphereDiff * 1000 : 0, st.inSphereHopf ? 1 : 0, st.inSphereFlash ? 1 : 0, st.markSame ? 1 : 0, st.markFlashT < 0.8 ? st.markFlashT : 9, st.diceEyeK, st.diceDim, Double(st.diceMode), st.diceRoll.map { Double($0.phase) * 100 + $0.t } ?? -1, st.netMorph?.t ?? -1, st.intOn && st.intShape == 4 ? Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1000) : 0, st.intOn && st.intBallSpin && (st.intColor == 5 || st.intColor == 7) ? Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1000) : 0]
+                Double(st.ptRev), st.ptSize, st.ptLabels ? 1 : 0, st.ptLeft ? 1 : 0, st.secOn ? 1 : 0, st.secPos, st.intT, st.intOn ? 1 : 0, Double(st.intColor * 10 + st.intStars), Double(st.intLook), st.intN, st.intAmount, Double(st.intAxes), Double(st.intMethod), st.intMethod == 2 ? Double(st.ballsRev % 100000) + st.ballR : 0, st.waterTT, st.waterReal ? 1 : 0, st.waterNS ? 1 + st.waterSwirl : 0, Double(st.waterSlice) * 10 + st.waterSlicePos, st.waterFree ? 1 : 0, Double(st.waterNSRes), st.waterLidSet ? 1 : 0, st.waterBottomSet ? 1 : 0, Double(st.intLidMode), Double(st.drainMode) + (st.drainShown ? 10 : 0) + (st.holesOpenSet ? 100 : 0) + (st.waterVent ? 1000 : 0), st.holesAnimating ? CACurrentMediaTime().truncatingRemainder(dividingBy: 1000) : 0, Double(st.intShape), st.inSphere ? Double(1 + st.inSphereColor * 2 + st.inSphereLayers * 10) : 0, st.inSphereGlass ? 1 : 0, st.inSphereLon ? 1 : 0, st.inSphereCone ? 1 : 0, st.inSphereLat ? 1 : 0, st.inSphere120 ? 1 : 0, st.inSphereTouch ? 1 + Double(st.inSphereTouchCol) : 0, Double(st.lineTintMode), st.lineTint, st.depthDeep, st.slantSheen, st.line3W, st.line3K, st.lineWidthNet, st.lineWidthSolid, st.inSphereWireW, st.inSphereDepth, st.inSphereFilm ? 1 + st.inSphereTone : 0, st.inSphere ? st.inSphereAppear : 0, st.line4W, Double(st.line4), st.line4K, st.inSphereDent ? (st.inSphereDentSharp ? 2 : 1) : 0, st.inSphere && st.inSphereSpin != 0 ? st.inSphereT + Double(st.inSphereSpin * 100 + st.inSphereRatio * 10) + st.inSphereDiff * 1000 : 0, st.inSphereHopf ? 1 : 0, st.inSphereFlash ? 1 : 0, st.markSame ? 1 : 0, st.markFlashT < 0.8 ? st.markFlashT : 9, st.diceEyeK, st.diceDim, Double(st.diceMode), st.diceRoll.map { Double($0.phase) * 100 + $0.t } ?? -1, st.netMorph?.t ?? -1, st.intOn && st.intShape == 4 ? Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1000) : 0, st.intOn && st.intBallSpin && (st.intColor == 5 || st.intColor == 7) ? Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1000) : 0]
     }
     func draw(in view: MTKView) {
         let now = CACurrentMediaTime(), dt = min(0.05, now - lastT); lastT = now
