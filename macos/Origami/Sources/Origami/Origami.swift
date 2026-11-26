@@ -270,6 +270,8 @@ final class OrigamiState: ObservableObject {
     @Published var waterPourForce = 0.5                            // 注ぐ勢い（本物の水）：0 水面のすぐ上からそっと・1 ふたの近くの高い所から勢いよく。既定は真ん中
     @Published var waterRainbow = false                            // レインボーの水（ふしぎな 4 次元の水）：色が 4 次元の奥行き（画面に写すと消える向き）を表す
     @Published var waterHeavy = 0.5                               // 水の重さ（フィクション、0 とても軽い 〜 0.5 ふつうの水 〜 1 とても重い液体）。OrigamiWater の nsLight・nsHeavy（2026-11-26 に「水の軽さ」から改名）
+    @Published var waterNSFlow = true                                // 注ぐ筋・抜ける筋も本物の 4D の水で計算する（自動の時。計算の箱を上下にのばす）
+    @Published var waterSyrup = 0.0                                  // ねばり（0 水 〜 0.33 油 〜 0.66 はちみつ 〜 1 水あめ）。本物の 4D の水だけ。OrigamiWater の nsSyrup
     @Published var waterNu = 0.004                                  // 本物の 4D の水の粘り（動粘性、世界の単位）。小さいほどさらさら（前は 0.012）
     @Published var waterSlosh = 1.0                                 // 回した時のちゃぷちゃぷの強さ（1 ＝ 本物どおり）
     var ns4: NS4? = nil, ns4Failed = false, nsVTarget = 0.0, nsPrevT = 0.0, nsPrevPhase = 0
@@ -280,12 +282,17 @@ final class OrigamiState: ObservableObject {
     // マス目の VBR（8⁴ を選んだ時。2026-11-26 にユーザーと決めた）：ふだんは 8⁴（わかりやすく軽い）、満タンの前後だけ 12⁴（8⁴ は 85% までしか入らず、満タンから抜き始められない）。
     //   切りかえる時は、水の形と流れの速さを新しいマス目に写しかえる（水は消えない）
     var nsVbrHigh = false, nsKeep: [Int: NS4] = [:]
+    var nsWantFlow: Bool { waterNSFlow && !waterFree }
     var nsWellK = 0.0, nsWellPh = 0.0                                // ブラックホールの井戸（4D の排水口の渦）：強さ（0〜1、なめらかに）・らせんの回る角度
     func ns4Get() -> NS4? {
         // VBR の切りかえ：水を写しかえる。前に作ったその細かさの水は取っておいて使い回す（バッファを作り直さない）
-        if let s = ns4, s.N != ns4N, waterNSRes == 8, let n = nsKeep[ns4N] ?? NS4(N: ns4N) { nsKeep[s.N] = s; nsKeep[ns4N] = n; n.copyResampled(from: s); ns4 = n }
+        // 注ぐ筋・抜ける筋も計算する時（自動の時だけ）：計算の箱を w の上下に半分ずつのばす（ふたの上から注ぎ口、床の下へ排水口から落ちる。2026-11-27）
+        let ext = nsWantFlow
+        func make(_ n: Int) -> NS4? { NS4(N: n, below: ext ? n / 2 : 0, above: ext ? n / 2 : 0) }
+        if let s = ns4, s.extended != ext { ns4 = nil; ns4Failed = false; nsVTarget = 0; nsKeep = [:]; _ = s }   // のばす・のばさないを変えたら作り直す（水は最初から）
+        if let s = ns4, s.N != ns4N, waterNSRes == 8, let n = nsKeep[ns4N] ?? make(ns4N) { nsKeep[s.N] = s; nsKeep[ns4N] = n; n.copyResampled(from: s); ns4 = n }
         if let s = ns4, s.N != ns4N { ns4 = nil; ns4Failed = false; nsVTarget = 0; _ = s }   // 細かさを変えたら作り直す（水は最初から）
-        if ns4 == nil && !ns4Failed { ns4 = NS4(N: ns4N); if let s = ns4 { s.reset(level: -1) } else { ns4Failed = true } }
+        if ns4 == nil && !ns4Failed { ns4 = make(ns4N); if let s = ns4 { s.reset(level: -1) } else { ns4Failed = true } }
         return ns4
     }
     var holeDA = 0.0, holeVA = 0.0, holeDHL = 0.0, holeVHL = 0.0, holeLastT = 0.0, holeShow = 0.0   // 格子のふたの開き具合（排水口・通気口）と、開け閉めの途中の明るさ

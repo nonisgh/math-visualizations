@@ -188,6 +188,11 @@ extension OrigamiRenderer {
             guard v < 0.999, r0 < rods.count else { return }
             for i in r0..<rods.count { rods[i].b.w = (rods[i].b.w > 0 ? rods[i].b.w : 1) * v }
         }
+        // 水にぬれた所（積分の水：内接球の中には水が入らない、2026-11-26）：水位 h（−1〜1、自動の水で重力が −w の時）より下の所を水の色に。
+        //   4D では、超球の w ＝ 一定の殻のうち水位より下の部分 ＝ 水が入れない部分の積分（注ぐ積分と同時に積み上がる）
+        let wetH: Double? = st.intOn && st.intMethod == 1 && !st.waterFree && st.gravIsDownW && st.waterH > -0.999 ? st.waterH : nil
+        let wetC = SIMD3<Float>(0.32, 0.72, 1.0)
+        func wetK(_ v: Double) -> Float { guard let h = wetH else { return 0 }; return Float(max(0, min(1, (h - v) / 0.05 + 0.5))) }
         // 層（北・南。赤道は 1 枚）
         var layers: [(th: Double, south: Bool, i: Int)] = []
         for i in 0..<NL { let th = MIN + Double(i) / Double(NL - 1) * (Double.pi / 2 - MIN); layers.append((th, false, i)); if i < NL - 1 { layers.append((th, true, i)) } }
@@ -200,7 +205,8 @@ extension OrigamiRenderer {
                 let r = sin(Ly.th) * (0.35 + 0.65 * Double(vL)), z = zL, S = 64
                 for s in 0..<S {
                     let a0 = 2 * Double.pi * Double(s) / Double(S), a1 = 2 * Double.pi * Double(s + 1) / Double(S), am = (a0 + a1) / 2
-                    let col = appCol ? inSphereCellColor(spin3([r * cos(am), r * sin(am), z]), cols, 3) : Self.layerCol(Ly.i, NL, south: Ly.south)
+                    var col = appCol ? inSphereCellColor(spin3([r * cos(am), r * sin(am), z]), cols, 3) : Self.layerCol(Ly.i, NL, south: Ly.south)
+                    let wk = wetK(spin3([r * cos(am), r * sin(am), z])[2]); if wk > 0 { col = simd_mix(col, wetC, SIMD3<Float>(repeating: 0.75 * wk)) * (1 + 0.3 * wk) }   // 水位より下の輪は水の色
                     rod(P([r * cos(a0), r * sin(a0), z]), P([r * cos(a1), r * sin(a1), z]), col, 0.9 * Double(thin.squareRoot()))
                 }
             }
@@ -359,20 +365,22 @@ extension OrigamiRenderer {
             let wL = (Ly.south ? -1 : 1) * cos(Ly.th), vL = appearAt((wL + 1) / 2)
             if vL < 0.005 { return nil }
             let r = sin(Ly.th) * (0.35 + 0.65 * Double(vL)), w = wL, lcol = Self.layerCol(Ly.i, NL, south: Ly.south)
-            var G: [[SIMD3<Double>]] = [], VC: [[SIMD3<Float>]] = []
+            var G: [[SIMD3<Double>]] = [], VC: [[SIMD3<Float>]] = [], WT: [[Float]] = []
             G.reserveCapacity(RG + 1); VC.reserveCapacity(RG + 1)
             for i in 0...RG {
                 let th = Double.pi * Double(i) / Double(RG), st0 = sin(th), ct0 = cos(th)
-                var row: [SIMD3<Double>] = [], crow: [SIMD3<Float>] = []
+                var row: [SIMD3<Double>] = [], crow: [SIMD3<Float>] = [], wrow: [Float] = []
                 row.reserveCapacity(SG + 1); crow.reserveCapacity(SG + 1)
                 for j in 0...SG {
                     let ph = 2 * Double.pi * Double(j) / Double(SG)
                     let u = spun(SIMD4<Double>(r * st0 * cos(ph), r * ct0, r * st0 * sin(ph), w)), q = P4(u.x, u.y, u.z, u.w)
                     row.append(q)
                     // 点の色（アプリの色なら近い胞の色）× めりこみ（くっきりの時は画素ごとに）
-                    crow.append((appCol ? inSphereCellColor4(u, cols) : lcol) * (dentPl.isEmpty || sharp ? 1 : dent(q)))
+                    let wk = wetK(u.w); wrow.append(wk)
+                    let c0 = (appCol ? inSphereCellColor4(u, cols) : lcol) * (dentPl.isEmpty || sharp ? 1 : dent(q))
+                    crow.append(wk > 0 ? simd_mix(c0, wetC, SIMD3<Float>(repeating: 0.75 * wk)) : c0)   // 水位より下は水の色
                 }
-                G.append(row); VC.append(crow)
+                G.append(row); VC.append(crow); WT.append(wrow)
             }
             let C = P([0, 0, 0, w])
             // 頂点ごとの色と濃さ（4 つの面で分け合うので、1 回だけ計算）。水晶玉（ガラス）：いちばん外の殻（赤道の大きな殻）だけが細いふちで
@@ -421,6 +429,10 @@ extension OrigamiRenderer {
                         row.append(IntVert(p: SIMD4(gpuH(pv), 1), c: SIMD4(vc * base, al)))
                     }
                 }
+                for b in row.indices where WT[a][b] > 0 {                   // ぬれた所は少し濃く（水が入れない所がはっきり見えるように）
+                    let s = 1 + 0.9 * WT[a][b], v = row[b].c
+                    row[b].c = SIMD4(v.x * s, v.y * s, v.z * s, min(0.7, v.w * s))
+                }
                 VV.append(row)
             }
             // 半透明の殻：ふちほど暗く（超球面アプリのリム影）。裏 → 表の順（これも同時に作っておく）
@@ -449,6 +461,20 @@ extension OrigamiRenderer {
                 for i in [RG / 3, RG / 2, 2 * RG / 3] { for j in 0..<SG { rod(G[i][j], G[i][j + 1], lc(i, j), lineK) } }
                 for j in stride(from: 0, to: SG, by: SG / 4) { for i in 0..<RG { rod(G[i][j], G[i + 1][j], lc(i, j), lineK) } }
             }
+        }
+        // 水面の切り口：4D の水面（w ＝ h の 3 次元の面）に、超球のところだけあく穴の形 ＝ 半径 √(1 − h²) の球。水色のうすい殻と輪で
+        if n == 4, let h = wetH, abs(h) < 0.995 {
+            let r = (1 - h * h).squareRoot(), NA = 14, NB = 28
+            var Gw: [[SIMD3<Double>]] = []
+            for i in 0...NA { let th = Double.pi * Double(i) / Double(NA); Gw.append((0...NB).map { j in let ph = 2 * Double.pi * Double(j) / Double(NB); return P4(r * sin(th) * cos(ph), r * cos(th), r * sin(th) * sin(ph), h) }) }
+            let aw = Float(0.16 * k), cw = SIMD4<Float>(wetC * aw, aw)
+            for i in 0..<NA { for j in 0..<NB {
+                let q = [Gw[i][j], Gw[i + 1][j], Gw[i + 1][j + 1], Gw[i][j + 1]].map { IntVert(p: SIMD4(gpuH($0), 1), c: cw) }
+                tris += [q[0], q[1], q[2], q[0], q[2], q[3]]
+            } }
+            let lc = SIMD3<Float>(0.6, 0.9, 1.0)
+            for i in [NA / 2] { for j in 0..<NB { rod(Gw[i][j], Gw[i][j + 1], lc, 1.1) } }
+            for j in stride(from: 0, to: NB, by: NB / 4) { for i in 0..<NA { rod(Gw[i][j], Gw[i + 1][j], lc, 0.7) } }
         }
         lap("緯度")
         // 正 120 胞体：辺 1200 本を 3 つに分けて球面に沿わせた、少し太いワイヤー。色はいちばん近い接点（触れている胞）の色に寄せる。

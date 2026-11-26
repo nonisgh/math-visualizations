@@ -451,7 +451,19 @@ fragment float4 rwf(IVo in [[stage_in]], constant U& u [[buffer(0)]], constant R
     if (dot(n, d) > 0.0) n = -n;
     // レインボーの水：c.w ＝ 2 ＋ 4×kind ＋ 3×色の値（0〜1：4 次元の奥行き）。ふつうは c.w ＝ kind（1 水面・0 壁と底）
     bool rb = in.c.w > 1.5; float kd = rb ? (in.c.w > 5.5 ? 1.0 : 0.0) : in.c.w, hs = rb ? clamp((in.c.w - 2.0 - 4.0 * kd) / 3.0, 0.0, 1.0) : 0.0;
+    // 水の中の空気の境目（kind −1：内接球をよける水の、球の面）：水から空気を見ると、ななめの所ほど光がはね返って銀色に光る（全反射）。
+    //   まん中はすけて、球の中（空気）が見える。ふちほど明るく濃く
+    if (!rb && in.c.w < -0.5) {
+        float ci = saturate(abs(dot(d, n))), rim = pow(1.0 - ci, 2.2);
+        float3 rfl = wEnv(in.P, reflect(d, n), r, pr, wp.y > 0.5);
+        float3 L0 = normalize(LD[0]); float sp = pow(saturate(dot(reflect(d, n), L0)), 80.0);
+        float3 col = rfl * (0.25 + 1.1 * rim) + float3(0.80, 0.92, 1.0) * (0.10 + 0.85 * rim) + float3(1.0) * sp * 0.8;
+        col = 1.0 - exp(-col * 1.3);
+        float a = clamp(0.16 + 0.70 * rim + 0.4 * sp, 0.0, 0.9) * wp.w;
+        return float4(col * a, a);
+    }
     float foam = 0.0;                                                       // 当たる所の白い泡立ち
+    float hn = saturate(rg[1].y), hp = saturate(rg[1].z);                   // はちみつ：色の濃さ（0 水 〜 1 琥珀色）・淡さ（水あめ）。ねばる液体の面は、なめらかでつやつや
     if (kd > 0.5) {                                                        // 水面：細かいさざ波（いくつかの波の重ね合わせの傾き）
         float3 t1 = normalize(cross(abs(n.z) < 0.9 ? float3(0, 0, 1) : float3(1, 0, 0), n)), t2 = cross(n, t1);
         float2 q = float2(dot(in.P, t1), dot(in.P, t2)) * 16.0; float tm = wp.x;
@@ -462,31 +474,38 @@ fragment float4 rwf(IVo in [[stage_in]], constant U& u [[buffer(0)]], constant R
         g += float2(1.3, 1.1) * cos(q.x * 2.9 + q.y * 2.5 - tm * 3.7) * 0.22;
         g += float2(-2.1, 1.7) * cos(-q.x * 4.3 + q.y * 3.6 + tm * 4.9) * 0.14;
         g += float2(3.1, -2.6) * cos(q.x * 6.1 - q.y * 5.3 + tm * 6.2) * 0.08;
-        n = normalize(n + (t1 * g.x + t2 * g.y) * 0.16);
+        n = normalize(n + (t1 * g.x + t2 * g.y) * 0.16 * (1.0 - 0.85 * hn));
         // 注ぐ所の波紋：当たる点から広がる輪（離れるほど小さく、中心のすぐそばは乱れて白く泡立つ）
         if (rg[0].w > 0.001) {
             float3 dv = in.P - rg[0].xyz; float rr = length(dv) / rg[1].x;
             float3 rd = dv - n * dot(dv, n); float rl = length(rd);
             if (rl > 1e-5) {
                 rd /= rl;
-                float A = rg[0].w * exp(-rr * 2.3) * smoothstep(0.0, 0.06, rr);
+                float A = rg[0].w * exp(-rr * 2.3) * smoothstep(0.0, 0.06, rr) * (1.0 - hn);
                 float ph = rr * 46.0 - tm * 13.0;
                 n = normalize(n - rd * A * (cos(ph) * 0.7 + cos(ph * 1.9 + 1.3) * 0.25));
             }
-            foam = rg[0].w * (1.0 - smoothstep(0.03, 0.13, rr)) * (0.6 + 0.4 * sin(tm * 37.0 + rr * 90.0));
+            foam = rg[0].w * (1.0 - hn) * (1.0 - smoothstep(0.03, 0.13, rr)) * (0.6 + 0.4 * sin(tm * 37.0 + rr * 90.0));
         }
     }
     float cosI = saturate(dot(-d, n));
     float F = 0.02 + 0.98 * pow(1.0 - cosI, 5.0);
     bool useP = wp.y > 0.5;
     float3 refl = wEnv(in.P, reflect(d, n), r, pr, useP);
-    float3 tv = refract(d, n, 1.0 / 1.33); if (dot(tv, tv) < 1e-6) tv = reflect(d, n);
+    float3 tv = refract(d, n, 1.0 / mix(1.33, 1.49, hn)); if (dot(tv, tv) < 1e-6) tv = reflect(d, n);
     float3 refr = wEnv(in.P, tv, r, pr, useP);
     float tk = clamp(in.m, 0.0, 1.0);                                       // その点の水の厚みの割合（頂点の p.w。うすい水ほど小さい。ふつうは 1）
     float th = wp.z * (0.12 + 0.88 * tk) / max(cosI, 0.25);                 // 水の中を通る長さ（うすい水は短く＝色がうすい）
     float3 absb = exp(-th * float3(2.4, 0.85, 0.35));
     float3 body = mix(float3(0.0, 0.16, 0.30), refr * float3(0.9, 0.98, 1.0), absb)
                 + float3(0.02, 0.22, 0.32) * (1.0 - absb.r) * (0.6 + 0.4 * saturate(dot(n, normalize(LD[0])))); // 水の中で散る光（青緑にぼんやり光る）
+    if (hn > 0.001) {
+        // はちみつ：青い光を強く吸う（厚い所ほど深い琥珀色、うすい所は金色にすける）。中で散る光は あたたかい色。水あめ（hp）は吸いこみが弱く淡い
+        float3 hab = exp(-th * float3(0.6, 2.3, 7.0) * (1.0 - 0.65 * hp));
+        float3 hb = mix(float3(0.20, 0.07, 0.005), refr * float3(1.0, 0.86, 0.55), hab)
+                  + float3(0.55, 0.27, 0.04) * (1.0 - hab.b) * (0.5 + 0.5 * saturate(dot(n, normalize(LD[0])))) * 0.55;
+        body = mix(body, hb, hn);
+    }
     float3 rc = float3(1.0);
     if (rb) {
         // 虹の色：4 次元の奥行きの端から端で 1 周（赤 → 黄 → 緑 → 青 → 紫）・時間でゆっくり流れる・見る角度でシャボン玉のように少しずれる
@@ -502,13 +521,13 @@ fragment float4 rwf(IVo in [[stage_in]], constant U& u [[buffer(0)]], constant R
         body = mix(rc * 0.26, refr * mix(float3(1.0), rc, 0.55), ab) + rc * 0.36 * (1.0 - ab.g * 0.5) * (0.6 + 0.4 * saturate(dot(n, normalize(LD[0]))));
     }
     float3 L = normalize(LD[0]), rv = reflect(d, n);
-    float s1 = pow(saturate(dot(rv, L)), 900.0) * 14.0, s2 = pow(saturate(dot(rv, L)), 60.0) * 0.5;
+    float s1 = pow(saturate(dot(rv, L)), 900.0) * 14.0, s2 = pow(saturate(dot(rv, L)), 60.0) * 0.5 * (1.0 + 1.2 * hn);   // はちみつは、なめらかな広い照り
     // 水面のきらめき：細かい波のひとつひとつが太陽を映して、チカチカ光る（場所ごとに乱した向きで、とても鋭い照り返し。時間でまたたく）
     if (kd > 0.5) {
         float3 cell = floor(in.P * 70.0), jit = float3(wHash(cell), wHash(cell + 17.0), wHash(cell + 41.0)) - 0.5;
         float tw = 0.5 + 0.5 * sin(wp.x * (6.0 + 9.0 * wHash(cell + 5.0)) + 6.28 * wHash(cell + 9.0));
         float3 ng = normalize(n + jit * 0.35);
-        s1 += pow(saturate(dot(reflect(d, ng), L)), 1400.0) * 22.0 * tw * tw;
+        s1 += pow(saturate(dot(reflect(d, ng), L)), 1400.0) * 22.0 * tw * tw * (1.0 - 0.8 * hn);
     }
     float Fw = kd > 0.5 ? F : F * 0.45;                                 // 壁と底は入れ物のガラスごしなので、映りこみを弱く
     float3 col = body * (1.0 - Fw) + refl * Fw + float3(1.0, 0.97, 0.9) * (s1 + s2) * (kd > 0.5 ? 1.0 : 0.3);
@@ -519,10 +538,10 @@ fragment float4 rwf(IVo in [[stage_in]], constant U& u [[buffer(0)]], constant R
         float3 a1 = normalize(cross(abs(nn.z) < 0.9 ? float3(0, 0, 1) : float3(1, 0, 0), nn)), a2 = cross(nn, a1);
         float sc = mix(9.0, 5.0, tk);                                       // 深いほど網目が大きく
         float cs = wCaustic(float2(dot(in.P, a1), dot(in.P, a2)) * sc, wp.x * 1.3);
-        col += float3(0.75, 0.92, 1.0) * mix(float3(1.0), rc, 0.7) * pow(cs, 1.6) * mix(1.1, 0.55, tk) * (0.6 + 0.4 * saturate(dot(nn, L) * 0.5 + 0.5));
+        col += mix(float3(0.75, 0.92, 1.0), float3(1.0, 0.72, 0.28), hn) * mix(float3(1.0), rc, 0.7) * pow(cs, 1.6) * mix(1.1, 0.55, tk) * (1.0 - 0.55 * hn) * (0.6 + 0.4 * saturate(dot(nn, L) * 0.5 + 0.5));
     }
     col = 1.0 - exp(-col * 1.25);                                          // 明るすぎるところを、白く飛ばさずにまるめる
-    float a = clamp((kd > 0.5 ? 0.70 : 0.42) + 0.30 * Fw + 0.3 * (s1 + s2) + 0.3 * foam, 0.0, 0.97) * wp.w * (0.28 + 0.72 * tk);   // うすい水はすける
+    float a = clamp((kd > 0.5 ? 0.70 : 0.42) + 0.22 * hn * (1.0 - hp) + 0.30 * Fw + 0.3 * (s1 + s2) + 0.3 * foam, 0.0, 0.97) * wp.w * (0.28 + 0.72 * tk);   // うすい水はすける
     return float4(col * a, a);
 }
 fragment float4 rif(IVo in [[stage_in]], constant float& spin [[buffer(0)]], constant float4* DP [[buffer(1)]]) {
