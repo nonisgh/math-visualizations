@@ -66,17 +66,20 @@ inline bool topOpenAt(int4 q, constant P& p) { if (p.wL >= 0) return false; retu
 inline bool openAt(int4 q, constant P& p) { return p.wF >= 0 ? true : holeAt(q, p); }
 // 運ぶ元を探す時、壁の層を通りぬけないように：同じ部屋（下の空間・超立方体・上の空間）の中におさえる。穴のある所は通りぬけてよい
 inline float4 regClamp(float4 xb, int4 q, int c, constant P& p) {
-    if (p.wF < 0) return xb;
-    int lw = q.w, lo, hi;
-    if (lw < p.wF) { lo = 0; hi = p.wF - 1; } else if (lw == p.wF) return xb; else if (lw < p.wL) { lo = p.wF + 1; hi = p.wL - 1; } else if (lw == p.wL) return xb; else { lo = p.wL + 1; hi = p.Nw - 1; }
+    if (p.wF < 0 && p.wL < 0) return xb;
+    int lw = q.w;
+    if (lw == p.wF || lw == p.wL) return xb;                              // 穴のマスの中：どちらへも通りぬけてよい
+    int lo = 0, hi = p.Nw - 1;                                            // この部屋の層の範囲（壁の層の間）
+    if (p.wF >= 0) { if (lw < p.wF) hi = p.wF - 1; else lo = p.wF + 1; }
+    if (p.wL >= 0) { if (lw < p.wL) hi = min(hi, p.wL - 1); else lo = max(lo, p.wL + 1); }
     float mn = float(lo) + (c == 3 ? 0.0 : 0.5), mx = float(hi) + (c == 3 ? 1.0 : 0.5);
     int4 qb = int4(int3(floor(clamp(xb.xyz, float3(0.0), float3(float(p.N) - 0.01)))), 0);
-    if (xb.w < mn) {
-        bool th = lo == 0 ? true : lo == p.wF + 1 ? (holeAt(q, p) || holeAt(qb, p)) : (lidHole(q, p) || lidHole(qb, p));
+    if (xb.w < mn && lo > 0) {                                            // 下の壁：床なら排水口、ふたなら注ぎ口・通気口の所だけ通れる
+        bool th = (lo == p.wF + 1) ? (holeAt(q, p) || holeAt(qb, p)) : (lidHole(q, p) || lidHole(qb, p));
         if (!th) xb.w = mn;
     }
-    if (xb.w > mx) {
-        bool th = hi == p.Nw - 1 ? true : hi == p.wF - 1 ? (holeAt(q, p) || holeAt(qb, p)) : (lidHole(q, p) || lidHole(qb, p));
+    if (xb.w > mx && hi < p.Nw - 1) {
+        bool th = (hi == p.wF - 1) ? (holeAt(q, p) || holeAt(qb, p)) : (lidHole(q, p) || lidHole(qb, p));
         if (!th) xb.w = mx;
     }
     return xb;
@@ -643,10 +646,11 @@ final class NS4 {
         guard let sh = Self.shared else { return nil }
         let d = sh.0; dev = d; queue = sh.1; ps = sh.2; self.N = N; M = N + 1; MM = M * M * M * M; self.H = H
         let ext = below > 0 || above > 0
-        self.below = ext ? max(1, below) : 0; self.above = ext ? max(1, above) : 0
-        Nw = ext ? self.below + N + 2 + self.above : N; Mw = Nw + 1; MG = M * M * M * Mw
-        boxLo = ext ? self.below + 1 : 0; boxOff = boxLo * M * M * M
-        par.Nw = Int32(Nw); par.Mw = Int32(Mw); par.wF = ext ? Int32(self.below) : -1; par.wL = ext ? Int32(self.below + 1 + N) : -1
+        // 下だけ・上だけでも のばせる（above ＝ 0 なら、ふたの壁と上の空間は無し：注ぐ筋は線の計算で、箱には水面の上から入れる。2026-11-27）
+        self.below = max(0, below); self.above = max(0, above)
+        Nw = (self.below > 0 ? self.below + 1 : 0) + N + (self.above > 0 ? 1 + self.above : 0); Mw = Nw + 1; MG = M * M * M * Mw
+        boxLo = self.below > 0 ? self.below + 1 : 0; boxOff = boxLo * M * M * M
+        par.Nw = Int32(Nw); par.Mw = Int32(Mw); par.wF = self.below > 0 ? Int32(self.below) : -1; par.wL = self.above > 0 ? Int32(boxLo + N) : -1
         let MG = self.MG
         func buf(_ n: Int) -> MTLBuffer? { d.makeBuffer(length: n * 4, options: .storageModeShared) }
         guard let u = buf(4 * MG), let ut = buf(4 * MG), let v = buf(4 * MG), let vt = buf(4 * MG), let f = buf(MG), let ft = buf(MG), let f0 = buf(MG), let p = buf(MG), let r = buf(MG), let w = buf(MG), let fv = buf(4 * MG) else { return nil }
@@ -944,16 +948,16 @@ extension NS4 {
         // 上：天井から下へ。ふたの穴を通って、超立方体の中も、水面（その層の水が多くなる所）の手前まで（筋のまま落ちている所）
         //   箱の中は、ふたの穴からつながっている所だけ（上の層の筋のすぐ下で、真ん中が近い）。水面の上に残った しずくは筋にしない
         var lastL = -9, lastC = SIMD3<Float>(0, 0, 0)
-        for L in stride(from: Nw - 1, through: Int(par.wL), by: -1) { if let s = layer(L) { up.append(s); lastL = L; lastC = s.c } }
+        if par.wL >= 0 { for L in stride(from: Nw - 1, through: Int(par.wL), by: -1) { if let s = layer(L) { up.append(s); lastL = L; lastC = s.c } } }
         let big = 0.15 * Float(N * N * N)
-        if lastL == Int(par.wL) {
+        if par.wL >= 0 && lastL == Int(par.wL) {
             for L in stride(from: Int(par.wL) - 1, through: boxLo, by: -1) {
                 guard let s = layer(L), lastN <= big, simd_length(s.c - lastC) < 3 * dx else { break }
                 up.append(s); lastC = s.c
             }
         }
         // 下：床の穴から下へ
-        for L in stride(from: Int(par.wF), through: 0, by: -1) { if let s = layer(L) { dn.append(s) } }
+        if par.wF >= 0 { for L in stride(from: Int(par.wF), through: 0, by: -1) { if let s = layer(L) { dn.append(s) } } }
         upperStream = up; lowerStream = dn
     }
     /// 1 コマ分：前の歩が終わっていれば、結果を写して（体積も数えて）次の歩を出す。終わっていなければ時間をためておく
@@ -1078,9 +1082,13 @@ extension NS4 {
         let cases = Self.tetCases
         phiSnap.withUnsafeBufferPointer { F in
             let M1 = M, M2 = M * M, M3 = M * M * M
-            var c = [Float](repeating: 0, count: 8), cpv = [SIMD3<Float>](repeating: .zero, count: 8), cg = [SIMD3<Float>](repeating: .zero, count: 8)
-            // (1) 水面
-            for a in 0..<4 { for s in [-1, 1] {
+            // (1) 水面：8 つの胞を CPU の芯で手分けして作る（それぞれ別の入れ物に作って、あとで順に並べる＝結果は前と同じ。2026-11-27）
+            var parts = [NS4Mesh](repeating: NS4Mesh(), count: 8)
+            parts.withUnsafeMutableBufferPointer { PB in
+            DispatchQueue.concurrentPerform(iterations: 8) { job in
+                let a = job / 2, s = job % 2 == 0 ? -1 : 1
+                var out = NS4Mesh(); out.p.reserveCapacity(24_000); out.kind.reserveCapacity(8_000)
+                var c = [Float](repeating: 0, count: 8), cpv = [SIMD3<Float>](repeating: .zero, count: 8), cg = [SIMD3<Float>](repeating: .zero, count: 8)
                 let oth = (0..<4).filter { $0 != a }, fixedIdx = s < 0 ? 0 : n - 1
                 let strides = [1, M1, M2, M3], base = fixedIdx * strides[a], s0 = strides[oth[0]], s1 = strides[oth[1]], s2 = strides[oth[2]]
                 let ia = a, io0 = oth[0], io1 = oth[1], io2 = oth[2], fw = Float(s) * Hf
@@ -1166,7 +1174,9 @@ extension NS4 {
                         }
                     }
                 } } }
+                PB[job] = out
             } }
+            for m in parts { out.p += m.p; out.t1 += m.t1; out.t2 += m.t2; out.kind += m.kind }
             // (2) 24 枚の正方形：軸 a・b が張る面（ほかの 2 つの軸は ±H）。行（b の 1 マス）ごとに、水の続いている所を 1 つの四角に（両端は水面の所まで補間）
             for a in 0..<4 { for b in (a + 1)..<4 {
                 let o = (0..<4).filter { $0 != a && $0 != b }
@@ -1178,43 +1188,63 @@ extension NS4 {
                     @inline(__always) func fq(_ off: Int) -> Float { var sum: Float = 0; for p in 0..<w0.count { for q in 0..<w1.count { sum += w0[p] * w1[q] * F[base + p * in0 + q * in1 + off] } }; return sum }
                     let f0 = Float(i0 == 0 ? -1 : 1) * Hf, f1 = Float(i1 == 0 ? -1 : 1) * Hf
                     @inline(__always) func P(_ x: Float, _ y: Float) -> SIMD4<Float> { var r = SIMD4<Float>(0, 0, 0, 0); r[a] = x; r[b] = y; r[o[0]] = f0; r[o[1]] = f1; return r }
-                    // 行 j の水の範囲（a の向き）：はじめの続き 1 つ（なければ nil）
-                    func span(_ j: Int) -> (Float, Float)? {
-                        var lo = -1, hi = -1
-                        for i in 0..<n where fq(i * sa + j * sb) < 0 { if lo < 0 { lo = i }; hi = i } 
-                        if lo < 0 { return nil }
-                        func cross(_ i: Int, _ k: Int) -> Float {   // マス i（水）と k（空気）のあいだの水面
-                            let x = fq(i * sa + j * sb), y = fq(k * sa + j * sb); return coord(i) + (coord(k) - coord(i)) * x / (x - y)
-                        }
-                        let L = lo == 0 ? -Hf : cross(lo, lo - 1), R = hi == n - 1 ? Hf : cross(hi, hi + 1)
-                        return (L, R)
+                    // ぬれた所を、マスの値から なめらかに（2 次元のマーチングスクエア、2026-11-27）。マスの真ん中の値を角にした小さな四角ごとに、
+                    //   水の角と、水と空気の間の辺の点（φ ＝ 0 の所）をつないだ形にする。外側の半マスは、はしのマスの値をそのまま縁まで。
+                    //   前は 1 行（マス 1 つ）ごとに、行の真ん中から真ん中まで四角を並べていて、水面が上がると ふちがマス 1 つずつ ポンと上がり、カクカクして見えた。
+                    //   ぜんぶ水の四角は、行の中で続いている分を 1 つにまとめる（三角形を増やしすぎない）
+                    @inline(__always) func val(_ i: Int, _ j: Int) -> Float { fq(max(0, min(n - 1, i)) * sa + max(0, min(n - 1, j)) * sb) }
+                    @inline(__always) func emit(_ q: [SIMD4<Float>]) {
+                        guard q.count >= 3 else { return }
+                        for k in 1..<(q.count - 1) { out.p += [q[0], q[k], q[k + 1]]; out.kind.append(0); out.t1 += [.zero, .zero, .zero]; out.t2 += [.zero, .zero, .zero] }
                     }
-                    // 行の w（b の向き）の上下の端：b の端の行は縁まで、それ以外はマスの真ん中どうし
-                    var prev: (Float, Float)? = nil, prevY: Float = -Hf
-                    for j in 0..<n {
-                        let sp = span(j), y = coord(j)
-                        if let s1 = sp, let s0 = prev {
-                            out.p += [P(s0.0, prevY), P(s0.1, prevY), P(s1.1, y), P(s0.0, prevY), P(s1.1, y), P(s1.0, y)]; out.kind += [0, 0]; out.t1 += Array(repeating: .zero, count: 6); out.t2 += Array(repeating: .zero, count: 6)
-                        } else if let s1 = sp, j == 0 {
-                            out.p += [P(s1.0, -Hf), P(s1.1, -Hf), P(s1.1, y), P(s1.0, -Hf), P(s1.1, y), P(s1.0, y)]; out.kind += [0, 0]; out.t1 += Array(repeating: .zero, count: 6); out.t2 += Array(repeating: .zero, count: 6)
+                    for jj in -1..<n {
+                        let y0 = coord(jj), y1 = coord(jj + 1)
+                        var runStart: Float? = nil
+                        for ii in -1..<n {
+                            let x0 = coord(ii), x1 = coord(ii + 1)
+                            let c = [val(ii, jj), val(ii + 1, jj), val(ii + 1, jj + 1), val(ii, jj + 1)]
+                            let full = c[0] < 0 && c[1] < 0 && c[2] < 0 && c[3] < 0
+                            if full { if runStart == nil { runStart = x0 }; if ii < n - 1 { continue } }
+                            if let r0 = runStart {                              // 続いたぜんぶ水の四角を 1 つに
+                                let xe = full ? x1 : x0
+                                if xe > r0 { emit([P(r0, y0), P(xe, y0), P(xe, y1), P(r0, y1)]) }
+                                runStart = nil
+                                if full { continue }
+                            }
+                            if c[0] >= 0 && c[1] >= 0 && c[2] >= 0 && c[3] >= 0 { continue }
+                            let xs: [Float] = [x0, x1, x1, x0], ys: [Float] = [y0, y0, y1, y1]
+                            var poly: [SIMD4<Float>] = []
+                            for k in 0..<4 {
+                                let k2 = (k + 1) % 4
+                                if c[k] < 0 { poly.append(P(xs[k], ys[k])) }
+                                if (c[k] < 0) != (c[k2] < 0) {
+                                    let t = c[k] / (c[k] - c[k2])
+                                    poly.append(P(xs[k] + (xs[k2] - xs[k]) * t, ys[k] + (ys[k2] - ys[k]) * t))
+                                }
+                            }
+                            emit(poly)
                         }
-                        if let s1 = sp, j == n - 1 {
-                            out.p += [P(s1.0, y), P(s1.1, y), P(s1.1, Hf), P(s1.0, y), P(s1.1, Hf), P(s1.0, Hf)]; out.kind += [0, 0]; out.t1 += Array(repeating: .zero, count: 6); out.t2 += Array(repeating: .zero, count: 6)
-                        }
-                        prev = sp; prevY = y
                     }
                 }
             } }
         }
         // 同じ点をまとめる（三角形どうしで共有する点を 1 つに）：描く時に、写す・面の向き・厚みを点ごとに 1 回だけ計算できる（前は 1 つの点を 6 回くらい計算していた）
-        var map: [NS4VKey: Int32] = [:]; map.reserveCapacity(out.p.count / 3)
+        //   点を探す表は、自分で作った軽い表（座標を 16 ビットずつ 64 ビットにつめた鍵・開番地法）。Swift の辞書は鍵を作って混ぜるのが重く、
+        //   水面づくりの時間の半分くらいを使っていた（2026-11-27）。水面（kind 1）と壁（kind 0）は別の表
         out.idx.reserveCapacity(out.p.count)
         let hasT = out.t1.count == out.p.count
+        var cap = 1024; while cap < out.p.count { cap <<= 1 }
+        let mask = cap - 1, empty = UInt64.max
+        var keys = [[UInt64]](repeating: [UInt64](repeating: empty, count: cap), count: 2), vals = [[Int32]](repeating: [Int32](repeating: 0, count: cap), count: 2)
+        @inline(__always) func pk(_ v: Float) -> UInt64 { UInt64(max(0, min(65535, Int((v * 2e4).rounded()) + 32768))) }
         for i in 0..<out.p.count {
-            let q = out.p[i], kd = out.kind[i / 3] > 0.5
-            let key = NS4VKey(x: Int32((q.x * 2e4).rounded()), y: Int32((q.y * 2e4).rounded()), z: Int32((q.z * 2e4).rounded()), w: Int32((q.w * 2e4).rounded()), s: kd)
-            if let j = map[key] { out.idx.append(j); continue }
-            let j = Int32(out.up.count); map[key] = j; out.idx.append(j)
+            let q = out.p[i], t = out.kind[i / 3] > 0.5 ? 1 : 0
+            let key = pk(q.x) | pk(q.y) << 16 | pk(q.z) << 32 | pk(q.w) << 48
+            var h = Int(truncatingIfNeeded: (key &* 0x9E37_79B9_7F4A_7C15) >> 20) & mask
+            var found: Int32 = -1
+            while keys[t][h] != empty { if keys[t][h] == key { found = vals[t][h]; break }; h = (h + 1) & mask }
+            if found >= 0 { out.idx.append(found); continue }
+            let j = Int32(out.up.count); keys[t][h] = key; vals[t][h] = j; out.idx.append(j)
             out.up.append(q); out.ut1.append(hasT ? out.t1[i] : .zero); out.ut2.append(hasT ? out.t2[i] : .zero)
         }
         return out

@@ -529,8 +529,10 @@ fragment float4 rwf(IVo in [[stage_in]], constant U& u [[buffer(0)]], constant R
         float3 ng = normalize(n + jit * 0.35);
         s1 += pow(saturate(dot(reflect(d, ng), L)), 1400.0) * 22.0 * tw * tw * (1.0 - 0.8 * hn);
     }
-    float Fw = kd > 0.5 ? F : F * 0.45;                                 // 壁と底は入れ物のガラスごしなので、映りこみを弱く
-    float3 col = body * (1.0 - Fw) + refl * Fw + float3(1.0, 0.97, 0.9) * (s1 + s2) * (kd > 0.5 ? 1.0 : 0.3);
+    // 水面のてかり（rg[1].w：0 よわい 〜 0.25 前と同じくらい 〜 0.5 少し強め 〜 1 鏡のよう）：うつりこみ（フレネル）と照り返しを強める
+    float gk = saturate(rg[1].w), refK = mix(0.75, 2.6, gk), spK = mix(0.75, 1.7, gk);
+    float Fw = kd > 0.5 ? saturate(F * refK + 0.07 * gk * gk) : F * 0.45;   // 壁と底は入れ物のガラスごしなので、映りこみを弱く
+    float3 col = body * (1.0 - Fw) + refl * Fw + float3(1.0, 0.97, 0.9) * (s1 + s2) * (kd > 0.5 ? spK : 0.3);
     col = mix(col, float3(0.92, 0.96, 1.0), saturate(foam) * 0.75);
     // 光の網（コースティクス）：水の底と壁（kind 0）に。上から光が入る所ほど強く、深い水ほど網が広がってうすく
     if (kd < 0.5) {

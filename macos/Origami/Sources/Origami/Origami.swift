@@ -270,7 +270,8 @@ final class OrigamiState: ObservableObject {
     @Published var waterPourForce = 0.5                            // 注ぐ勢い（本物の水）：0 水面のすぐ上からそっと・1 ふたの近くの高い所から勢いよく。既定は真ん中
     @Published var waterRainbow = false                            // レインボーの水（ふしぎな 4 次元の水）：色が 4 次元の奥行き（画面に写すと消える向き）を表す
     @Published var waterHeavy = 0.5                               // 水の重さ（フィクション、0 とても軽い 〜 0.5 ふつうの水 〜 1 とても重い液体）。OrigamiWater の nsLight・nsHeavy（2026-11-26 に「水の軽さ」から改名）
-    @Published var waterNSFlow = true                                // 注ぐ筋・抜ける筋も本物の 4D の水で計算する（自動の時。計算の箱を上下にのばす）
+    @Published var waterGloss = 0.5                                  // 水面のてかり（0 よわい 〜 0.5 少し強め（既定）〜 1 鏡のよう）。OrigamiRaster の rwf（ring の 2 つめの w）
+    @Published var waterNSFlow = true                                // 排水口から落ちる筋も本物の 4D の水で計算する（自動の時。計算の箱を下にのばす）。注ぐ筋は いつも線の計算（PourJet）
     @Published var waterSyrup = 0.0                                  // ねばり（0 水 〜 0.33 油 〜 0.66 はちみつ 〜 1 水あめ）。本物の 4D の水だけ。OrigamiWater の nsSyrup
     @Published var waterNu = 0.004                                  // 本物の 4D の水の粘り（動粘性、世界の単位）。小さいほどさらさら（前は 0.012）
     @Published var waterSlosh = 1.0                                 // 回した時のちゃぷちゃぷの強さ（1 ＝ 本物どおり）
@@ -283,12 +284,13 @@ final class OrigamiState: ObservableObject {
     //   切りかえる時は、水の形と流れの速さを新しいマス目に写しかえる（水は消えない）
     var nsVbrHigh = false, nsKeep: [Int: NS4] = [:]
     var nsWantFlow: Bool { waterNSFlow && !waterFree }
+    let pourJet = PourJet()                                          // 注ぐ筋の線の計算（自動の本物の 4D の水）
     var nsWellK = 0.0, nsWellPh = 0.0                                // ブラックホールの井戸（4D の排水口の渦）：強さ（0〜1、なめらかに）・らせんの回る角度
     func ns4Get() -> NS4? {
         // VBR の切りかえ：水を写しかえる。前に作ったその細かさの水は取っておいて使い回す（バッファを作り直さない）
         // 注ぐ筋・抜ける筋も計算する時（自動の時だけ）：計算の箱を w の上下に半分ずつのばす（ふたの上から注ぎ口、床の下へ排水口から落ちる。2026-11-27）
         let ext = nsWantFlow
-        func make(_ n: Int) -> NS4? { NS4(N: n, below: ext ? n / 2 : 0, above: ext ? n / 2 : 0) }
+        func make(_ n: Int) -> NS4? { NS4(N: n, below: ext ? n / 2 : 0, above: 0) }   // 注ぐ筋は線の計算（PourJet）にしたので、上はのばさない（2026-11-27）
         if let s = ns4, s.extended != ext { ns4 = nil; ns4Failed = false; nsVTarget = 0; nsKeep = [:]; _ = s }   // のばす・のばさないを変えたら作り直す（水は最初から）
         if let s = ns4, s.N != ns4N, waterNSRes == 8, let n = nsKeep[ns4N] ?? make(ns4N) { nsKeep[s.N] = s; nsKeep[ns4N] = n; n.copyResampled(from: s); ns4 = n }
         if let s = ns4, s.N != ns4N { ns4 = nil; ns4Failed = false; nsVTarget = 0; _ = s }   // 細かさを変えたら作り直す（水は最初から）
