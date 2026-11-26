@@ -25,7 +25,7 @@ enum UIC {
 struct OrigamiView: View {
     @StateObject private var st = OrigamiState()
     /// ドラッグ・つまむ途中の値（@State にすると、マウスが動くたびに画面全部を作り直してコマが飛ぶので、作り直しの起きない入れ物に）
-    final class GestureBox { var last = CGSize.zero; var pinch0: Double? = nil; var split0: Double? = nil }
+    final class GestureBox { var last = CGSize.zero; var pinch0: Double? = nil; var split0: Double? = nil; var grav: Bool? = nil }
     @State private var gb = GestureBox()
     @ObservedObject private var ks = ShortcutStore.shared
     #if os(macOS)
@@ -205,6 +205,9 @@ struct OrigamiView: View {
             OrigamiPane(n: n, st: st)
                 .gesture(DragGesture(minimumDistance: 1).onChanged { g in
                     let dd = CGSize(width: g.translation.width - gb.last.width, height: g.translation.height - gb.last.height); gb.last = g.translation
+                    // 重力ハンドル：さわり始めが矢印の先の玉の近くなら、その指は重力の向きを変える（形は回さない）
+                    if gb.grav == nil { gb.grav = st.gravHandleOn(n) && st.gravHit(n, g.startLocation, size: st.paneSize[n] ?? .zero) }
+                    if gb.grav == true { st.gravDrag(n, Double(dd.width), Double(dd.height), alt: false, size: st.paneSize[n] ?? .zero); return }
                     #if os(macOS)
                     let shift = NSEvent.modifierFlags.contains(.shift)
                     #else
@@ -215,7 +218,7 @@ struct OrigamiView: View {
                     else if shift { st.drag(.zw, Double(dd.width) * 0.01) }
                     else if n == 3 || st.dim5 { st.drag(.l4x, Double(dd.width) * 0.01); st.drag(.l4y, Double(dd.height) * 0.01) }   // 左：X-W・Y-W（左は X-Z・Y-Z）
                     else { st.drag(.r3x, Double(dd.width) * 0.01); st.drag(.r3y, Double(dd.height) * 0.01) }            // 右：画面の縦・横の軸のまわりに形を回す
-                }.onEnded { _ in gb.last = .zero; st.dragging = false })
+                }.onEnded { _ in gb.last = .zero; gb.grav = nil; st.dragging = false })
                 .simultaneousGesture(MagnificationGesture().onChanged { k in
                     if gb.pinch0 == nil { gb.pinch0 = st.zoom[i] }
                     st.zoom[i] = max(0.3, min(8, gb.pinch0! * Double(k)))

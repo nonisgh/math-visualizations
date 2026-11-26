@@ -39,8 +39,12 @@ extension OrigamiState {
         guard k == 1 || k == 2 else { return }
         cycling = false; stopSpins(); playing = false; loop = false; viewSel = -1
         pend = [0, 0, 0, 0, 0]
-        let to: [Double] = k == 1 ? [Double.pi / 2, 0, 0, 0, 0.35, -0.3] : [0, Double.pi / 2, 0, 0, 0.45, -0.2]
-        tween = (cur6, to, 0, 1.2, projBlend, 1); presetPar = 1; presetHold = SIMD3(to[0], to[1], to[2])
+        // 水（intMethod 1）：重力は −w なので、横（y）は −w が画面の下になる向き（+90° だと水が上にたまって、さかさに見えた）。
+        //   平行投影にすると、超立方体が 1 つの立方体に重なって見えるので、水の時は今の投影のまま
+        let water = intMethod == 1
+        let to: [Double] = k == 1 ? [Double.pi / 2, 0, 0, 0, 0.35, -0.3] : [0, water ? -Double.pi / 2 : Double.pi / 2, 0, 0, 0.45, -0.2]
+        let p1 = water ? projBlend : 1
+        tween = (cur6, to, 0, 1.2, projBlend, p1); presetPar = p1; presetHold = SIMD3(to[0], to[1], to[2])
     }
     func intUpdate() -> [IntItem] {
         let N = intNax, M = intM, ST = intST(M), fillT = ST[M - 1] + Self.intD, HOLD = intHoldNow, cycle = 2 * fillT + HOLD + Self.intEMPTY
@@ -543,7 +547,10 @@ extension IntegralHUD {
     /// 4 次元の水の式：V(h) ＝ ∫₋₁ʰ 8 dw ＝ 8(h＋1)（連続の積分）
     @ViewBuilder var waterContent: some View {
         let ax = n == 4 ? "w" : "z", unit = n == 4 ? 8.0 : 4.0, full = n == 4 ? 16.0 : 8.0
-        let h = st.waterH, val = unit * (h + 1), pct = min(1, max(0, val / full))
+        // 内接球の壁：輪切りは「立方体 − 玉」（4D）・「正方形 − 円」（左の 3D）。玉の切り口の半径は √(1 − h²)
+        let ballW = st.waterBallOn
+        let h = st.waterH, val = ballW ? (n == 4 ? OrigamiState.ballWaterV(h) : OrigamiState.ballWaterV3(h)) : unit * (h + 1)
+        let fullB = ballW ? (n == 4 ? OrigamiState.ballWaterFull : OrigamiState.ballWaterFull3) : full, pct = min(1, max(0, val / fullB))
         let sg = { (x: Double) -> String in (x < -0.0005 ? "−" : "+") + String(format: "%.2f", abs(x)) }
         let phases = ["上のふたを開ける", "注いでいる", "いっぱい", "底の栓を抜く", "底を全部開けて、かたまりのまま落ちる（自由落下）", "栓をする", "空"]
         VStack(spacing: 3) {
@@ -551,14 +558,32 @@ extension IntegralHUD {
              + Text("∫").font(.system(size: 22, design: .serif))
              + Text("−1").font(.system(size: 10, design: .serif)).baselineOffset(-6)
              + Text(sg(h)).font(.system(size: 10, weight: .bold, design: .serif)).foregroundColor(Color(red: 0.6, green: 0.85, blue: 1)).baselineOffset(12)
-             + Text("  \(Int(unit)) d\(ax)  ＝  \(Int(unit))（h＋1）").font(.system(size: 15, weight: .semibold, design: .serif)))
+             + Text(ballW ? (n == 4 ? "  (8 − ⁴⁄₃π(1−w²)^{3⁄2}) dw" : "  (4 − π(1−z²)) dz") : "  \(Int(unit)) d\(ax)  ＝  \(Int(unit))（h＋1）").font(.system(size: 15, weight: .semibold, design: .serif)))
+            if ballW {
+                Text("輪切り＝\(n == 4 ? "立方体 8 から、内接球の切り口の玉" : "正方形 4 から、内接球の切り口の円")（半径 √(1 − h²) ＝ \(String(format: "%.2f", sqrt(max(0, 1 - h * h)))))をくりぬいた形").font(.system(size: 10)).foregroundStyle(Color(red: 0.75, green: 0.85, blue: 1))
+            }
             GeometryReader { g in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.gray.opacity(0.25))
                     Capsule().fill(LinearGradient(colors: [Color(red: 0.1, green: 0.4, blue: 0.95), Color(red: 0.32, green: 0.78, blue: 1)], startPoint: .leading, endPoint: .trailing)).frame(width: g.size.width * pct)
                 }
             }.frame(height: 7)
-            Text("水位 h ＝ \(sg(h))　＝ \(String(format: "%.3f", val)) ／ \(Int(full))（\(n == 4 ? "4 次元の水の体積" : "3 次元の水の体積")）").font(.system(size: 11))
+            if ballW {
+                // からっぽ（玉の中）の積分：水と同時に進む。水 ＋ からっぽ ＝ 箱の積分 8(h＋1)（3D は 4(h＋1)）
+                let emp = unit * (h + 1) - val, empF = n == 4 ? Double.pi * Double.pi / 2 : 4 * Double.pi / 3
+                (Text("からっぽ（玉の中）＝ ").font(.system(size: 11, weight: .semibold, design: .serif))
+                 + Text("∫").font(.system(size: 16, design: .serif))
+                 + Text(n == 4 ? "  ⁴⁄₃π(1−w²)^{3⁄2} dw" : "  π(1−z²) dz").font(.system(size: 11, weight: .semibold, design: .serif))
+                 + Text("　＝ \(String(format: "%.3f", emp)) ／ \(String(format: "%.3f", empF))").font(.system(size: 11)))
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.gray.opacity(0.25))
+                        Capsule().fill(Color(red: 0.93, green: 0.95, blue: 1).opacity(0.85)).frame(width: g.size.width * min(1, max(0, emp / empF)))
+                    }
+                }.frame(height: 5)
+                Text("水 ＋ からっぽ ＝ \(String(format: "%.3f", val)) ＋ \(String(format: "%.3f", emp)) ＝ \(Int(unit))（h＋1）＝ \(String(format: "%.3f", unit * (h + 1)))（2 つの積分が同時に進む）").font(.system(size: 9)).foregroundStyle(Color(red: 0.75, green: 0.85, blue: 1))
+            }
+            Text("水位 h ＝ \(sg(h))　＝ \(String(format: "%.3f", val)) ／ " + (ballW ? (n == 4 ? "\(String(format: "%.3f", fullB))（16 − π²⁄2：玉のまわりは超立方体の約 69%）" : "\(String(format: "%.3f", fullB))（8 − ⁴⁄₃π：玉のまわりは立方体の約 48%）") : "\(Int(full))（\(n == 4 ? "4 次元の水の体積" : "3 次元の水の体積")）")).font(.system(size: 11))
             if n == 4 && st.waterPhase <= 1 {
                 Text("筋は w の向きにまっすぐ落ちる（外の大きい立方体＝ふた ＋W → 内の小さい立方体＝底 −W）。横の胞に重なって見えるのは写しただけで、ぶつかっていない").font(.system(size: 9)).foregroundStyle(Color(red: 0.75, green: 0.85, blue: 1))
             }
@@ -657,9 +682,13 @@ struct IntegralTab: View {
                             Btn("半分", on: false) { st.waterPlayStart(); st.waterFreeFill(0) }
                             Btn("ほぼいっぱい", on: false) { st.waterPlayStart(); st.waterFreeFill(0.85) }
                         }
-                        Picker("重力の向き", selection: $st.waterGravMode) { Text("画面の奥").tag(0); Text("画面の下").tag(1); Text("+W→−W").tag(2) }.pickerStyle(.segmented)
+                        Picker("重力の向き", selection: $st.waterGravMode) { Text("画面の奥").tag(0); Text("画面の下").tag(1); Text("+W→−W").tag(2); Text("好きな向き").tag(3) }.pickerStyle(.segmented)
                             .help("画面の奥：重力は w の消失点へ（積分と同じ。外の立方体＝口 → 内の立方体＝底）。見回しても水は傾かず、⌥＋ドラッグで w を傾けた時だけ流れる。画面の下：見慣れた向き（見る向きを変えても水が傾く）。+W→−W：重力はいつも箱の −w（外の立方体の口 → 内の立方体の底。積分と同じ）で、回しても水はいつも底にたまる（こぼれない）")
+                        if st.waterGravMode == 3 { GravPanel(st: st) }
                     } else {
+                        Picker("重力", selection: Binding(get: { st.waterGravMode == 3 ? 3 : 2 }, set: { st.waterGravMode = $0 })) { Text("箱の −w").tag(2); Text("好きな向き（35° まで）").tag(3) }.pickerStyle(.segmented)
+                            .help("好きな向き：重力の向きを、つまみか画面の矢印（先の玉をドラッグ）で決めます。箱の −w から 35° まで（浅水は床の上の高さで水を表すので、傾けすぎると計算できません）")
+                        if st.waterGravMode == 3 { GravPanel(st: st) }
                         Picker("抜き方", selection: $st.drainMode) { Text("底を全部").tag(0); Text("排水口").tag(1); Text("交互").tag(2) }.pickerStyle(.segmented)
                             .help("底を全部：かたまりのまま自由落下。排水口：床の真ん中の小さな立方体の穴から、トリチェリ（√(2g・深さ)）で抜けて渦でくぼむ。4 次元では穴と床の広さの比が 3 乗なので、とてもゆっくり")
                     HStack(spacing: 6) {
@@ -672,6 +701,12 @@ struct IntegralTab: View {
                         }.opacity(st.drainShown ? 1 : 0.4)
                     }
                         Btn(st.waterVent ? "🌬 通気口：あり" : "🌬 通気口：なし", on: st.waterVent) { st.waterVent.toggle() }
+                        Btn(st.waterBallWall ? "🔵 内接球：壁" : "🔵 内接球：無視", on: st.waterBallWall) { st.waterBallWall.toggle() }
+                            .help("内接球を出している時（回転バーの「内接球」）：壁＝玉の中に水は入らない（本物の 4D の水だけ）。無視＝水は玉を通りぬける（内接球無視モード）")
+                            .opacity(st.inSphere && st.waterNS ? 1 : 0.4)
+                        Btn(st.waterBallLook == 0 ? "👻 玉：見えない" : "🫧 玉：見える", on: st.waterBallLook == 1) { st.waterBallLook = st.waterBallLook == 0 ? 1 : 0 }
+                            .help("見えない：玉は描かず、水が入って初めて水面の穴で玉に気づく（水族館の水槽のように、玉の向こうの水はすけて見える）。見える：すき通った真珠色の玉と、水ぎわの輪・接点")
+                            .opacity(st.inSphere ? 1 : 0.4)
                         Picker("ふた", selection: $st.intLidMode) { Text("直角に開く").tag(0); Text("開けたまま").tag(1); Text("消す").tag(2); Text("開けない").tag(3) }.pickerStyle(.segmented)
                             .help("上のふた（+W の胞）を蝶番で 90° 開けて注ぎ、いっぱいで閉じる。底を開けて抜く。左の立方体のふたも連動")
                     }
@@ -689,8 +724,8 @@ struct IntegralTab: View {
                                     .help("動粘性 ν（世界の単位）。小さいほど、さらさら動いて ゆれが長く続きます。前は 0.012。マス目が粗いと、計算でなまる分の見かけの粘りも残ります（速さの運び方を MacCormack にして減らしています）")
                                 LiveRead(live: st.live) { NumRow("渦の強調（消えかけた渦を足し戻す）", $st.waterVort, 0...8, "%.1f", scale: 1) }
                                     .help("渦度の閉じこめ：粗いマスでならされて消えてしまう細い渦を、回る向きに少し力を足して戻します。4 次元では渦は『回る面』（6 成分）。0 で なし")
-                                Picker("マスの細かさ", selection: $st.waterNSRes) { Text("おまかせ").tag(0); Text("16⁴").tag(16); Text("24⁴").tag(24); Text("32⁴").tag(32) }.pickerStyle(.segmented)
-                                    .help("4D の水のマス：16⁴ ＝ 約 6.6 万（軽い）・24⁴ ＝ 約 33 万・32⁴ ＝ 約 105 万（細かい）。おまかせは 16。変えると水は最初から")
+                                Picker("マスの細かさ", selection: $st.waterNSRes) { Text("おまかせ").tag(0); Text("8⁴").tag(8); Text("12⁴").tag(12); Text("16⁴").tag(16); Text("24⁴").tag(24); Text("32⁴").tag(32) }.pickerStyle(.segmented)
+                                    .help("4D の水のマス：8⁴ ＝ 4096（とても軽い・とても粗い。小さな排水口は 1 マスより小さくなって抜けにくい）・16⁴ ＝ 約 6.6 万（軽い）・24⁴ ＝ 約 33 万・32⁴ ＝ 約 105 万（細かい）。おまかせは 16。変えると水は最初から")
                                 Picker("輪切り（左の窓に）", selection: $st.waterSlice) { Text("なし").tag(0); Text("x ＝ 一定").tag(1); Text("y ＝ 一定").tag(2); Text("z ＝ 一定").tag(3) }.pickerStyle(.segmented)
                                     .help("4D の水を 1 枚切って、残りの 3 つの向きの 3D の水を左の窓に出します（w は左の窓の上下）。右の窓には切り口の立方体を金色の線で。水面の立方体の内側にできる渦のくぼみも、中から見えます")
                                 if st.waterSlice > 0 {
@@ -823,5 +858,28 @@ struct IntegralPreview: View {
                 pv.intItems = [IntItem(t: 0, slot: 0.5, a: 1, fa: 1, fly: false, k: 0)]
                 pv.xz = 0.5; pv.yz = -0.45; pv.spinXZ = true; pv.zoom = [1, 1.9]; pv.updateMats()
             }
+    }
+}
+
+/// 好きな向きの重力：x・y・z・w のつまみ（長さは自動で 1 に）と、すぐ選べるボタン。画面の矢印の先の玉をドラッグしても変えられる
+struct GravPanel: View {
+    @ObservedObject var st: OrigamiState
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(String(format: "−w からの傾き %.0f°", st.gravTiltDeg) + (st.gravAnyTilt ? "" : "（35° まで）") + "。矢印の先の玉をドラッグ（⌥＋ドラッグで w の方へ）").font(.caption2).foregroundStyle(UIC.sub)
+            Btn(st.gravHandleShow ? "🏹 重力ハンドル：出す" : "🏹 重力ハンドル：出さない", on: st.gravHandleShow) { st.gravHandleShow.toggle() }
+                .help("画面の真ん中の重力の矢印と、w のメーターの輪。出さない時も、つまみとボタンで向きを変えられます")
+            HStack(spacing: 6) {
+                Btn("−W", on: false) { st.gravSet(SIMD4(0, 0, 0, -1)) }
+                Btn("−Y", on: false) { st.gravSet(SIMD4(0, -1, 0, 0)) }
+                Btn("−X", on: false) { st.gravSet(SIMD4(-1, 0, 0, 0)) }
+                Btn("−Z", on: false) { st.gravSet(SIMD4(0, 0, -1, 0)) }
+                Btn("+W", on: false) { st.gravSet(SIMD4(0, 0, 0, 1)) }
+            }
+            LiveRead(live: st.live) { NumRow("重力 x", $st.gravX, -1...1, "%+.2f", scale: 1) }
+            LiveRead(live: st.live) { NumRow("重力 y", $st.gravY, -1...1, "%+.2f", scale: 1) }
+            LiveRead(live: st.live) { NumRow("重力 z", $st.gravZ, -1...1, "%+.2f", scale: 1) }
+            LiveRead(live: st.live) { NumRow("重力 w", $st.gravW, -1...1, "%+.2f", scale: 1) }
+        }
     }
 }

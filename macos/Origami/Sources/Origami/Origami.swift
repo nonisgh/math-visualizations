@@ -208,11 +208,14 @@ final class OrigamiState: ObservableObject {
     @Published var drainMode = 0                                    // 抜き方：0 底を全部開ける・1 小さい排水口（渦）・2 交互
     @Published var holesOpenSet = false                             // 排水口：栓をする（ふつう）／開けっぱなし（工事済みの時だけ）
     @Published var waterVent = true                                 // 通気口：あり＝空気が入ってふつうに抜ける、なし＝ごぼごぼゆっくり
+    @Published var waterBallWall = true                             // 内接球を出している時：玉は壁（水が入らない）。切ると「内接球無視モード」（水は玉を通りぬける）。本物の 4D の水だけ
+    var waterBallOn: Bool { inSphere && waterBallWall && waterNS }
+    @Published var waterBallLook = 0                                // 水の時の内接球の見せ方：0 見えない玉（水族館の水槽のように、水が入って初めて穴で分かる）・1 すき通った真珠色の玉
     var waterCyc = 0, waterDOpen = 0.0, waterHEq = 0.0, waterEmptyT: Double? = nil   // 1 回りの数（交互の入れ替え）・開けっぱなしの水の深さ・つり合う水位
     var waterLid = 0.0, waterBLid = 0.0                             // 上のふた・底の栓の開き具合
     var waterVD = 0.0, waterSD = 0.0, waterBurst = 0.0, waterGlugN = -1, waterPrevPhase = 0, waterVented = true   // 渦のくぼみ・抜けた割合・開けた瞬間の吸い込み・ごぼっ
     @Published var waterNS = true                                   // 本物の 4D の水（32⁴ のナビエ–ストークスを GPU で。OrigamiNS4.swift）。切ると浅水方程式の水
-    @Published var waterNSRes = 0                                   // 4D の水のマスの細かさ：0 おまかせ（16）・16・24・32
+    @Published var waterNSRes = 0                                   // 4D の水のマスの細かさ：0 おまかせ（16）・8・12・16・24・32
     // ---- 遊ぶモード（重力は画面の下。自分で回して、開けた所からこぼす。押している間だけ注ぐ）----
     @Published var waterFree = false {                              // 入れた時：ジョッキの口（ふた +W）を真上に向けて、ふたを開ける（水は底にたまり、上から注いだ水が口から入る）
         didSet {
@@ -221,6 +224,14 @@ final class OrigamiState: ObservableObject {
             if !waterFree && oldValue && (abs(xz) > 1e-4 || abs(yz) > 1e-4) { tween = (cur6, [ax, ay, zw, xy, 0, 0], 0, 1.2, projBlend, projBlend) }
         }
     }
+    @Published var gravX = 0.0                                      // 好きな向きの重力（waterGravMode ＝ 3）：箱の x・y・z・w。長さは使う時に 1 に
+    @Published var gravY = 0.0
+    @Published var gravZ = 0.0
+    @Published var gravW = -1.0
+    var gravGrabW = false, gravGrabDir = SIMD2<Double>(1, 0)        // w のメーターの輪をつかんだか・つかんだ所の向き（真ん中から。外へ ＝ +w）
+    @Published var gravHandleShow = true                            // 画面に重力ハンドル（矢印と w のメーター）を出すか
+    var gravGrab = false                                            // 画面の重力ハンドルをつかんでいる間
+    var paneSize: [Int: CGSize] = [:]                               // 絵の窓の大きさ（ポイント。重力ハンドルを指でつかむ時の当たり判定に）
     @Published var waterGravMode = 2 {                              // 遊ぶモードの重力：0 画面の奥（w の消失点へ。4D らしい）・1 画面の下（見慣れた）・2 箱の −w（+W→−W、積分と同じ。回してもこぼれない）
         didSet { }   // 切りかえても見る向きはそのまま。重力の向きだけが、なめらかに回って変わる（waterFreeTick）
     }
@@ -263,10 +274,11 @@ final class OrigamiState: ObservableObject {
     @Published var waterSlosh = 1.0                                 // 回した時のちゃぷちゃぷの強さ（1 ＝ 本物どおり）
     var ns4: NS4? = nil, ns4Failed = false, nsVTarget = 0.0, nsPrevT = 0.0, nsPrevPhase = 0
     /// 4D の水のマスの細かさ（おまかせ：16。ユーザーが「いろいろ試したが 16⁴ で十分、これがいちばん軽い」）
-    var ns4N: Int { waterNSRes == 16 || waterNSRes == 24 || waterNSRes == 32 ? waterNSRes : 16 }
+    var ns4N: Int { [8, 12, 16, 24, 32].contains(waterNSRes) ? waterNSRes : 16 }
     func ns4Get() -> NS4? {
         if let s = ns4, s.N != ns4N { ns4 = nil; ns4Failed = false; nsVTarget = 0; _ = s }   // 細かさを変えたら作り直す（水は最初から）
         if ns4 == nil && !ns4Failed { ns4 = NS4(N: ns4N); if let s = ns4 { s.reset(level: -1) } else { ns4Failed = true } }
+        ns4?.setBall(waterBallOn)                                       // 内接球の壁（入れた・切った時だけ作り直す）
         return ns4
     }
     var holeDA = 0.0, holeVA = 0.0, holeDHL = 0.0, holeVHL = 0.0, holeLastT = 0.0, holeShow = 0.0   // 格子のふたの開き具合（排水口・通気口）と、開け閉めの途中の明るさ
@@ -1449,6 +1461,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         func mRad(_ p: SIMD3<Double>) -> Float { st.markSame ? mR * Float(simd_distance(eye, p) / dO) : mR }
         let nearB = TLBall(p: SIMD4(gpu(near), st.markShowNear ? mRad(near) : 0), col: SIMD4(st.markNear, 2)), farB = TLBall(p: SIMD4(gpu(far), st.markShowFar ? mRad(far) : 0), col: SIMD4(st.markFar, 2))
         if st.raster { marks = st.isPreview ? [] : [farB, nearB] } else { marks = []; if st.markShowNear { balls.append(nearB) }; if st.markShowFar { balls.append(farB) } }
+        gravHandleGeometry(&rods, &balls)                                   // 好きな向きの重力の矢印（OrigamiWater.swift）。玉は、ラスターの時は marks に
         if st.raster { marks += intMarks }                                // 積分：内接する超球が胞に接する点の光
         // 手前と奥の目印がぴったり重なった瞬間：光の輪が 2 重に広がって消える（0.8 秒）
         if st.raster && !st.isPreview && n == 4 && st.markFlash && st.markFlashT < 0.8 && st.markShowNear && st.markShowFar {
@@ -1521,6 +1534,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         let still = now - movedT > Self.stillAfter
         Self.fitDrawable(view, st.effScale)
         pxPerPt = Double(view.drawableSize.height / max(1, view.bounds.height))
+        if !st.isPreview && st.paneSize[n] != view.bounds.size { st.paneSize[n] = view.bounds.size }
         if still && view.drawableSize == drawnSize && now - drawnT < 1 / Self.stillFPS { return }
         let td0 = CACurrentMediaTime()
         guard let rpd = view.currentRenderPassDescriptor, let dr = view.currentDrawable, let cb = queue.makeCommandBuffer() else { return }
@@ -1936,12 +1950,20 @@ final class OrigamiMTKView: MTKView {
     private var last: NSPoint? = nil
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override func mouseDown(with e: NSEvent) { last = e.locationInWindow }
+    override func mouseDown(with e: NSEvent) {
+        last = e.locationInWindow
+        // 重力ハンドル（矢印の先の玉）の近くを押したら、つかむ（形は回さない）
+        if let st, st.gravHandleOn(n) {
+            let q = convert(e.locationInWindow, from: nil)
+            st.gravGrab = st.gravHit(n, CGPoint(x: q.x, y: bounds.height - q.y), size: bounds.size)
+        }
+    }
     override func mouseDragged(with e: NSEvent) {
         guard let st else { return }
         let p = e.locationInWindow, l = last ?? p; last = p
         // 窓の座標は上が＋なので、画面の下向き＋（SwiftUI のドラッグと同じ向き）にそろえる
         let dx = Double(p.x - l.x), dy = -Double(p.y - l.y)
+        if st.gravGrab { st.gravDrag(n, dx, dy, alt: e.modifierFlags.contains(.option), size: bounds.size); return }
         // ⌘／Ctrl＋ドラッグ＝図形を動かす（回さない。ウェブ版と同じ）
         if !e.modifierFlags.intersection([.command, .control]).isEmpty { st.panBy(st.wix(n), dx, dy) }
         else if n == 5 {                                                     // 5 次元：転がす（3D の回転）か、5 次元だけの X-W・Y-W（⇧ W-V）
@@ -1953,7 +1975,7 @@ final class OrigamiMTKView: MTKView {
         else if n == 3 || st.dim5 { st.drag(.l4x, dx * 0.01); st.drag(.l4y, dy * 0.01) }   // 左：X-W・Y-W（左は X-Z・Y-Z。5 次元では超立方体の X-W・Y-W＝5 次元の X-V・Y-V）
         else { st.drag(.r3x, dx * 0.01); st.drag(.r3y, dy * 0.01) }            // 右：画面の縦・横の軸のまわりに形を回す
     }
-    override func mouseUp(with e: NSEvent) { last = nil; st?.dragging = false }
+    override func mouseUp(with e: NSEvent) { last = nil; st?.dragging = false; st?.gravGrab = false }
     override func magnify(with e: NSEvent) {
         guard let st else { return }
         let i = st.wix(n)

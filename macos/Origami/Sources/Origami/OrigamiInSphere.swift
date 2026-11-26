@@ -108,6 +108,7 @@ extension OrigamiRenderer {
     }
     func inSphereGeometry(_ rods: inout [TLRod], eye: SIMD3<Double>) -> [IntTriBatch] {
         guard st.inSphere else { return [] }
+        if st.intOn && st.intMethod == 1 && st.intVis > 0.01 { return [] }   // 水の時は、水専用の玉（OrigamiWater の waterBall）
         let k = max(0, min(1, (st.progress - 0.92) / 0.08)) * max(0, 1 - 4 * st.explodeE)   // 組み上がっている時だけ
         guard k > 0.01 else { return [] }
         let H = OrigamiState.half, NL = max(3, st.inSphereLayers), MIN = 0.06
