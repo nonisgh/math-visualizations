@@ -208,9 +208,6 @@ final class OrigamiState: ObservableObject {
     @Published var drainMode = 0                                    // 抜き方：0 底を全部開ける・1 小さい排水口（渦）・2 交互
     @Published var holesOpenSet = false                             // 排水口：栓をする（ふつう）／開けっぱなし（工事済みの時だけ）
     @Published var waterVent = true                                 // 通気口：あり＝空気が入ってふつうに抜ける、なし＝ごぼごぼゆっくり
-    @Published var waterBallWall = true                             // 内接球を出している時：玉は壁（水が入らない）。切ると「内接球無視モード」（水は玉を通りぬける）。本物の 4D の水だけ
-    var waterBallOn: Bool { inSphere && waterBallWall && waterNS }
-    @Published var waterBallLook = 0                                // 水の時の内接球の見せ方：0 見えない玉（水族館の水槽のように、水が入って初めて穴で分かる）・1 すき通った真珠色の玉
     var waterCyc = 0, waterDOpen = 0.0, waterHEq = 0.0, waterEmptyT: Double? = nil   // 1 回りの数（交互の入れ替え）・開けっぱなしの水の深さ・つり合う水位
     var waterLid = 0.0, waterBLid = 0.0                             // 上のふた・底の栓の開き具合
     var waterVD = 0.0, waterSD = 0.0, waterBurst = 0.0, waterGlugN = -1, waterPrevPhase = 0, waterVented = true   // 渦のくぼみ・抜けた割合・開けた瞬間の吸い込み・ごぼっ
@@ -278,7 +275,6 @@ final class OrigamiState: ObservableObject {
     func ns4Get() -> NS4? {
         if let s = ns4, s.N != ns4N { ns4 = nil; ns4Failed = false; nsVTarget = 0; _ = s }   // 細かさを変えたら作り直す（水は最初から）
         if ns4 == nil && !ns4Failed { ns4 = NS4(N: ns4N); if let s = ns4 { s.reset(level: -1) } else { ns4Failed = true } }
-        ns4?.setBall(waterBallOn)                                       // 内接球の壁（入れた・切った時だけ作り直す）
         return ns4
     }
     var holeDA = 0.0, holeVA = 0.0, holeDHL = 0.0, holeVHL = 0.0, holeLastT = 0.0, holeShow = 0.0   // 格子のふたの開き具合（排水口・通気口）と、開け閉めの途中の明るさ
@@ -288,6 +284,13 @@ final class OrigamiState: ObservableObject {
     var intFilling = true
     // ---- 断面（OrigamiSection.swift）：組み上がった形を、平らな包丁（超立方体は w、立方体は z に垂直）で切った切り口 ----
     @Published var secOn = false
+    // 4 次元の立体を見る（3 つの窓：3D のたとえ・4D の影＋切っている所・メインに断面）。OrigamiIntShapes.swift の後ろ
+    @Published var shapeOn = false
+    @Published var shapeKind = 3                                    // 1 球柱・2 デュオシリンダー・3 タイガー・4 4 次元トーラス・5 超球
+    @Published var shapeMainProj = false                            // メインの窓を 4D の影に（小さい窓が断面）
+    @Published var shapePlay = false; var shapeDirSign = 1.0
+    var shapeCut = 0.0 { willSet { uiChanged() } }                  // 切る位置（−1〜＋1、立体がおさまる半径を 1 として）
+    var shapeSecKey: [Double] = [], shapeSecCache = ShapeMesh(), shapeLayCache: [ShapeMesh] = [], shapeLayKind = -1, shapeAnaCache: [SIMD3<Double>] = [], shapeAnaKind = -1
     var secPos = 0.0 { willSet { uiChanged() } }                  // 包丁の位置（−1 いちばん手前の頂点 〜 ＋1 いちばん奥の頂点）
     @Published var secPlay = false                                // 包丁を自動で往復させる
     var secDirSign = 1.0
@@ -504,11 +507,11 @@ final class OrigamiState: ObservableObject {
     @Published var axisSyncOn = false
     @Published var axisSyncMinus = false
     @Published var palSel = "4:px"
-    var zoom = [1.0, 1.0], dist = [9.0, 9.0], center = [SIMD2<Double>(0, 0), SIMD2<Double>(0, 0)]   // 見る所（形の真ん中へなめらかに寄る）
+    var zoom = [1.0, 1.0, 1.0], dist = [9.0, 9.0, 9.0], center = [SIMD2<Double>(0, 0), SIMD2<Double>(0, 0), SIMD2<Double>(0, 0)]   // 3 つ目＝立体を見る時のメインの窓   // 見る所（形の真ん中へなめらかに寄る）
     // 図形の移動（ウェブ版の移動パッド・⌘／Ctrl＋ドラッグ）：絵を画面の上で平行にずらす量（窓の幅・高さの半分を 1 とする。右・上が＋。窓ごと）。
     //   見る位置（カメラ）は動かさないので、図形の見え方（遠近のかかり方）は変わらない（ウェブ版の setViewOffset と同じ）
-    var pan = [SIMD2<Double>(0, 0), SIMD2<Double>(0, 0)] { willSet { uiChanged() } }
-    var paneWpt = [400.0, 400.0], paneHpt = [400.0, 400.0]   // 窓の幅・高さ（ポイント。ドラッグの量を割合に直すため）
+    var pan = [SIMD2<Double>(0, 0), SIMD2<Double>(0, 0), SIMD2<Double>(0, 0)] { willSet { uiChanged() } }
+    var paneWpt = [400.0, 400.0, 400.0], paneHpt = [400.0, 400.0, 400.0]   // 窓の幅・高さ（ポイント。ドラッグの量を割合に直すため）
     @Published var panPad = true                 // 移動パッド（窓の左の丸）を出す
     /// 画面で (dx, dy) ポイント（右・下が＋）つかんで動かす：中身がつかんだ向きへついてくる
     func panBy(_ i: Int, _ dx: Double, _ dy: Double) {
@@ -637,7 +640,7 @@ final class OrigamiState: ObservableObject {
     var xpDistK = 1.0 { willSet { uiChanged() } }
     var xpAnim: (from: Double, to: Double, t: Double, total: Double)? = nil
     static let XP_DUR = 0.72, XP_STAG = 0.05, XP_FLASH = 0.35
-    var labels: [[SIMD3<Double>]] = [[], []]  // 番号の札の位置（離したあとの胞の中心。左・右）
+    var labels: [[SIMD3<Double>]] = [[], [], []]  // 番号の札の位置（離したあとの胞の中心。左・右）
     var xpStag: Double { xpStagger ? Self.XP_STAG : 0 }
     static func easeOutBack(_ u: Double, _ k: Double = 1.7) -> Double { 1 + (k + 1) * pow(u - 1, 3) + k * pow(u - 1, 2) }
     static func easeInBack(_ u: Double, _ k: Double = 1.4) -> Double { (k + 1) * u * u * u - k * u * u }
@@ -715,7 +718,7 @@ final class OrigamiState: ObservableObject {
     /// 組み立てる・開く（今の向きの逆へ。ウェブ版の ▶）
     var lastTickT = 0.0
     // コマ数（左・右の窓）：GPU で 1 コマ描くのにかかった時間（ミリ秒、ならした値）と、1 秒に出したコマの数
-    var gpuMs = [0.0, 0.0], fps = [0, 0]
+    var gpuMs = [0.0, 0.0, 0.0], fps = [0, 0, 0]
     lazy var driver = FrameDriver(st: self)
     /// 1 コマに 1 回だけ時間を進める（窓が 2 つあっても、片方だけでも）
     func tickOnce(_ now: Double) {
@@ -873,6 +876,10 @@ final class OrigamiState: ObservableObject {
             }
             intItems = intUpdate()
         } else if !intItems.isEmpty { intItems = [] }
+        if shapePlay && shapeOn {                                          // 立体を見る：切る位置を自動で往復（端から端まで約 8 秒）
+            shapeCut += dt * 0.25 * shapeDirSign
+            if shapeCut >= 1 { shapeCut = 1; shapeDirSign = -1 } else if shapeCut <= -1 { shapeCut = -1; shapeDirSign = 1 }
+        }
         if secPlay && secOn {                                              // 断面の包丁を自動で往復（端から端まで約 8 秒）
             secPos += dt * 0.25 * secDirSign
             if secPos >= 1 { secPos = 1; secDirSign = -1 } else if secPos <= -1 { secPos = -1; secDirSign = 1 }
@@ -998,7 +1005,9 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
     }
     /// 面（板）・辺（線）・目印の頂点を作る。eye：カメラの位置（景色の座標）。分解（バラす）もここで（ウェブ版の applyExplode）
     /// 画面の上でずらす量（図形の移動。三角形で描く時だけ。光の道の描き方では動かさない）
-    var PS: SIMD2<Double> { st.raster ? st.pan[st.wix(n)] : .zero }
+    var role = 0                                                      // 1：立体を見る時のメインの窓（見る所・ズームは 3 つ目）
+    var vix: Int { role == 1 ? 2 : st.wix(n) }
+    var PS: SIMD2<Double> { st.raster ? st.pan[vix] : .zero }
     var intSpheres: [IntSphere] = []                                        // 積分の玉（本物の球を画素ごとに）
     var intMarks: [TLBall] = []                                             // 積分の光る点（内接する超球が胞に接する所）
     var intBatches: [IntTriBatch] = []                                     // 積分の三角形（geometry で作り、描く時に渡す）
@@ -1042,7 +1051,14 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
     // 展開図をふつうの（すけない）立体に見せる度合い（geometry で決め、描く時に奥行きと線の隠れに使う）
     var solidK = 0.0
     func geometry(eye: SIMD3<Double>) -> ([TLQuad], [TLRod], [TLBall], Double, SIMD2<Double>) {
-        let cells = OrigamiState.cells(n), di = st.wix(n)
+        // 立体を見る：断面だけの窓（超立方体は描かない）
+        if showsSectionOnly {
+            intMarks = []; intSpheres = []
+            intBatches = shapeSectionBatch(eye: eye, glow: false).map { [$0] } ?? []
+            return ([], [], [], OrigamiState.shpBound(st.shapeKind).r4 * 1.35, SIMD2(0, 0))
+        }
+        let cells = OrigamiState.cells(n), di = vix
+        let wireNow = st.wireOnly || (st.shapeOn && n == 4 && !st.dim5)   // 立体を見る時の 4D の窓は、超立方体をワイヤーだけに（立体の影が見えるように）
         var quads: [TLQuad] = [], rods: [TLRod] = [], balls: [TLBall] = []
         // segK：辺の両はしの 4D の遠近の縮み（線の 4D の奥行きの濃さに使う）
         var segs: [(SIMD3<Double>, SIMD3<Double>, Int)] = [], segK: [(Double, Double)] = [], rMax = 0.0, lo = SIMD2<Double>(1e9, 1e9), hi = SIMD2<Double>(-1e9, -1e9)
@@ -1184,7 +1200,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
                 if l > 1e-9 { squash = Float(max(0, min(1, 1 - abs(simd_dot(e1, simd_cross(e2, e3))) / l))) }
             }
             // 5 次元：胞は超立方体＝自由な軸 4 本から 2 本えらんで張る正方形（6 組 × 残り 2 本の ± の 4 か所 ＝ 24 枚）
-            if nb == 4 && !st.wireOnly {
+            if nb == 4 && !wireNow {
                 let (col, alpha) = shade(0)
                 if alpha >= 0.002 {
                     for i in 0..<4 { for j in (i + 1)..<4 {
@@ -1201,7 +1217,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
             }
             // 排水口・通気口：底（−W、左の窓は −Z）と上の胞の見た目を覚えておく（ふたを同じガラスで描く）。左の窓で口が開いている面は、穴あきで描く（OrigamiDrain.swift）
             var cutFace = false
-            if n <= 4 && !st.wireOnly {
+            if n <= 4 && !wireNow {
                 let (fa, fs) = OrigamiState.fixed(cells[ci], n)
                 if fa == n - 1 {
                     let ws = (0..<(1 << nb)).map { w4(ci, $0) }
@@ -1211,7 +1227,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
                 }
             }
             // 面：自由な軸のうち 2 本で張る正方形（立方体の胞は 6 枚、正方形の面は 1 枚）
-            for f in (nb == 3 ? [0, 1, 2] : nb == 2 ? [-1] : []) where !st.wireOnly && !cutFace {
+            for f in (nb == 3 ? [0, 1, 2] : nb == 2 ? [-1] : []) where !wireNow && !cutFace {
                 for fsv in (f < 0 ? [0] : [0, 1]) {
                     let (col, alpha) = shade(f < 0 ? 0 : f * 2 + fsv)
                     // 消えている面（積分中の「線だけ」「消す」・見本の小窓）は作らない：濃さ 0 でも、つや・映り込みは足し合わせで残るので
@@ -1411,6 +1427,11 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
             if PerfTest.on && st.inSphere { PerfTest.add("内接球を作る", CACurrentMediaTime() - tsp0) }
             // サイコロ（面の目と、②の立方体のサイコロ）
             intBatches += diceGeometry(eye: eye)
+            // 立体を見る：4D の窓は 4D の影（w の輪切りを重ねる）と今切っている所の光・左の窓は 3D のたとえ（切る面と切り口の線）
+            if st.shapeOn && !st.dim5 {
+                if n == 4 { if let b = shapeShadowBatch(eye: eye) { intBatches.append(b) }; if let b = shapeSectionBatch(eye: eye, glow: true) { intBatches.append(b) } }
+                else if n == 3, let b = shapeAnalogBatch(&rods, eye: eye) { intBatches.append(b) }
+            }
         } else {
             let r0s = rods.count
             intBatches += inSphereDepthFx(&rods, from: r0s, inSphere5Geometry(&rods, eye: eye), eye: eye)   // 5 次元 β の内接球（OrigamiInSphere5.swift）
@@ -1518,8 +1539,8 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
     static let stillAfter = 0.6, stillFPS = 10.0
     /// 見た目に関わる値の組（前のコマと同じなら止まっている）
     func drawSig() -> [Double] {
-        let i = st.wix(n)
-        return [st.progress, st.colorProg, st.ax, st.ay, st.zw, st.xy, st.xz, st.yz, st.xw5, st.yw5, st.zw5, st.wv5, st.dim5 ? 1 : 0, st.camW, Double(st.look), st.shine ? 1 : 0, st.shineK, st.shineSpread, st.shineAz, st.shineEl,
+        let i = vix
+        return [st.shapeOn ? 1 : 0, Double(st.shapeKind), st.shapeCut, st.shapeMainProj ? 1 : 0, st.progress, st.colorProg, st.ax, st.ay, st.zw, st.xy, st.xz, st.yz, st.xw5, st.yw5, st.zw5, st.wv5, st.dim5 ? 1 : 0, st.camW, Double(st.look), st.shine ? 1 : 0, st.shineK, st.shineSpread, st.shineAz, st.shineEl,
                 st.glare, st.vivid, st.envK, st.deep, st.inner, st.explodeE, st.xpDistK, st.counting ? 1 : 0, Double(st.countIdx), Double(st.countPhase), st.spaceFlash,
                 Double(st.spaceMode), st.bgSpace ? 1 : 0, st.starsPct, st.meshOn ? 1 : 0, st.gridN.rounded(), st.zoom[i], st.dist[i], st.center[i].x, st.center[i].y, st.pan[i].x, st.pan[i].y, st.rotRev, st.showAxes ? 1 : 0, st.foldStagger ? Double(st.foldMaxStages) : 0, st.foldCourse ? (st.courseFromB ? 2 : 1) : 0, st.projBlend, st.wireOnly ? 1 : 0, st.ehOn ? 1 : 0, st.ehWidthNear, st.ehWidthFar, st.ehWidthOther, (st.ehNearOn ? 1 : 0) + (st.ehFarOn ? 2 : 0), st.ehCells.reduce(0.0) { $0 + Double($1.key.hashValue % 9973) + Double($1.value.x + $1.value.y * 3 + $1.value.z * 7) }, st.markSize, Double(st.markNear.x + st.markNear.y * 2 + st.markNear.z * 4), Double(st.markFar.x + st.markFar.y * 2 + st.markFar.z * 4), (st.markShowNear ? 1 : 0) + (st.markShowFar ? 2 : 0) + (st.markGlue ? 4 : 0),
                 Double(st.ehNear.x + st.ehNear.y * 2 + st.ehNear.z * 4), Double(st.ehFar.x + st.ehFar.y * 2 + st.ehFar.z * 4), st.left3DAll ? 1 : 0, st.raster ? 1 : 0,
@@ -1541,7 +1562,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         if PerfTest.on { PerfTest.add("描く板を待つ", CACurrentMediaTime() - td0) }
         let sz = view.drawableSize
         encode(cb, rpd, Int(sz.width), Int(sz.height), now: now, dt: dt)
-        let pi = st.wix(n)
+        let pi = vix
         cb.addCompletedHandler { [weak self] c in
             let ms = (c.gpuEndTime - c.gpuStartTime) * 1000
             DispatchQueue.main.async { guard let self, ms > 0, ms < 500 else { return }; self.st.gpuMs[pi] = self.st.gpuMs[pi] * 0.9 + ms * 0.1 }
@@ -1715,7 +1736,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
     func drawXpLabels(_ e: MTLRenderCommandEncoder, w: Int, h: Int, eye: SIMD3<Double>) {
         let ex = st.explodeE
         guard ex > 0.01 || st.counting, let pipe = labelPipe else { return }
-        let i = st.wix(n), tanF = tan(22.5 * Double.pi / 180), W = Double(w), H = Double(h), asp = W / max(1, H), cols = st.cellColors(n)
+        let i = vix, tanF = tan(22.5 * Double.pi / 180), W = Double(w), H = Double(h), asp = W / max(1, H), cols = st.cellColors(n)
         e.setRenderPipelineState(pipe)
         for (k, p) in st.labels[i].enumerated() where k < cols.count {
             var op = min(1, ex * 1.6), hi = false
@@ -1786,7 +1807,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         st.updateMats()
         let spaceK = st.spaceK
         let spTex = spaceK > 0.001 && st.bgSpace && !st.raster ? sky?.render(cb, w, h, st, now) : nil
-        let i = st.wix(n)
+        let i = vix
         // カメラ：正面（ウェブ版と同じく、物を回してカメラは回さない）。全体が収まる距離へなめらかに寄る
         let eyeW = SIMD3<Double>(st.center[i].x, st.center[i].y, st.dist[i])
         st.paneWpt[i] = Double(w) / max(0.5, pxPerPt); st.paneHpt[i] = Double(h) / max(0.5, pxPerPt)
@@ -1937,17 +1958,19 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
 struct OrigamiPane: NSViewRepresentable {
     let n: Int; let st: OrigamiState
     var driver: FrameDriver? = nil                 // コマを進める係（見本の小窓は、本体の係に乗せる＝別の画面のコマ送りを増やさない）
+    var role = 0                                   // 1：立体を見る時のメインの窓
     final class Holder { var r: OrigamiRenderer? }
     func makeCoordinator() -> Holder { Holder() }
-    func makeNSView(context: Context) -> MTKView { let v = OrigamiMTKView(); v.n = n; v.st = st; context.coordinator.r = OrigamiRenderer(n: n, state: st, view: v); v.delegate = context.coordinator.r; (driver ?? st.driver).attach(v); return v }
+    func makeNSView(context: Context) -> MTKView { let v = OrigamiMTKView(); v.n = n; v.role = role; v.st = st; let r = OrigamiRenderer(n: n, state: st, view: v); r?.role = role; context.coordinator.r = r; v.delegate = r; (driver ?? st.driver).attach(v); return v }
     func updateNSView(_ v: MTKView, context: Context) {}
 }
 
 /// Mac の絵の窓：マウスのドラッグとトラックパッドのつまみを、この窓が直接受ける。
 ///   SwiftUI のジェスチャーで受けると、マウスが動くたびに SwiftUI の作り直し（画面全体の並べ直し）が走って、絵のコマが落ちる
 final class OrigamiMTKView: MTKView {
-    var n = 4; weak var st: OrigamiState?
+    var n = 4, role = 0; weak var st: OrigamiState?
     private var last: NSPoint? = nil
+    private func vi(_ st: OrigamiState) -> Int { role == 1 ? 2 : st.wix(n) }
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with e: NSEvent) {
@@ -1965,7 +1988,7 @@ final class OrigamiMTKView: MTKView {
         let dx = Double(p.x - l.x), dy = -Double(p.y - l.y)
         if st.gravGrab { st.gravDrag(n, dx, dy, alt: e.modifierFlags.contains(.option), size: bounds.size); return }
         // ⌘／Ctrl＋ドラッグ＝図形を動かす（回さない。ウェブ版と同じ）
-        if !e.modifierFlags.intersection([.command, .control]).isEmpty { st.panBy(st.wix(n), dx, dy) }
+        if !e.modifierFlags.intersection([.command, .control]).isEmpty { st.panBy(vi(st), dx, dy) }
         else if n == 5 {                                                     // 5 次元：転がす（3D の回転）か、5 次元だけの X-W・Y-W（⇧ W-V）
             if st.drag5Roll { st.drag(.r3x, dx * 0.01); st.drag(.r3y, dy * 0.01) }
             else if e.modifierFlags.contains(.shift) { st.drag(.wv5, dx * 0.01) } else { st.drag(.x5, dx * 0.01); st.drag(.y5, dy * 0.01) }
@@ -1978,14 +2001,14 @@ final class OrigamiMTKView: MTKView {
     override func mouseUp(with e: NSEvent) { last = nil; st?.dragging = false; st?.gravGrab = false }
     override func magnify(with e: NSEvent) {
         guard let st else { return }
-        let i = st.wix(n)
+        let i = vi(st)
         st.zoom[i] = max(0.3, min(8, st.zoom[i] * (1 + Double(e.magnification))))
     }
     /// マウスのホイール・トラックパッドの 2 本指のスクロールで拡大・縮小（ウェブ版と同じ。上へ＝寄る）。
     ///   ホイールは 1 目盛りが大きいので弱め、トラックパッド（細かい量が来る）はなめらかに。倍率は 0.3〜8 倍
     override func scrollWheel(with e: NSEvent) {
         guard let st else { return }
-        let i = st.wix(n)
+        let i = vi(st)
         let dy = Double(e.scrollingDeltaY) * (e.hasPreciseScrollingDeltas ? 0.004 : 0.06)
         guard dy != 0 else { return }
         st.zoom[i] = max(0.3, min(8, st.zoom[i] * exp(dy)))
@@ -1997,7 +2020,8 @@ struct OrigamiPane: UIViewRepresentable {
     var driver: FrameDriver? = nil
     final class Holder { var r: OrigamiRenderer? }
     func makeCoordinator() -> Holder { Holder() }
-    func makeUIView(context: Context) -> MTKView { let v = MTKView(); context.coordinator.r = OrigamiRenderer(n: n, state: st, view: v); v.delegate = context.coordinator.r; (driver ?? st.driver).attach(v); return v }
+    var role = 0
+    func makeUIView(context: Context) -> MTKView { let v = MTKView(); let r = OrigamiRenderer(n: n, state: st, view: v); r?.role = role; context.coordinator.r = r; v.delegate = r; (driver ?? st.driver).attach(v); return v }
     func updateUIView(_ v: MTKView, context: Context) {}
 }
 #endif

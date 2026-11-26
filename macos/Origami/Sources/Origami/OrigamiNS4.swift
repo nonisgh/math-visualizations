@@ -20,14 +20,13 @@ struct NS4Params {
     var gvec = SIMD4<Float>(0, 0, 0, -2.7)                            // 重力（箱の x・y・z・w の向き、世界の単位）。積分の時は −w、遊ぶモードは画面の下
     var jetD = SIMD4<Float>(0, 0, 0, -1)                              // 注ぐ水の向き（積分の時は −w、遊ぶモードは重力の向き＝画面の上から）
     var ex2 = SIMD4<Float>(0.8, 0, 0, 0)                              // w：床の傾きの強さ（排水口へ向かう加速度、世界の単位。0 で平ら）。z：通気口の半分の幅（格子の単位、0 で無し。上 +W の面の (x,y,z) ＝ (¼, ¾, ¼) のマス）。x：波のブレーキ（1 秒あたりの弱まり γ。壁とのこすれのかわり：ちゃぷちゃぷが数秒で静まる）
-    var ex3 = SIMD4<Float>(0, 0, 0, 0)                                // x：内接球の壁の半径（格子の単位、0 で無し。玉の中のマスは水が入らない壁）
     var kick = simd_float4x4(0)                                       // 箱を回した時の、回る速さの変わり（箱から見た 4D の回転の生成子の差 ΔW）。水には −ΔW r の速さ（オイラーの力：水はその場に残ろうとする）
 }
 
 let ns4Shader = """
 #include <metal_stdlib>
 using namespace metal;
-struct P { float4 jetC; int N; int M; int c; int par; int open; int jetOn; int swirlOn; int topOpen; float dx; float dt; float g; float hole; float omega; float jetR; float jetV; float shift; float nu; float smooth; float pad2; float vort; float4 gvec; float4 jetD; float4 ex2; float4 ex3; float4x4 kick; };
+struct P { float4 jetC; int N; int M; int c; int par; int open; int jetOn; int swirlOn; int topOpen; float dx; float dt; float g; float hole; float omega; float jetR; float jetV; float shift; float nu; float smooth; float pad2; float vort; float4 gvec; float4 jetD; float4 ex2; float4x4 kick; };
 inline int4 dec(uint id, int M) { int i = int(id) % M; int j = (int(id) / M) % M; int k = (int(id) / (M * M)) % M; int l = int(id) / (M * M * M); return int4(i, j, k, l); }
 inline int enc(int4 q, int M) { return ((q.w * M + q.z) * M + q.y) * M + q.x; }
 inline int4 ax(int c) { return int4(c == 0, c == 1, c == 2, c == 3); }
@@ -43,9 +42,6 @@ inline bool topOpenAt(int4 q, constant P& p) {
     float3 r = abs(float3(q.xyz) + 0.5 - float3(c0, c1, c0));
     return r.x < p.ex2.z && r.y < p.ex2.z && r.z < p.ex2.z;
 }
-// 内接球の壁：マスの真ん中が玉（半径 ex3.x、箱の真ん中から）の中なら壁のマス。壁の面＝どちらかのマスが玉の中
-inline bool solidC(int4 q, constant P& p) { return p.ex3.x > 0.0 && length(float4(q) + 0.5 - float(p.N) * 0.5) < p.ex3.x; }
-inline bool solidF(int4 q, int c, constant P& p) { return p.ex3.x > 0.0 && (solidC(q, p) || solidC(q - ax(c), p)); }
 inline bool openAt(int4 q, constant P& p) {
     if (p.open == 1) return true;
     if (p.hole <= 0.0) return false;
@@ -91,7 +87,6 @@ kernel void advU(device const float* U [[buffer(0)]], device float* UT [[buffer(
     float4 x = float4(q) + 0.5; x[c] = float(q[c]);
     bool wall = q[c] == 0 || q[c] == p.N;
     if (c == 3 && q.w == p.N && inJet(q, p)) { UT[c * MM + id] = p.jetD.w * p.jetV; return; }   // 上から注ぐ所は、入ってくる速さ
-    if (!wall && solidF(q, c, p)) { UT[c * MM + id] = 0.0; return; }   // 内接球の壁：流れは通らない
     if (wall && !(c == 3 && q.w == 0 && openAt(q, p)) && !(c == 3 && q.w == p.N && topOpenAt(q, p))) { UT[c * MM + id] = 0.0; return; }
     float4 v = velAt(U, x, p);
     float4 xb = x - p.dt * v / p.dx;
@@ -125,12 +120,6 @@ kernel void macU(device const float* U [[buffer(0)]], device const float* UF [[b
 kernel void advPhi(device const float* U [[buffer(0)]], device const float* phi [[buffer(1)]], device float* phiT [[buffer(2)]], constant P& p [[buffer(3)]], uint id [[thread_position_in_grid]]) {
     int MM = p.M * p.M * p.M * p.M; if (int(id) >= MM) return;
     int4 q = dec(id, p.M); if (!inCell(q, p.N)) { phiT[id] = 1.0; return; }
-    // 内接球の中のマス：水も空気も無い。まわりの φ の平均をのばしておく（水面が玉に直角に当たるように。玉の外の計算と描く面のため）
-    if (solidC(q, p)) {
-        float s = 0.0, n = 0.0;
-        for (int d = 0; d < 4; d++) for (int sg = -1; sg <= 1; sg += 2) { int4 nb = q + sg * ax(d); if (inCell(nb, p.N)) { s += phi[enc(nb, p.M)]; n += 1.0; } }
-        phiT[id] = n > 0.0 ? s / n : phi[id]; return;
-    }
     float4 x = float4(q) + 0.5;
     float4 v = velAt(U, x, p);
     float4 xb = x - p.dt * v / p.dx;
@@ -159,7 +148,7 @@ kernel void jet(device float* U [[buffer(0)]], device float* phi [[buffer(1)]], 
         if (q.w < l0 || q.w >= l0 + 3) return;
         r = length(float3(q.xyz) + 0.5 - p.jetC.xyz);
     }
-    if (r >= p.jetR || solidC(q, p)) return;
+    if (r >= p.jetR) return;
     if (q.w == p.N - 1 && p.topOpen == 0) U[3 * MM + enc(q + int4(0, 0, 0, 1), p.M)] = p.jetD.w * p.jetV;
     phi[id] = min(phi[id], (r - p.jetR) * p.dx);
     for (int c = 0; c < 4; c++) U[c * MM + id] = p.jetD[c] * p.jetV;   // 注ぐ水の向き（遊ぶモードでは、画面の上から＝重力の向き）
@@ -178,17 +167,6 @@ kernel void force(device float* U [[buffer(0)]], constant P& p [[buffer(1)]], ui
             float3 xf = float3(q.xyz) + 0.5; xf[c] = float(q[c]);         // この速さの置き場所（マスの面の真ん中）
             float3 d = ctr - xf; float l = length(d);
             if (l > 0.5) U[c * MM + id] += p.ex2.w * d[c] / l * p.dt;
-        }
-    }
-    // 内接球が水をはじく（ex3.y ＞ 0）：玉のまわり 2 マスの水を、玉から外へ押す（重力の ex3.y 倍、離れるほど弱く）。
-    //   押す力は玉からの距離だけで決まる（位置エネルギーがある力）ので、水は止まった時に玉のまわりで少しへこむ（水をはじく玉の水ぎわ）
-    if (p.ex3.y > 0.0) {
-        float gl = length(p.gvec), hN = float(p.N) * 0.5;
-        for (int c = 0; c < 4; c++) {
-            if (!inFace(q, c, p.N) || solidF(q, c, p)) continue;
-            float4 r = float4(q) + 0.5 - hN; r[c] = float(q[c]) - hN;
-            float l = length(r), s = l - p.ex3.x;
-            if (s > 0.0 && s < 2.0 && l > 0.0) U[c * MM + id] += p.ex3.y * gl * (1.0 - 0.5 * s) * r[c] / l * p.dt;
         }
     }
     // 箱を回した時：水はその場に残ろうとするので、箱から見ると回る速さの変わりの逆に動く（壁の真ん中の位置 r で −ΔW r）
@@ -214,7 +192,7 @@ kernel void visc(device const float* U [[buffer(0)]], device float* UT [[buffer(
     float k = min(0.1, p.nu * p.dt / (p.dx * p.dx));
     for (int c = 0; c < 4; c++) {
         int fi = c * MM + int(id); UT[fi] = U[fi];
-        if (!inFace(q, c, p.N) || q[c] == 0 || q[c] == p.N || solidF(q, c, p)) continue;
+        if (!inFace(q, c, p.N) || q[c] == 0 || q[c] == p.N) continue;
         if (!(phi[enc(q - ax(c), p.M)] < 0.0 || phi[id] < 0.0)) continue;
         float s = 0.0, n = 0.0;
         for (int d = 0; d < 4; d++) for (int sg = -1; sg <= 1; sg += 2) { int4 nb = q + sg * ax(d); if (inFace(nb, c, p.N)) { s += U[c * MM + enc(nb, p.M)]; n += 1.0; } }
@@ -225,7 +203,7 @@ kernel void visc(device const float* U [[buffer(0)]], device float* UT [[buffer(
 kernel void smoothPhi(device const float* phi [[buffer(0)]], device float* phiT [[buffer(1)]], constant P& p [[buffer(2)]], uint id [[thread_position_in_grid]]) {
     int MM = p.M * p.M * p.M * p.M; if (int(id) >= MM) return;
     int4 q = dec(id, p.M); float f = phi[id];
-    if (!inCell(q, p.N) || abs(f) > 3.0 * p.dx || solidC(q, p)) { phiT[id] = f; return; }
+    if (!inCell(q, p.N) || abs(f) > 3.0 * p.dx) { phiT[id] = f; return; }
     float s = 0.0, n = 0.0;
     for (int d = 0; d < 4; d++) for (int sg = -1; sg <= 1; sg += 2) { int4 nb = q + sg * ax(d); if (inCell(nb, p.N)) { s += phi[enc(nb, p.M)]; n += 1.0; } }
     phiT[id] = f + p.smooth * (s / n - f);
@@ -247,7 +225,7 @@ inline float dU(device const float* U, int4 q, int i, int j, constant P& p) {   
 kernel void vortW(device const float* U [[buffer(0)]], device const float* phi [[buffer(1)]], device float* W [[buffer(2)]], constant P& p [[buffer(3)]], uint id [[thread_position_in_grid]]) {
     int MM = p.M * p.M * p.M * p.M; if (int(id) >= MM) return;
     int4 q = dec(id, p.M);
-    if (!inCell(q, p.N) || phi[id] >= 0.0 || solidC(q, p)) { W[id] = 0.0; return; }
+    if (!inCell(q, p.N) || phi[id] >= 0.0) { W[id] = 0.0; return; }
     float s = 0.0;
     for (int i = 0; i < 4; i++) for (int j = i + 1; j < 4; j++) { float o = dU(U, q, i, j, p) - dU(U, q, j, i, p); s += o * o; }
     W[id] = sqrt(s);
@@ -276,7 +254,7 @@ kernel void vortAdd(device float* U [[buffer(0)]], device const float* Fv [[buff
     int MM = p.M * p.M * p.M * p.M; if (int(id) >= MM) return;
     int4 q = dec(id, p.M);
     for (int c = 0; c < 4; c++) {
-        if (!inFace(q, c, p.N) || q[c] == 0 || q[c] == p.N || solidF(q, c, p)) continue;
+        if (!inFace(q, c, p.N) || q[c] == 0 || q[c] == p.N) continue;
         int ia = enc(q - ax(c), p.M);
         if (!(phi[ia] < 0.0 && phi[id] < 0.0)) continue;               // 水の中だけ（水面のそばはさわらない）
         U[c * MM + id] += p.dt * 0.5 * (Fv[c * MM + ia] + Fv[c * MM + id]);
@@ -286,7 +264,7 @@ kernel void vortAdd(device float* U [[buffer(0)]], device const float* Fv [[buff
 kernel void rhs(device const float* U [[buffer(0)]], device const float* phi [[buffer(1)]], device float* R [[buffer(2)]], device float* Pr [[buffer(3)]], constant P& p [[buffer(4)]], uint id [[thread_position_in_grid]]) {
     int MM = p.M * p.M * p.M * p.M; if (int(id) >= MM) return;
     int4 q = dec(id, p.M);
-    if (!inCell(q, p.N) || phi[id] >= 0.0 || solidC(q, p)) { R[id] = 0.0; Pr[id] = 0.0; return; }
+    if (!inCell(q, p.N) || phi[id] >= 0.0) { R[id] = 0.0; Pr[id] = 0.0; return; }
     float dv = 0.0;
     for (int c = 0; c < 4; c++) dv += U[c * MM + enc(q + ax(c), p.M)] - U[c * MM + id];
     R[id] = -dv * p.dx / p.dt;   // （dv／dx）× dx² ／ dt
@@ -296,7 +274,7 @@ kernel void press(device float* Pr [[buffer(0)]], device const float* phi [[buff
     int MM = p.M * p.M * p.M * p.M; if (int(id) >= MM) return;
     int4 q = dec(id, p.M);
     if (!inCell(q, p.N) || ((q.x + q.y + q.z + q.w) & 1) != p.par) return;
-    float pc = phi[id]; if (pc >= 0.0 || solidC(q, p)) { Pr[id] = 0.0; return; }
+    float pc = phi[id]; if (pc >= 0.0) { Pr[id] = 0.0; return; }
     float diag = 0.0, s = 0.0;
     for (int c = 0; c < 4; c++) {
         for (int sg = -1; sg <= 1; sg += 2) {
@@ -306,7 +284,6 @@ kernel void press(device float* Pr [[buffer(0)]], device const float* phi [[buff
                 if (c == 3 && sg > 0 && topOpenAt(q, p)) diag += 1.0;   // 開いたふた・通気口：外は圧力 0
                 continue;
             }
-            if (solidC(nb, p)) continue;                                   // 内接球の壁：箱の壁と同じ（流れが通らない）
             int ni = enc(nb, p.M); float pn = phi[ni];
             if (pn < 0.0) { diag += 1.0; s += Pr[ni]; }
             else { float th = clamp(pc / (pc - pn), 0.08, 1.0); diag += 1.0 / th; }
@@ -332,7 +309,6 @@ kernel void proj(device float* U [[buffer(0)]], device const float* Pr [[buffer(
             else if (!(c == 3 && openAt(q, p))) U[fi] = 0.0;
             continue;
         }
-        if (solidF(q, c, p)) { U[fi] = 0.0; continue; }               // 内接球の壁
         int4 a = q - ax(c); int ia = enc(a, p.M);
         float fa = phi[ia], fb = phi[id];
         if (fa >= 0.0 && fb >= 0.0) continue;
@@ -356,7 +332,6 @@ kernel void valid(device const float* phi [[buffer(0)]], device float* V [[buffe
             if (c == 3 && q[c] == p.N && topOpenAt(q, p)) { V[fi] = phi[enc(q - ax(c), p.M)] < 0.0 ? 1.0 : 0.0; if (V[fi] < 0.5) U[fi] = 0.0; continue; }
             V[fi] = 1.0; continue;
         }
-        if (solidF(q, c, p)) { V[fi] = 1.0; U[fi] = 0.0; continue; }   // 内接球の壁：速さ 0 が決まっている
         int ia = enc(q - ax(c), p.M);
         V[fi] = (phi[ia] < 0.0 || phi[id] < 0.0) ? 1.0 : 0.0;
         if (V[fi] < 0.5) U[fi] = 0.0;   // 水から離れた空気の速さは 0 に（重力で速くなり続けて、水面を変な所から運んでこないように）
@@ -383,7 +358,7 @@ kernel void extrap(device const float* U [[buffer(0)]], device float* UT [[buffe
 // 水面までの距離を、ほんとうの距離に近づける（形は変えずに、坂を 1 にそろえる。数回だけ）
 kernel void redist(device const float* phi [[buffer(0)]], device const float* phi0 [[buffer(1)]], device float* phiT [[buffer(2)]], constant P& p [[buffer(3)]], uint id [[thread_position_in_grid]]) {
     int MM = p.M * p.M * p.M * p.M; if (int(id) >= MM) return;
-    int4 q = dec(id, p.M); if (!inCell(q, p.N) || solidC(q, p)) { phiT[id] = phi[id]; return; }
+    int4 q = dec(id, p.M); if (!inCell(q, p.N)) { phiT[id] = phi[id]; return; }
     float f = phi[id], s0 = phi0[id] / sqrt(phi0[id] * phi0[id] + p.dx * p.dx), g2 = 0.0;
     for (int c = 0; c < 4; c++) {
         int4 lo = q - ax(c), hi = q + ax(c);
@@ -408,27 +383,6 @@ final class NS4 {
     var sliceKey = -1, sliceCache = NS4Mesh()
     var lastOutflow = 0.0                                             // 穴から出ていく量（世界の単位：1 秒あたりの 4 次元の体積）
     var phiCPU: [Float] = [], phiDisp: [Float] = [], lastVol = 0.0, resultID = 0, meshID = -1, meshCache = NS4Mesh(), meshBusy = false
-    // 内接球の壁：玉の中のマスは水が入らない（GPU は ex3.x で同じ決まり）。半径はマス半分小さく：床などの外側の胞のマスは玉にならない
-    //   （本物の玉は床に 1 点でしかふれないので、外側の胞の水は玉があっても無くても同じ）
-    private(set) var ballOn = false, solid: [Bool] = [], solidVol = 0.0
-    var ballCells: Float { Float(N) * 0.5 - 0.5 }
-    static let ballRepel: Float = 0.3                                 // 内接球が水をはじく強さ（重力の何倍か）
-    /// 水が入れる 4 次元の体積（箱から玉の中のマスを引いたもの、世界の単位）
-    var capVol: Double { pow(2 * Double(H), 4) - solidVol }
-    func setBall(_ on: Bool) {
-        guard on != ballOn else { return }
-        ballOn = on; par.ex3.x = on ? ballCells : 0; par.ex3.y = on ? Self.ballRepel : 0
-        if on {
-            solid = [Bool](repeating: false, count: MM); var cnt = 0
-            let c = Float(N) * 0.5, r = ballCells
-            for l in 0..<N { for k in 0..<N { for j in 0..<N { for i in 0..<N {
-                let d = simd_length(SIMD4<Float>(Float(i), Float(j), Float(k), Float(l)) + 0.5 - c)
-                if d < r { solid[at(i, j, k, l)] = true; cnt += 1 }
-            } } } }
-            solidVol = Double(cnt) * pow(Double(par.dx), 4)
-        } else { solid = []; solidVol = 0 }
-        lastVol = volumeOf(phiCPU.count == MM ? phiCPU : []).0; resultID += 1
-    }
     init?(N: Int = 32, H: Float = Float(OrigamiState.half)) {
         guard let d = MTLCreateSystemDefaultDevice(), let q = d.makeCommandQueue() else { return nil }
         dev = d; queue = q; self.N = N; M = N + 1; MM = M * M * M * M; self.H = H
@@ -598,7 +552,7 @@ extension NS4 {
         // 体積を合わせるずれ：1 歩でマスの 1/10 まで（水面が小さい時に大きくずらすと、空気と水がぐちゃぐちゃになる）
         // 差が小さい時（箱の 0.4% 以内）は合わせない。空気が少ない時（86% 以上）は水を足す向きに合わせない
         //   （うすい空気の層はまるごと水面の近くに入るので、少しずつ足し続けると空気の層が消えて、箱が 100% 水になり、もう抜けなくなる）
-        let lim = 0.1 * Double(par.dx), box = capVol
+        let lim = 0.1 * Double(par.dx), box = pow(2 * Double(H), 4)
         if let t = target, a > 1e-6, abs(v - t) > 0.004 * box, !(keepAir && v < t && v > 0.86 * box) { par.shift = Float(max(-lim, min(lim, 0.5 * (v - t) / a))) } else { par.shift = 0 }
         stepCount += 1
         encode(dt: d, iters: N <= 24 ? 70 : 40, redistEvery: stepCount % 2 == 0 ? 2 : 0, wait: false)
@@ -607,11 +561,8 @@ extension NS4 {
     func volumeOf(_ f: [Float]) -> (Double, Double) {
         let e = Double(par.dx) * 1.5, dv = pow(Double(par.dx), 4)
         var vol = 0.0, area = 0.0
-        if f.count != MM { return (0, 0) }
-        let sol = ballOn && solid.count == MM
         f.withUnsafeBufferPointer { p in
             for l in 0..<N { for k in 0..<N { for j in 0..<N { let b = at(0, j, k, l); for i in 0..<N {
-                if sol && solid[b + i] { continue }                         // 内接球の中は水ではない
                 let x = Double(p[b + i])
                 if x < -e { vol += 1 } else if x < e { vol += 0.5 - 0.5 * x / e - sin(.pi * x / e) / (2 * .pi); area += (1 + cos(.pi * x / e)) / (2 * e) }
             } } } }
@@ -786,14 +737,9 @@ extension NS4 {
         @inline(__always) func coord(_ i: Int) -> Float { i < 0 ? -Hf : i >= n ? Hf : -Hf + (Float(i) + 0.5) * dx }
         let oth = (0..<4).filter { $0 != a }, strides = [1, M, M * M, M * M * M]
         let base = k * strides[a], s0 = strides[oth[0]], s1 = strides[oth[1]], s2 = strides[oth[2]], fa = coord(k)
-        let bOn = ballOn, Rb = Hf - 0.5 * dx                          // 玉の半径：計算の壁と同じ（マス半分小さく。本当の H だと、いちばん外のマスで切り口が丸い穴になる）
         @inline(__always) func val(_ u: Int, _ v: Int, _ t: Int) -> Float {
             if u < 0 || v < 0 || t < 0 || u >= n || v >= n || t >= n { return dx }   // 箱の外は空気（壁に触れている所も面になる）
-            let f = F[base + u * s0 + v * s1 + t * s2]
-            if !bOn { return f }
-            // 内接球の壁：玉（本当の半径 H）の中は水ではない。φ と「玉の中までの距離」の大きいほう（水 ＝ φ ＜ 0 かつ 玉の外）
-            let r = simd_length(SIMD4<Float>(coord(u), coord(v), coord(t), fa))
-            return max(f, Rb - r)
+            return F[base + u * s0 + v * s1 + t * s2]
         }
         @inline(__always) func pos4(_ q: SIMD3<Float>) -> SIMD4<Float> { var r = SIMD4<Float>(0, 0, 0, 0); r[a] = fa; r[oth[0]] = q.x; r[oth[1]] = q.y; r[oth[2]] = q.z; return r }
         let tetF: [Int] = [0, 1, 3, 7, 0, 3, 2, 7, 0, 2, 6, 7, 0, 6, 4, 7, 0, 4, 5, 7, 0, 5, 1, 7], cases = Self.tetCases
@@ -822,7 +768,6 @@ extension NS4 {
                         P[e] = cp[qi] + (cp[qo] - cp[qi]) * (c[qi] / (c[qi] - c[qo])); if !(pad[qi] || pad[qo]) { wall = false }
                     }
                     tri += 1
-                    if bOn && !wall { wall = P.allSatisfy { abs(simd_length(pos4($0)) - Rb) < 0.35 * dx } }   // 玉に触れている所は、壁に触れている所と同じ色
                     let nrm = simd_cross(P[1] - P[0], P[2] - P[0]); if simd_length_squared(nrm) < 1e-14 { continue }
                     if simd_dot(nrm, outDir) < 0 { P.swapAt(1, 2) }
                     for q in P { out.p.append(pos4(q)) }; out.kind.append(wall ? 0 : 1)

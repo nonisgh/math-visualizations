@@ -392,3 +392,218 @@ extension OrigamiRenderer {
         return out
     }
 }
+
+// ---- 4 次元の立体を見る（3 つの窓）：ウェブ版の「柱の見本」を移植 ----
+//   立体は「中か外かの式」（符号つき距離のようなもの：0 以下が中）1 つで決める。同じ式から、断面（3D の切り口）・4D の影（w の輪切りを重ねる）・
+//   3D のたとえ（1 つ下の次元の仲間）を作る。大きさはウェブ版と同じ（箱の半分の辺 H に対して：R ＝ 0.8H、タイガー R₁ ＝ R₂ ＝ 0.55H・r ＝ 0.26H、4D トーラス 0.55H・0.32H）
+//   1 球柱（玉 × 線分）・2 デュオシリンダー（円 × 円）・3 タイガー・4 4 次元トーラス（円 × 玉）・5 超球
+struct ShapeMesh { var p: [SIMD4<Double>] = []; var g: [SIMD4<Double>] = [] }   // 三角形の点（4D、体の座標）と、その点の式の坂（面の向き）
+
+extension OrigamiState {
+    static let shapeNames = ["", "球柱（玉 × 線分）", "デュオシリンダー（円 × 円）", "タイガー", "4 次元トーラス（円 × 玉）", "超球"]
+    static let shapeAnalog = ["", "円柱", "円柱（高さ ＝ 直径）", "ドーナツ 2 つ", "ドーナツ", "球"]
+    static let shpR = 0.8, shpT1 = 0.55, shpTr = 0.26, shpT4r = 0.32
+    /// 4D の立体の式（体の座標、0 以下が中）
+    static func shpF4(_ k: Int, _ p: SIMD4<Double>) -> Double {
+        let H = half, R = shpR * H
+        let rxy = (p.x * p.x + p.y * p.y).squareRoot(), rzw = (p.z * p.z + p.w * p.w).squareRoot()
+        switch k {
+        case 1: return max((p.x * p.x + p.y * p.y + p.z * p.z).squareRoot() - R, abs(p.w) - H)
+        case 2: return max(rxy - R, rzw - R)
+        case 3: let a = rxy - shpT1 * H, b = rzw - shpT1 * H; return (a * a + b * b).squareRoot() - shpTr * H
+        case 4: let a = rxy - shpT1 * H; return (a * a + rzw * rzw).squareRoot() - shpT4r * H
+        default: return simd_length(p) - R
+        }
+    }
+    /// 3D のたとえ（左の窓、z が 4D の w の仲間）
+    static func shpF3(_ k: Int, _ p: SIMD3<Double>) -> Double {
+        let H = half, R = shpR * H, rxy = (p.x * p.x + p.y * p.y).squareRoot()
+        switch k {
+        case 1: return max(rxy - R, abs(p.z) - H)
+        case 2: return max(rxy - R, abs(p.z) - R)
+        case 3: let a = rxy - shpT1 * H, b = abs(p.z) - shpT1 * H; return (a * a + b * b).squareRoot() - shpTr * H
+        case 4: let a = rxy - shpT1 * H; return (a * a + p.z * p.z).squareRoot() - shpT4r * H
+        default: return simd_length(p) - R
+        }
+    }
+    /// 立体がおさまる半径（4D・3D）と、w（3D は z）の向きの広がり
+    static func shpBound(_ k: Int) -> (r4: Double, r3: Double, w: Double) {
+        let H = half, R = shpR * H, t = shpT1 * H
+        switch k {
+        case 1: return ((R * R + H * H).squareRoot(), (R * R + H * H).squareRoot(), H)
+        case 2: return (R * 2.0.squareRoot(), R * 2.0.squareRoot(), R)
+        case 3: let a = t + shpTr * H; return ((a * a * 2).squareRoot(), (a * a * 2).squareRoot(), a)
+        case 4: let a = t + shpT4r * H; return ((a * a + shpT4r * H * shpT4r * H).squareRoot(), a, shpT4r * H)
+        default: return (R, R, R)
+        }
+    }
+    /// 3D の格子（−L〜L、N 分割）の上の式 f の 0 の面を、四面体で取り出す（点は格子の座標 a・b・c。向きは中 → 外）
+    static func marchTets(_ N: Int, _ L: Double, _ f: (SIMD3<Double>) -> Double) -> [SIMD3<Double>] {
+        let M = N + 1, d = 2 * L / Double(N)
+        var V = [Double](repeating: 0, count: M * M * M)
+        for k in 0..<M { for j in 0..<M { for i in 0..<M { V[(k * M + j) * M + i] = f(SIMD3(-L + Double(i) * d, -L + Double(j) * d, -L + Double(k) * d)) } } }
+        let tetF = [0, 1, 3, 7, 0, 3, 2, 7, 0, 2, 6, 7, 0, 6, 4, 7, 0, 4, 5, 7, 0, 5, 1, 7], cases = NS4.tetCases
+        var out: [SIMD3<Double>] = []
+        var c = [Double](repeating: 0, count: 8), cp = [SIMD3<Double>](repeating: .zero, count: 8)
+        for k in 0..<N { for j in 0..<N { for i in 0..<N {
+            var neg = 0
+            for b in 0..<8 {
+                let ii = i + (b & 1), jj = j + ((b >> 1) & 1), kk = k + ((b >> 2) & 1)
+                c[b] = V[(kk * M + jj) * M + ii]; if c[b] < 0 { neg += 1 }
+                cp[b] = SIMD3(-L + Double(ii) * d, -L + Double(jj) * d, -L + Double(kk) * d)
+            }
+            if neg == 0 || neg == 8 { continue }
+            for t in 0..<6 {
+                var m = 0
+                for q in 0..<4 where c[tetF[4 * t + q]] < 0 { m |= 1 << q }
+                if m == 0 || m == 15 { continue }
+                let es = cases[m]
+                var wc = SIMD3<Double>.zero, ac = SIMD3<Double>.zero, ni = 0.0, no = 0.0
+                for q in 0..<4 { let pq = cp[tetF[4 * t + q]]; if m & (1 << q) != 0 { wc += pq; ni += 1 } else { ac += pq; no += 1 } }
+                let outDir = ac / no - wc / ni
+                var e = 0
+                while e + 2 < es.count {
+                    var P = (0..<3).map { s -> SIMD3<Double> in
+                        let (a, o) = es[e + s], qa = tetF[4 * t + a], qo = tetF[4 * t + o]
+                        return cp[qa] + (cp[qo] - cp[qa]) * (c[qa] / (c[qa] - c[qo]))
+                    }
+                    e += 3
+                    let nrm = simd_cross(P[1] - P[0], P[2] - P[0]); if simd_length_squared(nrm) < 1e-16 { continue }
+                    if simd_dot(nrm, outDir) < 0 { P.swapAt(1, 2) }
+                    out += P
+                }
+            }
+        } } }
+        return out
+    }
+    /// 4D の式の坂（4D の向き、中 → 外）
+    static func shpGrad4(_ k: Int, _ p: SIMD4<Double>) -> SIMD4<Double> {
+        let e = 1e-4 * half
+        var g = SIMD4<Double>(0, 0, 0, 0)
+        for a in 0..<4 { var u = p, v = p; u[a] += e; v[a] -= e; g[a] = (shpF4(k, u) - shpF4(k, v)) / (2 * e) }
+        return g
+    }
+    /// 断面：4D の回転で写した w′ ＝ s の 3 次元の面（体の座標では、回転の行列の w の行に垂直）で切った切り口。
+    ///   面の上の点 ＝ a u₀ ＋ b u₁ ＋ c u₂ ＋ s u₃（u は回転の行）。4D の窓で写すと、切り口はゆがまずに（大きさだけ変わって）見える
+    func shapeSection() -> ShapeMesh {
+        let k = shapeKind, rows = (0..<4).map { r in SIMD4<Double>(m4[0][r], m4[1][r], m4[2][r], m4[3][r]) }
+        let bd = Self.shpBound(k), s = shapeCut * bd.r4
+        let key = [Double(k), s] + rows.flatMap { [$0.x, $0.y, $0.z, $0.w] }
+        if key == shapeSecKey { return shapeSecCache }
+        let L = (max(0, bd.r4 * bd.r4 - s * s)).squareRoot() * 1.02 + 1e-3
+        func Q(_ v: SIMD3<Double>) -> SIMD4<Double> { rows[0] * v.x + rows[1] * v.y + rows[2] * v.z + rows[3] * s }
+        let pts = Self.marchTets(40, L, { Self.shpF4(k, Q($0)) })
+        var m = ShapeMesh(); m.p = pts.map(Q); m.g = m.p.map { Self.shpGrad4(k, $0) }
+        shapeSecCache = m; shapeSecKey = key
+        return m
+    }
+    /// 4D の影：立体を、体の w の輪切り（w ＝ 一定の 3D の立体）を何枚も重ねて見せる（輪切りは立体ごとに 1 回作っておく）
+    func shapeLayers() -> [ShapeMesh] {
+        if shapeLayKind == shapeKind { return shapeLayCache }
+        let k = shapeKind, bd = Self.shpBound(k), NL = 9
+        var out: [ShapeMesh] = []
+        for l in 0..<NL {
+            let w = bd.w * (-1 + 2 * (Double(l) + 0.5) / Double(NL))
+            let pts = Self.marchTets(26, bd.r4 * 1.02, { Self.shpF4(k, SIMD4($0.x, $0.y, $0.z, w)) })
+            var m = ShapeMesh(); m.p = pts.map { SIMD4($0.x, $0.y, $0.z, w) }; m.g = m.p.map { Self.shpGrad4(k, $0) }
+            out.append(m)
+        }
+        shapeLayCache = out; shapeLayKind = k
+        return out
+    }
+    /// 3D のたとえ（左の窓）の面
+    func shapeAnalog() -> [SIMD3<Double>] {
+        if shapeAnaKind == shapeKind { return shapeAnaCache }
+        let k = shapeKind
+        shapeAnaCache = Self.marchTets(36, Self.shpBound(k).r3 * 1.02, { Self.shpF3(k, $0) }); shapeAnaKind = k
+        return shapeAnaCache
+    }
+    /// 七色の帯（ウェブ版の band：7 つに分けた色相 0.82×(m＋0.5)／7）
+    static func bandColor(_ t: Double) -> SIMD3<Float> {
+        let m = max(0, min(6, floor(t * 7))), h = 0.82 * (m + 0.5) / 7
+        func ch(_ o: Double) -> Float { let x = abs((h * 6 + o).truncatingRemainder(dividingBy: 6) - 3) - 1; return Float(0.58 + 0.84 * (max(0, min(1, x)) - 0.5)) }
+        return SIMD3(ch(0), ch(4), ch(2))
+    }
+    /// なめらかな色相（w で色を変える透ける虹）
+    static func hueColor(_ t: Double) -> SIMD3<Float> {
+        let h = max(0, min(1, t)) * 0.82
+        func ch(_ o: Double) -> Float { let x = abs((h * 6 + o).truncatingRemainder(dividingBy: 6) - 3) - 1; return Float(0.3 + 0.7 * max(0, min(1, x))) }
+        return SIMD3(ch(0), ch(4), ch(2))
+    }
+}
+
+@inline(__always) private func gpuSh(_ v: SIMD3<Double>) -> SIMD3<Float> { SIMD3<Float>(Float(v.x), Float(-v.z), Float(v.y)) }
+
+extension OrigamiRenderer {
+    /// この 4D の窓に断面だけを出すか（メインの窓はふつう断面、「断面 ⇄ 投影」で入れかわる）
+    var showsSectionOnly: Bool { st.shapeOn && n == 4 && !st.dim5 && ((role == 1) != st.shapeMainProj) }
+    /// 断面の三角形（色つき）。glow：4D の影の中の「今切っている所」として光らせる
+    func shapeSectionBatch(eye: SIMD3<Double>, glow: Bool) -> IntTriBatch? {
+        let m = st.shapeSection(); guard m.p.count >= 3 else { return nil }
+        let R = OrigamiState.shpR * OrigamiState.half, L = simd_normalize(SIMD3<Double>(0.35, 0.6, 0.72))
+        var v: [IntVert] = []; v.reserveCapacity(m.p.count)
+        let nr = SIMD4<Double>(st.m4[0][3], st.m4[1][3], st.m4[2][3], st.m4[3][3])
+        for i in 0..<m.p.count {
+            let q = m.p[i], P0 = st.place([q.x, q.y, q.z, q.w], 4).0
+            if glow { let a: Float = 0.16; v.append(IntVert(p: SIMD4(gpuSh(P0), 1), c: SIMD4(SIMD3<Float>(1, 0.78, 0.35) * a, a))); continue }
+            var g = m.g[i]; g -= nr * simd_dot(g, nr)                      // 切る面に沿った向きだけ（切り口の面の向き）
+            let gl = simd_length(g), e = 0.02
+            var nv = SIMD3<Double>(0, 0, 1)
+            if gl > 1e-9 { let q2 = q + g / gl * e, P1 = st.place([q2.x, q2.y, q2.z, q2.w], 4).0; nv = simd_normalize(P1 - P0) }
+            let vd = simd_normalize(eye - P0), lam = max(0, simd_dot(nv, L)) * 0.65 + 0.35 * abs(simd_dot(nv, vd)), rim = pow(1 - abs(simd_dot(nv, vd)), 3)
+            let c = OrigamiState.bandColor(q.y / R * 0.5 + 0.5) * Float(0.3 + 0.75 * lam) + SIMD3<Float>(repeating: Float(0.25 * rim)), a: Float = 0.9
+            v.append(IntVert(p: SIMD4(gpuSh(P0), 1), c: SIMD4(c * a, a)))
+        }
+        return IntTriBatch(add: glow, verts: v)
+    }
+    /// 4D の影（w の輪切りを重ねる。色は w：透ける虹）
+    func shapeShadowBatch(eye: SIMD3<Double>) -> IntTriBatch? {
+        let bd = OrigamiState.shpBound(st.shapeKind)
+        var v: [IntVert] = []
+        for m in st.shapeLayers() {
+            guard let w0 = m.p.first?.w else { continue }
+            let col = OrigamiState.hueColor(w0 / max(1e-9, bd.w) * 0.5 + 0.5)
+            var i = 0
+            while i + 2 < m.p.count {
+                let P = (0..<3).map { s -> SIMD3<Double> in let q = m.p[i + s]; return st.place([q.x, q.y, q.z, q.w], 4).0 }
+                let nn = simd_cross(P[1] - P[0], P[2] - P[0]), nl = simd_length(nn)
+                let rim = nl > 1e-12 ? 1 - abs(simd_dot(nn / nl, simd_normalize(eye - P[0]))) : 0.5
+                let a = Float(0.012 + 0.1 * pow(rim, 3))                        // 9 枚重なるので、1 枚はうすく（ふちだけ見えるように）
+                for p in P { v.append(IntVert(p: SIMD4(gpuSh(p), 1), c: SIMD4(col * a, a))) }
+                i += 3
+            }
+        }
+        return v.isEmpty ? nil : IntTriBatch(add: false, verts: v)
+    }
+    /// 3D のたとえ（左の窓）：立体・切る面・切り口の線
+    func shapeAnalogBatch(_ rods: inout [TLRod], eye: SIMD3<Double>) -> IntTriBatch? {
+        let pts = st.shapeAnalog(), R = OrigamiState.shpR * OrigamiState.half, bd = OrigamiState.shpBound(st.shapeKind)
+        let nr = SIMD3<Double>(st.l3[0][2], st.l3[1][2], st.l3[2][2]), s = st.shapeCut * bd.r3
+        func P(_ q: SIMD3<Double>) -> SIMD3<Double> { st.place([q.x, q.y, q.z], 3).0 }
+        var v: [IntVert] = []; v.reserveCapacity(pts.count)
+        var i = 0
+        let red = SIMD3<Float>(1, 0.35, 0.35)
+        while i + 2 < pts.count {
+            let q = [pts[i], pts[i + 1], pts[i + 2]], Pq = q.map(P)
+            let nn = simd_cross(Pq[1] - Pq[0], Pq[2] - Pq[0]), nl = simd_length(nn)
+            let rim = nl > 1e-12 ? 1 - abs(simd_dot(nn / nl, simd_normalize(eye - Pq[0]))) : 0.5
+            for j in 0..<3 {
+                let a = Float(0.18 + 0.4 * pow(rim, 2)), c = OrigamiState.bandColor(q[j].y / R * 0.5 + 0.5)
+                v.append(IntVert(p: SIMD4(gpuSh(Pq[j]), 1), c: SIMD4(c * a, a)))
+            }
+            // 切り口の線：三角形と切る面（n·q ＝ s）の交わり
+            let dd = q.map { simd_dot($0, nr) - s }
+            var cut: [SIMD3<Double>] = []
+            for (a, b) in [(0, 1), (1, 2), (2, 0)] where (dd[a] < 0) != (dd[b] < 0) { cut.append(q[a] + (q[b] - q[a]) * (dd[a] / (dd[a] - dd[b]))) }
+            if cut.count == 2 { rods.append(TLRod(a: SIMD4(gpuSh(P(cut[0])), 0), b: SIMD4(gpuSh(P(cut[1])), 1.8), col: SIMD4(red, 1.2))) }
+            i += 3
+        }
+        // 切る面：箱いっぱいの四角（うすい白）
+        let hp: SIMD3<Double> = abs(nr.x) < 0.9 ? SIMD3(1, 0, 0) : SIMD3(0, 1, 0), e1 = simd_normalize(simd_cross(nr, hp)), e2 = simd_cross(nr, e1), E = bd.r3 * 1.15
+        let c0 = nr * s, cs = [c0 + (e1 + e2) * E, c0 + (e1 - e2) * E, c0 + (-e1 - e2) * E, c0 + (-e1 + e2) * E].map(P)
+        let wa: Float = 0.07, wc = SIMD4<Float>(0.9 * wa, 0.95 * wa, wa, wa)
+        for (a, b, c) in [(0, 1, 2), (0, 2, 3)] { v += [IntVert(p: SIMD4(gpuSh(cs[a]), 1), c: wc), IntVert(p: SIMD4(gpuSh(cs[b]), 1), c: wc), IntVert(p: SIMD4(gpuSh(cs[c]), 1), c: wc)] }
+        for j in 0..<4 { rods.append(TLRod(a: SIMD4(gpuSh(cs[j]), 0), b: SIMD4(gpuSh(cs[(j + 1) % 4]), 0), col: SIMD4(SIMD3<Float>(0.85, 0.9, 1), 0.4))) }
+        return IntTriBatch(add: false, verts: v)
+    }
+}

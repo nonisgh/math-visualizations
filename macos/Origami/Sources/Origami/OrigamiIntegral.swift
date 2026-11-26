@@ -547,10 +547,7 @@ extension IntegralHUD {
     /// 4 次元の水の式：V(h) ＝ ∫₋₁ʰ 8 dw ＝ 8(h＋1)（連続の積分）
     @ViewBuilder var waterContent: some View {
         let ax = n == 4 ? "w" : "z", unit = n == 4 ? 8.0 : 4.0, full = n == 4 ? 16.0 : 8.0
-        // 内接球の壁：輪切りは「立方体 − 玉」（4D）・「正方形 − 円」（左の 3D）。玉の切り口の半径は √(1 − h²)
-        let ballW = st.waterBallOn
-        let h = st.waterH, val = ballW ? (n == 4 ? OrigamiState.ballWaterV(h) : OrigamiState.ballWaterV3(h)) : unit * (h + 1)
-        let fullB = ballW ? (n == 4 ? OrigamiState.ballWaterFull : OrigamiState.ballWaterFull3) : full, pct = min(1, max(0, val / fullB))
+        let h = st.waterH, val = unit * (h + 1), pct = min(1, max(0, val / full))
         let sg = { (x: Double) -> String in (x < -0.0005 ? "−" : "+") + String(format: "%.2f", abs(x)) }
         let phases = ["上のふたを開ける", "注いでいる", "いっぱい", "底の栓を抜く", "底を全部開けて、かたまりのまま落ちる（自由落下）", "栓をする", "空"]
         VStack(spacing: 3) {
@@ -558,32 +555,14 @@ extension IntegralHUD {
              + Text("∫").font(.system(size: 22, design: .serif))
              + Text("−1").font(.system(size: 10, design: .serif)).baselineOffset(-6)
              + Text(sg(h)).font(.system(size: 10, weight: .bold, design: .serif)).foregroundColor(Color(red: 0.6, green: 0.85, blue: 1)).baselineOffset(12)
-             + Text(ballW ? (n == 4 ? "  (8 − ⁴⁄₃π(1−w²)^{3⁄2}) dw" : "  (4 − π(1−z²)) dz") : "  \(Int(unit)) d\(ax)  ＝  \(Int(unit))（h＋1）").font(.system(size: 15, weight: .semibold, design: .serif)))
-            if ballW {
-                Text("輪切り＝\(n == 4 ? "立方体 8 から、内接球の切り口の玉" : "正方形 4 から、内接球の切り口の円")（半径 √(1 − h²) ＝ \(String(format: "%.2f", sqrt(max(0, 1 - h * h)))))をくりぬいた形").font(.system(size: 10)).foregroundStyle(Color(red: 0.75, green: 0.85, blue: 1))
-            }
+             + Text("  \(Int(unit)) d\(ax)  ＝  \(Int(unit))（h＋1）").font(.system(size: 15, weight: .semibold, design: .serif)))
             GeometryReader { g in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.gray.opacity(0.25))
                     Capsule().fill(LinearGradient(colors: [Color(red: 0.1, green: 0.4, blue: 0.95), Color(red: 0.32, green: 0.78, blue: 1)], startPoint: .leading, endPoint: .trailing)).frame(width: g.size.width * pct)
                 }
             }.frame(height: 7)
-            if ballW {
-                // からっぽ（玉の中）の積分：水と同時に進む。水 ＋ からっぽ ＝ 箱の積分 8(h＋1)（3D は 4(h＋1)）
-                let emp = unit * (h + 1) - val, empF = n == 4 ? Double.pi * Double.pi / 2 : 4 * Double.pi / 3
-                (Text("からっぽ（玉の中）＝ ").font(.system(size: 11, weight: .semibold, design: .serif))
-                 + Text("∫").font(.system(size: 16, design: .serif))
-                 + Text(n == 4 ? "  ⁴⁄₃π(1−w²)^{3⁄2} dw" : "  π(1−z²) dz").font(.system(size: 11, weight: .semibold, design: .serif))
-                 + Text("　＝ \(String(format: "%.3f", emp)) ／ \(String(format: "%.3f", empF))").font(.system(size: 11)))
-                GeometryReader { g in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.gray.opacity(0.25))
-                        Capsule().fill(Color(red: 0.93, green: 0.95, blue: 1).opacity(0.85)).frame(width: g.size.width * min(1, max(0, emp / empF)))
-                    }
-                }.frame(height: 5)
-                Text("水 ＋ からっぽ ＝ \(String(format: "%.3f", val)) ＋ \(String(format: "%.3f", emp)) ＝ \(Int(unit))（h＋1）＝ \(String(format: "%.3f", unit * (h + 1)))（2 つの積分が同時に進む）").font(.system(size: 9)).foregroundStyle(Color(red: 0.75, green: 0.85, blue: 1))
-            }
-            Text("水位 h ＝ \(sg(h))　＝ \(String(format: "%.3f", val)) ／ " + (ballW ? (n == 4 ? "\(String(format: "%.3f", fullB))（16 − π²⁄2：玉のまわりは超立方体の約 69%）" : "\(String(format: "%.3f", fullB))（8 − ⁴⁄₃π：玉のまわりは立方体の約 48%）") : "\(Int(full))（\(n == 4 ? "4 次元の水の体積" : "3 次元の水の体積")）")).font(.system(size: 11))
+            Text("水位 h ＝ \(sg(h))　＝ \(String(format: "%.3f", val)) ／ \(Int(full))（\(n == 4 ? "4 次元の水の体積" : "3 次元の水の体積")）").font(.system(size: 11))
             if n == 4 && st.waterPhase <= 1 {
                 Text("筋は w の向きにまっすぐ落ちる（外の大きい立方体＝ふた ＋W → 内の小さい立方体＝底 −W）。横の胞に重なって見えるのは写しただけで、ぶつかっていない").font(.system(size: 9)).foregroundStyle(Color(red: 0.75, green: 0.85, blue: 1))
             }
@@ -701,12 +680,6 @@ struct IntegralTab: View {
                         }.opacity(st.drainShown ? 1 : 0.4)
                     }
                         Btn(st.waterVent ? "🌬 通気口：あり" : "🌬 通気口：なし", on: st.waterVent) { st.waterVent.toggle() }
-                        Btn(st.waterBallWall ? "🔵 内接球：壁" : "🔵 内接球：無視", on: st.waterBallWall) { st.waterBallWall.toggle() }
-                            .help("内接球を出している時（回転バーの「内接球」）：壁＝玉の中に水は入らない（本物の 4D の水だけ）。無視＝水は玉を通りぬける（内接球無視モード）")
-                            .opacity(st.inSphere && st.waterNS ? 1 : 0.4)
-                        Btn(st.waterBallLook == 0 ? "👻 玉：見えない" : "🫧 玉：見える", on: st.waterBallLook == 1) { st.waterBallLook = st.waterBallLook == 0 ? 1 : 0 }
-                            .help("見えない：玉は描かず、水が入って初めて水面の穴で玉に気づく（水族館の水槽のように、玉の向こうの水はすけて見える）。見える：すき通った真珠色の玉と、水ぎわの輪・接点")
-                            .opacity(st.inSphere ? 1 : 0.4)
                         Picker("ふた", selection: $st.intLidMode) { Text("直角に開く").tag(0); Text("開けたまま").tag(1); Text("消す").tag(2); Text("開けない").tag(3) }.pickerStyle(.segmented)
                             .help("上のふた（+W の胞）を蝶番で 90° 開けて注ぎ、いっぱいで閉じる。底を開けて抜く。左の立方体のふたも連動")
                     }

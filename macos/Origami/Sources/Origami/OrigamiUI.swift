@@ -165,7 +165,7 @@ struct OrigamiView: View {
                 }
             case 2: hyperPane
             case 3: cubePane
-            default: twoPanes(W)
+            default: if st.shapeOn && !st.dim5 { threePanes(W) } else { twoPanes(W) }
             }
         }
     }
@@ -177,6 +177,20 @@ struct OrigamiView: View {
     @ViewBuilder var hyperPane: some View {
         if st.dim5 { pane(5, "5 次元超立方体 β（4D 展開図 → 5D）", st.drag5Roll ? "折りたたみでできる新しい次元＝v（琥珀）。ドラッグ＝転がす（形はそのまま）" : "折りたたみでできる新しい次元＝v（琥珀）。ドラッグ＝5 次元だけの X-W・Y-W、⇧＝W-V") }
         else { pane(4, "超立方体（3D 展開図 → 4D）", "折りたたみでできる新しい次元＝w").overlay(alignment: .topTrailing) { AxisLenCard(st: st).padding(10) } }
+    }
+    /// 立体を見る：大きい窓（断面、または 4D の影）と、右に小さい窓 2 つ（3D のたとえ・4D の影＋切っている所、または断面）
+    func threePanes(_ W: CGFloat) -> some View {
+        let name = OrigamiState.shapeNames[max(1, min(5, st.shapeKind))], ana = OrigamiState.shapeAnalog[max(1, min(5, st.shapeKind))]
+        let secT = "断面：\(name)を 3 次元の面で切った切り口", projT = "4D の影：\(name)（w の輪切りを重ねる）＋ 今切っている所"
+        return HStack(spacing: 0) {
+            pane(4, st.shapeMainProj ? projT : secT, "ドラッグ＝回す（4 次元で回すと切る向きが変わる）。色＝七色の帯（y）", role: 1).frame(width: W * 0.64)
+            Rectangle().fill(UIC.line).frame(width: 5)
+            VStack(spacing: 0) {
+                pane(3, "3D のたとえ：\(ana)", "平面で切ると、切り口は線（赤）")
+                Rectangle().fill(UIC.line).frame(height: 5)
+                pane(4, st.shapeMainProj ? secT : projT, st.shapeMainProj ? "" : "光る所＝大きい窓の断面")
+            }
+        }
     }
     func twoPanes(_ W: CGFloat) -> some View {
         let lw = max(160, min(W - 160, W * st.split))
@@ -195,14 +209,14 @@ struct OrigamiView: View {
                 if st.swapViews { cubePane } else { hyperPane }
         }
     }
-    func pane(_ n: Int, _ title: String, _ sub: String) -> some View {
-        let i = st.wix(n)
+    func pane(_ n: Int, _ title: String, _ sub: String, role: Int = 0) -> some View {
+        let i = role == 1 ? 2 : st.wix(n)
         return ZStack(alignment: .topLeading) {
             #if os(macOS)
             // Mac はマウス・つまみを絵の窓（OrigamiMTKView）が直接受ける
-            OrigamiPane(n: n, st: st)
+            OrigamiPane(n: n, st: st, role: role)
             #else
-            OrigamiPane(n: n, st: st)
+            OrigamiPane(n: n, st: st, role: role)
                 .gesture(DragGesture(minimumDistance: 1).onChanged { g in
                     let dd = CGSize(width: g.translation.width - gb.last.width, height: g.translation.height - gb.last.height); gb.last = g.translation
                     // 重力ハンドル：さわり始めが矢印の先の玉の近くなら、その指は重力の向きを変える（形は回さない）
@@ -224,7 +238,7 @@ struct OrigamiView: View {
                     st.zoom[i] = max(0.3, min(8, gb.pinch0! * Double(k)))
                 }.onEnded { _ in gb.pinch0 = nil })
             #endif
-            OrigamiLabels(n: n, st: st).allowsHitTesting(false)
+            if role == 0 && !(st.shapeOn && n == 4 && st.shapeMainProj) { OrigamiLabels(n: n, st: st).allowsHitTesting(false) }   // 立体を見る時の断面の窓・メインの窓には番号の札を出さない
             // 積分の式の欄（窓の下のまんなか）
             IntegralHUD(n: n, st: st).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom).allowsHitTesting(false)
             // 次に C を押すと何が起きるか（超立方体の窓の右下）
@@ -244,7 +258,7 @@ struct OrigamiView: View {
             .padding(10).allowsHitTesting(false)
         }
         .clipped()
-        .id("pane\(n)")                                                   // 5 次元 β の入り切りで、同じ場所の窓の次元が変わったら作り直す
+        .id("pane\(n)r\(role)")                                                   // 5 次元 β の入り切りで、同じ場所の窓の次元が変わったら作り直す
     }
 }
 
@@ -791,6 +805,7 @@ struct OrigamiPanel: View {
             }
             Text("角度を 1 つずつ足していくだけで順に移れる（足した角度の数＝視線が使う軸の数）").font(.caption2).foregroundStyle(UIC.sub)
         }
+        Sec("4 次元の立体を見る（3 つの窓）", "square.stack.3d.up") { ShapePanel(st: st) }
         Sec("断面（3 次元の包丁で切る）", "scissors") { SectionPanel(st: st) }
         Sec("プリセットへ移行（アニメ）", "wand.and.stars") {
             HStack(spacing: 6) {
@@ -1233,6 +1248,25 @@ struct PanPad: View {
                 st.panBy(i, Double(d.width), Double(d.height))
             }.onEnded { _ in box.last = .zero; active = false })
             .help("移動パッド：ドラッグで図形を動かす（⌘／Ctrl＋ドラッグと同じ）。ダブルクリックで真ん中へ戻す")
+    }
+}
+
+/// 4 次元の立体を見る：3 つの窓（3D のたとえ・4D の影＋切っている所・メインに断面）。ウェブ版の「柱の見本」から
+struct ShapePanel: View {
+    @ObservedObject var st: OrigamiState
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle("4 次元の立体を見る（窓を 3 つに）", isOn: $st.shapeOn)
+            Text("大きい窓：4 次元の立体を、3 次元の面で切った切り口（断面）。右上：1 つ下の次元のたとえ（3D の立体を平面で切ると、切り口は線）。右下：4D の影と、今切っている所（光る所）。4 次元で回すと、切る向きが変わります").font(.caption2).foregroundStyle(UIC.sub)
+            Picker("立体", selection: $st.shapeKind) { ForEach(1..<OrigamiState.shapeNames.count, id: \.self) { k in Text(OrigamiState.shapeNames[k]).tag(k) } }
+            LiveRead(live: st.live) { NumRow("切る位置", $st.shapeCut, -1...1, "%+.0f%%", scale: 100) }
+            HStack {
+                Btn(st.shapePlay ? "⏸ 止める" : "▶ 自動で動かす", on: st.shapePlay) { st.shapePlay.toggle(); if st.shapePlay { st.shapeOn = true } }
+                Btn("まんなか") { st.shapeCut = 0 }
+                Btn(st.shapeMainProj ? "大きい窓：4D の影" : "大きい窓：断面", on: st.shapeMainProj) { st.shapeMainProj.toggle() }.help("断面 ⇄ 投影：大きい窓と右下の窓の中身を入れかえる")
+            }
+            Text("3D のたとえ：" + OrigamiState.shapeAnalog[max(1, min(5, st.shapeKind))]).font(.caption2).foregroundStyle(UIC.sub)
+        }
     }
 }
 
