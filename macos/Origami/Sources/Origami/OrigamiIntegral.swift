@@ -634,6 +634,8 @@ struct IntegralTab: View {
                     Picker("水の見た目", selection: $st.waterReal) { Text("線の図").tag(false); Text("リアル").tag(true) }.pickerStyle(.segmented)
                         .help("リアル：映りこみ・屈折・さざ波・キラキラ。線の図：前の図のような水（網目つき）")
                     Toggle("本物の 4D の水（ナビエ–ストークス）", isOn: $st.waterNS).font(.system(size: 11))
+                    Toggle("🌈 レインボーの水（ふしぎな 4 次元の水）", isOn: $st.waterRainbow).font(.system(size: 11))
+                        .help("水の色が、4 次元の奥行き（画面に写すと見えなくなる向き）で虹色に変わります。同じ所に重なって見える水でも、4 次元で離れていれば色がちがう。色はゆっくり流れて、見る角度でシャボン玉のように少しずれます")
                         .help("4 次元の箱を 32×32×32×32（約 105 万）のマスに分けて、水の流れを GPU で本当に解きます（速さは 4 成分、水面は水面までの距離で追う）。切ると前の浅水方程式の水")
                     if st.waterNS {
                         Picker("遊び方", selection: $st.waterFree) { Text("自動（注ぐ → 抜く）").tag(false); Text("手で遊ぶ").tag(true) }.pickerStyle(.segmented)
@@ -695,10 +697,14 @@ struct IntegralTab: View {
                             if st.waterNS {
                                 LiveRead(live: st.live) { NumRow("粘り（小さいほどさらさら）", $st.waterNu, 0...0.02, "%.3f", scale: 1) }
                                     .help("動粘性 ν（世界の単位）。小さいほど、さらさら動いて ゆれが長く続きます。前は 0.012。マス目が粗いと、計算でなまる分の見かけの粘りも残ります（速さの運び方を MacCormack にして減らしています）")
+                                LiveRead(live: st.live) { NumRow("注ぐ勢い", $st.waterPourForce, 0...1, "%.0f%%", scale: 100) }
+                                    .help("0%：水面のすぐ上からそっと注ぐ（静か）。100%：ふたの近くの高い所から、速く注ぐ（落ちてきた水が水面をたたいて、波と泡がたくさん）。最初は 50%")
+                                LiveRead(live: st.live) { NumRow("水の重さ（フィクション）", $st.waterHeavy, 0...1, "%.0f%%", scale: 100) }
+                                    .help("50%：ふつうの水（最初はここ）。左ほど軽い水：勢いがつきにくく、すぐおさまる（波のブレーキ 〜4 倍・注ぐ勢い 〜半分・ゆすった時の反応と渦の強調 〜4 割減）。右ほど重い液体（比重の大きい液体のつもり）：勢いがついたまま止まりにくく、落ちた水が強くたたく（波のブレーキ 〜4 割・注ぐ勢い 〜1.4 倍・ゆすった時の反応と渦の強調 〜1.5 倍）。本当の物理では、重さを変えても波の形はほとんど変わらないので、フィクション")
                                 LiveRead(live: st.live) { NumRow("渦の強調（消えかけた渦を足し戻す）", $st.waterVort, 0...8, "%.1f", scale: 1) }
                                     .help("渦度の閉じこめ：粗いマスでならされて消えてしまう細い渦を、回る向きに少し力を足して戻します。4 次元では渦は『回る面』（6 成分）。0 で なし")
                                 Picker("マスの細かさ", selection: $st.waterNSRes) { Text("おまかせ").tag(0); Text("8⁴").tag(8); Text("12⁴").tag(12); Text("16⁴").tag(16); Text("24⁴").tag(24); Text("32⁴").tag(32) }.pickerStyle(.segmented)
-                                    .help("4D の水のマス：8⁴ ＝ 4096（とても軽い・とても粗い。小さな排水口は 1 マスより小さくなって抜けにくい）・16⁴ ＝ 約 6.6 万（軽い）・24⁴ ＝ 約 33 万・32⁴ ＝ 約 105 万（細かい）。おまかせは 16。変えると水は最初から")
+                                    .help("4D の水のマス：8⁴ ＝ 4096（とても軽い・とても粗い。満タンの前後だけ自動で 12⁴ に切りかえて 100% まで入れる。小さな排水口は 1 マスより小さくなって抜けにくい）・16⁴ ＝ 約 6.6 万（軽い）・24⁴ ＝ 約 33 万・32⁴ ＝ 約 105 万（細かい）。おまかせは 16。変えると水は最初から")
                                 Picker("輪切り（左の窓に）", selection: $st.waterSlice) { Text("なし").tag(0); Text("x ＝ 一定").tag(1); Text("y ＝ 一定").tag(2); Text("z ＝ 一定").tag(3) }.pickerStyle(.segmented)
                                     .help("4D の水を 1 枚切って、残りの 3 つの向きの 3D の水を左の窓に出します（w は左の窓の上下）。右の窓には切り口の立方体を金色の線で。水面の立方体の内側にできる渦のくぼみも、中から見えます")
                                 if st.waterSlice > 0 {

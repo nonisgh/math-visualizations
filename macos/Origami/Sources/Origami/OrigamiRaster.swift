@@ -434,11 +434,25 @@ float3 wEnv(float3 P, float3 v, constant RU& r, texture2d_array<float> pr, bool 
     float t = max(min(min(tb.x, tb.y), tb.z), 0.0);
     return probeRead(pr, oc + v * t) + wSky(v) * 0.7;
 }
+// 光の網（コースティクス）：波で集まった光が、底や壁にゆれる網目で映る。ゆがめた正弦の格子の「0 に近い所」を明るい筋に（3 枚を少しずつずらして重ねる）
+float wCaustic(float2 p, float t) {
+    float c = 0.0; float2 q = p;
+    for (int k = 0; k < 3; k++) {
+        float fk = float(k);
+        q += float2(sin(q.y * 1.3 + t * 0.9 + fk), cos(q.x * 1.1 - t * 0.7 + 2.0 * fk)) * 0.45;
+        c += pow(saturate(1.0 - abs(sin(q.x) * sin(q.y)) * 2.2), 3.0);
+    }
+    return c / 3.0;
+}
+// きらめき用の小さな乱れ（場所と時刻から）
+float wHash(float3 p) { return fract(sin(dot(p, float3(12.9898, 78.233, 37.719))) * 43758.5453); }
 fragment float4 rwf(IVo in [[stage_in]], constant U& u [[buffer(0)]], constant RU& r [[buffer(5)]], constant float4& wp [[buffer(2)]], constant float4* rg [[buffer(3)]], texture2d_array<float> pr [[texture(1)]]) {
     float3 d = normalize(in.P - u.eye.xyz), n = normalize(in.c.xyz);
     if (dot(n, d) > 0.0) n = -n;
+    // レインボーの水：c.w ＝ 2 ＋ 4×kind ＋ 3×色の値（0〜1：4 次元の奥行き）。ふつうは c.w ＝ kind（1 水面・0 壁と底）
+    bool rb = in.c.w > 1.5; float kd = rb ? (in.c.w > 5.5 ? 1.0 : 0.0) : in.c.w, hs = rb ? clamp((in.c.w - 2.0 - 4.0 * kd) / 3.0, 0.0, 1.0) : 0.0;
     float foam = 0.0;                                                       // 当たる所の白い泡立ち
-    if (in.c.w > 0.5) {                                                    // 水面：細かいさざ波（いくつかの波の重ね合わせの傾き）
+    if (kd > 0.5) {                                                        // 水面：細かいさざ波（いくつかの波の重ね合わせの傾き）
         float3 t1 = normalize(cross(abs(n.z) < 0.9 ? float3(0, 0, 1) : float3(1, 0, 0), n)), t2 = cross(n, t1);
         float2 q = float2(dot(in.P, t1), dot(in.P, t2)) * 16.0; float tm = wp.x;
         float2 g = float2(0.0);
@@ -468,21 +482,62 @@ fragment float4 rwf(IVo in [[stage_in]], constant U& u [[buffer(0)]], constant R
     float3 refl = wEnv(in.P, reflect(d, n), r, pr, useP);
     float3 tv = refract(d, n, 1.0 / 1.33); if (dot(tv, tv) < 1e-6) tv = reflect(d, n);
     float3 refr = wEnv(in.P, tv, r, pr, useP);
-    float th = wp.z / max(cosI, 0.25);                                      // 水の中を通る長さ
+    float tk = clamp(in.m, 0.0, 1.0);                                       // その点の水の厚みの割合（頂点の p.w。うすい水ほど小さい。ふつうは 1）
+    float th = wp.z * (0.12 + 0.88 * tk) / max(cosI, 0.25);                 // 水の中を通る長さ（うすい水は短く＝色がうすい）
     float3 absb = exp(-th * float3(2.4, 0.85, 0.35));
     float3 body = mix(float3(0.0, 0.16, 0.30), refr * float3(0.9, 0.98, 1.0), absb)
                 + float3(0.02, 0.22, 0.32) * (1.0 - absb.r) * (0.6 + 0.4 * saturate(dot(n, normalize(LD[0])))); // 水の中で散る光（青緑にぼんやり光る）
+    float3 rc = float3(1.0);
+    if (rb) {
+        // 虹の色：4 次元の奥行きの端から端で 1 周（赤 → 黄 → 緑 → 青 → 紫）・時間でゆっくり流れる・見る角度でシャボン玉のように少しずれる
+        float hue = fract(hs * 0.9 + wp.x * 0.035 + 0.15 * (1.0 - cosI));
+        rc = clamp(abs(fmod(hue * 6.0 + float3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        rc = mix(float3(1.0), rc, 0.82);
+        // 色ごとの明るさをそろえる：青・紫は暗い色なので、そのままだと暗い背景にとけて「そこに水が無い」ように見えた（2026-11-26）。
+        //   暗い色ほど白をまぜて明るく（パステルに）し、どの色も同じくらいの明るさで光るように
+        float lum = dot(rc, float3(0.30, 0.59, 0.11));
+        rc = mix(rc, float3(1.0), saturate((0.62 - lum) * 1.1));
+        rc *= 0.68 / max(dot(rc, float3(0.30, 0.59, 0.11)), 0.3);
+        float3 ab = exp(-th * (1.25 - min(rc, 1.0)) * 2.6);                  // その色の光ほど、よく通る（色のついた水）
+        body = mix(rc * 0.26, refr * mix(float3(1.0), rc, 0.55), ab) + rc * 0.36 * (1.0 - ab.g * 0.5) * (0.6 + 0.4 * saturate(dot(n, normalize(LD[0]))));
+    }
     float3 L = normalize(LD[0]), rv = reflect(d, n);
     float s1 = pow(saturate(dot(rv, L)), 900.0) * 14.0, s2 = pow(saturate(dot(rv, L)), 60.0) * 0.5;
-    float Fw = in.c.w > 0.5 ? F : F * 0.45;                                 // 壁と底は入れ物のガラスごしなので、映りこみを弱く
-    float3 col = body * (1.0 - Fw) + refl * Fw + float3(1.0, 0.97, 0.9) * (s1 + s2) * (in.c.w > 0.5 ? 1.0 : 0.3);
+    // 水面のきらめき：細かい波のひとつひとつが太陽を映して、チカチカ光る（場所ごとに乱した向きで、とても鋭い照り返し。時間でまたたく）
+    if (kd > 0.5) {
+        float3 cell = floor(in.P * 70.0), jit = float3(wHash(cell), wHash(cell + 17.0), wHash(cell + 41.0)) - 0.5;
+        float tw = 0.5 + 0.5 * sin(wp.x * (6.0 + 9.0 * wHash(cell + 5.0)) + 6.28 * wHash(cell + 9.0));
+        float3 ng = normalize(n + jit * 0.35);
+        s1 += pow(saturate(dot(reflect(d, ng), L)), 1400.0) * 22.0 * tw * tw;
+    }
+    float Fw = kd > 0.5 ? F : F * 0.45;                                 // 壁と底は入れ物のガラスごしなので、映りこみを弱く
+    float3 col = body * (1.0 - Fw) + refl * Fw + float3(1.0, 0.97, 0.9) * (s1 + s2) * (kd > 0.5 ? 1.0 : 0.3);
     col = mix(col, float3(0.92, 0.96, 1.0), saturate(foam) * 0.75);
+    // 光の網（コースティクス）：水の底と壁（kind 0）に。上から光が入る所ほど強く、深い水ほど網が広がってうすく
+    if (kd < 0.5) {
+        float3 nn = normalize(in.c.xyz);
+        float3 a1 = normalize(cross(abs(nn.z) < 0.9 ? float3(0, 0, 1) : float3(1, 0, 0), nn)), a2 = cross(nn, a1);
+        float sc = mix(9.0, 5.0, tk);                                       // 深いほど網目が大きく
+        float cs = wCaustic(float2(dot(in.P, a1), dot(in.P, a2)) * sc, wp.x * 1.3);
+        col += float3(0.75, 0.92, 1.0) * mix(float3(1.0), rc, 0.7) * pow(cs, 1.6) * mix(1.1, 0.55, tk) * (0.6 + 0.4 * saturate(dot(nn, L) * 0.5 + 0.5));
+    }
     col = 1.0 - exp(-col * 1.25);                                          // 明るすぎるところを、白く飛ばさずにまるめる
-    float a = clamp((in.c.w > 0.5 ? 0.70 : 0.42) + 0.30 * Fw + 0.3 * (s1 + s2) + 0.3 * foam, 0.0, 0.97) * wp.w;
+    float a = clamp((kd > 0.5 ? 0.70 : 0.42) + 0.30 * Fw + 0.3 * (s1 + s2) + 0.3 * foam, 0.0, 0.97) * wp.w * (0.28 + 0.72 * tk);   // うすい水はすける
     return float4(col * a, a);
 }
 fragment float4 rif(IVo in [[stage_in]], constant float& spin [[buffer(0)]], constant float4* DP [[buffer(1)]]) {
     if (in.m < -1.5) return diceF(in);
+    // 七色の帯を画素ごとに（4 次元の立体の断面・影・3D のたとえ）：p.w ＝ 10 ＋ 濃さ、c.x ＝ 帯の値（0〜1）、c.y ＝ 明るさ、c.z ＝ ふちの白さ。
+    //   帯の境目は三角形の大きさに関係なく、ベクターのようにくっきり（境目だけ 1 画素ぶん隣の色とまぜる）
+    if (in.m >= 9.5) {
+        float t = clamp(in.c.x, 0.0, 0.99999) * 7.0, fw = max(fwidth(t), 1e-4), m0 = floor(t), fr = t - m0;
+        float3 col = bandC(m0);
+        if (m0 < 6.0 && 1.0 - fr < fw) col = mix(col, bandC(m0 + 1.0), 0.5 * (1.0 - (1.0 - fr) / fw));
+        if (m0 > 0.0 && fr < fw) col = mix(col, bandC(m0 - 1.0), 0.5 * (1.0 - fr / fw));
+        col = col * in.c.y + in.c.z;
+        float a = clamp(in.m - 10.0, 0.0, 1.0);
+        return float4(col * a, a);
+    }
     if (in.m >= 0.0) {
         if (DP[6].y < 0.5) return in.c;
         float m = 1e9;

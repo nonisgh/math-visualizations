@@ -403,13 +403,20 @@ extension OrigamiState {
     static let shapeNames = ["", "球柱（玉 × 線分）", "デュオシリンダー（円 × 円）", "タイガー", "4 次元トーラス（円 × 玉）", "超球"]
     static let shapeAnalog = ["", "円柱", "円柱（高さ ＝ 直径）", "ドーナツ 2 つ", "ドーナツ", "球"]
     static let shpR = 0.8, shpT1 = 0.55, shpTr = 0.26, shpT4r = 0.32
+    static let shpRound = 0.06                                       // 角の丸み（H の何倍か）：球柱・デュオシリンダー・円柱の角（2 つの面がまじわる所）を少し丸める
+    /// 2 つの形の重なり（max）を、角を半径 e で丸めて。2 つの式の坂が直交している時（球柱・デュオ・円柱）は、角の外も本当の距離になる。
+    ///   ただの max だと角がとがって、四面体で取り出した面がぎざぎざになっていた（デュオシリンダー。2026-11-26）
+    static func roundMax(_ a: Double, _ b: Double, _ e: Double) -> Double {
+        let x = a + e, y = b + e
+        return (max(x, 0) * max(x, 0) + max(y, 0) * max(y, 0)).squareRoot() + min(max(x, y), 0) - e
+    }
     /// 4D の立体の式（体の座標、0 以下が中）
     static func shpF4(_ k: Int, _ p: SIMD4<Double>) -> Double {
         let H = half, R = shpR * H
         let rxy = (p.x * p.x + p.y * p.y).squareRoot(), rzw = (p.z * p.z + p.w * p.w).squareRoot()
         switch k {
-        case 1: return max((p.x * p.x + p.y * p.y + p.z * p.z).squareRoot() - R, abs(p.w) - H)
-        case 2: return max(rxy - R, rzw - R)
+        case 1: return roundMax((p.x * p.x + p.y * p.y + p.z * p.z).squareRoot() - R, abs(p.w) - H, shpRound * H)
+        case 2: return roundMax(rxy - R, rzw - R, shpRound * H)
         case 3: let a = rxy - shpT1 * H, b = rzw - shpT1 * H; return (a * a + b * b).squareRoot() - shpTr * H
         case 4: let a = rxy - shpT1 * H; return (a * a + rzw * rzw).squareRoot() - shpT4r * H
         default: return simd_length(p) - R
@@ -419,8 +426,8 @@ extension OrigamiState {
     static func shpF3(_ k: Int, _ p: SIMD3<Double>) -> Double {
         let H = half, R = shpR * H, rxy = (p.x * p.x + p.y * p.y).squareRoot()
         switch k {
-        case 1: return max(rxy - R, abs(p.z) - H)
-        case 2: return max(rxy - R, abs(p.z) - R)
+        case 1: return roundMax(rxy - R, abs(p.z) - H, shpRound * H)
+        case 2: return roundMax(rxy - R, abs(p.z) - R, shpRound * H)
         case 3: let a = rxy - shpT1 * H, b = abs(p.z) - shpT1 * H; return (a * a + b * b).squareRoot() - shpTr * H
         case 4: let a = rxy - shpT1 * H; return (a * a + p.z * p.z).squareRoot() - shpT4r * H
         default: return simd_length(p) - R
@@ -488,11 +495,12 @@ extension OrigamiState {
     func shapeSection() -> ShapeMesh {
         let k = shapeKind, rows = (0..<4).map { r in SIMD4<Double>(m4[0][r], m4[1][r], m4[2][r], m4[3][r]) }
         let bd = Self.shpBound(k), s = shapeCut * bd.r4
-        let key = [Double(k), s] + rows.flatMap { [$0.x, $0.y, $0.z, $0.w] }
+        let coarse = dragging || shapePlay                                // 回している・動かしている間は粗く、止まったら細かく
+        let key: [Double] = [Double(k), s, coarse ? 1.0 : 0.0] + rows.flatMap { r -> [Double] in [r.x, r.y, r.z, r.w] }
         if key == shapeSecKey { return shapeSecCache }
         let L = (max(0, bd.r4 * bd.r4 - s * s)).squareRoot() * 1.02 + 1e-3
         func Q(_ v: SIMD3<Double>) -> SIMD4<Double> { rows[0] * v.x + rows[1] * v.y + rows[2] * v.z + rows[3] * s }
-        let pts = Self.marchTets(40, L, { Self.shpF4(k, Q($0)) })
+        let pts = Self.marchTets(coarse ? 56 : 92, L, { Self.shpF4(k, Q($0)) })   // 角の丸み（0.06H）が、止まった時はマス 3 つ分・回す間も 2 つ分になる細かさ
         var m = ShapeMesh(); m.p = pts.map(Q); m.g = m.p.map { Self.shpGrad4(k, $0) }
         shapeSecCache = m; shapeSecKey = key
         return m
@@ -504,18 +512,55 @@ extension OrigamiState {
         var out: [ShapeMesh] = []
         for l in 0..<NL {
             let w = bd.w * (-1 + 2 * (Double(l) + 0.5) / Double(NL))
-            let pts = Self.marchTets(26, bd.r4 * 1.02, { Self.shpF4(k, SIMD4($0.x, $0.y, $0.z, w)) })
+            let pts = Self.marchTets(40, bd.r4 * 1.02, { Self.shpF4(k, SIMD4($0.x, $0.y, $0.z, w)) })
             var m = ShapeMesh(); m.p = pts.map { SIMD4($0.x, $0.y, $0.z, w) }; m.g = m.p.map { Self.shpGrad4(k, $0) }
             out.append(m)
         }
         shapeLayCache = out; shapeLayKind = k
         return out
     }
+    /// 本物の影（立体）：4D の窓の 3D の点 X に写る 4D の点は、目からの 1 本の線（回したあとの座標で xyz ＝ X／k(w)、w は自由。k は遠近の縮み）。
+    ///   その線が立体にぶつかれば、X は影の中。g(X) ＝ 線の上での式のいちばん小さい値（w を 24 か所で調べて、いちばん小さい所のまわりを 3 分割でしぼる）。
+    ///   g ＝ 0 の面を四面体で取り出す。色は、いちばん近づいた 4D の点の y（断面と同じ七色の帯）。回している間は粗く
+    func shapeShadowSolid() -> (p: [SIMD3<Double>], n: [SIMD3<Double>], y: [Double]) {
+        let k = shapeKind, bd = Self.shpBound(k), D = camW, pb = projBlend, coarse = dragging || shapePlay
+        let key: [Double] = [Double(k), D, pb, coarse ? 1.0 : 0.0] + (0..<4).flatMap { c -> [Double] in (0..<4).map { m4[c][$0] } }
+        if key == shapeSolKey { return shapeSolCache }
+        let Mt = simd_transpose(m4), r4 = bd.r4
+        func kk(_ w: Double) -> Double { let ww = max(-D + 0.5, min(D - 0.5, w)); return 1 + (1 / (1 - ww / D) - 1) * (1 - pb) }
+        func f(_ X: SIMD3<Double>, _ w: Double) -> Double { let kw = kk(w); return Self.shpF4(k, Mt * SIMD4(X.x / kw, X.y / kw, X.z / kw, w)) }
+        func g(_ X: SIMD3<Double>) -> (Double, Double) {
+            let NS = 24
+            var bw = -r4, bv = Double.infinity
+            for i in 0...NS { let w = -r4 + 2 * r4 * Double(i) / Double(NS), v = f(X, w); if v < bv { bv = v; bw = w } }
+            var lo = max(-r4, bw - 2 * r4 / Double(NS)), hi = min(r4, bw + 2 * r4 / Double(NS))
+            for _ in 0..<10 { let a = lo + (hi - lo) / 3, b = hi - (hi - lo) / 3; if f(X, a) < f(X, b) { hi = b } else { lo = a } }
+            let w = (lo + hi) / 2, v = f(X, w)
+            return v < bv ? (v, w) : (bv, bw)
+        }
+        let L = r4 * kk(r4) * 1.03
+        let pts = Self.marchTets(coarse ? 32 : 64, L, { g($0).0 })
+        // 頂点ごとの面の向き：同じ点を使う三角形の向きの平均（なめらかに光る）
+        var acc: [SIMD3<Int64>: SIMD3<Double>] = [:]
+        func key3(_ p: SIMD3<Double>) -> SIMD3<Int64> { SIMD3(Int64((p.x * 1e6).rounded()), Int64((p.y * 1e6).rounded()), Int64((p.z * 1e6).rounded())) }
+        var i = 0
+        while i + 2 < pts.count { let nn = simd_cross(pts[i + 1] - pts[i], pts[i + 2] - pts[i]); for j in 0..<3 { acc[key3(pts[i + j]), default: .zero] += nn }; i += 3 }
+        var ys: [Double] = [], ns: [SIMD3<Double>] = []
+        ys.reserveCapacity(pts.count); ns.reserveCapacity(pts.count)
+        var ycache: [SIMD3<Int64>: Double] = [:]
+        for p in pts {
+            let kp = key3(p), a = acc[kp] ?? SIMD3(0, 0, 1), l = simd_length(a); ns.append(l > 1e-12 ? a / l : SIMD3(0, 0, 1))
+            if let y = ycache[kp] { ys.append(y); continue }
+            let w = g(p).1, kw = kk(w), q = Mt * SIMD4(p.x / kw, p.y / kw, p.z / kw, w); ycache[kp] = q.y; ys.append(q.y)
+        }
+        shapeSolCache = (pts, ns, ys); shapeSolKey = key
+        return shapeSolCache
+    }
     /// 3D のたとえ（左の窓）の面
     func shapeAnalog() -> [SIMD3<Double>] {
         if shapeAnaKind == shapeKind { return shapeAnaCache }
         let k = shapeKind
-        shapeAnaCache = Self.marchTets(36, Self.shpBound(k).r3 * 1.02, { Self.shpF3(k, $0) }); shapeAnaKind = k
+        shapeAnaCache = Self.marchTets(64, Self.shpBound(k).r3 * 1.02, { Self.shpF3(k, $0) }); shapeAnaKind = k
         return shapeAnaCache
     }
     /// 七色の帯（ウェブ版の band：7 つに分けた色相 0.82×(m＋0.5)／7）
@@ -545,19 +590,50 @@ extension OrigamiRenderer {
         let nr = SIMD4<Double>(st.m4[0][3], st.m4[1][3], st.m4[2][3], st.m4[3][3])
         for i in 0..<m.p.count {
             let q = m.p[i], P0 = st.place([q.x, q.y, q.z, q.w], 4).0
-            if glow { let a: Float = 0.16; v.append(IntVert(p: SIMD4(gpuSh(P0), 1), c: SIMD4(SIMD3<Float>(1, 0.78, 0.35) * a, a))); continue }
+            if glow { let a = Float(0.16 * st.shapeGlowAlpha); v.append(IntVert(p: SIMD4(gpuSh(P0), 1), c: SIMD4(SIMD3<Float>(1, 0.78, 0.35) * a, a))); continue }
             var g = m.g[i]; g -= nr * simd_dot(g, nr)                      // 切る面に沿った向きだけ（切り口の面の向き）
             let gl = simd_length(g), e = 0.02
             var nv = SIMD3<Double>(0, 0, 1)
             if gl > 1e-9 { let q2 = q + g / gl * e, P1 = st.place([q2.x, q2.y, q2.z, q2.w], 4).0; nv = simd_normalize(P1 - P0) }
             let vd = simd_normalize(eye - P0), lam = max(0, simd_dot(nv, L)) * 0.65 + 0.35 * abs(simd_dot(nv, vd)), rim = pow(1 - abs(simd_dot(nv, vd)), 3)
-            let c = OrigamiState.bandColor(q.y / R * 0.5 + 0.5) * Float(0.3 + 0.75 * lam) + SIMD3<Float>(repeating: Float(0.25 * rim)), a: Float = 0.9
-            v.append(IntVert(p: SIMD4(gpuSh(P0), 1), c: SIMD4(c * a, a)))
+            // 七色の帯は画素ごとに（ベクターのようにくっきり）：c.x＝帯の値・c.y＝明るさ・c.z＝ふちの白さ・p.w＝10＋濃さ
+            v.append(IntVert(p: SIMD4(gpuSh(P0), 10.9), c: SIMD4(Float(q.y / R * 0.5 + 0.5), Float(0.3 + 0.75 * lam), Float(0.25 * rim), 0)))
         }
         return IntTriBatch(add: glow, verts: v)
     }
+    /// 本物の影（立体）：七色の帯で、少しすける（中の光る断面が見えるように）
+    func shapeSolidBatch(eye: SIMD3<Double>) -> IntTriBatch? {
+        let s = st.shapeShadowSolid(); guard s.p.count >= 3 else { return nil }
+        let R = OrigamiState.shpR * OrigamiState.half, L = simd_normalize(SIMD3<Double>(0.35, 0.6, 0.72))
+        var v: [IntVert] = []; v.reserveCapacity(s.p.count)
+        for i in 0..<s.p.count {
+            let P0 = s.p[i], nv = s.n[i], vd = simd_normalize(eye - P0)
+            let lam = max(0, simd_dot(nv, L)) * 0.6 + 0.4 * abs(simd_dot(nv, vd)), rim = pow(1 - abs(simd_dot(nv, vd)), 3)
+            let hv = simd_normalize(L + vd), sp = pow(max(0, simd_dot(nv, hv)), 40) * 0.5
+            let a = Float((0.55 + 0.35 * rim) * st.shapeShadowAlpha)
+            v.append(IntVert(p: SIMD4(gpuSh(P0), 10 + max(0.001, a)), c: SIMD4(Float(s.y[i] / R * 0.5 + 0.5), Float(0.3 + 0.7 * lam), Float(0.3 * rim + sp), 0)))
+        }
+        return IntTriBatch(add: false, verts: v)
+    }
+    /// 積分の積み上げの番号（積分タブの形）：球柱 1・デュオ 2・タイガー 3・4D トーラス → 球のドーナツ 7・超球 → 内接する超球 4
+    static let shapeIntId = [0, 1, 2, 3, 7, 4]
+    static let shapeStackN = 64                                       // 積み上げの段の数（積分の仕上がりと同じくらいなめらかに）
+    /// 4D の影（積分の積み上げ）：積分タブと同じ輪切りの形を、w の −1 〜 ＋1 に段ごとに置く（色は積む順：赤 → 紫）。大きさは積分タブの形のまま
+    func shapeStackBatch(eye: SIMD3<Double>) -> IntTriBatch? {
+        let sid = Self.shapeIntId[max(1, min(5, st.shapeKind))], N = Self.shapeStackN
+        var v: [IntVert] = [], sph: [IntSphere] = []
+        for j in 0..<N {
+            let t = -1 + (2 * Double(j) + 1) / Double(N)
+            sliceShape(&v, &sph, shape: sid, pos: t, ws: t, a: 0.85 * st.shapeShadowAlpha, eye: eye, ballRes: sid == 1 ? 6 : 7, spin: 0)
+        }
+        intSpheres += sph
+        return v.isEmpty ? nil : IntTriBatch(add: false, verts: v)
+    }
     /// 4D の影（w の輪切りを重ねる。色は w：透ける虹）
     func shapeShadowBatch(eye: SIMD3<Double>) -> IntTriBatch? {
+        guard st.shapeShadowOn, st.shapeShadowAlpha > 0.005 else { return nil }   // 影なし：光る断面だけ
+        if st.shapeShadowMode == 1 { return shapeStackBatch(eye: eye) }
+        if st.shapeShadowMode == 2 { return shapeSolidBatch(eye: eye) }
         let bd = OrigamiState.shpBound(st.shapeKind)
         var v: [IntVert] = []
         for m in st.shapeLayers() {
@@ -568,7 +644,7 @@ extension OrigamiRenderer {
                 let P = (0..<3).map { s -> SIMD3<Double> in let q = m.p[i + s]; return st.place([q.x, q.y, q.z, q.w], 4).0 }
                 let nn = simd_cross(P[1] - P[0], P[2] - P[0]), nl = simd_length(nn)
                 let rim = nl > 1e-12 ? 1 - abs(simd_dot(nn / nl, simd_normalize(eye - P[0]))) : 0.5
-                let a = Float(0.012 + 0.1 * pow(rim, 3))                        // 9 枚重なるので、1 枚はうすく（ふちだけ見えるように）
+                let a = Float((0.012 + 0.1 * pow(rim, 3)) * st.shapeShadowAlpha)   // 9 枚重なるので、1 枚はうすく（ふちだけ見えるように）
                 for p in P { v.append(IntVert(p: SIMD4(gpuSh(p), 1), c: SIMD4(col * a, a))) }
                 i += 3
             }
@@ -588,8 +664,8 @@ extension OrigamiRenderer {
             let nn = simd_cross(Pq[1] - Pq[0], Pq[2] - Pq[0]), nl = simd_length(nn)
             let rim = nl > 1e-12 ? 1 - abs(simd_dot(nn / nl, simd_normalize(eye - Pq[0]))) : 0.5
             for j in 0..<3 {
-                let a = Float(0.18 + 0.4 * pow(rim, 2)), c = OrigamiState.bandColor(q[j].y / R * 0.5 + 0.5)
-                v.append(IntVert(p: SIMD4(gpuSh(Pq[j]), 1), c: SIMD4(c * a, a)))
+                let a = Float(0.18 + 0.4 * pow(rim, 2))
+                v.append(IntVert(p: SIMD4(gpuSh(Pq[j]), 10 + a), c: SIMD4(Float(q[j].y / R * 0.5 + 0.5), 1, 0, 0)))   // 帯は画素ごとに
             }
             // 切り口の線：三角形と切る面（n·q ＝ s）の交わり
             let dd = q.map { simd_dot($0, nr) - s }

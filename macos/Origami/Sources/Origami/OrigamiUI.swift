@@ -346,6 +346,7 @@ struct OrigamiRotBar: View {
             pill("ワイヤー", st.wireOnly, "面を描かず、辺の線だけで見せる（⇧M。もう一度でメッシュにもどる＝ M）") { st.wireOnly.toggle() }
             Divider().frame(height: 18)
             pill("補正", false, "z 軸を画面に垂直に立て直す（Z-W・X-Z・Y-Z を 0 に。回転は止めない）") { st.snap() }
+            pill("まっすぐ", false, "画面の中に寝ている 2 本の軸を、いちばん近い縦・横にそろえる（絵を画面の中で回すだけ。⇧S）") { st.straighten() }
             pill("リセット", false, "回転を止めて、全部の角度を 0 に戻した正面の形にする") { st.resetAll() }
             Divider().frame(height: 18)
             TimelineView(.periodic(from: .now, by: 0.5)) { _ in
@@ -1265,6 +1266,12 @@ struct ShapePanel: View {
                 Btn("まんなか") { st.shapeCut = 0 }
                 Btn(st.shapeMainProj ? "大きい窓：4D の影" : "大きい窓：断面", on: st.shapeMainProj) { st.shapeMainProj.toggle() }.help("断面 ⇄ 投影：大きい窓と右下の窓の中身を入れかえる")
             }
+            HStack {
+                Toggle("影の中に断面を出す", isOn: $st.shapeGlowOn).help("切ると、4D の影の窓は全体像だけになる（今切っている所の光を消す）")
+                LiveRead(live: st.live) { NumRow("断面の濃さ", $st.shapeGlowAlpha, 0...1, "%.0f%%", scale: 100) }.disabled(!st.shapeGlowOn)
+            }
+            Picker("4D の影", selection: $st.shapeShadowMode) { Text("輪切りを重ねる").tag(0); Text("積分の積み上げ").tag(1); Text("本物の影（立体）").tag(2) }.pickerStyle(.segmented)
+                .help("輪切りを重ねる：w の輪切り 9 枚をうすい殻で。積分の積み上げ：積分タブと同じ絵（輪切りの形を w の −1 〜 ＋1 に段ごとに積む。色は積む順。大きさは積分タブの形）。本物の影：4 次元の光で照らした 3 次元の影を、中身のつまった立体で（回すたびに作り直す）")
             Text("3D のたとえ：" + OrigamiState.shapeAnalog[max(1, min(5, st.shapeKind))]).font(.caption2).foregroundStyle(UIC.sub)
         }
     }

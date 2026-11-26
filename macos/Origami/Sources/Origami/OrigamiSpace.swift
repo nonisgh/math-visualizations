@@ -444,9 +444,10 @@ extension OrigamiRenderer {
             ("DR5_排水口のふた・半分開き", { $0.drainSize = Double(ProcessInfo.processInfo.environment["DS"] ?? "") ?? 0.58; $0.drainMode = 1; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = (Double(ProcessInfo.processInfo.environment["VXA"] ?? "") ?? 29) * .pi / 180; $0.ay = (Double(ProcessInfo.processInfo.environment["VXB"] ?? "") ?? 17) * .pi / 180; $0.updateMats(); $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(17.0 * 60) { $0.waterTick(1.0 / 60) }; $0.holeLastT = CACurrentMediaTime() + 1e6; $0.holeShow = 1; $0.holeDA = Double(ProcessInfo.processInfo.environment["HDA"] ?? "") ?? 0.5; $0.holeVA = 1 }),
             ("DR6_排水口が現れる途中", { $0.drainMode = 1; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = (Double(ProcessInfo.processInfo.environment["VXA"] ?? "") ?? 29) * .pi / 180; $0.ay = (Double(ProcessInfo.processInfo.environment["VXB"] ?? "") ?? 17) * .pi / 180; $0.updateMats(); $0.intOn = true; $0.intMethod = 1; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(17.0 * 60) { $0.waterTick(1.0 / 60) }; $0.holeLastT = CACurrentMediaTime() + 1e6; $0.holeShow = 0.5; $0.holeDA = 0; $0.holeVA = 0 }),
             ("DN1_途中で抜く（数字）", { let E = ProcessInfo.processInfo.environment; $0.drainMode = Int(E["DM"] ?? "1") ?? 1; $0.drainSize = Double(E["DS"] ?? "") ?? 0.58; $0.waterNS = E["NS"] == "1"; $0.waterNSRes = 16; $0.progress = 1; $0.intOn = true; $0.intMethod = 1; $0.waterFree = false; $0.waterT = 0; $0.swe.reset(); var T = 0.0, last = -1, log: [String] = []; let at = Double(E["AT"] ?? "") ?? 4; var pressed = false; while T < 120 { if !pressed && T >= at { log.append(String(format: "押す@%.1f(h %.2f)", T, $0.waterH)); $0.waterDrainNow(); pressed = true }; $0.waterTick(1.0 / 60); T += 1.0 / 60; let ph = $0.waterPhase; if ph != last { log.append(String(format: "%d@%.1f(h %.2f)", ph, T, $0.waterH)); last = ph }; if pressed && ph == 1 { break } }; print("途中で抜く：" + log.joined(separator: " ")) }),
-            ("NS1_本物の4D・注いでいる", { $0.drainMode = 0; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(5.0 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("NS1_本物の4D・注いでいる", { $0.waterRainbow = ProcessInfo.processInfo.environment["NSRB"] != nil; $0.drainMode = 0; $0.waterNSRes = Int(ProcessInfo.processInfo.environment["NSRES"] ?? "32") ?? 32; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(5.0 * 60) { $0.waterTick(1.0 / 60) } }),
             ("NS2_本物の4D・いっぱい", { $0.drainMode = 0; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(12.0 * 60) { $0.waterTick(1.0 / 60) } }),
-            ("NS3_本物の4D・排水口（渦）", { $0.drainMode = 1; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(17.5 * 60) { $0.waterTick(1.0 / 60) } }),
+            ("NS3_本物の4D・排水口（渦）", { let E = ProcessInfo.processInfo.environment; $0.waterRainbow = E["NSRB"] != nil; $0.waterNSRes = Int(E["NSRES"] ?? "") ?? $0.waterNSRes; if let sw = E["NSSW"] { $0.waterSwirl = Double(sw) ?? 0.3 }; $0.drainMode = 1; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int((Double(E["NST"] ?? "17.5") ?? 17.5) * 60) { $0.waterTick(1.0 / 60) }; if let ns = $0.ns4, ns.phiShow.count == ns.MM { var a0 = 0, a1 = 0; for k in 0..<ns.N { for j in 0..<ns.N { for i in 0..<ns.N { let id = ns.at(i, j, k, 0); if ns.phiDisp[id] >= 0 { a0 += 1 }; if ns.phiShow[id] >= 0 { a1 += 1 } } } }; print("床の空気のマス：井戸なし \(a0)・井戸あり \(a1)") }
+                print(String(format: "井戸：深さ %.2f・強さ %.2f・水 %.0f%%", $0.ns4?.well.x ?? 0, $0.nsWellK, 100 * ($0.ns4?.lastVol ?? 0) / (16 * pow(OrigamiState.half, 4)))) }),
             ("NS4_本物の4D・底を全部開けて落ちる", { $0.drainMode = 0; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(15.0 * 60) { $0.waterTick(1.0 / 60) } }),
             ("NS5_本物の4D・排水口・リアルでない図", { $0.drainMode = 1; $0.waterReal = false; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterT = 0; $0.swe.reset(); for _ in 0..<Int(17.5 * 60) { $0.waterTick(1.0 / 60) } }),
             ("FR1_遊ぶ・ふたを下へ傾けてこぼす", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 0.3; $0.ay = 0.2; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterFree = true; $0.waterLidSet = true; $0.waterNSRes = 24; $0.updateMats(); $0.waterFreeFill(0); for n in 0..<150 { $0.ay = 0.2 + 2.6 * Double(n) / 150; $0.updateMats(); $0.waterTick(1.0 / 60) } }),
@@ -467,6 +468,73 @@ extension OrigamiRenderer {
                 }
                 print("ND2：" + log.joined(separator: " "))
             }),
+            ("NW1_波立ちくらべ（NWFREE 手で・NWG 重力の倍率・NWH 重さ・NWRES）", { (st: OrigamiState) in
+                let E = ProcessInfo.processInfo.environment, free = E["NWFREE"] != nil
+                st.progress = 1; st.intOn = true; st.intMethod = 1; st.waterNS = true; st.waterNSRes = Int(E["NWRES"] ?? "12") ?? 12; st.drainMode = 1; st.waterFree = free; st.waterGravMode = 2
+                st.waterHeavy = Double(E["NWH"] ?? "0.5") ?? 0.5; if let g = E["NWGG"] { st.waterG = Double(g) ?? 9.8 }; if let r = E["NWR"] { st.waterPourRate = Double(r) ?? 1 }; st.waterPourForce = Double(E["NWF"] ?? "0.5") ?? 0.5; st.tween = nil; st.updateMats()
+                OrigamiState.nsGTestK = Double(E["NWG"] ?? "1") ?? 1
+                guard let ns = st.ns4Get() else { return }
+                if free { st.waterPourHold = true }
+                let turn = E["NWVIEW"] != nil, spin = E["NWSPIN"] != nil      // ▶ はじめる の見る向き（Y‐W を 90° 回す）・回し続ける（X‐W）
+                if turn { st.intView = 2; st.intApplyView(2) }
+                if spin { st.spinX = true }
+                var T = 0.0, log: [String] = []
+                while T < (Double(E["NWT"] ?? "8") ?? 8) {
+                    if turn || spin { st.tickView(1.0 / 60); if spin { st.ax += 0.6 / 60 }; st.updateMats() }
+                    st.waterTick(1.0 / 60); T += 1.0 / 60
+                    if Int((T * 60).rounded()) % 60 == 0 {
+                        // 水面のでこぼこ：柱ごとの水面の高さ（マスの単位）の、ばらつき（標準偏差）。注ぐ所のまわり（筋の太さの 2 倍）は除く
+                        let N = ns.N, jc = ns.par.jetC, jr = ns.par.jetR * 2
+                        var sum = 0.0, sq = 0.0, cnt = 0.0
+                        for k in 0..<N { for j in 0..<N { for i in 0..<N {
+                            if simd_length(SIMD3<Float>(Float(i) + 0.5, Float(j) + 0.5, Float(k) + 0.5) - SIMD3(jc.x, jc.y, jc.z)) < jr { continue }
+                            let h = Double(ns.surfaceW(i, j, k)); sum += h; sq += h * h; cnt += 1
+                        } } }
+                        let m = sum / max(1, cnt), sd = (max(0, sq / max(1, cnt) - m * m)).squareRoot()
+                        log.append(String(format: "%.0f秒 %.0f%% でこぼこ%.2f", T, 100 * ns.lastVol / ns.capVolCompat, sd))
+                        if E["NWLAYER"] != nil {
+                            // 高さ（w の層）ごとの水のマスの割合（下 → 上）
+                            let f = ns.phi.contents().bindMemory(to: Float.self, capacity: ns.MM)
+                            var row: [String] = []
+                            for l in 0..<N { var c = 0; for k in 0..<N { for j in 0..<N { for i in 0..<N { if f[ns.at(i, j, k, l)] < 0 { c += 1 } } } }; row.append(String(format: "%.0f", 100 * Double(c) / Double(N * N * N))) }
+                            // ふた（+w の胞）が水に描かれる割合：前の描き方（3 層の平均）と今の描き方（かべの所まで のばす）
+                            var cAvg = 0, cExt = 0
+                            for k in 0..<N { for j in 0..<N { for i in 0..<N { let a0 = f[ns.at(i, j, k, N - 1)], a1 = f[ns.at(i, j, k, N - 2)], a2 = f[ns.at(i, j, k, N - 3)]; if (a0 + a1 + a2) / 3 < 0 { cAvg += 1 }; if 1.5 * a0 - 0.5 * a1 < 0 { cExt += 1 } } } }
+                            log.append("層[" + row.joined(separator: " ") + "] 入れ口l" + String(format: "%.0f ふたの水 前%.0f%% 今%.0f%%", ns.par.jetC.w, 100 * Double(cAvg) / Double(N * N * N), 100 * Double(cExt) / Double(N * N * N)))
+                        } }
+                }
+                print("波立ちくらべ（" + (free ? "手で" : "自動") + "）：" + log.joined(separator: "・")) }),
+            ("PS1_一時停止中にマウスで回すと水がゆれる（数字）", { (st: OrigamiState) in
+                st.progress = 1; st.intOn = true; st.intMethod = 1; st.waterNS = true; st.waterNSRes = 12; st.drainMode = 1; st.waterFree = false; st.tween = nil; st.updateMats()
+                guard let ns = st.ns4Get() else { return }
+                for _ in 0..<(5 * 60) { st.waterTick(1.0 / 60) }
+                st.intPaused = true
+                for _ in 0..<(3 * 60) { st.waterTick(1.0 / 60) }
+                let v0 = ns.maxSpeed()
+                for k in 0..<45 { let m = [1.0, 0, 2, 1, 1, 0, 2][k % 7]; st.drag(.r3x, 0.02 * m); st.updateMats(); st.waterTick(1.0 / 60) }
+                let v1 = ns.maxSpeed()
+                for _ in 0..<(3 * 60) { st.waterTick(1.0 / 60) }
+                print(String(format: "一時停止中のゆれ：止めて 3 秒 いちばん速い %.3f → マウスで回した直後 %.3f → 3 秒後 %.3f", v0, v1, ns.maxSpeed())) }),
+            ("VB1_マス目の切りかえの重さ", { (st: OrigamiState) in
+                guard let a = NS4(N: 8) else { return }; a.reset(level: 0.4)
+                let t0 = CACurrentMediaTime(); guard let b = NS4(N: 12) else { return }; let t1 = CACurrentMediaTime()
+                b.copyResampled(from: a); let t2 = CACurrentMediaTime()
+                a.copyResampled(from: b); let t3 = CACurrentMediaTime()
+                print(String(format: "切りかえの重さ：12⁴ を作る %.1f ミリ秒・8⁴→12⁴ 写す %.1f ミリ秒・12⁴→8⁴ 写す %.1f ミリ秒・体積 8⁴ %.3f 12⁴ %.3f", (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000, a.lastVol, b.lastVol)) }),
+            ("WP1_水を描く重さ（WPRES・WPT 秒）", { (st: OrigamiState) in
+                let E = ProcessInfo.processInfo.environment
+                st.progress = 1; st.intOn = true; st.intMethod = 1; st.waterNS = true; st.waterNSRes = Int(E["WPRES"] ?? "16") ?? 16; st.drainMode = 1; st.waterFree = false; st.tween = nil; st.updateMats()
+                NS4.syncAll = true
+                guard let ns = st.ns4Get(), let d = MTLCreateSystemDefaultDevice(), let r = OrigamiRenderer(n: 4, state: st, device: d) else { return }
+                let T = Double(E["WPT"] ?? "3") ?? 3
+                for _ in 0..<Int(T * 60) { st.waterTick(1.0 / 60) }
+                let t0 = CACurrentMediaTime(); let m = ns.buildMesh(ns.phiCPU); let t1 = CACurrentMediaTime()
+                var rods: [TLRod] = []; var nTri = 0
+                let t2 = CACurrentMediaTime(); for _ in 0..<5 { rods = []; let b = r.waterGeometry(&rods, eye: SIMD3(0, 0, 9)); nTri = b.reduce(0) { $0 + $1.verts.count / 3 } }; let t3 = CACurrentMediaTime()
+                _ = ns.thicknessField(axis: 3); let t4 = CACurrentMediaTime(); _ = ns.thicknessField(axis: 0); let t5 = CACurrentMediaTime()
+                print(String(format: "水を描く重さ（%d⁴・%.0f 秒）：水面を作る %.1f ミリ秒（三角形 %d）・描く形 1 回 %.1f ミリ秒（三角形 %d）・厚み %.1f ミリ秒・泡 %d", ns.N, T, (t1 - t0) * 1000, m.kind.count, (t3 - t2) * 200, nTri, (t5 - t4) * 1000, st.nsBubbles.count))
+                print(ns.fineDetailStats())
+                NS4.syncAll = false }),
             ("ND3_遊ぶ・底を開けて抜く", { let E = ProcessInfo.processInfo.environment; $0.progress = 1; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.drainMode = Int(E["DM"] ?? "1") ?? 1; $0.waterFree = true; $0.waterGravMode = Int(E["GM"] ?? "1") ?? 1; $0.waterLidSet = true; $0.waterBottomSet = false; $0.tween = nil; $0.ay = $0.waterFreeAY(0); $0.xz = 0; $0.yz = 0; $0.updateMats()
                 guard let ns = $0.ns4Get() else { return }
                 $0.waterFreeFill(0.4); var T = 0.0, log: [String] = []
@@ -540,7 +608,11 @@ extension OrigamiRenderer {
                 print(String(format: "輪をつかめた %@・半径 %.0f ポイント：w %.3f → 外へ %.3f → 内へ %.3f（傾き %.1f°）", hitR && st.gravGrabW ? "○" : "×", hypot(e4.x - c4.x, e4.y - c4.y), w0, w1, st.gravDown.w, st.gravTiltDeg))
                 st.gravGrab = false; st.gravGrabW = false; st.gravSet(SIMD4(sin(0.5), 0, 0, -cos(0.5)))
             }),
-            ("SH1_4 次元の立体（SHK 立体・SHC 切る位置・SHSEC 断面）", { let E = ProcessInfo.processInfo.environment; $0.progress = 1; $0.ax = (Double(E["VXA"] ?? "") ?? 25) * .pi / 180; $0.ay = (Double(E["VXB"] ?? "") ?? 15) * .pi / 180; $0.xz = 0.35; $0.yz = -0.25; $0.spaceMode = 2; $0.shapeOn = E["SHOFF"] == nil; $0.shapeKind = Int(E["SHK"] ?? "3") ?? 3; $0.shapeCut = Double(E["SHC"] ?? "0") ?? 0; $0.shapeMainProj = E["SHSEC"] != nil; $0.tween = nil; $0.updateMats(); let t0 = CACurrentMediaTime(); let m = $0.shapeSection(); let t1 = CACurrentMediaTime(); _ = $0.shapeLayers(); let t2 = CACurrentMediaTime(); print(String(format: "立体の確かめ：断面 %d 三角形 %.0f ミリ秒・影の輪切り %.0f ミリ秒", m.p.count / 3, (t1 - t0) * 1000, (t2 - t1) * 1000)) }),
+            ("SH1_4 次元の立体（SHK 立体・SHC 切る位置・SHSEC 断面）", { let E = ProcessInfo.processInfo.environment; $0.progress = 1; $0.ax = (Double(E["VXA"] ?? "") ?? 25) * .pi / 180; $0.ay = (Double(E["VXB"] ?? "") ?? 15) * .pi / 180; $0.xz = 0.35; $0.yz = -0.25; $0.spaceMode = 2; $0.shapeOn = E["SHOFF"] == nil; $0.shapeKind = Int(E["SHK"] ?? "3") ?? 3; $0.shapeCut = Double(E["SHC"] ?? "0") ?? 0; $0.shapeMainProj = E["SHSEC"] != nil; $0.shapeShadowMode = Int(E["SHMODE"] ?? "0") ?? 0; $0.tween = nil; $0.updateMats(); let t0 = CACurrentMediaTime(); let m = $0.shapeSection(); let t1 = CACurrentMediaTime(); _ = $0.shapeLayers(); let t2 = CACurrentMediaTime(); print(String(format: "立体の確かめ：断面 %d 三角形 %.0f ミリ秒・影の輪切り %.0f ミリ秒", m.p.count / 3, (t1 - t0) * 1000, (t2 - t1) * 1000)) }),
+            ("ST1_まっすぐ", { (st: OrigamiState) in st.progress = 1; st.ax = 0.4; st.ay = 0.3; st.xy = 0.5; st.xz = 0.3; st.yz = -0.2; st.spaceMode = 2; st.tween = nil; st.updateMats(); st.straighten(); for _ in 0..<40 { st.tickView(1.0 / 60) }; st.updateMats()
+                var a: [String] = []
+                for k in 0..<4 { let v = SIMD2<Double>(st.m4[k][0], st.m4[k][1]); a.append(String(format: "%@ %.1f°（長さ %.2f）", ["x", "y", "z", "w"][k], atan2(v.y, v.x) * 180 / Double.pi, simd_length(v))) }
+                print("まっすぐの確かめ：" + a.joined(separator: "・")) }),
             ("PD1_水玉（PDT 秒・DM 抜き方）", { let E = ProcessInfo.processInfo.environment; $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = (Double(E["VXA"] ?? "") ?? 29) * .pi / 180; $0.ay = (Double(E["VXB"] ?? "") ?? 17) * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = false; $0.drainMode = Int(E["DM"] ?? "0") ?? 0; $0.holeShow = 1; $0.waterFree = false; $0.tween = nil; $0.updateMats(); $0.waterT = 0; $0.swe.reset(); let T = Double(E["PDT"] ?? "") ?? 1.6; for _ in 0..<Int(T * 60) { $0.waterTick(1.0 / 60) }; $0.holeDA = $0.holeDTarget; print(String(format: "水玉の確かめ：%.1f 秒・場面 %d・水位 h %.3f", T, $0.waterPhase, $0.waterH)) }),
             ("CP2_ちゃぷちゃぷ・本物の水", { $0.progress = 1; $0.spaceMode = 2; $0.xz = 0; $0.yz = 0; $0.ax = 29 * .pi / 180; $0.ay = 17 * .pi / 180; $0.intOn = true; $0.intMethod = 1; $0.waterNS = true; $0.waterNSRes = 16; $0.drainMode = 1; $0.waterFree = false; $0.tween = nil; $0.updateMats(); $0.waterT = 0; $0.swe.reset()
                 var n = 0; while n < 60 * 40 && !($0.waterPhase == 2) { $0.waterTick(1.0 / 60); n += 1 }
@@ -553,7 +625,9 @@ extension OrigamiRenderer {
                 var T = 0.0, tPour = -1.0, tOpen = -1.0, tEmpty = -1.0, last = -1, log: [String] = []
                 guard let ns = $0.ns4Get() else { return }
                 while T < 90 {
-                    $0.waterTick(1.0 / 60); T += 1.0 / 60
+                    let dtJ = ProcessInfo.processInfo.environment["NDJIT"] != nil ? (Int(T * 997) % 2 == 0 ? 1.0 / 45 : 1.0 / 90) : 1.0 / 60   // NDJIT：コマの長さをばらつかせる（アプリと同じ）
+                    $0.waterTick(dtJ); T += dtJ
+                    let ns = $0.ns4 ?? ns                                       // マス目の VBR で切りかわったら、新しい水を読む
                     let ph = $0.waterPhase
                     if ph != last { log.append(String(format: "%d@%.1f(%.0f%%)", ph, T, 100 * ns.lastVol / (16 * pow(0.9, 4)))); last = ph }
                     if ph == 1 && tPour < 0 { tPour = T }

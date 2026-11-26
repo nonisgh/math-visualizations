@@ -178,6 +178,9 @@ extension OrigamiState {
     static let wFloorSlope = 0.35                                          // 本物の 4D の水：抜く間の床の傾き（排水口へ向かう力、重力の何倍か）
     static let wPuddleT = 1.0                                              // 水玉になってから吸いこまれ切るまでの秒（排水口で抜く時）
     static let wPuddle = 0.35                                              // 水玉の厚み（H の何倍か）：これより浅い間は、床の中の水玉で描く
+    static let wNSGravK = 0.7                                             // 自動の本物の水の重力：手で遊ぶ時の重力の何倍か（波立ちの真ん中）
+    static var nsGTestK = 1.0                                              // 確かめだけ：自動の本物の水の重力の倍率（波立ちくらべ）
+    static let wThinT = 0.45                                               // 本物の水：この厚み（世界の長さ）より うすい水は、すけて色もうすく
     static let wPudSit = 0.01                                              // 4D の水玉を床の胞から浮かせる量（H の何倍か）：ほぼぴったり
     static let wPudLiftFrom = 0.75                                         // 床を何割満たしたら、水玉を水面の高さへ持ち上げはじめるか
     static let wPudRing = 0.9                                              // 4D の水玉の輪（xy・yz・zx）の明るさ
@@ -209,6 +212,10 @@ extension OrigamiState {
     }
     /// 1 コマ分すすめる：時刻・水位・場面と、波（小ステップに分けて）
     func waterTick(_ dt0: Double) {
+        if waterFree && waterNS && waterNSRes == 8, let o = ns4 {             // VBR（遊ぶモード）：8 割近くまで入ったら 12⁴、7 割より少なくなったら 8⁴
+            let f = o.lastVol / max(1e-9, o.capVolCompat)
+            if !nsVbrHigh && f > 0.72 { nsVbrHigh = true } else if nsVbrHigh && f < 0.62 { nsVbrHigh = false }
+        }
         if waterFree && waterNS, let ns = ns4Get() { waterFreeTick(ns, min(0.1, dt0)); return }
         let dt = min(0.1, dt0), H = Self.half
         // 一時停止：場面の時計（開ける → 注ぐ → 抜く…）だけ止める。注ぐのをやめ、栓も閉めて流れを止める。水の計算（波）は続けるので、水面は静かになっていく
@@ -310,9 +317,16 @@ extension OrigamiState {
         let vdT = flowing ? 0.45 * min(1, hOpen ? 1 : max(0, sD) * 5) * min(1, (h + 1) * 1.5) : 0
         waterVD += (vdT - waterVD) * min(1, dt * 3); waterSD = sD
         // ---- 本物の 4D の水（ナビエ–ストークス）：注ぐ・排水口・底の全開を境目として与え、水位は体積から ----
+        // マス目の VBR（自動）：注ぐのが 7 割すぎ・いっぱい・栓を抜くところ・抜き始め（7 割より多い）は 12⁴、ほかは 8⁴
+        if waterNS && waterNSRes == 8 {
+            let f = ns4.map { $0.lastVol / max(1e-9, $0.capVolCompat) } ?? 0, prog = (t - t0) / max(1e-9, t1 - t0)
+            nsVbrHigh = (phase == 1 && prog > 0.7) || phase == 2 || phase == 3 || (phase == 4 && f > 0.7)
+        }
         if waterNS, let ns = ns4Get() {
             let H4 = pow(H, 4), Vbox = 16 * H4
-            if t < nsPrevT - 1e-6 { ns.reset(level: -1); nsVTarget = 0 }       // 1 回りの始め：空に
+            // 1 回りの始め（時刻が大きくもどった時）だけ空に。抜けきるのを待つ間は、時刻を毎コマ少しもどして止めているので、
+            //   コマの長さがばらつくと「もどった」と見まちがえて、抜いている途中で水がぱっと消えていた（2026-11-26）
+            if t < nsPrevT - 0.5 { ns.reset(level: -1); nsVTarget = 0 }
             nsPrevT = t
             // 通気口（排水口があって、通気口ありの時）：上 +W の面の通気口を、外の空気につながった口にする（圧力 0）。底から抜ける分だけ、ここから空気が入る
             let ventOn = waterVent && drainShown
@@ -320,16 +334,26 @@ extension OrigamiState {
             //   8⁴ は通気口があっても 85%：満タンからは抜け始めなかった（原因はまだ分からない。2026-11-26）
             let fillMax = ventOn && ns.N >= Self.wFullN ? 0.995 : min(0.95, 1 - 1.2 / Double(ns.N))   // 8⁴ は 93% でも抜け始めなかった（空気の層が 1 マス要る）
             let vf = ns.lastVol / Vbox, pourOn = pouring && vf < fillMax + 0.02, Nf = Float(ns.N)
-            ns.par.vort = Float(waterVort)
-            ns.par.jetOn = pourOn ? 1 : 0; ns.par.topOpen = 0; ns.par.gvec = SIMD4<Float>(gApp); nsSetThin(ns); ns.par.jetD = SIMD4(0, 0, 0, -1); ns.par.pad2 = 0
+            ns.par.vort = Float(waterVort * nsVortK)
+            // 自動の本物の水：重力は手で遊ぶ時と同じ強さ（waterG、ふつう 9.8）で、いつも箱の下（−w、好きな向きなら gDown）。
+            //   見る向きを回しても（▶ はじめる の向き・回し続ける・ドラッグ）、箱は動いていないので、水はゆらさない（遅れる重力・回転の力・ゆさぶりを入れない）。
+            //   前は浅水と同じ弱い重力 2.7 と、見る向きの回転のゆれが入っていて、手で遊ぶ時より ずっと波立っていた（2026-11-26）
+            //   重力の強さは 9.8 の 7 割：9.8 だと静かすぎ、前の 2.7 ＋回転のゆれだと波立ちすぎだったので、その間（でこぼこ 0.47 → 0.63、前は 0.64〜0.84）
+            let gNS = gDown / max(1e-9, simd_length(gDown)) * waterG * Self.wNSGravK * Self.nsGTestK
+            ns.par.jetOn = pourOn ? 1 : 0; ns.par.topOpen = 0; ns.par.gvec = SIMD4<Float>(gNS); nsSetThin(ns); ns.par.jetD = SIMD4(0, 0, 0, -1); ns.par.pad2 = 0
             ns.par.ex2.z = ventOn ? max(0.55, 0.05 * Float(ns.N)) : 0             // 通気口の半分の幅（格子の単位。粗い格子でも 1 マスは開ける）
             ns.par.ex2.w = hole && phase == 4 && !paused && vf < 0.25 ? Float(Self.wFloorSlope * Self.wG) : 0   // 抜く間の最後（25% 未満）は、床が排水口へ少し傾いている（最後の水が口へ集まる）。はじめから入れると 12⁴ が満タンから抜けなかった
             // 入れる所：平均の水位（体積から：V ＝ 8(h＋1)）のすぐ上（2 マス上から 3 マス）。落ちる高さを小さく（天井から落とすと はねすぎる）。
             //   柱の水面を探すと、入れた水が下とつながった時に「水面がそこまで上がった」とまちがえて、入れる所が天井までのぼっていく
-            let hAvg = max(-1, min(1, ns.lastVol / (8 * pow(H, 4)) - 1)), l0 = max(0, min(ns.N - 3, Int(((hAvg * H + H) / Double(ns.par.dx)).rounded()) + 1))   // 1 マス上（静かに）
+            // 入れる所の高さ：注ぐ勢い（waterPourForce）0 で水面の 1 マス上（静か）、1 でふたのすぐ下（高い所から落ちて、水面を強くたたく）。既定は真ん中（2026-11-26）
+            let hAvg = max(-1, min(1, ns.lastVol / (8 * pow(H, 4)) - 1)), lS = max(0, min(ns.N - 3, Int(((hAvg * H + H) / Double(ns.par.dx)).rounded()) + 1))
+            //   粗いマスでは、入れる所（3 マスの厚さ）が箱にくらべて大きすぎて、高くすると水位より先に上の方が水で埋まって見えた（8⁴ で 3 マス ＝ 箱の 4 割）。
+            //   なので高さの効き目は 8⁴ で 0・12⁴ で半分・16⁴ 以上で全部（速さの勢いはどれも同じ）
+            let hK = max(0, min(1, Double(ns.N - 8) / 8))
+            let l0 = max(0, min(ns.N - 3, lS + Int((Double(ns.N - 3 - lS) * waterPourForce * hK).rounded())))
             ns.par.jetC = SIMD4(Float(Self.wUS.x + 1) / 2 * Nf, Float(Self.wUS.y + 1) / 2 * Nf, Float(Self.wUS.z + 1) / 2 * Nf, Float(l0))
-            let jr = 0.32, jv = 0.9                                            // 筋の太さ（世界の単位）と速さ：4 次元では筋の切り口も 3 次元の玉なので、太くないとなかなか溜まらない
-            ns.par.jetR = Float(jr) / ns.par.dx; ns.par.jetV = Float(jv)
+            let jr = 0.32, jv = 0.9 * (0.7 + 0.6 * waterPourForce)           // 筋の太さ（世界の単位）と速さ：4 次元では筋の切り口も 3 次元の玉なので、太くないとなかなか溜まらない。勢いで速く
+            ns.par.jetR = Float(jr) / ns.par.dx; ns.par.jetV = Float(jv * nsJetK)
             ns.par.hole = !paused && hole && (phase == 4 || hOpen) ? Float(drainSize) * Nf / 2 : 0
             ns.par.open = !paused && !hole && phase == 4 ? 1 : 0
             if phase == 4 && nsPrevPhase != 4 && hole && waterSwirl > 0 { ns.addSwirl(Float(waterSwirl)) }   // 栓を抜いた瞬間：お風呂に残っている小さな回転
@@ -343,8 +367,21 @@ extension OrigamiState {
             // 止めた瞬間に 1 回だけ、目標を今の量に（注ぐ途中で目標だけ先に進んでいた分は捨てる）。そのあとは目標を保つ：
             //   毎コマ「今の量」に合わせ直すと、計算で少しずつ減る分を戻さなくなって、止めている間に水がだんだん減っていた
             if paused && waterPauseT <= dt * 1.01 { nsVTarget = min(nsVTarget, ns.lastVol) }
-            nsSloshKick(ns, dt)
+            if paused {
+                // 一時停止中は、マウスで回すと水がゆれる（箱を手で動かしたのと同じ：回る速さの変わりと、手のゆさぶり）。重力は箱の下のまま、ゆれてから戻る（2026-11-26）
+                nsSloshKick(ns, dt); ns.par.gvec = SIMD4<Float>(gNS + nsShake(dt) * nsVortK)
+            } else {
+                ns.par.kick = simd_float4x4(0); nsPrevM4 = m4; nsPrevW = simd_double4x4(0)   // 自動：見る向きの回転は水をゆらさない
+                waterShakeAcc = .zero; waterShakeV = .zero
+            }
+            // ブラックホールの井戸（4D の排水口の渦、見せる形）：抜いている間に だんだん深く。水が減るほど深く（3 次元のお風呂の渦と同じ）、
+            //   渦の強さ（waterSwirl）で深さが変わる。一時停止中は止まったまま
+            let wellOn = hole && phase == 4 && waterSwirl > 0.01 && vf > Self.wVISIBLE
+            if !paused { nsWellK += ((wellOn ? 1 : 0) - nsWellK) * min(1, dt / 1.2); nsWellPh += dt }
+            let wD0 = H * (waterSwirl / 0.42) * (0.3 + 1.3 * (1 - vf) * (1 - vf)) * nsWellK
+            ns.well = SIMD4<Float>(Float(wD0), Float(0.3 * H * drainSize / 0.58), Float(nsWellPh), 1.6)
             ns.tick(dt, target: nsVTarget < 1e-3 || (hOpen && pouring) ? nil : nsVTarget)
+            nsBubbleTick(ns, paused ? 0 : dt, glug: ns.par.hole > 0 && !ventOn)
             let hN = max(-1, min(1, ns.lastVol / (8 * H4) - 1))
             if abs(waterH - hN) > 1e-5 { waterH = hN }
             if phase == 4 && vf > Self.wVISIBLE && waterT > t4 - 0.1 && !hOpen { waterT = t4 - 0.1 }   // 抜けきるまで待つ（見えなくなるまで）
@@ -383,13 +420,21 @@ extension OrigamiState {
     }
     /// 本物の 4D の水のさらさら具合：粘り ν（世界の単位）と、波のブレーキ（ν に合わせて）。速さの運び方は MacCormack（ex2.y ＝ 1：マス目でなまる見かけの粘りを減らす）
     func nsSetThin(_ ns: NS4) {
-        ns.par.nu = Float(waterNu); ns.par.ex2.x = Float(0.25 + 30 * waterNu); ns.par.ex2.y = 1
+        ns.par.nu = Float(waterNu); ns.par.ex2.x = Float((0.25 + 30 * waterNu) * (1 + 3 * nsLight) * (1 - 0.6 * nsHeavy)); ns.par.ex2.y = 1   // 軽い水ほど、波のブレーキを強く（すぐおさまる）。重い液体ほど弱く（止まりにくい）
     }
+    /// 水の軽さ（フィクション）：本当は密度を変えても波の形はほとんど変わらない（重力も勢いも同じ割合で変わる）ので、
+    ///   「勢いがつきにくく、すぐおさまる水」として、波のブレーキ（1〜4 倍）・注ぐ勢い（〜半分）・ゆすった時に置いていかれる力（〜4 割）・渦の強調（〜4 割）をまとめて変える
+    ///   つまみは「水の重さ」：0.5 がふつうの水。0.5 より左が軽い水（nsLight 0〜1）、右が重い液体（nsHeavy 0〜1）
+    var nsLight: Double { max(0, min(1, 1 - 2 * waterHeavy)) }
+    var nsHeavy: Double { max(0, min(1, 2 * waterHeavy - 1)) }
+    /// ゆすった時の反応・渦の強調の倍率（軽い 0.4 〜 ふつう 1 〜 重い 1.5）と、注ぐ速さの倍率（軽い 0.5 〜 ふつう 1 〜 重い 1.4）
+    var nsVortK: Double { (1 - 0.6 * nsLight) * (1 + 0.5 * nsHeavy) }
+    var nsJetK: Double { (1 - 0.5 * nsLight) * (1 + 0.4 * nsHeavy) }
     func nsSloshKick(_ ns: NS4, _ dt: Double) {
         defer { nsPrevM4 = m4 }
         guard let R0 = nsPrevM4, dt > 1e-4 else { nsPrevW = simd_double4x4(0); ns.par.kick = simd_float4x4(0); return }
         let Q = simd_transpose(R0) * m4, Wn = (Q - simd_transpose(Q)) * (0.5 / dt)
-        var dW = (Wn - nsPrevW) * waterSlosh
+        var dW = (Wn - nsPrevW) * waterSlosh * nsVortK          // 軽い水は、箱と一緒に動きやすい。重い液体は置いていかれやすい
         // 急に大きく回した時に暴れないように（1 コマで 0.6 ラジアン／秒まで）
         var mx = 0.0; for c in 0..<4 { for r in 0..<4 { mx = max(mx, abs(dW[c][r])) } }
         if mx > 0.6 { dW = dW * (0.6 / mx) }
@@ -398,11 +443,12 @@ extension OrigamiState {
     }
     /// 遊ぶモード：重力は画面の下（今の向きから、箱の x・y・z・w の向きに直す）。押している間だけ、ふたの近くから注ぐ。開けた面から、こぼれていく
     func waterFreeTick(_ ns: NS4, _ dt: Double) {
+        ns.well.x = 0; nsWellK = 0                                          // 遊ぶモード：ブラックホールの井戸は無し
         let H = Self.half, Vbox = 16 * pow(H, 4)
         waterT += dt; waterTT += dt
         let first = !waterGDirInit
         let gdir = waterFreeGravity(dt)
-        ns.par.gvec = SIMD4<Float>(gdir * waterG + nsShake(dt)); ns.par.vort = Float(waterVort); nsSetThin(ns)
+        ns.par.gvec = SIMD4<Float>(gdir * waterG + nsShake(dt) * nsVortK); ns.par.vort = Float(waterVort * nsVortK); nsSetThin(ns)
         waterFreeTick3(dt, first: first)
         let Nf = Float(ns.N)
         // 画面の上から注ぐ：筋は重力の向きにまっすぐ落ちてきて、ふた（+W の胞）の「注ぐ場所」から入る。ふたが上を向いていない時は入れない
@@ -412,7 +458,7 @@ extension OrigamiState {
         var tMax = 9.0
         for a in 0..<4 where abs(up[a]) > 1e-6 { tMax = min(tMax, ((up[a] > 0 ? 1 : -1) * 0.78 * H - base[a]) / up[a]) }
         let R = H * (abs(up.x) + abs(up.y) + abs(up.z) + abs(up.w)), frac = max(0, min(1, ns.lastVol / Vbox))
-        let c = -R + 2 * R * frac, tSurf = c + 0.14 * H - simd_dot(base, up)
+        let c = -R + 2 * R * frac, tSurf = c + (0.14 + 0.5 * waterPourForce) * H - simd_dot(base, up)   // 注ぐ勢いで、入れる所を高く
         let E = base + up * max(0, min(tMax, tSurf))
         waterEntry4 = E
         let full = ns.lastVol >= 0.88 * Vbox                                // 満タン：これ以上は箱に入れない（口からあふれる）。空気が残っていないと、逆さにしても抜けない
@@ -421,7 +467,7 @@ extension OrigamiState {
         ns.par.jetOn = hold && !full && ns.lastVol < nsVTarget + 0.01 * Vbox ? 1 : 0
         ns.par.jetD = SIMD4<Float>(gdir); ns.par.pad2 = 1; ns.par.ex2.z = 0; ns.par.ex2.w = 0   // 遊ぶモードは、ふたを開けて空気を入れる（通気口は使わない）
         ns.par.jetC = SIMD4<Float>((E / (2 * H) + 0.5) * Double(ns.N))
-        ns.par.jetR = Float(0.24 * (0.7 + 0.3 * waterPourRate)) / ns.par.dx; ns.par.jetV = Float(0.5 * waterPourRate)   // 静かに
+        ns.par.jetR = Float(0.24 * (0.7 + 0.3 * waterPourRate)) / ns.par.dx; ns.par.jetV = Float(0.5 * waterPourRate * (0.7 + 0.6 * waterPourForce) * nsJetK)   // 注ぐ勢いで速く
         ns.par.topOpen = waterLidSet ? 1 : 0
         let holeOn = waterBottomSet && drainMode == 1
         ns.par.hole = holeOn ? Float(drainSize) * Nf / 2 : 0
@@ -440,6 +486,7 @@ extension OrigamiState {
         nsVTarget = min(nsVTarget, ns.lastVol + 0.01 * Vbox)                // 目標が実際の量から離れすぎないように
         nsSloshKick(ns, dt)
         ns.tick(dt, target: nsVTarget < 1e-3 ? nil : nsVTarget, keepAir: true)
+        nsBubbleTick(ns, intPaused ? 0 : dt, glug: false)
         let hN = max(-1, min(1, ns.lastVol / (8 * pow(H, 4)) - 1))
         if abs(waterH - hN) > 1e-5 { waterH = hN }
         let ph = hold ? 1 : (waterBottomSet && ns.lastVol > 1e-3 ? 4 : (ns.lastVol < 1e-3 ? 6 : 2))
@@ -589,9 +636,19 @@ extension OrigamiRenderer {
         var tris: [IntVert] = [], wtris: [IntVert] = [], ptris: [IntVert] = []   // ptris：水面に浮いたつぶ（水の面の後に重ねる）
         let real = st.waterReal
         /// リアルな水の板（3 つの点・面の向きは点の順から。kind：1 水面・0 壁と底）
-        func wface(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>, _ kind: Float, _ na: SIMD3<Double>? = nil, _ nb: SIMD3<Double>? = nil, _ nc: SIMD3<Double>? = nil) {
+        /// tk：その点の水の厚みの割合（0 うすい 〜 1 深い）。水のシェーダーが、うすい所ほどすけて色もうすくする（頂点の p.w）
+        /// hu：レインボーの水の色の値（0〜1、点ごと）。nil ならふつうの水。レインボーの時は kind の所に 2 ＋ 4×kind ＋ 3×hu を入れる（水のシェーダーが分ける）
+        let rainbow = st.waterRainbow, Hh = OrigamiState.half
+        func wface(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>, _ kind: Float, _ na: SIMD3<Double>? = nil, _ nb: SIMD3<Double>? = nil, _ nc: SIMD3<Double>? = nil, tk: (Float, Float, Float) = (1, 1, 1), hu: (Float, Float, Float)? = nil) {
             var nn = simd_cross(b - a, c - a); let l = simd_length(nn); if l < 1e-12 { return }; nn /= l
-            for (p, nv) in [(a, na ?? nn), (b, nb ?? nn), (c, nc ?? nn)] { wtris.append(IntVert(p: SIMD4(gpuW(p), 1), c: SIMD4(gpuW(nv), kind))) }
+            var ka = kind, kb = kind, kc = kind
+            if rainbow, let h3 = hu {                                        // 虹色は 4 次元の水だけ（3 次元の窓の水は、ふつうの水のまま）
+                let base = 2 + 4 * (kind > 0.5 ? 1 : 0) as Float
+                ka = base + 3 * max(0, min(1, h3.0)); kb = base + 3 * max(0, min(1, h3.1)); kc = base + 3 * max(0, min(1, h3.2))
+            }
+            wtris.append(IntVert(p: SIMD4(gpuW(a), tk.0), c: SIMD4(gpuW(na ?? nn), ka)))   // 配列を作らずに 3 つ（たくさん呼ばれるので）
+            wtris.append(IntVert(p: SIMD4(gpuW(b), tk.1), c: SIMD4(gpuW(nb ?? nn), kb)))
+            wtris.append(IntVert(p: SIMD4(gpuW(c), tk.2), c: SIMD4(gpuW(nc ?? nn), kc)))
         }
         let A = Float(0.4 * k)                                            // 面の濃さ（ウェブ版の opacity 0.4）
         func P(_ u: [Double], _ w: Double) -> SIMD3<Double> { st.place(u.map { $0 * H } + [w], n).0 }
@@ -684,13 +741,76 @@ extension OrigamiRenderer {
                 return l > 1e-12 ? n / l : nil
             }
             let smoothN = mesh.t1.count == mesh.p.count
-            for t in 0..<mesh.kind.count {
+            // レインボーの水の色の値：4 次元の奥行き（今の向きで、画面に写すと消える 4 番目の向きの座標）を 0〜1 に。
+            //   箱の手前の面（−H）から奥の面（＋H）で 0〜1（前は 4H で割っていて、色の幅の半分しか使わず、青〜紫ばかりで暗かった）
+            @inline(__always) func hue4(_ q: SIMD4<Float>) -> Float {
+                let v = m4 * SIMD4<Double>(Double(q.x), Double(q.y), Double(q.z), Double(q.w))
+                return Float(max(0, min(1, 0.5 + v.w / (2 * Hh))))
+            }
+            // 水の厚み（点ごと）：その点から重力の向きの上下に、水のマスが続く長さ。うすい水（床にうすく残った水・波のうすい所）ほど、すけて色もうすく。
+            //   前は水全体で 1 つの深さを使っていたので、うすい所も深い所と同じ濃さに見えていた（2026-11-26）
+            let gd4 = st.waterFree ? st.waterGDir : st.gravCustom ? st.gravDown : SIMD4<Double>(0, 0, 0, -1)
+            let gdF = SIMD4<Float>(Float(gd4.x), Float(gd4.y), Float(gd4.z), Float(gd4.w)) / max(1e-6, Float(simd_length(gd4)))
+            let dxF = ns.par.dx, HF = ns.H, NN = ns.N, thinT = Float(OrigamiState.wThinT)
+            // 重力にいちばん近い軸の列で数えた厚み（結果が変わった時だけ作る）を、点のあるマスで読む
+            var gax = 3; for a in 0..<3 where abs(gdF[a]) > abs(gdF[gax]) { gax = a }
+            let tf = real ? ns.thicknessField(axis: gax) : []
+            func thick(_ q0: SIMD4<Float>) -> Float {
+                guard tf.count == NN * NN * NN * NN else { return 1 }
+                let c = (q0 + HF) / dxF
+                @inline(__always) func ci(_ v: Float) -> Int { max(0, min(NN - 1, Int(v.rounded(.down)))) }
+                let i = ci(c.x), j = ci(c.y), k = ci(c.z), l = ci(c.w)
+                var L = tf[((l * NN + k) * NN + j) * NN + i]
+                if L == 0 { L = tf[((max(0, l - 1) * NN + k) * NN + j) * NN + i] }   // 水面の上のマスなら、ひとつ下
+                let t = L / thinT
+                return t >= 1 ? 1 : max(0.05, t * t * (3 - 2 * t))
+            }
+            // 速い道：まとめた点ごとに、写す・面の向き・厚みを 1 回だけ（16⁴ の大きな波で 1 コマ 15 ミリ秒かかっていた）
+            let fast = real && smoothN && mesh.idx.count == mesh.p.count && !mesh.up.isEmpty
+            if fast {
+                let nu = mesh.up.count
+                var PU = [SIMD3<Double>](repeating: .zero, count: nu), NU = [SIMD3<Double>](repeating: .zero, count: nu), HasN = [Bool](repeating: false, count: nu), TU = [Float](repeating: 1, count: nu), HU = [Float](repeating: 0.5, count: rainbow ? nu : 0)
+                for i in 0..<nu {
+                    let q = mesh.up[i], P0 = pj(q); PU[i] = P0; TU[i] = thick(q)
+                    if rainbow { HU[i] = hue4(q) }
+                    let a1 = mesh.ut1[i]
+                    if a1 != .zero { let e: Float = 0.03, n = simd_cross(pj(q + a1 * e) - P0, pj(q + mesh.ut2[i] * e) - P0), l = simd_length(n); if l > 1e-12 { NU[i] = n / l; HasN[i] = true } }
+                }
+                for t in 0..<mesh.kind.count {
+                    let ia = Int(mesh.idx[3 * t]), ib = Int(mesh.idx[3 * t + 1]), ic = Int(mesh.idx[3 * t + 2]), kd = mesh.kind[t]
+                    let a = PU[ia], b = PU[ib], c = PU[ic], tk = (TU[ia], TU[ib], TU[ic]), hu: (Float, Float, Float)? = rainbow ? (HU[ia], HU[ib], HU[ic]) : nil
+                    if kd > 0.5 && HasN[ia] && HasN[ib] && HasN[ic] {
+                        let fn = simd_cross(b - a, c - a), na = NU[ia], nb = NU[ib], nc = NU[ic]
+                        wface(a, b, c, kd, simd_dot(na, fn) < 0 ? -na : na, simd_dot(nb, fn) < 0 ? -nb : nb, simd_dot(nc, fn) < 0 ? -nc : nc, tk: tk, hu: hu)
+                    } else { wface(a, b, c, kd, tk: tk, hu: hu) }
+                }
+            }
+            for t in 0..<mesh.kind.count where !fast {
                 let a = pj(mesh.p[3 * t]), b = pj(mesh.p[3 * t + 1]), c = pj(mesh.p[3 * t + 2]), kd = mesh.kind[t]
+                let tk = real ? (thick(mesh.p[3 * t]), thick(mesh.p[3 * t + 1]), thick(mesh.p[3 * t + 2])) : (Float(1), Float(1), Float(1))
+                let hu: (Float, Float, Float)? = rainbow ? (hue4(mesh.p[3 * t]), hue4(mesh.p[3 * t + 1]), hue4(mesh.p[3 * t + 2])) : nil
                 if real && smoothN && kd > 0.5, let na = vn(3 * t, a), let nb = vn(3 * t + 1, b), let nc = vn(3 * t + 2, c) {
                     let fn = simd_cross(b - a, c - a)                          // 向きをそろえる（三角形の向きと同じ側に）
-                    wface(a, b, c, kd, simd_dot(na, fn) < 0 ? -na : na, simd_dot(nb, fn) < 0 ? -nb : nb, simd_dot(nc, fn) < 0 ? -nc : nc)
-                } else if real { wface(a, b, c, kd) }
+                    wface(a, b, c, kd, simd_dot(na, fn) < 0 ? -na : na, simd_dot(nb, fn) < 0 ? -nb : nb, simd_dot(nc, fn) < 0 ? -nc : nc, tk: tk, hu: hu)
+                } else if real { wface(a, b, c, kd, tk: tk, hu: hu) }
                 else { let col = kd > 0.5 ? Self.liqMen * 0.85 : Self.liqWall; face(a, b, c, col, col, col) }
+            }
+            // 4D の空気の泡：4 次元の小さな玉を写した 3D の小さな玉（水の面として描く＝ふちが光って、すけて見える。うすい水と同じすけ方）
+            if real {
+                // 単位の玉の点は 1 回だけ作って使い回す（泡がたくさんの時に、毎コマ配列を作り直して重くなっていた）
+                let US = OrigamiRenderer.bubbleSphere, NBT = OrigamiRenderer.bubNT, NBP = OrigamiRenderer.bubNP
+                wtris.reserveCapacity(wtris.count + st.nsBubbles.count * NBT * NBP * 6)
+                for bb in st.nsBubbles {
+                    let r0 = st.place([bb.p.x, bb.p.y, bb.p.z, bb.p.w], 4), C = r0.0, rr = bb.r * r0.1 * min(1, bb.age * 6)   // 生まれた時は小さくふくらむ
+                    guard rr > 1e-4 else { continue }
+                    for i in 0..<NBT { for j in 0..<NBP {
+                        let j1 = (j + 1) % NBP, a = US[i * NBP + j], b = US[(i + 1) * NBP + j], c = US[(i + 1) * NBP + j1], d = US[i * NBP + j1]
+                        let pa = gpuW(C + a * rr), pb = gpuW(C + b * rr), pc = gpuW(C + c * rr), pd = gpuW(C + d * rr)
+                        let na = SIMD4<Float>(gpuW(a), 1), nb = SIMD4<Float>(gpuW(b), 1), nc = SIMD4<Float>(gpuW(c), 1), nd = SIMD4<Float>(gpuW(d), 1)
+                        wtris.append(IntVert(p: SIMD4(pa, 0.3), c: na)); wtris.append(IntVert(p: SIMD4(pb, 0.3), c: nb)); wtris.append(IntVert(p: SIMD4(pc, 0.3), c: nc))
+                        wtris.append(IntVert(p: SIMD4(pa, 0.3), c: na)); wtris.append(IntVert(p: SIMD4(pc, 0.3), c: nc)); wtris.append(IntVert(p: SIMD4(pd, 0.3), c: nd))
+                    } }
+                }
             }
             // 輪切りの切り口：軸 a ＝ c の 3D の立方体（残りの 3 つの向きが ±H）を金色の線で
             if st.waterSlice > 0 {
@@ -1093,16 +1213,23 @@ extension OrigamiRenderer {
                     return cs.map { c in var u = c.map { $0 * sc }; u[0] += ox; u[1] += oy; return P(u, -H - zd) }
                 }
                 var prev = ring(0)
+                let rbO = d == 3 && nsO != nil                                 // レインボーの水：排水も、落ちるほど色が変わる虹の柱（4 次元の水だけ）
                 for m in 1...MS {
                     let zd = solidL * Double(m) / Double(MS), cur = ring(zd)
-                    for (i, j) in edges { wface(prev[i], prev[j], cur[j], 1); wface(prev[i], cur[j], cur[i], 1) }
+                    let ha = Float(m - 1) / Float(MS), hb = Float(m) / Float(MS)
+                    for (i, j) in edges { wface(prev[i], prev[j], cur[j], 1, hu: rbO ? (ha, ha, hb) : nil); wface(prev[i], cur[j], cur[i], 1, hu: rbO ? (ha, hb, hb) : nil) }
                     prev = cur
                 }
                 // 先のしずく：柱の先から下へ、g で速くなりながら
                 for q in 0..<14 {
                     let f = (T * 1.7 + Double(q) / 14).truncatingRemainder(dividingBy: 1), zd = solidL + ((-H - bottom) - solidL) * f * f + 0.02
                     var u = [sin(Double(q) * 2.3) * s0 * 0.7, cos(Double(q) * 1.9) * s0 * 0.7]; if d == 3 { u.append(sin(Double(q) * 3.1) * s0 * 0.7) }
-                    rod(P(u, -H - zd), P(u, -H - zd - 0.06 * H), SIMD3(0.75, 0.92, 1), 1.3 * (1 - f))
+                    var dc = SIMD3<Float>(0.75, 0.92, 1)
+                    if rbO && st.waterRainbow {                                 // しずくも虹色（落ちるほど色が進む）
+                        let hh = (f + T * 0.035).truncatingRemainder(dividingBy: 1) * 6
+                        dc = SIMD3<Float>((0..<3).map { c in Float(max(0, min(1, abs(((hh + [0.0, 4, 2][c]).truncatingRemainder(dividingBy: 6)) - 3) - 1))) } ) * 0.8 + 0.2
+                    }
+                    rod(P(u, -H - zd), P(u, -H - zd - 0.06 * H), dc, 1.3 * (1 - f))
                 }
             }
         } else if real, let out = st.waterOut, out.x > out.y + 1e-4 {
@@ -1455,5 +1582,122 @@ extension OrigamiRenderer {
             }
         }
         mark(tip, (gr && !st.gravGrabW ? 0.11 : 0.085) * H, gold * (gr ? 1.6 : 1.2))   // つかむ所：頭の先の輪（まっすぐ −w の時は真ん中）
+    }
+}
+
+
+// ---- 4D の空気の泡：注いだ水が水面に当たる所（空気をまきこむ）と、通気口が無い時に排水口から入る空気（ごぼっ）で生まれる。
+//   本物の 4D の水の流れ（GPU の速さ）に乗って運ばれ、重力の逆へ浮き上がり、水から出ると消える（パチン）。4 次元の小さな玉＝写すと 3D の小さな玉 ----
+struct NSBubble { var p: SIMD4<Double>; var r: Double; var age: Double; var wob: Double; var vent = false }   // vent：消えた空気から生まれて、通気口（なければふた）へ逃げる泡
+
+extension OrigamiState {
+    static let bubMax = 260, bubRise = 0.32, bubRate = 34.0, bubGlug = 20.0   // 泡の数の上限・浮く速さ（世界の長さ／秒）・注ぐ所で 1 秒に生まれる数・ごぼっの時
+    private func bubRand() -> Double { nsBubbleSeed = nsBubbleSeed &* 6364136223846793005 &+ 1442695040888963407; return Double(nsBubbleSeed >> 11) / Double(1 << 53) }
+    func nsBubbleTick(_ ns: NS4, _ dt: Double, glug: Bool) {
+        guard dt > 0 else { return }
+        let H = Double(ns.H), dx = Double(ns.par.dx), N = ns.N
+        let g4 = SIMD4<Double>(Double(ns.par.gvec.x), Double(ns.par.gvec.y), Double(ns.par.gvec.z), Double(ns.par.gvec.w)), gl = simd_length(g4)
+        let up = gl > 1e-6 ? -g4 / gl : SIMD4<Double>(0, 0, 0, 1)
+        func cell(_ p: SIMD4<Double>) -> SIMD4<Int> { let q = (p + H) / dx; return SIMD4(Int(q.x.rounded(.down)), Int(q.y.rounded(.down)), Int(q.z.rounded(.down)), Int(q.w.rounded(.down))) }
+        func inWater(_ p: SIMD4<Double>) -> Bool { let c = cell(p); guard c.x >= 0, c.y >= 0, c.z >= 0, c.w >= 0, c.x < N, c.y < N, c.z < N, c.w < N else { return false }; return ns.phiAt(c.x, c.y, c.z, c.w) < 0 }
+        // 生まれる：注いでいる間は筋の当たる所（水面の少し下）、ごぼっの時は床の真ん中（排水口）
+        var born = 0.0
+        if ns.par.jetOn != 0 { born += Self.bubRate * dt }
+        if glug { born += Self.bubGlug * dt * (0.5 + 0.5 * sin(waterTT * 9)) }
+        nsBubbleAcc += born
+        while nsBubbleAcc >= 1 && nsBubbles.count < Self.bubMax {
+            nsBubbleAcc -= 1
+            var p: SIMD4<Double>
+            if ns.par.jetOn != 0 && (!glug || bubRand() < 0.5) {
+                let jc = SIMD4<Double>(Double(ns.par.jetC.x), Double(ns.par.jetC.y), Double(ns.par.jetC.z), Double(ns.par.jetC.w)) * dx - H
+                let rr = Double(ns.par.jetR) * dx * 0.9
+                var off = SIMD4<Double>(bubRand() - 0.5, bubRand() - 0.5, bubRand() - 0.5, bubRand() - 0.5) * 2 * rr
+                off -= up * simd_dot(off, up)                                 // 筋の太さの中（重力に垂直な向き）
+                p = jc + off - up * (dx * (1 + 2.5 * bubRand()))              // 水面の少し下
+                if ns.par.pad2 < 0.5 { p.w = jc.w - dx * (1.5 + 2.5 * bubRand()); p.x = jc.x + off.x; p.y = jc.y + off.y; p.z = jc.z + off.z }
+            } else {
+                p = SIMD4(0, 0, 0, -H + dx * 0.8) + SIMD4(bubRand() - 0.5, bubRand() - 0.5, bubRand() - 0.5, 0) * (Double(drainSize) * H)
+            }
+            guard inWater(p) else { continue }
+            nsBubbles.append(NSBubble(p: p, r: dx * (0.18 + 0.32 * bubRand()), age: 0, wob: bubRand() * 6.28))
+        }
+        nsAirEscape(ns)
+        // 動く：その場所の水の速さ（マスの両側の壁の速さの平均）＋ 浮く速さ ＋ ゆらぎ。水から出たら消える
+        let MM = ns.MM, M = ns.M
+        let u = ns.U.contents().bindMemory(to: Float.self, capacity: 4 * MM)
+        var keep: [NSBubble] = []; keep.reserveCapacity(nsBubbles.count)
+        for var b in nsBubbles {
+            b.age += dt
+            let c = cell(b.p)
+            if c.x >= 0, c.y >= 0, c.z >= 0, c.w >= 0, c.x < N, c.y < N, c.z < N, c.w < N {
+                var v = SIMD4<Double>(0, 0, 0, 0), id = ((c.w * M + c.z) * M + c.y) * M + c.x
+                let st4 = [1, M, M * M, M * M * M]
+                for k in 0..<4 { v[k] = 0.5 * Double(u[k * MM + id] + u[k * MM + id + st4[k]]) }
+                let sp = Self.bubRise * (0.6 + b.r / dx), w1 = sin(b.age * 7 + b.wob) * 0.05, w2 = cos(b.age * 5.3 + b.wob * 1.7) * 0.05
+                var side = SIMD4<Double>(1, 0, 0, 0) - up * up.x; if simd_length(side) < 0.3 { side = SIMD4(0, 1, 0, 0) - up * up.y }; side = simd_normalize(side)
+                var toV = SIMD4<Double>(0, 0, 0, 0)
+                if b.vent {                                                    // 通気口（なければ ふたの真ん中）へ寄っていく（浮く向きに垂直な向きだけ）
+                    var tgt = SIMD4<Double>(0, 0, 0, H)
+                    if waterVent && drainShown { let c0 = (floor(Double(N) * 0.25) + 0.5) * dx - H, c1 = (floor(Double(N) * 0.75) + 0.5) * dx - H; tgt = SIMD4(c0, c1, c0, H) }
+                    var d = tgt - b.p; d -= up * simd_dot(d, up); toV = d * 1.6
+                }
+                b.p += (v + up * sp + side * w1 + SIMD4(0, 0, 1, 0) * w2 + toV) * dt
+            } else { continue }
+            if !inWater(b.p) || b.age > 9 { continue }                        // 水面に出た・箱の外：パチン
+            b.p = simd_clamp(b.p, SIMD4(repeating: -H + 0.01), SIMD4(repeating: H - 0.01))
+            keep.append(b)
+        }
+        nsBubbles = keep
+    }
+}
+
+
+extension OrigamiRenderer {
+    /// 泡の単位の玉（緯度 bubNT＋1 本 × 経度 bubNP 点）
+    static let bubNT = 4, bubNP = 7
+    static let bubbleSphere: [SIMD3<Double>] = (0...bubNT).flatMap { i -> [SIMD3<Double>] in
+        let th = Double.pi * Double(i) / Double(bubNT)
+        return (0..<bubNP).map { j in let ph = 2 * Double.pi * Double(j) / Double(bubNP); return SIMD3(sin(th) * cos(ph), cos(th), sin(th) * sin(ph)) }
+    }
+}
+
+
+// ---- 消える空気を泡にして逃がす：この水の計算は空気を「何もない所（圧力 0）」としてあつかうので、水に囲まれた空気や、満タン近くの角に残った空気は、
+//   水が来ると一瞬で消えてしまう（本物は、出口から出ていかないと消えない）。消えた空気のマスから泡を出して、浮かせて、通気口（なければふた）へ逃がす（見た目の直し）。
+//   空気のかたまりは 4D の 8 つのとなりでつないで分け、いちばん上の層（w の上の端）にふれているものを「外とつながった空気」、ほかを「閉じこめられた空気」とする ----
+extension OrigamiState {
+    func nsAirEscape(_ ns: NS4) {
+        guard ns.resultID != nsAirRID, ns.phiCPU.count == ns.MM else { return }
+        nsAirRID = ns.resultID
+        let N = ns.N, NN = N * N * N * N
+        if N >= 24 { nsAirSkip += 1; if nsAirSkip % 4 != 0 { return } }           // 細かいマスは 4 回に 1 回（重いので）
+        // 空気のマスと、そのつながり（いちばん上の層にふれているか）
+        var lab = [UInt8](repeating: 0, count: NN), M = ns.M
+        @inline(__always) func at(_ i: Int, _ j: Int, _ k: Int, _ l: Int) -> Int { ((l * N + k) * N + j) * N + i }
+        ns.phiCPU.withUnsafeBufferPointer { F in
+            for l in 0..<N { for k in 0..<N { for j in 0..<N { for i in 0..<N where F[((l * M + k) * M + j) * M + i] >= 0 { lab[at(i, j, k, l)] = 2 } } } }
+        }
+        var stack: [Int] = []
+        for k in 0..<N { for j in 0..<N { for i in 0..<N { let c = at(i, j, k, N - 1); if lab[c] == 2 { lab[c] = 1; stack.append(c) } } } }
+        let st4 = [1, N, N * N, N * N * N]
+        while let c = stack.popLast() {
+            var r = c; var q = [0, 0, 0, 0]; for a in 0..<4 { q[a] = r % N; r /= N }
+            for a in 0..<4 { for sg in [-1, 1] { let qa = q[a] + sg; guard qa >= 0, qa < N else { continue }; let n = c + sg * st4[a]; if lab[n] == 2 { lab[n] = 1; stack.append(n) } } }
+        }
+        // 前は空気で、今は水になったマスから泡（閉じこめられた空気はいつも・つながった空気は満タン近くだけ）
+        let full = ns.lastVol / max(1e-9, ns.capVolCompat), H = Double(ns.H), dx = Double(ns.par.dx)
+        if nsAirPrev.count == NN && nsAirN == N {
+            for c in 0..<NN where nsAirPrev[c] != 0 && lab[c] == 0 && nsBubbles.count < Self.bubMax + 100 {
+                let trapped = nsAirPrev[c] == 2
+                guard trapped || full > 0.88 else { continue }
+                nsBubbleSeed = nsBubbleSeed &* 6364136223846793005 &+ 1442695040888963407
+                let rnd = Double(nsBubbleSeed >> 11) / Double(1 << 53)
+                guard rnd < (trapped ? 0.7 : 0.45) else { continue }
+                var r = c; var q = SIMD4<Double>(0, 0, 0, 0); for a in 0..<4 { q[a] = Double(r % N); r /= N }
+                let p = (q + 0.5) * dx - H
+                nsBubbles.append(NSBubble(p: p, r: dx * (0.22 + 0.25 * rnd), age: 0, wob: rnd * 6.28, vent: true))
+            }
+        }
+        nsAirPrev = lab; nsAirN = N
     }
 }

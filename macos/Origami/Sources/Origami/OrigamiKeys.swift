@@ -62,6 +62,7 @@ final class ShortcutStore: ObservableObject {
         ShortcutAction(id: "axis", label: "座標軸 表示／非表示", def: "A") { $0.showAxes.toggle() },
         ShortcutAction(id: "origin", label: "リセット（回転を止めて 6 面とも 0）", def: "O") { $0.resetAll() },
         ShortcutAction(id: "snap", label: "補正（z 軸を画面に垂直へ。回転は止めない）", def: "S") { $0.snap() },
+        ShortcutAction(id: "straight", label: "まっすぐ（画面の中の 2 本の軸を、いちばん近い縦・横に）", def: "Shift+S") { $0.straighten() },
         ShortcutAction(id: "reset", label: "初期化（開いた時の姿へ）", def: "R") { $0.resetAll(); $0.progress = 1; $0.playing = false; $0.loop = false; $0.explodeRaw = 0; $0.xpAnim = nil },
         ShortcutAction(id: "play", label: "回転アニメ 再生", def: "P") { $0.playRotAnim() },
         ShortcutAction(id: "preset_cell", label: "どこから見る：胞から", def: "H") { $0.goView(0, animated: true) },

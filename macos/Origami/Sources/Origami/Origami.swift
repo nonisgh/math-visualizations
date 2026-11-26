@@ -267,12 +267,23 @@ final class OrigamiState: ObservableObject {
     var waterDragIdle = 99.0                                       // 最後に箱を回すドラッグをしてからの秒（離したら水をおだやかに）
     var waterShakeAcc = SIMD2<Double>(0, 0), waterShakeV = SIMD2<Double>(0, 0)   // ゆさぶり：このコマにたまったドラッグ量・なめらかにした手の速さ（画面の横・縦）
     var nsLagM4: simd_double4x4? = nil                              // 水が感じる「下」の向き：箱の向きに少し遅れてついてくる（回すと水が傾いて寄り、止めるとゆれもどる）
+    @Published var waterPourForce = 0.5                            // 注ぐ勢い（本物の水）：0 水面のすぐ上からそっと・1 ふたの近くの高い所から勢いよく。既定は真ん中
+    @Published var waterRainbow = false                            // レインボーの水（ふしぎな 4 次元の水）：色が 4 次元の奥行き（画面に写すと消える向き）を表す
+    @Published var waterHeavy = 0.5                               // 水の重さ（フィクション、0 とても軽い 〜 0.5 ふつうの水 〜 1 とても重い液体）。OrigamiWater の nsLight・nsHeavy（2026-11-26 に「水の軽さ」から改名）
     @Published var waterNu = 0.004                                  // 本物の 4D の水の粘り（動粘性、世界の単位）。小さいほどさらさら（前は 0.012）
     @Published var waterSlosh = 1.0                                 // 回した時のちゃぷちゃぷの強さ（1 ＝ 本物どおり）
     var ns4: NS4? = nil, ns4Failed = false, nsVTarget = 0.0, nsPrevT = 0.0, nsPrevPhase = 0
+    var nsBubbles: [NSBubble] = [], nsBubbleSeed: UInt64 = 0x9E3779B97F4A7C15, nsBubbleAcc = 0.0
+    var nsAirPrev: [UInt8] = [], nsAirN = 0, nsAirRID = -1, nsAirSkip = 0   // 消える空気：前に調べた時の空気のマス（0 水・1 つながった空気・2 閉じこめられた空気）   // 4D の空気の泡（OrigamiWater.swift の nsBubbleTick）
     /// 4D の水のマスの細かさ（おまかせ：16。ユーザーが「いろいろ試したが 16⁴ で十分、これがいちばん軽い」）
-    var ns4N: Int { [8, 12, 16, 24, 32].contains(waterNSRes) ? waterNSRes : 16 }
+    var ns4N: Int { waterNSRes == 8 ? (nsVbrHigh ? 12 : 8) : [8, 12, 16, 24, 32].contains(waterNSRes) ? waterNSRes : 16 }
+    // マス目の VBR（8⁴ を選んだ時。2026-11-26 にユーザーと決めた）：ふだんは 8⁴（わかりやすく軽い）、満タンの前後だけ 12⁴（8⁴ は 85% までしか入らず、満タンから抜き始められない）。
+    //   切りかえる時は、水の形と流れの速さを新しいマス目に写しかえる（水は消えない）
+    var nsVbrHigh = false, nsKeep: [Int: NS4] = [:]
+    var nsWellK = 0.0, nsWellPh = 0.0                                // ブラックホールの井戸（4D の排水口の渦）：強さ（0〜1、なめらかに）・らせんの回る角度
     func ns4Get() -> NS4? {
+        // VBR の切りかえ：水を写しかえる。前に作ったその細かさの水は取っておいて使い回す（バッファを作り直さない）
+        if let s = ns4, s.N != ns4N, waterNSRes == 8, let n = nsKeep[ns4N] ?? NS4(N: ns4N) { nsKeep[s.N] = s; nsKeep[ns4N] = n; n.copyResampled(from: s); ns4 = n }
         if let s = ns4, s.N != ns4N { ns4 = nil; ns4Failed = false; nsVTarget = 0; _ = s }   // 細かさを変えたら作り直す（水は最初から）
         if ns4 == nil && !ns4Failed { ns4 = NS4(N: ns4N); if let s = ns4 { s.reset(level: -1) } else { ns4Failed = true } }
         return ns4
@@ -289,12 +300,18 @@ final class OrigamiState: ObservableObject {
     @Published var shapeKind = 3                                    // 1 球柱・2 デュオシリンダー・3 タイガー・4 4 次元トーラス・5 超球
     @Published var shapeMainProj = false                            // メインの窓を 4D の影に（小さい窓が断面）
     @Published var shapePlay = false; var shapeDirSign = 1.0
+    @Published var shapeShadowOn = true                             // 4D の窓に影を出す（今はいつも出す。パネルのスイッチは断面の光の方）
+    @Published var shapeGlowOn = true                               // 4D の影の中に、今切っている所（断面）を光らせる。切ると全体像だけ
+    var shapeGlowAlpha = 1.0 { willSet { uiChanged() } }            // 断面の光の濃さ（0〜1 を掛ける）
+    var shapeShadowAlpha = 1.0 { willSet { uiChanged() } }          // 影の濃さ（0〜1 を掛ける）
+    @Published var shapeShadowMode = 1                              // 4D の影の見せ方：0 w の輪切りを重ねる（うすい殻）・1 積分の積み上げ（積分タブと同じ絵）・2 本物の影（立体）
     var shapeCut = 0.0 { willSet { uiChanged() } }                  // 切る位置（−1〜＋1、立体がおさまる半径を 1 として）
+    var shapeSolKey: [Double] = [], shapeSolCache: (p: [SIMD3<Double>], n: [SIMD3<Double>], y: [Double]) = ([], [], [])   // 本物の影（立体）の面
     var shapeSecKey: [Double] = [], shapeSecCache = ShapeMesh(), shapeLayCache: [ShapeMesh] = [], shapeLayKind = -1, shapeAnaCache: [SIMD3<Double>] = [], shapeAnaKind = -1
     var secPos = 0.0 { willSet { uiChanged() } }                  // 包丁の位置（−1 いちばん手前の頂点 〜 ＋1 いちばん奥の頂点）
     @Published var secPlay = false                                // 包丁を自動で往復させる
     var secDirSign = 1.0
-    var secInfo = ["", ""] { willSet { uiChanged() } }            // 切り口の形の名前（立方体・超立方体）
+    var secInfo = ["", "", ""] { willSet { uiChanged() } didSet { while secInfo.count < 3 { secInfo.append("") } } }   // 3 つ目＝立体を見る時のメインの窓            // 切り口の形の名前（立方体・超立方体）
     var smartLine = 0.7 { willSet { uiChanged() } }   // 線を立体になじませる（賢く）：胞の色を混ぜた角の色・輪郭ははっきり・中の線はうすく。0 で今までの線
     var softMul = 0.5 { willSet { uiChanged() } }   // やわらかい乗算（0 今までの乗算・1 いちばんやわらか）。目がつかれにくいように
     // 色温度（−1 青み 〜 ＋1 暖かみ。既定 0）：画面全体の色を、明るさを変えずにずらす（青みがかって目がつかれる時に）
@@ -347,7 +364,7 @@ final class OrigamiState: ObservableObject {
     //   立方体は、カメラから見て表を向いている面（多くて 3 面）。裏だけ＝その反対。胞ごと（面も辺も）描かない
     @Published var faceSide = 0
     // 見えている胞の数（窓ごと：[見せている数, 全部]）。表だけ・裏だけの時、窓の上の札に（ウェブ版の「見えている胞 4 / 8」）
-    var sideShown = [[0, 6], [0, 8]] { willSet { uiChanged() } }
+    var sideShown = [[0, 6], [0, 8], [0, 8]] { willSet { uiChanged() } didSet { while sideShown.count < 3 { sideShown.append([0, 8]) } } }
     /// その胞が表か（組み上がった形での外向きの向きで決める。ウェブ版の xpIsFront と同じ）
     func cellFront(_ cell: Cell, _ n: Int, eye: SIMD3<Double>) -> Bool {
         let (fa, fv) = Self.fixed(cell, n)
@@ -507,11 +524,15 @@ final class OrigamiState: ObservableObject {
     @Published var axisSyncOn = false
     @Published var axisSyncMinus = false
     @Published var palSel = "4:px"
-    var zoom = [1.0, 1.0, 1.0], dist = [9.0, 9.0, 9.0], center = [SIMD2<Double>(0, 0), SIMD2<Double>(0, 0), SIMD2<Double>(0, 0)]   // 3 つ目＝立体を見る時のメインの窓   // 見る所（形の真ん中へなめらかに寄る）
+    // 窓ごとの値は 3 つ（3 つ目＝立体を見る時のメインの窓）。前からの 2 つの値を入れる所（保存の読みこみ・最初にもどす）があるので、足りなければ足す（2026-11-26：3 つ目を読んで落ちた）
+    var zoom = [1.0, 1.0, 1.0] { didSet { while zoom.count < 3 { zoom.append(zoom.last ?? 1) } } }
+    var dist = [9.0, 9.0, 9.0] { didSet { while dist.count < 3 { dist.append(dist.last ?? 9) } } }
+    var center = [SIMD2<Double>(0, 0), SIMD2<Double>(0, 0), SIMD2<Double>(0, 0)] { didSet { while center.count < 3 { center.append(.zero) } } }   // 見る所（形の真ん中へなめらかに寄る）
     // 図形の移動（ウェブ版の移動パッド・⌘／Ctrl＋ドラッグ）：絵を画面の上で平行にずらす量（窓の幅・高さの半分を 1 とする。右・上が＋。窓ごと）。
     //   見る位置（カメラ）は動かさないので、図形の見え方（遠近のかかり方）は変わらない（ウェブ版の setViewOffset と同じ）
-    var pan = [SIMD2<Double>(0, 0), SIMD2<Double>(0, 0), SIMD2<Double>(0, 0)] { willSet { uiChanged() } }
-    var paneWpt = [400.0, 400.0, 400.0], paneHpt = [400.0, 400.0, 400.0]   // 窓の幅・高さ（ポイント。ドラッグの量を割合に直すため）
+    var pan = [SIMD2<Double>(0, 0), SIMD2<Double>(0, 0), SIMD2<Double>(0, 0)] { willSet { uiChanged() } didSet { while pan.count < 3 { pan.append(.zero) } } }
+    var paneWpt = [400.0, 400.0, 400.0] { didSet { while paneWpt.count < 3 { paneWpt.append(400) } } }
+    var paneHpt = [400.0, 400.0, 400.0] { didSet { while paneHpt.count < 3 { paneHpt.append(400) } } }   // 窓の幅・高さ（ポイント。ドラッグの量を割合に直すため）
     @Published var panPad = true                 // 移動パッド（窓の左の丸）を出す
     /// 画面で (dx, dy) ポイント（右・下が＋）つかんで動かす：中身がつかんだ向きへついてくる
     func panBy(_ i: Int, _ dx: Double, _ dy: Double) {
@@ -640,7 +661,7 @@ final class OrigamiState: ObservableObject {
     var xpDistK = 1.0 { willSet { uiChanged() } }
     var xpAnim: (from: Double, to: Double, t: Double, total: Double)? = nil
     static let XP_DUR = 0.72, XP_STAG = 0.05, XP_FLASH = 0.35
-    var labels: [[SIMD3<Double>]] = [[], [], []]  // 番号の札の位置（離したあとの胞の中心。左・右）
+    var labels: [[SIMD3<Double>]] = [[], [], []] { didSet { while labels.count < 3 { labels.append([]) } } }  // 番号の札の位置（離したあとの胞の中心。左・右）
     var xpStag: Double { xpStagger ? Self.XP_STAG : 0 }
     static func easeOutBack(_ u: Double, _ k: Double = 1.7) -> Double { 1 + (k + 1) * pow(u - 1, 3) + k * pow(u - 1, 2) }
     static func easeInBack(_ u: Double, _ k: Double = 1.4) -> Double { (k + 1) * u * u * u - k * u * u }
@@ -750,6 +771,25 @@ final class OrigamiState: ObservableObject {
         // なめらかに回っている途中なら、行き先の Z-W・X-Z・Y-Z も 0 に（でないと次のコマで回転が上書きして、補正が消える）
         if var tw = tween { for k in [2, 4, 5] { tw.from[k] = 0; tw.to[k] = 0 }; tween = tw }
         updateMats()
+    }
+    /// まっすぐ：画面の中に寝ている 2 本の軸（4 本のうち、画面に写った長さの長い 2 本）が、いちばん近い縦・横にそろうように、
+    ///   絵を画面の中で回す（見る向きの軸のまわり。4D の回転・手前への傾きはそのまま）。ななめになった y 軸を真上へ、など。なめらかに 0.4 秒で
+    func straighten() {
+        updateMats()
+        let cols = (0..<4).map { SIMD2<Double>(m4[$0][0], m4[$0][1]) }    // 軸 k の画面の上の向き（原点のそばの写り：回したあとの x・y）
+        let order = (0..<4).sorted { simd_length(cols[$0]) > simd_length(cols[$1]) }
+        // 2 本は写ると直角とはかぎらないので、どちらか 1 本をぴったりに：長さが同じくらい（15% 以内）なら縦に近いほう（ななめの y 軸を真上へ）、ちがえば長いほう
+        let a = cols[order[0]], b = cols[order[1]], q = Double.pi / 2
+        func off(_ v: SIMD2<Double>) -> Double { let th = atan2(v.y, v.x); return (th / q).rounded() * q - th }   // いちばん近い 90° の倍数へのずれ（−45°〜45°）
+        func vert(_ v: SIMD2<Double>) -> Double { abs(v.y) / max(1e-9, simd_length(v)) }
+        guard simd_length(a) > 1e-3 else { return }
+        let pick = simd_length(b) > 0.85 * simd_length(a) && vert(b) > vert(a) ? b : a
+        let phi = off(pick)
+        guard abs(phi) > 1e-4 else { return }
+        spinXY = false; spinXZ = false; spinYZ = false
+        if pp != nil { view3 = Self.R(0, 1, phi) * view3; updateMats(); return }
+        let r = Self.decompose(Self.R(0, 1, phi) * c3, [xy, xz, yz])
+        tween = ([ax, ay, zw, xy, xz, yz], [ax, ay, zw, r[0], r[1], r[2]], 0, 0.4, projBlend, projBlend)
     }
     /// リセット：回転を止めて、全部の角度を 0 に（正面）
     func resetAll() { memUp = nil; memDown = nil; asmLand = nil; asmPose = 0; asmVanish = 3; if unfPose >= 2 { unfPose = 0 }; stopSpins(); stopPP(); cycling = false; tween = nil; stepRemain = [0, 0, 0]; stepVel = [0, 0, 0]; presetPar = nil; viewSel = -1; pan = [.zero, .zero]; reset() }
@@ -1055,7 +1095,21 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
         if showsSectionOnly {
             intMarks = []; intSpheres = []
             intBatches = shapeSectionBatch(eye: eye, glow: false).map { [$0] } ?? []
-            return ([], [], [], OrigamiState.shpBound(st.shapeKind).r4 * 1.35, SIMD2(0, 0))
+            // 座標軸：ふつうの 4D の窓と同じ写し方で（回すと軸も回る。前は軸を作り直さず、名前が止まったままだった）
+            var rods: [TLRod] = [], balls: [TLBall] = []
+            cones = []
+            let o0 = st.place([0, 0, 0, 0], 4).0, AL = 1.8 * 1.35 * 0.8
+            for ax in 0..<4 where st.showAxes {
+                var e = [0.0, 0, 0, 0]; e[ax] = AL
+                let b = st.place(e, 4).0, col = st.axisColor(ax, 4), dS = b - o0, dl = simd_length(dS)
+                axisT[ax] = 1; axisTip[ax] = b + dS / max(dl, 1e-6) * 0.17
+                if dl > 1e-3 { rods.append(TLRod(a: SIMD4(gpu(o0), 0), b: SIMD4(gpu(b), 0), col: SIMD4(col, 0.8 / 1.4))) }
+                let f = dl > 1e-3 ? simd_length(simd_cross(dS / dl, simd_normalize(b - eye))) : 0
+                if st.raster && f > 0.2 { cones.append(TLCone(a: SIMD4(gpu(b + dS / dl * 0.17), 0), b: SIMD4(gpu(b), 0.045), col: SIMD4(col, 1))) }
+                else { balls.append(TLBall(p: SIMD4(gpu(b), 0.04), col: SIMD4(col, 2))) }
+            }
+            nAxRods = rods.count
+            return ([], rods, balls, OrigamiState.shpBound(st.shapeKind).r4 * 1.35, SIMD2(0, 0))
         }
         let cells = OrigamiState.cells(n), di = vix
         let wireNow = st.wireOnly || (st.shapeOn && n == 4 && !st.dim5)   // 立体を見る時の 4D の窓は、超立方体をワイヤーだけに（立体の影が見えるように）
@@ -1429,7 +1483,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
             intBatches += diceGeometry(eye: eye)
             // 立体を見る：4D の窓は 4D の影（w の輪切りを重ねる）と今切っている所の光・左の窓は 3D のたとえ（切る面と切り口の線）
             if st.shapeOn && !st.dim5 {
-                if n == 4 { if let b = shapeShadowBatch(eye: eye) { intBatches.append(b) }; if let b = shapeSectionBatch(eye: eye, glow: true) { intBatches.append(b) } }
+                if n == 4 { if let b = shapeShadowBatch(eye: eye) { intBatches.append(b) }; if st.shapeGlowOn && st.shapeGlowAlpha > 0.005, let b = shapeSectionBatch(eye: eye, glow: true) { intBatches.append(b) } }
                 else if n == 3, let b = shapeAnalogBatch(&rods, eye: eye) { intBatches.append(b) }
             }
         } else {
@@ -1540,7 +1594,7 @@ final class OrigamiRenderer: NSObject, MTKViewDelegate {
     /// 見た目に関わる値の組（前のコマと同じなら止まっている）
     func drawSig() -> [Double] {
         let i = vix
-        return [st.shapeOn ? 1 : 0, Double(st.shapeKind), st.shapeCut, st.shapeMainProj ? 1 : 0, st.progress, st.colorProg, st.ax, st.ay, st.zw, st.xy, st.xz, st.yz, st.xw5, st.yw5, st.zw5, st.wv5, st.dim5 ? 1 : 0, st.camW, Double(st.look), st.shine ? 1 : 0, st.shineK, st.shineSpread, st.shineAz, st.shineEl,
+        return [st.shapeOn ? 1 : 0, Double(st.shapeKind), st.shapeCut, st.shapeMainProj ? 1 : 0, Double(st.shapeShadowMode), st.shapeShadowOn ? st.shapeShadowAlpha : -1, st.shapeGlowOn ? st.shapeGlowAlpha : -1, st.progress, st.colorProg, st.ax, st.ay, st.zw, st.xy, st.xz, st.yz, st.xw5, st.yw5, st.zw5, st.wv5, st.dim5 ? 1 : 0, st.camW, Double(st.look), st.shine ? 1 : 0, st.shineK, st.shineSpread, st.shineAz, st.shineEl,
                 st.glare, st.vivid, st.envK, st.deep, st.inner, st.explodeE, st.xpDistK, st.counting ? 1 : 0, Double(st.countIdx), Double(st.countPhase), st.spaceFlash,
                 Double(st.spaceMode), st.bgSpace ? 1 : 0, st.starsPct, st.meshOn ? 1 : 0, st.gridN.rounded(), st.zoom[i], st.dist[i], st.center[i].x, st.center[i].y, st.pan[i].x, st.pan[i].y, st.rotRev, st.showAxes ? 1 : 0, st.foldStagger ? Double(st.foldMaxStages) : 0, st.foldCourse ? (st.courseFromB ? 2 : 1) : 0, st.projBlend, st.wireOnly ? 1 : 0, st.ehOn ? 1 : 0, st.ehWidthNear, st.ehWidthFar, st.ehWidthOther, (st.ehNearOn ? 1 : 0) + (st.ehFarOn ? 2 : 0), st.ehCells.reduce(0.0) { $0 + Double($1.key.hashValue % 9973) + Double($1.value.x + $1.value.y * 3 + $1.value.z * 7) }, st.markSize, Double(st.markNear.x + st.markNear.y * 2 + st.markNear.z * 4), Double(st.markFar.x + st.markFar.y * 2 + st.markFar.z * 4), (st.markShowNear ? 1 : 0) + (st.markShowFar ? 2 : 0) + (st.markGlue ? 4 : 0),
                 Double(st.ehNear.x + st.ehNear.y * 2 + st.ehNear.z * 4), Double(st.ehFar.x + st.ehFar.y * 2 + st.ehFar.z * 4), st.left3DAll ? 1 : 0, st.raster ? 1 : 0,
