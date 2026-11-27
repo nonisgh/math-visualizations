@@ -402,6 +402,55 @@ kernel void cgP(device const float* R [[buffer(0)]], device float* Pv [[buffer(1
     Pv[id] = R[id] + b * Pv[id];
 }
 kernel void cgS(device float* S [[buffer(0)]], constant P& p [[buffer(1)]], uint id [[thread_position_in_grid]]) { if (id == 0) { S[3] = max(S[3], S[0]); S[0] = S[2]; } }
+// ---- 色水（ルービックの虹、2026-11-27）：色（色相 h・塗ってあるか a）を水の速さで運ぶ。D は 2 枚（h、a）----
+//   fz.x ＝ 1（注いでいる間）：水のマスは、その場所のルービックの色（超立方体を 3×3×3×3 のブロックに分けて七色。となりのブロックは必ず別の色）に塗る。
+//   fz.x ＝ 0：色を水といっしょに運ぶ。新しく水になったのに色が無い所だけ、その場所の色に塗る。空気のマスには、となりの水の色をうつしておく（水面を描く時に読む）
+inline float rubikHue(int4 q, constant P& p) {
+    int4 b = clamp(int4(floor((float4(q) + 0.5 - float4(0.0, 0.0, 0.0, float(boxLo(p)))) * 3.0 / float(p.N))), int4(0), int4(2));
+    int k = (b.x + 2 * b.y + 4 * b.z + 3 * b.w) % 7;
+    return 0.82 * (float(k) + 0.5) / 7.0;
+}
+// 七色の縞（積分パートの「立方体の面（縞）」を水に、2026-11-27）：超立方体の y の向きに 7 本の帯（下の赤 → 上のむらさき）
+inline float stripeHue(int4 q, constant P& p) {
+    int k = clamp(int(floor((float(q.y) + 0.5) * 7.0 / float(p.N))), 0, 6);
+    return 0.82 * (float(k) + 0.5) / 7.0;
+}
+// 4 次元の同心の虹（2026-11-27）：超立方体の真ん中からの 4 次元のきょりで 7 つの殻（真ん中 赤 → 角 むらさき。角までのきょりは N マス）
+inline float concHue(int4 q, constant P& p) {
+    float4 c = float4(q) + 0.5 - float4(0.0, 0.0, 0.0, float(boxLo(p))) - float(p.N) * 0.5;
+    int k = int(floor(length(c) / float(p.N) * 14.0)) % 7;              // 七色を 2 回：外から見える胞の面（真ん中から半分〜角のきょり）でも虹が一周する
+    return 0.82 * (float(k) + 0.5) / 7.0;
+}
+// 墨流し（マーブル、2026-11-27）：ななめ（x＋y＋z＋w の向き）の細い七色のしま 21 本（七色を 3 回）。流れでのびて折りたたまれて、マーブル模様に
+inline float marbleHue(int4 q, constant P& p) {
+    float4 c = (float4(q) + 0.5 - float4(0.0, 0.0, 0.0, float(boxLo(p)))) / float(p.N);
+    int k = int(floor((c.x + c.y + c.z + c.w) / 4.0 * 21.0)) % 7;
+    return 0.82 * (float(clamp(k, 0, 6)) + 0.5) / 7.0;
+}
+//   fz.y（2 でない時）：ぬる模様 0 ルービック・1 七色の縞・2 同心の虹・3 墨流し
+inline float patHue(int4 q, constant P& p, int pat) { return pat == 3 ? marbleHue(q, p) : pat == 2 ? concHue(q, p) : pat == 1 ? stripeHue(q, p) : rubikHue(q, p); }
+kernel void advDye(device const float* U [[buffer(0)]], device const float* phi [[buffer(1)]], device const float* D [[buffer(2)]], device float* DT [[buffer(3)]], constant P& p [[buffer(4)]], constant int2& fz [[buffer(5)]], uint id [[thread_position_in_grid]]) {
+    int MG = p.M * p.M * p.M * p.Mw; if (int(id) >= MG) return;
+    int4 q = dec(id, p.M);
+    if (!inCellP(q, p)) { DT[id] = D[id]; DT[MG + id] = 0.0; return; }
+    bool wet = phi[id] < 0.0;
+    float h, a;
+    //   fz.x ＝ 2（七色ペンキ）：新しく水になった所を、その時の色 fz.y／10⁶（たまった割合 0〜1）でぬる。前からある水は自分の色のまま運ぶ
+    if (wet && fz.x == 1) { h = patHue(q, p, fz.y); a = 1.0; }
+    else {
+        float4 x = float4(q) + 0.5, xb = regClamp(x - p.dt * velAt(U, x, p) / p.dx, q, 0, p);
+        h = sampleC(D, xb, p); a = sampleC(D + MG, xb, p);
+        if (wet && a < 0.5) { h = fz.x == 2 ? float(fz.y) * 1e-6 : patHue(q, p, fz.y); a = 1.0; }
+        if (wet) a = 1.0;
+    }
+    if (!wet) {
+        float sh = 0.0, n = 0.0;
+        for (int d = 0; d < 4; d++) for (int sg = -1; sg <= 1; sg += 2) { int4 nb = q + sg * ax(d); if (inCellP(nb, p) && phi[enc(nb, p.M)] < 0.0) { sh += D[enc(nb, p.M)]; n += 1.0; } }
+        if (n > 0.0) h = sh / n;
+        a = 0.0;
+    }
+    DT[id] = h; DT[MG + id] = a;
+}
 // 水面をならす（水面の近くだけ、となりの平均へ少し寄せる＝曲がった所ほど平らに：表面張力のかわり。小さな粒・うすい膜は消えていく）
 kernel void smoothPhi(device const float* phi [[buffer(0)]], device float* phiT [[buffer(1)]], constant P& p [[buffer(2)]], uint id [[thread_position_in_grid]]) {
     int MM = p.M * p.M * p.M * p.Mw; if (int(id) >= MM) return;
@@ -609,6 +658,21 @@ final class NS4 {
     ///   MM は超立方体の部分（M⁴、今までの描き方・体積はこれを使う）、MG は GPU の全部（M³·Mw）。boxLo：超立方体のいちばん下の層、boxOff：その GPU での始まり
     let Nw: Int, Mw: Int, MG: Int, boxLo: Int, boxOff: Int, below: Int, above: Int
     var extended: Bool { below > 0 || above > 0 }
+    /// 色水の色相（4D の場所 q、世界の単位。超立方体の外は、いちばん近い所）
+    //   まわりの 16 マスから なめらかにつないで読む（いちばん近いマス 1 つだと、色の境目がマスの階段になってギザギザに見えた。2026-11-27）
+    func dyeHue(_ q: SIMD4<Float>) -> Float {
+        guard dyeCPU.count == MM else { return 0 }
+        let g = (q + H) / par.dx - 0.5
+        var i0 = SIMD4<Int>(0, 0, 0, 0), fr = SIMD4<Float>(0, 0, 0, 0)
+        for a in 0..<4 { let x = max(0, min(Float(N - 1), g[a])), b = min(N - 2, max(0, Int(x.rounded(.down)))); i0[a] = b; fr[a] = x - Float(b) }
+        var s: Float = 0
+        for b in 0..<16 {
+            var w: Float = 1; var c = i0
+            for a in 0..<4 { if (b >> a) & 1 == 1 { w *= fr[a]; c[a] += 1 } else { w *= 1 - fr[a] } }
+            if w > 0 { s += w * dyeCPU[at(c.x, c.y, c.z, c.w)] }
+        }
+        return s
+    }
     var upperStream: [NS4StreamLayer] = [], lowerStream: [NS4StreamLayer] = []
     private var ps: [String: MTLComputePipelineState] = [:]
     var U, UT, V, VT, phi, phiT, phi0, pr, rh, vW, vF: MTLBuffer
@@ -628,6 +692,8 @@ final class NS4 {
     var cgIters = 0, cgSBuf: MTLBuffer? = nil, cgPartBuf: MTLBuffer? = nil    // 粘りの共役勾配法：くり返しの数（0 ならおまかせ）・小さな値の入れ物（S0 rr・S1 pAp・S2 新しい rr・S3 途中のいちばん大きい rr・S4 はじめの rr）・部分和
     func cgS() -> MTLBuffer? { if cgSBuf == nil { cgSBuf = dev.makeBuffer(length: 32, options: .storageModeShared) }; return cgSBuf }
     func cgPart() -> MTLBuffer? { if cgPartBuf == nil { cgPartBuf = dev.makeBuffer(length: (4 * MG / 32 + 64) * 4, options: .storageModeShared) }; return cgPartBuf }
+    /// 色水（ルービックの虹）：dyeOn の時だけ入れ物を作って運ぶ。dyePaint：注いでいる間は場所の色に塗る。dyeCPU：超立方体の部分の色相（描く用）
+    var dyeOn = false, dyePaint = false, dyeTime = false, dyeNow: Float = 0, dyePattern: Int32 = 0, dye: MTLBuffer? = nil, dyeT: MTLBuffer? = nil, dyeCPU: [Float] = []
     var viscStick: Float = 0                                               // ねばる液体が壁にくっつく強さ（0〜1。陰解法の粘りの時だけ使う）
     var phiCPU: [Float] = [], phiDisp: [Float] = [], lastVol = 0.0, resultID = 0, meshID = -1, meshCache = NS4Mesh(), meshBusy = false
     init?(N: Int = 32, H: Float = Float(OrigamiState.half), below: Int = 0, above: Int = 0) {
@@ -637,7 +703,7 @@ final class NS4 {
             let lib: MTLLibrary
             do { lib = try d.makeLibrary(source: ns4Shader, options: nil) } catch { print("4D の水のシェーダーを作れなかった：", error); return nil }
             var pp: [String: MTLComputePipelineState] = [:]
-            for n in ["advU", "macU", "advPhi", "jet", "force", "visc", "viscJ", "vFrac", "vApply", "vInit", "dotPart", "dotFin", "cgXR", "cgP", "cgS", "smoothPhi", "vortW", "vortF", "vortAdd", "rhs", "press", "proj", "valid", "extrap", "redist", "advPhiF", "downF", "combF"] {
+            for n in ["advU", "macU", "advPhi", "jet", "force", "visc", "viscJ", "advDye", "vFrac", "vApply", "vInit", "dotPart", "dotFin", "cgXR", "cgP", "cgS", "smoothPhi", "vortW", "vortF", "vortAdd", "rhs", "press", "proj", "valid", "extrap", "redist", "advPhiF", "downF", "combF"] {
                 guard let f = lib.makeFunction(name: n), let p = try? d.makeComputePipelineState(function: f) else { print("4D の水の計算を作れなかった：", n); return nil }
                 pp[n] = p
             }
@@ -707,6 +773,7 @@ final class NS4 {
         if busy { queue.makeCommandBuffer().map { $0.commit(); $0.waitUntilCompleted() } }
         let u = U.contents().bindMemory(to: Float.self, capacity: 4 * MG); for i in 0..<(4 * MG) { u[i] = 0 }
         let p = pr.contents().bindMemory(to: Float.self, capacity: MG); for i in 0..<MG { p[i] = 0 }
+        if let d0 = dye { memset(d0.contents(), 0, 2 * MG * 4) }; dyeCPU = []
         let fg = phi.contents().bindMemory(to: Float.self, capacity: MG)
         let lev = (h + 1) * 0.5 * Float(N)                              // 水面の高さ（格子の単位、超立方体の下の端から）
         for L in 0..<Mw { for k in 0..<M { for j in 0..<M { for i in 0..<M {
@@ -789,6 +856,11 @@ final class NS4 {
         if redistEvery > 0 {
             if let bl = cb.makeBlitCommandEncoder() { bl.copy(from: phi, sourceOffset: 0, to: phi0, destinationOffset: 0, size: MG * 4); bl.endEncoding() }
             for _ in 0..<redistEvery { run("redist", [phi, phi0, phiT]); swap(&phi, &phiT) }
+        }
+        if dyeOn {
+            if dye == nil { dye = dev.makeBuffer(length: 2 * MG * 4, options: .storageModeShared); dyeT = dev.makeBuffer(length: 2 * MG * 4, options: .storageModeShared)
+                if let d0 = dye { memset(d0.contents(), 0, 2 * MG * 4) } }
+            if let d0 = dye, let d1 = dyeT { run("advDye", [U, phi, d0, d1], fz: SIMD2<Int32>(dyeTime ? 2 : dyePaint ? 1 : 0, dyeTime ? Int32((max(0, min(1, dyeNow)) * 1_000_000).rounded()) : dyePattern)); dye = d1; dyeT = d0 }
         }
         if fine, let a = phiF, let b = phiFT, let c = dnF {
             if !fineFresh { run("downF", [b, c], fz: fz) }
@@ -970,6 +1042,7 @@ extension NS4 {
         let fg = phi.contents().bindMemory(to: Float.self, capacity: MG), f = fg + boxOff
         phiCPU.withUnsafeMutableBufferPointer { b in _ = memcpy(b.baseAddress!, f, MM * 4) }
         if extended { readStreams(fg) }
+        if dyeOn, let d0 = dye { let dp = d0.contents().bindMemory(to: Float.self, capacity: 2 * MG) + boxOff; if dyeCPU.count != MM { dyeCPU = [Float](repeating: 0, count: MM) }; dyeCPU.withUnsafeMutableBufferPointer { b in _ = memcpy(b.baseAddress!, dp, MM * 4) } } else if !dyeCPU.isEmpty { dyeCPU = [] }
         let (v, a) = volumeOf(phiCPU)
         lastVol = v; resultID += 1
         // 穴（排水口・底の全開）から出ていく量：底の壁（w の下の端）の、開いている所の下向きの速さ × 面の広さ（4D では 3 次元の体積 dx³）

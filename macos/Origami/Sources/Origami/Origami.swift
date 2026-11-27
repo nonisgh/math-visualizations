@@ -270,6 +270,11 @@ final class OrigamiState: ObservableObject {
     @Published var waterPourForce = 0.5                            // 注ぐ勢い（本物の水）：0 水面のすぐ上からそっと・1 ふたの近くの高い所から勢いよく。既定は真ん中
     @Published var waterRainbow = false                            // レインボーの水（ふしぎな 4 次元の水）：色が 4 次元の奥行き（画面に写すと消える向き）を表す
     @Published var waterHeavy = 0.5                               // 水の重さ（フィクション、0 とても軽い 〜 0.5 ふつうの水 〜 1 とても重い液体）。OrigamiWater の nsLight・nsHeavy（2026-11-26 に「水の軽さ」から改名）
+    @Published var waterRainbowMarble = false                        // 色水の模様を墨流し（マーブル）に：ななめの細い七色のしまが、流れでのびて折りたたまれる。waterRainbowDye と いっしょに使う
+    @Published var waterRainbowConc = false                          // 色水の模様を 4 次元の同心の虹に（真ん中からの 4 次元のきょりで 7 つの殻）。waterRainbowDye と いっしょに使う
+    @Published var waterRainbowStripe = false                        // 色水の模様を七色の縞に（積分パートの「立方体の面（縞）」：y の向きに 7 本の帯）。waterRainbowDye と いっしょに使う
+    @Published var waterRainbowDye = false                           // ルービックの色水：3×3×3×3 のブロックの七色に塗った水を、流れといっしょに運ぶ（奥の立方体をつきぬけてくる水を、色で追える）
+    @Published var waterRainbowFlat = false                          // 平面レインボー（積分仕様）：w の値で 積分の段の数の平らな帯に区切った色（なめらかなレインボーのかわりに）
     @Published var waterGloss = 0.5                                  // 水面のてかり（0 よわい 〜 0.5 少し強め（既定）〜 1 鏡のよう）。OrigamiRaster の rwf（ring の 2 つめの w）
     @Published var waterNSFlow = true                                // 排水口から落ちる筋も本物の 4D の水で計算する（自動の時。計算の箱を下にのばす）。注ぐ筋は いつも線の計算（PourJet）
     @Published var waterSyrup = 0.0                                  // ねばり（0 水 〜 0.33 油 〜 0.66 はちみつ 〜 1 水あめ）。本物の 4D の水だけ。OrigamiWater の nsSyrup
@@ -284,6 +289,7 @@ final class OrigamiState: ObservableObject {
     //   切りかえる時は、水の形と流れの速さを新しいマス目に写しかえる（水は消えない）
     var nsVbrHigh = false, nsKeep: [Int: NS4] = [:]
     var nsWantFlow: Bool { waterNSFlow && !waterFree }
+    var waterFillMaxNow = 0.95                                       // 自動の本物の 4D の水の満タンの上限（七色ペンキの色の物さし）
     let pourJet = PourJet()                                          // 注ぐ筋の線の計算（自動の本物の 4D の水）
     var nsWellK = 0.0, nsWellPh = 0.0                                // ブラックホールの井戸（4D の排水口の渦）：強さ（0〜1、なめらかに）・らせんの回る角度
     func ns4Get() -> NS4? {

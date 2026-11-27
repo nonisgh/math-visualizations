@@ -14,7 +14,8 @@ struct IntSphere {
     // だ円体のとき：玉の 3 本の半径の軸（写した向きと長さ）。0 なら半径 c.w のまんまるの球。4D で回すと玉は つぶれて写る
     var ax = SIMD4<Float>(0, 0, 0, 0), ay = SIMD4<Float>(0, 0, 0, 0), az = SIMD4<Float>(0, 0, 0, 0)
 }
-struct IntTriBatch { var add: Bool; var verts: [IntVert]; var spin: Float = 0; var depth = false; var dent: [SIMD4<Float>] = []; var water = false; var wp = SIMD4<Float>(0, 0, 0, 0); var ring: [SIMD4<Float>] = [.zero, SIMD4(1, 0, 0, 0)] }   // ring：注ぐ所の波紋（当たる点・強さ、箱の大きさ）   // water：リアルな水（c.xyz＝面の向き・c.w＝1 水面 0 壁と底）、wp：時刻・映りこみの絵があるか・深さ・濃さ   // depth：奥行きを見て描く（不透明な輪切りの形）
+struct IntTriBatch { var add: Bool; var verts: [IntVert]; var spin: Float = 0; var depth = false; var dent: [SIMD4<Float>] = []; var water = false; var wp = SIMD4<Float>(0, 0, 0, 0); var ring: [SIMD4<Float>] = [.zero, SIMD4(1, 0, 0, 0)]
+    var pos4: [SIMD4<Float>] = []; var dye: MTLBuffer? = nil; var dyeOff = 0; var dyeInfo = SIMD4<Float>(0, 0, 0, 0) }   // 水：頂点ごとの 4 次元の場所・色水（GPU の入れ物、超立方体の始まり）・N・M・H・dx   // ring：注ぐ所の波紋（当たる点・強さ、箱の大きさ）   // water：リアルな水（c.xyz＝面の向き・c.w＝1 水面 0 壁と底）、wp：時刻・映りこみの絵があるか・深さ・濃さ   // depth：奥行きを見て描く（不透明な輪切りの形）
 struct RasterU {
     var VP = matrix_identity_float4x4                 // 景色（GPU の座標）→ 画面
     var vp = SIMD4<Float>(0, 0, 0, 0)                  // 絵の幅・高さ（画素）・ふつうの線の太さ（画素）・線の濃さ
@@ -446,11 +447,52 @@ float wCaustic(float2 p, float t) {
 }
 // きらめき用の小さな乱れ（場所と時刻から）
 float wHash(float3 p) { return fract(sin(dot(p, float3(12.9898, 78.233, 37.719))) * 43758.5453); }
-fragment float4 rwf(IVo in [[stage_in]], constant U& u [[buffer(0)]], constant RU& r [[buffer(5)]], constant float4& wp [[buffer(2)]], constant float4* rg [[buffer(3)]], texture2d_array<float> pr [[texture(1)]]) {
+// 奥行きをまっさらに（画面全体の三角形 1 枚を、いちばん遠い奥行き 1 で書く。色は書かない）：不透明な色の水を、水どうしだけで奥行きを比べて描く前に（2026-11-27）
+struct DZo { float4 pos [[position]]; };
+vertex DZo rdz(uint vid [[vertex_id]]) { float2 p = float2((vid << 1) & 2, vid & 2); DZo o; o.pos = float4(p * 2.0 - 1.0, 1.0, 1.0); return o; }
+fragment float4 rdzf(DZo in [[stage_in]]) { return float4(0.0); }
+// 水の頂点：ふつうの値に、4 次元の場所 q4（色水を画素ごとに読む用。x ＞ 10⁵ は「無し」）を足す（2026-11-27）
+struct WVo { float4 pos [[position]]; float4 c; float m; float3 P; float4 q4; };
+vertex WVo rwv(uint vid [[vertex_id]], const device IVx* T [[buffer(8)]], const device float4* Q [[buffer(9)]], constant RU& r [[buffer(5)]]) {
+    WVo o; o.pos = r.VP * float4(T[vid].p.xyz, 1.0); o.c = T[vid].c; o.m = T[vid].p.w; o.P = T[vid].p.xyz; o.q4 = Q[vid]; return o;
+}
+// 色水（超立方体の部分、M⁴ の並び）を、4 次元の場所 q で 16 マスからなめらかに読む。di：N・M・H・dx
+float dyeAt(device const float* D, float4 q, float4 di) {
+    int N = int(di.x), M = int(di.y); float H = di.z, dx = di.w;
+    float4 g = clamp((q + H) / dx - 0.5, float4(0.0), float4(float(N - 1)));
+    int4 i0 = clamp(int4(floor(g)), int4(0), int4(N - 2));
+    float4 f = g - float4(i0); float s = 0.0;
+    for (int b = 0; b < 16; b++) {
+        int4 o = int4(b & 1, (b >> 1) & 1, (b >> 2) & 1, (b >> 3) & 1);
+        float4 wv = select(1.0 - f, f, o != 0); int4 c = i0 + o;
+        s += wv.x * wv.y * wv.z * wv.w * D[((c.w * M + c.z) * M + c.y) * M + c.x];
+    }
+    return s;
+}
+fragment float4 rwf(WVo in [[stage_in]], constant U& u [[buffer(0)]], constant RU& r [[buffer(5)]], constant float4& wp [[buffer(2)]], constant float4* rg [[buffer(3)]], device const float* DY [[buffer(6)]], constant float4& di [[buffer(7)]], texture2d_array<float> pr [[texture(1)]]) {
     float3 d = normalize(in.P - u.eye.xyz), n = normalize(in.c.xyz);
     if (dot(n, d) > 0.0) n = -n;
     // レインボーの水：c.w ＝ 2 ＋ 4×kind ＋ 3×色の値（0〜1：4 次元の奥行き）。ふつうは c.w ＝ kind（1 水面・0 壁と底）
     bool rb = in.c.w > 1.5; float kd = rb ? (in.c.w > 5.5 ? 1.0 : 0.0) : in.c.w, hs = rb ? clamp((in.c.w - 2.0 - 4.0 * kd) / 3.0, 0.0, 1.0) : 0.0;
+    // 色水（七色ペンキ・ルービック・七色の縞）：色を三角形の角でなく、画素ごとに 4 次元の場所から読む（境目が三角形の折れ線にならず、なめらかな曲線に）
+    float nij = 0.0;                                                          // にじみ：境目を、4 次元の場所から作ったゆらゆらで少し波打たせる（マスのつなぎ目の折れ線をごまかす）
+    if (rb && in.q4.w > 1e5) {
+        // 3 次元の窓（2026-11-27）：箱の場所 b（0〜1）から。七色ペンキとなめらか：高さ z・ルービック：3×3×3 のブロック・縞：y の 7 本の帯
+        float3 b = clamp((in.q4.xyz + rg[2].w) / max(2.0 * rg[2].w, 1e-4), 0.0, 0.999);
+        if (rg[2].x > 1.5) {
+            if (rg[2].z > 2.5) hs = 0.82 * (float(int(floor((b.x + b.y + b.z) / 3.0 * 21.0)) % 7) + 0.5) / 7.0;   // 墨流し（ななめの細いしま）
+            else if (rg[2].z > 1.5) hs = 0.82 * (float(int(floor(length(b - 0.5) / 0.866 * 14.0)) % 7) + 0.5) / 7.0;   // 同心の虹（3 次元の真ん中からのきょり、七色を 2 回）
+            else if (rg[2].z > 0.5) hs = 0.82 * (floor(b.y * 7.0) + 0.5) / 7.0;
+            else { int3 bi = int3(floor(b * 3.0)); hs = 0.82 * (float((bi.x + 2 * bi.y + 4 * bi.z) % 7) + 0.5) / 7.0; }
+        } else hs = b.z;
+        float3 q = in.q4.xyz / max(rg[2].w / 8.0, 1e-4);
+        nij = 0.55 * sin(dot(q, float3(0.83, 0.61, 0.97)) + 1.3 * sin(dot(q, float3(-0.47, 1.13, 0.39)))) + 0.30 * sin(dot(q, float3(1.91, -1.37, 1.63)) + 2.1);
+    } else if (rb && rg[2].x > 0.5 && di.x > 0.5 && in.q4.x < 1e5) {
+        hs = clamp(dyeAt(DY, in.q4, di), 0.0, 1.0);
+        float4 q = in.q4 / max(di.w, 1e-4);                                     // マスの単位
+        nij = 0.55 * sin(dot(q, float4(0.83, 0.61, 0.97, 0.71)) + 1.3 * sin(dot(q, float4(-0.47, 1.13, 0.39, -0.88))))
+            + 0.30 * sin(dot(q, float4(1.91, -1.37, 1.63, 1.21)) + 2.1) + 0.15 * sin(dot(q, float4(-3.1, 2.7, 3.3, -2.9)));
+    }
     // 水の中の空気の境目（kind −1：内接球をよける水の、球の面）：水から空気を見ると、ななめの所ほど光がはね返って銀色に光る（全反射）。
     //   まん中はすけて、球の中（空気）が見える。ふちほど明るく濃く
     if (!rb && in.c.w < -0.5) {
@@ -506,11 +548,39 @@ fragment float4 rwf(IVo in [[stage_in]], constant U& u [[buffer(0)]], constant R
                   + float3(0.55, 0.27, 0.04) * (1.0 - hab.b) * (0.5 + 0.5 * saturate(dot(n, normalize(LD[0])))) * 0.55;
         body = mix(body, hb, hn);
     }
-    float3 rc = float3(1.0);
+    float3 rc = float3(1.0), rcP = float3(1.0);
+    float bandLine = 0.0, stick = 0.0; float3 aaC = float3(0.0); bool useAA = false;
     if (rb) {
         // 虹の色：4 次元の奥行きの端から端で 1 周（赤 → 黄 → 緑 → 青 → 紫）・時間でゆっくり流れる・見る角度でシャボン玉のように少しずれる
         float hue = fract(hs * 0.9 + wp.x * 0.035 + 0.15 * (1.0 - cosI));
-        rc = clamp(abs(fmod(hue * 6.0 + float3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        // 平面レインボー（積分仕様、rg[2].x ＝ 1、2026-11-27）：w の値で rg[2].y 段の平らな帯に区切って、段ごとに 1 つの色（下の赤 → 上のむらさき）。
+        //   時間や見る角度では動かさない（同じ高さは いつも同じ色）。段の境目（w ＝ 一定の平らな面）に うすく光る線
+        if (rg[2].x > 1.5) {
+            // ルービックの色水：運んだ色相を、七色のどれかにぴったり合わせる（三角形の中でなめらかにまざって、にじんだ虹に見えないように）。
+            //   色の境目には、ルービックキューブのシールのすきまのような暗い線
+            float x = hs / 0.82 * 7.0 + 0.16 * nij, kk = clamp(floor(x), 0.0, 6.0);
+            hue = 0.82 * (kk + 0.5) / 7.0;
+            float fw = max(fwidth(x), 1e-4), e = abs(x - round(x));
+            stick = 0.0; (void)e;                                           // 境目の線は無し（ユーザー：線は見えない方がいい。2026-11-27）
+            // 境目は ぼかしでつなぐ：境目の両側 wb（帯の幅の 0.22、少なくとも画素 1 つ）で、となりの色へなめらかに
+            float f = x - kk, wb = max(0.42, 1.2 * fw);                         // ぼかしの幅を広く（帯の幅の 4 割）
+            float kn = f > 0.5 ? min(kk + 1.0, 6.0) : max(kk - 1.0, 0.0), t = f > 0.5 ? smoothstep(1.0 - wb, 1.0 + wb, f) : 1.0 - smoothstep(-wb, wb, f);
+            float3 c0 = clamp(abs(fmod(0.82 * (kk + 0.5) / 7.0 * 6.0 + float3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+            float3 c1 = clamp(abs(fmod(0.82 * (kn + 0.5) / 7.0 * 6.0 + float3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+            aaC = mix(c0, c1, t); useAA = true;
+        }
+        else if (rg[2].x > 0.5) {
+            float nb = max(1.0, rg[2].y), x = hs * nb + 0.16 * nij, k = clamp(floor(x), 0.0, nb - 1.0);
+            hue = (k + 0.5) / nb * 0.83;
+            float e = min(fract(x), 1.0 - fract(x)), fw = max(fwidth(x), 1e-4);
+            bandLine = 0.0; (void)e;                                        // 段の境目の線は無し（ぼかしでつなぐ）
+            float f = x - k, wb = max(0.42, 1.2 * fw);
+            float kn = f > 0.5 ? min(k + 1.0, nb - 1.0) : max(k - 1.0, 0.0), t = f > 0.5 ? smoothstep(1.0 - wb, 1.0 + wb, f) : 1.0 - smoothstep(-wb, wb, f);
+            float3 c0 = clamp(abs(fmod((k + 0.5) / nb * 0.83 * 6.0 + float3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+            float3 c1 = clamp(abs(fmod((kn + 0.5) / nb * 0.83 * 6.0 + float3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+            aaC = mix(c0, c1, t); useAA = true;
+        }
+        rc = useAA ? aaC : clamp(abs(fmod(hue * 6.0 + float3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0); rcP = rc;
         rc = mix(float3(1.0), rc, 0.82);
         // 色ごとの明るさをそろえる：青・紫は暗い色なので、そのままだと暗い背景にとけて「そこに水が無い」ように見えた（2026-11-26）。
         //   暗い色ほど白をまぜて明るく（パステルに）し、どの色も同じくらいの明るさで光るように
@@ -519,6 +589,7 @@ fragment float4 rwf(IVo in [[stage_in]], constant U& u [[buffer(0)]], constant R
         rc *= 0.68 / max(dot(rc, float3(0.30, 0.59, 0.11)), 0.3);
         float3 ab = exp(-th * (1.25 - min(rc, 1.0)) * 2.6);                  // その色の光ほど、よく通る（色のついた水）
         body = mix(rc * 0.26, refr * mix(float3(1.0), rc, 0.55), ab) + rc * 0.36 * (1.0 - ab.g * 0.5) * (0.6 + 0.4 * saturate(dot(n, normalize(LD[0]))));
+        body = mix(body, float3(1.0, 0.98, 0.92), bandLine * 0.4);
     }
     float3 L = normalize(LD[0]), rv = reflect(d, n);
     float s1 = pow(saturate(dot(rv, L)), 900.0) * 14.0, s2 = pow(saturate(dot(rv, L)), 60.0) * 0.5 * (1.0 + 1.2 * hn);   // はちみつは、なめらかな広い照り
@@ -543,6 +614,19 @@ fragment float4 rwf(IVo in [[stage_in]], constant U& u [[buffer(0)]], constant R
         col += mix(float3(0.75, 0.92, 1.0), float3(1.0, 0.72, 0.28), hn) * mix(float3(1.0), rc, 0.7) * pow(cs, 1.6) * mix(1.1, 0.55, tk) * (1.0 - 0.55 * hn) * (0.6 + 0.4 * saturate(dot(nn, L) * 0.5 + 0.5));
     }
     col = 1.0 - exp(-col * 1.25);                                          // 明るすぎるところを、白く飛ばさずにまるめる
+    // 積分の水（平面レインボー、2026-11-27）：ほとんど不透明な、段ごとの七色（積分パートの七色と同じ：色相 0.82×高さ・彩度 1・明るさ 0.58）。
+    //   光の当たり方で明るさを変え、水面のうつりこみと照り返しはそのまま（水なので波立つ）。奥行きを比べて描く（OrigamiRaster：depth）
+    if (rb && rg[2].x > 0.5) {
+        float3 bc = 0.16 + 0.84 * rcP, Lf = normalize(LD[0]);
+        float df = 0.42 + 0.58 * saturate(dot(n, Lf)) + 0.12 * saturate(-dot(n, Lf));
+        float3 c2 = bc * df + refl * Fw * 0.4 + float3(1.0, 0.97, 0.9) * (s1 + s2) * (kd > 0.5 ? spK : 0.3);
+        c2 = mix(c2, float3(1.0, 0.98, 0.92), bandLine * 0.45);
+        c2 *= 1.0 - 0.7 * stick;                                            // ルービックのシールのすきま
+        c2 = 1.0 - exp(-c2 * 1.6);
+        // 胞の中の水面（kind 1）は少しすける：奥から順に描く順番が 4 次元の重なりでまちがって、うしろの水面が細いかけらのように前に出るのをごまかす
+        float a2 = clamp(0.97 + 0.03 * Fw, 0.0, 0.995) * wp.w * (0.85 + 0.15 * tk);   // ペンキはほとんどすけない（ユーザー、2026-11-27）。奥行きを比べて描くので、胞の中の水面も同じ濃さ
+        return float4(c2 * a2, a2);
+    }
     float a = clamp((kd > 0.5 ? 0.70 : 0.42) + 0.22 * hn * (1.0 - hp) + 0.30 * Fw + 0.3 * (s1 + s2) + 0.3 * foam, 0.0, 0.97) * wp.w * (0.28 + 0.72 * tk);   // うすい水はすける
     return float4(col * a, a);
 }
@@ -649,6 +733,7 @@ final class OrigamiRaster {
     private var probe: MTLTexture?, probeDummy: MTLTexture?
     static let probeSize = 128
     private let dsWrite, dsRead, dsAlways, dsBehind: MTLDepthStencilState
+    private let depthClearP: MTLRenderPipelineState, dsClear: MTLDepthStencilState   // 水だけの奥行き：まっさらにする
     private var msColor: MTLTexture?, msDepth: MTLTexture?, resolved: MTLTexture?
     static let samples = 4, hdr = MTLPixelFormat.rgba16Float
 
@@ -680,9 +765,9 @@ final class OrigamiRaster {
         guard let a = pipe("rbgv", "rbgf", blend: 0), let b = (ProcessInfo.processInfo.environment["ORIGAMI_OLDFACE"] != nil ? pipe("rfv", "rff", blend: 1) : pipe("rfv", "rffm", blend: 3)), let b2 = pipe("rfv", "rff", blend: 2), let c = pipe("rlv", "rlf", blend: 2),
               let c1 = pipe("rlv", "rlfm", blend: 3), let e = pipe("rbv", "rbf", blend: 0), let f = pipe("rtv", "rtf", blend: 0, ms: false, fmt: .bgra8Unorm),
               let b1 = pipe("rfv", "rffm", blend: 3, ms: false), let c2 = pipe("rlv", "rlf", blend: 1, ms: false), let cn = pipe("rcv", "rcf", blend: 0), let mp = pipe("rmv", "rmf", blend: 3),
-              let fd = pipe("rfv", "rfd", blend: 0, noColor: true), let bh = ds(false, .greater), let iN = pipe("riv", "rif", blend: 1), let wtP = pipe("riv", "rwf", blend: 1), let iA = pipe("riv", "rif", blend: 2), let sp = pipe("rsv", "rsf", blend: 1),
+              let fd = pipe("rfv", "rfd", blend: 0, noColor: true), let bh = ds(false, .greater), let iN = pipe("riv", "rif", blend: 1), let wtP = pipe("rwv", "rwf", blend: 1), let dzP = pipe("rdz", "rdzf", blend: 0, noColor: true), let dzS = ds(true, .always), let iA = pipe("riv", "rif", blend: 2), let sp = pipe("rsv", "rsf", blend: 1),
               let w = ds(true, .lessEqual), let r = ds(false, .lessEqual), let al = ds(false, .always) else { print("三角形のパイプラインを作れなかった"); return nil }
-        device = d; bgP = a; faceP = b; faceAddP = b2; lineP = c; lineNormP = c1; ballP = e; toneP = f; faceP1 = b1; lineP1 = c2; coneP = cn; markP = mp; faceDepthP = fd; intNormP = iN; waterP = wtP; intAddP = iA; sphP = sp; dsWrite = w; dsRead = r; dsAlways = al; dsBehind = bh
+        device = d; bgP = a; faceP = b; faceAddP = b2; lineP = c; lineNormP = c1; ballP = e; toneP = f; faceP1 = b1; lineP1 = c2; coneP = cn; markP = mp; faceDepthP = fd; intNormP = iN; waterP = wtP; depthClearP = dzP; dsClear = dzS; intAddP = iA; sphP = sp; dsWrite = w; dsRead = r; dsAlways = al; dsBehind = bh
         let pd = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.hdr, width: Self.probeSize, height: Self.probeSize, mipmapped: false)
         pd.textureType = .type2DArray; pd.arrayLength = 6; pd.usage = [.renderTarget, .shaderRead]; pd.storageMode = .private
         probe = d.makeTexture(descriptor: pd)
@@ -824,8 +909,20 @@ final class OrigamiRaster {
                 // リアルな水：0 番に景色の値（目の位置）、2 番に水の値（映りこみの絵があるかは、ここで入れる）
                 var wpv = b.wp; wpv.y = useProbe ? 1 : 0
                 e.setFragmentBytes(&u, length: MemoryLayout<TLUni>.stride, index: 0); e.setFragmentBytes(&wpv, length: MemoryLayout<SIMD4<Float>>.stride, index: 2)
-                var rg = b.ring.count == 2 ? b.ring : [.zero, SIMD4<Float>(1, 0, 0, 0)]; e.setFragmentBytes(&rg, length: MemoryLayout<SIMD4<Float>>.stride * 2, index: 3)
-                e.setRenderPipelineState(waterP); e.setDepthStencilState(dsAlways)
+                var rg = b.ring.count >= 2 ? b.ring : [.zero, SIMD4<Float>(1, 0, 0, 0)]; while rg.count < 3 { rg.append(.zero) }   // 3 つめ：平面レインボー（x 入り切り・y 段の数）
+                e.setFragmentBytes(&rg, length: MemoryLayout<SIMD4<Float>>.stride * 3, index: 3)
+                // 4 次元の場所（頂点ごと）と色水。無い時は「無し」の印と、小さなからの入れ物
+                var q4 = b.pos4.count == vv.count ? b.pos4 : [SIMD4<Float>](repeating: SIMD4(1e6, 0, 0, 0), count: vv.count)
+                if let qb = device.makeBuffer(bytes: &q4, length: MemoryLayout<SIMD4<Float>>.stride * max(1, q4.count), options: .storageModeShared) { e.setVertexBuffer(qb, offset: 0, index: 9) }
+                var di = b.dye != nil ? b.dyeInfo : SIMD4<Float>(0, 0, 0, 0)
+                if let db = b.dye { e.setFragmentBuffer(db, offset: b.dyeOff, index: 6) } else if let z = device.makeBuffer(length: 16, options: .storageModeShared) { e.setFragmentBuffer(z, offset: 0, index: 6) }
+                e.setFragmentBytes(&di, length: MemoryLayout<SIMD4<Float>>.stride, index: 7)
+                if b.depth {
+                    // 不透明な色の水：奥行きをまっさらにしてから、水どうしだけで奥行きを比べて描く。並べた順だけだと、4 次元の水は画面で面どうしが交差して、
+                    //   うしろの面が細いかけらのように前に出た（ポリゴン欠け）。箱のガラスの奥行きは消えるが、ガラスは うすいので見え方は変わらない
+                    e.setRenderPipelineState(depthClearP); e.setDepthStencilState(dsClear); e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                }
+                e.setRenderPipelineState(waterP); e.setDepthStencilState(b.depth ? dsWrite : dsAlways)   // 積分の水（不透明）は奥行きを比べて描く
                 e.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vv.count)
                 continue
             }

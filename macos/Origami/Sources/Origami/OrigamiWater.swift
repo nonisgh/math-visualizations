@@ -328,12 +328,18 @@ extension OrigamiState {
             // 1 回りの始め（時刻が大きくもどった時）だけ空に。抜けきるのを待つ間は、時刻を毎コマ少しもどして止めているので、
             //   コマの長さがばらつくと「もどった」と見まちがえて、抜いている途中で水がぱっと消えていた（2026-11-26）
             if t < nsPrevT - 0.5 { ns.reset(level: -1); nsVTarget = 0; pourJet.reset() }
+            ns.dyeOn = waterRainbow && (waterRainbowDye || waterRainbowFlat); ns.dyePaint = pouring && !paused   // ルービックの色水：注いでいる間は場所の色に塗り、満タンからは水といっしょに流す
+            // 七色ペンキ：新しく入った水を、その時の色（たまった割合 0〜100% → 赤〜むらさき）でぬる。水面はいつも今の 1 色、横の面には七色の層が残る
+            ns.dyeTime = waterRainbow && waterRainbowFlat && !waterRainbowDye
+            ns.dyePattern = waterRainbowMarble ? 3 : waterRainbowConc ? 2 : waterRainbowStripe ? 1 : 0   // 色水の模様：0 ルービック・1 七色の縞・2 同心の虹・3 墨流し
+            ns.dyeNow = Float(max(0, min(1, ns.lastVol / (16 * pow(H, 4)) / max(0.5, min(0.995, waterFillMaxNow)))))
             nsPrevT = t
             // 通気口（排水口があって、通気口ありの時）：上 +W の面の通気口を、外の空気につながった口にする（圧力 0）。底から抜ける分だけ、ここから空気が入る
             let ventOn = waterVent && drainShown
             // 満タンの上限：通気口があれば 100% まで（16⁴ 以上）。無ければ、いちばん上に空気の層が 1 マス以上残るように（空気が無いと、閉じた箱で水が抜けない）。
             //   8⁴ は通気口があっても 85%：満タンからは抜け始めなかった（原因はまだ分からない。2026-11-26）
             let fillMax = ventOn && ns.N >= Self.wFullN ? 0.995 : min(0.95, 1 - 1.2 / Double(ns.N))   // 8⁴ は 93% でも抜け始めなかった（空気の層が 1 マス要る）
+            waterFillMaxNow = fillMax
             let vf = ns.lastVol / Vbox, pourOn = pouring && vf < fillMax + 0.02, Nf = Float(ns.N)
             ns.par.vort = Float(waterVort * nsVortK * nsFlowK)
             // 自動の本物の水：重力は手で遊ぶ時と同じ強さ（waterG、ふつう 9.8）で、いつも箱の下（−w、好きな向きなら gDown）。
@@ -502,6 +508,11 @@ extension OrigamiState {
         if hold && !full { nsVTarget = min(0.88 * Vbox, max(nsVTarget, ns.lastVol) + 1.0 * waterPourRate * dt) }
         else if leaking { nsVTarget = min(nsVTarget, ns.lastVol) }
         nsVTarget = min(nsVTarget, ns.lastVol + 0.01 * Vbox)                // 目標が実際の量から離れすぎないように
+        // 色水（七色ペンキ・ルービック・縞・同心・墨流し）：遊ぶモードでも動かす（前は自動の時だけで、遊ぶと昔の見る向きの色にもどっていた。2026-11-27）
+        ns.dyeOn = waterRainbow && (waterRainbowDye || waterRainbowFlat); ns.dyePaint = hold && !full
+        ns.dyeTime = waterRainbow && waterRainbowFlat && !waterRainbowDye
+        ns.dyeNow = Float(max(0, min(1, ns.lastVol / (0.88 * Vbox))))
+        ns.dyePattern = waterRainbowMarble ? 3 : waterRainbowConc ? 2 : waterRainbowStripe ? 1 : 0
         nsSloshKick(ns, dt)
         ns.tick(dt, target: nsVTarget < 1e-3 ? nil : nsVTarget, keepAir: true)
         nsBubbleTick(ns, intPaused ? 0 : dt, glug: false)
@@ -651,22 +662,40 @@ extension OrigamiRenderer {
         guard k > 0.01, st.intMethod == 1 else { return [] }
         let H = OrigamiState.half, h = st.waterH, d = n - 1, G = OrigamiState.wGrid, k0 = k
         let thin = min(1, (h + 1) * 3)                                   // 水が薄い時は揺れも小さく
+        var wq4: [SIMD4<Float>] = []; let wq4None = SIMD4<Float>(1e6, 0, 0, 0)   // 水の頂点ごとの 4 次元の場所（色水を画素ごとに読む用。無い所は印）
         var tris: [IntVert] = [], wtris: [IntVert] = [], ptris: [IntVert] = []   // ptris：水面に浮いたつぶ（水の面の後に重ねる）
         let real = st.waterReal
         /// リアルな水の板（3 つの点・面の向きは点の順から。kind：1 水面・0 壁と底）
         /// tk：その点の水の厚みの割合（0 うすい 〜 1 深い）。水のシェーダーが、うすい所ほどすけて色もうすくする（頂点の p.w）
         /// hu：レインボーの水の色の値（0〜1、点ごと）。nil ならふつうの水。レインボーの時は kind の所に 2 ＋ 4×kind ＋ 3×hu を入れる（水のシェーダーが分ける）
         let rainbow = st.waterRainbow, Hh = OrigamiState.half
-        func wface(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>, _ kind: Float, _ na: SIMD3<Double>? = nil, _ nb: SIMD3<Double>? = nil, _ nc: SIMD3<Double>? = nil, tk: (Float, Float, Float) = (1, 1, 1), hu: (Float, Float, Float)? = nil) {
+        // 3 次元の窓もレインボーに（2026-11-27、ユーザー）：景色の点から、箱の (x, y, z) へ逆にたどる（X‐Y・X‐Z・Y‐Z の回転は戻すだけ、Z‐W の遠近は数回くり返して解く）。
+        //   q4 の w に 2×10⁵ の印を入れて、画素ごとに箱の場所から色を決める（OrigamiRaster の rwf）
+        let l3T = st.l3.transpose, rxyT = st.rxy.transpose, zwA = st.zw, Dw = st.camW, pbl = st.projBlend
+        func box3(_ s: SIMD3<Double>) -> SIMD4<Float> {
+            var v = rxyT * SIMD4<Double>(s.x, s.y, s.z, 0)
+            if zwA != 0 {
+                let cz = cos(zwA), sz = sin(zwA); var k = 1.0, z = v.z / (abs(cz) > 1e-6 ? cz : 1e-6)
+                for _ in 0..<6 { let wc = max(-Dw + 0.5, min(Dw - 0.5, z * sz)); k = 1 + (1 / (1 - wc / Dw) - 1) * (1 - pbl); z = v.z / ((abs(cz) > 1e-6 ? cz : 1e-6) * k) }
+                v = SIMD4<Double>(v.x / k, v.y / k, z, 0)
+            }
+            let p = l3T * v
+            return SIMD4<Float>(Float(p.x), Float(p.y), Float(p.z), 2e5)
+        }
+        func wface(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>, _ kind: Float, _ na: SIMD3<Double>? = nil, _ nb: SIMD3<Double>? = nil, _ nc: SIMD3<Double>? = nil, tk: (Float, Float, Float) = (1, 1, 1), hu: (Float, Float, Float)? = nil, q4: (SIMD4<Float>, SIMD4<Float>, SIMD4<Float>)? = nil) {
             var nn = simd_cross(b - a, c - a); let l = simd_length(nn); if l < 1e-12 { return }; nn /= l
             var ka = kind, kb = kind, kc = kind
-            if rainbow, let h3 = hu {                                        // 虹色は 4 次元の水だけ（3 次元の窓の水は、ふつうの水のまま）
+            if rainbow, let h3 = hu ?? (d == 2 ? (Float(0.5), Float(0.5), Float(0.5)) : nil) {   // 3 次元の窓も虹色に（色は画素ごとに箱の場所から）
                 let base = 2 + 4 * (kind > 0.5 ? 1 : 0) as Float
                 ka = base + 3 * max(0, min(1, h3.0)); kb = base + 3 * max(0, min(1, h3.1)); kc = base + 3 * max(0, min(1, h3.2))
             }
             wtris.append(IntVert(p: SIMD4(gpuW(a), tk.0), c: SIMD4(gpuW(na ?? nn), ka)))   // 配列を作らずに 3 つ（たくさん呼ばれるので）
             wtris.append(IntVert(p: SIMD4(gpuW(b), tk.1), c: SIMD4(gpuW(nb ?? nn), kb)))
             wtris.append(IntVert(p: SIMD4(gpuW(c), tk.2), c: SIMD4(gpuW(nc ?? nn), kc)))
+            while wq4.count + 3 < wtris.count { wq4.append(wq4None) }
+            if let q = q4 { wq4.append(q.0); wq4.append(q.1); wq4.append(q.2) }
+            else if d == 2 && rainbow { wq4.append(box3(a)); wq4.append(box3(b)); wq4.append(box3(c)) }
+            else { wq4.append(wq4None); wq4.append(wq4None); wq4.append(wq4None) }
         }
         let A = Float(0.4 * k)                                            // 面の濃さ（ウェブ版の opacity 0.4）
         func P(_ u: [Double], _ w: Double) -> SIMD3<Double> { st.place(u.map { $0 * H } + [w], n).0 }
@@ -761,7 +790,9 @@ extension OrigamiRenderer {
             let smoothN = mesh.t1.count == mesh.p.count
             // レインボーの水の色の値：4 次元の奥行き（今の向きで、画面に写すと消える 4 番目の向きの座標）を 0〜1 に。
             //   箱の手前の面（−H）から奥の面（＋H）で 0〜1（前は 4H で割っていて、色の幅の半分しか使わず、青〜紫ばかりで暗かった）
+            let dyeNS = (st.waterRainbowDye || st.waterRainbowFlat) && st.waterNS ? st.ns4 : nil   // ルービックの色水・七色ペンキ：色は計算で運んだ色水から（七色ペンキは、ぬった時のたまった割合 0〜1）
             @inline(__always) func hue4(_ q: SIMD4<Float>) -> Float {
+                if let dn = dyeNS, dn.dyeCPU.count == dn.MM { return dn.dyeHue(q) }
                 let v = m4 * SIMD4<Double>(Double(q.x), Double(q.y), Double(q.z), Double(q.w))
                 return Float(max(0, min(1, 0.5 + v.w / (2 * Hh))))
             }
@@ -796,21 +827,22 @@ extension OrigamiRenderer {
                 }
                 for t in 0..<mesh.kind.count {
                     let ia = Int(mesh.idx[3 * t]), ib = Int(mesh.idx[3 * t + 1]), ic = Int(mesh.idx[3 * t + 2]), kd = mesh.kind[t]
-                    let a = PU[ia], b = PU[ib], c = PU[ic], tk = (TU[ia], TU[ib], TU[ic]), hu: (Float, Float, Float)? = rainbow ? (HU[ia], HU[ib], HU[ic]) : nil
+                    let a = PU[ia], b = PU[ib], c = PU[ic], tk = (TU[ia], TU[ib], TU[ic])
+                    var hu: (Float, Float, Float)? = rainbow ? (HU[ia], HU[ib], HU[ic]) : nil
                     if kd > 0.5 && HasN[ia] && HasN[ib] && HasN[ic] {
                         let fn = simd_cross(b - a, c - a), na = NU[ia], nb = NU[ib], nc = NU[ic]
-                        wface(a, b, c, kd, simd_dot(na, fn) < 0 ? -na : na, simd_dot(nb, fn) < 0 ? -nb : nb, simd_dot(nc, fn) < 0 ? -nc : nc, tk: tk, hu: hu)
-                    } else { wface(a, b, c, kd, tk: tk, hu: hu) }
+                        wface(a, b, c, kd, simd_dot(na, fn) < 0 ? -na : na, simd_dot(nb, fn) < 0 ? -nb : nb, simd_dot(nc, fn) < 0 ? -nc : nc, tk: tk, hu: hu, q4: (mesh.up[ia], mesh.up[ib], mesh.up[ic]))
+                    } else { wface(a, b, c, kd, tk: tk, hu: hu, q4: (mesh.up[ia], mesh.up[ib], mesh.up[ic])) }
                 }
             }
             for t in 0..<mesh.kind.count where !fast {
                 let a = pj(mesh.p[3 * t]), b = pj(mesh.p[3 * t + 1]), c = pj(mesh.p[3 * t + 2]), kd = mesh.kind[t]
                 let tk = real ? (thick(mesh.p[3 * t]), thick(mesh.p[3 * t + 1]), thick(mesh.p[3 * t + 2])) : (Float(1), Float(1), Float(1))
-                let hu: (Float, Float, Float)? = rainbow ? (hue4(mesh.p[3 * t]), hue4(mesh.p[3 * t + 1]), hue4(mesh.p[3 * t + 2])) : nil
+                var hu: (Float, Float, Float)? = rainbow ? (hue4(mesh.p[3 * t]), hue4(mesh.p[3 * t + 1]), hue4(mesh.p[3 * t + 2])) : nil
                 if real && smoothN && kd > 0.5, let na = vn(3 * t, a), let nb = vn(3 * t + 1, b), let nc = vn(3 * t + 2, c) {
                     let fn = simd_cross(b - a, c - a)                          // 向きをそろえる（三角形の向きと同じ側に）
-                    wface(a, b, c, kd, simd_dot(na, fn) < 0 ? -na : na, simd_dot(nb, fn) < 0 ? -nb : nb, simd_dot(nc, fn) < 0 ? -nc : nc, tk: tk, hu: hu)
-                } else if real { wface(a, b, c, kd, tk: tk, hu: hu) }
+                    wface(a, b, c, kd, simd_dot(na, fn) < 0 ? -na : na, simd_dot(nb, fn) < 0 ? -nb : nb, simd_dot(nc, fn) < 0 ? -nc : nc, tk: tk, hu: hu, q4: (mesh.p[3 * t], mesh.p[3 * t + 1], mesh.p[3 * t + 2]))
+                } else if real { wface(a, b, c, kd, tk: tk, hu: hu, q4: (mesh.p[3 * t], mesh.p[3 * t + 1], mesh.p[3 * t + 2])) }
                 else { let col = kd > 0.5 ? Self.liqMen * 0.85 : Self.liqWall; face(a, b, c, col, col, col) }
             }
             // 4D の空気の泡：4 次元の小さな玉を写した 3D の小さな玉（水の面として描く＝ふちが光って、すけて見える。うすい水と同じすけ方）
@@ -829,6 +861,7 @@ extension OrigamiRenderer {
                         wtris.append(IntVert(p: SIMD4(pa, 0.3), c: na)); wtris.append(IntVert(p: SIMD4(pc, 0.3), c: nc)); wtris.append(IntVert(p: SIMD4(pd, 0.3), c: nd))
                     } }
                 }
+                while wq4.count < wtris.count { wq4.append(wq4None) }           // 泡の頂点：4 次元の場所は無し
             }
             // 輪切りの切り口：軸 a ＝ c の 3D の立方体（残りの 3 つの向きが ±H）を金色の線で
             if st.waterSlice > 0 {
@@ -1140,7 +1173,9 @@ extension OrigamiRenderer {
                 }
                 for m in 0..<(rings.count - 1) { for q in 0..<K {
                     let p0 = rings[m][q], p1 = rings[m][(q + 1) % K], p2 = rings[m + 1][(q + 1) % K], p3 = rings[m + 1][q]
-                    let ha = Float((Double(i + m) * dzJ) / J.L), hb = Float((Double(i + m + 1) * dzJ) / J.L)
+                    var ha = Float((Double(i + m) * dzJ) / J.L), hb = Float((Double(i + m + 1) * dzJ) / J.L)
+                    if st.waterRainbowFlat, let dn = nsW { ha = dn.dyeNow; hb = dn.dyeNow }   // 七色ペンキ：注ぐ水は、今ぬっている色
+                    if st.waterRainbowDye, let dn = nsW, dn.dyeCPU.count == dn.MM { let hh = dn.dyeHue(SIMD4<Float>(Float(u0[0] * H), Float(u0[1] * H), Float(u0[2] * H), Float(surfS))); ha = hh; hb = hh }   // 色水：注ぐ水は、当たる所の色
                     wface(p0.0, p1.0, p2.0, 1, p0.1, p1.1, p2.1, hu: rbJ ? (ha, ha, hb) : nil); wface(p0.0, p2.0, p3.0, 1, p0.1, p2.1, p3.1, hu: rbJ ? (ha, hb, hb) : nil)
                 } }
                 i = j + 1
@@ -1261,8 +1296,11 @@ extension OrigamiRenderer {
                         var u = su; u[0] += R * cos(th); u[a2] += R * sin(th)
                         return P(u, surfS + pileTop * s - 0.25 * pileTop * (1 - s))
                     }
+                    var lastTg = SIMD3<Double>(0, -1, 0)
                     for m in 0...MC {
-                        let sv = 1 - Double(m) / Double(MC), C = cp(sv), Tg = simd_normalize(cp(max(0, sv - 0.01)) - C)
+                        // 向き：次の点との差（いちばん古い端では、同じ点どうしで長さ 0 になり NaN になっていた → ひとつ前の向き。2026-11-27）
+                        let sv = 1 - Double(m) / Double(MC), C = cp(sv), dv = cp(max(0, sv - 0.01)) - C, Tg = simd_length(dv) > 1e-12 ? simd_normalize(dv) : lastTg
+                        lastTg = Tg
                         let rr = rrEnd * (0.45 + 0.55 * sv) * min(1, sv * 6 + 0.15)
                         let hlp: SIMD3<Double> = abs(Tg.x) < 0.9 ? SIMD3(1, 0, 0) : SIMD3(0, 1, 0), N1 = simd_normalize(simd_cross(Tg, hlp)), N2 = simd_cross(Tg, N1)
                         cr.append((0..<K).map { j in let th = 2 * Double.pi * Double(j) / Double(K), nv = N1 * cos(th) + N2 * sin(th); return (C + nv * rr, nv) })
@@ -1374,7 +1412,10 @@ extension OrigamiRenderer {
             }
             let rbO = st.waterRainbow, n = max(1, L.count - 1)
             for m in 0..<max(0, L.count - 1) where abs(L[m].w - L[m + 1].w) < Float(1.5 * dxw) {
-                let a = ringC(L[m]), b = ringC(L[m + 1]), ha = Float(m) / Float(n), hb = Float(m + 1) / Float(n)
+                let a = ringC(L[m]), b = ringC(L[m + 1])
+                let flat = st.waterRainbowFlat
+                var ha = flat ? Float(max(0, min(1, 0.5 + Double(L[m].w) / (2 * H)))) : Float(m) / Float(n), hb = flat ? Float(max(0, min(1, 0.5 + Double(L[m + 1].w) / (2 * H)))) : Float(m + 1) / Float(n)
+                if st.waterRainbowDye || flat, ns.dyeCPU.count == ns.MM { let hh = ns.dyeHue(SIMD4<Float>(L[m].c, -Float(H))); ha = hh; hb = hh }   // 色水：排水口から出ていく水の色（床の所）
                 for (i, j) in edges { wface(a[i], a[j], b[j], 1, hu: rbO ? (ha, ha, hb) : nil); wface(a[i], b[j], b[i], 1, hu: rbO ? (ha, hb, hb) : nil) }
             }
         } else if real && outNow && holeOut {
@@ -1605,9 +1646,49 @@ extension OrigamiRenderer {
             let tEnd = OrigamiState.wOPEN + OrigamiState.wPOUR, wt = st.waterT
             let ringK = free ? 0 : st.waterPhase == 1 ? min(1, (wt - OrigamiState.wOPEN) * 3) : (wt >= tEnd ? exp(-(wt - tEnd) / 0.8) : 0)
             let c0 = P(su, surfS), sc = simd_length(P(su.map { _ in 1.0 }, surfS) - P(su.map { _ in -1.0 }, surfS)) / 2 / Double(su.count).squareRoot()
-            let ring = [SIMD4<Float>(gpuW(c0), Float(ringK * thin)), SIMD4<Float>(Float(max(1e-3, sc)), Float(st.nsHoneyColor), Float(st.nsHoneyPale), Float(st.waterGloss))]   // 2 つめの y・z：はちみつの色の濃さ・淡さ
+            let ring = [SIMD4<Float>(gpuW(c0), Float(ringK * thin)), SIMD4<Float>(Float(max(1e-3, sc)), Float(st.nsHoneyColor), Float(st.nsHoneyPale), Float(st.waterGloss)), SIMD4<Float>(st.waterRainbowDye && st.waterNS ? 2 : st.waterRainbowFlat ? 1 : 0, Float(min(64, st.intNax)), st.waterRainbowMarble ? 3 : st.waterRainbowConc ? 2 : st.waterRainbowStripe ? 1 : 0, Float(H))]   // z：縞か・w：箱の半分の大きさ（3 次元の窓の色）   // 2 つめの y・z：はちみつの色の濃さ・淡さ
             // 水の値：時刻・（映りこみの絵があるかは描く時に）・深さ（水の厚み 0〜1）・濃さ
-            out.append(IntTriBatch(add: false, verts: wtris, water: true, wp: SIMD4<Float>(Float(st.waterTT), 0, Float(0.15 + 0.45 * (h + 1) / 2), Float(k)), ring: ring))
+            // 積分の水（不透明）：水の三角形を、奥から手前の順に並べかえて描く（絵描きの順）。奥行きを比べて描くと、箱のガラスの面の奥行きに
+            //   かくれて、箱の中の水がぜんぶ見えなくなった（外側がガラスのむらさきだけに。2026-11-27）
+            if (d == 3 || d == 2) && st.waterRainbow && (st.waterRainbowFlat || st.waterRainbowDye) && st.waterNS {
+                // 数でない値（NaN）の三角形は先に取りのぞく（遠さを整数にする時に落ちていた。2026-11-27）
+                while wq4.count < wtris.count { wq4.append(wq4None) }
+                do {
+                    var ok: [IntVert] = [], okq: [SIMD4<Float>] = []; ok.reserveCapacity(wtris.count); okq.reserveCapacity(wtris.count)
+                    for t in 0..<(wtris.count / 3) {
+                        let a = wtris[3 * t].p, b = wtris[3 * t + 1].p, c = wtris[3 * t + 2].p
+                        if a.x.isFinite && a.y.isFinite && a.z.isFinite && b.x.isFinite && b.y.isFinite && b.z.isFinite && c.x.isFinite && c.y.isFinite && c.z.isFinite {
+                            for v in 0..<3 { ok.append(wtris[3 * t + v]); okq.append(wq4[3 * t + v]) }
+                        }
+                    }
+                    wtris = ok; wq4 = okq
+                }
+                if wtris.count >= 3 {                                           // 取りのぞいて からっぽになった時は並べない（からの配列の 0 番を読んで落ちていた。2026-11-27）
+                let e = gpuW(eye), nT = wtris.count / 3
+                var key = [Float](repeating: 0, count: nT)
+                for t in 0..<nT { let c = (wtris[3 * t].p + wtris[3 * t + 1].p + wtris[3 * t + 2].p) / 3; key[t] = simd_length_squared(SIMD3(c.x, c.y, c.z) - e) }
+                // かご分け（遠さを 2048 段に分けて数える）：ふつうの並べかえ（比べて並べる）は 6 万個で毎コマ重く、処理落ちしていた（2026-11-27）
+                var kmin = Float.greatestFiniteMagnitude, kmax: Float = 0
+                for v in key { kmin = min(kmin, v); kmax = max(kmax, v) }
+                let NB = 2048, sc = Float(NB - 1) / max(1e-9, kmax - kmin)
+                var cnt = [Int](repeating: 0, count: NB + 1)
+                var bk = [Int](repeating: 0, count: nT)
+                for t in 0..<nT { let b = NB - 1 - Int((key[t] - kmin) * sc); bk[t] = b; cnt[b + 1] += 1 }   // 遠いほど前のかご
+                for b in 0..<NB { cnt[b + 1] += cnt[b] }
+                while wq4.count < wtris.count { wq4.append(wq4None) }
+                var sorted = [IntVert](repeating: wtris[0], count: wtris.count), sq = [SIMD4<Float>](repeating: wq4None, count: wtris.count)
+                for t in 0..<nT { let o = cnt[bk[t]]; cnt[bk[t]] += 1; for v in 0..<3 { sorted[3 * o + v] = wtris[3 * t + v]; sq[3 * o + v] = wq4[3 * t + v] } }
+                wtris = sorted; wq4 = sq
+                }
+            }
+            while wq4.count < wtris.count { wq4.append(wq4None) }
+            var wb = IntTriBatch(add: false, verts: wtris, water: true, wp: SIMD4<Float>(Float(st.waterTT), 0, Float(0.15 + 0.45 * (h + 1) / 2), Float(k)), ring: ring)
+            if d == 3, st.waterRainbow, st.waterRainbowFlat || st.waterRainbowDye, st.waterNS, let dn = st.ns4, dn.dyeOn, let db = dn.dye, dn.dyeCPU.count == dn.MM {
+                wb.pos4 = Array(wq4.prefix(wtris.count)); wb.dye = db; wb.dyeOff = dn.boxOff * 4; wb.dyeInfo = SIMD4<Float>(Float(dn.N), Float(dn.M), dn.H, dn.par.dx)   // 色水を画素ごとに読む
+            }
+            if d == 2 && st.waterRainbow { wb.pos4 = Array(wq4.prefix(wtris.count)) }   // 3 次元の窓：画素ごとに箱の場所から色
+            wb.depth = (d == 3 || d == 2) && st.waterRainbow && (st.waterRainbowFlat || st.waterRainbowDye) && st.waterNS   // 不透明な色の水は、水どうしで奥行きを比べて描く
+            out.append(wb)
         }
         if !ptris.isEmpty { out.append(IntTriBatch(add: false, verts: ptris)) }
         return out
